@@ -1,0 +1,276 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterAll, describe, expect, it } from 'vitest'
+import { makeEvent, type EventEnvelope, type MakeEventInput } from '../src/core/envelope'
+import { foldLines, foldLog, type InitiativeState } from '../src/core/fold'
+import { appendEvents, serializeEvent } from '../src/core/log'
+
+const scratch = mkdtempSync(join(tmpdir(), 'harness-fold-'))
+
+afterAll(() => {
+  rmSync(scratch, { recursive: true, force: true })
+})
+
+function ev(
+  type: string,
+  payload: Record<string, unknown>,
+  overrides: Partial<Omit<MakeEventInput, 'type' | 'payload'>> = {},
+): EventEnvelope {
+  return makeEvent({
+    initiative: 'harness-build',
+    session: 'sess-1',
+    source: 'claude-code',
+    actor: 'agent',
+    type,
+    payload,
+    ...overrides,
+  })
+}
+
+/** A representative, well-formed event sequence used across tests. */
+function storyline(): EventEnvelope[] {
+  return [
+    ev('initiative_created', { slug: 'harness-build', goal: 'Build the v1 engine' }),
+    ev('plan_updated', {
+      plan: {
+        phases: [
+          {
+            name: 'Phase 1 — Event log core',
+            tasks: [
+              { id: '1.1', title: 'Scaffold' },
+              { id: '1.2', title: 'Envelope' },
+            ],
+          },
+          { name: 'Phase 2 — MCP server', tasks: [{ id: '2.1', title: 'stdio server' }] },
+        ],
+      },
+    }),
+    ev('phase_status_changed', { phase: 'Phase 1 — Event log core', status: 'active' }),
+    ev('session_started', { tool: 'claude-code', model: 'claude-fable-5' }),
+    ev('task_status_changed', { id: '1.1', status: 'active' }),
+    ev('file_touched', { path: 'src/core/log.ts', op: 'write' }),
+    ev('file_touched', { path: 'src/core/log.ts', op: 'edit' }), // dup path → dedupe
+    ev('file_touched', { path: 'test/log.test.ts', op: 'write' }),
+    ev('command_run', { cmd: 'npm test' }),
+    ev('decision_logged', { chose: 'O_APPEND', over: 'lockfile', because: 'kernel-atomic, simpler' }),
+    ev('note_added', { text: 'lines stay under PIPE_BUF' }),
+    ev('task_status_changed', { id: '1.1', status: 'done' }),
+    ev('session_ended', { summary: 'Scaffold + log done', next_action: 'Fold next' }),
+  ]
+}
+
+function lines(events: EventEnvelope[]): string[] {
+  return events.map(serializeEvent)
+}
+
+describe('foldLines', () => {
+  it('folds a well-formed log into the SPEC §State shape', () => {
+    const events = storyline()
+    const { state, warnings } = foldLines(lines(events))
+
+    expect(warnings).toEqual([])
+    expect(state.slug).toBe('harness-build')
+    expect(state.goal).toBe('Build the v1 engine')
+
+    expect(state.phases).toHaveLength(2)
+    expect(state.phases[0]).toEqual({
+      name: 'Phase 1 — Event log core',
+      status: 'active',
+      tasks: [
+        { id: '1.1', title: 'Scaffold', status: 'done' },
+        { id: '1.2', title: 'Envelope', status: 'pending' },
+      ],
+    })
+
+    expect(state.decisions).toHaveLength(1)
+    expect(state.decisions[0]).toMatchObject({
+      chose: 'O_APPEND',
+      over: 'lockfile',
+      because: 'kernel-atomic, simpler',
+    })
+
+    expect(state.sessions).toHaveLength(1)
+    expect(state.sessions[0]).toMatchObject({
+      id: 'sess-1',
+      tool: 'claude-code',
+      summary: 'Scaffold + log done',
+    })
+    expect(state.sessions[0]?.ended).toBeDefined()
+
+    expect(state.files_touched).toEqual(['src/core/log.ts', 'test/log.test.ts'])
+
+    expect(state.current.active_phase).toBe('Phase 1 — Event log core')
+    expect(state.current.next_action).toBe('Fold next')
+    expect(state.current.blocked_on).toBeUndefined()
+
+    expect(state.cursor).toBe(events[events.length - 1]?.id)
+  })
+
+  it('is deterministic: same log → deep-equal state and warnings (acceptance)', () => {
+    const log = [
+      ...lines(storyline()),
+      'not json at all',
+      lines([ev('mystery_event', { x: 1 })])[0]!,
+    ]
+    const a = foldLines(log)
+    const b = foldLines(log)
+    expect(a.state).toEqual(b.state)
+    expect(a.warnings).toEqual(b.warnings)
+    expect(JSON.stringify(a.state)).toBe(JSON.stringify(b.state))
+  })
+
+  it('skips a corrupt line with a warning, never fatally (acceptance)', () => {
+    const events = storyline()
+    const log = lines(events)
+    log.splice(4, 0, '{"v":1,"id":"trunca') // injected corrupt line mid-log
+
+    const { state, warnings } = foldLines(log)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toMatch(/line 5: unparseable JSON/)
+    expect(state.slug).toBe('harness-build') // everything else still folded
+    expect(state.cursor).toBe(events[events.length - 1]?.id)
+  })
+
+  it('tolerates a torn final line (crash mid-append)', () => {
+    const events = storyline()
+    const full = lines(events)
+    const lastLine = full[full.length - 1]!
+    const torn = [...full.slice(0, -1), lastLine.slice(0, Math.floor(lastLine.length / 2))]
+
+    const { state, warnings } = foldLines(torn)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toMatch(/torn or corrupt/)
+    // state reflects everything before the torn line
+    expect(state.cursor).toBe(events[events.length - 2]?.id)
+  })
+
+  it('skips unknown event types with a warning but advances the cursor', () => {
+    const future = ev('hologram_rendered', { pixels: 12 })
+    const { state, warnings } = foldLines(lines([...storyline(), future]))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toMatch(/unknown event type "hologram_rendered"/)
+    expect(state.cursor).toBe(future.id)
+  })
+
+  it('skips known-type events with invalid payloads, with a warning', () => {
+    const bad = ev('task_status_changed', { id: '1.2', status: 'finished' })
+    const { state, warnings } = foldLines(lines([...storyline(), bad]))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toMatch(/invalid task_status_changed payload/)
+    const task = state.phases[0]?.tasks.find((t) => t.id === '1.2')
+    expect(task?.status).toBe('pending')
+  })
+
+  it('ignores blank lines silently', () => {
+    const log = ['', ...lines(storyline()), '', '']
+    expect(foldLines(log).warnings).toEqual([])
+  })
+
+  it('voids the event referenced by a correction (BD8)', () => {
+    const events = storyline()
+    const wrongDone = events.find(
+      (e) => e.type === 'task_status_changed' && (e.payload as { status?: string }).status === 'done',
+    )!
+    const correction = ev('correction', { ref: wrongDone.id, reason: 'marked done prematurely' })
+
+    const { state, warnings } = foldLines(lines([...events, correction]))
+    expect(warnings).toEqual([])
+    const task = state.phases[0]?.tasks.find((t) => t.id === '1.1')
+    expect(task?.status).toBe('active') // the voided "done" never applied
+  })
+
+  it('derives blocked_on from blocked tasks, preferring the blocking note', () => {
+    const extra = [
+      ev('task_status_changed', { id: '1.2', status: 'blocked', note: 'waiting on SDK release' }),
+      ev('task_status_changed', { id: '2.1', status: 'blocked' }),
+    ]
+    const { state } = foldLines(lines([...storyline(), ...extra]))
+    expect(state.current.blocked_on).toBe(
+      'task 1.2: waiting on SDK release; task 2.1 (stdio server)',
+    )
+  })
+
+  it('clears blocked_on when the task unblocks', () => {
+    const extra = [
+      ev('task_status_changed', { id: '1.2', status: 'blocked', note: 'waiting' }),
+      ev('task_status_changed', { id: '1.2', status: 'active' }),
+    ]
+    const { state } = foldLines(lines([...storyline(), ...extra]))
+    expect(state.current.blocked_on).toBeUndefined()
+  })
+
+  it('creates a stub session (with warning) for session_ended without session_started', () => {
+    const orphan = ev(
+      'session_ended',
+      { summary: 'ghost session', next_action: 'none' },
+      { session: 'sess-ghost' },
+    )
+    const { state, warnings } = foldLines(lines([...storyline(), orphan]))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toMatch(/ended without session_started/)
+    expect(state.sessions.find((s) => s.id === 'sess-ghost')?.tool).toBe('unknown')
+  })
+
+  it('plan_updated fully replaces the plan structure', () => {
+    const replace = ev('plan_updated', {
+      plan: {
+        goal: 'Revised goal',
+        phases: [{ name: 'Only phase', status: 'active', tasks: [] }],
+      },
+    })
+    const { state } = foldLines(lines([...storyline(), replace]))
+    expect(state.goal).toBe('Revised goal')
+    expect(state.phases).toHaveLength(1)
+    expect(state.current.active_phase).toBe('Only phase')
+  })
+
+  it('warns and skips duplicate task_added ids', () => {
+    const dup = ev('task_added', { phase: 'Phase 2 — MCP server', id: '1.1', title: 'Duplicate' })
+    const { state, warnings } = foldLines(lines([...storyline(), dup]))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toMatch(/already exists/)
+    expect(state.phases[1]?.tasks).toHaveLength(1)
+  })
+})
+
+describe('foldLog', () => {
+  it('reads a real appended file and matches foldLines of the same events', () => {
+    const logPath = join(scratch, 'events.jsonl')
+    const events = storyline()
+    appendEvents(logPath, events)
+
+    const fromFile = foldLog(logPath)
+    const fromLines = foldLines(lines(events))
+    expect(fromFile.state).toEqual(fromLines.state)
+    expect(fromFile.warnings).toEqual([])
+  })
+
+  it('acceptance: fold of an appended log with an injected corrupt line succeeds with warning', () => {
+    const logPath = join(scratch, 'corrupt.jsonl')
+    const events = storyline()
+    appendEvents(logPath, events.slice(0, 6))
+    // simulate a torn write followed by more good appends
+    writeFileSync(logPath, '{"v":1,"id":"XYZ', { flag: 'a' })
+    writeFileSync(logPath, '\n', { flag: 'a' })
+    appendEvents(logPath, events.slice(6))
+
+    const { state, warnings } = foldLog(logPath)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toMatch(/unparseable JSON/)
+    expect(state.slug).toBe('harness-build')
+    expect(state.cursor).toBe(events[events.length - 1]?.id)
+
+    const clean = foldLines(lines(events))
+    expect(state).toEqual(clean.state)
+  })
+})
+
+// InitiativeState is JSON-safe by construction; this guards against Dates/Maps sneaking in.
+describe('state shape', () => {
+  it('survives a JSON round-trip unchanged', () => {
+    const { state } = foldLines(lines(storyline()))
+    const roundTripped = JSON.parse(JSON.stringify(state)) as InitiativeState
+    expect(roundTripped).toEqual(state)
+  })
+})

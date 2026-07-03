@@ -10,7 +10,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 
 ## Current state
 - Active phase: 1
-- Next action: Task 1.4 — fold/replay events.jsonl → InitiativeState
+- Next action: Task 1.5 — cursor primitive (export/import since N)
 - Blocked on: nothing
 
 ## Plan
@@ -19,7 +19,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [x] 1.1 Scaffold: TS strict, vitest, esbuild bundling, npm bin entry
 - [x] 1.2 Event envelope types + runtime validation (SPEC §Envelope)
 - [x] 1.3 Append: atomic single-line O_APPEND writes, concurrent-safe
-- [ ] 1.4 Fold/replay: events.jsonl → InitiativeState (SPEC §State)
+- [x] 1.4 Fold/replay: events.jsonl → InitiativeState (SPEC §State)
 - [ ] 1.5 Cursor primitive: export/import "events since N" (sync-ready)
 - [ ] 1.6 Tests: concurrent appends, corrupt-line tolerance (skip+warn),
       replay determinism, cursor round-trip
@@ -82,6 +82,18 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   toolchain, not runtime deps — allowed under the CLAUDE.md dependency rule
   (which names vitest/esbuild as the test/build tools). Runtime dependency
   set stays exactly: @modelcontextprotocol/sdk, commander, chokidar, ulid.
+- BD8: Correction fold semantics — a correction event VOIDS the event its
+  ref points at (target skipped during replay); replacement content is
+  appended as a fresh event. Rejected in-place patching: violates event
+  immutability and complicates replay. SPEC only says "referencing the
+  target id", so this is the minimal meaningful interpretation.
+- BD9: current.* fields are DERIVED at fold end, not stored: active_phase =
+  first phase with status active; next_action = latest session_ended's
+  next_action; blocked_on = list of blocked phases/tasks (using the blocking
+  task_status_changed note when present, cleared on unblock). SPEC leaves
+  the computation unspecified; deriving keeps the log free of redundant
+  state-sync events. Envelope-valid events with unknown types still advance
+  the cursor (sync moves events by envelope, not payload).
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,
