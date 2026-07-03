@@ -10,7 +10,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 
 ## Current state
 - Active phase: 1
-- Next action: Task 1.5 — cursor primitive (export/import since N)
+- Next action: Task 1.6 — Phase 1 acceptance test suite
 - Blocked on: nothing
 
 ## Plan
@@ -20,7 +20,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [x] 1.2 Event envelope types + runtime validation (SPEC §Envelope)
 - [x] 1.3 Append: atomic single-line O_APPEND writes, concurrent-safe
 - [x] 1.4 Fold/replay: events.jsonl → InitiativeState (SPEC §State)
-- [ ] 1.5 Cursor primitive: export/import "events since N" (sync-ready)
+- [x] 1.5 Cursor primitive: export/import "events since N" (sync-ready)
 - [ ] 1.6 Tests: concurrent appends, corrupt-line tolerance (skip+warn),
       replay determinism, cursor round-trip
 
@@ -94,6 +94,11 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   the computation unspecified; deriving keeps the log free of redundant
   state-sync events. Envelope-valid events with unknown types still advance
   the cursor (sync moves events by envelope, not payload).
+- BD10: ulid generation uses monotonicFactory(), not the default ulid() —
+  default ulids are randomly ordered within the same millisecond, which
+  breaks the cursor contract (creation order must match sort order for
+  "events since id"). Cross-process same-ms ordering stays unspecified
+  (inherent to ulid); acceptable because fold replays in file order.
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,

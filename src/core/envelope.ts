@@ -1,4 +1,9 @@
-import { ulid } from 'ulid'
+import { monotonicFactory } from 'ulid'
+
+// Same-millisecond ulids from the default generator are randomly ordered;
+// the cursor contract (export "events since id") needs creation order to
+// match sort order, so ids must be monotonic within a process.
+const ulid = monotonicFactory()
 
 /**
  * Event envelope (SPEC §Envelope) — v1, stable. Payloads evolve (src/schema/),
