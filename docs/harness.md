@@ -10,8 +10,9 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 
 ## Current state
 - Active phase: 2
-- Next action: Task 2.4 — .mcp.json registration snippet emitter
-  (src/mcp/register.ts, shape per BD13), then 2.5 Phase 2 acceptance suite
+- Next action: Task 2.5 — Phase 2 acceptance suite (per-tool exact-event
+  appends, invalid payloads → typed errors + zero appends, get_state branch
+  resolution incl. worktree .git file, unknown-initiative paths, stdio E2E)
 - Blocked on: nothing
 
 ## Plan
@@ -34,7 +35,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
       built in packages/schema/src/tool-inputs.ts from the start (2.1);
       verified engine src contains no JSON-Schema/validator shapes outside
       projections/templates and imports all schema from @harness/schema
-- [ ] 2.4 .mcp.json registration snippet emitted by init (Phase 4 wires it)
+- [x] 2.4 .mcp.json registration snippet emitted by init (Phase 4 wires it)
 - [ ] 2.5 Tests: every tool appends correct event; state reflects it
 
 ### Phase 3 — Hooks + projections [pending]  (target: Jul 5)
