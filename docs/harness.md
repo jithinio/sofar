@@ -211,3 +211,17 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   tests green post-move; build + bin verified at
   packages/engine/dist/cli.js. Next action unchanged: Task 2.1 — stdio MCP
   server in packages/engine/src/mcp/.
+- 2026-07-03, same session, later (claude-code / Fable 5, Phase 2 executed
+  by a delegated subagent, verified by the main session): Phase 2 complete,
+  tasks 2.1–2.5, commits c110cb0/7a07e35/79eec16/0b4b896. Built: stdio MCP
+  server on the SDK low-level API (no zod — BD12), seven harness_* tools
+  (validate → append → regenerate projections), tool arg schemas in
+  packages/schema/src/tool-inputs.ts, v0 projection seam
+  (generator.ts + templates/{shared,plan,decisions}.ts — BD14), `harness
+  mcp [--root]` subcommand (BD13, SPEC §CLI updated), .mcp.json snippet
+  emitter. Decisions BD12–BD18. Tests 86 → 135, all green; verification
+  independently re-run by main session (typecheck/test/build + raw
+  JSON-RPC stdio smoke test: session lifecycle, typed invalid_input error
+  with zero appends, projections regenerated). All three SPEC Phase 2
+  acceptance bullets pass. Left off: nothing in flight. Next action: Task
+  3.1 — hook shims (needs `harness event append` CLI surface first).
