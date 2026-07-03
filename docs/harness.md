@@ -9,10 +9,12 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 (00-spine, 01-roadmap, 02-action-plan, 03-architecture).
 
 ## Current state
-- Active phase: 2
-- Next action: Task 2.5 — Phase 2 acceptance suite (per-tool exact-event
-  appends, invalid payloads → typed errors + zero appends, get_state branch
-  resolution incl. worktree .git file, unknown-initiative paths, stdio E2E)
+- Active phase: 3
+- Next action: Task 3.1 — hook shims in .claude/hooks/ as standalone scripts
+  calling the CLI (needs `harness event append` CLI surface first — SPEC
+  §CLI `harness event <subcommand>`); Phase 3 also extends the v0
+  projection templates (task 3.6, seam built in Phase 2 per BD14: status
+  block ≤10,000 chars + sessions/<session-id>.md are still missing)
 - Blocked on: nothing
 
 ## Plan
@@ -26,7 +28,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [x] 1.6 Tests: concurrent appends, corrupt-line tolerance (skip+warn),
       replay determinism, cursor round-trip
 
-### Phase 2 — MCP server [active]  (target: Jul 4)
+### Phase 2 — MCP server [done]  (completed Jul 3)
 - [x] 2.1 stdio MCP server exposing typed tools (SPEC §MCP tools)
 - [x] 2.2 Tools: get_state, start_session, end_session, update_task,
       log_decision, update_plan, add_note
@@ -36,7 +38,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
       verified engine src contains no JSON-Schema/validator shapes outside
       projections/templates and imports all schema from @harness/schema
 - [x] 2.4 .mcp.json registration snippet emitted by init (Phase 4 wires it)
-- [ ] 2.5 Tests: every tool appends correct event; state reflects it
+- [x] 2.5 Tests: every tool appends correct event; state reflects it
 
 ### Phase 3 — Hooks + projections [pending]  (target: Jul 5)
 - [ ] 3.1 Hook shims in .claude/hooks/ as standalone scripts calling the CLI
