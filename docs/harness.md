@@ -10,9 +10,8 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 
 ## Current state
 - Active phase: 2
-- Next action: Task 2.2 — implement the seven tool handlers (validate →
-  append via core/log → regenerate projections) behind the CallTool handler
-  in packages/engine/src/mcp/, one file per tool
+- Next action: Task 2.4 — .mcp.json registration snippet emitter
+  (src/mcp/register.ts, shape per BD13), then 2.5 Phase 2 acceptance suite
 - Blocked on: nothing
 
 ## Plan
@@ -28,10 +27,13 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 
 ### Phase 2 — MCP server [active]  (target: Jul 4)
 - [x] 2.1 stdio MCP server exposing typed tools (SPEC §MCP tools)
-- [ ] 2.2 Tools: get_state, start_session, end_session, update_task,
+- [x] 2.2 Tools: get_state, start_session, end_session, update_task,
       log_decision, update_plan, add_note
-- [ ] 2.3 Payload schemas isolated in packages/schema/ (the ONLY schema
-      home)
+- [x] 2.3 Payload schemas isolated in packages/schema/ (the ONLY schema
+      home) — satisfied by construction: tool arg schemas/validators were
+      built in packages/schema/src/tool-inputs.ts from the start (2.1);
+      verified engine src contains no JSON-Schema/validator shapes outside
+      projections/templates and imports all schema from @harness/schema
 - [ ] 2.4 .mcp.json registration snippet emitted by init (Phase 4 wires it)
 - [ ] 2.5 Tests: every tool appends correct event; state reflects it
 
@@ -127,6 +129,50 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   "harness", args: ["mcp"] } } }, emitted by src/mcp/register.ts (task 2.4)
   and wired into `harness init` in Phase 4. Rejected a separate bin entry
   (harness-mcp): one bin keeps install/registration surface minimal.
+- BD14: Projections sequencing — SPEC §MCP tools says every tool regenerates
+  projections, but full templates are Phase 3 (task 3.6). Built the seam in
+  Phase 2: src/projections/generator.ts regenerateProjections(initiativeDir,
+  state) renders minimal v0 plan.md + decisions.md via template functions in
+  src/projections/templates/ (plan.ts, decisions.ts); every tool append
+  calls it; generated files carry a "do not hand-edit" header. Rejected
+  deferring projections entirely to Phase 3 (would violate the SPEC tool
+  contract and Phase 2 acceptance) and building full templates now (Phase 3
+  scope creep). Phase 3 extends these templates in place.
+- BD15: Session semantics — the stdio server process holds ONE in-memory
+  active session. start_session generates a ulid session_id, appends
+  session_started, sets it active (remembering id, tool, initiative);
+  subsequent appends use envelope.session = active id (else "cli") and
+  envelope.source = the session's tool if it names an envelope SOURCES
+  member, else "cli"; actor is always "agent" for MCP appends. end_session's
+  session_id arg wins over the active session; if it names the active one,
+  that session's initiative is used (SPEC's end_session signature has no
+  initiative arg) and the active slot is cleared after the append. Rejected
+  a multi-session registry: one agent process per stdio server, YAGNI.
+- BD16: Initiative resolution — explicit `initiative` arg wins; else current
+  git branch → slug via .harness/bindings.json. Branch is read by parsing
+  .git/HEAD ("ref: refs/heads/<branch>"), following a worktree-style .git
+  FILE ("gitdir: <path>") to its HEAD; detached HEAD/no repo/no binding →
+  typed unknown_initiative error telling the caller to pass `initiative`
+  explicitly. Resolved slugs must exist under .harness/initiatives/ (typos
+  must not create logs). Repo root = server cwd; `harness mcp --root`
+  overrides. Rejected spawning `git rev-parse`: subprocess per call, needs
+  git on PATH, and HEAD parsing is sufficient for v1.
+- BD17: Typed tool errors — failures return an MCP result with isError:true
+  and content[0].text = JSON {code, message, errors?}; code union lives in
+  ONE place (@harness/schema/tool-inputs): invalid_input |
+  unknown_initiative | unknown_tool | unknown_event | io_error
+  (unknown_tool added to the planned set for unlisted tool names).
+  Validation failures carry field-level errors; tests assert no event is
+  appended on failure. Rejected MCP protocol errors (McpError): agents see
+  tool-result text, not protocol faults — in-band typed errors are
+  actionable and parseable.
+- BD18: Tool arg → payload mapping — update_task {task_id, status, note?} →
+  task_status_changed {id, status, note?} (SPEC tool signature says task_id,
+  Phase 1 payload schema says id; mapped at the tool boundary rather than
+  changing either frozen contract); update_plan {plan} must satisfy the
+  existing PlanStructure validator (reused via validatePayload so tool input
+  and event payload cannot drift); log_decision → decision_logged;
+  add_note → note_added.
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,
