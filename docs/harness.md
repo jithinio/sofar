@@ -9,22 +9,23 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 (00-spine, 01-roadmap, 02-action-plan, 03-architecture).
 
 ## Current state
-- Active phase: 1
-- Next action: Task 1.6 — Phase 1 acceptance test suite
+- Active phase: 2
+- Next action: Task 2.1 — stdio MCP server exposing typed tools (SPEC §MCP
+  tools); build on src/core (appendEvent/foldLog) + src/schema validators
 - Blocked on: nothing
 
 ## Plan
 
-### Phase 1 — Event log core [active]  (target: Jul 3)
+### Phase 1 — Event log core [done]  (completed Jul 3)
 - [x] 1.1 Scaffold: TS strict, vitest, esbuild bundling, npm bin entry
 - [x] 1.2 Event envelope types + runtime validation (SPEC §Envelope)
 - [x] 1.3 Append: atomic single-line O_APPEND writes, concurrent-safe
 - [x] 1.4 Fold/replay: events.jsonl → InitiativeState (SPEC §State)
 - [x] 1.5 Cursor primitive: export/import "events since N" (sync-ready)
-- [ ] 1.6 Tests: concurrent appends, corrupt-line tolerance (skip+warn),
+- [x] 1.6 Tests: concurrent appends, corrupt-line tolerance (skip+warn),
       replay determinism, cursor round-trip
 
-### Phase 2 — MCP server [pending]  (target: Jul 4)
+### Phase 2 — MCP server [active]  (target: Jul 4)
 - [ ] 2.1 stdio MCP server exposing typed tools (SPEC §MCP tools)
 - [ ] 2.2 Tools: get_state, start_session, end_session, update_task,
       log_decision, update_plan, add_note
@@ -108,4 +109,17 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - Definition of done per task: acceptance criteria in SPEC.md §Acceptance.
 
 ## Session log
-- (empty — first build session appends here)
+- 2026-07-03 (claude-code / Fable 5): Phase 1 complete, tasks 1.1–1.6, one
+  commit per task. Repo git-initialized at repo root (docs/ untouched).
+  Built: scaffold (TS strict/vitest/esbuild/bin entry), envelope +
+  validation in src/core/envelope.ts, atomic O_APPEND append in
+  src/core/log.ts, fold/replay in src/core/fold.ts with payload schemas
+  isolated in src/schema/events.ts, cursor export/import in
+  src/core/cursor.ts, consolidated acceptance suite in
+  test/acceptance.phase1.test.ts. 86 tests green; all four SPEC Phase 1
+  acceptance bullets verified (4-process×250 appends zero loss; corrupt
+  line skip+warn; deterministic replay; idempotent import). New decisions
+  BD7–BD10 (toolchain devDeps; correction voids target; derived current.*;
+  monotonic ulids — default ulid() is NOT sortable within one ms).
+  Left off: nothing in flight. Next action: Task 2.1 — stdio MCP server
+  (src/mcp/server.ts + one file per tool, per SPEC §MCP tools).

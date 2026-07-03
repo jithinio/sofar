@@ -21,8 +21,9 @@ for (let i = 0; i < count; i++) {
       source: 'cli',
       actor: 'agent',
       type: 'note_added',
-      // padding lengthens lines so non-atomic writes would visibly interleave
-      payload: { worker: workerId, i, padding: 'x'.repeat(256) },
+      // padding lengthens lines so non-atomic writes would visibly interleave;
+      // text keeps the payload schema-valid so folds of this log stay clean
+      payload: { text: `worker ${workerId} note ${i}`, worker: workerId, i, padding: 'x'.repeat(256) },
     }),
   )
 }
