@@ -1,0 +1,115 @@
+# SPEC.md — Harness v1 engine contracts (authoritative)
+
+## Repo layout
+```
+harness/
+  src/core/        # log.ts (append), fold.ts (replay→state), cursor.ts
+  src/schema/      # event payload types + validation — ONLY schema home
+  src/mcp/         # server.ts + one file per tool
+  src/cli/         # commands: init, new, switch, status, export, import,
+                   # event (used by hook shims), serve (watcher+JSON server)
+  src/projections/ # generator.ts + templates/ (plan.md, decisions.md, status)
+  src/hooks/       # shim script sources, installed to .claude/hooks/
+  test/
+```
+
+## Record layout (what the engine manages inside a user repo)
+```
+.harness/
+  repo.md                      # repo-scoped memory (hand-written, NOT generated)
+  bindings.json                # { "<git-branch-or-worktree>": "<slug>" }
+  initiatives/<slug>/
+    events.jsonl               # TRUTH — append-only
+    plan.md                    # generated projection
+    decisions.md               # generated projection
+    sessions/<session-id>.md   # generated per-session summaries
+```
+
+## Event envelope (v1 — stable; payloads evolve, envelope does not)
+One JSON object per line in events.jsonl:
+```json
+{"v":1,"id":"<ulid>","ts":"<ISO8601>","initiative":"<slug>",
+ "session":"<session-id|cli>","source":"claude-code|opencode|codex|cli|hook",
+ "actor":"agent|human","type":"<event_type>","payload":{}}
+```
+Rules: ulid ids (sortable); appends are atomic single-line writes with
+O_APPEND; a reader must tolerate a torn final line (skip + warn); events are
+immutable — corrections are new events of type `correction` referencing the
+target id.
+
+## Event types (payload schemas in src/schema/ — the swappable part)
+initiative_created · plan_updated (full plan structure) ·
+phase_status_changed · task_added · task_status_changed (id, status:
+pending|active|done|blocked) · decision_logged (chose, over, because) ·
+session_started (tool, model?) · session_ended (summary, next_action) ·
+file_touched (path, op) · command_run (cmd) · note_added · correction (ref)
+
+## State (result of fold)
+InitiativeState = { slug, goal, phases[ {name, status, tasks[ {id, title,
+status} ]} ], decisions[], sessions[ {id, tool, started, ended?, summary?} ],
+files_touched[], current: {active_phase, next_action, blocked_on?},
+cursor: <last event id> }
+
+## Cursor primitive (sync-ready contract)
+`export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
+events not already present (dedupe by id — idempotent). Per-initiative
+streams; ordering by ulid. This is the entire future sync interface.
+
+## MCP tools (server name: harness)
+- harness_get_state({initiative?}) → InitiativeState (resolves initiative
+  from bindings.json + current branch when omitted)
+- harness_start_session({initiative?, tool, model?}) → {session_id}
+- harness_end_session({session_id, summary, next_action}) → ok
+- harness_update_task({initiative?, task_id, status, note?}) → ok
+- harness_log_decision({initiative?, chose, over, because}) → ok
+- harness_update_plan({initiative?, plan}) → ok   # full-structure replace
+- harness_add_note({initiative?, text}) → ok
+Every tool = validate payload → append event → regenerate projections →
+return. No tool mutates state except via an event.
+
+## Hooks (installed by `harness init` as standalone scripts in .claude/hooks/)
+- SessionStart shim → `harness event session-start` then prints the status
+  projection to stdout (context injection). HARD LIMIT: output ≤10,000
+  chars — projection generator must guarantee this.
+- PostToolUse shim (matcher: Edit|Write|MultiEdit|Bash) → appends
+  file_touched / command_run from stdin JSON (tool_name, tool_input).
+- Stop shim → reads stdin JSON; if stop_hook_active is true → exit 0
+  (loop guard). Else if no session_ended event exists for this session_id →
+  exit 2 with stderr: "Write back to the harness record before finishing:
+  call harness_end_session (or update harness.md per protocol)." Else exit 0.
+- SessionEnd shim → appends mechanical session-close marker (fallback only;
+  cannot feed back to the agent).
+Shims contain no logic — they invoke the harness CLI.
+
+## CLI
+- `harness init` — create .harness/, write repo.md stub, install hook shims
+  + .claude/settings.json hooks block, emit .mcp.json registration, append
+  protocol block to CLAUDE.md (idempotent).
+- `harness new <slug> [--goal]` / `harness switch <slug>` — create/select
+  initiative; bind current branch in bindings.json.
+- `harness status [slug]` — fold and print: goal, progress %, phase tree
+  with statuses, next action, blocked, last session.
+- `harness export [--since <id>]` / `harness import <file|->`
+- `harness event <subcommand>` — internal surface for shims.
+- `harness serve [--port 4173]` — chokidar watch on .harness/ → GET /state
+  (JSON InitiativeState per initiative), Server-Sent Events on change.
+
+## Acceptance criteria (definition of done)
+- **Phase 1:** 1k concurrent appends from 4 processes → zero lost/interleaved
+  lines; fold of a log with an injected corrupt line succeeds with warning;
+  replay is deterministic (same log → deep-equal state); export/import
+  round-trip is idempotent (re-import adds zero events).
+- **Phase 2:** each tool call appends exactly its event and projections
+  regenerate; invalid payloads rejected with typed errors; get_state resolves
+  initiative from branch binding.
+- **Phase 3:** SessionStart output verified ≤10k chars on a large synthetic
+  initiative; Stop shim blocks a session lacking session_ended and passes one
+  that has it; stop_hook_active loop guard verified; PostToolUse produces
+  file_touched for an Edit and command_run for a Bash call.
+- **Phase 4:** `harness init` on a fresh repo yields a working end-to-end
+  loop (start session → tool events → end session → status shows it);
+  init is idempotent (second run changes nothing); serve pushes an SSE on
+  append within 500ms.
+- **Phase 5:** AGENTS.md dialect drives a manual OpenCode session through
+  read→work→write-back; the Jul 7 Fable→Opus handoff is executed and scored
+  on the Phase 0 scorecard as an arm-C run.
