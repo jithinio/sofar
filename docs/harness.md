@@ -10,7 +10,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 
 ## Current state
 - Active phase: 1
-- Next action: Task 1.3 — atomic O_APPEND append
+- Next action: Task 1.4 — fold/replay events.jsonl → InitiativeState
 - Blocked on: nothing
 
 ## Plan
@@ -18,7 +18,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 ### Phase 1 — Event log core [active]  (target: Jul 3)
 - [x] 1.1 Scaffold: TS strict, vitest, esbuild bundling, npm bin entry
 - [x] 1.2 Event envelope types + runtime validation (SPEC §Envelope)
-- [ ] 1.3 Append: atomic single-line O_APPEND writes, concurrent-safe
+- [x] 1.3 Append: atomic single-line O_APPEND writes, concurrent-safe
 - [ ] 1.4 Fold/replay: events.jsonl → InitiativeState (SPEC §State)
 - [ ] 1.5 Cursor primitive: export/import "events since N" (sync-ready)
 - [ ] 1.6 Tests: concurrent appends, corrupt-line tolerance (skip+warn),
