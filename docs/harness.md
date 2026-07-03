@@ -11,7 +11,8 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 ## Current state
 - Active phase: 2
 - Next action: Task 2.1 — stdio MCP server exposing typed tools (SPEC §MCP
-  tools); build on src/core (appendEvent/foldLog) + src/schema validators
+  tools); build on packages/engine/src/core (appendEvent/foldLog) +
+  @harness/schema validators
 - Blocked on: nothing
 
 ## Plan
@@ -29,7 +30,8 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [ ] 2.1 stdio MCP server exposing typed tools (SPEC §MCP tools)
 - [ ] 2.2 Tools: get_state, start_session, end_session, update_task,
       log_decision, update_plan, add_note
-- [ ] 2.3 Payload schemas isolated in src/schema/ (the ONLY schema home)
+- [ ] 2.3 Payload schemas isolated in packages/schema/ (the ONLY schema
+      home)
 - [ ] 2.4 .mcp.json registration snippet emitted by init (Phase 4 wires it)
 - [ ] 2.5 Tests: every tool appends correct event; state reflects it
 
@@ -100,12 +102,26 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   breaks the cursor contract (creation order must match sort order for
   "events since id"). Cross-process same-ms ordering stays unspecified
   (inherent to ulid); acceptable because fold replays in file order.
+- BD11: Monorepo now (user-directed, Jul 3), not post-v1 — npm workspaces,
+  zero new tooling. packages/schema = @harness/schema, source-shipped
+  internal package (main/types point at src/events.ts; no build step until
+  it publishes); packages/engine = harness bin (core/mcp/cli/projections/
+  hooks). Rejected deferring to v2 (prior recommendation): user prefers
+  paying structure cost early so ui/sync/adapters slot in later. Rejected
+  pnpm/turborepo: npm workspaces add no dependencies. SPEC §Repo layout and
+  CLAUDE.md guard-rail paths updated; BD6's path references superseded —
+  schema home is packages/schema/src/, templates
+  packages/engine/src/projections/templates/.
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,
   acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
   if SPEC must change.
 - Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
+  Both run at the workspace root; typecheck: `npm run typecheck`.
+- Monorepo (BD11): npm workspaces. packages/schema → @harness/schema
+  (source-shipped, no build); packages/engine → harness bin
+  (packages/engine/dist/cli.js after build).
 - Definition of done per task: acceptance criteria in SPEC.md §Acceptance.
 
 ## Session log
@@ -123,3 +139,11 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   monotonic ulids — default ulid() is NOT sortable within one ms).
   Left off: nothing in flight. Next action: Task 2.1 — stdio MCP server
   (src/mcp/server.ts + one file per tool, per SPEC §MCP tools).
+- 2026-07-03, same session, later (claude-code / Fable 5): Restructured to
+  npm workspaces monorepo on user direction (BD11) — packages/schema
+  (@harness/schema) + packages/engine (harness bin). git mv preserved
+  history; fold now imports @harness/schema across the boundary. SPEC
+  §Repo layout, CLAUDE.md schema guard-rail, task 2.3 text updated. All 86
+  tests green post-move; build + bin verified at
+  packages/engine/dist/cli.js. Next action unchanged: Task 2.1 — stdio MCP
+  server in packages/engine/src/mcp/.

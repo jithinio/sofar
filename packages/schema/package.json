@@ -1,0 +1,21 @@
+{
+  "name": "@harness/schema",
+  "version": "0.1.0",
+  "description": "Harness event payload schemas + validation — the swappable part, and the ONLY schema home",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "./src/events.ts",
+  "types": "./src/events.ts",
+  "exports": {
+    ".": {
+      "types": "./src/events.ts",
+      "default": "./src/events.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  }
+}

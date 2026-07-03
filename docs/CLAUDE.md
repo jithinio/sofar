@@ -30,9 +30,9 @@ This repo tracks initiative state in `harness.md`.
 - DO NOT build: any UI, the sync service/backend, team/identity features,
   telemetry emission. The state server serves JSON on localhost — nothing
   more.
-- Schema lives ONLY in src/schema/ (event payloads) and
-  src/projections/templates/. If a change wants to touch schema from
-  anywhere else, stop and restructure.
+- Schema lives ONLY in packages/schema/src/ (event payloads) and
+  packages/engine/src/projections/templates/. If a change wants to touch
+  schema from anywhere else, stop and restructure.
 - If a task seems to require violating a guard-rail, do not proceed —
   log the conflict in Decisions and surface it to the user.
 - SPEC.md is authoritative over improvisation. Deviations require a

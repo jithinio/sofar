@@ -1,28 +1,19 @@
 {
-  "name": "harness",
+  "name": "harness-monorepo",
   "version": "0.1.0",
-  "description": "Harness v1 engine — event-log initiative memory for coding agents",
+  "description": "Harness v1 — event-log initiative memory for coding agents (npm workspaces monorepo)",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=18"
   },
-  "bin": {
-    "harness": "dist/cli.js"
-  },
-  "files": [
-    "dist"
+  "workspaces": [
+    "packages/*"
   ],
   "scripts": {
-    "build": "node build.mjs",
+    "build": "npm run build -w harness",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "chokidar": "^5.0.0",
-    "commander": "^15.0.0",
-    "ulid": "^3.0.2"
+    "typecheck": "npm run typecheck -w @harness/schema && npm run typecheck -w harness"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",

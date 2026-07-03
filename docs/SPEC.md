@@ -1,17 +1,25 @@
 # SPEC.md — Harness v1 engine contracts (authoritative)
 
-## Repo layout
+## Repo layout (npm workspaces monorepo — see BD11)
 ```
-harness/
-  src/core/        # log.ts (append), fold.ts (replay→state), cursor.ts
-  src/schema/      # event payload types + validation — ONLY schema home
-  src/mcp/         # server.ts + one file per tool
-  src/cli/         # commands: init, new, switch, status, export, import,
-                   # event (used by hook shims), serve (watcher+JSON server)
-  src/projections/ # generator.ts + templates/ (plan.md, decisions.md, status)
-  src/hooks/       # shim script sources, installed to .claude/hooks/
-  test/
+harness/                 # workspace root: toolchain devDeps, shared tsconfig
+  packages/
+    schema/              # @harness/schema — event payload types + validation
+      src/events.ts      #   ONLY schema home; source-shipped internal pkg
+      test/              #   (main/types point at src — no build step yet)
+    engine/              # harness — the npm bin (CLI + MCP server + hooks)
+      src/core/          # envelope.ts, log.ts (append), fold.ts, cursor.ts
+      src/mcp/           # server.ts + one file per tool
+      src/cli/           # commands: init, new, switch, status, export,
+                         # import, event (used by hook shims), serve
+      src/projections/   # generator.ts + templates/ (plan.md, decisions.md,
+                         # status)
+      src/hooks/         # shim script sources, installed to .claude/hooks/
+      test/
+  docs/                  # harness.md (initiative record), SPEC.md, CLAUDE.md
 ```
+Future packages (ui, sync, adapters) join packages/* post-v1; the
+engine-only scope law still applies during the Fable window.
 
 ## Record layout (what the engine manages inside a user repo)
 ```
@@ -37,7 +45,7 @@ O_APPEND; a reader must tolerate a torn final line (skip + warn); events are
 immutable — corrections are new events of type `correction` referencing the
 target id.
 
-## Event types (payload schemas in src/schema/ — the swappable part)
+## Event types (payload schemas in packages/schema/ — the swappable part)
 initiative_created · plan_updated (full plan structure) ·
 phase_status_changed · task_added · task_status_changed (id, status:
 pending|active|done|blocked) · decision_logged (chose, over, because) ·

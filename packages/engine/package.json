@@ -1,0 +1,27 @@
+{
+  "name": "harness",
+  "version": "0.1.0",
+  "description": "Harness v1 engine — event log core, MCP server, CLI, hooks",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "harness": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@harness/schema": "*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "chokidar": "^5.0.0",
+    "commander": "^15.0.0",
+    "ulid": "^3.0.2"
+  }
+}
