@@ -10,9 +10,9 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 
 ## Current state
 - Active phase: 2
-- Next action: Task 2.1 — stdio MCP server exposing typed tools (SPEC §MCP
-  tools); build on packages/engine/src/core (appendEvent/foldLog) +
-  @harness/schema validators
+- Next action: Task 2.2 — implement the seven tool handlers (validate →
+  append via core/log → regenerate projections) behind the CallTool handler
+  in packages/engine/src/mcp/, one file per tool
 - Blocked on: nothing
 
 ## Plan
@@ -27,7 +27,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
       replay determinism, cursor round-trip
 
 ### Phase 2 — MCP server [active]  (target: Jul 4)
-- [ ] 2.1 stdio MCP server exposing typed tools (SPEC §MCP tools)
+- [x] 2.1 stdio MCP server exposing typed tools (SPEC §MCP tools)
 - [ ] 2.2 Tools: get_state, start_session, end_session, update_task,
       log_decision, update_plan, add_note
 - [ ] 2.3 Payload schemas isolated in packages/schema/ (the ONLY schema
@@ -112,6 +112,21 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   CLAUDE.md guard-rail paths updated; BD6's path references superseded —
   schema home is packages/schema/src/, templates
   packages/engine/src/projections/templates/.
+- BD12: MCP server uses the SDK's LOW-LEVEL API (Server +
+  setRequestHandler(ListTools/CallTool)) with hand-written plain-JSON-Schema
+  tool definitions and @harness/schema validators
+  (packages/schema/src/tool-inputs.ts, exported as
+  @harness/schema/tool-inputs). Rejected the high-level McpServer
+  .registerTool API: it wants zod shapes, and zod is not in our locked
+  runtime dependency set (BD7); hand-rolled validators also keep every
+  validation shape in the one schema home (guard-rail).
+- BD13: MCP server launches via a `harness mcp [--root <dir>]` subcommand on
+  the existing commander CLI; SPEC §CLI did not list it, so SPEC was
+  extended (one line) rather than improvising an undocumented surface. The
+  .mcp.json registration snippet is { mcpServers: { harness: { command:
+  "harness", args: ["mcp"] } } }, emitted by src/mcp/register.ts (task 2.4)
+  and wired into `harness init` in Phase 4. Rejected a separate bin entry
+  (harness-mcp): one bin keeps install/registration surface minimal.
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,

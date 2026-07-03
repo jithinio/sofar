@@ -13,6 +13,10 @@
     ".": {
       "types": "./src/events.ts",
       "default": "./src/events.ts"
+    },
+    "./tool-inputs": {
+      "types": "./src/tool-inputs.ts",
+      "default": "./src/tool-inputs.ts"
     }
   },
   "scripts": {

@@ -4,9 +4,10 @@
 ```
 harness/                 # workspace root: toolchain devDeps, shared tsconfig
   packages/
-    schema/              # @harness/schema — event payload types + validation
-      src/events.ts      #   ONLY schema home; source-shipped internal pkg
-      test/              #   (main/types point at src — no build step yet)
+    schema/              # @harness/schema — the ONLY schema home
+      src/events.ts      #   event payload types + validation (source-shipped
+      src/tool-inputs.ts #   internal pkg — main/types point at src, no build
+      test/              #   step yet); tool-inputs = MCP tool arg schemas
     engine/              # harness — the npm bin (CLI + MCP server + hooks)
       src/core/          # envelope.ts, log.ts (append), fold.ts, cursor.ts
       src/mcp/           # server.ts + one file per tool
@@ -101,6 +102,9 @@ Shims contain no logic — they invoke the harness CLI.
 - `harness event <subcommand>` — internal surface for shims.
 - `harness serve [--port 4173]` — chokidar watch on .harness/ → GET /state
   (JSON InitiativeState per initiative), Server-Sent Events on change.
+- `harness mcp [--root <dir>]` — start the stdio MCP server (server name:
+  harness) exposing §MCP tools; --root overrides the repo root (default:
+  cwd). Added in Phase 2 (BD13); `harness init` registers it in .mcp.json.
 
 ## Acceptance criteria (definition of done)
 - **Phase 1:** 1k concurrent appends from 4 processes → zero lost/interleaved
