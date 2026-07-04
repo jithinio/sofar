@@ -93,7 +93,13 @@ Shims contain no logic — they invoke the harness CLI.
 ## CLI
 - `harness init` — create .harness/, write repo.md stub, install hook shims
   + .claude/settings.json hooks block, emit .mcp.json registration, append
-  protocol block to CLAUDE.md (idempotent).
+  protocol block to CLAUDE.md (idempotent). The installed protocol block
+  MUST include: (a) all work state lives in harness records — never in tool
+  memory or scratch files; (b) work matching no existing initiative requires
+  creating one (harness new) before proceeding; (c) bindings resolve which
+  record a session serves. [Field finding, Jul 4: singular-record protocol
+  caused a second initiative's state to leak into Claude Code native memory
+  + a scratch dir — jurisdiction must be total, not per-file.]
 - `harness new <slug> [--goal]` / `harness switch <slug>` — create/select
   initiative; bind current branch in bindings.json.
 - `harness status [slug]` — fold and print: goal, progress %, phase tree

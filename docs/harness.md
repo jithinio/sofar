@@ -54,7 +54,8 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 
 ### Phase 4 — CLI + watcher [pending]  (target: Jul 6)
 - [ ] 4.1 `harness init`: scaffold .harness/, install hook shims + settings,
-      emit .mcp.json entry, append protocol block to CLAUDE.md
+      emit .mcp.json entry, append protocol block to CLAUDE.md — block MUST
+      assert total jurisdiction (SPEC §CLI field finding Jul 4, BD19)
 - [ ] 4.2 `harness new <slug>` / `harness switch <slug>`: initiative dirs +
       bindings.json (branch ↔ initiative)
 - [ ] 4.3 `harness status`: fold + print tree (phase/task/status/next)
@@ -176,6 +177,18 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   existing PlanStructure validator (reused via validatePayload so tool input
   and event payload cannot drift); log_decision → decision_logged;
   add_note → note_added.
+- BD19: Total-jurisdiction protocol block (user field finding, Jul 4) —
+  SPEC §CLI `harness init` contract expanded: the installed protocol block
+  MUST state (a) all work state lives in harness records, never in tool
+  memory or scratch files; (b) work matching no existing initiative
+  requires `harness new` before proceeding; (c) bindings resolve which
+  record a session serves. Cause: dogfooding showed a second initiative's
+  state leaking into Claude Code native memory + a scratch dir — per-file
+  jurisdiction is not enough. Affects task 4.1 (init protocol block) and
+  task 5.1 (AGENTS.md dialect must carry the same three clauses). The same
+  hand-edit accidentally reverted SPEC §Repo layout/§Event types to the
+  pre-monorepo text (BD11) and dropped the `harness mcp` CLI line (BD13);
+  those sections were restored — code and record remain monorepo + mcp.
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,
