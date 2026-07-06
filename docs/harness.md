@@ -9,12 +9,11 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 (00-spine, 01-roadmap, 02-action-plan, 03-architecture).
 
 ## Current state
-- Active phase: 4 (task 4.1 done — `harness init` idempotent, shims bundled
-  as text into dist, 192 tests green)
-- Next action: Task 4.2 — `harness new <slug> [--goal]` / `harness switch
-  <slug>`: create initiative dir + append initiative_created (source cli,
-  actor human), bind current branch in bindings.json, slug validation
-  [a-z0-9-]+, detached-HEAD error path with --no-bind escape hatch
+- Active phase: 4 (tasks 4.1–4.2 done, 204 tests green)
+- Next action: Task 4.3 — `harness status [slug]`: fold + print goal,
+  progress %, phase tree with per-task statuses, next action, blocked_on,
+  last session; uncapped (BD3 cap is SessionStart-only); fold warnings to
+  stderr; exit 1 when unresolvable
 - Blocked on: nothing
 
 ## Plan
@@ -56,7 +55,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [x] 4.1 `harness init`: scaffold .harness/, install hook shims + settings,
       emit .mcp.json entry, append protocol block to CLAUDE.md — block MUST
       assert total jurisdiction (SPEC §CLI field finding Jul 4, BD19)
-- [ ] 4.2 `harness new <slug>` / `harness switch <slug>`: initiative dirs +
+- [x] 4.2 `harness new <slug>` / `harness switch <slug>`: initiative dirs +
       bindings.json (branch ↔ initiative)
 - [ ] 4.3 `harness status`: fold + print tree (phase/task/status/next)
 - [ ] 4.4 `harness export --since <cursor>` / `harness import`
@@ -262,6 +261,19 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   init with exit 1 rather than risking a clobber. Rejected reading shims
   from the package dir (breaks packaging) and JSON-format-preserving
   edits (idempotency only needs OUR formatting to be stable).
+
+- BD26: `harness new`/`switch` semantics — CLI-created events carry
+  actor 'human', source 'cli', session 'cli' (AppendOptions gained an
+  `actor?` override; MCP/hook appends stay 'agent'). new resolves the
+  branch BEFORE creating anything so a bind failure leaves the repo
+  untouched; --no-bind is the detached-HEAD/no-repo escape hatch; --goal
+  omitted → non-empty placeholder goal (initiative_created requires goal,
+  and an empty-string sentinel would fail schema validation). bindings.json
+  writes are read-modify-write merges (other branches survive); switch
+  refuses unknown slugs (typos must not create logs — BD16 rule extended
+  to the CLI). Rejected binding "worktree name" instead of branch: SPEC
+  §Record layout keys bindings by branch-or-worktree, and currentBranch()
+  already resolves worktree HEADs to their branch.
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,

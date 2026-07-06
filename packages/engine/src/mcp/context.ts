@@ -2,7 +2,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import { validatePayload, isKnownEventType } from '@harness/schema'
 import type { ToolErrorCode, ToolErrorShape } from '@harness/schema/tool-inputs'
-import { makeEvent, SOURCES, type EventEnvelope, type Source } from '../core/envelope'
+import { makeEvent, SOURCES, type Actor, type EventEnvelope, type Source } from '../core/envelope'
 import { appendEvent } from '../core/log'
 import { foldLog, emptyState, type InitiativeState } from '../core/fold'
 import { regenerateProjections } from '../projections/generator'
@@ -103,6 +103,8 @@ export interface AppendOptions {
   session?: string
   /** Envelope source override (default: mapped from the active session's tool). */
   source?: Source
+  /** Envelope actor override (default: "agent" — MCP/hook appends; CLI passes "human"). */
+  actor?: Actor
 }
 
 export interface ToolContext {
@@ -224,7 +226,7 @@ export function createToolContext(rootDir: string): ToolContext {
       initiative: slug,
       session: options?.session ?? current?.id ?? 'cli',
       source: options?.source ?? toSource(current?.tool),
-      actor: 'agent',
+      actor: options?.actor ?? 'agent',
       type,
       payload,
     })
