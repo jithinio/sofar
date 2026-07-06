@@ -367,3 +367,22 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   with zero appends, projections regenerated). All three SPEC Phase 2
   acceptance bullets pass. Left off: nothing in flight. Next action: Task
   3.1 — hook shims (needs `harness event append` CLI surface first).
+- 2026-07-06 (claude-code / Fable 5, Phases 3+4 executed by two sequential
+  delegated subagents, each verified by the main session): Phase 3 complete
+  (3.1–3.6, commits 1936009..047f324): `harness event` CLI surface, four
+  POSIX shims, session correlation by log adoption (BD20), session_closed
+  event (BD21), best-effort hook philosophy (BD22), PostToolUse mapping
+  (BD23), full projections with hard ≤10k status cap (BD24). Phase 4
+  complete (4.1–4.5, commits 4793d32..d0d4905): idempotent `harness init`
+  with bundled shim text + BD19 total-jurisdiction protocol block (BD25),
+  new/switch with branch binding (BD26), uncapped status (BD27),
+  export/import CLI (BD28, SPEC [slug] positional), 127.0.0.1-only serve
+  with SSE (BD29, measured 51ms push). Tests 185 → 222 after Phase 3+4
+  (135 → 185 → 222). Main-session verification: full gate re-run; live
+  hook-flow smoke (session-start context, Stop exit 2 with byte-exact
+  stderr, loop guard, MCP adoption returning the hook session id, Stop
+  passing after end_session); built-CLI init/new/status smoke; byte-level
+  double-init idempotency (zero changes). Left off: nothing in flight.
+  Next action: Phase 5 — 5.1 AGENTS.md dialect (carry the three BD19
+  clauses; reuse PROTOCOL_BLOCK in src/cli/init.ts), 5.2 OpenCode adapter
+  notes, 5.3 the Jul 7 Fable→Opus handoff ceremony (user-driven).
