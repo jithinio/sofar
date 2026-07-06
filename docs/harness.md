@@ -9,13 +9,15 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 (00-spine, 01-roadmap, 02-action-plan, 03-architecture).
 
 ## Current state
-- Active phase: 5 (5.1 done — `harness event append` dialect surface +
-  AGENTS.md protocol block installed by init, carrying the three BD19
-  clauses; Stop-hook write-back parity for dialect sessions proven in
-  tests; 234 tests green)
-- Next action: Task 5.2 — docs/opencode-adapter.md (hook surface → OpenCode
-  plugin mapping, thin shell-out rule, manual verification checklist) plus
-  an automated simulation of that checklist against the built CLI
+- Active phase: 5 (5.1 done: `harness event append` dialect surface +
+  AGENTS.md protocol block with the three BD19 clauses, Stop-hook
+  write-back parity proven. 5.2 docs + checklist simulation done — the
+  manual OpenCode verification run is still pending, so its box stays
+  open. 235 tests green)
+- Next action: Task 5.3 — the handoff ceremony (user-driven): run the
+  manual OpenCode verification per docs/opencode-adapter.md §3 as ceremony
+  prep, then the final Fable session writes back via protocol and Opus 4.8
+  resumes from the record alone (scored as an arm-C run)
 - Blocked on: nothing
 
 ## Plan
@@ -67,6 +69,10 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [x] 5.1 AGENTS.md protocol block (convention dialect for MCP-less tools)
 - [ ] 5.2 OpenCode adapter notes: plugin equivalents (tool.execute.before/
       after) documented; convention fallback verified manually
+      *2026-07-06: docs/opencode-adapter.md + automated simulation of its
+      verification checklist (test/acceptance.phase5.test.ts) are done;
+      the manual OpenCode verification run is still pending — part of the
+      5.3 ceremony prep, so this box stays open (BD32).*
 - [ ] 5.3 THE CEREMONY: final Fable session writes back via protocol;
       Opus 4.8 resumes this initiative from the record alone; score the
       handoff as a real arm-C run on the Phase 0 scorecard
@@ -355,6 +361,27 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   PROTOCOL_BLOCK verbatim: its loop names harness_* MCP tools an MCP-less
   tool cannot call. Rejected different marker names per file: one
   discipline, hand-edits inside markers survive in both.
+- BD32: OpenCode adapter = docs + simulated checklist, no plugin code
+  (task 5.2). docs/opencode-adapter.md maps the hook surface to OpenCode
+  plugin hooks (tool.execute.after ≈ PostToolUse via a shell-out to
+  `harness event post-tool` with Claude-Code-shaped JSON; session
+  lifecycle events ≈ SessionStart/SessionEnd shims) and states the gap
+  explicitly: OpenCode has NO exit-2-blocking Stop equivalent — its idle
+  signal is a notification, not a gate — so write-back there rests on the
+  AGENTS.md dialect's MANDATORY clause as the compensating control. A
+  future plugin is specified as thin shell-outs only (BD4): behavior,
+  validation, and session correlation stay in the CLI. The doc's §3 manual
+  verification checklist (12 steps, exact commands, expected events.jsonl
+  lines and status output per step, including Stop-gate parity probes
+  before/after the dialect session_ended and a negative probe proving
+  invalid input appends nothing) is simulated 1:1 against the BUILT CLI in
+  test/acceptance.phase5.test.ts, so the checklist cannot drift from real
+  CLI behavior. The simulation proves checklist ACCURACY, not agent
+  compliance — the manual OpenCode run stays pending as 5.3 ceremony prep
+  and 5.2's checkbox stays open until it happens (the honest record beats
+  the checkmark). Rejected building the plugin now: OpenCode's plugin API
+  is outside the locked dependency window and the convention dialect is
+  the contracted v1 fallback (SPEC §Acceptance Phase 5).
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,
