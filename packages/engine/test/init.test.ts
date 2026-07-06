@@ -13,6 +13,7 @@ import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 import {
+  AGENTS_PROTOCOL_BLOCK,
   hookCommand,
   PROTOCOL_BLOCK,
   PROTOCOL_START,
@@ -122,6 +123,21 @@ describe('harness init on a fresh repo', () => {
     expect(claudeMd).toContain('bindings.json') // (c) bindings resolve the record
     expect(claudeMd).toContain('harness_get_state') // read-orient
     expect(claudeMd).toContain('harness_end_session') // write-back
+
+    // AGENTS.md convention dialect: same markers, same three BD19 clauses,
+    // but a CLI-only loop (no MCP assumptions — task 5.1, BD31)
+    const agentsMd = readFileSync(join(root, 'AGENTS.md'), 'utf8')
+    expect(agentsMd).toBe(AGENTS_PROTOCOL_BLOCK)
+    expect(agentsMd).toContain(PROTOCOL_START)
+    expect(agentsMd).toContain(PROTOCOL_END)
+    expect(agentsMd).toMatch(/never in tool memory/i) // (a) total jurisdiction
+    expect(agentsMd).toContain('harness new') // (b) create before unmatched work
+    expect(agentsMd).toContain('bindings.json') // (c) bindings resolve the record
+    expect(agentsMd).toContain('harness status') // read-orient (CLI, not MCP)
+    expect(agentsMd).toContain('--type session_started') // start via event append
+    expect(agentsMd).toContain('--type session_ended') // write-back via event append
+    expect(agentsMd).toContain('MANDATORY') // compensating control for no Stop hook
+    expect(agentsMd).not.toContain('harness_') // no MCP tool names — dialect is CLI-only
   })
 
   it('is byte-level idempotent: second run changes no file (acceptance bullet 2)', () => {
@@ -199,6 +215,24 @@ describe('harness init merges — never clobbers — user files', () => {
     writeFileSync(join(root, 'CLAUDE.md'), edited)
     expect(runInit(root).exitCode).toBe(0)
     expect(readFileSync(join(root, 'CLAUDE.md'), 'utf8')).toBe(edited)
+  })
+
+  it('appends the dialect block to an existing AGENTS.md and skips once markers exist', () => {
+    const root = freshRepo()
+    const userContent = '# Agent notes\n\nBuild with make.\n'
+    writeFileSync(join(root, 'AGENTS.md'), userContent)
+
+    expect(runInit(root).exitCode).toBe(0)
+    const appended = readFileSync(join(root, 'AGENTS.md'), 'utf8')
+    expect(appended.startsWith(userContent)).toBe(true) // merge, not clobber
+    expect(appended).toContain(PROTOCOL_START)
+    expect(appended.endsWith(AGENTS_PROTOCOL_BLOCK)).toBe(true)
+
+    // hand-edit INSIDE the markers → re-init leaves the whole file alone
+    const edited = appended.replace('jurisdiction is total', 'jurisdiction is total (amended)')
+    writeFileSync(join(root, 'AGENTS.md'), edited)
+    expect(runInit(root).exitCode).toBe(0)
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe(edited)
   })
 
   it('never overwrites a hand-written repo.md', () => {

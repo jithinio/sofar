@@ -9,13 +9,13 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 (00-spine, 01-roadmap, 02-action-plan, 03-architecture).
 
 ## Current state
-- Active phase: 5 (Phase 4 complete — all three SPEC Phase 4 acceptance
-  bullets verified: E2E loop after init, byte-level init idempotency,
-  SSE push measured 51ms ≪ 500ms; 222 tests green)
-- Next action: Task 5.1 — AGENTS.md protocol block (convention dialect for
-  MCP-less tools); must carry the same three BD19 total-jurisdiction
-  clauses as the CLAUDE.md block `harness init` installs
-  (src/cli/init.ts PROTOCOL_BLOCK is the reference text)
+- Active phase: 5 (5.1 done — `harness event append` dialect surface +
+  AGENTS.md protocol block installed by init, carrying the three BD19
+  clauses; Stop-hook write-back parity for dialect sessions proven in
+  tests; 234 tests green)
+- Next action: Task 5.2 — docs/opencode-adapter.md (hook surface → OpenCode
+  plugin mapping, thin shell-out rule, manual verification checklist) plus
+  an automated simulation of that checklist against the built CLI
 - Blocked on: nothing
 
 ## Plan
@@ -64,7 +64,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [x] 4.5 Watcher + localhost JSON state server (no UI — endpoint only)
 
 ### Phase 5 — Dialect + forced handoff [pending]  (target: Jul 7)
-- [ ] 5.1 AGENTS.md protocol block (convention dialect for MCP-less tools)
+- [x] 5.1 AGENTS.md protocol block (convention dialect for MCP-less tools)
 - [ ] 5.2 OpenCode adapter notes: plugin equivalents (tool.execute.before/
       after) documented; convention fallback verified manually
 - [ ] 5.3 THE CEREMONY: final Fable session writes back via protocol;
@@ -318,6 +318,43 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   is a floor, not a ceiling). Rejected express (dependency law), any
   static/UI route (scope law), and debouncing appends (latency budget is
   generous; consumers coalesce).
+
+- BD30: `harness event append` — the convention-dialect surface (task 5.1).
+  BD4 already named the command; SPEC §CLI's `harness event <subcommand>`
+  umbrella covered it, and the SPEC line was extended to name append
+  explicitly rather than leave the dialect surface undocumented. Flags:
+  --type/--payload required, --session (default cli), --source (default
+  cli), --actor (default agent), optional [slug] positional resolving like
+  status (BD16). Unlike the hook subcommands it is NOT best-effort (BD22
+  exemption): an explicit caller deserves real errors, so any failure —
+  malformed/non-object payload JSON, unknown type, invalid payload, bad
+  source/actor, unresolved initiative — exits 1 with the BD17 typed-error
+  JSON on stderr and appends NOTHING; success prints {ok, event_id} JSON.
+  All writes route through ToolContext.appendAndProject, keeping
+  validate → append → regenerate the single mutation path. A session_ended
+  appended via the dialect satisfies the Stop hook's fold-based write-back
+  check identically to the MCP path (asserted in test/append.test.ts).
+  Rejected a top-level `harness append`: BD4 fixed the name and grouping
+  under `event` keeps the machine surface in one place. Rejected stdin
+  payloads: one-line flag invocations are what convention-following agents
+  compose reliably.
+- BD31: AGENTS.md protocol block — `harness init` now installs
+  AGENTS_PROTOCOL_BLOCK (src/cli/init.ts, beside PROTOCOL_BLOCK) into
+  AGENTS.md with the SAME marker discipline as CLAUDE.md (same
+  `<!-- harness:protocol -->` markers, create-if-missing,
+  append-if-unmarked, never touched once markers exist); byte-level init
+  idempotency still holds (hash-tree test covers AGENTS.md). SPEC §CLI init
+  line extended (+ AGENTS.md). The block carries the same three BD19
+  total-jurisdiction clauses but a CLI-only loop — orient via `harness
+  status` (detail in plan.md/decisions.md), start/log/write-back via
+  `harness event append`, write-back marked MANDATORY — because AGENTS.md
+  readers (OpenCode, Codex, plain shells) cannot be assumed to have MCP or
+  a blocking Stop hook; the MANDATORY clause is the compensating control.
+  Plus explicit prohibitions: never hand-edit projections, never edit
+  events.jsonl, corrections are new correction events. Rejected reusing
+  PROTOCOL_BLOCK verbatim: its loop names harness_* MCP tools an MCP-less
+  tool cannot call. Rejected different marker names per file: one
+  discipline, hand-edits inside markers survive in both.
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,

@@ -1,6 +1,7 @@
 import { resolve } from 'node:path'
 import type { Command } from 'commander'
-import { createToolContext, type ToolContext } from '../mcp/context'
+import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
+import { createToolContext, ToolError, type ToolContext } from '../mcp/context'
 import { renderStatus } from '../projections/templates/status'
 
 /**
@@ -205,6 +206,80 @@ export function handleSessionEnd(rootDir: string, input: string): HookResult {
 }
 
 // ---------------------------------------------------------------------------
+// `harness event append` — the convention-dialect surface (task 5.1, BD30).
+// ---------------------------------------------------------------------------
+
+export interface AppendArgs {
+  /** Event type (SPEC §Event types). */
+  type: string
+  /** Payload as a raw JSON-object string. */
+  payload: string
+  /** Envelope session id (dialect callers reuse one id all session). */
+  session: string
+  /** Envelope source — must name a SOURCES member. */
+  source: string
+  /** Envelope actor — must name an ACTORS member. */
+  actor: string
+  /** Optional explicit initiative; else branch → bindings.json (BD16). */
+  slug?: string
+}
+
+/**
+ * Append one validated event and regenerate projections — the surface that
+ * lets a tool with NO MCP support (OpenCode, Codex, plain shell) drive the
+ * full read → work → write-back loop through the CLI alone (the AGENTS.md
+ * dialect). Unlike the hook subcommands above this is NOT best-effort
+ * (BD22 exemption): an explicit caller deserves real errors, so any failure
+ * exits 1 with the BD17 typed-error JSON on stderr and appends NOTHING.
+ * Success prints {ok, event_id} JSON to stdout. All writes go through
+ * ToolContext.appendAndProject — validate payload → append → regenerate —
+ * the single mutation path.
+ */
+export function runAppend(rootDir: string, args: AppendArgs): HookResult {
+  try {
+    if (!(SOURCES as readonly string[]).includes(args.source)) {
+      throw new ToolError('invalid_input', `--source must be one of: ${SOURCES.join('|')}`)
+    }
+    if (!(ACTORS as readonly string[]).includes(args.actor)) {
+      throw new ToolError('invalid_input', `--actor must be one of: ${ACTORS.join('|')}`)
+    }
+    if (args.session.length === 0) {
+      throw new ToolError('invalid_input', '--session must be a non-empty session id')
+    }
+
+    let payload: unknown
+    try {
+      payload = JSON.parse(args.payload)
+    } catch (err) {
+      throw new ToolError(
+        'invalid_input',
+        `--payload is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+    if (!isObj(payload)) {
+      throw new ToolError('invalid_input', '--payload must be a JSON object')
+    }
+
+    const ctx = createToolContext(rootDir)
+    const slug = ctx.resolveInitiative(args.slug)
+    // appendAndProject validates the payload against its type's schema BEFORE
+    // any write — invalid type/payload throws here with zero appends.
+    const event = ctx.appendAndProject(slug, args.type, payload, {
+      session: args.session,
+      source: args.source as Source,
+      actor: args.actor as Actor,
+    })
+    return { exitCode: 0, stdout: `${JSON.stringify({ ok: true, event_id: event.id })}\n`, stderr: '' }
+  } catch (err) {
+    const shape =
+      err instanceof ToolError
+        ? err.toShape()
+        : { code: 'io_error', message: err instanceof Error ? err.message : String(err) }
+    return { exitCode: 1, stdout: '', stderr: `${JSON.stringify(shape)}\n` }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Commander wiring — thin: read stdin, run handler, mirror its result.
 // ---------------------------------------------------------------------------
 
@@ -247,10 +322,50 @@ const SUBCOMMANDS: ReadonlyArray<{
   },
 ]
 
+/** Mirror a handler result onto the process (stdout/stderr/exit code). */
+function mirror(result: HookResult): void {
+  if (result.stdout.length > 0) process.stdout.write(result.stdout)
+  if (result.stderr.length > 0) {
+    process.stderr.write(result.stderr.endsWith('\n') ? result.stderr : `${result.stderr}\n`)
+  }
+  process.exitCode = result.exitCode
+}
+
 export function registerEventCommand(program: Command): void {
   const event = program
     .command('event')
-    .description('internal surface for hook shims — subcommands read hook JSON from stdin (SPEC §Hooks)')
+    .description(
+      'append-side surface: hook subcommands read hook JSON from stdin (SPEC §Hooks); `append` is the convention dialect for MCP-less tools',
+    )
+
+  event
+    .command('append [slug]')
+    .description(
+      'append one validated event and regenerate projections — the convention-dialect surface for tools without MCP (prints {ok, event_id} JSON)',
+    )
+    .requiredOption('--type <event_type>', 'event type (SPEC §Event types)')
+    .requiredOption('--payload <json>', 'event payload as a JSON object string')
+    .option('--session <id>', 'session id recorded on the envelope (reuse one id all session)', 'cli')
+    .option('--source <source>', `envelope source: ${SOURCES.join('|')}`, 'cli')
+    .option('--actor <actor>', `envelope actor: ${ACTORS.join('|')}`, 'agent')
+    .option('--root <dir>', 'repo root containing .harness/ (default: current directory)')
+    .action(
+      (
+        slug: string | undefined,
+        opts: { type: string; payload: string; session: string; source: string; actor: string; root?: string },
+      ) => {
+        mirror(
+          runAppend(resolve(opts.root ?? process.cwd()), {
+            type: opts.type,
+            payload: opts.payload,
+            session: opts.session,
+            source: opts.source,
+            actor: opts.actor,
+            ...(slug !== undefined ? { slug } : {}),
+          }),
+        )
+      },
+    )
 
   for (const { name, description, handler } of SUBCOMMANDS) {
     event
@@ -259,12 +374,7 @@ export function registerEventCommand(program: Command): void {
       .option('--root <dir>', 'repo root containing .harness/ (default: current directory)')
       .action(async (opts: { root?: string }) => {
         const input = await readStdin()
-        const result = handler(resolve(opts.root ?? process.cwd()), input)
-        if (result.stdout.length > 0) process.stdout.write(result.stdout)
-        if (result.stderr.length > 0) {
-          process.stderr.write(result.stderr.endsWith('\n') ? result.stderr : `${result.stderr}\n`)
-        }
-        process.exitCode = result.exitCode
+        mirror(handler(resolve(opts.root ?? process.cwd()), input))
       })
   }
 }

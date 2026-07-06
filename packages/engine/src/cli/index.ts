@@ -25,7 +25,7 @@ function rootOf(opts: { root?: string }): string {
 program
   .command('init')
   .description(
-    'make this repo harness-ready: .harness/, hook shims + settings, .mcp.json entry, CLAUDE.md protocol block (idempotent)',
+    'make this repo harness-ready: .harness/, hook shims + settings, .mcp.json entry, CLAUDE.md + AGENTS.md protocol blocks (idempotent)',
   )
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((opts: { root?: string }) => {

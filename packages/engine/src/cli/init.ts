@@ -11,7 +11,8 @@ import sessionEndShim from '../hooks/session-end.sh'
  * `harness init` (task 4.1, SPEC §CLI) — make a repo harness-ready:
  *   .harness/ (repo.md stub + bindings.json), hook shims in .claude/hooks/,
  *   .claude/settings.json hooks block, .mcp.json registration, and the
- *   total-jurisdiction protocol block in CLAUDE.md (BD19).
+ *   total-jurisdiction protocol blocks (BD19) in CLAUDE.md (MCP loop) and
+ *   AGENTS.md (CLI convention dialect for MCP-less tools — task 5.1, BD31).
  *
  * Idempotency is BYTE-LEVEL: a file is written only when its target content
  * differs, so a second run changes nothing (SPEC §Acceptance Phase 4).
@@ -50,6 +51,51 @@ Session loop:
   (\`harness_update_task\`) as they happen.
 - BEFORE FINISHING: write back with \`harness_end_session\` (summary +
   next action). The Stop hook blocks sessions that skip this.
+${PROTOCOL_END}
+`
+
+/**
+ * The AGENTS.md convention dialect (task 5.1, BD31) — the same three BD19
+ * total-jurisdiction clauses, but a CLI-only loop: AGENTS.md readers
+ * (OpenCode, Codex, plain shells) cannot be assumed to have MCP, so every
+ * step goes through \`harness status\` / \`harness event append\`. No hook
+ * enforces write-back for these tools, hence the MANDATORY clause (the
+ * compensating control — see docs/opencode-adapter.md).
+ */
+export const AGENTS_PROTOCOL_BLOCK = `${PROTOCOL_START}
+## Harness protocol (jurisdiction is total)
+
+This repo's work memory lives in harness records under \`.harness/\`. Drive
+the whole loop with the \`harness\` CLI — no MCP support is required.
+1. ALL work state lives in harness records — never in tool memory, scratch
+   files, or ad-hoc notes. If it is worth keeping, it goes in the record.
+2. Work that matches no existing initiative requires creating one first:
+   run \`harness new <slug>\` before proceeding.
+3. Bindings (\`.harness/bindings.json\`) resolve which record a session
+   serves — the current git branch selects the initiative.
+
+Session loop (every write is one \`harness event append\` call):
+- BEFORE any work: run \`harness status\` and orient from it. Detail lives
+  in \`.harness/initiatives/<slug>/plan.md\` and \`decisions.md\`. Do not
+  ask for context the record already answers.
+- START: pick one unique session id, reuse it for every append this
+  session, and register it:
+  \`harness event append --type session_started --session <session-id> --source opencode --payload '{"tool":"opencode"}'\`
+  (put your tool's name in --source and the payload).
+- DURING: log work as it happens with \`harness event append --session <session-id> --source <tool>\` plus:
+  task status:  \`--type task_status_changed --payload '{"id":"<task-id>","status":"pending|active|done|blocked"}'\`
+  decisions:    \`--type decision_logged --payload '{"chose":"...","over":"...","because":"..."}'\`
+  notes:        \`--type note_added --payload '{"text":"..."}'\`
+- BEFORE FINISHING (MANDATORY): write back —
+  \`harness event append --type session_ended --session <session-id> --source <tool> --payload '{"summary":"<what happened>","next_action":"<single next step>"}'\`
+  A session that skips this abandons its state and the next session starts blind.
+
+Prohibitions:
+- Never hand-edit generated projections (plan.md, decisions.md,
+  sessions/*) — they are rebuilt from events.jsonl on every append.
+- Never edit events.jsonl directly — truth is append-only, via the CLI.
+- Corrections are new \`correction\` events referencing the bad event's id
+  (then append the corrected event fresh); history is never rewritten.
 ${PROTOCOL_END}
 `
 
@@ -228,21 +274,27 @@ function mergeMcpJson(rootDir: string, report: string[]): void {
   report.push(`${writeIfChanged(path, stableJSON(config))} .mcp.json`)
 }
 
-function appendProtocolBlock(rootDir: string, report: string[]): void {
-  const path = join(rootDir, 'CLAUDE.md')
+/**
+ * Install a marker-delimited protocol block into a repo-root file — one
+ * discipline for CLAUDE.md and AGENTS.md: create the file if missing, append
+ * the block if the markers are absent, and never touch the file again once
+ * the markers exist (hand edits inside them survive).
+ */
+function appendProtocolBlock(rootDir: string, file: string, block: string, report: string[]): void {
+  const path = join(rootDir, file)
   if (!existsSync(path)) {
-    writeFileSync(path, PROTOCOL_BLOCK, 'utf8')
-    report.push('created CLAUDE.md (harness protocol block)')
+    writeFileSync(path, block, 'utf8')
+    report.push(`created ${file} (harness protocol block)`)
     return
   }
   const current = readFileSync(path, 'utf8')
   if (current.includes(PROTOCOL_START)) {
-    report.push('unchanged CLAUDE.md (protocol block present)') // never touched once installed
+    report.push(`unchanged ${file} (protocol block present)`) // never touched once installed
     return
   }
   const separator = current.length === 0 ? '' : current.endsWith('\n') ? '\n' : '\n\n'
-  writeFileSync(path, `${current}${separator}${PROTOCOL_BLOCK}`, 'utf8')
-  report.push('updated CLAUDE.md (harness protocol block appended)')
+  writeFileSync(path, `${current}${separator}${block}`, 'utf8')
+  report.push(`updated ${file} (harness protocol block appended)`)
 }
 
 // ---------------------------------------------------------------------------
@@ -256,7 +308,8 @@ export function runInit(rootDir: string): CmdResult {
     installShims(rootDir, report)
     mergeSettings(rootDir, report)
     mergeMcpJson(rootDir, report)
-    appendProtocolBlock(rootDir, report)
+    appendProtocolBlock(rootDir, 'CLAUDE.md', PROTOCOL_BLOCK, report)
+    appendProtocolBlock(rootDir, 'AGENTS.md', AGENTS_PROTOCOL_BLOCK, report)
   } catch (err) {
     if (err instanceof InitAbort) return fail(`harness init: ${err.message}`)
     throw err

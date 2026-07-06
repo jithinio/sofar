@@ -96,7 +96,9 @@ Shims contain no logic — they invoke the harness CLI.
 ## CLI
 - `harness init` — create .harness/, write repo.md stub, install hook shims
   + .claude/settings.json hooks block, emit .mcp.json registration, append
-  protocol block to CLAUDE.md (idempotent). The installed protocol block
+  protocol blocks to CLAUDE.md and AGENTS.md (idempotent; the AGENTS.md
+  block is the CLI convention dialect for MCP-less tools — added Phase 5,
+  BD31). Each installed protocol block
   MUST include: (a) all work state lives in harness records — never in tool
   memory or scratch files; (b) work matching no existing initiative requires
   creating one (harness new) before proceeding; (c) bindings resolve which
@@ -110,7 +112,14 @@ Shims contain no logic — they invoke the harness CLI.
 - `harness export [slug] [--since <id>]` / `harness import <file|-> [slug]`
   — per-initiative NDJSON over the §Cursor primitive; slug resolves like
   status (explicit wins, else branch binding) (extended Phase 4, BD28)
-- `harness event <subcommand>` — internal surface for shims.
+- `harness event <subcommand>` — append-side surface: session-start,
+  post-tool, stop, session-end are internal subcommands for the hook shims;
+  `event append --type <event_type> --payload <json-object> [--session <id>]
+  [--source <source>] [--actor <actor>] [slug]` is the convention-dialect
+  surface for MCP-less tools — validate payload, append ONE event,
+  regenerate projections, print {ok, event_id} JSON; any failure exits 1
+  with the typed-error JSON and appends nothing (added Phase 5, BD30; slug
+  resolves like status).
 - `harness serve [--port 4173]` — chokidar watch on .harness/ → GET /state
   (JSON InitiativeState per initiative), Server-Sent Events on change.
 - `harness mcp [--root <dir>]` — start the stdio MCP server (server name:
