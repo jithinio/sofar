@@ -212,6 +212,44 @@ describe('foldLines', () => {
     expect(state.sessions.find((s) => s.id === 'sess-ghost')?.tool).toBe('unknown')
   })
 
+  it('session_closed sets ended only — summary and next_action untouched (BD21)', () => {
+    const events = [
+      ev('session_started', { tool: 'claude-code' }, { session: 'sess-hook', source: 'hook' }),
+      ev('session_closed', { reason: 'exit' }, { session: 'sess-hook', source: 'hook' }),
+    ]
+    const { state, warnings } = foldLines(lines(events))
+    expect(warnings).toEqual([])
+    const session = state.sessions.find((s) => s.id === 'sess-hook')
+    expect(session?.ended).toBeDefined()
+    expect(session?.summary).toBeUndefined()
+    expect(session?.next_action).toBeUndefined()
+    expect(state.current.next_action).toBeNull()
+  })
+
+  it('session_closed never overrides an earlier session_ended timestamp or write-back', () => {
+    const closed = ev('session_closed', { reason: 'exit' }, { session: 'sess-1', source: 'hook' })
+    const { state, warnings } = foldLines(lines([...storyline(), closed]))
+    expect(warnings).toEqual([])
+    const session = state.sessions.find((s) => s.id === 'sess-1')
+    expect(session?.summary).toBe('Scaffold + log done')
+    expect(session?.next_action).toBe('Fold next')
+    expect(state.current.next_action).toBe('Fold next')
+  })
+
+  it('session_closed for an unregistered session warns and creates no stub', () => {
+    const orphan = ev('session_closed', { reason: 'exit' }, { session: 'sess-never-started' })
+    const { state, warnings } = foldLines(lines([...storyline(), orphan]))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toMatch(/closed without session_started — skipped/)
+    expect(state.sessions.some((s) => s.id === 'sess-never-started')).toBe(false)
+  })
+
+  it('session_started retains model and session_ended retains per-session next_action', () => {
+    const { state } = foldLines(lines(storyline()))
+    expect(state.sessions[0]?.model).toBe('claude-fable-5')
+    expect(state.sessions[0]?.next_action).toBe('Fold next')
+  })
+
   it('plan_updated fully replaces the plan structure', () => {
     const replace = ev('plan_updated', {
       plan: {

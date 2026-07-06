@@ -4,6 +4,7 @@ import { TOOL_INPUT_SCHEMAS, TOOL_NAMES, type ToolName } from '@harness/schema/t
 import { createHarnessServer, SERVER_NAME } from '../src/mcp/server'
 import { foldLog, type InitiativeState } from '../src/core/fold'
 import { GENERATED_HEADER } from '../src/projections/templates/shared'
+import { handleSessionStart } from '../src/cli/event'
 import { callTool, connectServer, makeRepoFixture } from './helpers/mcp'
 
 describe('MCP server skeleton (2.1)', () => {
@@ -142,6 +143,63 @@ describe('MCP tools round-trip (2.2)', () => {
     const line = JSON.parse(readFileSync(fixture.eventsPath, 'utf8').trim())
     expect(line.session).toBe('cli')
     expect(line.source).toBe('cli')
+    await client.close()
+  })
+
+  it('start_session adopts the hook-registered open session instead of minting a new id (BD20)', async () => {
+    const fixture = makeRepoFixture()
+    // the SessionStart hook registered Claude Code's session in the log
+    handleSessionStart(fixture.root, JSON.stringify({ session_id: 'claude-hook-sess' }))
+
+    const { client, handle } = await connectServer(fixture.root)
+    const started = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+      tool: 'claude-code',
+    })
+    expect(started.isError).toBe(false)
+    expect(started.body.session_id).toBe('claude-hook-sess')
+    expect(handle.getActiveSession()).toMatchObject({
+      id: 'claude-hook-sess',
+      tool: 'claude-code',
+      initiative: fixture.slug,
+    })
+
+    // adoption appends nothing — the session_started from the hook stands alone
+    const lines = readFileSync(fixture.eventsPath, 'utf8').trim().split('\n')
+    expect(lines).toHaveLength(1)
+
+    // end_session closes the adopted (hook-registered) session
+    await callTool(client, 'harness_end_session', {
+      session_id: 'claude-hook-sess',
+      summary: 'adopted and closed',
+      next_action: 'nothing',
+    })
+    const { state } = foldLog(fixture.eventsPath)
+    expect(state.sessions).toHaveLength(1)
+    expect(state.sessions[0]).toMatchObject({
+      id: 'claude-hook-sess',
+      summary: 'adopted and closed',
+    })
+    await client.close()
+  })
+
+  it('start_session mints a fresh ulid when every logged session is closed', async () => {
+    const fixture = makeRepoFixture()
+    const { client } = await connectServer(fixture.root)
+
+    const first = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+      tool: 'claude-code',
+    })
+    await callTool(client, 'harness_end_session', {
+      session_id: first.body.session_id,
+      summary: 'done',
+      next_action: 'next',
+    })
+
+    const second = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+      tool: 'claude-code',
+    })
+    expect(second.body.session_id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/)
+    expect(second.body.session_id).not.toBe(first.body.session_id)
     await client.close()
   })
 

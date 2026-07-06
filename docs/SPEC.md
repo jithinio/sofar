@@ -51,11 +51,14 @@ initiative_created · plan_updated (full plan structure) ·
 phase_status_changed · task_added · task_status_changed (id, status:
 pending|active|done|blocked) · decision_logged (chose, over, because) ·
 session_started (tool, model?) · session_ended (summary, next_action) ·
+session_closed (reason — mechanical close from the SessionEnd hook; never
+carries summary/next_action, added Phase 3, BD21) ·
 file_touched (path, op) · command_run (cmd) · note_added · correction (ref)
 
 ## State (result of fold)
 InitiativeState = { slug, goal, phases[ {name, status, tasks[ {id, title,
-status} ]} ], decisions[], sessions[ {id, tool, started, ended?, summary?} ],
+status} ]} ], decisions[], sessions[ {id, tool, model?, started, ended?,
+summary?, next_action?} ],
 files_touched[], current: {active_phase, next_action, blocked_on?},
 cursor: <last event id> }
 

@@ -10,11 +10,11 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 
 ## Current state
 - Active phase: 3
-- Next action: Task 3.1 — hook shims in .claude/hooks/ as standalone scripts
-  calling the CLI (needs `harness event append` CLI surface first — SPEC
-  §CLI `harness event <subcommand>`); Phase 3 also extends the v0
-  projection templates (task 3.6, seam built in Phase 2 per BD14: status
-  block ≤10,000 chars + sessions/<session-id>.md are still missing)
+- Next action: Task 3.3 — PostToolUse handler (`harness event post-tool`):
+  Edit|MultiEdit → file_touched op edit, Write → op write, Bash →
+  command_run; then 3.4 stop, 3.5 session-end, 3.6 full projections
+  (renderStatus ≤10k + sessions/<id>.md), 3.2 session-start printing the
+  capped status block
 - Blocked on: nothing
 
 ## Plan
@@ -40,8 +40,8 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [x] 2.4 .mcp.json registration snippet emitted by init (Phase 4 wires it)
 - [x] 2.5 Tests: every tool appends correct event; state reflects it
 
-### Phase 3 — Hooks + projections [pending]  (target: Jul 5)
-- [ ] 3.1 Hook shims in .claude/hooks/ as standalone scripts calling the CLI
+### Phase 3 — Hooks + projections [active]  (target: Jul 5)
+- [x] 3.1 Hook shims in .claude/hooks/ as standalone scripts calling the CLI
       (portability rule — no inline command logic)
 - [ ] 3.2 SessionStart shim: emit projection as context, ≤10,000 chars
 - [ ] 3.3 PostToolUse shim (matcher Edit|Write|MultiEdit|Bash): append
@@ -189,6 +189,43 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   hand-edit accidentally reverted SPEC §Repo layout/§Event types to the
   pre-monorepo text (BD11) and dropped the `harness mcp` CLI line (BD13);
   those sections were restored — code and record remain monorepo + mcp.
+- BD20: Session identity correlation through the log, no side channel —
+  hooks know Claude Code's session_id, the MCP server minted ulids; they
+  unify via events: `harness event session-start` appends session_started
+  with envelope.session = Claude's session_id; harness_start_session ADOPTS
+  the newest open session (session_started with no close) for the
+  initiative and returns its id (no duplicate append), minting a fresh ulid
+  only when none is open; harness_end_session then closes the adopted
+  session, so the Stop shim verifies write-back by folding the log for
+  Claude's session_id. Semantics shift: two start_sessions without an end
+  now adopt the same open session instead of minting parallel identities.
+  Rejected a side-channel correlation file (second source of truth beside
+  the log) and passing session ids through env vars (not available to the
+  MCP server process).
+- BD21: New event type session_closed {reason} — the SessionEnd hook must
+  not fabricate a session_ended (its required summary/next_action would
+  clobber the fold-derived current.next_action); session_closed is the
+  mechanical close: fold sets session.ended only (never summary/
+  next_action, never overrides an earlier end), warns + skips for
+  unregistered sessions (no stubs — a close marker for an unknown session
+  carries no information). SPEC §Event types updated; SPEC §State sessions
+  shape gained model? and next_action? (retained by fold since Phase 3 —
+  sessions/<id>.md projections need them). Rejected reusing session_ended
+  with placeholder summary: poisons next_action and defeats the Stop
+  shim's write-back check.
+- BD22: Best-effort hooks — every `harness event` handler exits 0 silently
+  on any failure (unreadable stdin, missing session_id, no .harness/, no
+  binding, unknown tool_name); only Stop deliberately exits 2, and only for
+  a registered-but-unwritten session (stop_hook_active → 0 loop guard;
+  unregistered session_id → 0 so foreign repos are never blocked;
+  write-back check = fold-derived session.summary present, since only
+  session_ended sets summary and voided corrections don't count).
+  SessionStart re-fires (resume/clear/compact) with the same session_id
+  skip the duplicate append but still print the status block. Handlers are
+  pure functions returning {exitCode, stdout, stderr}; commander wiring
+  stays thin so tests never wrestle process.exit. Rejected erroring loudly:
+  a memory layer that can break sessions in unbound repos is worse than no
+  memory layer.
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,

@@ -36,6 +36,12 @@ export interface TaskStatusChangedPayload { id: string; status: TaskStatus; note
 export interface DecisionLoggedPayload { chose: string; over: string; because: string }
 export interface SessionStartedPayload { tool: string; model?: string }
 export interface SessionEndedPayload { session_id?: string; summary: string; next_action: string }
+/**
+ * Mechanical session close (SessionEnd hook fallback). Deliberately has no
+ * summary/next_action: those belong to session_ended (the write-back) and a
+ * mechanical close must never clobber them during fold.
+ */
+export interface SessionClosedPayload { reason: string }
 export interface FileTouchedPayload { path: string; op: string }
 export interface CommandRunPayload { cmd: string }
 export interface NoteAddedPayload { text: string }
@@ -50,6 +56,7 @@ export interface KnownEventPayloads {
   decision_logged: DecisionLoggedPayload
   session_started: SessionStartedPayload
   session_ended: SessionEndedPayload
+  session_closed: SessionClosedPayload
   file_touched: FileTouchedPayload
   command_run: CommandRunPayload
   note_added: NoteAddedPayload
@@ -67,6 +74,7 @@ export const EVENT_TYPES = [
   'decision_logged',
   'session_started',
   'session_ended',
+  'session_closed',
   'file_touched',
   'command_run',
   'note_added',
@@ -173,6 +181,9 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (!optStr(p.session_id)) e.push('session_id: must be a string')
     if (!str(p.summary)) e.push('summary: must be a non-empty string')
     if (!str(p.next_action)) e.push('next_action: must be a non-empty string')
+  },
+  session_closed(p, e) {
+    if (!str(p.reason)) e.push('reason: must be a non-empty string')
   },
   file_touched(p, e) {
     if (!str(p.path)) e.push('path: must be a non-empty string')

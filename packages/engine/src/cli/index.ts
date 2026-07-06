@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { createHarnessServer } from '../mcp/server'
+import { registerEventCommand } from './event'
 
 const program = new Command()
 
@@ -17,5 +18,7 @@ program
     await handle.connectStdio()
     // stdio transport keeps the process alive until the client disconnects
   })
+
+registerEventCommand(program)
 
 await program.parseAsync(process.argv)

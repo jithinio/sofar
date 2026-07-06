@@ -53,9 +53,11 @@ export interface DecisionState {
 export interface SessionState {
   id: string
   tool: string
+  model?: string
   started: string
   ended?: string
   summary?: string
+  next_action?: string
 }
 
 export interface InitiativeState {
@@ -265,7 +267,9 @@ function applyEvent(
         warnings.push(`line ${lineNo}: session "${event.session}" already started — skipped`)
         break
       }
-      state.sessions.push({ id: event.session, tool: p.tool, started: event.ts })
+      const session: SessionState = { id: event.session, tool: p.tool, started: event.ts }
+      if (p.model !== undefined) session.model = p.model
+      state.sessions.push(session)
       break
     }
     case 'session_ended': {
@@ -279,7 +283,23 @@ function applyEvent(
       }
       session.ended = event.ts
       session.summary = p.summary
+      session.next_action = p.next_action
       state.current.next_action = p.next_action
+      break
+    }
+    case 'session_closed': {
+      // Mechanical close (SessionEnd hook fallback): sets ended only. Never
+      // touches summary/next_action — those belong to session_ended (the
+      // write-back), and never creates stub sessions (a close marker for an
+      // unregistered session carries no information).
+      const session = state.sessions.find((s) => s.id === event.session)
+      if (!session) {
+        warnings.push(
+          `line ${lineNo}: session "${event.session}" closed without session_started — skipped`,
+        )
+        break
+      }
+      if (session.ended === undefined) session.ended = event.ts
       break
     }
     case 'file_touched': {
