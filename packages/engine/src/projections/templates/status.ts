@@ -40,6 +40,55 @@ function lastWithSummary(sessions: readonly SessionState[]): SessionState | unde
   return undefined
 }
 
+/**
+ * Full status render for `harness status` (task 4.3) — same orientation
+ * data as renderStatus but UNCAPPED with a per-task phase tree: the 10k cap
+ * is a SessionStart context budget (BD3), not a terminal constraint.
+ */
+export function renderFullStatus(state: InitiativeState): string {
+  const lines: string[] = []
+  lines.push(`# ${state.slug || '(unnamed initiative)'}`, '')
+  lines.push(`Goal: ${state.goal || '(none recorded)'}`)
+
+  const [done, total] = taskProgress(state.phases)
+  lines.push(`Progress: ${done}/${total} tasks done (${pct(done, total)}) across ${state.phases.length} phase(s)`)
+  lines.push('')
+
+  if (state.phases.length > 0) {
+    lines.push('Phases:')
+    for (const phase of state.phases) {
+      const [phaseDone, phaseTotal] = taskProgress([phase])
+      lines.push(`- ${phase.name} [${phase.status}] ${phaseDone}/${phaseTotal}`)
+      for (const task of phase.tasks) {
+        lines.push(`  - ${TASK_MARKS[task.status] ?? '[ ]'} ${task.id} ${task.title}`)
+      }
+    }
+    lines.push('')
+  }
+
+  lines.push(`Next action: ${state.current.next_action ?? '(none recorded)'}`)
+  if (state.current.blocked_on !== undefined) {
+    lines.push(`Blocked on: ${state.current.blocked_on}`)
+  }
+
+  const last = lastWithSummary(state.sessions)
+  if (last !== undefined) {
+    lines.push('')
+    lines.push(`Last session (${last.tool}, ended ${last.ended ?? '?'}):`)
+    lines.push(`  ${last.summary!}`)
+  }
+
+  return lines.join('\n').replace(/\n+$/, '') + '\n'
+}
+
+/** Task status → tree marker: done, active, blocked, pending. */
+const TASK_MARKS: Record<string, string> = {
+  done: '[x]',
+  active: '[~]',
+  blocked: '[!]',
+  pending: '[ ]',
+}
+
 export function renderStatus(state: InitiativeState): string {
   const lines: string[] = []
   lines.push(`# Harness status: ${state.slug || '(unnamed initiative)'}`, '')

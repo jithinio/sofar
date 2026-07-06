@@ -9,11 +9,11 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 (00-spine, 01-roadmap, 02-action-plan, 03-architecture).
 
 ## Current state
-- Active phase: 4 (tasks 4.1–4.2 done, 204 tests green)
-- Next action: Task 4.3 — `harness status [slug]`: fold + print goal,
-  progress %, phase tree with per-task statuses, next action, blocked_on,
-  last session; uncapped (BD3 cap is SessionStart-only); fold warnings to
-  stderr; exit 1 when unresolvable
+- Active phase: 4 (tasks 4.1–4.3 done, 209 tests green)
+- Next action: Task 4.4 — `harness export [slug] [--since <id>]` /
+  `harness import <file|-> [slug]`: thin wrappers over core/cursor.ts
+  (exportNDJSON to stdout; importNDJSON + {appended, skipped} summary +
+  projection regen after appends)
 - Blocked on: nothing
 
 ## Plan
@@ -57,7 +57,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
       assert total jurisdiction (SPEC §CLI field finding Jul 4, BD19)
 - [x] 4.2 `harness new <slug>` / `harness switch <slug>`: initiative dirs +
       bindings.json (branch ↔ initiative)
-- [ ] 4.3 `harness status`: fold + print tree (phase/task/status/next)
+- [x] 4.3 `harness status`: fold + print tree (phase/task/status/next)
 - [ ] 4.4 `harness export --since <cursor>` / `harness import`
 - [ ] 4.5 Watcher + localhost JSON state server (no UI — endpoint only)
 
@@ -274,6 +274,17 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   to the CLI). Rejected binding "worktree name" instead of branch: SPEC
   §Record layout keys bindings by branch-or-worktree, and currentBranch()
   already resolves worktree HEADs to their branch.
+
+- BD27: `harness status` render lives in src/projections/templates/status.ts
+  as renderFullStatus (guard-rail: templates are the only template home),
+  next to the capped renderStatus — same fold, different budget: the CLI
+  print is uncapped with a per-task tree ([x]/[~]/[!]/[ ] markers) because
+  the 10k cap is a SessionStart context budget (BD3), not a terminal
+  constraint. Fold warnings go to stderr with exit 0 (a corrupt line must
+  not hide status — CLAUDE.md tolerance rule); resolution failures exit 1
+  with the BD16 typed message plus a CLI usage hint. Rejected reusing
+  renderStatus for the CLI (caps would silently hide tasks) and putting the
+  render in src/cli/ (template outside the template home).
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,

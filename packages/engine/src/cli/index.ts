@@ -4,6 +4,7 @@ import { createHarnessServer } from '../mcp/server'
 import { registerEventCommand } from './event'
 import { runInit } from './init'
 import { runNew, runSwitch } from './new'
+import { runStatus } from './status'
 import { emit } from './shared'
 
 const program = new Command()
@@ -44,6 +45,14 @@ program
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((slug: string, opts: { root?: string }) => {
     emit(runSwitch(rootOf(opts), slug))
+  })
+
+program
+  .command('status [slug]')
+  .description('fold and print the initiative: goal, progress, phase tree, next action, blocked, last session')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action((slug: string | undefined, opts: { root?: string }) => {
+    emit(runStatus(rootOf(opts), slug))
   })
 
 program
