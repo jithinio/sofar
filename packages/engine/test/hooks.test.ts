@@ -13,6 +13,7 @@ import {
   handleStop,
   STOP_BLOCK_MESSAGE,
 } from '../src/cli/event'
+import { STATUS_CHAR_LIMIT } from '../src/projections/templates/status'
 import { callTool, connectServer, makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
 
 /**
@@ -74,11 +75,15 @@ describe('hook shims (3.1) — zero logic, exec the CLI (BD4)', () => {
   }
 })
 
-describe('harness event session-start — session registration (BD20)', () => {
+describe('harness event session-start — session registration (BD20) + context injection (3.2)', () => {
   it('appends session_started with envelope.session = Claude session_id, source hook, tool claude-code', () => {
     const fixture = fx()
     const result = handleSessionStart(fixture.root, hookStdin({ hook_event_name: 'SessionStart', source: 'startup' }))
     expect(result.exitCode).toBe(0)
+
+    // stdout is the status projection — the injected context (3.2, BD3)
+    expect(result.stdout).toContain(`# Harness status: ${fixture.slug}`)
+    expect(result.stdout.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
 
     const events = logEvents(fixture.eventsPath)
     expect(events).toHaveLength(1)
@@ -94,13 +99,14 @@ describe('harness event session-start — session registration (BD20)', () => {
     expect(state.sessions[0]).toMatchObject({ id: 'claude-sess-1', tool: 'claude-code' })
   })
 
-  it('re-fire with the same session_id (resume/compact) does not append a duplicate', () => {
+  it('re-fire with the same session_id (resume/compact) does not append a duplicate but still prints context', () => {
     const fixture = fx()
     handleSessionStart(fixture.root, hookStdin({ source: 'startup' }))
     handleSessionStart(fixture.root, hookStdin({ source: 'resume' }))
-    handleSessionStart(fixture.root, hookStdin({ source: 'compact' }))
+    const compacted = handleSessionStart(fixture.root, hookStdin({ source: 'compact' }))
     expect(logEvents(fixture.eventsPath)).toHaveLength(1)
     expect(foldLog(fixture.eventsPath).warnings).toEqual([])
+    expect(compacted.stdout).toContain('# Harness status:') // re-injection after compact
   })
 
   it('missing .harness → exit 0, no output, nothing appended (best-effort, BD22)', () => {

@@ -9,12 +9,15 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 (00-spine, 01-roadmap, 02-action-plan, 03-architecture).
 
 ## Current state
-- Active phase: 3
-- Next action: Task 3.3 — PostToolUse handler (`harness event post-tool`):
-  Edit|MultiEdit → file_touched op edit, Write → op write, Bash →
-  command_run; then 3.4 stop, 3.5 session-end, 3.6 full projections
-  (renderStatus ≤10k + sessions/<id>.md), 3.2 session-start printing the
-  capped status block
+- Active phase: 4 (Phase 3 complete — all four SPEC Phase 3 acceptance
+  bullets verified, 185 tests green)
+- Next action: Task 4.1 — `harness init`: create .harness/ + repo.md stub,
+  install the four shims from packages/engine/src/hooks/ into
+  .claude/hooks/ (chmod +x) and wire .claude/settings.json hooks
+  (SessionStart → session-start.sh; PostToolUse matcher
+  Edit|Write|MultiEdit|Bash → post-tool-use.sh; Stop → stop.sh; SessionEnd
+  → session-end.sh), emit the .mcp.json entry (src/mcp/register.ts), append
+  the BD19 total-jurisdiction protocol block to CLAUDE.md, idempotent
 - Blocked on: nothing
 
 ## Plan
@@ -40,10 +43,10 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [x] 2.4 .mcp.json registration snippet emitted by init (Phase 4 wires it)
 - [x] 2.5 Tests: every tool appends correct event; state reflects it
 
-### Phase 3 — Hooks + projections [active]  (target: Jul 5)
+### Phase 3 — Hooks + projections [done]  (completed Jul 6)
 - [x] 3.1 Hook shims in .claude/hooks/ as standalone scripts calling the CLI
       (portability rule — no inline command logic)
-- [ ] 3.2 SessionStart shim: emit projection as context, ≤10,000 chars
+- [x] 3.2 SessionStart shim: emit projection as context, ≤10,000 chars
 - [x] 3.3 PostToolUse shim (matcher Edit|Write|MultiEdit|Bash): append
       file_touched / command_run mechanical events
 - [x] 3.4 Stop shim: if no session_ended event for this session → exit 2

@@ -1,6 +1,7 @@
 import { resolve } from 'node:path'
 import type { Command } from 'commander'
 import { createToolContext, type ToolContext } from '../mcp/context'
+import { renderStatus } from '../projections/templates/status'
 
 /**
  * `harness event <subcommand>` — the internal surface hook shims call
@@ -85,15 +86,15 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     const { ctx, slug } = bound
 
     const sessionId = strField(parseHook(input), 'session_id')
-    const state = ctx.foldState(slug)
+    let state = ctx.foldState(slug)
     if (sessionId !== null && !state.sessions.some((s) => s.id === sessionId)) {
       ctx.appendAndProject(slug, 'session_started', { tool: HOOK_TOOL }, {
         session: sessionId,
         source: 'hook',
       })
+      state = ctx.foldState(slug)
     }
-    // Status-projection stdout lands with task 3.2 (needs the 3.6 template).
-    return { ...OK }
+    return { ...OK, stdout: renderStatus(state) } // ≤10,000 chars (BD3/BD24)
   } catch {
     return { ...OK }
   }
