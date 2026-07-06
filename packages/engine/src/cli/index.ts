@@ -6,6 +6,7 @@ import { registerEventCommand } from './event'
 import { runInit } from './init'
 import { runNew, runSwitch } from './new'
 import { runStatus } from './status'
+import { startServer, DEFAULT_PORT } from './serve'
 import { runExport, runImport } from './transfer'
 import { emit, readAllStdin } from './shared'
 
@@ -88,6 +89,22 @@ program
       return
     }
     emit(runImport(rootOf(opts), stream, slug !== undefined ? { slug } : {}))
+  })
+
+program
+  .command('serve')
+  .description('watch .harness/ and serve initiative state as JSON on 127.0.0.1 (GET /state, /state/<slug>, /events SSE)')
+  .option('--port <port>', 'port to bind on 127.0.0.1', String(DEFAULT_PORT))
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action(async (opts: { port: string; root?: string }) => {
+    const port = Number.parseInt(opts.port, 10)
+    if (Number.isNaN(port) || port < 0 || port > 65_535) {
+      emit({ exitCode: 1, stdout: '', stderr: `harness serve: invalid port "${opts.port}"` })
+      return
+    }
+    const handle = await startServer({ root: rootOf(opts), port })
+    process.stderr.write(`harness serve: ${handle.url} (GET /state, /state/<slug>, /events SSE)\n`)
+    // long-running: the server keeps the event loop alive until Ctrl-C
   })
 
 program

@@ -64,6 +64,7 @@ function seed(fixture: Fixture): void {
       },
     }),
     ev(fixture, 'task_status_changed', { id: '1.3', status: 'blocked', note: 'waiting on schema review' }),
+    ev(fixture, 'file_touched', { path: 'src/core/log.ts', op: 'edit' }),
     ev(fixture, 'session_started', { tool: 'claude-code' }, 'sess-1'),
     ev(
       fixture,
@@ -100,6 +101,9 @@ describe('harness status', () => {
     // last session: tool + summary + ended
     expect(out).toMatch(/Last session \(claude-code, ended \d{4}-/)
     expect(out).toContain('built the scaffold end to end')
+    // touched files
+    expect(out).toContain('Files touched (1):')
+    expect(out).toContain('- src/core/log.ts')
   })
 
   it('accepts an explicit slug and is NOT capped at 10k chars', () => {

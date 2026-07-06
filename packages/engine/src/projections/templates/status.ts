@@ -78,6 +78,12 @@ export function renderFullStatus(state: InitiativeState): string {
     lines.push(`  ${last.summary!}`)
   }
 
+  if (state.files_touched.length > 0) {
+    lines.push('')
+    lines.push(`Files touched (${state.files_touched.length}):`)
+    for (const file of state.files_touched) lines.push(`- ${file}`)
+  }
+
   return lines.join('\n').replace(/\n+$/, '') + '\n'
 }
 

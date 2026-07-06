@@ -9,12 +9,13 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 (00-spine, 01-roadmap, 02-action-plan, 03-architecture).
 
 ## Current state
-- Active phase: 4 (tasks 4.1–4.4 done, 214 tests green)
-- Next action: Task 4.5 — `harness serve [--port 4173]`: node:http on
-  127.0.0.1 only; GET /state (all initiatives), GET /state/<slug> (404
-  unknown), GET /events SSE fed by chokidar on .harness/**/events.jsonl
-  (push within 500ms of append), 15s heartbeat, clean close; export a
-  startServer({root, port}) factory for tests
+- Active phase: 5 (Phase 4 complete — all three SPEC Phase 4 acceptance
+  bullets verified: E2E loop after init, byte-level init idempotency,
+  SSE push measured 51ms ≪ 500ms; 222 tests green)
+- Next action: Task 5.1 — AGENTS.md protocol block (convention dialect for
+  MCP-less tools); must carry the same three BD19 total-jurisdiction
+  clauses as the CLAUDE.md block `harness init` installs
+  (src/cli/init.ts PROTOCOL_BLOCK is the reference text)
 - Blocked on: nothing
 
 ## Plan
@@ -52,7 +53,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [x] 3.6 Projection generator: templates → plan.md, decisions.md, status
       block; regenerated on every append; never hand-edited
 
-### Phase 4 — CLI + watcher [pending]  (target: Jul 6)
+### Phase 4 — CLI + watcher [done]  (completed Jul 6)
 - [x] 4.1 `harness init`: scaffold .harness/, install hook shims + settings,
       emit .mcp.json entry, append protocol block to CLAUDE.md — block MUST
       assert total jurisdiction (SPEC §CLI field finding Jul 4, BD19)
@@ -60,7 +61,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
       bindings.json (branch ↔ initiative)
 - [x] 4.3 `harness status`: fold + print tree (phase/task/status/next)
 - [x] 4.4 `harness export --since <cursor>` / `harness import`
-- [ ] 4.5 Watcher + localhost JSON state server (no UI — endpoint only)
+- [x] 4.5 Watcher + localhost JSON state server (no UI — endpoint only)
 
 ### Phase 5 — Dialect + forced handoff [pending]  (target: Jul 7)
 - [ ] 5.1 AGENTS.md protocol block (convention dialect for MCP-less tools)
@@ -296,6 +297,27 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   stderr; projections regenerate only when appended > 0 (an idempotent
   re-import rewrites nothing). Handlers take the already-read stream —
   commander wiring owns file/stdin IO so tests stay process-free.
+
+- BD29: `harness serve` design — node:http only, bound 127.0.0.1 ONLY
+  (localhost law), three routes and nothing else (/state, /state/<slug>,
+  /events SSE; non-GET → 405, everything else → 404, slug path segments
+  validated against [a-z0-9-]+ so a URL never walks the fs). chokidar
+  watches .harness/initiatives/ recursively with basename filtering to
+  events.jsonl (chokidar ≥4 dropped globs; projection writes are ignored
+  by the filter), re-folds just the changed initiative, and pushes
+  `event: state` + {slug, state} JSON — measured 51ms append→client,
+  contract ≤500ms. startServer({root, port}) → {port, url, close} factory
+  (port 0 = ephemeral for tests) awaits watcher-ready before resolving so
+  appends right after startup are never missed; close() ends SSE clients,
+  closes the watcher, and closeAllConnections() so no handle dangles.
+  Heartbeat comment every 15s keeps proxies from reaping idle streams.
+  A fold error on one initiative degrades to an empty state for that slug
+  rather than a 500 (an endpoint that dies on one torn log is useless).
+  renderFullStatus also gained a "Files touched" section during Phase 4
+  acceptance (status must show the loop's file_touched; SPEC's status list
+  is a floor, not a ceiling). Rejected express (dependency law), any
+  static/UI route (scope law), and debouncing appends (latency budget is
+  generous; consumers coalesce).
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,
