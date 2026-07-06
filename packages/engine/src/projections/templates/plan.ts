@@ -1,20 +1,24 @@
 import type { InitiativeState } from '../../core/fold'
-import { GENERATED_HEADER, doc } from './shared'
+import { GENERATED_HEADER, doc, pct, taskProgress } from './shared'
 
 /**
- * plan.md template — v0 (BD14): minimal but truthful rendering of the folded
- * plan. Phase 3 (task 3.6) extends this (progress %, status block, sessions).
+ * plan.md template (task 3.6, extends the BD14 v0 seam in place): goal,
+ * overall progress %, and the full phase tree with statuses and tasks.
  */
 export function renderPlan(state: InitiativeState): string {
   const lines: string[] = [GENERATED_HEADER, '']
   lines.push(`# Plan: ${state.slug || '(unnamed initiative)'}`, '')
   lines.push(`Goal: ${state.goal || '(none recorded)'}`, '')
 
+  const [done, total] = taskProgress(state.phases)
+  lines.push(`Progress: ${done}/${total} tasks done (${pct(done, total)})`, '')
+
   if (state.phases.length === 0) {
     lines.push('(no plan recorded yet — call harness_update_plan)', '')
   }
   for (const phase of state.phases) {
-    lines.push(`## ${phase.name} [${phase.status}]`, '')
+    const [phaseDone, phaseTotal] = taskProgress([phase])
+    lines.push(`## ${phase.name} [${phase.status}] — ${phaseDone}/${phaseTotal} done`, '')
     for (const task of phase.tasks) {
       const box = task.status === 'done' ? 'x' : ' '
       const suffix = task.status === 'active' || task.status === 'blocked' ? ` (${task.status})` : ''

@@ -9,3 +9,33 @@ export const GENERATED_HEADER =
 export function doc(lines: readonly string[]): string {
   return lines.join('\n').replace(/\n+$/, '') + '\n'
 }
+
+/**
+ * Collapse whitespace and hard-cap a string's length (budgeted sections of
+ * the status projection — BD24). The ellipsis is inside the budget.
+ */
+export function clip(text: string, max: number): string {
+  const oneLine = text.replace(/\s+/g, ' ').trim()
+  if (oneLine.length <= max) return oneLine
+  return `${oneLine.slice(0, Math.max(0, max - 1))}…`
+}
+
+/** Task-level progress across phases: [done, total]. */
+export function taskProgress(phases: ReadonlyArray<{ tasks: ReadonlyArray<{ status: string }> }>): [number, number] {
+  let done = 0
+  let total = 0
+  for (const phase of phases) {
+    for (const task of phase.tasks) {
+      total += 1
+      if (task.status === 'done') done += 1
+    }
+  }
+  return [done, total]
+}
+
+/** Percentage string that never claims 100% while work remains. */
+export function pct(done: number, total: number): string {
+  if (total === 0) return '0%'
+  const raw = Math.floor((done / total) * 100)
+  return `${done === total ? 100 : Math.min(raw, 99)}%`
+}

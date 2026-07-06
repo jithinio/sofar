@@ -49,7 +49,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [x] 3.4 Stop shim: if no session_ended event for this session → exit 2
       with "write back to the record"; MUST check stop_hook_active guard
 - [x] 3.5 SessionEnd shim: mechanical close event (fallback logging only)
-- [ ] 3.6 Projection generator: templates → plan.md, decisions.md, status
+- [x] 3.6 Projection generator: templates → plan.md, decisions.md, status
       block; regenerated on every append; never hand-edited
 
 ### Phase 4 — CLI + watcher [pending]  (target: Jul 6)
@@ -234,6 +234,18 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   nothing. Rejected recording tool_response (verbose, no state value) and
   an op per hook tool name (op is edit|write — the record cares about
   mutation kind, not which editor variant did it).
+- BD24: Status projection ≤10k strategy — renderStatus enforces the BD3 cap
+  twice: per-section char budgets (goal 600, next_action/blocked 500,
+  session summary 1200, 5 decisions × 280, phase list capped at 12 lines)
+  whose worst-case sum is ~6.5k, plus a final enforceStatusLimit guard that
+  slices to 10,000 and appends "…truncated — run harness status for full
+  detail". The status block is stdout-only (SessionStart context), not a
+  projection file — SPEC §Record layout lists no status.md. sessions/<id>.md
+  are regenerated for every known session on every append (idempotent,
+  O(sessions)); session ids come from outside, so filenames are sanitized
+  ([^A-Za-z0-9._-] → _) to keep hostile ids inside sessions/. Rejected
+  proportional (single-pool) budgeting: harder to reason about worst cases
+  than fixed per-section caps.
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,
