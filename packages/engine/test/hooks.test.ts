@@ -5,7 +5,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { rmSync } from 'node:fs'
 import type { EventEnvelope } from '../src/core/envelope'
 import { foldLog } from '../src/core/fold'
-import { handleSessionStart } from '../src/cli/event'
+import { handlePostTool, handleSessionStart } from '../src/cli/event'
 import { makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
 
 /**
@@ -117,5 +117,96 @@ describe('harness event session-start — session registration (BD20)', () => {
     expect(handleSessionStart(fixture.root, 'not json{{{').exitCode).toBe(0)
     expect(handleSessionStart(fixture.root, JSON.stringify({ cwd: '/x' })).exitCode).toBe(0)
     expect(logEvents(fixture.eventsPath)).toHaveLength(0)
+  })
+})
+
+describe('harness event post-tool — mechanical file/command events (3.3)', () => {
+  const postToolStdin = (toolName: string, toolInput: Record<string, unknown>): string =>
+    hookStdin({
+      hook_event_name: 'PostToolUse',
+      tool_name: toolName,
+      tool_input: toolInput,
+      tool_response: { success: true },
+    })
+
+  it('Edit → exactly one file_touched {path, op: edit} (acceptance)', () => {
+    const fixture = fx()
+    const result = handlePostTool(
+      fixture.root,
+      postToolStdin('Edit', { file_path: '/repo/src/a.ts', old_string: 'x', new_string: 'y' }),
+    )
+    expect(result).toEqual({ exitCode: 0, stdout: '', stderr: '' })
+
+    const events = logEvents(fixture.eventsPath)
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      type: 'file_touched',
+      payload: { path: '/repo/src/a.ts', op: 'edit' },
+      session: 'claude-sess-1',
+      source: 'hook',
+      actor: 'agent',
+    })
+    expect(foldLog(fixture.eventsPath).state.files_touched).toEqual(['/repo/src/a.ts'])
+  })
+
+  it('MultiEdit → op edit; Write → op write', () => {
+    const fixture = fx()
+    handlePostTool(fixture.root, postToolStdin('MultiEdit', { file_path: '/repo/multi.ts' }))
+    handlePostTool(fixture.root, postToolStdin('Write', { file_path: '/repo/new.ts', content: 'x' }))
+
+    const events = logEvents(fixture.eventsPath)
+    expect(events.map((e) => [e.type, e.payload.path, e.payload.op])).toEqual([
+      ['file_touched', '/repo/multi.ts', 'edit'],
+      ['file_touched', '/repo/new.ts', 'write'],
+    ])
+  })
+
+  it('Bash → exactly one command_run {cmd} (acceptance)', () => {
+    const fixture = fx()
+    handlePostTool(fixture.root, postToolStdin('Bash', { command: 'npm test', description: 'run tests' }))
+
+    const events = logEvents(fixture.eventsPath)
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      type: 'command_run',
+      payload: { cmd: 'npm test' },
+      session: 'claude-sess-1',
+      source: 'hook',
+    })
+    expect(foldLog(fixture.eventsPath).warnings).toEqual([])
+  })
+
+  it('unknown tool_name → exit 0, zero appends', () => {
+    const fixture = fx()
+    expect(handlePostTool(fixture.root, postToolStdin('Read', { file_path: '/x.ts' })).exitCode).toBe(0)
+    expect(handlePostTool(fixture.root, postToolStdin('Glob', { pattern: '**' })).exitCode).toBe(0)
+    expect(logEvents(fixture.eventsPath)).toHaveLength(0)
+  })
+
+  it('missing file_path / command → exit 0, zero appends (defensive parsing)', () => {
+    const fixture = fx()
+    expect(handlePostTool(fixture.root, postToolStdin('Edit', {})).exitCode).toBe(0)
+    expect(handlePostTool(fixture.root, postToolStdin('Bash', {})).exitCode).toBe(0)
+    expect(handlePostTool(fixture.root, hookStdin({ hook_event_name: 'PostToolUse' })).exitCode).toBe(0)
+    expect(handlePostTool(fixture.root, 'garbage').exitCode).toBe(0)
+    expect(logEvents(fixture.eventsPath)).toHaveLength(0)
+  })
+
+  it('missing session_id falls back to envelope session "cli"', () => {
+    const fixture = fx()
+    handlePostTool(
+      fixture.root,
+      JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'ls' } }),
+    )
+    const events = logEvents(fixture.eventsPath)
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({ type: 'command_run', session: 'cli', source: 'hook' })
+  })
+
+  it('unbound repo → exit 0, nothing appended (BD22)', () => {
+    const fixture = fx({ bind: false })
+    const result = handlePostTool(fixture.root, postToolStdin('Edit', { file_path: '/x.ts' }))
+    expect(result).toEqual({ exitCode: 0, stdout: '', stderr: '' })
+    expect(existsSync(fixture.eventsPath)).toBe(false)
   })
 })

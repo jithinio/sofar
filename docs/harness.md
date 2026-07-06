@@ -44,7 +44,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [x] 3.1 Hook shims in .claude/hooks/ as standalone scripts calling the CLI
       (portability rule — no inline command logic)
 - [ ] 3.2 SessionStart shim: emit projection as context, ≤10,000 chars
-- [ ] 3.3 PostToolUse shim (matcher Edit|Write|MultiEdit|Bash): append
+- [x] 3.3 PostToolUse shim (matcher Edit|Write|MultiEdit|Bash): append
       file_touched / command_run mechanical events
 - [ ] 3.4 Stop shim: if no session_ended event for this session → exit 2
       with "write back to the record"; MUST check stop_hook_active guard
@@ -226,6 +226,14 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   stays thin so tests never wrestle process.exit. Rejected erroring loudly:
   a memory layer that can break sessions in unbound repos is worse than no
   memory layer.
+- BD23: PostToolUse mapping — Edit|MultiEdit → file_touched {path:
+  tool_input.file_path, op:'edit'}, Write → op:'write', Bash → command_run
+  {cmd: tool_input.command}; envelope source 'hook', actor 'agent', session
+  = stdin session_id (fallback 'cli' so a touch without correlation still
+  lands). Unknown tool_name or missing file_path/command → exit 0, append
+  nothing. Rejected recording tool_response (verbose, no state value) and
+  an op per hook tool name (op is edit|write — the record cares about
+  mutation kind, not which editor variant did it).
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,
