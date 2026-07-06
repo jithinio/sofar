@@ -107,7 +107,9 @@ Shims contain no logic — they invoke the harness CLI.
   initiative; bind current branch in bindings.json.
 - `harness status [slug]` — fold and print: goal, progress %, phase tree
   with statuses, next action, blocked, last session.
-- `harness export [--since <id>]` / `harness import <file|->`
+- `harness export [slug] [--since <id>]` / `harness import <file|-> [slug]`
+  — per-initiative NDJSON over the §Cursor primitive; slug resolves like
+  status (explicit wins, else branch binding) (extended Phase 4, BD28)
 - `harness event <subcommand>` — internal surface for shims.
 - `harness serve [--port 4173]` — chokidar watch on .harness/ → GET /state
   (JSON InitiativeState per initiative), Server-Sent Events on change.

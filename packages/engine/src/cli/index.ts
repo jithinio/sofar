@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Command } from 'commander'
 import { createHarnessServer } from '../mcp/server'
@@ -5,7 +6,8 @@ import { registerEventCommand } from './event'
 import { runInit } from './init'
 import { runNew, runSwitch } from './new'
 import { runStatus } from './status'
-import { emit } from './shared'
+import { runExport, runImport } from './transfer'
+import { emit, readAllStdin } from './shared'
 
 const program = new Command()
 
@@ -53,6 +55,39 @@ program
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((slug: string | undefined, opts: { root?: string }) => {
     emit(runStatus(rootOf(opts), slug))
+  })
+
+program
+  .command('export [slug]')
+  .description('write the initiative event log to stdout as NDJSON (sync cursor primitive)')
+  .option('--since <id>', 'only events with ulid strictly after this id')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action((slug: string | undefined, opts: { since?: string; root?: string }) => {
+    emit(
+      runExport(rootOf(opts), {
+        ...(slug !== undefined ? { slug } : {}),
+        ...(opts.since !== undefined ? { since: opts.since } : {}),
+      }),
+    )
+  })
+
+program
+  .command('import <file> [slug]')
+  .description('import an NDJSON event stream (file, or "-" for stdin) — dedupes by id, idempotent')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action(async (file: string, slug: string | undefined, opts: { root?: string }) => {
+    let stream: string
+    try {
+      stream = file === '-' ? await readAllStdin() : readFileSync(file, 'utf8')
+    } catch (err) {
+      emit({
+        exitCode: 1,
+        stdout: '',
+        stderr: `harness import: cannot read ${file}: ${err instanceof Error ? err.message : String(err)}`,
+      })
+      return
+    }
+    emit(runImport(rootOf(opts), stream, slug !== undefined ? { slug } : {}))
   })
 
 program

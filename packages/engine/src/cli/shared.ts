@@ -27,6 +27,16 @@ export function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
+/** Read stdin to a string (for `harness import -`); empty when run on a TTY. */
+export async function readAllStdin(): Promise<string> {
+  if (process.stdin.isTTY) return ''
+  const chunks: Buffer[] = []
+  for await (const chunk of process.stdin) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : (chunk as Buffer))
+  }
+  return Buffer.concat(chunks).toString('utf8')
+}
+
 /** Mirror a handler result onto the process (stdout/stderr/exit code). */
 export function emit(result: CmdResult): void {
   if (result.stdout.length > 0) process.stdout.write(result.stdout)

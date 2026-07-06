@@ -9,11 +9,12 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 (00-spine, 01-roadmap, 02-action-plan, 03-architecture).
 
 ## Current state
-- Active phase: 4 (tasks 4.1–4.3 done, 209 tests green)
-- Next action: Task 4.4 — `harness export [slug] [--since <id>]` /
-  `harness import <file|-> [slug]`: thin wrappers over core/cursor.ts
-  (exportNDJSON to stdout; importNDJSON + {appended, skipped} summary +
-  projection regen after appends)
+- Active phase: 4 (tasks 4.1–4.4 done, 214 tests green)
+- Next action: Task 4.5 — `harness serve [--port 4173]`: node:http on
+  127.0.0.1 only; GET /state (all initiatives), GET /state/<slug> (404
+  unknown), GET /events SSE fed by chokidar on .harness/**/events.jsonl
+  (push within 500ms of append), 15s heartbeat, clean close; export a
+  startServer({root, port}) factory for tests
 - Blocked on: nothing
 
 ## Plan
@@ -58,7 +59,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [x] 4.2 `harness new <slug>` / `harness switch <slug>`: initiative dirs +
       bindings.json (branch ↔ initiative)
 - [x] 4.3 `harness status`: fold + print tree (phase/task/status/next)
-- [ ] 4.4 `harness export --since <cursor>` / `harness import`
+- [x] 4.4 `harness export --since <cursor>` / `harness import`
 - [ ] 4.5 Watcher + localhost JSON state server (no UI — endpoint only)
 
 ### Phase 5 — Dialect + forced handoff [pending]  (target: Jul 7)
@@ -285,6 +286,16 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   with the BD16 typed message plus a CLI usage hint. Rejected reusing
   renderStatus for the CLI (caps would silently hide tasks) and putting the
   render in src/cli/ (template outside the template home).
+
+- BD28: export/import CLI surface — both commands take an optional [slug]
+  positional resolving like status (explicit wins, else branch binding,
+  BD16); SPEC §CLI line extended to match (an export command that can only
+  serve the bound initiative can't move a second initiative's log, which
+  the BD19 field finding showed is a real workflow). Import summary is one
+  parseable JSON line {"appended":N,"skipped":M}; stream warnings go to
+  stderr; projections regenerate only when appended > 0 (an idempotent
+  re-import rewrites nothing). Handlers take the already-read stream —
+  commander wiring owns file/stdin IO so tests stay process-free.
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,
