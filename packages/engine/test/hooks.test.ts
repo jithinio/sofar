@@ -3,10 +3,11 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 import { rmSync } from 'node:fs'
-import type { EventEnvelope } from '../src/core/envelope'
+import { makeEvent, type EventEnvelope } from '../src/core/envelope'
+import { appendEvent } from '../src/core/log'
 import { foldLog } from '../src/core/fold'
-import { handlePostTool, handleSessionStart } from '../src/cli/event'
-import { makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
+import { handlePostTool, handleSessionStart, handleStop, STOP_BLOCK_MESSAGE } from '../src/cli/event'
+import { callTool, connectServer, makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
 
 /**
  * Phase 3 hook surface: shim scripts (3.1) + `harness event` handlers.
@@ -208,5 +209,115 @@ describe('harness event post-tool — mechanical file/command events (3.3)', () 
     const result = handlePostTool(fixture.root, postToolStdin('Edit', { file_path: '/x.ts' }))
     expect(result).toEqual({ exitCode: 0, stdout: '', stderr: '' })
     expect(existsSync(fixture.eventsPath)).toBe(false)
+  })
+})
+
+describe('harness event stop — write-back enforcement (3.4, BD2)', () => {
+  const stopStdin = (fields: Record<string, unknown> = {}): string =>
+    hookStdin({ hook_event_name: 'Stop', stop_hook_active: false, ...fields })
+
+  /** Append a session_ended the way any writer would — straight to the log. */
+  function appendSessionEnded(fixture: Fixture, sessionId: string): void {
+    appendEvent(
+      fixture.eventsPath,
+      makeEvent({
+        initiative: fixture.slug,
+        session: sessionId,
+        source: 'claude-code',
+        actor: 'agent',
+        type: 'session_ended',
+        payload: { session_id: sessionId, summary: 'wrote back', next_action: 'continue 3.4' },
+      }),
+    )
+  }
+
+  it('blocks a started-but-unwritten session: exit 2 with the exact write-back message (acceptance)', () => {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({}))
+
+    const result = handleStop(fixture.root, stopStdin())
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toBe(STOP_BLOCK_MESSAGE)
+    expect(result.stderr).toBe(
+      'Write back to the harness record before finishing: call harness_end_session (or update harness.md per protocol).',
+    )
+    expect(result.stdout).toBe('')
+    // the check appends nothing
+    expect(logEvents(fixture.eventsPath)).toHaveLength(1)
+  })
+
+  it('passes a session that wrote back via a session_ended event (acceptance)', () => {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({}))
+    appendSessionEnded(fixture, 'claude-sess-1')
+
+    expect(handleStop(fixture.root, stopStdin())).toEqual({ exitCode: 0, stdout: '', stderr: '' })
+  })
+
+  it('passes after the MCP adopt-and-end flow closes the hook-registered session', async () => {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({}))
+
+    // blocked before write-back
+    expect(handleStop(fixture.root, stopStdin()).exitCode).toBe(2)
+
+    const { client } = await connectServer(fixture.root)
+    const started = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+      tool: 'claude-code',
+    })
+    expect(started.body.session_id).toBe('claude-sess-1') // adopted (BD20)
+    await callTool(client, 'harness_end_session', {
+      session_id: started.body.session_id,
+      summary: 'ended via MCP',
+      next_action: 'nothing',
+    })
+    await client.close()
+
+    expect(handleStop(fixture.root, stopStdin()).exitCode).toBe(0)
+  })
+
+  it('stop_hook_active → exit 0 even when the session has not written back (loop guard, acceptance)', () => {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({}))
+
+    const result = handleStop(fixture.root, stopStdin({ stop_hook_active: true }))
+    expect(result).toEqual({ exitCode: 0, stdout: '', stderr: '' })
+  })
+
+  it('unregistered session_id → exit 0 (never block sessions the harness does not govern)', () => {
+    const fixture = fx()
+    // log exists but this session never registered
+    handleSessionStart(fixture.root, hookStdin({ session_id: 'some-other-session' }))
+    expect(handleStop(fixture.root, stopStdin()).exitCode).toBe(0)
+
+    // empty log entirely
+    const fresh = fx()
+    expect(handleStop(fresh.root, stopStdin()).exitCode).toBe(0)
+  })
+
+  it('a mechanical session_closed is NOT a write-back — stop still blocks', () => {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({}))
+    appendEvent(
+      fixture.eventsPath,
+      makeEvent({
+        initiative: fixture.slug,
+        session: 'claude-sess-1',
+        source: 'hook',
+        actor: 'agent',
+        type: 'session_closed',
+        payload: { reason: 'exit' },
+      }),
+    )
+    expect(handleStop(fixture.root, stopStdin()).exitCode).toBe(2)
+  })
+
+  it('unreadable stdin / missing session_id / unbound repo → exit 0 (BD22)', () => {
+    const fixture = fx()
+    expect(handleStop(fixture.root, '{{{').exitCode).toBe(0)
+    expect(handleStop(fixture.root, JSON.stringify({ stop_hook_active: false })).exitCode).toBe(0)
+
+    const unbound = fx({ bind: false })
+    expect(handleStop(unbound.root, stopStdin()).exitCode).toBe(0)
   })
 })

@@ -46,7 +46,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [ ] 3.2 SessionStart shim: emit projection as context, ≤10,000 chars
 - [x] 3.3 PostToolUse shim (matcher Edit|Write|MultiEdit|Bash): append
       file_touched / command_run mechanical events
-- [ ] 3.4 Stop shim: if no session_ended event for this session → exit 2
+- [x] 3.4 Stop shim: if no session_ended event for this session → exit 2
       with "write back to the record"; MUST check stop_hook_active guard
 - [ ] 3.5 SessionEnd shim: mechanical close event (fallback logging only)
 - [ ] 3.6 Projection generator: templates → plan.md, decisions.md, status
