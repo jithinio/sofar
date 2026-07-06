@@ -460,3 +460,21 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   Next action: Phase 5 — 5.1 AGENTS.md dialect (carry the three BD19
   clauses; reuse PROTOCOL_BLOCK in src/cli/init.ts), 5.2 OpenCode adapter
   notes, 5.3 the Jul 7 Fable→Opus handoff ceremony (user-driven).
+- 2026-07-06, later (claude-code / Fable 5, Phase 5 prep by delegated
+  subagent, verified by main session): 5.1 done (commit b47dd00):
+  `harness event append` dialect surface (BD30), AGENTS.md protocol block
+  installed by init with BD19 clauses + mandatory write-back (BD31); Stop
+  gate parity between dialect append and MCP end_session proven at handler
+  and built-CLI level. 5.2 documented + simulated (commit 9831a04, BD32):
+  docs/opencode-adapter.md with plugin mapping, the no-blocking-Stop gap
+  called out, 12-step manual checklist simulated 1:1 in
+  acceptance.phase5.test.ts — checkbox stays OPEN pending the manual
+  OpenCode run. Main-session verification caught a real ~1-in-5 flake the
+  agent's single green run missed: chokidar/fsevents drops the file add
+  event when a new initiative dir is created+populated in one burst →
+  serve never pushed. Fixed in serve.ts via addDir + bounded log wait
+  (BD33, commit follows); serve suite then 12/12 clean, full suite 235
+  green. Tests 222 → 235. Left off: nothing in flight. Next actions:
+  (1) manual OpenCode checklist run (docs/opencode-adapter.md §3) → flip
+  5.2; (2) 5.3 ceremony Jul 7 — Fable writes back via protocol, Opus 4.8
+  cold-resumes from the record, scored as arm-C.
