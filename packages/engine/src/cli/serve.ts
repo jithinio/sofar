@@ -95,12 +95,31 @@ export async function startServer(options: ServeOptions): Promise<ServeHandle> {
   heartbeat.unref()
 
   // --- watcher: append to any .harness/**/events.jsonl → re-fold + push -----
+  // A directory created and populated in one burst (harness new) can lose
+  // the file's `add` event to a chokidar/fsevents race — the `addDir` for
+  // the initiative dir is delivered reliably, so push from it too, waiting
+  // briefly for the log to land before folding (bounded, then push anyway).
+  function broadcastWhenLogExists(slug: string, tries: number): void {
+    if (tries <= 0 || existsSync(join(initiativesDir, slug, 'events.jsonl'))) {
+      broadcast(slug)
+      return
+    }
+    setTimeout(() => broadcastWhenLogExists(slug, tries - 1), 50).unref()
+  }
+
   const watcher = watch(initiativesDir, { ignoreInitial: true })
   watcher.on('all', (event, path) => {
+    const rel = relative(initiativesDir, path)
+    if (rel.length === 0 || rel.startsWith('..')) return
+    const slug = rel.split(sep)[0]
+    if (slug === undefined || slug.length === 0) return
+    if (event === 'addDir') {
+      if (rel === slug) broadcastWhenLogExists(slug, 20) // new initiative dir
+      return
+    }
     if (event !== 'add' && event !== 'change') return
     if (basename(path) !== 'events.jsonl') return // projections regenerate too — ignore
-    const slug = relative(initiativesDir, path).split(sep)[0]
-    if (slug !== undefined && slug.length > 0 && !slug.startsWith('..')) broadcast(slug)
+    broadcast(slug)
   })
 
   // --- http ------------------------------------------------------------------

@@ -382,6 +382,16 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   the checkmark). Rejected building the plugin now: OpenCode's plugin API
   is outside the locked dependency window and the convention dialect is
   the contracted v1 fallback (SPEC §Acceptance Phase 5).
+- BD33: serve also pushes on `addDir` of a new initiative directory, with
+  a bounded wait (20×50ms) for its events.jsonl before folding (then
+  pushes whatever exists). Cause: a dir created and populated in one burst
+  (`harness new` while serve runs) can lose the file's `add` event to a
+  chokidar/fsevents race — reproduced as a ~1-in-5 flake in serve.test.ts
+  where the push never arrived. The SPEC 500ms SLA covers appends to
+  existing logs (unchanged, still asserted at 500ms); the new-dir test
+  asserts the push happens, not its speed. Rejected usePolling: constant
+  cost to fix a first-push-only race. Rejected widening test timeouts
+  alone: the miss was real product behavior, not test tightness.
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,
