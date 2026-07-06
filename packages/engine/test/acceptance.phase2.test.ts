@@ -381,6 +381,7 @@ describe('stdio end-to-end via `harness mcp`', () => {
       banner: {
         js: 'import { createRequire as __cr } from "node:module"; const require = __cr(import.meta.url);',
       },
+      loader: { '.sh': 'text' }, // hook shim sources inlined by init (build.mjs parity)
     })
 
     const fixture = fx()

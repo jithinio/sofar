@@ -9,15 +9,12 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 (00-spine, 01-roadmap, 02-action-plan, 03-architecture).
 
 ## Current state
-- Active phase: 4 (Phase 3 complete — all four SPEC Phase 3 acceptance
-  bullets verified, 185 tests green)
-- Next action: Task 4.1 — `harness init`: create .harness/ + repo.md stub,
-  install the four shims from packages/engine/src/hooks/ into
-  .claude/hooks/ (chmod +x) and wire .claude/settings.json hooks
-  (SessionStart → session-start.sh; PostToolUse matcher
-  Edit|Write|MultiEdit|Bash → post-tool-use.sh; Stop → stop.sh; SessionEnd
-  → session-end.sh), emit the .mcp.json entry (src/mcp/register.ts), append
-  the BD19 total-jurisdiction protocol block to CLAUDE.md, idempotent
+- Active phase: 4 (task 4.1 done — `harness init` idempotent, shims bundled
+  as text into dist, 192 tests green)
+- Next action: Task 4.2 — `harness new <slug> [--goal]` / `harness switch
+  <slug>`: create initiative dir + append initiative_created (source cli,
+  actor human), bind current branch in bindings.json, slug validation
+  [a-z0-9-]+, detached-HEAD error path with --no-bind escape hatch
 - Blocked on: nothing
 
 ## Plan
@@ -56,7 +53,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
       block; regenerated on every append; never hand-edited
 
 ### Phase 4 — CLI + watcher [pending]  (target: Jul 6)
-- [ ] 4.1 `harness init`: scaffold .harness/, install hook shims + settings,
+- [x] 4.1 `harness init`: scaffold .harness/, install hook shims + settings,
       emit .mcp.json entry, append protocol block to CLAUDE.md — block MUST
       assert total jurisdiction (SPEC §CLI field finding Jul 4, BD19)
 - [ ] 4.2 `harness new <slug>` / `harness switch <slug>`: initiative dirs +
@@ -249,6 +246,22 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   ([^A-Za-z0-9._-] → _) to keep hostile ids inside sessions/. Rejected
   proportional (single-pool) budgeting: harder to reason about worst cases
   than fixed per-section caps.
+
+- BD25: `harness init` mechanics — shim sources ship INSIDE the bundled CLI
+  (esbuild `loader: {'.sh': 'text'}` + `declare module '*.sh'` in
+  packages/engine/src/types.d.ts; root vitest.config.ts mirrors the loader
+  with a sh-as-text plugin since tests import src directly); only dist/
+  ships, so init never reads src/hooks/ at runtime. Idempotency is
+  byte-level via write-if-changed. Ownership rules: shims are harness-owned
+  (content kept current, chmod 0755); repo.md is hand-written (create-only,
+  never overwritten); the CLAUDE.md protocol block installs once between
+  `<!-- harness:protocol -->` markers and is never touched again (hand
+  edits inside markers survive); settings.json/.mcp.json are merged —
+  entries matched by command path / server name are skipped, an existing
+  customized mcpServers.harness wins, and unparseable user JSON aborts
+  init with exit 1 rather than risking a clobber. Rejected reading shims
+  from the package dir (breaks packaging) and JSON-format-preserving
+  edits (idempotency only needs OUR formatting to be stable).
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,

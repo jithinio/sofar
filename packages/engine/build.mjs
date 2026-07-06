@@ -17,6 +17,9 @@ await build({
   target: 'node18',
   outfile: 'dist/cli.js',
   banner: { js: banner },
+  // Hook shim sources ship INSIDE the bundle as text — only dist/ is
+  // published, so `harness init` can never read src/hooks/ at runtime.
+  loader: { '.sh': 'text' },
 })
 
 chmodSync('dist/cli.js', 0o755)
