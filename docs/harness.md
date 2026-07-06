@@ -48,7 +48,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
       file_touched / command_run mechanical events
 - [x] 3.4 Stop shim: if no session_ended event for this session → exit 2
       with "write back to the record"; MUST check stop_hook_active guard
-- [ ] 3.5 SessionEnd shim: mechanical close event (fallback logging only)
+- [x] 3.5 SessionEnd shim: mechanical close event (fallback logging only)
 - [ ] 3.6 Projection generator: templates → plan.md, decisions.md, status
       block; regenerated on every append; never hand-edited
 

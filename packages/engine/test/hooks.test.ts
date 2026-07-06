@@ -6,7 +6,13 @@ import { rmSync } from 'node:fs'
 import { makeEvent, type EventEnvelope } from '../src/core/envelope'
 import { appendEvent } from '../src/core/log'
 import { foldLog } from '../src/core/fold'
-import { handlePostTool, handleSessionStart, handleStop, STOP_BLOCK_MESSAGE } from '../src/cli/event'
+import {
+  handlePostTool,
+  handleSessionEnd,
+  handleSessionStart,
+  handleStop,
+  STOP_BLOCK_MESSAGE,
+} from '../src/cli/event'
 import { callTool, connectServer, makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
 
 /**
@@ -319,5 +325,93 @@ describe('harness event stop — write-back enforcement (3.4, BD2)', () => {
 
     const unbound = fx({ bind: false })
     expect(handleStop(unbound.root, stopStdin()).exitCode).toBe(0)
+  })
+})
+
+describe('harness event session-end — mechanical close marker (3.5, BD21)', () => {
+  const endStdin = (fields: Record<string, unknown> = {}): string =>
+    hookStdin({ hook_event_name: 'SessionEnd', reason: 'exit', ...fields })
+
+  it('appends session_closed; fold marks the session ended without touching next_action', () => {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({}))
+
+    const before = foldLog(fixture.eventsPath).state
+    expect(before.current.next_action).toBeNull()
+
+    const result = handleSessionEnd(fixture.root, endStdin())
+    expect(result).toEqual({ exitCode: 0, stdout: '', stderr: '' })
+
+    const events = logEvents(fixture.eventsPath)
+    expect(events).toHaveLength(2)
+    expect(events[1]).toMatchObject({
+      type: 'session_closed',
+      payload: { reason: 'exit' },
+      session: 'claude-sess-1',
+      source: 'hook',
+      actor: 'agent',
+    })
+
+    const { state, warnings } = foldLog(fixture.eventsPath)
+    expect(warnings).toEqual([])
+    const session = state.sessions.find((s) => s.id === 'claude-sess-1')
+    expect(session?.ended).toBeDefined()
+    expect(session?.summary).toBeUndefined()
+    expect(state.current.next_action).toBeNull() // never fabricated (BD21)
+  })
+
+  it('missing reason defaults to "unknown"', () => {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({}))
+    handleSessionEnd(fixture.root, hookStdin({ hook_event_name: 'SessionEnd' }))
+    expect(logEvents(fixture.eventsPath)[1]).toMatchObject({
+      type: 'session_closed',
+      payload: { reason: 'unknown' },
+    })
+  })
+
+  it('unregistered session → exit 0, nothing appended (no orphan close markers)', () => {
+    const fixture = fx()
+    const result = handleSessionEnd(fixture.root, endStdin())
+    expect(result.exitCode).toBe(0)
+    expect(logEvents(fixture.eventsPath)).toHaveLength(0)
+  })
+
+  it('already-ended session (write-back done) → exit 0, no duplicate close', async () => {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({}))
+
+    const { client } = await connectServer(fixture.root)
+    const started = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+      tool: 'claude-code',
+    })
+    await callTool(client, 'harness_end_session', {
+      session_id: started.body.session_id,
+      summary: 'wrote back first',
+      next_action: 'proceed to 3.6',
+    })
+    await client.close()
+
+    handleSessionEnd(fixture.root, endStdin())
+    const events = logEvents(fixture.eventsPath)
+    expect(events.map((e) => e.type)).toEqual(['session_started', 'session_ended'])
+
+    // next_action from the write-back survives untouched
+    expect(foldLog(fixture.eventsPath).state.current.next_action).toBe('proceed to 3.6')
+  })
+
+  it('unreadable stdin / missing session_id / unbound repo → exit 0 (BD22)', () => {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({}))
+    expect(handleSessionEnd(fixture.root, 'not-json').exitCode).toBe(0)
+    expect(handleSessionEnd(fixture.root, JSON.stringify({ reason: 'exit' })).exitCode).toBe(0)
+    expect(logEvents(fixture.eventsPath)).toHaveLength(1)
+
+    const unbound = fx({ bind: false })
+    expect(handleSessionEnd(unbound.root, endStdin())).toEqual({
+      exitCode: 0,
+      stdout: '',
+      stderr: '',
+    })
   })
 })
