@@ -74,12 +74,13 @@ function freshRepo(): string {
 }
 
 describe('packaging E2E (6.2, BD41) — npm pack → global install → installed bin works', () => {
-  const tarball = join(packDest, `${manifest.name}-${manifest.version}.tgz`)
+  const tarballBase = `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
+const tarball = join(packDest, tarballBase)
 
   it('npm pack produces the tarball (prepack rebuilds dist; private only blocks publish, not pack)', () => {
     const packed = npm(['pack', '--pack-destination', packDest], engineDir)
     expect(packed.status).toBe(0)
-    expect(packed.stdout).toContain(`${manifest.name}-${manifest.version}.tgz`)
+    expect(packed.stdout).toContain(tarballBase)
     expect(existsSync(tarball)).toBe(true)
 
     // postpack cleans the prepack README copy — the working tree stays tidy
@@ -95,7 +96,7 @@ describe('packaging E2E (6.2, BD41) — npm pack → global install → installe
     const installed = npm(['install', '-g', '--prefix', prefix, tarball], scratch)
     expect(installed.status).toBe(0)
 
-    const pkgDir = join(prefix, 'lib', 'node_modules', 'sofar')
+    const pkgDir = join(prefix, 'lib', 'node_modules', '@alignlabs', 'sofar')
     expect(existsSync(join(pkgDir, 'dist', 'cli.js'))).toBe(true)
     expect(existsSync(join(prefix, 'bin', 'sofar'))).toBe(true)
     // npm auto-includes README.md (prepack copies the repo-root one in)

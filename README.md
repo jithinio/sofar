@@ -20,11 +20,11 @@ npm install
 npm run build
 cd packages/engine
 npm pack
-npm install -g ./sofar-0.1.0.tgz
+npm install -g ./alignlabs-sofar-0.1.0.tgz
 ```
 
 The tarball installs with zero runtime dependencies — `dist/cli.js` is fully
-bundled. Once published: `npm install -g sofar`, or `npx sofar <command>`.
+bundled. Published as `@alignlabs/sofar`: `npm install -g @alignlabs/sofar` (the command is still `sofar`), or `npx @alignlabs/sofar <command>`.
 Requires Node ≥ 18.
 
 ## Quickstart

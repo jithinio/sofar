@@ -11,9 +11,9 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w sofar",
+    "build": "npm run build -w @alignlabs/sofar",
     "test": "vitest run",
-    "typecheck": "npm run typecheck -w @sofar/schema && npm run typecheck -w sofar"
+    "typecheck": "npm run typecheck -w @sofar/schema && npm run typecheck -w @alignlabs/sofar"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",

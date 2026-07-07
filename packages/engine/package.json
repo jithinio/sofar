@@ -1,5 +1,5 @@
 {
-  "name": "sofar",
+  "name": "@alignlabs/sofar",
   "version": "0.1.0",
   "description": "Sofar v1 engine — event log core, MCP server, CLI, hooks",
   "type": "module",
@@ -42,5 +42,8 @@
     "claude-code",
     "cli"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
 }
