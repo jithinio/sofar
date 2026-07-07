@@ -19,6 +19,8 @@ harness/                 # workspace root: toolchain devDeps, shared tsconfig
       test/
   CLAUDE.md              # protocol — repo root so cold sessions auto-load
                          # it (BD34); points at docs/harness.md + docs/SPEC.md
+  AGENTS.md              # thin router for AGENTS.md-reading tools (Codex,
+                         # OpenCode) → CLAUDE.md + docs/ (BD35)
   docs/                  # harness.md (initiative record), SPEC.md,
                          # opencode-adapter.md
 ```

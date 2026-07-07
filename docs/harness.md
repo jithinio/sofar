@@ -402,6 +402,17 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   path-fixed (docs/harness.md, docs/SPEC.md); SPEC §Repo layout updated.
   Rejected a thin root pointer file to docs/CLAUDE.md: two protocol files
   drift; one file, one home.
+- BD35: Root AGENTS.md added as a THIN ROUTER (Jul 7, after the Codex cold
+  start failed). Codex/OpenCode-family tools auto-read AGENTS.md, not
+  CLAUDE.md — BD34 fixed routing for Claude Code only, so the record's
+  tool-agnostic resumability claim had a hole. The router points at
+  docs/harness.md + docs/SPEC.md and defers all rules to CLAUDE.md (single
+  source). Rejected a full protocol copy (one appeared untracked and was
+  reshaped): duplicated rules drift — the exact reason BD34 rejected
+  pointer+copy pairs. Both cold-resume dry runs proved agents follow
+  multi-hop routing reliably. Also field-noted: a session must LAUNCH
+  inside the repo — no root file can route a blank workspace (the failed
+  Codex attempt started in ~/Documents/Codex/<date>, not the repo).
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,
