@@ -932,3 +932,21 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   5.2 OpenCode run + 5.3 arm-C scoring (execution already done), and the
   publish decision. Multi-initiative AND same-initiative parallelism are
   both now supported.
+- 2026-07-07, later (claude-code / Fable 5, Phase 8 by delegated subagent,
+  verified by main session): Phase 8 complete, tasks 8.1–8.3, commits
+  91130cb/cd09b21/6f76bb2, decisions BD45–BD46. `harness uninit [--purge]`
+  is the surgical inverse of init (foreign hooks/servers/user prose byte-
+  preserved; record kept by default; fresh-repo init→uninit --purge round-
+  trips byte-clean — BD45 resolves the emptied-managed-file conflict:
+  deletion only under --purge and only when uninit itself emptied the
+  file). `harness adopt <file> [slug] [--mark]` emits a self-contained
+  migration brief (session_started Step 0 added during 8.3 to avoid stub
+  sessions — BD46) and stamps legacy files with an idempotent superseded
+  banner; no freeform markdown parsing by design. Tests 263 → 291.
+  Main-session live verification: legacy-repo fixture (prose CLAUDE.md +
+  hand-written harness.md) → init → adopt --mark → uninit: brief correct,
+  banner idempotent, 9 changes stripped, user content and record intact.
+  Global install at ~/.local/bin/harness refreshed to include Phase 8.
+  Left off: nothing in flight. Next action (user): pick a real project and
+  run the field test (init/new or adopt for the legacy-record repo);
+  ceremony scoring + publish decision unchanged.
