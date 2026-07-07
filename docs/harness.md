@@ -818,3 +818,23 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   need publishing; it is bundled). Left off: nothing in flight. Next
   action (user, unchanged): 5.2 manual OpenCode run, 5.3 arm-C scoring on
   Opus 4.8. Engine is feature-complete AND shippable.
+- 2026-07-07, later (claude-code / Fable 5, Phase 7 by delegated subagent,
+  verified by main session): Phase 7 complete, tasks 7.1–7.3, commits
+  9b7a2eb/9e32e81/a794e42, decisions BD43–BD44. Parallel agents on ONE
+  initiative are now safe: BD20's newest-open adoption heuristic REMOVED —
+  the SessionStart context carries "Session: <id> — pass this as
+  session_id", harness_start_session({session_id?}) adopts only on exact
+  id match (ended id → typed error; unknown id → registers; absent →
+  fresh ulid). Write-back gap closed: fold aggregates per-session activity
+  (files/commands/task changes, capped, cli-excluded); sessions lacking a
+  summary render a derived resume block in the injected context and
+  sessions/<id>.md, with closed_reason surfaced. Tests 245 → 263.
+  Main-session live verification on the built CLI: two MCP server
+  processes adopted exactly their own hook-registered ids; interleaved
+  appends attributed correctly; Stop gates independent (A exit 2 while B
+  exit 0); crashed session with Edit+Bash yielded "closed: crash) ended
+  without write-back — derived: 1 file (src/login.ts), 1 command" in the
+  next session's context. Left off: nothing in flight. Next action (user):
+  5.2 OpenCode run + 5.3 arm-C scoring (execution already done), and the
+  publish decision. Multi-initiative AND same-initiative parallelism are
+  both now supported.
