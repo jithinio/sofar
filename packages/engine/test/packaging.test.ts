@@ -26,7 +26,7 @@ const manifest = JSON.parse(readFileSync(join(engineDir, 'package.json'), 'utf8'
   version: string
 }
 
-const scratch = mkdtempSync(join(tmpdir(), 'harness-packaging-'))
+const scratch = mkdtempSync(join(tmpdir(), 'sofar-packaging-'))
 const packDest = join(scratch, 'tarballs')
 const prefix = join(scratch, 'prefix') // npm -g install target
 mkdirSync(packDest, { recursive: true })
@@ -55,9 +55,9 @@ function npm(args: string[], cwd: string): SpawnSyncReturns<string> {
   })
 }
 
-/** Run the INSTALLED bin (a symlink to lib/node_modules/harness/dist/cli.js). */
-function harness(args: string[], opts: { cwd?: string; input?: string } = {}): SpawnSyncReturns<string> {
-  return spawnSync(process.execPath, [join(prefix, 'bin', 'harness'), ...args], {
+/** Run the INSTALLED bin (a symlink to lib/node_modules/sofar/dist/cli.js). */
+function sofar(args: string[], opts: { cwd?: string; input?: string } = {}): SpawnSyncReturns<string> {
+  return spawnSync(process.execPath, [join(prefix, 'bin', 'sofar'), ...args], {
     ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
     ...(opts.input !== undefined ? { input: opts.input } : {}),
     encoding: 'utf8',
@@ -95,9 +95,9 @@ describe('packaging E2E (6.2, BD41) — npm pack → global install → installe
     const installed = npm(['install', '-g', '--prefix', prefix, tarball], scratch)
     expect(installed.status).toBe(0)
 
-    const pkgDir = join(prefix, 'lib', 'node_modules', 'harness')
+    const pkgDir = join(prefix, 'lib', 'node_modules', 'sofar')
     expect(existsSync(join(pkgDir, 'dist', 'cli.js'))).toBe(true)
-    expect(existsSync(join(prefix, 'bin', 'harness'))).toBe(true)
+    expect(existsSync(join(prefix, 'bin', 'sofar'))).toBe(true)
     // npm auto-includes README.md (prepack copies the repo-root one in)
     expect(readFileSync(join(pkgDir, 'README.md'), 'utf8')).toContain(
       'Event-sourced initiative memory for coding agents',
@@ -109,42 +109,42 @@ describe('packaging E2E (6.2, BD41) — npm pack → global install → installe
       : []
     expect(depDirs).toEqual([])
 
-    const version = harness(['--version'])
+    const version = sofar(['--version'])
     expect(version.status).toBe(0)
     expect(version.stdout.trim()).toBe(manifest.version) // 6.4 single-sourcing, through the channel
   }, 120_000)
 
-  it('the installed harness drives init → new → status in a fixture repo', () => {
+  it('the installed sofar drives init → new → status in a fixture repo', () => {
     const root = freshRepo()
 
-    const init = harness(['init', '--root', root])
+    const init = sofar(['init', '--root', root])
     expect(init.status).toBe(0)
-    expect(init.stdout).toContain('harness init: done')
+    expect(init.stdout).toContain('sofar init: done')
 
     // record scaffold + shims + registrations + protocol blocks (SPEC §CLI)
-    expect(existsSync(join(root, '.harness', 'repo.md'))).toBe(true)
-    expect(existsSync(join(root, '.harness', 'bindings.json'))).toBe(true)
+    expect(existsSync(join(root, '.sofar', 'repo.md'))).toBe(true)
+    expect(existsSync(join(root, '.sofar', 'bindings.json'))).toBe(true)
     for (const shim of ['session-start.sh', 'post-tool-use.sh', 'stop.sh', 'session-end.sh']) {
       const path = join(root, '.claude', 'hooks', shim)
       expect(existsSync(path)).toBe(true)
       expect(statSync(path).mode & 0o777).toBe(0o755)
     }
-    expect(readFileSync(join(root, '.mcp.json'), 'utf8')).toContain('"harness"')
-    expect(readFileSync(join(root, 'CLAUDE.md'), 'utf8')).toContain('<!-- harness:protocol -->')
-    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('<!-- harness:protocol -->')
+    expect(readFileSync(join(root, '.mcp.json'), 'utf8')).toContain('"sofar"')
+    expect(readFileSync(join(root, 'CLAUDE.md'), 'utf8')).toContain('<!-- sofar:protocol -->')
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('<!-- sofar:protocol -->')
 
-    const created = harness(['new', 'demo', '--goal', 'prove the tarball', '--root', root])
+    const created = sofar(['new', 'demo', '--goal', 'prove the tarball', '--root', root])
     expect(created.status).toBe(0)
 
     // projections regenerated (atomically, 6.3) — targets complete, no temp litter
-    const initiativeDir = join(root, '.harness', 'initiatives', 'demo')
+    const initiativeDir = join(root, '.sofar', 'initiatives', 'demo')
     expect(readFileSync(join(initiativeDir, 'plan.md'), 'utf8')).toContain('prove the tarball')
     const litter = readdirSync(initiativeDir, { recursive: true })
       .map(String)
       .filter((f) => f.endsWith('.tmp'))
     expect(litter).toEqual([])
 
-    const status = harness(['status', '--root', root])
+    const status = sofar(['status', '--root', root])
     expect(status.status).toBe(0)
     expect(status.stdout).toContain('# demo')
     expect(status.stdout).toContain('Goal: prove the tarball')
