@@ -4,7 +4,7 @@
  * .sh imports are hook shim sources bundled as TEXT: esbuild uses
  * `loader: { '.sh': 'text' }` (build.mjs) and vitest mirrors it with the
  * sh-as-text plugin in the root vitest.config.ts. Only dist/ ships, so
- * `harness init` must carry the shim bytes inside the bundle — it never
+ * `sofar init` must carry the shim bytes inside the bundle — it never
  * reads them from the package directory at runtime.
  */
 declare module '*.sh' {

@@ -2,7 +2,7 @@ import { ToolError } from '../mcp/context'
 
 /**
  * Shared CLI command plumbing (Phase 4). Command handlers are pure functions
- * returning {exitCode, stdout, stderr} — the established `harness event`
+ * returning {exitCode, stdout, stderr} — the established `sofar event`
  * pattern (BD22) — so tests never wrestle process.exit; commander wiring in
  * index.ts stays thin and just mirrors the result.
  */
@@ -27,7 +27,7 @@ export function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-/** Read stdin to a string (for `harness import -`); empty when run on a TTY. */
+/** Read stdin to a string (for `sofar import -`); empty when run on a TTY. */
 export async function readAllStdin(): Promise<string> {
   if (process.stdin.isTTY) return ''
   const chunks: Buffer[] = []

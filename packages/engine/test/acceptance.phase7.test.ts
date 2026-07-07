@@ -17,7 +17,7 @@ import { callTool, connectServer, makeRepoFixture, type Fixture, type FixtureOpt
  * Phase 7 acceptance (tasks 7.1–7.3, BD43/BD44): parallel sessions on ONE
  * initiative + resume robustness. Drives the REAL flows — hook handlers for
  * session registration and mechanical events, two separate
- * createHarnessServer instances standing in for two MCP server processes
+ * createSofarServer instances standing in for two MCP server processes
  * (each with its own in-memory active-session box), Stop probes through the
  * gate handler, projections read from disk.
  */
@@ -74,18 +74,18 @@ describe('acceptance 1+2+4 — two interleaved sessions on ONE initiative', () =
     // each injected context block names its own id (the adopt-by-id handoff).
     const startA = handleSessionStart(fixture.root, hookStdin(A, { hook_event_name: 'SessionStart' }))
     const startB = handleSessionStart(fixture.root, hookStdin(B, { hook_event_name: 'SessionStart' }))
-    expect(startA.stdout).toContain(`Session: ${A} — when calling harness_start_session, pass this as session_id.`)
-    expect(startB.stdout).toContain(`Session: ${B} — when calling harness_start_session, pass this as session_id.`)
+    expect(startA.stdout).toContain(`Session: ${A} — when calling sofar_start_session, pass this as session_id.`)
+    expect(startB.stdout).toContain(`Session: ${B} — when calling sofar_start_session, pass this as session_id.`)
 
     // Two MCP server processes = two separate in-memory active-session boxes.
     const serverA = await connectServer(fixture.root)
     const serverB = await connectServer(fixture.root)
 
-    const adoptedA = await callTool<{ session_id: string }>(serverA.client, 'harness_start_session', {
+    const adoptedA = await callTool<{ session_id: string }>(serverA.client, 'sofar_start_session', {
       tool: 'claude-code',
       session_id: A,
     })
-    const adoptedB = await callTool<{ session_id: string }>(serverB.client, 'harness_start_session', {
+    const adoptedB = await callTool<{ session_id: string }>(serverB.client, 'sofar_start_session', {
       tool: 'claude-code',
       session_id: B,
     })
@@ -107,8 +107,8 @@ describe('acceptance 1+2+4 — two interleaved sessions on ONE initiative', () =
     // Interleaved work in ONE log: MCP appends alternate between the two
     // server processes while each agent's PostToolUse hook fires with its
     // own session_id.
-    expect((await callTool(serverA.client, 'harness_update_plan', { plan: PLAN })).isError).toBe(false)
-    expect((await callTool(serverB.client, 'harness_add_note', { text: 'B was here' })).isError).toBe(false)
+    expect((await callTool(serverA.client, 'sofar_update_plan', { plan: PLAN })).isError).toBe(false)
+    expect((await callTool(serverB.client, 'sofar_add_note', { text: 'B was here' })).isError).toBe(false)
     expect(
       handlePostTool(
         fixture.root,
@@ -130,10 +130,10 @@ describe('acceptance 1+2+4 — two interleaved sessions on ONE initiative', () =
       ).exitCode,
     ).toBe(0)
     expect(
-      (await callTool(serverA.client, 'harness_update_task', { task_id: '1.1', status: 'active' })).isError,
+      (await callTool(serverA.client, 'sofar_update_task', { task_id: '1.1', status: 'active' })).isError,
     ).toBe(false)
     expect(
-      (await callTool(serverB.client, 'harness_update_task', { task_id: '1.2', status: 'active' })).isError,
+      (await callTool(serverB.client, 'sofar_update_task', { task_id: '1.2', status: 'active' })).isError,
     ).toBe(false)
 
     // every event landed on the RIGHT envelope.session, in interleaved order
@@ -153,7 +153,7 @@ describe('acceptance 1+2+4 — two interleaved sessions on ONE initiative', () =
     expect(handleStop(fixture.root, stopStdin(B)).exitCode).toBe(2)
 
     // …A ends via ITS server → A passes while B STILL blocks…
-    const endedA = await callTool(serverA.client, 'harness_end_session', {
+    const endedA = await callTool(serverA.client, 'sofar_end_session', {
       session_id: A,
       summary: 'A finished its half',
       next_action: 'B continues',
@@ -168,7 +168,7 @@ describe('acceptance 1+2+4 — two interleaved sessions on ONE initiative', () =
     expect(serverB.handle.getActiveSession()!.id).toBe(B)
 
     // …then B ends via ITS server → B passes too.
-    const endedB = await callTool(serverB.client, 'harness_end_session', {
+    const endedB = await callTool(serverB.client, 'sofar_end_session', {
       session_id: B,
       summary: 'B finished its half',
       next_action: 'nothing left',
@@ -200,7 +200,7 @@ describe('acceptance 1+2+4 — two interleaved sessions on ONE initiative', () =
     handleSessionStart(fixture.root, hookStdin(A, { hook_event_name: 'SessionStart' }))
 
     const server = await connectServer(fixture.root)
-    const started = await callTool<{ session_id: string }>(server.client, 'harness_start_session', {
+    const started = await callTool<{ session_id: string }>(server.client, 'sofar_start_session', {
       tool: 'claude-code',
     })
     expect(started.isError).toBe(false)
@@ -208,12 +208,12 @@ describe('acceptance 1+2+4 — two interleaved sessions on ONE initiative', () =
     expect(started.body.session_id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/)
 
     // and adopting an already-ended id fails typed instead of hijacking
-    await callTool(server.client, 'harness_end_session', {
+    await callTool(server.client, 'sofar_end_session', {
       session_id: started.body.session_id,
       summary: 'done',
       next_action: 'none',
     })
-    const retry = await callTool<{ code: string }>(server.client, 'harness_start_session', {
+    const retry = await callTool<{ code: string }>(server.client, 'sofar_start_session', {
       tool: 'claude-code',
       session_id: started.body.session_id,
     })
@@ -231,14 +231,14 @@ describe('acceptance 3 — an unwritten session still yields a usable resume blo
     // C registers via its SessionStart hook and adopts itself over MCP.
     handleSessionStart(fixture.root, hookStdin(C, { hook_event_name: 'SessionStart' }))
     const serverC = await connectServer(fixture.root)
-    const adopted = await callTool<{ session_id: string }>(serverC.client, 'harness_start_session', {
+    const adopted = await callTool<{ session_id: string }>(serverC.client, 'sofar_start_session', {
       tool: 'claude-code',
       session_id: C,
     })
     expect(adopted.body.session_id).toBe(C)
 
     // Mechanical work: two file touches, one command, one task change.
-    expect((await callTool(serverC.client, 'harness_update_plan', { plan: PLAN })).isError).toBe(false)
+    expect((await callTool(serverC.client, 'sofar_update_plan', { plan: PLAN })).isError).toBe(false)
     handlePostTool(
       fixture.root,
       hookStdin(C, {
@@ -264,7 +264,7 @@ describe('acceptance 3 — an unwritten session still yields a usable resume blo
       }),
     )
     expect(
-      (await callTool(serverC.client, 'harness_update_task', { task_id: '1.1', status: 'active' })).isError,
+      (await callTool(serverC.client, 'sofar_update_task', { task_id: '1.1', status: 'active' })).isError,
     ).toBe(false)
     await serverC.client.close()
 
@@ -315,7 +315,7 @@ describe('acceptance 3 — an unwritten session still yields a usable resume blo
     )
     expect(resume.exitCode).toBe(0)
     expect(resume.stdout).toContain(
-      'Session: phase7-session-d — when calling harness_start_session, pass this as session_id.',
+      'Session: phase7-session-d — when calling sofar_start_session, pass this as session_id.',
     )
     expect(resume.stdout).toContain(
       'Last session (claude-code, closed: prompt_input_exit) ended without write-back — derived: 2 files (src/c1.ts, src/c2.ts), 1 command, task changes: 1.1 → active',

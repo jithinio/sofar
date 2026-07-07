@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { EVENT_TYPES, isKnownEventType, validatePayload } from '../src/events'
 
 const validPayloads: Record<string, Record<string, unknown>> = {
-  initiative_created: { slug: 'harness-build', goal: 'Build the v1 engine' },
+  initiative_created: { slug: 'sofar-build', goal: 'Build the v1 engine' },
   plan_updated: {
     plan: {
       goal: 'Build it',

@@ -3,10 +3,10 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ToolErrorShape } from '@harness/schema/tool-inputs'
-import { createHarnessServer, type HarnessServerHandle } from '../../src/mcp/server'
+import type { ToolErrorShape } from '@sofar/schema/tool-inputs'
+import { createSofarServer, type SofarServerHandle } from '../../src/mcp/server'
 
-/** Fixture repo: fake .git (HEAD) + .harness/ with a bound initiative. */
+/** Fixture repo: fake .git (HEAD) + .sofar/ with a bound initiative. */
 export interface FixtureOptions {
   /** Branch name; null = detached HEAD (raw sha in HEAD). Default "main". */
   branch?: string | null
@@ -27,7 +27,7 @@ export interface Fixture {
 
 export function makeRepoFixture(options: FixtureOptions = {}): Fixture {
   const { branch = 'main', slug = 'demo', bind = true, worktree = false } = options
-  const root = mkdtempSync(join(tmpdir(), 'harness-mcp-'))
+  const root = mkdtempSync(join(tmpdir(), 'sofar-mcp-'))
 
   const headContent = branch === null ? `${'a'.repeat(40)}\n` : `ref: refs/heads/${branch}\n`
   if (worktree) {
@@ -40,11 +40,11 @@ export function makeRepoFixture(options: FixtureOptions = {}): Fixture {
     writeFileSync(join(root, '.git', 'HEAD'), headContent)
   }
 
-  const initiativeDir = join(root, '.harness', 'initiatives', slug)
+  const initiativeDir = join(root, '.sofar', 'initiatives', slug)
   mkdirSync(initiativeDir, { recursive: true })
   if (bind && branch !== null) {
     writeFileSync(
-      join(root, '.harness', 'bindings.json'),
+      join(root, '.sofar', 'bindings.json'),
       `${JSON.stringify({ [branch]: slug }, null, 2)}\n`,
     )
   }
@@ -53,14 +53,14 @@ export function makeRepoFixture(options: FixtureOptions = {}): Fixture {
 
 export interface Connected {
   client: Client
-  handle: HarnessServerHandle
+  handle: SofarServerHandle
 }
 
 /** Server + client over a linked in-memory transport pair. */
 export async function connectServer(rootDir: string): Promise<Connected> {
-  const handle = createHarnessServer({ rootDir })
+  const handle = createSofarServer({ rootDir })
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
-  const client = new Client({ name: 'harness-test-client', version: '0.0.0' })
+  const client = new Client({ name: 'sofar-test-client', version: '0.0.0' })
   await Promise.all([handle.server.connect(serverTransport), client.connect(clientTransport)])
   return { client, handle }
 }

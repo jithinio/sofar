@@ -1,14 +1,14 @@
 {
-  "name": "harness",
+  "name": "sofar",
   "version": "0.1.0",
-  "description": "Harness v1 engine — event log core, MCP server, CLI, hooks",
+  "description": "Sofar v1 engine — event log core, MCP server, CLI, hooks",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=18"
   },
   "bin": {
-    "harness": "dist/cli.js"
+    "sofar": "dist/cli.js"
   },
   "files": [
     "dist"
@@ -20,7 +20,7 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "devDependencies": {
-    "@harness/schema": "*",
+    "@sofar/schema": "*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "chokidar": "^5.0.0",
     "commander": "^15.0.0",

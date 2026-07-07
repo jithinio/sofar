@@ -5,7 +5,7 @@ import { renderFullStatus } from '../projections/templates/status'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 
 /**
- * `harness status [slug]` (task 4.3, SPEC §CLI) — fold and print goal,
+ * `sofar status [slug]` (task 4.3, SPEC §CLI) — fold and print goal,
  * progress %, phase tree with per-task statuses, next action, blocked_on,
  * and the last written-back session. Initiative resolution matches the MCP
  * tools (explicit slug wins, else branch → bindings.json, BD16). Output is
@@ -21,9 +21,9 @@ export function runStatus(rootDir: string, slug?: string): CmdResult {
     resolved = ctx.resolveInitiative(slug)
   } catch (err) {
     if (err instanceof ToolError) {
-      return fail(`harness status: ${err.message} (usage: harness status [slug])`)
+      return fail(`sofar status: ${err.message} (usage: sofar status [slug])`)
     }
-    return fail(`harness status: ${errMessage(err)}`)
+    return fail(`sofar status: ${errMessage(err)}`)
   }
 
   const logPath = ctx.eventsPath(resolved)
@@ -35,7 +35,7 @@ export function runStatus(rootDir: string, slug?: string): CmdResult {
       state = result.state
       warnings = result.warnings
     } catch (err) {
-      return fail(`harness status: failed to read ${logPath}: ${errMessage(err)}`)
+      return fail(`sofar status: failed to read ${logPath}: ${errMessage(err)}`)
     }
   } else {
     state = emptyState() // a created-but-unwritten initiative still has a status

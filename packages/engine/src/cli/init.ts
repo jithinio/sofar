@@ -8,8 +8,8 @@ import stopShim from '../hooks/stop.sh'
 import sessionEndShim from '../hooks/session-end.sh'
 
 /**
- * `harness init` (task 4.1, SPEC §CLI) — make a repo harness-ready:
- *   .harness/ (repo.md stub + bindings.json), hook shims in .claude/hooks/,
+ * `sofar init` (task 4.1, SPEC §CLI) — make a repo sofar-ready:
+ *   .sofar/ (repo.md stub + bindings.json), hook shims in .claude/hooks/,
  *   .claude/settings.json hooks block, .mcp.json registration, and the
  *   total-jurisdiction protocol blocks (BD19) in CLAUDE.md (MCP loop) and
  *   AGENTS.md (CLI convention dialect for MCP-less tools — task 5.1, BD31).
@@ -25,35 +25,35 @@ import sessionEndShim from '../hooks/session-end.sh'
  * only dist/ is published, so init never reads src/hooks/ at runtime.
  */
 
-export const PROTOCOL_START = '<!-- harness:protocol -->'
-export const PROTOCOL_END = '<!-- /harness:protocol -->'
+export const PROTOCOL_START = '<!-- sofar:protocol -->'
+export const PROTOCOL_END = '<!-- /sofar:protocol -->'
 
 /**
  * The BD19 total-jurisdiction protocol block. Clauses (a)–(c) are contract
- * (SPEC §CLI): record-only state, `harness new` before unmatched work,
+ * (SPEC §CLI): record-only state, `sofar new` before unmatched work,
  * bindings resolve the record — plus the read-orient/write-back loop.
  */
 export const PROTOCOL_BLOCK = `${PROTOCOL_START}
-## Harness protocol (jurisdiction is total)
+## Sofar protocol (jurisdiction is total)
 
-This repo's work memory lives in harness records under \`.harness/\`.
-1. ALL work state lives in harness records — never in tool memory, scratch
+This repo's work memory lives in sofar records under \`.sofar/\`.
+1. ALL work state lives in sofar records — never in tool memory, scratch
    files, or ad-hoc notes. If it is worth keeping, it goes in the record.
 2. Work that matches no existing initiative requires creating one first:
-   run \`harness new <slug>\` before proceeding.
-3. Bindings (\`.harness/bindings.json\`) resolve which record a session
+   run \`sofar new <slug>\` before proceeding.
+3. Bindings (\`.sofar/bindings.json\`) resolve which record a session
    serves — the current git branch selects the initiative.
 
 Session loop:
-- START: orient from the record — call \`harness_get_state\` (MCP) or run
-  \`harness status\`. Do not ask for context the record already answers.
-  Then call \`harness_start_session\` passing the \`session_id\` from the
+- START: orient from the record — call \`sofar_get_state\` (MCP) or run
+  \`sofar status\`. Do not ask for context the record already answers.
+  Then call \`sofar_start_session\` passing the \`session_id\` from the
   injected context line ("Session: <id> — …") so your events attach to
   YOUR session — never omit it when that line is present (omitting mints
   a separate session id and orphans the hook-registered one).
-- DURING: log decisions (\`harness_log_decision\`) and task status changes
-  (\`harness_update_task\`) as they happen.
-- BEFORE FINISHING: write back with \`harness_end_session\` (summary +
+- DURING: log decisions (\`sofar_log_decision\`) and task status changes
+  (\`sofar_update_task\`) as they happen.
+- BEFORE FINISHING: write back with \`sofar_end_session\` (summary +
   next action). The Stop hook blocks sessions that skip this.
 ${PROTOCOL_END}
 `
@@ -62,36 +62,36 @@ ${PROTOCOL_END}
  * The AGENTS.md convention dialect (task 5.1, BD31) — the same three BD19
  * total-jurisdiction clauses, but a CLI-only loop: AGENTS.md readers
  * (OpenCode, Codex, plain shells) cannot be assumed to have MCP, so every
- * step goes through \`harness status\` / \`harness event append\`. No hook
+ * step goes through \`sofar status\` / \`sofar event append\`. No hook
  * enforces write-back for these tools, hence the MANDATORY clause (the
  * compensating control — see docs/opencode-adapter.md).
  */
 export const AGENTS_PROTOCOL_BLOCK = `${PROTOCOL_START}
-## Harness protocol (jurisdiction is total)
+## Sofar protocol (jurisdiction is total)
 
-This repo's work memory lives in harness records under \`.harness/\`. Drive
-the whole loop with the \`harness\` CLI — no MCP support is required.
-1. ALL work state lives in harness records — never in tool memory, scratch
+This repo's work memory lives in sofar records under \`.sofar/\`. Drive
+the whole loop with the \`sofar\` CLI — no MCP support is required.
+1. ALL work state lives in sofar records — never in tool memory, scratch
    files, or ad-hoc notes. If it is worth keeping, it goes in the record.
 2. Work that matches no existing initiative requires creating one first:
-   run \`harness new <slug>\` before proceeding.
-3. Bindings (\`.harness/bindings.json\`) resolve which record a session
+   run \`sofar new <slug>\` before proceeding.
+3. Bindings (\`.sofar/bindings.json\`) resolve which record a session
    serves — the current git branch selects the initiative.
 
-Session loop (every write is one \`harness event append\` call):
-- BEFORE any work: run \`harness status\` and orient from it. Detail lives
-  in \`.harness/initiatives/<slug>/plan.md\` and \`decisions.md\`. Do not
+Session loop (every write is one \`sofar event append\` call):
+- BEFORE any work: run \`sofar status\` and orient from it. Detail lives
+  in \`.sofar/initiatives/<slug>/plan.md\` and \`decisions.md\`. Do not
   ask for context the record already answers.
 - START: pick one unique session id, reuse it for every append this
   session, and register it:
-  \`harness event append --type session_started --session <session-id> --source opencode --payload '{"tool":"opencode"}'\`
+  \`sofar event append --type session_started --session <session-id> --source opencode --payload '{"tool":"opencode"}'\`
   (put your tool's name in --source and the payload).
-- DURING: log work as it happens with \`harness event append --session <session-id> --source <tool>\` plus:
+- DURING: log work as it happens with \`sofar event append --session <session-id> --source <tool>\` plus:
   task status:  \`--type task_status_changed --payload '{"id":"<task-id>","status":"pending|active|done|blocked"}'\`
   decisions:    \`--type decision_logged --payload '{"chose":"...","over":"...","because":"..."}'\`
   notes:        \`--type note_added --payload '{"text":"..."}'\`
 - BEFORE FINISHING (MANDATORY): write back —
-  \`harness event append --type session_ended --session <session-id> --source <tool> --payload '{"summary":"<what happened>","next_action":"<single next step>"}'\`
+  \`sofar event append --type session_ended --session <session-id> --source <tool> --payload '{"summary":"<what happened>","next_action":"<single next step>"}'\`
   A session that skips this abandons its state and the next session starts blind.
 
 Prohibitions:
@@ -107,8 +107,8 @@ export const REPO_MD_STUB = `# Repo memory
 
 Hand-written, repo-scoped notes for agents working here: conventions,
 commands, gotchas — anything true of the repo across all initiatives.
-Harness never generates or overwrites this file; initiative state lives in
-.harness/initiatives/<slug>/ instead.
+Sofar never generates or overwrites this file; initiative state lives in
+.sofar/initiatives/<slug>/ instead.
 `
 
 const HOOK_COMMAND_PREFIX = '$CLAUDE_PROJECT_DIR/.claude/hooks/'
@@ -175,7 +175,7 @@ function readJSONObject(path: string, label: string): Obj {
     decoded = JSON.parse(readFileSync(path, 'utf8'))
   } catch (err) {
     throw new InitAbort(
-      `${label} is not valid JSON — refusing to modify it. Fix or remove it, then re-run harness init. (${err instanceof Error ? err.message : String(err)})`,
+      `${label} is not valid JSON — refusing to modify it. Fix or remove it, then re-run sofar init. (${err instanceof Error ? err.message : String(err)})`,
     )
   }
   if (!isObj(decoded)) {
@@ -192,13 +192,13 @@ function stableJSON(value: unknown): string {
 // Steps.
 // ---------------------------------------------------------------------------
 
-function initHarnessDir(rootDir: string, report: string[]): void {
-  const harnessDir = join(rootDir, '.harness')
-  mkdirSync(join(harnessDir, 'initiatives'), { recursive: true })
+function initSofarDir(rootDir: string, report: string[]): void {
+  const sofarDir = join(rootDir, '.sofar')
+  mkdirSync(join(sofarDir, 'initiatives'), { recursive: true })
   // repo.md is HAND-WRITTEN (SPEC §Record layout) — create only, never touch.
-  report.push(`${createIfMissing(join(harnessDir, 'repo.md'), REPO_MD_STUB)} .harness/repo.md`)
+  report.push(`${createIfMissing(join(sofarDir, 'repo.md'), REPO_MD_STUB)} .sofar/repo.md`)
   report.push(
-    `${createIfMissing(join(harnessDir, 'bindings.json'), '{}\n')} .harness/bindings.json`,
+    `${createIfMissing(join(sofarDir, 'bindings.json'), '{}\n')} .sofar/bindings.json`,
   )
 }
 
@@ -207,7 +207,7 @@ function installShims(rootDir: string, report: string[]): void {
   mkdirSync(hooksDir, { recursive: true })
   for (const shim of SHIMS) {
     const path = join(hooksDir, shim.file)
-    const change = writeIfChanged(path, shim.text) // shims are harness-owned: kept current
+    const change = writeIfChanged(path, shim.text) // shims are sofar-owned: kept current
     if ((statSync(path).mode & 0o777) !== 0o755) chmodSync(path, 0o755)
     report.push(`${change} .claude/hooks/${shim.file}`)
   }
@@ -269,11 +269,11 @@ function mergeMcpJson(rootDir: string, report: string[]): void {
   }
   const servers: Obj = isObj(config.mcpServers) ? config.mcpServers : {}
 
-  if (servers.harness !== undefined && existsSync(path)) {
+  if (servers.sofar !== undefined && existsSync(path)) {
     report.push('unchanged .mcp.json') // user may have customized the entry — theirs wins
     return
   }
-  servers.harness = mcpRegistration().mcpServers.harness
+  servers.sofar = mcpRegistration().mcpServers.sofar
   config.mcpServers = servers
   report.push(`${writeIfChanged(path, stableJSON(config))} .mcp.json`)
 }
@@ -288,7 +288,7 @@ function appendProtocolBlock(rootDir: string, file: string, block: string, repor
   const path = join(rootDir, file)
   if (!existsSync(path)) {
     writeFileSync(path, block, 'utf8')
-    report.push(`created ${file} (harness protocol block)`)
+    report.push(`created ${file} (sofar protocol block)`)
     return
   }
   const current = readFileSync(path, 'utf8')
@@ -298,7 +298,7 @@ function appendProtocolBlock(rootDir: string, file: string, block: string, repor
   }
   const separator = current.length === 0 ? '' : current.endsWith('\n') ? '\n' : '\n\n'
   writeFileSync(path, `${current}${separator}${block}`, 'utf8')
-  report.push(`updated ${file} (harness protocol block appended)`)
+  report.push(`updated ${file} (sofar protocol block appended)`)
 }
 
 // ---------------------------------------------------------------------------
@@ -308,21 +308,21 @@ function appendProtocolBlock(rootDir: string, file: string, block: string, repor
 export function runInit(rootDir: string): CmdResult {
   const report: string[] = []
   try {
-    initHarnessDir(rootDir, report)
+    initSofarDir(rootDir, report)
     installShims(rootDir, report)
     mergeSettings(rootDir, report)
     mergeMcpJson(rootDir, report)
     appendProtocolBlock(rootDir, 'CLAUDE.md', PROTOCOL_BLOCK, report)
     appendProtocolBlock(rootDir, 'AGENTS.md', AGENTS_PROTOCOL_BLOCK, report)
   } catch (err) {
-    if (err instanceof InitAbort) return fail(`harness init: ${err.message}`)
+    if (err instanceof InitAbort) return fail(`sofar init: ${err.message}`)
     throw err
   }
   const changed = report.filter((line) => !line.startsWith('unchanged')).length
   report.push(
     changed === 0
-      ? 'harness init: already initialized — nothing to do'
-      : `harness init: done (${changed} change${changed === 1 ? '' : 's'})`,
+      ? 'sofar init: already initialized — nothing to do'
+      : `sofar init: done (${changed} change${changed === 1 ? '' : 's'})`,
   )
   return ok(`${report.join('\n')}\n`)
 }

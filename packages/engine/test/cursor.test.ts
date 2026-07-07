@@ -7,7 +7,7 @@ import { makeEvent, type EventEnvelope } from '../src/core/envelope'
 import { foldLog } from '../src/core/fold'
 import { appendEvents, serializeEvent } from '../src/core/log'
 
-const scratch = mkdtempSync(join(tmpdir(), 'harness-cursor-'))
+const scratch = mkdtempSync(join(tmpdir(), 'sofar-cursor-'))
 let n = 0
 const fresh = (name: string) => join(scratch, `${n++}-${name}`, 'events.jsonl')
 

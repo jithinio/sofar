@@ -21,7 +21,7 @@ import { STOP_BLOCK_MESSAGE } from '../src/cli/event'
  */
 
 const here = fileURLToPath(new URL('.', import.meta.url))
-const scratch = mkdtempSync(join(tmpdir(), 'harness-phase5-'))
+const scratch = mkdtempSync(join(tmpdir(), 'sofar-phase5-'))
 const bundle = join(scratch, 'cli.mjs')
 const roots: string[] = []
 
@@ -50,7 +50,7 @@ const SESSION = 'oc-verify-1'
 
 /** Checklist step 1's `git init -b main scratch` — same result as the fixture. */
 function scratchRepo(): string {
-  const root = mkdtempSync(join(tmpdir(), 'harness-p5-'))
+  const root = mkdtempSync(join(tmpdir(), 'sofar-p5-'))
   roots.push(root)
   mkdirSync(join(root, '.git'), { recursive: true })
   writeFileSync(join(root, '.git', 'HEAD'), 'ref: refs/heads/main\n')
@@ -66,7 +66,7 @@ function cli(root: string, args: string[], input?: string): SpawnSyncReturns<str
 }
 
 function logEvents(root: string): EventEnvelope[] {
-  const path = join(root, '.harness', 'initiatives', SLUG, 'events.jsonl')
+  const path = join(root, '.sofar', 'initiatives', SLUG, 'events.jsonl')
   if (!existsSync(path)) return []
   return readFileSync(path, 'utf8')
     .trim()
@@ -76,7 +76,7 @@ function logEvents(root: string): EventEnvelope[] {
 }
 
 function projection(root: string, file: string): string {
-  return readFileSync(join(root, '.harness', 'initiatives', SLUG, file), 'utf8')
+  return readFileSync(join(root, '.sofar', 'initiatives', SLUG, file), 'utf8')
 }
 
 function expectOk(result: SpawnSyncReturns<string>): { ok: boolean; event_id: string } {
@@ -92,17 +92,17 @@ describe('acceptance — opencode-adapter.md manual checklist, simulated against
     const root = scratchRepo()
     const stopProbe = `${JSON.stringify({ session_id: SESSION, stop_hook_active: false })}\n`
 
-    // step 1 — harness init: AGENTS.md block installed
+    // step 1 — sofar init: AGENTS.md block installed
     const init = cli(root, ['init'])
     expect(init.status).toBe(0)
-    expect(init.stdout).toContain('created AGENTS.md (harness protocol block)')
-    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('<!-- harness:protocol -->')
-    expect(existsSync(join(root, '.harness', 'initiatives'))).toBe(true)
+    expect(init.stdout).toContain('created AGENTS.md (sofar protocol block)')
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('<!-- sofar:protocol -->')
+    expect(existsSync(join(root, '.sofar', 'initiatives'))).toBe(true)
 
-    // step 2 — harness new: exactly one initiative_created, actor human
+    // step 2 — sofar new: exactly one initiative_created, actor human
     const created = cli(root, ['new', SLUG, '--goal', 'verify the convention dialect'])
     expect(created.status).toBe(0)
-    expect(created.stdout).toContain(`created .harness/initiatives/${SLUG}/`)
+    expect(created.stdout).toContain(`created .sofar/initiatives/${SLUG}/`)
     expect(created.stdout).toContain(`bound branch "main" → ${SLUG}`)
     expect(logEvents(root).map((e) => [e.type, e.actor])).toEqual([['initiative_created', 'human']])
 
@@ -195,7 +195,7 @@ describe('acceptance — opencode-adapter.md manual checklist, simulated against
       ]),
     )
     expect(logEvents(root)).toHaveLength(6)
-    expect(existsSync(join(root, '.harness', 'initiatives', SLUG, 'sessions', `${SESSION}.md`))).toBe(true)
+    expect(existsSync(join(root, '.sofar', 'initiatives', SLUG, 'sessions', `${SESSION}.md`))).toBe(true)
 
     // step 10 — parity probe, gate OPEN: dialect write-back satisfies the Stop hook
     const passed = cli(root, ['event', 'stop'], stopProbe)

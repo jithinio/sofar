@@ -9,7 +9,7 @@ import { makeEvent, validateEnvelope } from '../src/core/envelope'
 import { appendEvent, appendEvents, serializeEvent } from '../src/core/log'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
-const scratch = mkdtempSync(join(tmpdir(), 'harness-log-'))
+const scratch = mkdtempSync(join(tmpdir(), 'sofar-log-'))
 
 afterAll(() => {
   rmSync(scratch, { recursive: true, force: true })

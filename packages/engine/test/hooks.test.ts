@@ -17,7 +17,7 @@ import { STATUS_CHAR_LIMIT } from '../src/projections/templates/status'
 import { callTool, connectServer, makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
 
 /**
- * Phase 3 hook surface: shim scripts (3.1) + `harness event` handlers.
+ * Phase 3 hook surface: shim scripts (3.1) + `sofar event` handlers.
  * Handlers are pure-ish ({exitCode, stdout, stderr}) so these tests drive
  * them directly; the built-CLI path is covered by acceptance.phase3.test.ts.
  */
@@ -63,30 +63,30 @@ describe('hook shims (3.1) — zero logic, exec the CLI (BD4)', () => {
   ]
 
   for (const [file, subcommand] of shims) {
-    it(`${file} is a POSIX sh shim that execs \`harness event ${subcommand}\``, () => {
+    it(`${file} is a POSIX sh shim that execs \`sofar event ${subcommand}\``, () => {
       const content = readFileSync(join(hooksDir, file), 'utf8')
       const lines = content.split('\n')
       expect(lines[0]).toBe('#!/bin/sh')
-      expect(content).toContain(`exec harness event ${subcommand}`)
+      expect(content).toContain(`exec sofar event ${subcommand}`)
       // no logic: nothing but the shebang, comments, and the exec line
       const codeLines = lines.filter((l) => l.trim() !== '' && !l.startsWith('#'))
-      expect(codeLines).toEqual([`exec harness event ${subcommand}`])
+      expect(codeLines).toEqual([`exec sofar event ${subcommand}`])
     })
   }
 })
 
-describe('harness event session-start — session registration (BD20) + context injection (3.2)', () => {
+describe('sofar event session-start — session registration (BD20) + context injection (3.2)', () => {
   it('appends session_started with envelope.session = Claude session_id, source hook, tool claude-code', () => {
     const fixture = fx()
     const result = handleSessionStart(fixture.root, hookStdin({ hook_event_name: 'SessionStart', source: 'startup' }))
     expect(result.exitCode).toBe(0)
 
     // stdout is the status projection — the injected context (3.2, BD3)
-    expect(result.stdout).toContain(`# Harness status: ${fixture.slug}`)
+    expect(result.stdout).toContain(`# Sofar status: ${fixture.slug}`)
     expect(result.stdout.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
     // the adopt-by-id delivery line (7.1, BD43): the agent reads its id here
     expect(result.stdout).toContain(
-      'Session: claude-sess-1 — when calling harness_start_session, pass this as session_id.',
+      'Session: claude-sess-1 — when calling sofar_start_session, pass this as session_id.',
     )
 
     const events = logEvents(fixture.eventsPath)
@@ -110,12 +110,12 @@ describe('harness event session-start — session registration (BD20) + context 
     const compacted = handleSessionStart(fixture.root, hookStdin({ source: 'compact' }))
     expect(logEvents(fixture.eventsPath)).toHaveLength(1)
     expect(foldLog(fixture.eventsPath).warnings).toEqual([])
-    expect(compacted.stdout).toContain('# Harness status:') // re-injection after compact
+    expect(compacted.stdout).toContain('# Sofar status:') // re-injection after compact
   })
 
-  it('missing .harness → exit 0, no output, nothing appended (best-effort, BD22)', () => {
+  it('missing .sofar → exit 0, no output, nothing appended (best-effort, BD22)', () => {
     const fixture = fx({ bind: false })
-    rmSync(join(fixture.root, '.harness'), { recursive: true, force: true })
+    rmSync(join(fixture.root, '.sofar'), { recursive: true, force: true })
     const result = handleSessionStart(fixture.root, hookStdin({}))
     expect(result).toEqual({ exitCode: 0, stdout: '', stderr: '' })
     expect(existsSync(fixture.eventsPath)).toBe(false)
@@ -137,7 +137,7 @@ describe('harness event session-start — session registration (BD20) + context 
   })
 })
 
-describe('harness event post-tool — mechanical file/command events (3.3)', () => {
+describe('sofar event post-tool — mechanical file/command events (3.3)', () => {
   const postToolStdin = (toolName: string, toolInput: Record<string, unknown>): string =>
     hookStdin({
       hook_event_name: 'PostToolUse',
@@ -228,7 +228,7 @@ describe('harness event post-tool — mechanical file/command events (3.3)', () 
   })
 })
 
-describe('harness event stop — write-back enforcement (3.4, BD2)', () => {
+describe('sofar event stop — write-back enforcement (3.4, BD2)', () => {
   const stopStdin = (fields: Record<string, unknown> = {}): string =>
     hookStdin({ hook_event_name: 'Stop', stop_hook_active: false, ...fields })
 
@@ -255,7 +255,7 @@ describe('harness event stop — write-back enforcement (3.4, BD2)', () => {
     expect(result.exitCode).toBe(2)
     expect(result.stderr).toBe(STOP_BLOCK_MESSAGE)
     expect(result.stderr).toBe(
-      'Write back to the harness record before finishing: call harness_end_session (or update harness.md per protocol).',
+      'Write back to the sofar record before finishing: call sofar_end_session (or append session_ended via `sofar event append`).',
     )
     expect(result.stdout).toBe('')
     // the check appends nothing
@@ -278,12 +278,12 @@ describe('harness event stop — write-back enforcement (3.4, BD2)', () => {
     expect(handleStop(fixture.root, stopStdin()).exitCode).toBe(2)
 
     const { client } = await connectServer(fixture.root)
-    const started = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+    const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
       tool: 'claude-code',
       session_id: 'claude-sess-1', // the id from the injected context line
     })
     expect(started.body.session_id).toBe('claude-sess-1') // adopted by id (BD43)
-    await callTool(client, 'harness_end_session', {
+    await callTool(client, 'sofar_end_session', {
       session_id: started.body.session_id,
       summary: 'ended via MCP',
       next_action: 'nothing',
@@ -301,7 +301,7 @@ describe('harness event stop — write-back enforcement (3.4, BD2)', () => {
     expect(result).toEqual({ exitCode: 0, stdout: '', stderr: '' })
   })
 
-  it('unregistered session_id → exit 0 (never block sessions the harness does not govern)', () => {
+  it('unregistered session_id → exit 0 (never block sessions the sofar does not govern)', () => {
     const fixture = fx()
     // log exists but this session never registered
     handleSessionStart(fixture.root, hookStdin({ session_id: 'some-other-session' }))
@@ -339,7 +339,7 @@ describe('harness event stop — write-back enforcement (3.4, BD2)', () => {
   })
 })
 
-describe('harness event session-end — mechanical close marker (3.5, BD21)', () => {
+describe('sofar event session-end — mechanical close marker (3.5, BD21)', () => {
   const endStdin = (fields: Record<string, unknown> = {}): string =>
     hookStdin({ hook_event_name: 'SessionEnd', reason: 'exit', ...fields })
 
@@ -393,11 +393,11 @@ describe('harness event session-end — mechanical close marker (3.5, BD21)', ()
     handleSessionStart(fixture.root, hookStdin({}))
 
     const { client } = await connectServer(fixture.root)
-    const started = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+    const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
       tool: 'claude-code',
       session_id: 'claude-sess-1', // adopt-by-id (BD43)
     })
-    await callTool(client, 'harness_end_session', {
+    await callTool(client, 'sofar_end_session', {
       session_id: started.body.session_id,
       summary: 'wrote back first',
       next_action: 'proceed to 3.6',

@@ -1,9 +1,9 @@
-# harness
+# sofar
 
 Event-sourced initiative memory for coding agents.
 
 Truth lives in one append-only event log per initiative
-(`.harness/initiatives/<slug>/events.jsonl`). Everything a session reads —
+(`.sofar/initiatives/<slug>/events.jsonl`). Everything a session reads —
 `plan.md`, `decisions.md`, per-session summaries, the status block injected
 at session start — is a generated projection of that log, regenerated on
 every append and never hand-edited. A session orients from the record, logs
@@ -20,25 +20,25 @@ npm install
 npm run build
 cd packages/engine
 npm pack
-npm install -g ./harness-0.1.0.tgz
+npm install -g ./sofar-0.1.0.tgz
 ```
 
 The tarball installs with zero runtime dependencies — `dist/cli.js` is fully
-bundled. Once published: `npm install -g harness`, or `npx harness <command>`.
+bundled. Once published: `npm install -g sofar`, or `npx sofar <command>`.
 Requires Node ≥ 18.
 
 ## Quickstart
 
 ```
 cd your-repo
-harness init                          # scaffold .harness/, install hooks + registrations
-harness new my-feature --goal "..."   # create an initiative, bind it to the current branch
-harness status                        # fold the log: goal, progress, phase tree, next action
+sofar init                          # scaffold .sofar/, install hooks + registrations
+sofar new my-feature --goal "..."   # create an initiative, bind it to the current branch
+sofar status                        # fold the log: goal, progress, phase tree, next action
 ```
 
 The work loop, per session:
 
-1. Session starts → orient from the injected status context (or `harness status`).
+1. Session starts → orient from the injected status context (or `sofar status`).
 2. During work → append events: task status changes, decisions, notes;
    file/command events land mechanically via hooks.
 3. Before finishing → write back `session_ended` (summary + next action).
@@ -46,12 +46,12 @@ The work loop, per session:
 
 ## Integration surfaces
 
-`harness init` wires all three; a tool uses whichever it can.
+`sofar init` wires all three; a tool uses whichever it can.
 
 **MCP server** (Claude Code, any MCP client). Registered in `.mcp.json` as
-`harness mcp` (stdio). Tools: `harness_get_state`, `harness_start_session`,
-`harness_end_session`, `harness_update_task`, `harness_log_decision`,
-`harness_update_plan`, `harness_add_note`. Every tool is
+`sofar mcp` (stdio). Tools: `sofar_get_state`, `sofar_start_session`,
+`sofar_end_session`, `sofar_update_task`, `sofar_log_decision`,
+`sofar_update_plan`, `sofar_add_note`. Every tool is
 validate payload → append event → regenerate projections; nothing mutates
 state except through an event.
 
@@ -61,7 +61,7 @@ logic — each invokes the CLI.
 
 - `SessionStart` — registers the session in the log and prints the status
   projection as injected context (hard limit 10,000 chars), including a
-  budgeted "Repo memory" section from `.harness/repo.md` when it has content.
+  budgeted "Repo memory" section from `.sofar/repo.md` when it has content.
 - `PostToolUse` — appends mechanical `file_touched` / `command_run` events
   for Edit/Write/MultiEdit/Bash calls.
 - `Stop` — the write-back gate: if the session has not appended
@@ -71,8 +71,8 @@ logic — each invokes the CLI.
 
 **AGENTS.md dialect** (tools without MCP or hooks — OpenCode, Codex, plain
 shells). `init` installs a protocol block into `AGENTS.md` that drives the
-same loop through the CLI alone: orient with `harness status`, then one
-`harness event append --type <event_type> --payload '<json>'` per write —
+same loop through the CLI alone: orient with `sofar status`, then one
+`sofar event append --type <event_type> --payload '<json>'` per write —
 session start, task changes, decisions, and the mandatory `session_ended`
 write-back. No hook can block these tools, so the convention states
 write-back as mandatory.
@@ -80,7 +80,7 @@ write-back as mandatory.
 ## Record layout
 
 ```
-.harness/
+.sofar/
   repo.md                      # repo-scoped memory (hand-written, NOT generated)
   bindings.json                # { "<git-branch-or-worktree>": "<slug>" }
   initiatives/<slug>/
@@ -98,15 +98,15 @@ so readers never see a half-written file.
 ## CLI
 
 ```
-harness init                     make a repo harness-ready (idempotent)
-harness new <slug> [--goal]      create an initiative, bind the current branch
-harness switch <slug>            rebind the current branch
-harness status [slug]            fold and print the full initiative tree
-harness export [slug] [--since]  event log as NDJSON (sync cursor primitive)
-harness import <file|-> [slug]   append missing events, dedupe by id
-harness event append ...         validated single-event append (the dialect surface)
-harness serve [--port]           localhost JSON state + SSE on change (127.0.0.1 only)
-harness mcp [--root]             stdio MCP server
+sofar init                     make a repo sofar-ready (idempotent)
+sofar new <slug> [--goal]      create an initiative, bind the current branch
+sofar switch <slug>            rebind the current branch
+sofar status [slug]            fold and print the full initiative tree
+sofar export [slug] [--since]  event log as NDJSON (sync cursor primitive)
+sofar import <file|-> [slug]   append missing events, dedupe by id
+sofar event append ...         validated single-event append (the dialect surface)
+sofar serve [--port]           localhost JSON state + SSE on change (127.0.0.1 only)
+sofar mcp [--root]             stdio MCP server
 ```
 
 ## Contracts
@@ -114,4 +114,4 @@ harness mcp [--root]             stdio MCP server
 Authoritative contracts — envelope, event types, state shape, tool
 signatures, hook behavior, acceptance criteria — live in
 [docs/SPEC.md](docs/SPEC.md). This repo tracks its own development with the
-same protocol in [docs/harness.md](docs/harness.md).
+same protocol — self-hosted in its own `.sofar/` record.

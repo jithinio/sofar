@@ -5,7 +5,7 @@ import { watch } from 'chokidar'
 import { emptyState, foldLog, type InitiativeState } from '../core/fold'
 
 /**
- * `harness serve [--port 4173]` (task 4.5, SPEC §CLI) — the watcher +
+ * `sofar serve [--port 4173]` (task 4.5, SPEC §CLI) — the watcher +
  * localhost JSON state server. node:http only, bound to 127.0.0.1 ONLY
  * (localhost law: JSON on localhost, no UI, no sync, no telemetry).
  *
@@ -39,7 +39,7 @@ export interface ServeHandle {
 }
 
 export async function startServer(options: ServeOptions): Promise<ServeHandle> {
-  const initiativesDir = join(options.root, '.harness', 'initiatives')
+  const initiativesDir = join(options.root, '.sofar', 'initiatives')
 
   function listSlugs(): string[] {
     if (!existsSync(initiativesDir)) return []
@@ -125,8 +125,8 @@ export async function startServer(options: ServeOptions): Promise<ServeHandle> {
   }, RECONCILE_MS)
   reconcile.unref()
 
-  // --- watcher: append to any .harness/**/events.jsonl → re-fold + push -----
-  // A directory created and populated in one burst (harness new) can lose
+  // --- watcher: append to any .sofar/**/events.jsonl → re-fold + push -----
+  // A directory created and populated in one burst (sofar new) can lose
   // the file's `add` event to a chokidar/fsevents race — the `addDir` for
   // the initiative dir is delivered reliably, so push from it too, waiting
   // briefly for the log to land before folding (bounded, then push anyway).

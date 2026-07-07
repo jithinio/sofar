@@ -9,7 +9,7 @@ import { startServer, type ServeHandle } from '../src/cli/serve'
 import { makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
 
 /**
- * Task 4.5 — `harness serve`: /state fold-all, /state/<slug>, 404s, and the
+ * Task 4.5 — `sofar serve`: /state fold-all, /state/<slug>, 404s, and the
  * Phase 4 acceptance bullet 3: an append pushes an SSE state event within
  * 500ms. Every test closes its server — vitest must exit cleanly.
  */
@@ -35,7 +35,7 @@ async function serve(root: string): Promise<ServeHandle> {
 }
 
 function seedInitiative(fixture: Fixture, slug: string, goal: string): string {
-  const dir = join(fixture.root, '.harness', 'initiatives', slug)
+  const dir = join(fixture.root, '.sofar', 'initiatives', slug)
   mkdirSync(dir, { recursive: true })
   const logPath = join(dir, 'events.jsonl')
   appendEvent(
@@ -110,7 +110,7 @@ function openSse(url: string): Promise<SseClient> {
   })
 }
 
-describe('harness serve — /state endpoints', () => {
+describe('sofar serve — /state endpoints', () => {
   it('GET /state folds every initiative; /state/<slug> returns one; unknown 404s', async () => {
     const fixture = fx({ bind: false })
     seedInitiative(fixture, 'alpha', 'first goal')
@@ -150,7 +150,7 @@ describe('harness serve — /state endpoints', () => {
   })
 })
 
-describe('harness serve — SSE push on append (acceptance bullet 3)', () => {
+describe('sofar serve — SSE push on append (acceptance bullet 3)', () => {
   it('an events.jsonl append reaches the SSE client within 500ms', async () => {
     const fixture = fx({ bind: false })
     const logPath = seedInitiative(fixture, 'live', 'watch me')

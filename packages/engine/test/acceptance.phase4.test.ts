@@ -24,7 +24,7 @@ import { callTool, connectServer } from './helpers/mcp'
 
 /**
  * Phase 4 acceptance (SPEC §Acceptance):
- *  1. `harness init` on a fresh repo yields a working end-to-end loop
+ *  1. `sofar init` on a fresh repo yields a working end-to-end loop
  *     (start session → tool events → end session → status shows it)
  *  2. init is idempotent (second run changes nothing) — verified here
  *     through the BUILT CLI by hashing the whole tree between runs
@@ -35,7 +35,7 @@ import { callTool, connectServer } from './helpers/mcp'
  */
 
 const here = fileURLToPath(new URL('.', import.meta.url))
-const scratch = mkdtempSync(join(tmpdir(), 'harness-phase4-'))
+const scratch = mkdtempSync(join(tmpdir(), 'sofar-phase4-'))
 const bundle = join(scratch, 'cli.mjs')
 const roots: string[] = []
 
@@ -61,7 +61,7 @@ afterAll(() => {
 
 /** Fresh repo: just .git/HEAD on main — exactly what init receives in the wild. */
 function freshRepo(): string {
-  const root = mkdtempSync(join(tmpdir(), 'harness-p4-'))
+  const root = mkdtempSync(join(tmpdir(), 'sofar-p4-'))
   roots.push(root)
   mkdirSync(join(root, '.git'), { recursive: true })
   writeFileSync(join(root, '.git', 'HEAD'), 'ref: refs/heads/main\n')
@@ -95,7 +95,7 @@ function hashTree(dir: string): Map<string, { sha: string; mode: number }> {
 }
 
 function logEvents(root: string, slug: string): EventEnvelope[] {
-  const path = join(root, '.harness', 'initiatives', slug, 'events.jsonl')
+  const path = join(root, '.sofar', 'initiatives', slug, 'events.jsonl')
   if (!existsSync(path)) return []
   return readFileSync(path, 'utf8')
     .trim()
@@ -117,7 +117,7 @@ describe('acceptance 1 — init on a fresh repo yields a working end-to-end loop
     // SessionStart hook: registers Claude's session_id, injects status context
     const started = handleSessionStart(root, JSON.stringify({ ...hookBase, hook_event_name: 'SessionStart' }))
     expect(started.exitCode).toBe(0)
-    expect(started.stdout).toContain('# Harness status: loop')
+    expect(started.stdout).toContain('# Sofar status: loop')
     expect(started.stdout).toContain('Goal: prove the loop')
 
     // PostToolUse hooks: an Edit and a Bash call
@@ -151,14 +151,14 @@ describe('acceptance 1 — init on a fresh repo yields a working end-to-end loop
     // (BD43) — the id arrives via the injected context "Session:" line
     const { client } = await connectServer(root)
     try {
-      const adopted = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+      const adopted = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
         tool: 'claude-code',
         session_id: SESSION,
       })
       expect(adopted.isError).toBe(false)
       expect(adopted.body.session_id).toBe(SESSION)
 
-      const ended = await callTool(client, 'harness_end_session', {
+      const ended = await callTool(client, 'sofar_end_session', {
         session_id: SESSION,
         summary: 'looped end to end through init',
         next_action: 'ship phase 5',

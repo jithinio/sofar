@@ -7,7 +7,7 @@ import { runStatus } from '../src/cli/status'
 import { makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
 
 /**
- * Task 4.3 — `harness status [slug]`: golden-ish assertions on a folded
+ * Task 4.3 — `sofar status [slug]`: golden-ish assertions on a folded
  * fixture (progress %, per-task tree, blocked_on, last session), fold
  * warnings on stderr, and exit-1 resolution failures.
  */
@@ -75,7 +75,7 @@ function seed(fixture: Fixture): void {
   ])
 }
 
-describe('harness status', () => {
+describe('sofar status', () => {
   it('prints goal, progress %, per-task phase tree, blocked_on, next action, last session', () => {
     const fixture = fx()
     seed(fixture)
@@ -143,7 +143,7 @@ describe('harness status', () => {
     const noBinding = runStatus(unbound.root)
     expect(noBinding.exitCode).toBe(1)
     expect(noBinding.stderr).toContain('no initiative bound to branch "main"')
-    expect(noBinding.stderr).toContain('usage: harness status [slug]')
+    expect(noBinding.stderr).toContain('usage: sofar status [slug]')
 
     const unknown = runStatus(unbound.root, 'ghost')
     expect(unknown.exitCode).toBe(1)

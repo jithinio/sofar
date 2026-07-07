@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Command } from 'commander'
 import { version } from '../../package.json'
-import { createHarnessServer } from '../mcp/server'
+import { createSofarServer } from '../mcp/server'
 import { registerEventCommand } from './event'
 import { runAdopt } from './adopt'
 import { runInit } from './init'
@@ -16,8 +16,8 @@ import { emit, readAllStdin } from './shared'
 const program = new Command()
 
 program
-  .name('harness')
-  .description('Harness v1 engine — event-log initiative memory for coding agents')
+  .name('sofar')
+  .description('Sofar v1 engine — event-log initiative memory for coding agents')
   // Single-sourced from package.json (task 6.4, BD39) — esbuild inlines the
   // JSON import, so the bundle always carries the manifest's version.
   .version(version)
@@ -30,7 +30,7 @@ function rootOf(opts: { root?: string }): string {
 program
   .command('init')
   .description(
-    'make this repo harness-ready: .harness/, hook shims + settings, .mcp.json entry, CLAUDE.md + AGENTS.md protocol blocks (idempotent)',
+    'make this repo sofar-ready: .sofar/, hook shims + settings, .mcp.json entry, CLAUDE.md + AGENTS.md protocol blocks (idempotent)',
   )
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((opts: { root?: string }) => {
@@ -40,9 +40,9 @@ program
 program
   .command('uninit')
   .description(
-    'exact inverse of init: remove hook shims, settings hook entries, the .mcp.json server entry, and the protocol blocks; .harness/ is kept unless --purge',
+    'exact inverse of init: remove hook shims, settings hook entries, the .mcp.json server entry, and the protocol blocks; .sofar/ is kept unless --purge',
   )
-  .option('--purge', 'also delete the .harness/ record (irreversible)')
+  .option('--purge', 'also delete the .sofar/ record (irreversible)')
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((opts: { purge?: boolean; root?: string }) => {
     emit(runUninit(rootOf(opts), { purge: opts.purge === true }))
@@ -52,7 +52,7 @@ program
   .command('new <slug>')
   .description('create an initiative and bind the current branch to it')
   .option('--goal <text>', 'initiative goal recorded in initiative_created')
-  .option('--no-bind', 'skip binding the current branch in .harness/bindings.json')
+  .option('--no-bind', 'skip binding the current branch in .sofar/bindings.json')
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((slug: string, opts: { goal?: string; bind?: boolean; root?: string }) => {
     emit(runNew(rootOf(opts), slug, { ...(opts.goal !== undefined ? { goal: opts.goal } : {}), bind: opts.bind !== false }))
@@ -69,7 +69,7 @@ program
 program
   .command('adopt <legacy-file> [slug]')
   .description(
-    'guided migration of a pre-harness prose record: print the replay brief for an agent to execute; --mark stamps the legacy file superseded',
+    'guided migration of a pre-sofar prose record: print the replay brief for an agent to execute; --mark stamps the legacy file superseded',
   )
   .option('--mark', 'prepend an idempotent SUPERSEDED banner to the legacy file')
   .option('--root <dir>', 'repo root (default: current directory)')
@@ -111,7 +111,7 @@ program
       emit({
         exitCode: 1,
         stdout: '',
-        stderr: `harness import: cannot read ${file}: ${err instanceof Error ? err.message : String(err)}`,
+        stderr: `sofar import: cannot read ${file}: ${err instanceof Error ? err.message : String(err)}`,
       })
       return
     }
@@ -120,26 +120,26 @@ program
 
 program
   .command('serve')
-  .description('watch .harness/ and serve initiative state as JSON on 127.0.0.1 (GET /state, /state/<slug>, /events SSE)')
+  .description('watch .sofar/ and serve initiative state as JSON on 127.0.0.1 (GET /state, /state/<slug>, /events SSE)')
   .option('--port <port>', 'port to bind on 127.0.0.1', String(DEFAULT_PORT))
   .option('--root <dir>', 'repo root (default: current directory)')
   .action(async (opts: { port: string; root?: string }) => {
     const port = Number.parseInt(opts.port, 10)
     if (Number.isNaN(port) || port < 0 || port > 65_535) {
-      emit({ exitCode: 1, stdout: '', stderr: `harness serve: invalid port "${opts.port}"` })
+      emit({ exitCode: 1, stdout: '', stderr: `sofar serve: invalid port "${opts.port}"` })
       return
     }
     const handle = await startServer({ root: rootOf(opts), port })
-    process.stderr.write(`harness serve: ${handle.url} (GET /state, /state/<slug>, /events SSE)\n`)
+    process.stderr.write(`sofar serve: ${handle.url} (GET /state, /state/<slug>, /events SSE)\n`)
     // long-running: the server keeps the event loop alive until Ctrl-C
   })
 
 program
   .command('mcp')
-  .description('start the stdio MCP server (server name: harness) exposing the SPEC §MCP tools')
-  .option('--root <dir>', 'repo root containing .harness/ (default: current directory)')
+  .description('start the stdio MCP server (server name: sofar) exposing the SPEC §MCP tools')
+  .option('--root <dir>', 'repo root containing .sofar/ (default: current directory)')
   .action(async (opts: { root?: string }) => {
-    const handle = createHarnessServer({ rootDir: opts.root })
+    const handle = createSofarServer({ rootDir: opts.root })
     await handle.connectStdio()
     // stdio transport keeps the process alive until the client disconnects
   })

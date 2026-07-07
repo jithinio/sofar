@@ -12,8 +12,8 @@ import { PROTOCOL_END, PROTOCOL_START, SHIMS } from './init'
 import { fail, ok, type CmdResult } from './shared'
 
 /**
- * `harness uninit [--purge]` (task 8.1, SPEC §CLI, BD45) — the exact inverse
- * of `harness init`, surgical: remove ONLY what init installed and preserve
+ * `sofar uninit [--purge]` (task 8.1, SPEC §CLI, BD45) — the exact inverse
+ * of `sofar init`, surgical: remove ONLY what init installed and preserve
  * every byte of user content around it.
  *
  *   - the four hook shims in .claude/hooks/ (other files there are sacred;
@@ -21,11 +21,11 @@ import { fail, ok, type CmdResult } from './shared'
  *   - settings.json hook entries whose command points at one of our four
  *     shims (matched on the shim path substring); emptied matcher groups,
  *     event arrays, and the hooks key itself are pruned
- *   - .mcp.json's mcpServers.harness (other servers/keys untouched)
+ *   - .mcp.json's mcpServers.sofar (other servers/keys untouched)
  *   - the marker-delimited protocol blocks in CLAUDE.md / AGENTS.md, plus
  *     exactly one adjacent blank-line seam so pre-init spacing is restored
  *
- * .harness/ (the record) is KEPT by default — uninstalling the wiring must
+ * .sofar/ (the record) is KEPT by default — uninstalling the wiring must
  * never destroy the memory; a notice points at --purge. With --purge the
  * record is deleted, and ONLY --purge may also delete a managed file THIS
  * run emptied entirely (CLAUDE.md/AGENTS.md left zero-byte, settings.json/
@@ -39,7 +39,7 @@ import { fail, ok, type CmdResult } from './shared'
  */
 
 export interface UninitOptions {
-  /** Also delete .harness/ (the record) and files this run emptied. */
+  /** Also delete .sofar/ (the record) and files this run emptied. */
   purge?: boolean
 }
 
@@ -57,7 +57,7 @@ function readJSONObject(path: string, label: string): Obj {
     decoded = JSON.parse(readFileSync(path, 'utf8'))
   } catch (err) {
     throw new UninitAbort(
-      `${label} is not valid JSON — refusing to modify it. Fix or remove it, then re-run harness uninit. (${err instanceof Error ? err.message : String(err)})`,
+      `${label} is not valid JSON — refusing to modify it. Fix or remove it, then re-run sofar uninit. (${err instanceof Error ? err.message : String(err)})`,
     )
   }
   if (!isObj(decoded)) {
@@ -127,11 +127,11 @@ function stripSettings(rootDir: string, purge: boolean, report: string[]): boole
   if (Object.keys(hooks).length === 0) delete settings.hooks
   if (purge && Object.keys(settings).length === 0) {
     unlinkSync(path)
-    report.push('removed .claude/settings.json (nothing left after harness hook entries removed)')
+    report.push('removed .claude/settings.json (nothing left after sofar hook entries removed)')
     return true
   }
   writeFileSync(path, stableJSON(settings), 'utf8')
-  report.push('updated .claude/settings.json (harness hook entries removed)')
+  report.push('updated .claude/settings.json (sofar hook entries removed)')
   return false
 }
 
@@ -139,17 +139,17 @@ function stripMcp(rootDir: string, purge: boolean, report: string[]): void {
   const path = join(rootDir, '.mcp.json')
   if (!existsSync(path)) return
   const config = readJSONObject(path, '.mcp.json')
-  if (!isObj(config.mcpServers) || !('harness' in config.mcpServers)) return
+  if (!isObj(config.mcpServers) || !('sofar' in config.mcpServers)) return
 
-  delete config.mcpServers.harness
+  delete config.mcpServers.sofar
   if (Object.keys(config.mcpServers).length === 0) delete config.mcpServers
   if (purge && Object.keys(config).length === 0) {
     unlinkSync(path)
-    report.push('removed .mcp.json (nothing left after harness server entry removed)')
+    report.push('removed .mcp.json (nothing left after sofar server entry removed)')
     return
   }
   writeFileSync(path, stableJSON(config), 'utf8')
-  report.push('updated .mcp.json (harness server entry removed)')
+  report.push('updated .mcp.json (sofar server entry removed)')
 }
 
 /**
@@ -185,11 +185,11 @@ function stripProtocolBlock(
 
   if (purge && result.length === 0) {
     unlinkSync(path)
-    report.push(`removed ${file} (contained only the harness protocol block)`)
+    report.push(`removed ${file} (contained only the sofar protocol block)`)
     return
   }
   writeFileSync(path, result, 'utf8')
-  report.push(`updated ${file} (harness protocol block removed)`)
+  report.push(`updated ${file} (sofar protocol block removed)`)
 }
 
 /** Remove a directory ONLY when it exists and is empty. */
@@ -223,20 +223,20 @@ export function runUninit(rootDir: string, options: UninitOptions = {}): CmdResu
     const hooksDirRemoved = shimsRemoved > 0 && removeDirIfEmpty(rootDir, '.claude/hooks', report)
     if (hooksDirRemoved || settingsDeleted) removeDirIfEmpty(rootDir, '.claude', report)
 
-    const harnessDir = join(rootDir, '.harness')
-    if (existsSync(harnessDir)) {
+    const sofarDir = join(rootDir, '.sofar')
+    if (existsSync(sofarDir)) {
       if (purge) {
-        rmSync(harnessDir, { recursive: true, force: true })
-        report.push('removed .harness/ (record deleted)')
+        rmSync(sofarDir, { recursive: true, force: true })
+        report.push('removed .sofar/ (record deleted)')
         warnings.push(
-          'warning: --purge deleted the harness record (.harness/) — this is irreversible; `harness export` before purging is the backup path.',
+          'warning: --purge deleted the sofar record (.sofar/) — this is irreversible; `sofar export` before purging is the backup path.',
         )
       } else {
-        notes.push('record kept at .harness/ (use --purge to delete it)')
+        notes.push('record kept at .sofar/ (use --purge to delete it)')
       }
     }
   } catch (err) {
-    if (err instanceof UninitAbort) return fail(`harness uninit: ${err.message}`)
+    if (err instanceof UninitAbort) return fail(`sofar uninit: ${err.message}`)
     throw err
   }
 
@@ -244,8 +244,8 @@ export function runUninit(rootDir: string, options: UninitOptions = {}): CmdResu
   const lines = [...report, ...notes]
   lines.push(
     changes === 0
-      ? 'harness uninit: nothing to remove'
-      : `harness uninit: done (${changes} change${changes === 1 ? '' : 's'})`,
+      ? 'sofar uninit: nothing to remove'
+      : `sofar uninit: done (${changes} change${changes === 1 ? '' : 's'})`,
   )
   return ok(`${lines.join('\n')}\n`, warnings.join('\n'))
 }

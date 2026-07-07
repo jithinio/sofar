@@ -1,9 +1,9 @@
-# CLAUDE.md — harness-build repo
+# CLAUDE.md — sofar repo
 
 ## Initiative record (self-hosted)
-This repo's initiative record lives in `.harness/` — follow the installed
-harness protocol block below. `docs/harness.md` is the archived
-pre-migration record (read-only). `docs/SPEC.md` remains the authoritative
+This repo's initiative record lives in `.sofar/` — follow the installed
+sofar protocol block below. The archived pre-migration prose
+record (read-only) lives in docs/ under the pre-rename product name. `docs/SPEC.md` remains the authoritative
 contracts.
 
 ## Engineering conventions
@@ -29,27 +29,3 @@ contracts.
   log the conflict in Decisions and surface it to the user.
 - docs/SPEC.md is authoritative over improvisation. Deviations require a
   Decision entry.
-
-<!-- harness:protocol -->
-## Harness protocol (jurisdiction is total)
-
-This repo's work memory lives in harness records under `.harness/`.
-1. ALL work state lives in harness records — never in tool memory, scratch
-   files, or ad-hoc notes. If it is worth keeping, it goes in the record.
-2. Work that matches no existing initiative requires creating one first:
-   run `harness new <slug>` before proceeding.
-3. Bindings (`.harness/bindings.json`) resolve which record a session
-   serves — the current git branch selects the initiative.
-
-Session loop:
-- START: orient from the record — call `harness_get_state` (MCP) or run
-  `harness status`. Do not ask for context the record already answers.
-  Then call `harness_start_session` passing the `session_id` from the
-  injected context line ("Session: <id> — …") so your events attach to
-  YOUR session — never omit it when that line is present (omitting mints
-  a separate session id and orphans the hook-registered one).
-- DURING: log decisions (`harness_log_decision`) and task status changes
-  (`harness_update_task`) as they happen.
-- BEFORE FINISHING: write back with `harness_end_session` (summary +
-  next action). The Stop hook blocks sessions that skip this.
-<!-- /harness:protocol -->

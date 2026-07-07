@@ -29,7 +29,7 @@ import { makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mc
  */
 
 const here = fileURLToPath(new URL('.', import.meta.url))
-const scratch = mkdtempSync(join(tmpdir(), 'harness-phase3-'))
+const scratch = mkdtempSync(join(tmpdir(), 'sofar-phase3-'))
 const bundle = join(scratch, 'cli.mjs')
 const roots: string[] = []
 
@@ -148,7 +148,7 @@ describe('acceptance 1 — SessionStart output ≤10,000 chars on a large synthe
     expect(result.stdout).toContain('Goal: An enormous goal.')
     expect(result.stdout).toContain('Next action: next action 9')
 
-    // built-CLI level (context injection is stdout of `harness event session-start`)
+    // built-CLI level (context injection is stdout of `sofar event session-start`)
     const fresh = fx()
     seedLargeInitiative(fresh)
     const proc = runEvent(fresh, 'session-start', { ...base })
@@ -162,7 +162,7 @@ describe('acceptance 1 — SessionStart output ≤10,000 chars on a large synthe
     const fixture = fx()
     seedLargeInitiative(fixture)
     writeFileSync(
-      join(fixture.root, '.harness', 'repo.md'),
+      join(fixture.root, '.sofar', 'repo.md'),
       `# Repo memory\n\nAlways run npm test.\n${'lore '.repeat(10_000)}\n`, // ~50k chars
     )
 
@@ -170,7 +170,7 @@ describe('acceptance 1 — SessionStart output ≤10,000 chars on a large synthe
     const result = handleSessionStart(fixture.root, JSON.stringify({ ...base }))
     expect(result.exitCode).toBe(0)
     expect(result.stdout.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
-    expect(result.stdout).toContain('Repo memory (.harness/repo.md):')
+    expect(result.stdout).toContain('Repo memory (.sofar/repo.md):')
     expect(result.stdout).toContain('Always run npm test.')
     expect(result.stdout).toContain(REPO_MEMORY_TRUNCATION_MARKER)
     expect(result.stdout).toContain('Goal: An enormous goal.') // the record still leads
@@ -179,7 +179,7 @@ describe('acceptance 1 — SessionStart output ≤10,000 chars on a large synthe
     const proc = runEvent(fixture, 'session-start', { ...base })
     expect(proc.status).toBe(0)
     expect(proc.stdout.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
-    expect(proc.stdout).toContain('Repo memory (.harness/repo.md):')
+    expect(proc.stdout).toContain('Repo memory (.sofar/repo.md):')
     expect(proc.stdout).toContain(REPO_MEMORY_TRUNCATION_MARKER)
   })
 
@@ -190,7 +190,7 @@ describe('acceptance 1 — SessionStart output ≤10,000 chars on a large synthe
 
     const stubbed = fx()
     seedLargeInitiative(stubbed)
-    writeFileSync(join(stubbed.root, '.harness', 'repo.md'), REPO_MD_STUB)
+    writeFileSync(join(stubbed.root, '.sofar', 'repo.md'), REPO_MD_STUB)
     expect(handleSessionStart(stubbed.root, JSON.stringify({ ...base })).stdout).not.toContain('Repo memory')
   })
 })
@@ -202,7 +202,7 @@ describe('acceptance 2+3+4 — end-to-end smoke through the built CLI', () => {
     // SessionStart: registers the session, prints status context
     const start = runEvent(fixture, 'session-start', { ...base, hook_event_name: 'SessionStart', source: 'startup' })
     expect(start.status).toBe(0)
-    expect(start.stdout).toContain('# Harness status:')
+    expect(start.stdout).toContain('# Sofar status:')
     expect(start.stdout.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
 
     // PostToolUse: Edit → file_touched (acceptance 4a)
@@ -298,9 +298,9 @@ describe('acceptance 2+3+4 — end-to-end smoke through the built CLI', () => {
     expect(state.sessions[0]!.summary).toBeUndefined()
   }, 60_000)
 
-  it('a foreign repo (no .harness) is never touched or blocked by any subcommand', () => {
+  it('a foreign repo (no .sofar) is never touched or blocked by any subcommand', () => {
     const fixture = fx({ bind: false })
-    rmSync(join(fixture.root, '.harness'), { recursive: true, force: true })
+    rmSync(join(fixture.root, '.sofar'), { recursive: true, force: true })
 
     for (const sub of ['session-start', 'post-tool', 'stop', 'session-end']) {
       const proc = runEvent(fixture, sub, { ...base, tool_name: 'Edit', tool_input: { file_path: '/x' } })
@@ -308,6 +308,6 @@ describe('acceptance 2+3+4 — end-to-end smoke through the built CLI', () => {
       expect(proc.stdout).toBe('')
       expect(proc.stderr).toBe('')
     }
-    expect(existsSync(join(fixture.root, '.harness'))).toBe(false)
+    expect(existsSync(join(fixture.root, '.sofar'))).toBe(false)
   }, 60_000)
 })

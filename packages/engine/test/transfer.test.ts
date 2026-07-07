@@ -9,7 +9,7 @@ import { runExport, runImport } from '../src/cli/transfer'
 import { makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
 
 /**
- * Task 4.4 — `harness export` / `harness import`: CLI round-trip between two
+ * Task 4.4 — `sofar export` / `sofar import`: CLI round-trip between two
  * temp initiatives (replicas of the same slug), idempotent re-import,
  * --since filtering, and resolution failures.
  */
@@ -53,7 +53,7 @@ function seed(fixture: Fixture, n = 3): EventEnvelope[] {
   return events
 }
 
-describe('harness export / import round-trip', () => {
+describe('sofar export / import round-trip', () => {
   it('replicates one initiative into another repo and is idempotent on re-import', () => {
     const source = fx()
     const replica = fx() // same slug "demo", different temp repo
@@ -126,11 +126,11 @@ describe('harness export / import round-trip', () => {
     const unbound = fx({ bind: false })
     const exported = runExport(unbound.root)
     expect(exported.exitCode).toBe(1)
-    expect(exported.stderr).toContain('usage: harness export [slug] [--since <id>]')
+    expect(exported.stderr).toContain('usage: sofar export [slug] [--since <id>]')
 
     const imported = runImport(unbound.root, '')
     expect(imported.exitCode).toBe(1)
-    expect(imported.stderr).toContain('usage: harness import <file|-> [slug]')
+    expect(imported.stderr).toContain('usage: sofar import <file|-> [slug]')
 
     const unknown = runExport(unbound.root, { slug: 'ghost' })
     expect(unknown.exitCode).toBe(1)

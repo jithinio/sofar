@@ -1,9 +1,9 @@
 import { ulid } from 'ulid'
-import type { StartSessionArgs } from '@harness/schema/tool-inputs'
+import type { StartSessionArgs } from '@sofar/schema/tool-inputs'
 import { ToolError, toSource, type ToolContext } from './context'
 
 /**
- * harness_start_session — adopt-by-id (task 7.1, BD43, replacing BD20's
+ * sofar_start_session — adopt-by-id (task 7.1, BD43, replacing BD20's
  * newest-open heuristic, which cross-adopted parallel sessions on one
  * initiative). The SessionStart hook registers Claude Code's session_id in
  * the log AND injects it into the context block ("Session: <id> — …"); the

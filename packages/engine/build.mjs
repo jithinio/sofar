@@ -18,7 +18,7 @@ await build({
   outfile: 'dist/cli.js',
   banner: { js: banner },
   // Hook shim sources ship INSIDE the bundle as text — only dist/ is
-  // published, so `harness init` can never read src/hooks/ at runtime.
+  // published, so `sofar init` can never read src/hooks/ at runtime.
   loader: { '.sh': 'text' },
 })
 

@@ -17,7 +17,7 @@ import {
 } from '../src/projections/templates/status'
 import { GENERATED_HEADER, clip } from '../src/projections/templates/shared'
 
-const scratch = mkdtempSync(join(tmpdir(), 'harness-projections-'))
+const scratch = mkdtempSync(join(tmpdir(), 'sofar-projections-'))
 
 afterAll(() => {
   rmSync(scratch, { recursive: true, force: true })
@@ -105,7 +105,7 @@ describe('projection templates (v0 seam — BD14)', () => {
   it('renderPlan and renderDecisions handle an empty state', () => {
     const plan = renderPlan(emptyState())
     expect(plan).toContain('(unnamed initiative)')
-    expect(plan).toContain('(no plan recorded yet — call harness_update_plan)')
+    expect(plan).toContain('(no plan recorded yet — call sofar_update_plan)')
     const decisions = renderDecisions(emptyState())
     expect(decisions).toContain('(no decisions logged yet)')
   })
@@ -263,7 +263,7 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
       },
     ]
     const status = renderStatus(state)
-    expect(status).toContain('# Harness status: demo')
+    expect(status).toContain('# Sofar status: demo')
     expect(status).toContain('Goal: ship it')
     expect(status).toContain('Progress: 1/3 tasks done (33%) across 1 phase(s)')
     expect(status).toContain('Active phase: Phase 1 — 1/3 tasks done')
@@ -302,7 +302,7 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
   it('repo memory (6.5, BD40): section lands after the current block, before the phase tree, formatting kept', () => {
     const memory = 'Run npm test before committing.\nNever push to main directly.'
     const status = renderStatus(populatedState(), { repoMemory: memory })
-    expect(status).toContain('Repo memory (.harness/repo.md):')
+    expect(status).toContain('Repo memory (.sofar/repo.md):')
     expect(status).toContain(memory) // multi-line content preserved verbatim
     expect(status.indexOf('Repo memory')).toBeGreaterThan(status.indexOf('Next action:'))
     expect(status.indexOf('Repo memory')).toBeLessThan(status.indexOf('Phases:'))
@@ -310,7 +310,7 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
 
   it('repo memory is clipped to its own budget with a marker; missing/blank omits the section', () => {
     const status = renderStatus(populatedState(), { repoMemory: 'M'.repeat(60_000) })
-    const header = 'Repo memory (.harness/repo.md):\n'
+    const header = 'Repo memory (.sofar/repo.md):\n'
     const start = status.indexOf(header)
     expect(start).toBeGreaterThan(-1)
     const body = status.slice(start + header.length).split('\n\n', 1)[0]!
@@ -325,7 +325,7 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
   it('repo memory on a large synthetic initiative: global ≤10k cap still holds', () => {
     const status = renderStatus(largeState(), { repoMemory: 'R'.repeat(50_000) })
     expect(status.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
-    expect(status).toContain('Repo memory (.harness/repo.md):')
+    expect(status).toContain('Repo memory (.sofar/repo.md):')
     expect(status).toContain(REPO_MEMORY_TRUNCATION_MARKER)
     expect(status).toContain('Next action: do the thing') // essentials survive alongside it
   })
@@ -394,7 +394,7 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
   it('session id line (7.1, BD43): lands right under the title, clipped, cap intact', () => {
     const status = renderStatus(populatedState(), { sessionId: 'claude-sess-42' })
     expect(status).toContain(
-      'Session: claude-sess-42 — when calling harness_start_session, pass this as session_id.',
+      'Session: claude-sess-42 — when calling sofar_start_session, pass this as session_id.',
     )
     expect(status.indexOf('Session: claude-sess-42')).toBeLessThan(status.indexOf('Goal:'))
 

@@ -1,8 +1,8 @@
-import type { EndSessionArgs, ToolOkResult } from '@harness/schema/tool-inputs'
+import type { EndSessionArgs, ToolOkResult } from '@sofar/schema/tool-inputs'
 import type { ToolContext } from './context'
 
 /**
- * harness_end_session — appends session_ended (the write-back). The
+ * sofar_end_session — appends session_ended (the write-back). The
  * session_id from args wins over the active session (BD15); if it names the
  * active session, that session's initiative is used (the SPEC signature has
  * no initiative arg) and the active session is cleared after the append.

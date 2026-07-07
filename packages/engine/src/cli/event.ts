@@ -7,12 +7,12 @@ import { renderStatus } from '../projections/templates/status'
 import { REPO_MD_STUB } from './init'
 
 /**
- * `harness event <subcommand>` — the internal surface hook shims call
+ * `sofar event <subcommand>` — the internal surface hook shims call
  * (SPEC §Hooks, §CLI). Every subcommand reads Claude Code hook JSON from
  * stdin: { session_id, transcript_path, cwd, hook_event_name, ... }.
  *
  * Philosophy (BD22): hooks must never break the user's session. Any
- * resolution failure — unreadable stdin, no .harness/, no branch binding,
+ * resolution failure — unreadable stdin, no .sofar/, no branch binding,
  * missing session_id — exits 0 silently. The ONE deliberate non-zero exit is
  * Stop's exit 2 when a registered session has not written back (BD2).
  *
@@ -29,7 +29,7 @@ export interface HookResult {
 const OK: HookResult = { exitCode: 0, stdout: '', stderr: '' }
 
 export const STOP_BLOCK_MESSAGE =
-  'Write back to the harness record before finishing: call harness_end_session (or update harness.md per protocol).'
+  'Write back to the sofar record before finishing: call sofar_end_session (or append session_ended via `sofar event append`).'
 
 /** Hook payload tool = the agent tool whose hooks feed this surface. */
 const HOOK_TOOL = 'claude-code'
@@ -71,14 +71,14 @@ function resolveBound(rootDir: string): { ctx: ToolContext; slug: string } | nul
 }
 
 /**
- * Repo memory (task 6.5, BD40) — .harness/repo.md is hand-written
+ * Repo memory (task 6.5, BD40) — .sofar/repo.md is hand-written
  * repo-scoped memory (SPEC §Record layout). Surfaced in the SessionStart
  * context only when it says something: missing, unreadable, empty, or still
- * the untouched `harness init` stub → null (section omitted entirely).
+ * the untouched `sofar init` stub → null (section omitted entirely).
  */
 function readRepoMemory(rootDir: string): string | null {
   try {
-    const text = readFileSync(join(rootDir, '.harness', 'repo.md'), 'utf8')
+    const text = readFileSync(join(rootDir, '.sofar', 'repo.md'), 'utf8')
     if (text.trim().length === 0 || text.trim() === REPO_MD_STUB.trim()) return null
     return text
   } catch {
@@ -95,7 +95,7 @@ function readRepoMemory(rootDir: string): string | null {
  * (the correlation anchor, BD20/BD43) and prints the status projection to
  * stdout for context injection (≤10,000 chars — guaranteed by renderStatus).
  * The block opens with a "Session: <id>" line (task 7.1, BD43) — the agent
- * passes that id to harness_start_session as session_id to adopt exactly
+ * passes that id to sofar_start_session as session_id to adopt exactly
  * its own session (the newest-open heuristic is gone).
  * Re-fires on resume/clear/compact reuse the same session_id: the append is
  * skipped if the session is already registered, but the status block is
@@ -119,7 +119,7 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     const repoMemory = readRepoMemory(rootDir)
     // ≤10,000 chars (BD3/BD24) — repo memory has its own budget (BD40); the
     // session id line (7.1, BD43) tells the agent what to pass to
-    // harness_start_session so it adopts ITS OWN session, never a parallel one.
+    // sofar_start_session so it adopts ITS OWN session, never a parallel one.
     return {
       ...OK,
       stdout: renderStatus(state, {
@@ -178,7 +178,7 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
  * feeds stderr back to the agent; every other path exits 0:
  *  - stop_hook_active → 0 (loop guard: we already blocked once)
  *  - unreadable stdin / missing session_id / unbound repo → 0 (never block
- *    sessions the harness does not govern)
+ *    sessions the sofar does not govern)
  *  - session not registered in the log → 0
  *  - session registered AND written back (session_ended folded) → 0
  * Write-back check is fold-based: only session_ended sets session.summary,
@@ -237,7 +237,7 @@ export function handleSessionEnd(rootDir: string, input: string): HookResult {
 }
 
 // ---------------------------------------------------------------------------
-// `harness event append` — the convention-dialect surface (task 5.1, BD30).
+// `sofar event append` — the convention-dialect surface (task 5.1, BD30).
 // ---------------------------------------------------------------------------
 
 export interface AppendArgs {
@@ -379,7 +379,7 @@ export function registerEventCommand(program: Command): void {
     .option('--session <id>', 'session id recorded on the envelope (reuse one id all session)', 'cli')
     .option('--source <source>', `envelope source: ${SOURCES.join('|')}`, 'cli')
     .option('--actor <actor>', `envelope actor: ${ACTORS.join('|')}`, 'agent')
-    .option('--root <dir>', 'repo root containing .harness/ (default: current directory)')
+    .option('--root <dir>', 'repo root containing .sofar/ (default: current directory)')
     .action(
       (
         slug: string | undefined,
@@ -402,7 +402,7 @@ export function registerEventCommand(program: Command): void {
     event
       .command(name)
       .description(description)
-      .option('--root <dir>', 'repo root containing .harness/ (default: current directory)')
+      .option('--root <dir>', 'repo root containing .sofar/ (default: current directory)')
       .action(async (opts: { root?: string }) => {
         const input = await readStdin()
         mirror(handler(resolve(opts.root ?? process.cwd()), input))

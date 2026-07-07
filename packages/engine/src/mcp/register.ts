@@ -1,12 +1,12 @@
 /**
- * .mcp.json registration snippet (BD13) — the entry `harness init` (Phase 4,
+ * .mcp.json registration snippet (BD13) — the entry `sofar init` (Phase 4,
  * task 4.1) merges into a repo's .mcp.json so agent tools launch the stdio
- * server via `harness mcp`.
+ * server via `sofar mcp`.
  */
 
 export interface McpRegistration {
   mcpServers: {
-    harness: {
+    sofar: {
       command: string
       args: string[]
     }
@@ -16,8 +16,8 @@ export interface McpRegistration {
 export function mcpRegistration(): McpRegistration {
   return {
     mcpServers: {
-      harness: {
-        command: 'harness',
+      sofar: {
+        command: 'sofar',
         args: ['mcp'],
       },
     },

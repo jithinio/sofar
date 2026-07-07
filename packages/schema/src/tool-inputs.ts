@@ -1,6 +1,6 @@
 /**
  * MCP tool input contracts (SPEC §MCP tools) — argument types, JSON Schema
- * objects, and runtime validators for the seven harness tools, plus the
+ * objects, and runtime validators for the seven sofar tools, plus the
  * typed-error contract tools return on failure.
  *
  * These are validation shapes, so they live here: packages/schema/src/ is
@@ -43,13 +43,13 @@ export interface ToolErrorShape {
 // ---------------------------------------------------------------------------
 
 export const TOOL_NAMES = [
-  'harness_get_state',
-  'harness_start_session',
-  'harness_end_session',
-  'harness_update_task',
-  'harness_log_decision',
-  'harness_update_plan',
-  'harness_add_note',
+  'sofar_get_state',
+  'sofar_start_session',
+  'sofar_end_session',
+  'sofar_update_task',
+  'sofar_log_decision',
+  'sofar_update_plan',
+  'sofar_add_note',
 ] as const
 export type ToolName = (typeof TOOL_NAMES)[number]
 
@@ -99,13 +99,13 @@ export interface AddNoteArgs {
 }
 
 export interface ToolArgs {
-  harness_get_state: GetStateArgs
-  harness_start_session: StartSessionArgs
-  harness_end_session: EndSessionArgs
-  harness_update_task: UpdateTaskArgs
-  harness_log_decision: LogDecisionArgs
-  harness_update_plan: UpdatePlanArgs
-  harness_add_note: AddNoteArgs
+  sofar_get_state: GetStateArgs
+  sofar_start_session: StartSessionArgs
+  sofar_end_session: EndSessionArgs
+  sofar_update_task: UpdateTaskArgs
+  sofar_log_decision: LogDecisionArgs
+  sofar_update_plan: UpdatePlanArgs
+  sofar_add_note: AddNoteArgs
 }
 
 /** Result shape for the write tools (SPEC "→ ok"); event_id aids testing/audit. */
@@ -135,7 +135,7 @@ const initiativeProp = {
   type: 'string',
   minLength: 1,
   description:
-    'Initiative slug. Omit to resolve from the current git branch via .harness/bindings.json.',
+    'Initiative slug. Omit to resolve from the current git branch via .sofar/bindings.json.',
 }
 
 const planTaskSchema = {
@@ -172,12 +172,12 @@ const planSchema = {
 }
 
 export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
-  harness_get_state: {
+  sofar_get_state: {
     type: 'object',
     properties: { initiative: initiativeProp },
     additionalProperties: false,
   },
-  harness_start_session: {
+  sofar_start_session: {
     type: 'object',
     properties: {
       initiative: initiativeProp,
@@ -197,7 +197,7 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
     required: ['tool'],
     additionalProperties: false,
   },
-  harness_end_session: {
+  sofar_end_session: {
     type: 'object',
     properties: {
       session_id: { type: 'string', minLength: 1 },
@@ -211,7 +211,7 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
     required: ['session_id', 'summary', 'next_action'],
     additionalProperties: false,
   },
-  harness_update_task: {
+  sofar_update_task: {
     type: 'object',
     properties: {
       initiative: initiativeProp,
@@ -222,7 +222,7 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
     required: ['task_id', 'status'],
     additionalProperties: false,
   },
-  harness_log_decision: {
+  sofar_log_decision: {
     type: 'object',
     properties: {
       initiative: initiativeProp,
@@ -233,13 +233,13 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
     required: ['chose', 'over', 'because'],
     additionalProperties: false,
   },
-  harness_update_plan: {
+  sofar_update_plan: {
     type: 'object',
     properties: { initiative: initiativeProp, plan: planSchema },
     required: ['plan'],
     additionalProperties: false,
   },
-  harness_add_note: {
+  sofar_add_note: {
     type: 'object',
     properties: {
       initiative: initiativeProp,
@@ -252,44 +252,44 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
 
 export const TOOL_DEFS: readonly ToolDef[] = [
   {
-    name: 'harness_get_state',
+    name: 'sofar_get_state',
     description:
       'Read the folded InitiativeState (goal, phases/tasks, decisions, sessions, next action) from the event log. Call this first to orient.',
-    inputSchema: TOOL_INPUT_SCHEMAS.harness_get_state,
+    inputSchema: TOOL_INPUT_SCHEMAS.sofar_get_state,
   },
   {
-    name: 'harness_start_session',
+    name: 'sofar_start_session',
     description:
       'Start a work session on an initiative. Returns {session_id}; subsequent events in this server process are attributed to it.',
-    inputSchema: TOOL_INPUT_SCHEMAS.harness_start_session,
+    inputSchema: TOOL_INPUT_SCHEMAS.sofar_start_session,
   },
   {
-    name: 'harness_end_session',
+    name: 'sofar_end_session',
     description:
       'End a session with a summary and the single next action — the write-back that lets the next session resume without context.',
-    inputSchema: TOOL_INPUT_SCHEMAS.harness_end_session,
+    inputSchema: TOOL_INPUT_SCHEMAS.sofar_end_session,
   },
   {
-    name: 'harness_update_task',
+    name: 'sofar_update_task',
     description: 'Set a task status (pending|active|done|blocked), with an optional note.',
-    inputSchema: TOOL_INPUT_SCHEMAS.harness_update_task,
+    inputSchema: TOOL_INPUT_SCHEMAS.sofar_update_task,
   },
   {
-    name: 'harness_log_decision',
+    name: 'sofar_log_decision',
     description:
       'Record a design decision: what was chosen, what it was chosen over, and why.',
-    inputSchema: TOOL_INPUT_SCHEMAS.harness_log_decision,
+    inputSchema: TOOL_INPUT_SCHEMAS.sofar_log_decision,
   },
   {
-    name: 'harness_update_plan',
+    name: 'sofar_update_plan',
     description:
       'Replace the full plan structure (goal + phases with tasks). This is a full replace, not a merge.',
-    inputSchema: TOOL_INPUT_SCHEMAS.harness_update_plan,
+    inputSchema: TOOL_INPUT_SCHEMAS.sofar_update_plan,
   },
   {
-    name: 'harness_add_note',
+    name: 'sofar_add_note',
     description: 'Append a free-form note to the initiative record.',
-    inputSchema: TOOL_INPUT_SCHEMAS.harness_add_note,
+    inputSchema: TOOL_INPUT_SCHEMAS.sofar_add_note,
   },
 ]
 
@@ -315,21 +315,21 @@ function optSlug(v: unknown): boolean {
 }
 
 const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
-  harness_get_state(a, e) {
+  sofar_get_state(a, e) {
     if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
   },
-  harness_start_session(a, e) {
+  sofar_start_session(a, e) {
     if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
     if (!str(a.tool)) e.push('tool: must be a non-empty string')
     if (!optStr(a.model)) e.push('model: must be a string')
     if (!optSlug(a.session_id)) e.push('session_id: must be a non-empty string')
   },
-  harness_end_session(a, e) {
+  sofar_end_session(a, e) {
     if (!str(a.session_id)) e.push('session_id: must be a non-empty string')
     if (!str(a.summary)) e.push('summary: must be a non-empty string')
     if (!str(a.next_action)) e.push('next_action: must be a non-empty string')
   },
-  harness_update_task(a, e) {
+  sofar_update_task(a, e) {
     if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
     if (!str(a.task_id)) e.push('task_id: must be a non-empty string')
     if (typeof a.status !== 'string' || !(TASK_STATUSES as readonly string[]).includes(a.status)) {
@@ -337,13 +337,13 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
     }
     if (!optStr(a.note)) e.push('note: must be a string')
   },
-  harness_log_decision(a, e) {
+  sofar_log_decision(a, e) {
     if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
     if (!str(a.chose)) e.push('chose: must be a non-empty string')
     if (!str(a.over)) e.push('over: must be a non-empty string')
     if (!str(a.because)) e.push('because: must be a non-empty string')
   },
-  harness_update_plan(a, e) {
+  sofar_update_plan(a, e) {
     if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
     // The plan must satisfy the existing PlanStructure validator — reuse the
     // plan_updated payload validator so tool input and event payload can
@@ -351,7 +351,7 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
     const check = validatePayload('plan_updated', { plan: a.plan })
     if (!check.ok) e.push(...check.errors)
   },
-  harness_add_note(a, e) {
+  sofar_add_note(a, e) {
     if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
     if (!str(a.text)) e.push('text: must be a non-empty string')
   },

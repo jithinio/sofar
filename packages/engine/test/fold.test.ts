@@ -6,7 +6,7 @@ import { makeEvent, type EventEnvelope, type MakeEventInput } from '../src/core/
 import { foldLines, foldLog, type InitiativeState } from '../src/core/fold'
 import { appendEvents, serializeEvent } from '../src/core/log'
 
-const scratch = mkdtempSync(join(tmpdir(), 'harness-fold-'))
+const scratch = mkdtempSync(join(tmpdir(), 'sofar-fold-'))
 
 afterAll(() => {
   rmSync(scratch, { recursive: true, force: true })
@@ -18,7 +18,7 @@ function ev(
   overrides: Partial<Omit<MakeEventInput, 'type' | 'payload'>> = {},
 ): EventEnvelope {
   return makeEvent({
-    initiative: 'harness-build',
+    initiative: 'sofar-build',
     session: 'sess-1',
     source: 'claude-code',
     actor: 'agent',
@@ -31,7 +31,7 @@ function ev(
 /** A representative, well-formed event sequence used across tests. */
 function storyline(): EventEnvelope[] {
   return [
-    ev('initiative_created', { slug: 'harness-build', goal: 'Build the v1 engine' }),
+    ev('initiative_created', { slug: 'sofar-build', goal: 'Build the v1 engine' }),
     ev('plan_updated', {
       plan: {
         phases: [
@@ -70,7 +70,7 @@ describe('foldLines', () => {
     const { state, warnings } = foldLines(lines(events))
 
     expect(warnings).toEqual([])
-    expect(state.slug).toBe('harness-build')
+    expect(state.slug).toBe('sofar-build')
     expect(state.goal).toBe('Build the v1 engine')
 
     expect(state.phases).toHaveLength(2)
@@ -128,7 +128,7 @@ describe('foldLines', () => {
     const { state, warnings } = foldLines(log)
     expect(warnings).toHaveLength(1)
     expect(warnings[0]).toMatch(/line 5: unparseable JSON/)
-    expect(state.slug).toBe('harness-build') // everything else still folded
+    expect(state.slug).toBe('sofar-build') // everything else still folded
     expect(state.cursor).toBe(events[events.length - 1]?.id)
   })
 
@@ -388,7 +388,7 @@ describe('foldLog', () => {
     const { state, warnings } = foldLog(logPath)
     expect(warnings).toHaveLength(1)
     expect(warnings[0]).toMatch(/unparseable JSON/)
-    expect(state.slug).toBe('harness-build')
+    expect(state.slug).toBe('sofar-build')
     expect(state.cursor).toBe(events[events.length - 1]?.id)
 
     const clean = foldLines(lines(events))

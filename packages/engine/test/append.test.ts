@@ -9,7 +9,7 @@ import { runNew } from '../src/cli/new'
 import { runStatus } from '../src/cli/status'
 
 /**
- * Task 5.1 — `harness event append`, the convention-dialect surface (BD30):
+ * Task 5.1 — `sofar event append`, the convention-dialect surface (BD30):
  * happy path per event family (exactly one append, projections regenerate,
  * state reflects), typed-error failures with ZERO appends, Stop-hook parity
  * (a session_ended written via `event append` satisfies the same write-back
@@ -26,7 +26,7 @@ const SLUG = 'dialect'
 
 /** Fresh repo on main with one bound initiative — the dialect's home turf. */
 function boundRepo(): string {
-  const root = mkdtempSync(join(tmpdir(), 'harness-append-'))
+  const root = mkdtempSync(join(tmpdir(), 'sofar-append-'))
   roots.push(root)
   mkdirSync(join(root, '.git'), { recursive: true })
   writeFileSync(join(root, '.git', 'HEAD'), 'ref: refs/heads/main\n')
@@ -35,7 +35,7 @@ function boundRepo(): string {
 }
 
 function events(root: string): EventEnvelope[] {
-  const path = join(root, '.harness', 'initiatives', SLUG, 'events.jsonl')
+  const path = join(root, '.sofar', 'initiatives', SLUG, 'events.jsonl')
   if (!existsSync(path)) return []
   return readFileSync(path, 'utf8')
     .trim()
@@ -45,11 +45,11 @@ function events(root: string): EventEnvelope[] {
 }
 
 function state(root: string) {
-  return foldLog(join(root, '.harness', 'initiatives', SLUG, 'events.jsonl')).state
+  return foldLog(join(root, '.sofar', 'initiatives', SLUG, 'events.jsonl')).state
 }
 
 function projection(root: string, file: string): string {
-  return readFileSync(join(root, '.harness', 'initiatives', SLUG, file), 'utf8')
+  return readFileSync(join(root, '.sofar', 'initiatives', SLUG, file), 'utf8')
 }
 
 /** Append with the commander defaults (--session cli --source cli --actor agent). */
@@ -173,7 +173,7 @@ describe('event append — session_ended satisfies the Stop hook (write-back par
     const session = state(root).sessions.find((s) => s.id === SESSION)!
     expect(session.summary).toBe('verified via event append')
     expect(session.next_action).toBe('run it in opencode')
-    expect(existsSync(join(root, '.harness', 'initiatives', SLUG, 'sessions', `${SESSION}.md`))).toBe(true)
+    expect(existsSync(join(root, '.sofar', 'initiatives', SLUG, 'sessions', `${SESSION}.md`))).toBe(true)
   })
 })
 

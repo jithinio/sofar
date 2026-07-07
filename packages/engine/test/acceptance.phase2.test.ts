@@ -48,10 +48,10 @@ function logEvents(path: string): EventEnvelope[] {
 }
 
 describe('each tool appends exactly its event and projections regenerate', () => {
-  it('harness_start_session → exactly one session_started', async () => {
+  it('sofar_start_session → exactly one session_started', async () => {
     const fixture = fx()
     const { client } = await connectServer(fixture.root)
-    const { body } = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+    const { body } = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
       tool: 'claude-code',
       model: 'fable-5',
     })
@@ -76,14 +76,14 @@ describe('each tool appends exactly its event and projections regenerate', () =>
     await client.close()
   })
 
-  it('harness_end_session (active session) → exactly one session_ended, active cleared', async () => {
+  it('sofar_end_session (active session) → exactly one session_ended, active cleared', async () => {
     const fixture = fx()
     const { client, handle } = await connectServer(fixture.root)
-    const { body } = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+    const { body } = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
       tool: 'opencode',
     })
 
-    await callTool(client, 'harness_end_session', {
+    await callTool(client, 'sofar_end_session', {
       session_id: body.session_id,
       summary: 'wrapped up',
       next_action: 'start phase 3',
@@ -108,10 +108,10 @@ describe('each tool appends exactly its event and projections regenerate', () =>
     await client.close()
   })
 
-  it('harness_end_session (no active session) → resolves via branch, stubs the session', async () => {
+  it('sofar_end_session (no active session) → resolves via branch, stubs the session', async () => {
     const fixture = fx()
     const { client } = await connectServer(fixture.root)
-    await callTool(client, 'harness_end_session', {
+    await callTool(client, 'sofar_end_session', {
       session_id: 'S-FROM-ELSEWHERE',
       summary: 'ended externally',
       next_action: 'none',
@@ -130,14 +130,14 @@ describe('each tool appends exactly its event and projections regenerate', () =>
     await client.close()
   })
 
-  it('harness_update_plan → exactly one plan_updated; plan.md reflects it', async () => {
+  it('sofar_update_plan → exactly one plan_updated; plan.md reflects it', async () => {
     const fixture = fx()
     const { client } = await connectServer(fixture.root)
     const plan = {
       goal: 'acceptance goal',
       phases: [{ name: 'P1', status: 'active', tasks: [{ id: 'a', title: 'task a' }] }],
     }
-    await callTool(client, 'harness_update_plan', { plan })
+    await callTool(client, 'sofar_update_plan', { plan })
 
     const events = logEvents(fixture.eventsPath)
     expect(events).toHaveLength(1)
@@ -155,14 +155,14 @@ describe('each tool appends exactly its event and projections regenerate', () =>
     await client.close()
   })
 
-  it('harness_update_task → exactly one task_status_changed with mapped payload; state + projection reflect it', async () => {
+  it('sofar_update_task → exactly one task_status_changed with mapped payload; state + projection reflect it', async () => {
     const fixture = fx()
     const { client } = await connectServer(fixture.root)
-    await callTool(client, 'harness_update_plan', {
+    await callTool(client, 'sofar_update_plan', {
       plan: { phases: [{ name: 'P1', tasks: [{ id: 'a', title: 'task a' }] }] },
     })
 
-    await callTool(client, 'harness_update_task', { task_id: 'a', status: 'blocked', note: 'waiting on review' })
+    await callTool(client, 'sofar_update_task', { task_id: 'a', status: 'blocked', note: 'waiting on review' })
     const events = logEvents(fixture.eventsPath)
     expect(events).toHaveLength(2)
     // tool arg task_id maps onto payload id (BD18)
@@ -180,10 +180,10 @@ describe('each tool appends exactly its event and projections regenerate', () =>
     await client.close()
   })
 
-  it('harness_log_decision → exactly one decision_logged; decisions.md reflects it', async () => {
+  it('sofar_log_decision → exactly one decision_logged; decisions.md reflects it', async () => {
     const fixture = fx()
     const { client } = await connectServer(fixture.root)
-    await callTool(client, 'harness_log_decision', { chose: 'events', over: 'snapshots', because: 'replayable' })
+    await callTool(client, 'sofar_log_decision', { chose: 'events', over: 'snapshots', because: 'replayable' })
 
     const events = logEvents(fixture.eventsPath)
     expect(events).toHaveLength(1)
@@ -200,15 +200,15 @@ describe('each tool appends exactly its event and projections regenerate', () =>
     await client.close()
   })
 
-  it('harness_add_note → exactly one note_added; projections regenerate on every append', async () => {
+  it('sofar_add_note → exactly one note_added; projections regenerate on every append', async () => {
     const fixture = fx()
     const { client } = await connectServer(fixture.root)
-    await callTool(client, 'harness_add_note', { text: 'first' })
+    await callTool(client, 'sofar_add_note', { text: 'first' })
 
     // prove per-append regeneration: remove the projections, append again
     rmSync(join(fixture.initiativeDir, 'plan.md'))
     rmSync(join(fixture.initiativeDir, 'decisions.md'))
-    await callTool(client, 'harness_add_note', { text: 'second' })
+    await callTool(client, 'sofar_add_note', { text: 'second' })
 
     const events = logEvents(fixture.eventsPath)
     expect(events.map((e) => [e.type, e.payload.text])).toEqual([
@@ -220,10 +220,10 @@ describe('each tool appends exactly its event and projections regenerate', () =>
     await client.close()
   })
 
-  it('harness_get_state appends nothing', async () => {
+  it('sofar_get_state appends nothing', async () => {
     const fixture = fx()
     const { client } = await connectServer(fixture.root)
-    const { isError } = await callTool(client, 'harness_get_state', {})
+    const { isError } = await callTool(client, 'sofar_get_state', {})
     expect(isError).toBe(false)
     expect(existsSync(fixture.eventsPath)).toBe(false)
     await client.close()
@@ -232,13 +232,13 @@ describe('each tool appends exactly its event and projections regenerate', () =>
 
 describe('invalid payloads → typed errors, zero appends', () => {
   const badArgs: Array<[string, Record<string, unknown>, string]> = [
-    ['harness_get_state', { initiative: '' }, 'initiative'],
-    ['harness_start_session', {}, 'tool'],
-    ['harness_end_session', { session_id: 's' }, 'summary'],
-    ['harness_update_task', { task_id: 't', status: 'finished' }, 'status'],
-    ['harness_log_decision', { chose: 'x', over: 'y' }, 'because'],
-    ['harness_update_plan', { plan: { phases: [{ name: 'p' }] } }, 'plan.phases[0].tasks'],
-    ['harness_add_note', { text: '' }, 'text'],
+    ['sofar_get_state', { initiative: '' }, 'initiative'],
+    ['sofar_start_session', {}, 'tool'],
+    ['sofar_end_session', { session_id: 's' }, 'summary'],
+    ['sofar_update_task', { task_id: 't', status: 'finished' }, 'status'],
+    ['sofar_log_decision', { chose: 'x', over: 'y' }, 'because'],
+    ['sofar_update_plan', { plan: { phases: [{ name: 'p' }] } }, 'plan.phases[0].tasks'],
+    ['sofar_add_note', { text: '' }, 'text'],
   ]
 
   for (const [tool, args, expectedField] of badArgs) {
@@ -257,7 +257,7 @@ describe('invalid payloads → typed errors, zero appends', () => {
   it('unknown extra arguments are rejected, not silently dropped', async () => {
     const fixture = fx()
     const { client } = await connectServer(fixture.root)
-    const error = await callToolExpectError(client, 'harness_add_note', { text: 'x', tags: ['a'] })
+    const error = await callToolExpectError(client, 'sofar_add_note', { text: 'x', tags: ['a'] })
     expect(error.code).toBe('invalid_input')
     expect(error.errors![0]).toMatch(/^tags: unknown argument/)
     expect(existsSync(fixture.eventsPath)).toBe(false)
@@ -267,27 +267,27 @@ describe('invalid payloads → typed errors, zero appends', () => {
   it('an unlisted tool name yields a typed unknown_tool error', async () => {
     const fixture = fx()
     const { client } = await connectServer(fixture.root)
-    const error = await callToolExpectError(client, 'harness_frobnicate', {})
+    const error = await callToolExpectError(client, 'sofar_frobnicate', {})
     expect(error.code).toBe('unknown_tool')
-    expect(error.message).toContain('harness_get_state')
+    expect(error.message).toContain('sofar_get_state')
     await client.close()
   })
 })
 
 describe('initiative resolution: bindings.json + current branch', () => {
   it('get_state resolves the initiative from the branch binding', async () => {
-    const fixture = fx({ branch: 'feat/phase-2', slug: 'harness-build' })
+    const fixture = fx({ branch: 'feat/phase-2', slug: 'sofar-build' })
     const { client } = await connectServer(fixture.root)
-    const { isError, body } = await callTool<InitiativeState>(client, 'harness_get_state', {})
+    const { isError, body } = await callTool<InitiativeState>(client, 'sofar_get_state', {})
     expect(isError).toBe(false)
-    expect(body.slug).toBe('harness-build')
+    expect(body.slug).toBe('sofar-build')
     await client.close()
   })
 
   it('follows a worktree-style .git file to its HEAD', async () => {
     const fixture = fx({ worktree: true, branch: 'wt-branch', slug: 'wt-initiative' })
     const { client } = await connectServer(fixture.root)
-    const { isError, body } = await callTool<InitiativeState>(client, 'harness_get_state', {})
+    const { isError, body } = await callTool<InitiativeState>(client, 'sofar_get_state', {})
     expect(isError).toBe(false)
     expect(body.slug).toBe('wt-initiative')
     await client.close()
@@ -295,12 +295,12 @@ describe('initiative resolution: bindings.json + current branch', () => {
 
   it('explicit initiative arg wins over the branch binding', async () => {
     const fixture = fx({ branch: 'main', slug: 'bound-slug' })
-    const other = join(fixture.root, '.harness', 'initiatives', 'other-slug')
+    const other = join(fixture.root, '.sofar', 'initiatives', 'other-slug')
     const { mkdirSync } = await import('node:fs')
     mkdirSync(other, { recursive: true })
 
     const { client } = await connectServer(fixture.root)
-    const { body } = await callTool<InitiativeState>(client, 'harness_get_state', {
+    const { body } = await callTool<InitiativeState>(client, 'sofar_get_state', {
       initiative: 'other-slug',
     })
     expect(body.slug).toBe('other-slug')
@@ -310,7 +310,7 @@ describe('initiative resolution: bindings.json + current branch', () => {
   it('unbound branch → typed unknown_initiative error naming the branch', async () => {
     const fixture = fx({ bind: false })
     const { client } = await connectServer(fixture.root)
-    const error = await callToolExpectError(client, 'harness_get_state', {})
+    const error = await callToolExpectError(client, 'sofar_get_state', {})
     expect(error.code).toBe('unknown_initiative')
     expect(error.message).toContain('"main"')
     expect(error.message).toContain('pass `initiative` explicitly')
@@ -320,7 +320,7 @@ describe('initiative resolution: bindings.json + current branch', () => {
   it('detached HEAD → typed unknown_initiative error, and write tools append nothing', async () => {
     const fixture = fx({ branch: null })
     const { client } = await connectServer(fixture.root)
-    const error = await callToolExpectError(client, 'harness_add_note', { text: 'x' })
+    const error = await callToolExpectError(client, 'sofar_add_note', { text: 'x' })
     expect(error.code).toBe('unknown_initiative')
     expect(error.message).toContain('pass `initiative` explicitly')
     expect(existsSync(fixture.eventsPath)).toBe(false)
@@ -330,13 +330,13 @@ describe('initiative resolution: bindings.json + current branch', () => {
   it('explicit but nonexistent initiative → unknown_initiative (typos never create logs)', async () => {
     const fixture = fx()
     const { client } = await connectServer(fixture.root)
-    const error = await callToolExpectError(client, 'harness_add_note', {
+    const error = await callToolExpectError(client, 'sofar_add_note', {
       initiative: 'no-such-initiative',
       text: 'x',
     })
     expect(error.code).toBe('unknown_initiative')
     expect(
-      existsSync(join(fixture.root, '.harness', 'initiatives', 'no-such-initiative')),
+      existsSync(join(fixture.root, '.sofar', 'initiatives', 'no-such-initiative')),
     ).toBe(false)
     await client.close()
   })
@@ -344,9 +344,9 @@ describe('initiative resolution: bindings.json + current branch', () => {
   it('corrupt bindings.json → typed io_error', async () => {
     const fixture = fx()
     const { writeFileSync } = await import('node:fs')
-    writeFileSync(join(fixture.root, '.harness', 'bindings.json'), '{not json')
+    writeFileSync(join(fixture.root, '.sofar', 'bindings.json'), '{not json')
     const { client } = await connectServer(fixture.root)
-    const error = await callToolExpectError(client, 'harness_get_state', {})
+    const error = await callToolExpectError(client, 'sofar_get_state', {})
     expect(error.code).toBe('io_error')
     await client.close()
   })
@@ -356,7 +356,7 @@ describe('initiative resolution: bindings.json + current branch', () => {
     const { client } = await connectServer(fixture.root)
     const { isError, body } = await callTool<{ session_id: string }>(
       client,
-      'harness_start_session',
+      'sofar_start_session',
       { initiative: fixture.slug, tool: 'codex' },
     )
     expect(isError).toBe(false)
@@ -366,9 +366,9 @@ describe('initiative resolution: bindings.json + current branch', () => {
   })
 })
 
-describe('stdio end-to-end via `harness mcp`', () => {
+describe('stdio end-to-end via `sofar mcp`', () => {
   it('the bundled CLI serves the tools over real stdio', async () => {
-    const scratch = mkdtempSync(join(tmpdir(), 'harness-stdio-'))
+    const scratch = mkdtempSync(join(tmpdir(), 'sofar-stdio-'))
     roots.push(scratch)
     const bundle = join(scratch, 'cli.mjs')
     buildSync({
@@ -395,11 +395,11 @@ describe('stdio end-to-end via `harness mcp`', () => {
     const { tools } = await client.listTools()
     expect(tools).toHaveLength(7)
 
-    const started = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+    const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
       tool: 'claude-code',
     })
     expect(started.isError).toBe(false)
-    const state = await callTool<InitiativeState>(client, 'harness_get_state', {})
+    const state = await callTool<InitiativeState>(client, 'sofar_get_state', {})
     expect(state.body.sessions[0]!.id).toBe(started.body.session_id)
 
     await client.close()

@@ -28,13 +28,13 @@ import { runUninit } from '../src/cli/uninit'
  *  2. The adopt flow end-to-end in a fixture: legacy prose record +
  *     prose-protocol CLAUDE.md → init → adopt --mark → the brief's commands
  *     executed AS SCRIPTED SHELL (the test plays the agent and transcribes
- *     the legacy content) → `harness status` reproduces the legacy state.
+ *     the legacy content) → `sofar status` reproduces the legacy state.
  *  3. Uninit-after-adopt keeps the migrated record intact and functional
  *     while stripping the wiring.
  */
 
 const here = fileURLToPath(new URL('.', import.meta.url))
-const scratch = mkdtempSync(join(tmpdir(), 'harness-phase8-'))
+const scratch = mkdtempSync(join(tmpdir(), 'sofar-phase8-'))
 const bundle = join(scratch, 'cli.mjs')
 const roots: string[] = []
 
@@ -60,7 +60,7 @@ afterAll(() => {
 
 /** Fresh repo: just .git/HEAD on main — exactly what init receives in the wild. */
 function freshRepo(): string {
-  const root = mkdtempSync(join(tmpdir(), 'harness-p8-'))
+  const root = mkdtempSync(join(tmpdir(), 'sofar-p8-'))
   roots.push(root)
   mkdirSync(join(root, '.git'), { recursive: true })
   writeFileSync(join(root, '.git', 'HEAD'), 'ref: refs/heads/main\n')
@@ -104,7 +104,7 @@ function stableJSON(value: unknown): string {
 }
 
 function logEvents(root: string, slug: string): EventEnvelope[] {
-  const path = join(root, '.harness', 'initiatives', slug, 'events.jsonl')
+  const path = join(root, '.sofar', 'initiatives', slug, 'events.jsonl')
   if (!existsSync(path)) return []
   return readFileSync(path, 'utf8')
     .trim()
@@ -161,10 +161,10 @@ describe('acceptance 1 — uninit round-trips (hash-based)', () => {
     for (const [path, entry] of before) {
       expect(after.get(path), path).toEqual(entry)
     }
-    // and the only additions are the kept record under .harness/
+    // and the only additions are the kept record under .sofar/
     const extras = [...after.keys()].filter((path) => !before.has(path))
     expect(extras.length).toBeGreaterThan(0)
-    expect(extras.every((path) => path.startsWith('.harness/'))).toBe(true)
+    expect(extras.every((path) => path.startsWith('.sofar/'))).toBe(true)
   })
 
   it('(c) uninit on a never-inited repo: exit 0, nothing to remove, tree untouched', () => {
@@ -174,7 +174,7 @@ describe('acceptance 1 — uninit round-trips (hash-based)', () => {
 
     const result = runUninit(root)
     expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain('harness uninit: nothing to remove')
+    expect(result.stdout).toContain('sofar uninit: nothing to remove')
     expect(hashTree(root)).toEqual(before)
   })
 
@@ -197,16 +197,16 @@ describe('acceptance 1 — uninit round-trips (hash-based)', () => {
     expect(cli(root, ['init']).status).toBe(0)
     const uninit = cli(root, ['uninit', '--purge'])
     expect(uninit.status).toBe(0)
-    expect(uninit.stdout).toContain('removed .harness/ (record deleted)')
-    expect(uninit.stderr).toContain('harness export')
+    expect(uninit.stdout).toContain('removed .sofar/ (record deleted)')
+    expect(uninit.stderr).toContain('sofar export')
     expect(hashTree(root)).toEqual(before)
 
     // and the default (no --purge) path keeps the record with the notice
     expect(cli(root, ['init']).status).toBe(0)
     const kept = cli(root, ['uninit'])
     expect(kept.status).toBe(0)
-    expect(kept.stdout).toContain('record kept at .harness/ (use --purge to delete it)')
-    expect(existsSync(join(root, '.harness', 'repo.md'))).toBe(true)
+    expect(kept.stdout).toContain('record kept at .sofar/ (use --purge to delete it)')
+    expect(existsSync(join(root, '.sofar', 'repo.md'))).toBe(true)
   })
 })
 
@@ -243,27 +243,27 @@ Next action: ${LEGACY_NEXT}
 const LEGACY_CLAUDE_MD = `# Widget project
 
 ## Protocol (legacy — retire after migration)
-Before any work: read harness.md in full. After any work: update
-harness.md by hand with what changed and the next action.
+Before any work: read sofar.md in full. After any work: update
+sofar.md by hand with what changed and the next action.
 `
 
 describe('acceptance 2 — the adopt flow, brief executed as scripted shell', () => {
   const root = freshRepo()
-  const harness = `${JSON.stringify(process.execPath)} ${JSON.stringify(bundle)}`
+  const sofar = `${JSON.stringify(process.execPath)} ${JSON.stringify(bundle)}`
   let sessionId = ''
 
   it('sets up the fixture and emits the brief (adopt --mark)', () => {
-    writeFileSync(join(root, 'harness.md'), LEGACY_RECORD)
+    writeFileSync(join(root, 'sofar.md'), LEGACY_RECORD)
     writeFileSync(join(root, 'CLAUDE.md'), LEGACY_CLAUDE_MD)
 
     expect(cli(root, ['init']).status).toBe(0)
     // deliberately no --goal: the brief's plan_updated must carry the goal
     expect(cli(root, ['new', SLUG]).status).toBe(0)
 
-    const adopt = cli(root, ['adopt', 'harness.md', SLUG, '--mark'])
+    const adopt = cli(root, ['adopt', 'sofar.md', SLUG, '--mark'])
     expect(adopt.status).toBe(0)
-    expect(adopt.stdout).toContain(`replay harness.md into initiative "${SLUG}"`)
-    expect(adopt.stdout).toContain('marked harness.md superseded')
+    expect(adopt.stdout).toContain(`replay sofar.md into initiative "${SLUG}"`)
+    expect(adopt.stdout).toContain('marked sofar.md superseded')
 
     const ids = [...adopt.stdout.matchAll(/--session (\S+)/g)].map((m) => m[1]!)
     expect(new Set(ids).size).toBe(1) // one id across all four templates
@@ -271,18 +271,18 @@ describe('acceptance 2 — the adopt flow, brief executed as scripted shell', ()
     expect(sessionId).toMatch(/^migration-[0-9A-HJKMNP-TV-Z]{26}$/)
 
     // the legacy file now carries the superseded banner, content below it
-    const marked = readFileSync(join(root, 'harness.md'), 'utf8')
+    const marked = readFileSync(join(root, 'sofar.md'), 'utf8')
     expect(marked.startsWith(`${SUPERSEDED_START}\n`)).toBe(true)
-    expect(marked).toContain(`.harness/initiatives/${SLUG}/`)
+    expect(marked).toContain(`.sofar/initiatives/${SLUG}/`)
     expect(marked.endsWith(LEGACY_RECORD)).toBe(true)
 
     // …idempotently: a second --mark changes zero bytes
-    expect(cli(root, ['adopt', 'harness.md', SLUG, '--mark']).status).toBe(0)
-    expect(readFileSync(join(root, 'harness.md'), 'utf8')).toBe(marked)
+    expect(cli(root, ['adopt', 'sofar.md', SLUG, '--mark']).status).toBe(0)
+    expect(readFileSync(join(root, 'sofar.md'), 'utf8')).toBe(marked)
   })
 
   it('replays the brief: plan, decisions, session_ended — content transcribed from the legacy file', () => {
-    const append = `${harness} event append ${SLUG} --session ${sessionId} --actor human`
+    const append = `${sofar} event append ${SLUG} --session ${sessionId} --actor human`
 
     // Step 1 — the plan skeleton, filled with the legacy file's actual plan
     const plan = {
@@ -316,7 +316,7 @@ describe('acceptance 2 — the adopt flow, brief executed as scripted shell', ()
       `${append} --type decision_logged --payload '{"chose":"Postgres","over":"Mongo","because":"relational joins dominate"}'`,
       `${append} --type decision_logged --payload '{"chose":"flag rollout","over":"big-bang","because":"rollback must be instant"}'`,
       // Step 4 — close the migration session with the legacy next action
-      `${append} --type session_ended --payload '{"summary":"migrated from harness.md","next_action":"${LEGACY_NEXT}"}'`,
+      `${append} --type session_ended --payload '{"summary":"migrated from sofar.md","next_action":"${LEGACY_NEXT}"}'`,
     ]
     for (const command of commands) {
       const run = sh(root, command)
@@ -340,7 +340,7 @@ describe('acceptance 2 — the adopt flow, brief executed as scripted shell', ()
     }
   })
 
-  it('harness status reproduces the legacy goal, phases, and next action', () => {
+  it('sofar status reproduces the legacy goal, phases, and next action', () => {
     const status = cli(root, ['status', SLUG])
     expect(status.status).toBe(0)
     expect(status.stderr).toBe('') // registered session → no stub warnings
@@ -351,18 +351,18 @@ describe('acceptance 2 — the adopt flow, brief executed as scripted shell', ()
     expect(status.stdout).toContain('[ ] e2 rate limiting')
     expect(status.stdout).toContain(`Next action: ${LEGACY_NEXT}`)
     expect(status.stdout).toContain('Last session (migration')
-    expect(status.stdout).toContain('migrated from harness.md')
+    expect(status.stdout).toContain('migrated from sofar.md')
   })
 
   it('acceptance 3 — uninit (no purge) strips the wiring but keeps the migrated record working', () => {
     const eventsBefore = readFileSync(
-      join(root, '.harness', 'initiatives', SLUG, 'events.jsonl'),
+      join(root, '.sofar', 'initiatives', SLUG, 'events.jsonl'),
       'utf8',
     )
 
     const uninit = cli(root, ['uninit'])
     expect(uninit.status).toBe(0)
-    expect(uninit.stdout).toContain('record kept at .harness/ (use --purge to delete it)')
+    expect(uninit.stdout).toContain('record kept at .sofar/ (use --purge to delete it)')
 
     // wiring gone
     expect(existsSync(join(root, '.claude', 'hooks'))).toBe(false)
@@ -373,7 +373,7 @@ describe('acceptance 2 — the adopt flow, brief executed as scripted shell', ()
 
     // record intact, byte for byte — and status still serves it
     expect(
-      readFileSync(join(root, '.harness', 'initiatives', SLUG, 'events.jsonl'), 'utf8'),
+      readFileSync(join(root, '.sofar', 'initiatives', SLUG, 'events.jsonl'), 'utf8'),
     ).toBe(eventsBefore)
     const status = cli(root, ['status', SLUG])
     expect(status.status).toBe(0)

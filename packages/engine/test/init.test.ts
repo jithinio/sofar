@@ -24,7 +24,7 @@ import {
 } from '../src/cli/init'
 
 /**
- * Task 4.1 — `harness init`. Fresh-repo artifact contents, merge-not-clobber
+ * Task 4.1 — `sofar init`. Fresh-repo artifact contents, merge-not-clobber
  * for user-owned files, repo.md sanctity, and BYTE-LEVEL idempotency
  * (SPEC §Acceptance Phase 4 bullet 2: second run changes nothing).
  */
@@ -36,9 +36,9 @@ afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true })
 })
 
-/** Fresh temp repo: just .git/HEAD on main — no .harness, no .claude. */
+/** Fresh temp repo: just .git/HEAD on main — no .sofar, no .claude. */
 function freshRepo(): string {
-  const root = mkdtempSync(join(tmpdir(), 'harness-init-'))
+  const root = mkdtempSync(join(tmpdir(), 'sofar-init-'))
   roots.push(root)
   mkdirSync(join(root, '.git'), { recursive: true })
   writeFileSync(join(root, '.git', 'HEAD'), 'ref: refs/heads/main\n')
@@ -68,18 +68,18 @@ function readJSON(path: string): Record<string, unknown> {
   return JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>
 }
 
-describe('harness init on a fresh repo', () => {
+describe('sofar init on a fresh repo', () => {
   it('creates every artifact with the expected content', () => {
     const root = freshRepo()
     const result = runInit(root)
     expect(result.exitCode).toBe(0)
     expect(result.stderr).toBe('')
-    expect(result.stdout).toContain('created .harness/repo.md')
+    expect(result.stdout).toContain('created .sofar/repo.md')
 
-    // .harness/: repo.md stub + empty bindings
-    expect(readFileSync(join(root, '.harness', 'repo.md'), 'utf8')).toBe(REPO_MD_STUB)
-    expect(readFileSync(join(root, '.harness', 'bindings.json'), 'utf8')).toBe('{}\n')
-    expect(statSync(join(root, '.harness', 'initiatives')).isDirectory()).toBe(true)
+    // .sofar/: repo.md stub + empty bindings
+    expect(readFileSync(join(root, '.sofar', 'repo.md'), 'utf8')).toBe(REPO_MD_STUB)
+    expect(readFileSync(join(root, '.sofar', 'bindings.json'), 'utf8')).toBe('{}\n')
+    expect(statSync(join(root, '.sofar', 'initiatives')).isDirectory()).toBe(true)
 
     // Shims: exact source text (bundled, not read from disk), executable
     for (const shim of SHIMS) {
@@ -110,7 +110,7 @@ describe('harness init on a fresh repo', () => {
 
     // .mcp.json registration (register.ts snippet)
     expect(readJSON(join(root, '.mcp.json'))).toEqual({
-      mcpServers: { harness: { command: 'harness', args: ['mcp'] } },
+      mcpServers: { sofar: { command: 'sofar', args: ['mcp'] } },
     })
 
     // CLAUDE.md protocol block: markers + the three BD19 clauses + the loop
@@ -119,10 +119,10 @@ describe('harness init on a fresh repo', () => {
     expect(claudeMd).toContain(PROTOCOL_START)
     expect(claudeMd).toContain(PROTOCOL_END)
     expect(claudeMd).toMatch(/never in tool memory/i) // (a) total jurisdiction
-    expect(claudeMd).toContain('harness new') // (b) create before unmatched work
+    expect(claudeMd).toContain('sofar new') // (b) create before unmatched work
     expect(claudeMd).toContain('bindings.json') // (c) bindings resolve the record
-    expect(claudeMd).toContain('harness_get_state') // read-orient
-    expect(claudeMd).toContain('harness_end_session') // write-back
+    expect(claudeMd).toContain('sofar_get_state') // read-orient
+    expect(claudeMd).toContain('sofar_end_session') // write-back
 
     // AGENTS.md convention dialect: same markers, same three BD19 clauses,
     // but a CLI-only loop (no MCP assumptions — task 5.1, BD31)
@@ -131,13 +131,13 @@ describe('harness init on a fresh repo', () => {
     expect(agentsMd).toContain(PROTOCOL_START)
     expect(agentsMd).toContain(PROTOCOL_END)
     expect(agentsMd).toMatch(/never in tool memory/i) // (a) total jurisdiction
-    expect(agentsMd).toContain('harness new') // (b) create before unmatched work
+    expect(agentsMd).toContain('sofar new') // (b) create before unmatched work
     expect(agentsMd).toContain('bindings.json') // (c) bindings resolve the record
-    expect(agentsMd).toContain('harness status') // read-orient (CLI, not MCP)
+    expect(agentsMd).toContain('sofar status') // read-orient (CLI, not MCP)
     expect(agentsMd).toContain('--type session_started') // start via event append
     expect(agentsMd).toContain('--type session_ended') // write-back via event append
     expect(agentsMd).toContain('MANDATORY') // compensating control for no Stop hook
-    expect(agentsMd).not.toContain('harness_') // no MCP tool names — dialect is CLI-only
+    expect(agentsMd).not.toContain('sofar_') // no MCP tool names — dialect is CLI-only
   })
 
   it('is byte-level idempotent: second run changes no file (acceptance bullet 2)', () => {
@@ -152,7 +152,7 @@ describe('harness init on a fresh repo', () => {
   })
 })
 
-describe('harness init merges — never clobbers — user files', () => {
+describe('sofar init merges — never clobbers — user files', () => {
   it('preserves unrelated settings.json content and pre-existing hook entries', () => {
     const root = freshRepo()
     mkdirSync(join(root, '.claude'), { recursive: true })
@@ -179,7 +179,7 @@ describe('harness init merges — never clobbers — user files', () => {
     expect(hooks.Stop).toHaveLength(1)
   })
 
-  it('preserves other .mcp.json servers and an existing customized harness entry', () => {
+  it('preserves other .mcp.json servers and an existing customized sofar entry', () => {
     const root = freshRepo()
     writeFileSync(
       join(root, '.mcp.json'),
@@ -190,14 +190,14 @@ describe('harness init merges — never clobbers — user files', () => {
       mcpServers: Record<string, unknown>
     }
     expect(merged.mcpServers.other).toEqual({ command: 'other-server', args: [] })
-    expect(merged.mcpServers.harness).toEqual({ command: 'harness', args: ['mcp'] })
+    expect(merged.mcpServers.sofar).toEqual({ command: 'sofar', args: ['mcp'] })
 
-    // customized harness entry survives a re-run
-    const custom = { command: 'npx', args: ['harness', 'mcp'] }
-    merged.mcpServers.harness = custom
+    // customized sofar entry survives a re-run
+    const custom = { command: 'npx', args: ['sofar', 'mcp'] }
+    merged.mcpServers.sofar = custom
     writeFileSync(join(root, '.mcp.json'), JSON.stringify(merged, null, 2))
     expect(runInit(root).exitCode).toBe(0)
-    expect((readJSON(join(root, '.mcp.json')) as typeof merged).mcpServers.harness).toEqual(custom)
+    expect((readJSON(join(root, '.mcp.json')) as typeof merged).mcpServers.sofar).toEqual(custom)
   })
 
   it('appends the protocol block to an existing CLAUDE.md and never edits inside markers', () => {
@@ -237,14 +237,14 @@ describe('harness init merges — never clobbers — user files', () => {
 
   it('never overwrites a hand-written repo.md', () => {
     const root = freshRepo()
-    mkdirSync(join(root, '.harness'), { recursive: true })
+    mkdirSync(join(root, '.sofar'), { recursive: true })
     const custom = '# Our repo memory\n\nDeploy with make ship.\n'
-    writeFileSync(join(root, '.harness', 'repo.md'), custom)
+    writeFileSync(join(root, '.sofar', 'repo.md'), custom)
 
     expect(runInit(root).exitCode).toBe(0)
-    expect(readFileSync(join(root, '.harness', 'repo.md'), 'utf8')).toBe(custom)
+    expect(readFileSync(join(root, '.sofar', 'repo.md'), 'utf8')).toBe(custom)
     expect(runInit(root).exitCode).toBe(0) // and re-init
-    expect(readFileSync(join(root, '.harness', 'repo.md'), 'utf8')).toBe(custom)
+    expect(readFileSync(join(root, '.sofar', 'repo.md'), 'utf8')).toBe(custom)
   })
 
   it('refuses to touch an unparseable settings.json (exit 1, file intact)', () => {

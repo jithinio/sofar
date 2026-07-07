@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
-import { validatePayload, isKnownEventType } from '@harness/schema'
-import type { ToolErrorCode, ToolErrorShape } from '@harness/schema/tool-inputs'
+import { validatePayload, isKnownEventType } from '@sofar/schema'
+import type { ToolErrorCode, ToolErrorShape } from '@sofar/schema/tool-inputs'
 import { makeEvent, SOURCES, type Actor, type EventEnvelope, type Source } from '../core/envelope'
 import { appendEvent } from '../core/log'
 import { foldLog, emptyState, type InitiativeState } from '../core/fold'
@@ -15,7 +15,7 @@ import { regenerateProjections } from '../projections/generator'
  */
 
 // ---------------------------------------------------------------------------
-// Typed errors (shape + code union defined in @harness/schema/tool-inputs).
+// Typed errors (shape + code union defined in @sofar/schema/tool-inputs).
 // ---------------------------------------------------------------------------
 
 export class ToolError extends Error {
@@ -109,7 +109,7 @@ export interface AppendOptions {
 
 export interface ToolContext {
   rootDir: string
-  harnessDir: string
+  sofarDir: string
   bindingsPath: string
   session: SessionBox
   initiativeDir(slug: string): string
@@ -128,9 +128,9 @@ export interface ToolContext {
 }
 
 export function createToolContext(rootDir: string): ToolContext {
-  const harnessDir = join(rootDir, '.harness')
-  const bindingsPath = join(harnessDir, 'bindings.json')
-  const initiativeDir = (slug: string): string => join(harnessDir, 'initiatives', slug)
+  const sofarDir = join(rootDir, '.sofar')
+  const bindingsPath = join(sofarDir, 'bindings.json')
+  const initiativeDir = (slug: string): string => join(sofarDir, 'initiatives', slug)
   const eventsPath = (slug: string): string => join(initiativeDir(slug), 'events.jsonl')
 
   let active: ActiveSession | null = null
@@ -147,10 +147,10 @@ export function createToolContext(rootDir: string): ToolContext {
     try {
       decoded = JSON.parse(readFileSync(bindingsPath, 'utf8'))
     } catch (err) {
-      throw new ToolError('io_error', `.harness/bindings.json is not valid JSON: ${errMessage(err)}`)
+      throw new ToolError('io_error', `.sofar/bindings.json is not valid JSON: ${errMessage(err)}`)
     }
     if (typeof decoded !== 'object' || decoded === null || Array.isArray(decoded)) {
-      throw new ToolError('io_error', '.harness/bindings.json must be a JSON object of branch → slug')
+      throw new ToolError('io_error', '.sofar/bindings.json must be a JSON object of branch → slug')
     }
     const bindings: Record<string, string> = {}
     for (const [branch, slug] of Object.entries(decoded)) {
@@ -175,7 +175,7 @@ export function createToolContext(rootDir: string): ToolContext {
       if (bound === undefined) {
         throw new ToolError(
           'unknown_initiative',
-          `no initiative bound to branch "${branch}" in .harness/bindings.json — pass \`initiative\` explicitly or bind the branch`,
+          `no initiative bound to branch "${branch}" in .sofar/bindings.json — pass \`initiative\` explicitly or bind the branch`,
         )
       }
       slug = bound
@@ -183,7 +183,7 @@ export function createToolContext(rootDir: string): ToolContext {
     if (!existsSync(initiativeDir(slug))) {
       throw new ToolError(
         'unknown_initiative',
-        `initiative "${slug}" not found under .harness/initiatives/`,
+        `initiative "${slug}" not found under .sofar/initiatives/`,
       )
     }
     return slug
@@ -245,7 +245,7 @@ export function createToolContext(rootDir: string): ToolContext {
 
   return {
     rootDir,
-    harnessDir,
+    sofarDir,
     bindingsPath,
     session,
     initiativeDir,

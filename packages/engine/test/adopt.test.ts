@@ -7,7 +7,7 @@ import { runInit } from '../src/cli/init'
 import { runNew } from '../src/cli/new'
 
 /**
- * Task 8.2 — `harness adopt <legacy-file> [slug] [--mark]` (BD46).
+ * Task 8.2 — `sofar adopt <legacy-file> [slug] [--mark]` (BD46).
  * Command-level coverage: the three validation failures (typed-error JSON,
  * event append's style), brief contents (exact dialect templates with slug +
  * fresh session id baked in, retirement checklist, verification line), slug
@@ -23,7 +23,7 @@ afterAll(() => {
 })
 
 function freshRepo(): string {
-  const root = mkdtempSync(join(tmpdir(), 'harness-adopt-'))
+  const root = mkdtempSync(join(tmpdir(), 'sofar-adopt-'))
   roots.push(root)
   mkdirSync(join(root, '.git'), { recursive: true })
   writeFileSync(join(root, '.git', 'HEAD'), 'ref: refs/heads/main\n')
@@ -32,7 +32,7 @@ function freshRepo(): string {
 
 const LEGACY = `# Initiative: legacy\n\n## Goal\nShip the widget.\n\nNext action: wire the API.\n`
 
-/** Repo with .harness, a bound initiative, and a legacy record file. */
+/** Repo with .sofar, a bound initiative, and a legacy record file. */
 function adoptableRepo(): string {
   const root = freshRepo()
   runInit(root)
@@ -45,7 +45,7 @@ function stderrJSON(result: { stderr: string }): { code: string; message: string
   return JSON.parse(result.stderr) as { code: string; message: string }
 }
 
-describe('harness adopt validation (typed-error JSON, exit 1)', () => {
+describe('sofar adopt validation (typed-error JSON, exit 1)', () => {
   it('rejects a missing legacy file', () => {
     const root = adoptableRepo()
     const result = runAdopt(root, 'no-such.md', 'legacy-widget')
@@ -56,30 +56,30 @@ describe('harness adopt validation (typed-error JSON, exit 1)', () => {
     expect(err.message).toContain('no-such.md')
   })
 
-  it('requires .harness/ and points at harness init', () => {
+  it('requires .sofar/ and points at sofar init', () => {
     const root = freshRepo()
     writeFileSync(join(root, 'legacy.md'), LEGACY)
     const result = runAdopt(root, 'legacy.md')
     expect(result.exitCode).toBe(1)
     const err = stderrJSON(result)
     expect(err.code).toBe('io_error')
-    expect(err.message).toContain('harness init')
+    expect(err.message).toContain('sofar init')
   })
 
-  it('requires a resolvable initiative and names harness new', () => {
+  it('requires a resolvable initiative and names sofar new', () => {
     const root = freshRepo()
-    runInit(root) // .harness exists, but no initiative and no binding
+    runInit(root) // .sofar exists, but no initiative and no binding
     writeFileSync(join(root, 'legacy.md'), LEGACY)
 
     const unbound = runAdopt(root, 'legacy.md')
     expect(unbound.exitCode).toBe(1)
     expect(stderrJSON(unbound).code).toBe('unknown_initiative')
-    expect(stderrJSON(unbound).message).toContain('harness new <slug>')
+    expect(stderrJSON(unbound).message).toContain('sofar new <slug>')
 
     const unknown = runAdopt(root, 'legacy.md', 'ghost')
     expect(unknown.exitCode).toBe(1)
     expect(stderrJSON(unknown).code).toBe('unknown_initiative')
-    expect(stderrJSON(unknown).message).toContain('harness new ghost')
+    expect(stderrJSON(unknown).message).toContain('sofar new ghost')
   })
 })
 
@@ -99,7 +99,7 @@ describe('the migration brief', () => {
     expect(ids).toHaveLength(5)
     expect(new Set(ids).size).toBe(1)
     expect(ids[0]).toMatch(/^migration-[0-9A-HJKMNP-TV-Z]{26}$/)
-    const append = `harness event append legacy-widget --session ${ids[0]} --actor human`
+    const append = `sofar event append legacy-widget --session ${ids[0]} --actor human`
     expect(brief).toContain(`${append} --type session_started --payload '{"tool":"migration"}'`)
     expect(brief).toContain(`${append} --type plan_updated`)
     expect(brief).toContain('"plan":{"goal":') // filled PlanStructure skeleton
@@ -112,11 +112,11 @@ describe('the migration brief', () => {
     expect(brief).toContain('"next_action":"<next action from legacy.md>"')
 
     // (3) repo knowledge move, (4) retirement checklist, (5) verification
-    expect(brief).toContain('.harness/repo.md')
+    expect(brief).toContain('.sofar/repo.md')
     expect(brief).toContain('Delete the legacy prose protocol section from CLAUDE.md')
-    expect(brief).toContain('<!-- harness:protocol -->')
+    expect(brief).toContain('<!-- sofar:protocol -->')
     expect(brief).toContain('archive or delete')
-    expect(brief).toContain('harness status legacy-widget')
+    expect(brief).toContain('sofar status legacy-widget')
   })
 
   it('suggests a fresh session id per run and resolves the slug from the branch binding', () => {
@@ -142,9 +142,9 @@ describe('adopt --mark', () => {
     expect(marked.startsWith(`${SUPERSEDED_START}\n`)).toBe(true)
     expect(marked).toContain(SUPERSEDED_END)
     expect(marked).toMatch(
-      /SUPERSEDED — this record migrated to \.harness\/initiatives\/legacy-widget\/ on \d{4}-\d{2}-\d{2}\./,
+      /SUPERSEDED — this record migrated to \.sofar\/initiatives\/legacy-widget\/ on \d{4}-\d{2}-\d{2}\./,
     )
-    expect(marked).toContain('Do not update this file; truth lives in the harness record.')
+    expect(marked).toContain('Do not update this file; truth lives in the sofar record.')
     expect(marked.endsWith(LEGACY)).toBe(true) // original content byte-preserved below
   })
 
@@ -160,8 +160,8 @@ describe('adopt --mark', () => {
   })
 
   it('still stamps a file whose BODY quotes the marker (idempotency is head-anchored)', () => {
-    // Field finding from the self-host migration: docs/harness.md QUOTED
-    // "<!-- harness:superseded -->" inside a decision entry, and --mark
+    // Field finding from the self-host migration: the archived prose record QUOTED
+    // "<!-- sofar:superseded -->" inside a decision entry, and --mark
     // wrongly reported it as already marked.
     const root = adoptableRepo()
     const legacyPath = join(root, 'legacy.md')

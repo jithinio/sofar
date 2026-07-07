@@ -1,29 +1,29 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, relative } from 'node:path'
 import { ulid } from 'ulid'
-import type { ToolErrorShape } from '@harness/schema/tool-inputs'
+import type { ToolErrorShape } from '@sofar/schema/tool-inputs'
 import { createToolContext, ToolError } from '../mcp/context'
 import { ok, type CmdResult } from './shared'
 
 /**
- * `harness adopt <legacy-file> [slug] [--mark]` (task 8.2, SPEC §CLI, BD46) —
- * guided migration for repos with a pre-harness prose record (hand-maintained
- * harness.md + a prose protocol in CLAUDE.md).
+ * `sofar adopt <legacy-file> [slug] [--mark]` (task 8.2, SPEC §CLI, BD46) —
+ * guided migration for repos with a pre-sofar prose record (hand-maintained
+ * sofar.md + a prose protocol in CLAUDE.md).
  *
  * The command mechanizes environment checks and marking; it does NOT parse
  * the legacy markdown — freeform parsing is fragile, so an agent (any tool)
  * executes the printed MIGRATION BRIEF verbatim and transcribes the legacy
  * content itself. The CLI carries the protocol (BD4 philosophy): every write
- * in the brief is a validated `harness event append`.
+ * in the brief is a validated `sofar event append`.
  *
  * Validation (all failures exit 1 with the BD17 typed-error JSON on stderr,
- * event append's error style): the legacy file must exist, .harness/ must
- * exist (run `harness init` first), and the target initiative must resolve
+ * event append's error style): the legacy file must exist, .sofar/ must
+ * exist (run `sofar init` first), and the target initiative must resolve
  * (positional slug wins, else branch binding; else create one with
- * `harness new <slug>`).
+ * `sofar new <slug>`).
  *
  * --mark prepends an idempotent SUPERSEDED banner between
- * `<!-- harness:superseded -->` markers so the legacy file can never again
+ * `<!-- sofar:superseded -->` markers so the legacy file can never again
  * masquerade as truth; a second --mark run changes zero bytes.
  */
 
@@ -32,15 +32,15 @@ export interface AdoptOptions {
   mark?: boolean
 }
 
-export const SUPERSEDED_START = '<!-- harness:superseded -->'
-export const SUPERSEDED_END = '<!-- /harness:superseded -->'
+export const SUPERSEDED_START = '<!-- sofar:superseded -->'
+export const SUPERSEDED_END = '<!-- /sofar:superseded -->'
 
 function supersededBanner(slug: string): string {
   const date = new Date().toISOString().slice(0, 10)
   return [
     SUPERSEDED_START,
-    `SUPERSEDED — this record migrated to .harness/initiatives/${slug}/ on ${date}.`,
-    'Do not update this file; truth lives in the harness record.',
+    `SUPERSEDED — this record migrated to .sofar/initiatives/${slug}/ on ${date}.`,
+    'Do not update this file; truth lives in the sofar record.',
     SUPERSEDED_END,
     '',
     '',
@@ -63,11 +63,11 @@ export function renderMigrationBrief(args: {
   sessionId: string
 }): string {
   const { legacyFile: file, slug, sessionId } = args
-  const append = `harness event append ${slug} --session ${sessionId} --actor human`
-  return `# Harness migration brief — replay ${file} into initiative "${slug}"
+  const append = `sofar event append ${slug} --session ${sessionId} --actor human`
+  return `# Sofar migration brief — replay ${file} into initiative "${slug}"
 
-Goal: replay the state recorded in ${file} into the harness initiative
-"${slug}", so that \`harness status ${slug}\` reproduces it. Execute the
+Goal: replay the state recorded in ${file} into the sofar initiative
+"${slug}", so that \`sofar status ${slug}\` reproduces it. Execute the
 steps in order and transcribe the legacy content yourself — nothing below
 parses ${file} for you.
 
@@ -100,18 +100,18 @@ next action / "left off" line:
 
 Step 5 — move durable REPO knowledge (build/test commands, conventions,
 gotchas — true of the repo across initiatives, not initiative state) out of
-${file} into .harness/repo.md.
+${file} into .sofar/repo.md.
 
 Step 6 — retire the legacy protocol:
   - [ ] Delete the legacy prose protocol section from CLAUDE.md — keep only
-        the harness marker block (<!-- harness:protocol --> … <!-- /harness:protocol -->).
-  - [ ] Run \`harness status ${slug}\` and compare against ${file}: goal,
+        the sofar marker block (<!-- sofar:protocol --> … <!-- /sofar:protocol -->).
+  - [ ] Run \`sofar status ${slug}\` and compare against ${file}: goal,
         phases, tasks, decisions, and next action must all be reproduced.
   - [ ] Only after status reproduces the legacy state: archive or delete
         ${file} (or stamp it superseded with
-        \`harness adopt ${file} ${slug} --mark\`).
+        \`sofar adopt ${file} ${slug} --mark\`).
 
-Verify: run \`harness status ${slug}\` and compare it against ${file}.
+Verify: run \`sofar status ${slug}\` and compare it against ${file}.
 `
 }
 
@@ -128,15 +128,15 @@ export function runAdopt(
   if (!existsSync(legacyPath) || !statSync(legacyPath).isFile()) {
     return typedFail({
       code: 'io_error',
-      message: `legacy file not found: ${legacyFile} — pass the path of the pre-harness record to migrate`,
+      message: `legacy file not found: ${legacyFile} — pass the path of the pre-sofar record to migrate`,
     })
   }
 
   const ctx = createToolContext(rootDir)
-  if (!existsSync(ctx.harnessDir)) {
+  if (!existsSync(ctx.sofarDir)) {
     return typedFail({
       code: 'io_error',
-      message: `no .harness/ found under ${rootDir} — run \`harness init\` first, then \`harness new <slug>\` for the target initiative`,
+      message: `no .sofar/ found under ${rootDir} — run \`sofar init\` first, then \`sofar new <slug>\` for the target initiative`,
     })
   }
 
@@ -144,7 +144,7 @@ export function runAdopt(
   try {
     resolved = ctx.resolveInitiative(slug)
   } catch (err) {
-    const hint = ` — create the target initiative with \`harness new ${slug ?? '<slug>'}\` first`
+    const hint = ` — create the target initiative with \`sofar new ${slug ?? '<slug>'}\` first`
     if (err instanceof ToolError) {
       return typedFail({ code: err.code, message: `${err.message}${hint}` })
     }

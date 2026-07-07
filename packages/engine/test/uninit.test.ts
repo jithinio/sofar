@@ -16,7 +16,7 @@ import { hookCommand, PROTOCOL_START, PROTOCOL_END, runInit } from '../src/cli/i
 import { runUninit } from '../src/cli/uninit'
 
 /**
- * Task 8.1 — `harness uninit [--purge]` (BD45): surgical inverse of init.
+ * Task 8.1 — `sofar uninit [--purge]` (BD45): surgical inverse of init.
  * Command-level coverage: report lines/notices, foreign-content preservation
  * inside the files it edits, seam restoration, --purge semantics, abort on
  * unparseable JSON, idempotency. The four formal round-trip scenarios
@@ -29,9 +29,9 @@ afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true })
 })
 
-/** Fresh temp repo: just .git/HEAD on main — no .harness, no .claude. */
+/** Fresh temp repo: just .git/HEAD on main — no .sofar, no .claude. */
 function freshRepo(): string {
-  const root = mkdtempSync(join(tmpdir(), 'harness-uninit-'))
+  const root = mkdtempSync(join(tmpdir(), 'sofar-uninit-'))
   roots.push(root)
   mkdirSync(join(root, '.git'), { recursive: true })
   writeFileSync(join(root, '.git', 'HEAD'), 'ref: refs/heads/main\n')
@@ -65,7 +65,7 @@ function stableJSON(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`
 }
 
-describe('harness uninit on an inited fresh repo', () => {
+describe('sofar uninit on an inited fresh repo', () => {
   it('strips the wiring, keeps the record with a notice, and reports each change', () => {
     const root = freshRepo()
     expect(runInit(root).exitCode).toBe(0)
@@ -83,16 +83,16 @@ describe('harness uninit on an inited fresh repo', () => {
 
     // settings.json: hooks key removed, file kept (never deleted sans --purge)
     expect(readJSON(join(root, '.claude', 'settings.json'))).toEqual({})
-    // .mcp.json: harness server removed, file kept
+    // .mcp.json: sofar server removed, file kept
     expect(readJSON(join(root, '.mcp.json'))).toEqual({})
     // protocol blocks removed, files kept even though empty
     expect(readFileSync(join(root, 'CLAUDE.md'), 'utf8')).toBe('')
     expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe('')
 
     // the record is KEPT, with the notice
-    expect(existsSync(join(root, '.harness', 'repo.md'))).toBe(true)
-    expect(result.stdout).toContain('record kept at .harness/ (use --purge to delete it)')
-    expect(result.stdout).toMatch(/harness uninit: done \(\d+ changes\)/)
+    expect(existsSync(join(root, '.sofar', 'repo.md'))).toBe(true)
+    expect(result.stdout).toContain('record kept at .sofar/ (use --purge to delete it)')
+    expect(result.stdout).toMatch(/sofar uninit: done \(\d+ changes\)/)
   })
 
   it('is idempotent: a second run changes zero bytes and says nothing to remove', () => {
@@ -103,7 +103,7 @@ describe('harness uninit on an inited fresh repo', () => {
 
     const second = runUninit(root)
     expect(second.exitCode).toBe(0)
-    expect(second.stdout).toContain('harness uninit: nothing to remove')
+    expect(second.stdout).toContain('sofar uninit: nothing to remove')
     expect(second.stdout).not.toMatch(/^(removed|updated) /m)
     expect(hashTree(root)).toEqual(before)
   })
@@ -113,12 +113,12 @@ describe('harness uninit on an inited fresh repo', () => {
     runInit(root)
     const result = runUninit(root, { purge: true })
     expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain('removed .harness/ (record deleted)')
+    expect(result.stdout).toContain('removed .sofar/ (record deleted)')
     expect(result.stderr).toContain('irreversible')
-    expect(result.stderr).toContain('harness export')
+    expect(result.stderr).toContain('sofar export')
 
     // everything init created is gone — only .git remains
-    expect(existsSync(join(root, '.harness'))).toBe(false)
+    expect(existsSync(join(root, '.sofar'))).toBe(false)
     expect(existsSync(join(root, '.claude'))).toBe(false)
     expect(existsSync(join(root, '.mcp.json'))).toBe(false)
     expect(existsSync(join(root, 'CLAUDE.md'))).toBe(false)
@@ -127,7 +127,7 @@ describe('harness uninit on an inited fresh repo', () => {
   })
 })
 
-describe('harness uninit preserves foreign content in the files it edits', () => {
+describe('sofar uninit preserves foreign content in the files it edits', () => {
   it('removes only our hook entries; foreign hooks, events, and settings stay', () => {
     const root = freshRepo()
     mkdirSync(join(root, '.claude'), { recursive: true })
@@ -202,7 +202,7 @@ describe('harness uninit preserves foreign content in the files it edits', () =>
 
     const result = runUninit(root)
     expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain('updated CLAUDE.md (harness protocol block removed)')
+    expect(result.stdout).toContain('updated CLAUDE.md (sofar protocol block removed)')
     expect(readFileSync(join(root, 'CLAUDE.md'), 'utf8')).toBe(claudeProse)
     expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe(agentsProse)
   })
@@ -219,13 +219,13 @@ describe('harness uninit preserves foreign content in the files it edits', () =>
   })
 })
 
-describe('harness uninit edge cases', () => {
+describe('sofar uninit edge cases', () => {
   it('never-inited repo: exit 0, nothing to remove, tree untouched', () => {
     const root = freshRepo()
     const before = hashTree(root)
     const result = runUninit(root)
     expect(result.exitCode).toBe(0)
-    expect(result.stdout).toBe('harness uninit: nothing to remove\n')
+    expect(result.stdout).toBe('sofar uninit: nothing to remove\n')
     expect(hashTree(root)).toEqual(before)
   })
 

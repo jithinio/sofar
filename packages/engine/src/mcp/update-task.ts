@@ -1,8 +1,8 @@
-import type { ToolOkResult, UpdateTaskArgs } from '@harness/schema/tool-inputs'
+import type { ToolOkResult, UpdateTaskArgs } from '@sofar/schema/tool-inputs'
 import type { ToolContext } from './context'
 
 /**
- * harness_update_task — maps args {task_id, status, note?} onto the
+ * sofar_update_task — maps args {task_id, status, note?} onto the
  * task_status_changed payload {id, status, note?} (BD18: tool surface says
  * task_id per SPEC §MCP tools; the Phase 1 payload schema says id).
  */

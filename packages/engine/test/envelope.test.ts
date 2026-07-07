@@ -8,7 +8,7 @@ import {
 
 function valid(): EventEnvelope {
   return makeEvent({
-    initiative: 'harness-build',
+    initiative: 'sofar-build',
     session: 'cli',
     source: 'cli',
     actor: 'agent',

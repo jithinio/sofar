@@ -13,7 +13,7 @@ import { renderSession } from './templates/session'
  * Called on every append (BD14 seam, SPEC §MCP tools). Full templates since
  * Phase 3 (task 3.6): plan.md (goal, progress, phase tree), decisions.md,
  * and sessions/<session-id>.md per known session. The status block is not a
- * file — `harness event session-start` renders it straight to stdout.
+ * file — `sofar event session-start` renders it straight to stdout.
  *
  * Every write is ATOMIC (task 6.3, BD38): temp file in the SAME directory,
  * then rename over the target — atomic on POSIX same-fs — so concurrent

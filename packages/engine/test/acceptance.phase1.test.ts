@@ -19,7 +19,7 @@ import { foldLog } from '../src/core/fold'
 import { appendEvent } from '../src/core/log'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
-const scratch = mkdtempSync(join(tmpdir(), 'harness-acceptance-'))
+const scratch = mkdtempSync(join(tmpdir(), 'sofar-acceptance-'))
 const logPath = join(scratch, 'initiative', 'events.jsonl')
 
 const WORKERS = 4

@@ -14,7 +14,7 @@ export function renderPlan(state: InitiativeState): string {
   lines.push(`Progress: ${done}/${total} tasks done (${pct(done, total)})`, '')
 
   if (state.phases.length === 0) {
-    lines.push('(no plan recorded yet — call harness_update_plan)', '')
+    lines.push('(no plan recorded yet — call sofar_update_plan)', '')
   }
   for (const phase of state.phases) {
     const [phaseDone, phaseTotal] = taskProgress([phase])

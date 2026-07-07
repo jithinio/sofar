@@ -1,30 +1,30 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { TOOL_INPUT_SCHEMAS, TOOL_NAMES, type ToolName } from '@harness/schema/tool-inputs'
-import { createHarnessServer, SERVER_NAME } from '../src/mcp/server'
+import { TOOL_INPUT_SCHEMAS, TOOL_NAMES, type ToolName } from '@sofar/schema/tool-inputs'
+import { createSofarServer, SERVER_NAME } from '../src/mcp/server'
 import { foldLog, type InitiativeState } from '../src/core/fold'
 import { GENERATED_HEADER } from '../src/projections/templates/shared'
 import { handleSessionStart } from '../src/cli/event'
 import { callTool, connectServer, makeRepoFixture } from './helpers/mcp'
 
 describe('MCP server skeleton (2.1)', () => {
-  it('identifies as "harness" and lists all seven typed tools', async () => {
+  it('identifies as "sofar" and lists all seven typed tools', async () => {
     const { client } = await connectServer(makeRepoFixture().root)
-    expect(SERVER_NAME).toBe('harness')
+    expect(SERVER_NAME).toBe('sofar')
 
     const { tools } = await client.listTools()
     expect(tools.map((t) => t.name)).toEqual([...TOOL_NAMES])
     for (const tool of tools) {
       expect(tool.description).toBeTruthy()
-      // schemas served verbatim from @harness/schema — the only schema home
+      // schemas served verbatim from @sofar/schema — the only schema home
       expect(tool.inputSchema).toEqual(TOOL_INPUT_SCHEMAS[tool.name as ToolName])
     }
     await client.close()
   })
 
   it('resolves rootDir to an absolute path with cwd as default', () => {
-    expect(createHarnessServer({ rootDir: '.' }).rootDir).toBe(process.cwd())
-    expect(createHarnessServer().rootDir).toBe(process.cwd())
+    expect(createSofarServer({ rootDir: '.' }).rootDir).toBe(process.cwd())
+    expect(createSofarServer().rootDir).toBe(process.cwd())
   })
 })
 
@@ -34,7 +34,7 @@ describe('MCP tools round-trip (2.2)', () => {
     const { client, handle } = await connectServer(fixture.root)
 
     // start_session — becomes the active session
-    const started = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+    const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
       tool: 'claude-code',
       model: 'fable-5',
     })
@@ -61,25 +61,25 @@ describe('MCP tools round-trip (2.2)', () => {
         },
       ],
     }
-    expect((await callTool(client, 'harness_update_plan', { plan })).isError).toBe(false)
+    expect((await callTool(client, 'sofar_update_plan', { plan })).isError).toBe(false)
     expect(
-      (await callTool(client, 'harness_update_task', { task_id: '1.1', status: 'done' })).isError,
+      (await callTool(client, 'sofar_update_task', { task_id: '1.1', status: 'done' })).isError,
     ).toBe(false)
     expect(
       (
-        await callTool(client, 'harness_log_decision', {
+        await callTool(client, 'sofar_log_decision', {
           chose: 'sqlite',
           over: 'postgres',
           because: 'zero ops',
         })
       ).isError,
     ).toBe(false)
-    expect((await callTool(client, 'harness_add_note', { text: 'remember the docs' })).isError).toBe(
+    expect((await callTool(client, 'sofar_add_note', { text: 'remember the docs' })).isError).toBe(
       false,
     )
 
     // end_session — session_id arg wins, active session cleared
-    const ended = await callTool<{ ok: boolean }>(client, 'harness_end_session', {
+    const ended = await callTool<{ ok: boolean }>(client, 'sofar_end_session', {
       session_id: sessionId,
       summary: 'did the round trip',
       next_action: 'review the log',
@@ -128,7 +128,7 @@ describe('MCP tools round-trip (2.2)', () => {
 
     // get_state over MCP matches the direct fold (slug filled in from the
     // resolved initiative — no initiative_created event exists in this log)
-    const viaTool = await callTool<InitiativeState>(client, 'harness_get_state', {})
+    const viaTool = await callTool<InitiativeState>(client, 'sofar_get_state', {})
     expect(viaTool.isError).toBe(false)
     expect(viaTool.body).toEqual(JSON.parse(JSON.stringify({ ...state, slug: fixture.slug })))
 
@@ -139,7 +139,7 @@ describe('MCP tools round-trip (2.2)', () => {
     const fixture = makeRepoFixture()
     const { client } = await connectServer(fixture.root)
 
-    await callTool(client, 'harness_add_note', { text: 'no session here' })
+    await callTool(client, 'sofar_add_note', { text: 'no session here' })
     const line = JSON.parse(readFileSync(fixture.eventsPath, 'utf8').trim())
     expect(line.session).toBe('cli')
     expect(line.source).toBe('cli')
@@ -153,7 +153,7 @@ describe('MCP tools round-trip (2.2)', () => {
     handleSessionStart(fixture.root, JSON.stringify({ session_id: 'claude-hook-sess' }))
 
     const { client, handle } = await connectServer(fixture.root)
-    const started = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+    const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
       tool: 'claude-code',
       session_id: 'claude-hook-sess',
     })
@@ -170,7 +170,7 @@ describe('MCP tools round-trip (2.2)', () => {
     expect(lines).toHaveLength(1)
 
     // end_session closes the adopted (hook-registered) session
-    await callTool(client, 'harness_end_session', {
+    await callTool(client, 'sofar_end_session', {
       session_id: 'claude-hook-sess',
       summary: 'adopted and closed',
       next_action: 'nothing',
@@ -190,7 +190,7 @@ describe('MCP tools round-trip (2.2)', () => {
     handleSessionStart(fixture.root, JSON.stringify({ session_id: 'parallel-agent-sess' }))
 
     const { client, handle } = await connectServer(fixture.root)
-    const started = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+    const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
       tool: 'claude-code',
     })
     expect(started.isError).toBe(false)
@@ -208,19 +208,19 @@ describe('MCP tools round-trip (2.2)', () => {
     const fixture = makeRepoFixture()
     const { client, handle } = await connectServer(fixture.root)
 
-    const first = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+    const first = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
       tool: 'claude-code',
       session_id: 'done-sess',
     })
     expect(first.body.session_id).toBe('done-sess')
-    await callTool(client, 'harness_end_session', {
+    await callTool(client, 'sofar_end_session', {
       session_id: 'done-sess',
       summary: 'finished',
       next_action: 'nothing',
     })
 
     const linesBefore = readFileSync(fixture.eventsPath, 'utf8').trim().split('\n').length
-    const retry = await callTool<{ code: string; message: string }>(client, 'harness_start_session', {
+    const retry = await callTool<{ code: string; message: string }>(client, 'sofar_start_session', {
       tool: 'claude-code',
       session_id: 'done-sess',
     })
@@ -236,7 +236,7 @@ describe('MCP tools round-trip (2.2)', () => {
     const fixture = makeRepoFixture()
     const { client, handle } = await connectServer(fixture.root)
 
-    const started = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+    const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
       tool: 'claude-code',
       model: 'fable-5',
       session_id: 'mcp-only-sess',
@@ -260,16 +260,16 @@ describe('MCP tools round-trip (2.2)', () => {
     const fixture = makeRepoFixture()
     const { client } = await connectServer(fixture.root)
 
-    const first = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+    const first = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
       tool: 'claude-code',
     })
-    await callTool(client, 'harness_end_session', {
+    await callTool(client, 'sofar_end_session', {
       session_id: first.body.session_id,
       summary: 'done',
       next_action: 'next',
     })
 
-    const second = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+    const second = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
       tool: 'claude-code',
     })
     expect(second.body.session_id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/)
@@ -281,10 +281,10 @@ describe('MCP tools round-trip (2.2)', () => {
     const fixture = makeRepoFixture()
     const { client } = await connectServer(fixture.root)
 
-    const started = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+    const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
       tool: 'aider',
     })
-    await callTool(client, 'harness_add_note', { text: 'from an unknown tool' })
+    await callTool(client, 'sofar_add_note', { text: 'from an unknown tool' })
 
     const lines = readFileSync(fixture.eventsPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l))
     for (const event of lines) {

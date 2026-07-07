@@ -16,7 +16,7 @@ import {
   type TaskAddedPayload,
   type TaskStatus,
   type TaskStatusChangedPayload,
-} from '@harness/schema'
+} from '@sofar/schema'
 
 /**
  * Fold/replay: events.jsonl → InitiativeState (SPEC §State).

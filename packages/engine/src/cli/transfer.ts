@@ -5,7 +5,7 @@ import { regenerateProjections } from '../projections/generator'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 
 /**
- * `harness export [slug] [--since <id>]` / `harness import <file|-> [slug]`
+ * `sofar export [slug] [--since <id>]` / `sofar import <file|-> [slug]`
  * (task 4.4, SPEC §CLI/§Cursor) — thin CLI wrappers over core/cursor.ts, the
  * entire future sync interface. Initiative resolution matches status/MCP
  * (explicit slug wins, else branch binding — BD16). Export writes NDJSON to
@@ -26,9 +26,9 @@ export function runExport(rootDir: string, options: ExportOptions = {}): CmdResu
     slug = ctx.resolveInitiative(options.slug)
   } catch (err) {
     if (err instanceof ToolError) {
-      return fail(`harness export: ${err.message} (usage: harness export [slug] [--since <id>])`)
+      return fail(`sofar export: ${err.message} (usage: sofar export [slug] [--since <id>])`)
     }
-    return fail(`harness export: ${errMessage(err)}`)
+    return fail(`sofar export: ${errMessage(err)}`)
   }
 
   try {
@@ -36,7 +36,7 @@ export function runExport(rootDir: string, options: ExportOptions = {}): CmdResu
     const ndjson = events.length === 0 ? '' : events.map(serializeEvent).join('\n') + '\n'
     return ok(ndjson, warnings.map((w) => `warning: ${w}`).join('\n'))
   } catch (err) {
-    return fail(`harness export: ${errMessage(err)}`)
+    return fail(`sofar export: ${errMessage(err)}`)
   }
 }
 
@@ -52,9 +52,9 @@ export function runImport(rootDir: string, ndjson: string, options: ImportOption
     slug = ctx.resolveInitiative(options.slug)
   } catch (err) {
     if (err instanceof ToolError) {
-      return fail(`harness import: ${err.message} (usage: harness import <file|-> [slug])`)
+      return fail(`sofar import: ${err.message} (usage: sofar import <file|-> [slug])`)
     }
-    return fail(`harness import: ${errMessage(err)}`)
+    return fail(`sofar import: ${errMessage(err)}`)
   }
 
   try {
@@ -67,6 +67,6 @@ export function runImport(rootDir: string, ndjson: string, options: ImportOption
       warnings.map((w) => `warning: ${w}`).join('\n'),
     )
   } catch (err) {
-    return fail(`harness import: ${errMessage(err)}`)
+    return fail(`sofar import: ${errMessage(err)}`)
   }
 }

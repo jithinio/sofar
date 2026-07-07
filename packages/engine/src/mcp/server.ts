@@ -12,7 +12,7 @@ import {
   validateToolInput,
   type ToolArgs,
   type ToolName,
-} from '@harness/schema/tool-inputs'
+} from '@sofar/schema/tool-inputs'
 import { resolve } from 'node:path'
 import { createToolContext, ToolError, type ActiveSession, type ToolContext } from './context'
 import { getState } from './get-state'
@@ -24,10 +24,10 @@ import { updatePlan } from './update-plan'
 import { addNote } from './add-note'
 
 /**
- * Harness MCP server (SPEC §MCP tools) — low-level SDK API on purpose (BD12):
+ * Sofar MCP server (SPEC §MCP tools) — low-level SDK API on purpose (BD12):
  * tools are declared with plain JSON Schema objects and validated by
- * @harness/schema validators, keeping zod out of our runtime dependency set.
- * Launched over stdio by `harness mcp` (BD13).
+ * @sofar/schema validators, keeping zod out of our runtime dependency set.
+ * Launched over stdio by `sofar mcp` (BD13).
  *
  * Every tool call = validate args → append event (core/log) → regenerate
  * projections → return. Failures come back as isError results whose text is
@@ -35,17 +35,17 @@ import { addNote } from './add-note'
  * so agents always see an actionable, parseable error.
  */
 
-export const SERVER_NAME = 'harness'
+export const SERVER_NAME = 'sofar'
 export const SERVER_VERSION = '0.1.0'
 
 const handlers: { [K in ToolName]: (ctx: ToolContext, args: ToolArgs[K]) => unknown } = {
-  harness_get_state: getState,
-  harness_start_session: startSession,
-  harness_end_session: endSession,
-  harness_update_task: updateTask,
-  harness_log_decision: logDecision,
-  harness_update_plan: updatePlan,
-  harness_add_note: addNote,
+  sofar_get_state: getState,
+  sofar_start_session: startSession,
+  sofar_end_session: endSession,
+  sofar_update_task: updateTask,
+  sofar_log_decision: logDecision,
+  sofar_update_plan: updatePlan,
+  sofar_add_note: addNote,
 }
 
 function okResult(value: unknown): CallToolResult {
@@ -56,18 +56,18 @@ function errorResult(error: ToolError): CallToolResult {
   return { isError: true, content: [{ type: 'text', text: JSON.stringify(error.toShape()) }] }
 }
 
-export interface CreateHarnessServerOptions {
-  /** Repo root containing .harness/ — defaults to process.cwd(). */
+export interface CreateSofarServerOptions {
+  /** Repo root containing .sofar/ — defaults to process.cwd(). */
   rootDir?: string
 }
 
-export interface HarnessServerHandle {
+export interface SofarServerHandle {
   server: Server
   context: ToolContext
   rootDir: string
   /** The in-memory active session, if any (BD15) — exposed for tests. */
   getActiveSession(): ActiveSession | null
-  /** Connect the server to stdio (production path — `harness mcp`). */
+  /** Connect the server to stdio (production path — `sofar mcp`). */
   connectStdio(): Promise<void>
 }
 
@@ -75,7 +75,7 @@ export interface HarnessServerHandle {
  * Build the server without connecting a transport, so tests can attach an
  * InMemoryTransport and production attaches stdio.
  */
-export function createHarnessServer(options: CreateHarnessServerOptions = {}): HarnessServerHandle {
+export function createSofarServer(options: CreateSofarServerOptions = {}): SofarServerHandle {
   const rootDir = resolve(options.rootDir ?? process.cwd())
   const context = createToolContext(rootDir)
 
