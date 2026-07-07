@@ -1,3 +1,6 @@
 node_modules/
 dist/
 .DS_Store
+# prepack copies the repo-root README into the engine package for the
+# tarball; postpack removes it — never committed (single source at root)
+/packages/engine/README.md

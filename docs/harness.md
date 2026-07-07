@@ -9,18 +9,19 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 (00-spine, 01-roadmap, 02-action-plan, 03-architecture).
 
 ## Current state
-- Active phase: 6 (hardening + distribution readiness; ceremony items
-  5.2/5.3 remain open and user-driven in parallel). Phase 6 progress:
-  6.3 done (atomic projection writes, BD38), 6.4 done (version
-  single-sourced from package.json, BD39), 6.5 done (repo.md in the
-  SessionStart context with a 1.5k budget, BD40), 6.2 done (zero-dep
-  installable tarball + packaging E2E, BD41). Phase 5 status: 5.1
-  done: `harness event append` dialect surface +
-  AGENTS.md protocol block with the three BD19 clauses, Stop-hook
-  write-back parity proven. 5.2 docs + checklist simulation done — the
-  manual OpenCode verification run is still pending, so its box stays
-  open. Codex cold-resume found and fixed one serve watcher race; 236 tests
-  green)
+- Active phase: 6 COMPLETE (hardening + distribution readiness, all five
+  tasks done Jul 7: 6.3 atomic projection writes BD38, 6.4 version
+  single-sourced BD39, 6.5 repo.md in the SessionStart context BD40,
+  6.2 zero-dep installable tarball + packaging E2E BD41, 6.1 root README +
+  pack-time tarball README BD42; 245 tests green, 23 files). The engine
+  is distribution-ready: `npm pack` in packages/engine yields an
+  installable zero-dependency tarball; publishing (flipping the engine's
+  "private") remains a user decision. Ceremony items 5.2/5.3 remain open
+  and user-driven in parallel. Phase 5 status: 5.1 done: `harness event
+  append` dialect surface + AGENTS.md protocol block with the three BD19
+  clauses, Stop-hook write-back parity proven. 5.2 docs + checklist
+  simulation done — the manual OpenCode verification run is still pending,
+  so its box stays open.
 - Next action: Task 5.3 remainder, both legs USER-DRIVEN and both now
   reduced to scoring/authorization only: (a) the arm-C Opus 4.8 resume has
   been EXECUTED (session log 2026-07-07 "THE ARM-C RESUME" — fresh Opus
@@ -92,7 +93,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
       handoff as a real arm-C run on the Phase 0 scorecard
 
 ### Phase 6 — Hardening + distribution readiness [active]  (added Jul 7, BD37)
-- [ ] 6.1 README.md: what/why, install, quickstart (init/new/status),
+- [x] 6.1 README.md: what/why, install, quickstart (init/new/status),
       MCP server, hooks, AGENTS.md dialect — the front door for npm users
 - [x] 6.2 Packaging: bundled-bin distribution — the engine tarball must
       install with zero runtime deps (bin is fully esbuild-bundled);
@@ -525,6 +526,24 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   Rejected publishing @harness/schema to make the old manifest installable
   (publishes an internal package nobody imports at runtime) and rejected
   removing "private" now (publish is a user decision, not a build gate).
+- BD42: README.md at repo root (task 6.1) — terse/factual npm front door in
+  the docs' register (no marketing voice, badges, or emoji): what harness is
+  (truth in events.jsonl, everything else generated projections), honest
+  pre-publish install (pack a tarball from a checkout; `npm install -g
+  harness` only "once published"), quickstart (init → new → work loop →
+  status), the three integration surfaces (MCP tools; hook shims incl. the
+  Stop write-back gate; AGENTS.md CLI dialect with mandatory write-back),
+  the SPEC §Record layout diagram verbatim, a one-line-per-command CLI
+  table, and links to docs/SPEC.md + docs/harness.md. Tarball README: ONE
+  source at repo root — engine "prepack" copies it into packages/engine
+  (npm auto-includes README.md even with files:["dist"] — verified in the
+  tarball listing), "postpack" deletes the copy, and .gitignore excludes it
+  so it can never be committed and drift (the BD34/BD35 no-pointer+copy
+  rule, kept by generating the copy at pack time only); packaging E2E now
+  asserts the installed package carries the README and the engine dir is
+  clean after pack. Rejected a hand-maintained packages/engine/README.md
+  (two front doors drift) and rejected symlinking (npm pack follows
+  symlinks inconsistently across platforms).
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,

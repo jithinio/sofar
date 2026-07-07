@@ -15,7 +15,8 @@
   ],
   "scripts": {
     "build": "node build.mjs",
-    "prepack": "node build.mjs",
+    "prepack": "node build.mjs && node -e \"require('node:fs').copyFileSync('../../README.md', 'README.md')\"",
+    "postpack": "node -e \"require('node:fs').rmSync('README.md', { force: true })\"",
     "typecheck": "tsc --noEmit -p ."
   },
   "devDependencies": {

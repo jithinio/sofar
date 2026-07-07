@@ -79,8 +79,11 @@ describe('packaging E2E (6.2, BD41) — npm pack → global install → installe
   it('npm pack produces the tarball (prepack rebuilds dist; private only blocks publish, not pack)', () => {
     const packed = npm(['pack', '--pack-destination', packDest], engineDir)
     expect(packed.status).toBe(0)
-    expect(packed.stdout.trim().split('\n').at(-1)).toBe(`${manifest.name}-${manifest.version}.tgz`)
+    expect(packed.stdout).toContain(`${manifest.name}-${manifest.version}.tgz`)
     expect(existsSync(tarball)).toBe(true)
+
+    // postpack cleans the prepack README copy — the working tree stays tidy
+    expect(existsSync(join(engineDir, 'README.md'))).toBe(false)
 
     // manifest law: a consumer installs ZERO dependencies (BD7 set is devDeps,
     // bundled into dist/cli.js) — the tarball must not declare any.
@@ -95,6 +98,10 @@ describe('packaging E2E (6.2, BD41) — npm pack → global install → installe
     const pkgDir = join(prefix, 'lib', 'node_modules', 'harness')
     expect(existsSync(join(pkgDir, 'dist', 'cli.js'))).toBe(true)
     expect(existsSync(join(prefix, 'bin', 'harness'))).toBe(true)
+    // npm auto-includes README.md (prepack copies the repo-root one in)
+    expect(readFileSync(join(pkgDir, 'README.md'), 'utf8')).toContain(
+      'Event-sourced initiative memory for coding agents',
+    )
 
     // zero runtime deps landed — the bundled-CLI contract
     const depDirs = existsSync(join(pkgDir, 'node_modules'))
