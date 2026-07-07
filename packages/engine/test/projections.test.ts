@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -122,6 +122,28 @@ describe('projection templates (v0 seam — BD14)', () => {
     updated.goal = 'ship it faster'
     regenerateProjections(dir, updated)
     expect(readFileSync(join(dir, 'plan.md'), 'utf8')).toContain('Goal: ship it faster')
+  })
+
+  it('atomic writes (6.3, BD38): repeated regeneration leaves no *.tmp behind, files stay complete', () => {
+    const dir = join(scratch, 'initiatives', 'atomic')
+    const state = populatedState()
+    state.sessions = [
+      { id: 'sess-atomic', tool: 'claude-code', started: '2026-07-07T00:00:00.000Z' },
+    ]
+    regenerateProjections(dir, state)
+    regenerateProjections(dir, state) // second pass renames over existing targets
+
+    const leftovers = readdirSync(dir, { recursive: true })
+      .map(String)
+      .filter((name) => name.endsWith('.tmp'))
+    expect(leftovers).toEqual([])
+
+    // targets are the fully rendered documents — never a partial write
+    expect(readFileSync(join(dir, 'plan.md'), 'utf8')).toBe(renderPlan(state))
+    expect(readFileSync(join(dir, 'decisions.md'), 'utf8')).toBe(renderDecisions(state))
+    expect(readFileSync(join(dir, 'sessions', 'sess-atomic.md'), 'utf8')).toBe(
+      renderSession(state, state.sessions[0]!),
+    )
   })
 })
 

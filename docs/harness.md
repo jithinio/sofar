@@ -10,12 +10,13 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 
 ## Current state
 - Active phase: 6 (hardening + distribution readiness; ceremony items
-  5.2/5.3 remain open and user-driven in parallel). Phase 5 status: 5.1
+  5.2/5.3 remain open and user-driven in parallel). Phase 6 progress:
+  6.3 done (atomic projection writes, BD38). Phase 5 status: 5.1
   done: `harness event append` dialect surface +
   AGENTS.md protocol block with the three BD19 clauses, Stop-hook
   write-back parity proven. 5.2 docs + checklist simulation done — the
   manual OpenCode verification run is still pending, so its box stays
-  open. Codex cold-resume found and fixed one serve watcher race; 235 tests
+  open. Codex cold-resume found and fixed one serve watcher race; 236 tests
   green)
 - Next action: Task 5.3 remainder, both legs USER-DRIVEN and both now
   reduced to scoring/authorization only: (a) the arm-C Opus 4.8 resume has
@@ -93,7 +94,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [ ] 6.2 Packaging: bundled-bin distribution — the engine tarball must
       install with zero runtime deps (bin is fully esbuild-bundled);
       npm pack → install into temp prefix → `harness init` E2E test
-- [ ] 6.3 Atomic projection writes (temp file + rename) — serve and
+- [x] 6.3 Atomic projection writes (temp file + rename) — serve and
       SessionStart must never see a half-written plan.md/status
 - [ ] 6.4 CLI version single-sourced from package.json (currently
       hardcoded '0.1.0' in src/cli/index.ts — drift waiting to happen)
@@ -453,6 +454,21 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   append SLA (watcher path still asserts it). Rejected unbounded polling
   or static/UI work; rejected treating the failure as test-only because it
   reproduced the exact product path the test protects.
+- BD38: Projection writes are atomic (task 6.3) — generator.ts writes every
+  generated file (plan.md, decisions.md, sessions/*.md) to a uniquely-named
+  `.<target>.<pid>.<random>.tmp` in the SAME directory, then renameSync over
+  the target (atomic on POSIX same-fs), so serve's /state fold, a
+  SessionStart fold, or a human tailing plan.md never observes a half-written
+  projection; any write failure removes the temp file, and a unit test
+  asserts no *.tmp lingers after repeated regeneration. Temp names are
+  dot-prefixed and pid+random-suffixed so concurrent regenerations never
+  collide, and serve's watcher (basename-filtered to events.jsonl) never
+  fires on them. Generator keeps plain-overwrite semantics — checked: init's
+  byte-level idempotency never depended on generator write-if-changed (init
+  renders no projections), and the init hash-tree tests stay green. Rejected
+  write-if-changed in the generator (a read per file per append to optimize
+  nothing measured) and fsync ceremony (events.jsonl is truth; projections
+  are regenerable).
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,
