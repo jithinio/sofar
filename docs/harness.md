@@ -9,20 +9,26 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 (00-spine, 01-roadmap, 02-action-plan, 03-architecture).
 
 ## Current state
-- Active phase: 5 (5.1 done: `harness event append` dialect surface +
+- Active phase: 6 (hardening + distribution readiness; ceremony items
+  5.2/5.3 remain open and user-driven in parallel). Phase 5 status: 5.1
+  done: `harness event append` dialect surface +
   AGENTS.md protocol block with the three BD19 clauses, Stop-hook
   write-back parity proven. 5.2 docs + checklist simulation done — the
   manual OpenCode verification run is still pending, so its box stays
   open. Codex cold-resume found and fixed one serve watcher race; 235 tests
   green)
-- Next action: Task 5.3 remainder — ALL USER-DRIVEN: (a) the manual
-  OpenCode run per docs/opencode-adapter.md §3 (steps 1–3 are scripted
-  there; the agent prompt is in §3's intro), then flip 5.2; (b) fresh
-  Claude Code session on Opus 4.8 in this repo, prompt only "resume this
-  initiative", score as arm-C on the (user-held) Phase 0 scorecard. The
-  final Fable write-back is DONE (session log 2026-07-07); the record is
-  the handoff artifact.
-- Blocked on: nothing
+- Next action: Task 5.3 remainder, both legs USER-DRIVEN and both now
+  reduced to scoring/authorization only: (a) the arm-C Opus 4.8 resume has
+  been EXECUTED (session log 2026-07-07 "THE ARM-C RESUME" — fresh Opus
+  4.8 [1m] session, "resume this initiative" only, oriented from the record
+  alone, verified 235/235 green at HEAD 7e9aff2, asked nothing); it now
+  needs the user to SCORE it as arm-C on the (user-held) Phase 0 scorecard —
+  that closes 5.3's handoff leg. (b) the manual OpenCode run per
+  docs/opencode-adapter.md §3 (steps 1–3 scripted there; agent prompt in
+  §3's intro) then flip 5.2. The final Fable write-back is DONE (session
+  log 2026-07-07); the record is the handoff artifact and it just carried a
+  zero-context Opus 4.8 session end-to-end.
+- Blocked on: nothing (both remainders are user-side actions, not blockers)
 
 ## Plan
 
@@ -80,6 +86,20 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [ ] 5.3 THE CEREMONY: final Fable session writes back via protocol;
       Opus 4.8 resumes this initiative from the record alone; score the
       handoff as a real arm-C run on the Phase 0 scorecard
+
+### Phase 6 — Hardening + distribution readiness [active]  (added Jul 7, BD37)
+- [ ] 6.1 README.md: what/why, install, quickstart (init/new/status),
+      MCP server, hooks, AGENTS.md dialect — the front door for npm users
+- [ ] 6.2 Packaging: bundled-bin distribution — the engine tarball must
+      install with zero runtime deps (bin is fully esbuild-bundled);
+      npm pack → install into temp prefix → `harness init` E2E test
+- [ ] 6.3 Atomic projection writes (temp file + rename) — serve and
+      SessionStart must never see a half-written plan.md/status
+- [ ] 6.4 CLI version single-sourced from package.json (currently
+      hardcoded '0.1.0' in src/cli/index.ts — drift waiting to happen)
+- [ ] 6.5 repo.md surfaces in the SessionStart context block with its own
+      budget (record layout defines it; nothing reads it today) — the
+      ≤10,000-char cap guarantee must hold
 
 ## Decisions
 - BD1: Stack = TypeScript/Node ≥18. MCP SDK is TS-first; users have Node
@@ -414,6 +434,13 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   multi-hop routing reliably. Also field-noted: a session must LAUNCH
   inside the repo — no root file can route a blank workspace (the failed
   Codex attempt started in ~/Documents/Codex/<date>, not the repo).
+- BD37: Phase 6 (hardening + distribution readiness) added post-plan on
+  user direction ("continue the development", Jul 7). Contents chosen as
+  the gap between "SPEC-complete" and "shippable": README, installable
+  tarball, atomic projection writes, version single-sourcing, repo.md
+  surfacing. Scope law intact — no UI/sync/team/telemetry. Rejected
+  starting post-v1 roadmap items (ui, sync): guard-rail violation inside
+  the window; those need the user to reopen scope explicitly.
 - BD36: serve now has a bounded reconciliation safety net for connected SSE
   clients (Jul 7 Codex resume). A full-suite run reproduced a remaining
   new-initiative miss: even the BD33 `addDir` fallback can fail to observe
@@ -574,3 +601,24 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   then flip 5.2; (b) fresh Claude Code session on OPUS 4.8 with only
   "resume this initiative", scored as arm-C on the user-held Phase 0
   scorecard.
+- 2026-07-07, later (claude-code / Opus 4.8 [1m]) — THE ARM-C RESUME
+  (5.3 handoff execution leg — the run the two prior probes could not be):
+  fresh session, prompt "resume this initiative" only. Oriented from the
+  record alone — root CLAUDE.md (auto-loaded) → docs/harness.md →
+  docs/SPEC.md — reconstructed the full phase/decision/guard-rail state,
+  confirmed the remaining work is user-side, and asked the user nothing.
+  This session runs on Opus 4.8 (1M-context variant, model id
+  claude-opus-4-8[1m]) — the model arm-C requires — so unlike the Fable 5
+  and Codex/GPT-5 cold-resume probes it satisfies 5.3's model condition;
+  only the SCORING against the user-held Phase 0 scorecard remains. Verified
+  the record's claimed state holds at HEAD 7e9aff2 ("4.5: harden serve
+  new-initiative pushes", which carries the BD36 serve reconciliation):
+  clean tree, `npm test` 235/235 (22 files), `npm run typecheck` clean on
+  both packages, `npm run build` clean. No code changes — the engine is
+  code-complete through Phase 4 + 5.1; nothing was left to implement, so
+  the correct arm-C behavior was orient → verify → write back via protocol.
+  Left off: nothing in flight. Next action (user): (a) SCORE this resume as
+  the arm-C run on the Phase 0 scorecard — that closes 5.3's handoff leg;
+  (b) OpenCode checklist run per docs/opencode-adapter.md §3, then flip 5.2.
+  5.3's checkbox stays open until the arm-C scoring is recorded (honest
+  record over checkmark, per BD32's principle).
