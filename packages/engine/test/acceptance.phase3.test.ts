@@ -1,6 +1,6 @@
 import { buildSync } from 'esbuild'
 import { spawnSync, type SpawnSyncReturns } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -10,7 +10,11 @@ import { makeEvent } from '../src/core/envelope'
 import { appendEvent, appendEvents } from '../src/core/log'
 import { foldLog } from '../src/core/fold'
 import { handleSessionStart, STOP_BLOCK_MESSAGE } from '../src/cli/event'
-import { STATUS_CHAR_LIMIT } from '../src/projections/templates/status'
+import { REPO_MD_STUB } from '../src/cli/init'
+import {
+  REPO_MEMORY_TRUNCATION_MARKER,
+  STATUS_CHAR_LIMIT,
+} from '../src/projections/templates/status'
 import { makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
 
 /**
@@ -152,6 +156,42 @@ describe('acceptance 1 — SessionStart output ≤10,000 chars on a large synthe
     expect(proc.stdout.length).toBeGreaterThan(0)
     expect(proc.stdout.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
     expect(proc.stdout).toContain('Goal: An enormous goal.')
+  })
+
+  it('a huge hand-written repo.md (6.5, BD40) is budget-clipped and the global cap still holds', () => {
+    const fixture = fx()
+    seedLargeInitiative(fixture)
+    writeFileSync(
+      join(fixture.root, '.harness', 'repo.md'),
+      `# Repo memory\n\nAlways run npm test.\n${'lore '.repeat(10_000)}\n`, // ~50k chars
+    )
+
+    // handler-level: section present, clipped, cap intact
+    const result = handleSessionStart(fixture.root, JSON.stringify({ ...base }))
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
+    expect(result.stdout).toContain('Repo memory (.harness/repo.md):')
+    expect(result.stdout).toContain('Always run npm test.')
+    expect(result.stdout).toContain(REPO_MEMORY_TRUNCATION_MARKER)
+    expect(result.stdout).toContain('Goal: An enormous goal.') // the record still leads
+
+    // built-CLI level: same guarantees through the real injection path
+    const proc = runEvent(fixture, 'session-start', { ...base })
+    expect(proc.status).toBe(0)
+    expect(proc.stdout.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
+    expect(proc.stdout).toContain('Repo memory (.harness/repo.md):')
+    expect(proc.stdout).toContain(REPO_MEMORY_TRUNCATION_MARKER)
+  })
+
+  it('missing or untouched-stub repo.md yields no Repo memory section', () => {
+    const missing = fx()
+    seedLargeInitiative(missing)
+    expect(handleSessionStart(missing.root, JSON.stringify({ ...base })).stdout).not.toContain('Repo memory')
+
+    const stubbed = fx()
+    seedLargeInitiative(stubbed)
+    writeFileSync(join(stubbed.root, '.harness', 'repo.md'), REPO_MD_STUB)
+    expect(handleSessionStart(stubbed.root, JSON.stringify({ ...base })).stdout).not.toContain('Repo memory')
   })
 })
 

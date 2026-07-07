@@ -10,6 +10,8 @@ import { renderSession } from '../src/projections/templates/session'
 import {
   enforceStatusLimit,
   renderStatus,
+  REPO_MEMORY_CHAR_BUDGET,
+  REPO_MEMORY_TRUNCATION_MARKER,
   STATUS_CHAR_LIMIT,
   STATUS_TRUNCATION_MARKER,
 } from '../src/projections/templates/status'
@@ -258,6 +260,37 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     expect(status).toContain('Recent decisions (last 5 of 60):')
     expect(status).toContain('chose choice 59')
     expect(status).toContain('summary 29')
+  })
+
+  it('repo memory (6.5, BD40): section lands after the current block, before the phase tree, formatting kept', () => {
+    const memory = 'Run npm test before committing.\nNever push to main directly.'
+    const status = renderStatus(populatedState(), { repoMemory: memory })
+    expect(status).toContain('Repo memory (.harness/repo.md):')
+    expect(status).toContain(memory) // multi-line content preserved verbatim
+    expect(status.indexOf('Repo memory')).toBeGreaterThan(status.indexOf('Next action:'))
+    expect(status.indexOf('Repo memory')).toBeLessThan(status.indexOf('Phases:'))
+  })
+
+  it('repo memory is clipped to its own budget with a marker; missing/blank omits the section', () => {
+    const status = renderStatus(populatedState(), { repoMemory: 'M'.repeat(60_000) })
+    const header = 'Repo memory (.harness/repo.md):\n'
+    const start = status.indexOf(header)
+    expect(start).toBeGreaterThan(-1)
+    const body = status.slice(start + header.length).split('\n\n', 1)[0]!
+    expect(body.length).toBeLessThanOrEqual(REPO_MEMORY_CHAR_BUDGET)
+    expect(body.endsWith(REPO_MEMORY_TRUNCATION_MARKER)).toBe(true)
+    expect(status.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
+
+    expect(renderStatus(populatedState())).not.toContain('Repo memory')
+    expect(renderStatus(populatedState(), { repoMemory: '  \n\t ' })).not.toContain('Repo memory')
+  })
+
+  it('repo memory on a large synthetic initiative: global ≤10k cap still holds', () => {
+    const status = renderStatus(largeState(), { repoMemory: 'R'.repeat(50_000) })
+    expect(status.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
+    expect(status).toContain('Repo memory (.harness/repo.md):')
+    expect(status).toContain(REPO_MEMORY_TRUNCATION_MARKER)
+    expect(status).toContain('Next action: do the thing') // essentials survive alongside it
   })
 
   it('enforceStatusLimit is a hard guard: oversized text is cut and marked', () => {

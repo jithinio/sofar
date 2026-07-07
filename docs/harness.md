@@ -12,7 +12,8 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - Active phase: 6 (hardening + distribution readiness; ceremony items
   5.2/5.3 remain open and user-driven in parallel). Phase 6 progress:
   6.3 done (atomic projection writes, BD38), 6.4 done (version
-  single-sourced from package.json, BD39). Phase 5 status: 5.1
+  single-sourced from package.json, BD39), 6.5 done (repo.md in the
+  SessionStart context with a 1.5k budget, BD40). Phase 5 status: 5.1
   done: `harness event append` dialect surface +
   AGENTS.md protocol block with the three BD19 clauses, Stop-hook
   write-back parity proven. 5.2 docs + checklist simulation done — the
@@ -99,7 +100,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
       SessionStart must never see a half-written plan.md/status
 - [x] 6.4 CLI version single-sourced from package.json (currently
       hardcoded '0.1.0' in src/cli/index.ts — drift waiting to happen)
-- [ ] 6.5 repo.md surfaces in the SessionStart context block with its own
+- [x] 6.5 repo.md surfaces in the SessionStart context block with its own
       budget (record layout defines it; nothing reads it today) — the
       ≤10,000-char cap guarantee must hold
 
@@ -480,6 +481,26 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   with readFileSync(relative-to-bin): only dist/ ships inside a tarball
   whose package.json location differs between npm layouts — inlining at
   build time has no runtime path to get wrong.
+- BD40: Repo memory in the SessionStart context (task 6.5) — .harness/repo.md
+  (hand-written, SPEC §Record layout; nothing read it before) now surfaces as
+  a "Repo memory (.harness/repo.md)" section in the session-start status
+  block, placed after the goal/current sections and before the phase tree,
+  with its OWN 1,500-char budget clipped by a dedicated marker ("…truncated —
+  read .harness/repo.md for the rest") that preserves the author's line
+  structure (clipBlock — unlike clip(), repo.md prose keeps its formatting).
+  Missing, unreadable, empty, or still the byte-identical (trimmed) init stub
+  → section omitted entirely. Split of responsibilities keeps the
+  schema/templates law: the handler (src/cli/event.ts readRepoMemory) does IO
+  + the stub check; budget/placement/rendering live in
+  templates/status.ts (renderStatus gained an optional StatusOptions arg).
+  The global ≤10k enforceStatusLimit guard is unchanged and re-proven with a
+  ~50k repo.md at handler and built-CLI level (worst-case section sum rises
+  ~6.5k → ~8k, still under the cap before the guard). SPEC §Hooks
+  SessionStart line extended to name the repo-memory inclusion. Rejected
+  folding repo.md into the goal budget (repo-scoped memory must not compete
+  with initiative state) and rendering it in `harness status` too (the
+  uncapped CLI print is initiative-scoped; repo.md is a context-injection
+  concern — revisit on demand).
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,

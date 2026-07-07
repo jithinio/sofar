@@ -1,8 +1,10 @@
-import { resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import type { Command } from 'commander'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
 import { createToolContext, ToolError, type ToolContext } from '../mcp/context'
 import { renderStatus } from '../projections/templates/status'
+import { REPO_MD_STUB } from './init'
 
 /**
  * `harness event <subcommand>` — the internal surface hook shims call
@@ -68,6 +70,22 @@ function resolveBound(rootDir: string): { ctx: ToolContext; slug: string } | nul
   }
 }
 
+/**
+ * Repo memory (task 6.5, BD40) — .harness/repo.md is hand-written
+ * repo-scoped memory (SPEC §Record layout). Surfaced in the SessionStart
+ * context only when it says something: missing, unreadable, empty, or still
+ * the untouched `harness init` stub → null (section omitted entirely).
+ */
+function readRepoMemory(rootDir: string): string | null {
+  try {
+    const text = readFileSync(join(rootDir, '.harness', 'repo.md'), 'utf8')
+    if (text.trim().length === 0 || text.trim() === REPO_MD_STUB.trim()) return null
+    return text
+  } catch {
+    return null
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Handlers.
 // ---------------------------------------------------------------------------
@@ -95,7 +113,9 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
       })
       state = ctx.foldState(slug)
     }
-    return { ...OK, stdout: renderStatus(state) } // ≤10,000 chars (BD3/BD24)
+    const repoMemory = readRepoMemory(rootDir)
+    // ≤10,000 chars (BD3/BD24) — repo memory has its own budget (BD40)
+    return { ...OK, stdout: renderStatus(state, repoMemory !== null ? { repoMemory } : undefined) }
   } catch {
     return { ...OK }
   }

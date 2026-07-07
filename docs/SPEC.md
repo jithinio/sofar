@@ -86,8 +86,10 @@ return. No tool mutates state except via an event.
 
 ## Hooks (installed by `harness init` as standalone scripts in .claude/hooks/)
 - SessionStart shim → `harness event session-start` then prints the status
-  projection to stdout (context injection). HARD LIMIT: output ≤10,000
-  chars — projection generator must guarantee this.
+  projection to stdout (context injection). Includes a "Repo memory" section
+  sourced from .harness/repo.md when it exists and is not the untouched init
+  stub, budget-clipped to ~1,500 chars (added Phase 6, BD40). HARD LIMIT:
+  output ≤10,000 chars — projection generator must guarantee this.
 - PostToolUse shim (matcher: Edit|Write|MultiEdit|Bash) → appends
   file_touched / command_run from stdin JSON (tool_name, tool_input).
 - Stop shim → reads stdin JSON; if stop_hook_active is true → exit 0

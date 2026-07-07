@@ -14,6 +14,12 @@ export const STATUS_CHAR_LIMIT = 10_000
 
 export const STATUS_TRUNCATION_MARKER = '…truncated — run harness status for full detail'
 
+/** Repo memory (.harness/repo.md) gets its OWN budget (task 6.5, BD40). */
+export const REPO_MEMORY_CHAR_BUDGET = 1_500
+
+export const REPO_MEMORY_TRUNCATION_MARKER =
+  '…truncated — read .harness/repo.md for the rest'
+
 // Per-section budgets (chars). Worst-case sum stays well under the limit;
 // the final guard covers pathological futures, not expected inputs.
 const GOAL_BUDGET = 600
@@ -31,6 +37,18 @@ export function enforceStatusLimit(text: string): string {
   if (text.length <= STATUS_CHAR_LIMIT) return text
   const marker = `\n${STATUS_TRUNCATION_MARKER}\n`
   return text.slice(0, STATUS_CHAR_LIMIT - marker.length) + marker
+}
+
+/**
+ * Multi-line budget clip for hand-written blocks: unlike clip() it preserves
+ * line structure (repo.md is prose the author formatted); the truncation
+ * marker lands INSIDE the budget so the section total never exceeds it.
+ */
+function clipBlock(text: string, budget: number, marker: string): string {
+  const trimmed = text.trim()
+  if (trimmed.length <= budget) return trimmed
+  const suffix = `\n${marker}`
+  return `${trimmed.slice(0, Math.max(0, budget - suffix.length)).trimEnd()}${suffix}`
 }
 
 function lastWithSummary(sessions: readonly SessionState[]): SessionState | undefined {
@@ -95,7 +113,16 @@ const TASK_MARKS: Record<string, string> = {
   pending: '[ ]',
 }
 
-export function renderStatus(state: InitiativeState): string {
+export interface StatusOptions {
+  /**
+   * Contents of .harness/repo.md (hand-written repo-scoped memory, SPEC
+   * §Record layout). The caller decides whether it is worth surfacing
+   * (missing/empty/stub → omit); the template owns budget + placement.
+   */
+  repoMemory?: string
+}
+
+export function renderStatus(state: InitiativeState, options?: StatusOptions): string {
   const lines: string[] = []
   lines.push(`# Harness status: ${state.slug || '(unnamed initiative)'}`, '')
   lines.push(`Goal: ${state.goal ? clip(state.goal, GOAL_BUDGET) : '(none recorded)'}`, '')
@@ -127,6 +154,15 @@ export function renderStatus(state: InitiativeState): string {
     lines.push(`Blocked on: ${clip(state.current.blocked_on, BLOCKED_BUDGET)}`)
   }
   lines.push('')
+
+  // Repo memory (task 6.5, BD40): hand-written repo-scoped notes, surfaced
+  // after the goal/current sections with their own budget.
+  const repoMemory = options?.repoMemory?.trim() ?? ''
+  if (repoMemory.length > 0) {
+    lines.push('Repo memory (.harness/repo.md):')
+    lines.push(clipBlock(repoMemory, REPO_MEMORY_CHAR_BUDGET, REPO_MEMORY_TRUNCATION_MARKER))
+    lines.push('')
+  }
 
   // Compact phase tree (statuses + per-phase progress), count-capped.
   if (state.phases.length > 0) {
