@@ -1,3 +1,9 @@
+<!-- harness:superseded -->
+SUPERSEDED — this record migrated to .harness/initiatives/harness-build/ on 2026-07-07.
+Do not update this file; truth lives in the harness record.
+<!-- /harness:superseded -->
+
+
 # Initiative: harness-build (v1 engine)
 
 ## Goal
@@ -950,3 +956,6 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   Left off: nothing in flight. Next action (user): pick a real project and
   run the field test (init/new or adopt for the legacy-record repo);
   ceremony scoring + publish decision unchanged.
+- 2026-07-07 (self-host migration): this record has been migrated to
+  .harness/initiatives/harness-build/ — this file is now an archived
+  artifact; the harness record is the live truth.

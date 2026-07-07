@@ -2,8 +2,69 @@
 
 # Plan: harness-build
 
-Goal: Build the Harness v1 engine: event log core, MCP server, hooks, projections, CLI, watcher, dialect — engine only, schema swappable
+Goal: Build the Harness v1 engine during the Fable 5 window (Jul 3–7): event log core, MCP server, Claude Code hooks, projections, CLI, watcher/state server, and the AGENTS.md dialect. Engine only — schema lives in one swappable module; UI/sync/team are explicitly out of scope. Full contracts in docs/SPEC.md; conventions in CLAUDE.md; strategy context in harness-docs/ (user-held, outside this repo).
 
-Progress: 0/0 tasks done (0%)
+Progress: 34/36 tasks done (94%)
 
-(no plan recorded yet — call harness_update_plan)
+## Phase 1 — Event log core [done] — 6/6 done
+
+- [x] 1.1 Scaffold: TS strict, vitest, esbuild bundling, npm bin entry
+- [x] 1.2 Event envelope types + runtime validation (SPEC §Envelope)
+- [x] 1.3 Append: atomic single-line O_APPEND writes, concurrent-safe
+- [x] 1.4 Fold/replay: events.jsonl → InitiativeState (SPEC §State)
+- [x] 1.5 Cursor primitive: export/import "events since N" (sync-ready)
+- [x] 1.6 Tests: concurrent appends, corrupt-line tolerance (skip+warn), replay determinism, cursor round-trip
+
+## Phase 2 — MCP server [done] — 5/5 done
+
+- [x] 2.1 stdio MCP server exposing typed tools (SPEC §MCP tools)
+- [x] 2.2 Tools: get_state, start_session, end_session, update_task, log_decision, update_plan, add_note
+- [x] 2.3 Payload schemas isolated in packages/schema/ (the ONLY schema home) — satisfied by construction
+- [x] 2.4 .mcp.json registration snippet emitted by init (Phase 4 wires it)
+- [x] 2.5 Tests: every tool appends correct event; state reflects it
+
+## Phase 3 — Hooks + projections [done] — 6/6 done
+
+- [x] 3.1 Hook shims in .claude/hooks/ as standalone scripts calling the CLI (portability rule)
+- [x] 3.2 SessionStart shim: emit projection as context, ≤10,000 chars
+- [x] 3.3 PostToolUse shim (Edit|Write|MultiEdit|Bash): append file_touched / command_run
+- [x] 3.4 Stop shim: no session_ended for this session → exit 2 "write back"; stop_hook_active guard
+- [x] 3.5 SessionEnd shim: mechanical close event (fallback logging only)
+- [x] 3.6 Projection generator: templates → plan.md, decisions.md, status block; regenerated on every append; never hand-edited
+
+## Phase 4 — CLI + watcher [done] — 5/5 done
+
+- [x] 4.1 harness init: scaffold .harness/, install hook shims + settings, emit .mcp.json entry, CLAUDE.md protocol block asserting total jurisdiction (BD19)
+- [x] 4.2 harness new <slug> / harness switch <slug>: initiative dirs + bindings.json (branch ↔ initiative)
+- [x] 4.3 harness status: fold + print tree (phase/task/status/next)
+- [x] 4.4 harness export --since <cursor> / harness import
+- [x] 4.5 Watcher + localhost JSON state server (no UI — endpoint only)
+
+## Phase 5 — Dialect + forced handoff [active] — 1/3 done
+
+- [x] 5.1 AGENTS.md protocol block (convention dialect for MCP-less tools)
+- [ ] 5.2 OpenCode adapter notes: plugin equivalents documented; convention fallback verified manually (docs + simulated checklist done; manual OpenCode run pending, BD32)
+- [ ] 5.3 THE CEREMONY: final Fable write-back via protocol; Opus 4.8 resumes from the record alone; score as arm-C on the Phase 0 scorecard (execution done; user-held scoring remains)
+
+## Phase 6 — Hardening + distribution readiness [done] — 5/5 done
+
+- [x] 6.1 README.md: what/why, install, quickstart, MCP server, hooks, AGENTS.md dialect — npm front door
+- [x] 6.2 Packaging: bundled-bin tarball installs with zero runtime deps; npm pack → install → init E2E
+- [x] 6.3 Atomic projection writes (temp file + rename)
+- [x] 6.4 CLI version single-sourced from package.json
+- [x] 6.5 repo.md surfaces in the SessionStart context with its own budget; ≤10,000-char cap holds
+
+## Phase 7 — Parallel sessions + resume robustness [done] — 3/3 done
+
+- [x] 7.1 Adopt-by-id sessions: context carries session id; harness_start_session adopts ONLY on exact id match; newest-open heuristic removed (BD43)
+- [x] 7.2 Derived resume fallback: fold aggregates per-session activity; surfaced when a session lacks a written summary (BD44)
+- [x] 7.3 Acceptance: two interleaved sessions on ONE initiative — correct attribution, independent Stop gates, no cross-adoption; unwritten session yields usable resume block
+
+## Phase 8 — Uninstall + adoption of existing records [done] — 3/3 done
+
+- [x] 8.1 harness uninit [--purge]: strip exactly what init installed, preserve user content; record kept by default; byte-clean fresh-repo round-trip
+- [x] 8.2 harness adopt <legacy-file> [slug] [--mark]: env checks, replay brief with dialect commands + retirement checklist, idempotent superseded banner; NO markdown parsing
+- [x] 8.3 Acceptance: round-trip hashes; uninit preserves foreign content; adopt brief executed as scripted commands ends with status reflecting the legacy plan
+
+Active phase: Phase 5 — Dialect + forced handoff
+Next action: USER: field-test harness on a real project (init/new, or adopt for a legacy-record repo); score the executed arm-C Opus 4.8 resume on the Phase 0 scorecard (closes 5.3) + run the manual OpenCode checklist (flips 5.2); decide on publishing the engine
