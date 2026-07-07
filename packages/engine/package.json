@@ -2,7 +2,6 @@
   "name": "sofar",
   "version": "0.1.0",
   "description": "Sofar v1 engine — event log core, MCP server, CLI, hooks",
-  "private": true,
   "type": "module",
   "engines": {
     "node": ">=18"
@@ -25,5 +24,23 @@
     "chokidar": "^5.0.0",
     "commander": "^15.0.0",
     "ulid": "^3.0.2"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jithinio/sofar.git",
+    "directory": "packages/engine"
+  },
+  "homepage": "https://sofar.sh",
+  "bugs": {
+    "url": "https://github.com/jithinio/sofar/issues"
+  },
+  "keywords": [
+    "agents",
+    "memory",
+    "event-sourcing",
+    "mcp",
+    "claude-code",
+    "cli"
+  ],
+  "license": "MIT"
 }
