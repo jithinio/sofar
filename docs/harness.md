@@ -26,7 +26,8 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   reduced to scoring/authorization only: (a) the arm-C Opus 4.8 resume has
   been EXECUTED (session log 2026-07-07 "THE ARM-C RESUME" — fresh Opus
   4.8 [1m] session, "resume this initiative" only, oriented from the record
-  alone, verified 235/235 green at HEAD 7e9aff2, asked nothing); it now
+  alone, re-verified 245/245 green at HEAD 2da65f5 after a concurrent
+  Fable 5 session landed Phase 6 mid-run, asked nothing); it now
   needs the user to SCORE it as arm-C on the (user-held) Phase 0 scorecard —
   that closes 5.3's handoff leg. (b) the manual OpenCode run per
   docs/opencode-adapter.md §3 (steps 1–3 scripted there; agent prompt in
@@ -701,18 +702,25 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   This session runs on Opus 4.8 (1M-context variant, model id
   claude-opus-4-8[1m]) — the model arm-C requires — so unlike the Fable 5
   and Codex/GPT-5 cold-resume probes it satisfies 5.3's model condition;
-  only the SCORING against the user-held Phase 0 scorecard remains. Verified
-  the record's claimed state holds at HEAD 7e9aff2 ("4.5: harden serve
-  new-initiative pushes", which carries the BD36 serve reconciliation):
-  clean tree, `npm test` 235/235 (22 files), `npm run typecheck` clean on
-  both packages, `npm run build` clean. No code changes — the engine is
-  code-complete through Phase 4 + 5.1; nothing was left to implement, so
-  the correct arm-C behavior was orient → verify → write back via protocol.
-  Left off: nothing in flight. Next action (user): (a) SCORE this resume as
-  the arm-C run on the Phase 0 scorecard — that closes 5.3's handoff leg;
-  (b) OpenCode checklist run per docs/opencode-adapter.md §3, then flip 5.2.
-  5.3's checkbox stays open until the arm-C scoring is recorded (honest
-  record over checkmark, per BD32's principle).
+  only the SCORING against the user-held Phase 0 scorecard remains.
+  RACE (field finding): at session start the record showed Phase 5 as the
+  frontier and HEAD 7e9aff2; I verified that snapshot (clean tree, 235/235,
+  22 files, typecheck + build green) and wrote back. Between my verify and
+  my commit, a CONCURRENT Fable 5 session working in the SAME working tree
+  built and committed all of Phase 6 (BD37–BD42, commits 50aaf4b..2da65f5)
+  and swept my still-uncommitted record edit into its 2da65f5 commit. I
+  re-based on the new HEAD and re-verified: clean tree, 245/245 (23 files)
+  at HEAD 2da65f5 == origin/main. The arm-C demonstration still holds —
+  Opus 4.8 resumed from the record alone and asked nothing — but the hazard
+  surfaced is operational: two Claude sessions sharing one working tree
+  interleave record edits, so ceremony/parallel runs should use separate
+  clones or git worktrees, not one checkout. No code changes by this
+  session. Left off: nothing in flight; suite 245/245 green at HEAD
+  2da65f5. Next action (user): (a) SCORE this resume as the arm-C run on
+  the Phase 0 scorecard — that closes 5.3's handoff leg; (b) OpenCode
+  checklist run per docs/opencode-adapter.md §3, then flip 5.2. 5.3's
+  checkbox stays open until the arm-C scoring is recorded (honest record
+  over checkmark, per BD32's principle).
 - 2026-07-07, later (claude-code / Fable 5, Phase 6 by delegated subagent,
   verified by main session): Phase 6 complete, tasks 6.1–6.5, commits
   50aaf4b..3b118b6, decisions BD38–BD42. Atomic projection writes
