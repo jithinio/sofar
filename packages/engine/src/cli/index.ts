@@ -5,6 +5,7 @@ import { version } from '../../package.json'
 import { createHarnessServer } from '../mcp/server'
 import { registerEventCommand } from './event'
 import { runInit } from './init'
+import { runUninit } from './uninit'
 import { runNew, runSwitch } from './new'
 import { runStatus } from './status'
 import { startServer, DEFAULT_PORT } from './serve'
@@ -33,6 +34,17 @@ program
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((opts: { root?: string }) => {
     emit(runInit(rootOf(opts)))
+  })
+
+program
+  .command('uninit')
+  .description(
+    'exact inverse of init: remove hook shims, settings hook entries, the .mcp.json server entry, and the protocol blocks; .harness/ is kept unless --purge',
+  )
+  .option('--purge', 'also delete the .harness/ record (irreversible)')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action((opts: { purge?: boolean; root?: string }) => {
+    emit(runUninit(rootOf(opts), { purge: opts.purge === true }))
   })
 
 program

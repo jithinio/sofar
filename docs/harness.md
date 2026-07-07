@@ -11,7 +11,9 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 ## Current state
 - Active phase: 8 — uninstall + adoption (`harness uninit` +
   `harness adopt`; user-directed Jul 7 after install-on-existing-projects
-  questions surfaced both gaps). Phase 7 COMPLETE (parallel sessions +
+  questions surfaced both gaps). 8.1 done (BD45): `harness uninit [--purge]`
+  in src/cli/uninit.ts — surgical inverse of init, record kept unless
+  --purge, byte-clean fresh-repo round-trip under --purge. Phase 7 COMPLETE (parallel sessions +
   resume robustness, added on user direction Jul 7 and finished the same
   day: 7.1 adopt-by-id sessions BD43 — harness_start_session takes an
   optional session_id delivered via the SessionStart context "Session:"
@@ -131,7 +133,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
       session still yields a usable resume block
 
 ### Phase 8 — Uninstall + adoption of existing records [active]  (added Jul 7, BD45)
-- [ ] 8.1 `harness uninit [--purge]`: strip exactly what init installed
+- [x] 8.1 `harness uninit [--purge]`: strip exactly what init installed
       (shims, settings hooks entries, .mcp.json server entry, protocol
       blocks in CLAUDE.md/AGENTS.md) while preserving ALL user content;
       .harness/ record KEPT by default, deleted only with --purge;
@@ -646,6 +648,33 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   renderFullStatus/`harness status` (the design scoped surfaces to the
   status context block + sessions/<id>.md; the CLI print already lists
   files_touched — revisit on demand).
+- BD45: `harness uninit [--purge]` (task 8.1) — surgical inverse of init in
+  src/cli/uninit.ts: unlink exactly the four shim files (directories removed
+  only when THIS run emptied them — a pre-existing empty .claude is never
+  touched); settings.json pruned by matching hook commands on the shim path
+  substring (`.claude/hooks/<shim>.sh`) across ALL event keys, so wrapped/
+  customized commands (`bash …/stop.sh --fast`) and entries moved under other
+  events still match, with emptied matcher groups → event arrays → the hooks
+  key itself pruned in that order; .mcp.json loses mcpServers.harness (and an
+  emptied mcpServers key); CLAUDE.md/AGENTS.md lose the marker block
+  INCLUSIVE plus exactly ONE adjacent blank-line seam so pre-init spacing is
+  byte-restored, and a start marker without its end marker leaves the file
+  untouched with a stderr warning (uninit never guesses); unparseable user
+  JSON aborts with exit 1 (init's caution mirrored — an unreadable file may
+  still carry our entries). .harness/ is KEPT by default with the stdout
+  notice "record kept at .harness/ (use --purge to delete it)"; --purge
+  rm -rfs it and warns on stderr naming `harness export` as the (pre-purge)
+  backup path. CONFLICT RESOLVED, smallest deviation: "never delete
+  settings.json/.mcp.json/CLAUDE.md/AGENTS.md even when emptied" cannot
+  coexist with the contracted byte-clean fresh-repo init → uninit --purge
+  round-trip (empty leftovers ≠ pre-init tree) — so managed-file deletion is
+  allowed ONLY under --purge AND only when THIS run emptied the file entirely
+  (md → zero bytes, json → {}); the default path keeps emptied files exactly
+  as specified. SPEC §CLI gained the uninit line. Rejected an install
+  manifest tracking init provenance (a second source of truth about what is
+  installed) and rejected preserving arbitrary user JSON formatting (init
+  already normalizes merged files to stable JSON; uninit rewrites the same
+  form, so stable-formatted files round-trip byte-exact).
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,

@@ -125,6 +125,12 @@ Shims contain no logic — they invoke the harness CLI.
   record a session serves. [Field finding, Jul 4: singular-record protocol
   caused a second initiative's state to leak into Claude Code native memory
   + a scratch dir — jurisdiction must be total, not per-file.]
+- `harness uninit [--purge]` — exact inverse of init, surgical: remove the
+  four hook shims, our settings.json hook entries (matched on the shim path),
+  .mcp.json's harness server, and the protocol blocks (markers + one seam
+  blank line), preserving all user content; .harness/ is kept with a notice
+  unless --purge deletes it (--purge alone may also delete files the run
+  emptied — the byte-clean round-trip). Idempotent (added Phase 8, BD45).
 - `harness new <slug> [--goal]` / `harness switch <slug>` — create/select
   initiative; bind current branch in bindings.json.
 - `harness status [slug]` — fold and print: goal, progress %, phase tree
