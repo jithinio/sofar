@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Command } from 'commander'
+import { version } from '../../package.json'
 import { createHarnessServer } from '../mcp/server'
 import { registerEventCommand } from './event'
 import { runInit } from './init'
@@ -15,7 +16,9 @@ const program = new Command()
 program
   .name('harness')
   .description('Harness v1 engine — event-log initiative memory for coding agents')
-  .version('0.1.0')
+  // Single-sourced from package.json (task 6.4, BD39) — esbuild inlines the
+  // JSON import, so the bundle always carries the manifest's version.
+  .version(version)
 
 /** Every repo-scoped command takes --root (default: cwd) — the mcp/event precedent. */
 function rootOf(opts: { root?: string }): string {

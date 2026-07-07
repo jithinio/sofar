@@ -11,7 +11,8 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 ## Current state
 - Active phase: 6 (hardening + distribution readiness; ceremony items
   5.2/5.3 remain open and user-driven in parallel). Phase 6 progress:
-  6.3 done (atomic projection writes, BD38). Phase 5 status: 5.1
+  6.3 done (atomic projection writes, BD38), 6.4 done (version
+  single-sourced from package.json, BD39). Phase 5 status: 5.1
   done: `harness event append` dialect surface +
   AGENTS.md protocol block with the three BD19 clauses, Stop-hook
   write-back parity proven. 5.2 docs + checklist simulation done — the
@@ -96,7 +97,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
       npm pack → install into temp prefix → `harness init` E2E test
 - [x] 6.3 Atomic projection writes (temp file + rename) — serve and
       SessionStart must never see a half-written plan.md/status
-- [ ] 6.4 CLI version single-sourced from package.json (currently
+- [x] 6.4 CLI version single-sourced from package.json (currently
       hardcoded '0.1.0' in src/cli/index.ts — drift waiting to happen)
 - [ ] 6.5 repo.md surfaces in the SessionStart context block with its own
       budget (record layout defines it; nothing reads it today) — the
@@ -469,6 +470,16 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   write-if-changed in the generator (a read per file per append to optimize
   nothing measured) and fsync ceremony (events.jsonl is truth; projections
   are regenerable).
+- BD39: CLI version single-sourced (task 6.4) — src/cli/index.ts imports
+  `version` from ../../package.json (tsconfig already had resolveJsonModule;
+  esbuild inlines the named JSON import into the bundle) and passes it to
+  program.version(); the hardcoded '0.1.0' literal is gone. Asserted in the
+  existing built-CLI smoke (acceptance.phase4): `<bundle> --version` output
+  equals the version field read from packages/engine/package.json at test
+  time, so a bump can never drift. Rejected reading package.json at runtime
+  with readFileSync(relative-to-bin): only dist/ ships inside a tarball
+  whose package.json location differs between npm layouts — inlining at
+  build time has no runtime path to get wrong.
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,

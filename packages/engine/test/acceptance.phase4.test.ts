@@ -187,6 +187,18 @@ describe('acceptance 1 — init on a fresh repo yields a working end-to-end loop
 })
 
 describe('acceptance 2 + packaging — the BUILT CLI: init idempotency and .sh text bundling', () => {
+  it('--version is single-sourced from package.json (6.4, BD39)', () => {
+    const manifest = JSON.parse(readFileSync(join(here, '..', 'package.json'), 'utf8')) as {
+      version: string
+    }
+    const result = spawnSync(process.execPath, [bundle, '--version'], {
+      encoding: 'utf8',
+      timeout: 15_000,
+    })
+    expect(result.status).toBe(0)
+    expect(result.stdout.trim()).toBe(manifest.version)
+  })
+
   it('dist-bundle init works on a fresh repo and a second run changes zero bytes', () => {
     const root = freshRepo()
 
