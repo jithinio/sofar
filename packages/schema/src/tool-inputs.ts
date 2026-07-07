@@ -64,6 +64,13 @@ export interface StartSessionArgs {
   initiative?: string
   tool: string
   model?: string
+  /**
+   * Adopt-by-id (Phase 7, BD43): the session id injected by the SessionStart
+   * hook context ("Session: <id> — …"). Provided → adopt exactly that open
+   * session (closed id = typed error; unknown id = register it). Omitted →
+   * mint a fresh ulid. There is no open-session heuristic.
+   */
+  session_id?: string
 }
 export interface EndSessionArgs {
   session_id: string
@@ -180,6 +187,12 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
         description: 'Agent tool starting the session, e.g. "claude-code", "opencode", "codex".',
       },
       model: { type: 'string', description: 'Model identifier, if known.' },
+      session_id: {
+        type: 'string',
+        minLength: 1,
+        description:
+          'Session id from the injected context line "Session: <id> — …". Pass it to adopt exactly that session; omit to mint a fresh id.',
+      },
     },
     required: ['tool'],
     additionalProperties: false,
@@ -309,6 +322,7 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
     if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
     if (!str(a.tool)) e.push('tool: must be a non-empty string')
     if (!optStr(a.model)) e.push('model: must be a string')
+    if (!optSlug(a.session_id)) e.push('session_id: must be a non-empty string')
   },
   harness_end_session(a, e) {
     if (!str(a.session_id)) e.push('session_id: must be a non-empty string')

@@ -111,9 +111,9 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
       ≤10,000-char cap guarantee must hold
 
 ### Phase 7 — Parallel sessions + resume robustness [active]  (added Jul 7, BD43)
-- [ ] 7.1 Adopt-by-id sessions: SessionStart context carries the session id;
+- [x] 7.1 Adopt-by-id sessions: SessionStart context carries the session id;
       harness_start_session gains optional session_id and adopts ONLY on
-      exact id match — the newest-open heuristic (BD20) is removed
+      exact id match — the newest-open heuristic (BD20) is removed (BD43)
 - [ ] 7.2 Derived resume fallback: fold aggregates per-session activity
       (files, commands, task changes); status + session projections surface
       it whenever a session lacks a written summary
@@ -559,6 +559,34 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   clean after pack. Rejected a hand-maintained packages/engine/README.md
   (two front doors drift) and rejected symlinking (npm pack follows
   symlinks inconsistently across platforms).
+- BD43: Adopt-by-id sessions (task 7.1) — harness_start_session gained an
+  OPTIONAL `session_id` arg and the BD20 newest-open adoption heuristic is
+  REMOVED ENTIRELY (it cross-adopted: a second agent's start_session on the
+  same initiative silently took over the first agent's open session, so
+  parallel sessions corrupted each other's attribution and Stop gates).
+  Semantics: session_id naming an OPEN session (session_started, not
+  ended/closed) → adopt exactly it — no duplicate append, active box set,
+  id returned; naming an ENDED session → typed invalid_input ("already
+  ended") with zero appends and no active-box change; UNKNOWN id →
+  session_started appended WITH that id as envelope.session (registers it —
+  MCP-only setups have no hook to do it); omitted → fresh ulid, NEVER
+  adopts. Delivery mechanism: the SessionStart context block now opens with
+  `Session: <id> — when calling harness_start_session, pass this as
+  session_id.` right under the title (rendered by renderStatus via a new
+  StatusOptions.sessionId so templates stay the one render home; the id is
+  clip()ed to 120 chars — session ids are external input; the ≤10k cap is
+  untouched), and the init-installed CLAUDE.md protocol block's START step
+  now instructs agents to pass that id (init idempotency is unaffected —
+  hash tests cover fresh repos; already-installed blocks in other repos are
+  marker-frozen by design, BD25). SPEC updated: §MCP tools start_session
+  signature line + §Hooks SessionStart context line. All newest-open
+  adoption tests were CONVERTED to the explicit-id flow (mcp.test,
+  hooks.test, acceptance.phase4) and new coverage added for the three
+  provided-id branches plus the heuristic-removal negative (open session
+  present, no session_id → fresh mint, no cross-adoption). Rejected keeping
+  newest-open as a fallback when session_id is omitted: the fallback IS the
+  cross-adoption bug; an omitting agent now gets its own identity and an
+  unwritten hook session surfaces through the 7.2 derived resume instead.
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,

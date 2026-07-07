@@ -75,7 +75,11 @@ streams; ordering by ulid. This is the entire future sync interface.
 ## MCP tools (server name: harness)
 - harness_get_state({initiative?}) → InitiativeState (resolves initiative
   from bindings.json + current branch when omitted)
-- harness_start_session({initiative?, tool, model?}) → {session_id}
+- harness_start_session({initiative?, tool, model?, session_id?}) →
+  {session_id} — session_id (from the SessionStart context "Session:" line)
+  adopts exactly that OPEN session; an ended id is a typed invalid_input
+  error; an unknown id is registered via session_started; omitted → mint a
+  fresh ulid. No open-session heuristic (adopt-by-id, Phase 7, BD43).
 - harness_end_session({session_id, summary, next_action}) → ok
 - harness_update_task({initiative?, task_id, status, note?}) → ok
 - harness_log_decision({initiative?, chose, over, because}) → ok
@@ -86,7 +90,10 @@ return. No tool mutates state except via an event.
 
 ## Hooks (installed by `harness init` as standalone scripts in .claude/hooks/)
 - SessionStart shim → `harness event session-start` then prints the status
-  projection to stdout (context injection). Includes a "Repo memory" section
+  projection to stdout (context injection). The block opens with a
+  `Session: <id> — when calling harness_start_session, pass this as
+  session_id.` line carrying the hook-registered session id (adopt-by-id,
+  Phase 7, BD43). Includes a "Repo memory" section
   sourced from .harness/repo.md when it exists and is not the untouched init
   stub, budget-clipped to ~1,500 chars (added Phase 6, BD40). HARD LIMIT:
   output ≤10,000 chars — projection generator must guarantee this.

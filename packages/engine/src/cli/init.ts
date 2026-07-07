@@ -47,6 +47,10 @@ This repo's work memory lives in harness records under \`.harness/\`.
 Session loop:
 - START: orient from the record — call \`harness_get_state\` (MCP) or run
   \`harness status\`. Do not ask for context the record already answers.
+  Then call \`harness_start_session\` passing the \`session_id\` from the
+  injected context line ("Session: <id> — …") so your events attach to
+  YOUR session — never omit it when that line is present (omitting mints
+  a separate session id and orphans the hook-registered one).
 - DURING: log decisions (\`harness_log_decision\`) and task status changes
   (\`harness_update_task\`) as they happen.
 - BEFORE FINISHING: write back with \`harness_end_session\` (summary +

@@ -84,6 +84,10 @@ describe('harness event session-start — session registration (BD20) + context 
     // stdout is the status projection — the injected context (3.2, BD3)
     expect(result.stdout).toContain(`# Harness status: ${fixture.slug}`)
     expect(result.stdout.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
+    // the adopt-by-id delivery line (7.1, BD43): the agent reads its id here
+    expect(result.stdout).toContain(
+      'Session: claude-sess-1 — when calling harness_start_session, pass this as session_id.',
+    )
 
     const events = logEvents(fixture.eventsPath)
     expect(events).toHaveLength(1)
@@ -276,8 +280,9 @@ describe('harness event stop — write-back enforcement (3.4, BD2)', () => {
     const { client } = await connectServer(fixture.root)
     const started = await callTool<{ session_id: string }>(client, 'harness_start_session', {
       tool: 'claude-code',
+      session_id: 'claude-sess-1', // the id from the injected context line
     })
-    expect(started.body.session_id).toBe('claude-sess-1') // adopted (BD20)
+    expect(started.body.session_id).toBe('claude-sess-1') // adopted by id (BD43)
     await callTool(client, 'harness_end_session', {
       session_id: started.body.session_id,
       summary: 'ended via MCP',
@@ -390,6 +395,7 @@ describe('harness event session-end — mechanical close marker (3.5, BD21)', ()
     const { client } = await connectServer(fixture.root)
     const started = await callTool<{ session_id: string }>(client, 'harness_start_session', {
       tool: 'claude-code',
+      session_id: 'claude-sess-1', // adopt-by-id (BD43)
     })
     await callTool(client, 'harness_end_session', {
       session_id: started.body.session_id,

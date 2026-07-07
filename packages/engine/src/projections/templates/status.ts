@@ -22,6 +22,7 @@ export const REPO_MEMORY_TRUNCATION_MARKER =
 
 // Per-section budgets (chars). Worst-case sum stays well under the limit;
 // the final guard covers pathological futures, not expected inputs.
+const SESSION_ID_BUDGET = 120 // session ids are external input — never trust their size
 const GOAL_BUDGET = 600
 const TASK_LINE_BUDGET = 200
 const NEXT_ACTION_BUDGET = 500
@@ -120,11 +121,29 @@ export interface StatusOptions {
    * (missing/empty/stub → omit); the template owns budget + placement.
    */
   repoMemory?: string
+  /**
+   * The hook-registered session id (task 7.1, BD43): surfaced near the top
+   * so the agent can pass it to harness_start_session as `session_id` and
+   * adopt exactly its own session — the delivery mechanism that replaced
+   * BD20's newest-open adoption heuristic.
+   */
+  sessionId?: string
 }
 
 export function renderStatus(state: InitiativeState, options?: StatusOptions): string {
   const lines: string[] = []
   lines.push(`# Harness status: ${state.slug || '(unnamed initiative)'}`, '')
+
+  // Session identity (task 7.1, BD43) — near the top, before everything else:
+  // this is the id the agent must hand back to harness_start_session.
+  const sessionId = options?.sessionId?.trim() ?? ''
+  if (sessionId.length > 0) {
+    lines.push(
+      `Session: ${clip(sessionId, SESSION_ID_BUDGET)} — when calling harness_start_session, pass this as session_id.`,
+      '',
+    )
+  }
+
   lines.push(`Goal: ${state.goal ? clip(state.goal, GOAL_BUDGET) : '(none recorded)'}`, '')
 
   // Progress + active phase.

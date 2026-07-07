@@ -92,8 +92,11 @@ function readRepoMemory(rootDir: string): string | null {
 
 /**
  * SessionStart (task 3.2) — registers Claude Code's session_id in the log
- * (the correlation anchor, BD20) and prints the status projection to stdout
- * for context injection (≤10,000 chars — guaranteed by renderStatus).
+ * (the correlation anchor, BD20/BD43) and prints the status projection to
+ * stdout for context injection (≤10,000 chars — guaranteed by renderStatus).
+ * The block opens with a "Session: <id>" line (task 7.1, BD43) — the agent
+ * passes that id to harness_start_session as session_id to adopt exactly
+ * its own session (the newest-open heuristic is gone).
  * Re-fires on resume/clear/compact reuse the same session_id: the append is
  * skipped if the session is already registered, but the status block is
  * printed every time (re-injection after compact is the point).
@@ -114,8 +117,16 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
       state = ctx.foldState(slug)
     }
     const repoMemory = readRepoMemory(rootDir)
-    // ≤10,000 chars (BD3/BD24) — repo memory has its own budget (BD40)
-    return { ...OK, stdout: renderStatus(state, repoMemory !== null ? { repoMemory } : undefined) }
+    // ≤10,000 chars (BD3/BD24) — repo memory has its own budget (BD40); the
+    // session id line (7.1, BD43) tells the agent what to pass to
+    // harness_start_session so it adopts ITS OWN session, never a parallel one.
+    return {
+      ...OK,
+      stdout: renderStatus(state, {
+        ...(repoMemory !== null ? { repoMemory } : {}),
+        ...(sessionId !== null ? { sessionId } : {}),
+      }),
+    }
   } catch {
     return { ...OK }
   }

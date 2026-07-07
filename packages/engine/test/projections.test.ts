@@ -293,6 +293,22 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     expect(status).toContain('Next action: do the thing') // essentials survive alongside it
   })
 
+  it('session id line (7.1, BD43): lands right under the title, clipped, cap intact', () => {
+    const status = renderStatus(populatedState(), { sessionId: 'claude-sess-42' })
+    expect(status).toContain(
+      'Session: claude-sess-42 — when calling harness_start_session, pass this as session_id.',
+    )
+    expect(status.indexOf('Session: claude-sess-42')).toBeLessThan(status.indexOf('Goal:'))
+
+    // hostile external ids never blow the section, and the block omits the
+    // line entirely when no id is known
+    const hostile = renderStatus(largeState(), { sessionId: 'H'.repeat(5_000) })
+    expect(hostile.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
+    expect(hostile).toContain('Session: HHH')
+    expect(renderStatus(populatedState())).not.toContain('Session:')
+    expect(renderStatus(populatedState(), { sessionId: '   ' })).not.toContain('Session:')
+  })
+
   it('enforceStatusLimit is a hard guard: oversized text is cut and marked', () => {
     const oversized = 'x'.repeat(STATUS_CHAR_LIMIT + 5_000)
     const capped = enforceStatusLimit(oversized)

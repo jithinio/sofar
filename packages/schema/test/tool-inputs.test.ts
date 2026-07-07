@@ -93,6 +93,15 @@ describe('validateToolInput', () => {
     if (!res.ok) expect(res.errors[0]).toMatch(/^urgency: unknown argument/)
   })
 
+  it('start_session session_id is optional but must be non-empty when given (7.1, BD43)', () => {
+    expect(
+      validateToolInput('harness_start_session', { tool: 'claude-code', session_id: 'sess-1' }),
+    ).toEqual({ ok: true })
+    const res = validateToolInput('harness_start_session', { tool: 'claude-code', session_id: '' })
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.errors).toEqual(['session_id: must be a non-empty string'])
+  })
+
   it('rejects a bad task status with the allowed set in the message', () => {
     const res = validateToolInput('harness_update_task', { task_id: '1', status: 'finished' })
     expect(res.ok).toBe(false)

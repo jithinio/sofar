@@ -147,11 +147,13 @@ describe('acceptance 1 — init on a fresh repo yields a working end-to-end loop
     // the write-back gate is armed: Stop blocks before end_session
     expect(handleStop(root, JSON.stringify({ ...hookBase, stop_hook_active: false })).exitCode).toBe(2)
 
-    // MCP write-back: start_session ADOPTS the hook-registered session (BD20)
+    // MCP write-back: start_session adopts the hook-registered session BY ID
+    // (BD43) — the id arrives via the injected context "Session:" line
     const { client } = await connectServer(root)
     try {
       const adopted = await callTool<{ session_id: string }>(client, 'harness_start_session', {
         tool: 'claude-code',
+        session_id: SESSION,
       })
       expect(adopted.isError).toBe(false)
       expect(adopted.body.session_id).toBe(SESSION)

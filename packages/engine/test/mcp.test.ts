@@ -146,14 +146,16 @@ describe('MCP tools round-trip (2.2)', () => {
     await client.close()
   })
 
-  it('start_session adopts the hook-registered open session instead of minting a new id (BD20)', async () => {
+  it('start_session with session_id adopts exactly the hook-registered open session (BD43)', async () => {
     const fixture = makeRepoFixture()
-    // the SessionStart hook registered Claude Code's session in the log
+    // the SessionStart hook registered Claude Code's session in the log AND
+    // injected the id into context — the agent passes it back explicitly
     handleSessionStart(fixture.root, JSON.stringify({ session_id: 'claude-hook-sess' }))
 
     const { client, handle } = await connectServer(fixture.root)
     const started = await callTool<{ session_id: string }>(client, 'harness_start_session', {
       tool: 'claude-code',
+      session_id: 'claude-hook-sess',
     })
     expect(started.isError).toBe(false)
     expect(started.body.session_id).toBe('claude-hook-sess')
@@ -178,6 +180,78 @@ describe('MCP tools round-trip (2.2)', () => {
     expect(state.sessions[0]).toMatchObject({
       id: 'claude-hook-sess',
       summary: 'adopted and closed',
+    })
+    await client.close()
+  })
+
+  it('start_session WITHOUT session_id mints fresh even when another session is open (BD20 heuristic removed)', async () => {
+    const fixture = makeRepoFixture()
+    // a parallel agent's session is open — it must NOT be cross-adopted
+    handleSessionStart(fixture.root, JSON.stringify({ session_id: 'parallel-agent-sess' }))
+
+    const { client, handle } = await connectServer(fixture.root)
+    const started = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+      tool: 'claude-code',
+    })
+    expect(started.isError).toBe(false)
+    expect(started.body.session_id).not.toBe('parallel-agent-sess')
+    expect(started.body.session_id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/) // fresh ulid
+    expect(handle.getActiveSession()!.id).toBe(started.body.session_id)
+
+    // the mint registered a second session; the parallel one is untouched
+    const { state } = foldLog(fixture.eventsPath)
+    expect(state.sessions.map((s) => s.id)).toEqual(['parallel-agent-sess', started.body.session_id])
+    await client.close()
+  })
+
+  it('start_session with an ENDED session_id fails typed (invalid_input), appends nothing', async () => {
+    const fixture = makeRepoFixture()
+    const { client, handle } = await connectServer(fixture.root)
+
+    const first = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+      tool: 'claude-code',
+      session_id: 'done-sess',
+    })
+    expect(first.body.session_id).toBe('done-sess')
+    await callTool(client, 'harness_end_session', {
+      session_id: 'done-sess',
+      summary: 'finished',
+      next_action: 'nothing',
+    })
+
+    const linesBefore = readFileSync(fixture.eventsPath, 'utf8').trim().split('\n').length
+    const retry = await callTool<{ code: string; message: string }>(client, 'harness_start_session', {
+      tool: 'claude-code',
+      session_id: 'done-sess',
+    })
+    expect(retry.isError).toBe(true)
+    expect(retry.body.code).toBe('invalid_input')
+    expect(retry.body.message).toContain('already ended')
+    expect(readFileSync(fixture.eventsPath, 'utf8').trim().split('\n')).toHaveLength(linesBefore)
+    expect(handle.getActiveSession()).toBeNull() // failed adopt never becomes active
+    await client.close()
+  })
+
+  it('start_session with an UNKNOWN session_id registers it: session_started with that envelope.session', async () => {
+    const fixture = makeRepoFixture()
+    const { client, handle } = await connectServer(fixture.root)
+
+    const started = await callTool<{ session_id: string }>(client, 'harness_start_session', {
+      tool: 'claude-code',
+      model: 'fable-5',
+      session_id: 'mcp-only-sess',
+    })
+    expect(started.isError).toBe(false)
+    expect(started.body.session_id).toBe('mcp-only-sess')
+    expect(handle.getActiveSession()!.id).toBe('mcp-only-sess')
+
+    const lines = readFileSync(fixture.eventsPath, 'utf8').trim().split('\n')
+    expect(lines).toHaveLength(1)
+    const event = JSON.parse(lines[0]!)
+    expect(event).toMatchObject({
+      type: 'session_started',
+      session: 'mcp-only-sess',
+      payload: { tool: 'claude-code', model: 'fable-5' },
     })
     await client.close()
   })
