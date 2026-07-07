@@ -9,7 +9,9 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 (00-spine, 01-roadmap, 02-action-plan, 03-architecture).
 
 ## Current state
-- Active phase: none in flight — Phase 7 COMPLETE (parallel sessions +
+- Active phase: 8 — uninstall + adoption (`harness uninit` +
+  `harness adopt`; user-directed Jul 7 after install-on-existing-projects
+  questions surfaced both gaps). Phase 7 COMPLETE (parallel sessions +
   resume robustness, added on user direction Jul 7 and finished the same
   day: 7.1 adopt-by-id sessions BD43 — harness_start_session takes an
   optional session_id delivered via the SessionStart context "Session:"
@@ -127,6 +129,23 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [x] 7.3 Acceptance: two interleaved sessions on ONE initiative — correct
       attribution, independent Stop gates, no cross-adoption; an unwritten
       session still yields a usable resume block
+
+### Phase 8 — Uninstall + adoption of existing records [active]  (added Jul 7, BD45)
+- [ ] 8.1 `harness uninit [--purge]`: strip exactly what init installed
+      (shims, settings hooks entries, .mcp.json server entry, protocol
+      blocks in CLAUDE.md/AGENTS.md) while preserving ALL user content;
+      .harness/ record KEPT by default, deleted only with --purge;
+      idempotent; fresh-repo init → uninit --purge round-trips byte-clean
+- [ ] 8.2 `harness adopt <legacy-file> [slug]`: guided migration for
+      pre-harness prose records — env checks (init/initiative), emits a
+      replay brief with exact dialect commands + protocol-retirement
+      checklist; --mark stamps the legacy file with an idempotent
+      superseded banner. NO freeform markdown parsing (agent executes the
+      brief; CLI carries the protocol)
+- [ ] 8.3 Acceptance: round-trip hashes; uninit preserves foreign hooks/
+      servers/CLAUDE.md content; the adopt brief, executed as scripted
+      commands in a fixture, ends with `harness status` reflecting the
+      legacy plan
       (test/acceptance.phase7.test.ts — real hook handlers + two separate
       MCP server instances driving one log)
 
