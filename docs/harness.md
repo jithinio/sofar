@@ -522,3 +522,15 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   on Opus 4.8 in this repo with only "resume this initiative" as the
   prompt, let it orient from the record alone, and score the handoff as
   an arm-C run on the Phase 0 scorecard. The record is ready.
+- 2026-07-07, later (claude-code / Fable 5) — COLD RESUME PROBE (not the
+  arm-C run): fresh session, prompt "resume this initiative" only; oriented
+  via root CLAUDE.md → docs/harness.md → docs/SPEC.md, asked nothing.
+  Verified the record's claimed state holds at HEAD 2d9f9bc: clean tree,
+  235/235 tests green. NOTE: this session ran on Fable 5 — the /model
+  default was switched to Fable 5 immediately before launch — but arm-C
+  requires Opus 4.8, so this run does not satisfy 5.3's scoring leg; it
+  counts only as a second successful cold-resume dry run. No code changes.
+  Left off: nothing in flight. Next action (user, unchanged): (a) OpenCode
+  checklist run per docs/opencode-adapter.md §3, then flip 5.2; (b) fresh
+  session on OPUS 4.8 (switch via /model first) with only "resume this
+  initiative", scored as arm-C on the user-held Phase 0 scorecard.
