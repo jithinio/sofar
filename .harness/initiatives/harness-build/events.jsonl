@@ -1,0 +1,1 @@
+{"v":1,"id":"01KWY2ZG2SHGTVNTX0WWTHVW7J","ts":"2026-07-07T10:46:30.233Z","initiative":"harness-build","session":"cli","source":"cli","actor":"human","type":"initiative_created","payload":{"slug":"harness-build","goal":"Build the Harness v1 engine: event log core, MCP server, hooks, projections, CLI, watcher, dialect — engine only, schema swappable"}}
