@@ -9,15 +9,20 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 (00-spine, 01-roadmap, 02-action-plan, 03-architecture).
 
 ## Current state
-- Active phase: 8 — uninstall + adoption (`harness uninit` +
-  `harness adopt`; user-directed Jul 7 after install-on-existing-projects
-  questions surfaced both gaps). 8.1 done (BD45): `harness uninit [--purge]`
-  in src/cli/uninit.ts — surgical inverse of init, record kept unless
-  --purge, byte-clean fresh-repo round-trip under --purge. 8.2 done (BD46):
-  `harness adopt <legacy-file> [slug] [--mark]` in src/cli/adopt.ts — env
-  checks with typed errors, self-contained migration brief (dialect replay
-  templates, retirement checklist), idempotent --mark banner; no markdown
-  parsing. Phase 7 COMPLETE (parallel sessions +
+- Active phase: none — Phase 8 COMPLETE (uninstall + adoption; user-directed
+  Jul 7 after install-on-existing-projects questions surfaced both gaps,
+  finished the same day: 8.1 `harness uninit [--purge]` BD45 —
+  src/cli/uninit.ts, surgical inverse of init, record kept unless --purge,
+  byte-clean fresh-repo init → uninit --purge round-trip; 8.2 `harness
+  adopt <legacy-file> [slug] [--mark]` BD46 — src/cli/adopt.ts, typed env
+  checks, self-contained migration brief with five dialect replay templates
+  + retirement checklist, idempotent superseded banner, NO markdown
+  parsing; 8.3 acceptance.phase8 — four hash-tree round-trip/preservation
+  scenarios at handler level plus the fresh-repo round-trip AND the full
+  adopt flow through the BUILT CLI with the brief executed as scripted
+  shell, ending in `harness status` reproducing the legacy record and
+  uninit-after-adopt keeping the record functional; 291 tests green,
+  27 files). Phase 7 COMPLETE (parallel sessions +
   resume robustness, added on user direction Jul 7 and finished the same
   day: 7.1 adopt-by-id sessions BD43 — harness_start_session takes an
   optional session_id delivered via the SessionStart context "Session:"
@@ -136,7 +141,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
       attribution, independent Stop gates, no cross-adoption; an unwritten
       session still yields a usable resume block
 
-### Phase 8 — Uninstall + adoption of existing records [active]  (added Jul 7, BD45)
+### Phase 8 — Uninstall + adoption of existing records [done]  (added Jul 7, user-directed; completed Jul 7 — designs BD45/BD46)
 - [x] 8.1 `harness uninit [--purge]`: strip exactly what init installed
       (shims, settings hooks entries, .mcp.json server entry, protocol
       blocks in CLAUDE.md/AGENTS.md) while preserving ALL user content;
@@ -148,12 +153,13 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
       checklist; --mark stamps the legacy file with an idempotent
       superseded banner. NO freeform markdown parsing (agent executes the
       brief; CLI carries the protocol)
-- [ ] 8.3 Acceptance: round-trip hashes; uninit preserves foreign hooks/
+- [x] 8.3 Acceptance: round-trip hashes; uninit preserves foreign hooks/
       servers/CLAUDE.md content; the adopt brief, executed as scripted
       commands in a fixture, ends with `harness status` reflecting the
       legacy plan
-      (test/acceptance.phase7.test.ts — real hook handlers + two separate
-      MCP server instances driving one log)
+      (test/acceptance.phase8.test.ts — four hash-tree scenarios via
+      handlers + the fresh-repo round-trip and full adopt flow via the
+      BUILT CLI, brief commands run through bash as the agent would)
 
 ## Decisions
 - BD1: Stack = TypeScript/Node ≥18. MCP SDK is TS-first; users have Node
@@ -691,10 +697,15 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   ToolError re-shaped to append "create the target initiative with
   `harness new <slug>` first". The brief (src/cli/adopt.ts
   renderMigrationBrief) is self-contained and verbatim-executable: goal
-  line (replay <file> into <slug>), four exact dialect templates sharing
+  line (replay <file> into <slug>), five exact dialect templates sharing
   ONE fresh suggested session id (`migration-<ulid>`) with the slug baked
-  in as the append positional — plan_updated with a filled PlanStructure
-  skeleton, decision_logged chose/over/because, note_added, session_ended
+  in as the append positional — a verbatim-executable session_started
+  {"tool":"migration"} registration (Step 0, added during 8.3 acceptance:
+  without it the session_ended folds into a stub session, so every later
+  `harness status` printed a "ended without session_started" warning and
+  "Last session (unknown…)" — the AGENTS.md dialect's own START step is
+  the fix), plan_updated with a filled PlanStructure skeleton,
+  decision_logged chose/over/because, note_added, session_ended
   seeded with summary "migrated from <file>" and a next_action placeholder
   pointing at the legacy file's own next-action line — all `--actor human`
   (transcription is human-authored truth, BD26 precedent); then the

@@ -73,6 +73,11 @@ parses ${file} for you.
 
 Use ONE session id for every command. Fresh suggested id: ${sessionId}
 
+Step 0 — register the migration session (run verbatim; keeps the record
+free of stub-session warnings, per the AGENTS.md dialect's START step):
+
+  ${append} --type session_started --payload '{"tool":"migration"}'
+
 Step 1 — transcribe the plan (one command). Fill this skeleton from
 ${file}: every phase and task, statuses as recorded there
 (pending|active|done|blocked), the goal from its goal line:

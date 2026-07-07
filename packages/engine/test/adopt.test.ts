@@ -96,10 +96,11 @@ describe('the migration brief', () => {
 
     // (2) exact dialect templates — slug + ONE fresh session id baked in
     const ids = [...brief.matchAll(/--session (\S+)/g)].map((m) => m[1])
-    expect(ids).toHaveLength(4)
+    expect(ids).toHaveLength(5)
     expect(new Set(ids).size).toBe(1)
     expect(ids[0]).toMatch(/^migration-[0-9A-HJKMNP-TV-Z]{26}$/)
     const append = `harness event append legacy-widget --session ${ids[0]} --actor human`
+    expect(brief).toContain(`${append} --type session_started --payload '{"tool":"migration"}'`)
     expect(brief).toContain(`${append} --type plan_updated`)
     expect(brief).toContain('"plan":{"goal":') // filled PlanStructure skeleton
     expect(brief).toContain('"phases":[{"name":')
