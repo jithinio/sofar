@@ -158,4 +158,25 @@ describe('adopt --mark', () => {
     expect(second.stdout).toContain('already marked superseded — no change')
     expect(readFileSync(join(root, 'legacy.md'), 'utf8')).toBe(before)
   })
+
+  it('still stamps a file whose BODY quotes the marker (idempotency is head-anchored)', () => {
+    // Field finding from the self-host migration: docs/harness.md QUOTED
+    // "<!-- harness:superseded -->" inside a decision entry, and --mark
+    // wrongly reported it as already marked.
+    const root = adoptableRepo()
+    const legacyPath = join(root, 'legacy.md')
+    const quoting = `${LEGACY}\n## BD46\nadopt --mark stamps between ${SUPERSEDED_START} markers.\n`
+    writeFileSync(legacyPath, quoting)
+
+    const result = runAdopt(root, 'legacy.md', 'legacy-widget', { mark: true })
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('marked legacy.md superseded')
+    const marked = readFileSync(legacyPath, 'utf8')
+    expect(marked.startsWith(`${SUPERSEDED_START}\n`)).toBe(true)
+    expect(marked.endsWith(quoting)).toBe(true)
+
+    const second = runAdopt(root, 'legacy.md', 'legacy-widget', { mark: true })
+    expect(second.stdout).toContain('already marked superseded — no change')
+    expect(readFileSync(legacyPath, 'utf8')).toBe(marked)
+  })
 })

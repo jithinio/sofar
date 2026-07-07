@@ -163,7 +163,11 @@ export function runAdopt(
   const lines: string[] = [brief]
   if (options.mark === true) {
     const content = readFileSync(legacyPath, 'utf8')
-    if (content.includes(SUPERSEDED_START)) {
+    // Anchor the idempotency check to the file HEAD: a legacy record whose
+    // body merely QUOTES the marker (e.g. a decision log describing this
+    // very feature) must still get stamped. Field finding from the
+    // self-host migration, Jul 7.
+    if (content.trimStart().startsWith(SUPERSEDED_START)) {
       lines.push(`${displayFile} already marked superseded — no change`)
     } else {
       writeFileSync(legacyPath, `${supersededBanner(resolved)}${content}`, 'utf8')

@@ -67,4 +67,4 @@ Progress: 34/36 tasks done (94%)
 - [x] 8.3 Acceptance: round-trip hashes; uninit preserves foreign content; adopt brief executed as scripted commands ends with status reflecting the legacy plan
 
 Active phase: Phase 5 — Dialect + forced handoff
-Next action: USER: field-test harness on a real project (init/new, or adopt for a legacy-record repo); score the executed arm-C Opus 4.8 resume on the Phase 0 scorecard (closes 5.3) + run the manual OpenCode checklist (flips 5.2); decide on publishing the engine
+Next action: USER: score the executed arm-C resume, run the manual OpenCode checklist (flips 5.2), field-test on a real project, decide on publishing
