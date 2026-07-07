@@ -15,9 +15,10 @@
   ],
   "scripts": {
     "build": "node build.mjs",
+    "prepack": "node build.mjs",
     "typecheck": "tsc --noEmit -p ."
   },
-  "dependencies": {
+  "devDependencies": {
     "@harness/schema": "*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "chokidar": "^5.0.0",

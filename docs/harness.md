@@ -13,7 +13,8 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   5.2/5.3 remain open and user-driven in parallel). Phase 6 progress:
   6.3 done (atomic projection writes, BD38), 6.4 done (version
   single-sourced from package.json, BD39), 6.5 done (repo.md in the
-  SessionStart context with a 1.5k budget, BD40). Phase 5 status: 5.1
+  SessionStart context with a 1.5k budget, BD40), 6.2 done (zero-dep
+  installable tarball + packaging E2E, BD41). Phase 5 status: 5.1
   done: `harness event append` dialect surface +
   AGENTS.md protocol block with the three BD19 clauses, Stop-hook
   write-back parity proven. 5.2 docs + checklist simulation done — the
@@ -93,7 +94,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 ### Phase 6 — Hardening + distribution readiness [active]  (added Jul 7, BD37)
 - [ ] 6.1 README.md: what/why, install, quickstart (init/new/status),
       MCP server, hooks, AGENTS.md dialect — the front door for npm users
-- [ ] 6.2 Packaging: bundled-bin distribution — the engine tarball must
+- [x] 6.2 Packaging: bundled-bin distribution — the engine tarball must
       install with zero runtime deps (bin is fully esbuild-bundled);
       npm pack → install into temp prefix → `harness init` E2E test
 - [x] 6.3 Atomic projection writes (temp file + rename) — serve and
@@ -501,6 +502,29 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   with initiative state) and rendering it in `harness status` too (the
   uncapped CLI print is initiative-scoped; repo.md is a context-injection
   concern — revisit on demand).
+- BD41: Engine manifest reclassified for bundled-bin distribution (task 6.2)
+  — ALL packages/engine "dependencies" (including "@harness/schema": "*",
+  which is private/unpublished and made the old tarball uninstallable) moved
+  to devDependencies, because dist/cli.js is fully esbuild-bundled and a
+  consumer needs ZERO runtime deps; the BD7 dependency LAW is about the USED
+  set, which is byte-identical (@modelcontextprotocol/sdk, commander,
+  chokidar, ulid — still imported, still bundled; package-lock only gained
+  "dev": true flags). Added "prepack": "node build.mjs" so any tarball
+  carries a fresh build. VERIFIED: `npm pack` works fine with
+  "private": true (private only blocks publish), so the engine STAYS private
+  until the user green-lights publishing — flipping that flag is the only
+  packaging step left. Tarball contents today: dist/cli.js + package.json
+  (162 kB packed); npm auto-includes README* only from the PACKAGE dir and
+  packages/engine has none yet — README handling lands with task 6.1.
+  Guarded by test/packaging.test.ts, a real-channel E2E kept in the suite
+  (BD1: npm IS the distribution channel): npm pack → npm install -g
+  --prefix <tmp> → installed bin answers --version, installs zero deps
+  (node_modules absent), and drives init → new → status in a fixture repo
+  (npm_config_* env stripped so the child npm behaves like a user shell).
+  Measured ~1s wall on a warm cache — no test-runner special-casing needed.
+  Rejected publishing @harness/schema to make the old manifest installable
+  (publishes an internal package nobody imports at runtime) and rejected
+  removing "private" now (publish is a user decision, not a build gate).
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,
