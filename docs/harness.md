@@ -14,10 +14,13 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   write-back parity proven. 5.2 docs + checklist simulation done — the
   manual OpenCode verification run is still pending, so its box stays
   open. 235 tests green)
-- Next action: Task 5.3 — the handoff ceremony (user-driven): run the
-  manual OpenCode verification per docs/opencode-adapter.md §3 as ceremony
-  prep, then the final Fable session writes back via protocol and Opus 4.8
-  resumes from the record alone (scored as an arm-C run)
+- Next action: Task 5.3 remainder — ALL USER-DRIVEN: (a) the manual
+  OpenCode run per docs/opencode-adapter.md §3 (steps 1–3 are scripted
+  there; the agent prompt is in §3's intro), then flip 5.2; (b) fresh
+  Claude Code session on Opus 4.8 in this repo, prompt only "resume this
+  initiative", score as arm-C on the (user-held) Phase 0 scorecard. The
+  final Fable write-back is DONE (session log 2026-07-07); the record is
+  the handoff artifact.
 - Blocked on: nothing
 
 ## Plan
