@@ -410,6 +410,17 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   (source-shipped, no build); packages/engine → harness bin
   (packages/engine/dist/cli.js after build).
 - Definition of done per task: acceptance criteria in SPEC.md §Acceptance.
+- Boundary (cold-resume dry run, Jul 7): harness-docs/ (00-spine, 01-roadmap,
+  02-action-plan, 03-architecture) and the Phase 0 scorecard live OUTSIDE
+  this repo in the user's strategy vault. Engine sessions never need them;
+  5.3 scoring is performed by the user against that scorecard. Do not go
+  looking for them; do not block on them.
+- Push policy: push origin main at each verified wrap-up (user-established
+  Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Dogfooding semantics: this repo tracks itself via the PROTOCOL (prose
+  record in docs/harness.md), not via an installed .harness/ record — the
+  built tooling is exercised in tests and fixtures. "Write back via
+  protocol" in 5.3 means: session log + current state in docs/harness.md.
 
 ## Session log
 - 2026-07-03 (claude-code / Fable 5): Phase 1 complete, tasks 1.1–1.6, one
@@ -485,3 +496,26 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   (1) manual OpenCode checklist run (docs/opencode-adapter.md §3) → flip
   5.2; (2) 5.3 ceremony Jul 7 — Fable writes back via protocol, Opus 4.8
   cold-resumes from the record, scored as arm-C.
+- 2026-07-07 (claude-code / Fable 5) — CEREMONY PREP + FINAL FABLE
+  WRITE-BACK: (1) BD34 — protocol CLAUDE.md moved to repo root with paths
+  fixed so a zero-context session auto-loads the routing chain. (2) Cold
+  resume DRY RUN passed: a zero-context subagent oriented via
+  CLAUDE.md → docs/harness.md → docs/SPEC.md alone, reconstructed all
+  phases/constraints/decisions, verified 235/235 tests, asked nothing.
+  Its four gaps are fixed as Repo knowledge notes: harness-docs/ +
+  Phase 0 scorecard are OUTSIDE this repo (user-held, never block on
+  them); push policy (push at verified wrap-ups); dogfooding semantics
+  ("write back via protocol" = session log + current state in
+  docs/harness.md — no installed .harness/ here). (3) OpenCode manual
+  checklist (docs/opencode-adapter.md §3): steps 1–3 executed in a
+  fixture — every expected outcome matched (AGENTS.md markers, 2-line
+  log, pending v1 in plan.md). The agent run itself (steps 4–12) was
+  blocked by the session permission gate (external autonomous agent needs
+  explicit user authorization) — it remains the operator's run; 5.2 stays
+  open. THIS ENTRY IS THE FABLE WRITE-BACK FOR 5.3. Left off: nothing in
+  flight; suite 235 green at HEAD. Next action (user): (a) run checklist
+  steps 1–3 + the `opencode run` prompt from docs/opencode-adapter.md §3,
+  verify outcomes 4–12, flip 5.2; (b) start a FRESH Claude Code session
+  on Opus 4.8 in this repo with only "resume this initiative" as the
+  prompt, let it orient from the record alone, and score the handoff as
+  an arm-C run on the Phase 0 scorecard. The record is ready.
