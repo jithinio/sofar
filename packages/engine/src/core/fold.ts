@@ -10,6 +10,7 @@ import {
   type PhaseStatus,
   type PhaseStatusChangedPayload,
   type PlanUpdatedPayload,
+  type SessionClosedPayload,
   type SessionEndedPayload,
   type SessionStartedPayload,
   type TaskAddedPayload,
@@ -50,6 +51,25 @@ export interface DecisionState {
   because: string
 }
 
+/** List cap for derived activity arrays (BD44) — overflow becomes a "+N more" sentinel. */
+export const ACTIVITY_LIST_CAP = 20
+
+/**
+ * Derived per-session activity (task 7.2, BD44): the resume fallback for
+ * sessions that never wrote back. Aggregated from mechanical events
+ * attributed by envelope.session — file_touched, command_run,
+ * task_status_changed. Events on session "cli" are never aggregated (cli is
+ * not a session). Deterministic: log order in, capped lists out.
+ */
+export interface SessionActivity {
+  /** Deduped file_touched paths in first-touch order (capped + sentinel). */
+  files: string[]
+  /** Count of command_run events. */
+  commands: number
+  /** task_status_changed as "<id> → <status>" in log order (capped + sentinel). */
+  task_changes: string[]
+}
+
 export interface SessionState {
   id: string
   tool: string
@@ -58,6 +78,10 @@ export interface SessionState {
   ended?: string
   summary?: string
   next_action?: string
+  /** Reason from the session_closed that set `ended` (BD21/BD44), if any. */
+  closed_reason?: string
+  /** Present only when ≥1 mechanical event is attributed to this session (BD44). */
+  activity?: SessionActivity
 }
 
 export interface InitiativeState {
@@ -142,6 +166,7 @@ export function foldLines(lines: readonly string[]): FoldResult {
   // Pass 2 — replay in log order.
   const state = emptyState()
   const blockNotes = new Map<string, string>() // task id → note from its blocking event
+  const activity = new Map<string, ActivityAcc>() // envelope.session → derived activity (BD44)
 
   for (const { lineNo, event } of parsed) {
     // Cursor tracks the last envelope-valid event: sync (export/import)
@@ -162,10 +187,82 @@ export function foldLines(lines: readonly string[]): FoldResult {
     }
 
     applyEvent(state, event, blockNotes, warnings, lineNo)
+    recordActivity(activity, event)
   }
 
+  attachActivity(state, activity)
   deriveCurrent(state, blockNotes)
   return { state, warnings }
+}
+
+// ---------------------------------------------------------------------------
+// Derived per-session activity (task 7.2, BD44).
+// ---------------------------------------------------------------------------
+
+interface ActivityAcc {
+  files: string[]
+  fileSet: Set<string>
+  filesOverflow: number
+  commands: number
+  taskChanges: string[]
+  taskChangesOverflow: number
+}
+
+/**
+ * Aggregate mechanical events by envelope.session. Runs on payload-valid,
+ * unvoided events only (called after applyEvent), so corrections void
+ * activity the same way they void state. Session "cli" is excluded — cli is
+ * not a session and its events belong to no resume point.
+ */
+function recordActivity(acc: Map<string, ActivityAcc>, event: EventEnvelope): void {
+  if (event.session === 'cli') return
+  if (event.type !== 'file_touched' && event.type !== 'command_run' && event.type !== 'task_status_changed') {
+    return
+  }
+  let a = acc.get(event.session)
+  if (a === undefined) {
+    a = { files: [], fileSet: new Set(), filesOverflow: 0, commands: 0, taskChanges: [], taskChangesOverflow: 0 }
+    acc.set(event.session, a)
+  }
+  switch (event.type) {
+    case 'file_touched': {
+      const p = event.payload as unknown as FileTouchedPayload
+      if (a.fileSet.has(p.path)) break // dedupe — first touch wins the slot
+      a.fileSet.add(p.path)
+      if (a.files.length < ACTIVITY_LIST_CAP) a.files.push(p.path)
+      else a.filesOverflow += 1
+      break
+    }
+    case 'command_run': {
+      a.commands += 1
+      break
+    }
+    case 'task_status_changed': {
+      const p = event.payload as unknown as TaskStatusChangedPayload
+      if (a.taskChanges.length < ACTIVITY_LIST_CAP) a.taskChanges.push(`${p.id} → ${p.status}`)
+      else a.taskChangesOverflow += 1
+      break
+    }
+  }
+}
+
+/**
+ * Attach accumulated activity to REGISTERED sessions only — events carrying
+ * a session id with no session_started stay unattached (same no-stub rule as
+ * session_closed, BD21). Capped lists carry a "+N more" sentinel so the
+ * fold stays deterministic and bounded.
+ */
+function attachActivity(state: InitiativeState, acc: Map<string, ActivityAcc>): void {
+  for (const session of state.sessions) {
+    const a = acc.get(session.id)
+    if (a === undefined) continue
+    session.activity = {
+      files: a.filesOverflow > 0 ? [...a.files, `+${a.filesOverflow} more`] : a.files,
+      commands: a.commands,
+      task_changes:
+        a.taskChangesOverflow > 0 ? [...a.taskChanges, `+${a.taskChangesOverflow} more`] : a.taskChanges,
+    }
+  }
 }
 
 function findTask(state: InitiativeState, id: string): TaskState | undefined {
@@ -288,10 +385,12 @@ function applyEvent(
       break
     }
     case 'session_closed': {
-      // Mechanical close (SessionEnd hook fallback): sets ended only. Never
+      // Mechanical close (SessionEnd hook fallback): sets ended only (plus
+      // the close reason for the 7.2 derived resume line, BD44). Never
       // touches summary/next_action — those belong to session_ended (the
       // write-back), and never creates stub sessions (a close marker for an
       // unregistered session carries no information).
+      const p = event.payload as unknown as SessionClosedPayload
       const session = state.sessions.find((s) => s.id === event.session)
       if (!session) {
         warnings.push(
@@ -299,7 +398,10 @@ function applyEvent(
         )
         break
       }
-      if (session.ended === undefined) session.ended = event.ts
+      if (session.ended === undefined) {
+        session.ended = event.ts
+        session.closed_reason = p.reason
+      }
       break
     }
     case 'file_touched': {

@@ -1,5 +1,5 @@
 import type { InitiativeState, SessionState } from '../../core/fold'
-import { clip, pct, taskProgress } from './shared'
+import { clip, describeActivity, pct, taskProgress } from './shared'
 
 /**
  * Status projection — the SessionStart context block (task 3.6, BD3):
@@ -30,6 +30,7 @@ const BLOCKED_BUDGET = 500
 const PHASE_LINE_BUDGET = 100
 const MAX_PHASE_LINES = 12
 const SESSION_SUMMARY_BUDGET = 1_200
+const DERIVED_SESSION_BUDGET = 600
 const DECISION_LINE_BUDGET = 280
 const MAX_DECISIONS = 5
 
@@ -55,6 +56,23 @@ function clipBlock(text: string, budget: number, marker: string): string {
 function lastWithSummary(sessions: readonly SessionState[]): SessionState | undefined {
   for (let i = sessions.length - 1; i >= 0; i--) {
     if (sessions[i]!.summary !== undefined) return sessions[i]
+  }
+  return undefined
+}
+
+/**
+ * Derived resume fallback (task 7.2, BD44): newest → oldest, the first
+ * session that did mechanical work but never wrote a summary — UNLESS a
+ * written-back session is newer (summary-first: the real write-back already
+ * carries the resume point). Sessions with neither summary nor activity
+ * (e.g. the session that just started and triggered this render) are
+ * skipped, not blockers.
+ */
+function lastUnwrittenWithActivity(sessions: readonly SessionState[]): SessionState | undefined {
+  for (let i = sessions.length - 1; i >= 0; i--) {
+    const session = sessions[i]!
+    if (session.summary !== undefined) return undefined
+    if (session.activity !== undefined) return session
   }
   return undefined
 }
@@ -201,6 +219,22 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   if (last !== undefined) {
     lines.push(`Last session (${last.tool}, ended ${last.ended ?? '?'}):`)
     lines.push(`  ${clip(last.summary!, SESSION_SUMMARY_BUDGET)}`)
+    lines.push('')
+  }
+
+  // Derived resume fallback (task 7.2, BD44): a newer session that worked
+  // but never wrote back still leaves a usable resume point.
+  const unwritten = lastUnwrittenWithActivity(state.sessions)
+  if (unwritten !== undefined) {
+    const fate = unwritten.ended !== undefined ? 'ended without write-back' : 'open, no write-back yet'
+    const closed = unwritten.closed_reason !== undefined ? `, closed: ${unwritten.closed_reason}` : ''
+    lines.push(
+      clip(
+        `Last session (${unwritten.tool}${closed}) ${fate} — derived: ${describeActivity(unwritten.activity!)}`,
+        DERIVED_SESSION_BUDGET,
+      ),
+    )
+    lines.push(`  (details in sessions/${clip(unwritten.id, SESSION_ID_BUDGET)}.md)`)
     lines.push('')
   }
 

@@ -114,9 +114,9 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [x] 7.1 Adopt-by-id sessions: SessionStart context carries the session id;
       harness_start_session gains optional session_id and adopts ONLY on
       exact id match — the newest-open heuristic (BD20) is removed (BD43)
-- [ ] 7.2 Derived resume fallback: fold aggregates per-session activity
+- [x] 7.2 Derived resume fallback: fold aggregates per-session activity
       (files, commands, task changes); status + session projections surface
-      it whenever a session lacks a written summary
+      it whenever a session lacks a written summary (BD44)
 - [ ] 7.3 Acceptance: two interleaved sessions on ONE initiative — correct
       attribution, independent Stop gates, no cross-adoption; an unwritten
       session still yields a usable resume block
@@ -587,6 +587,37 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   newest-open as a fallback when session_id is omitted: the fallback IS the
   cross-adoption bug; an omitting agent now gets its own identity and an
   unwritten hook session surfaces through the 7.2 derived resume instead.
+- BD44: Derived resume fallback (task 7.2) — the fold now aggregates
+  per-session activity from mechanical events attributed by
+  envelope.session: SessionState gained OPTIONAL `activity?: { files[]
+  (deduped file_touched paths, first-touch order), commands (command_run
+  count), task_changes[] ("<id> → <status>" in log order) }`, lists capped
+  at 20 entries with a "+N more" sentinel (fold stays deterministic and
+  bounded; counts stay exact via the sentinel), attached ONLY when ≥1 such
+  event exists, ONLY to registered sessions (no stubs — same rule as BD21),
+  and NEVER for session "cli" (cli is not a session). Aggregation runs on
+  payload-valid unvoided events, so corrections void activity exactly like
+  state. session_closed additionally records `closed_reason` when it is the
+  close that set `ended` (a prior session_ended suppresses it) so the
+  derived line can say "closed: crash". Rendering: renderStatus gained a
+  derived block — newest→oldest, the first session with activity but no
+  summary renders `Last session (<tool>[, closed: <reason>]) ended without
+  write-back — derived: N files (…), M commands, task changes: …` (clip to
+  a 600-char budget + a pointer line to sessions/<id>.md) UNLESS a
+  written-back session is newer (summary-first — the real write-back is the
+  resume point); sessions with neither summary nor activity (the session
+  that just started and triggered the render) are skipped, not blockers.
+  sessions/<id>.md gained an "Activity (derived from mechanical events)"
+  section whenever activity exists (enrichment even with a summary) and the
+  no-summary placeholder now points at it; the Ended line carries the close
+  reason. describeActivity lives in templates/shared.ts (template home law);
+  state SHAPE stays in engine fold.ts — not payload schema, so packages/
+  schema is untouched. SPEC §State sessions shape updated. Rejected
+  aggregating into unregistered stub sessions (a resume point for a session
+  nobody registered is noise) and rejected surfacing the derived line in
+  renderFullStatus/`harness status` (the design scoped surfaces to the
+  status context block + sessions/<id>.md; the CLI print already lists
+  files_touched — revisit on demand).
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,

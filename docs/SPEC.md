@@ -63,9 +63,15 @@ file_touched (path, op) · command_run (cmd) · note_added · correction (ref)
 ## State (result of fold)
 InitiativeState = { slug, goal, phases[ {name, status, tasks[ {id, title,
 status} ]} ], decisions[], sessions[ {id, tool, model?, started, ended?,
-summary?, next_action?} ],
+summary?, next_action?, closed_reason?, activity?} ],
 files_touched[], current: {active_phase, next_action, blocked_on?},
 cursor: <last event id> }
+activity (Phase 7, BD44) = derived per-session aggregation of mechanical
+events attributed by envelope.session (session "cli" excluded; unregistered
+session ids stay unattached): { files[] deduped in first-touch order,
+commands count, task_changes[] as "<id> → <status>" in log order } — lists
+capped at 20 entries + "+N more" sentinel; present only when ≥1 such event
+exists. closed_reason = the session_closed reason when that close set ended.
 
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends

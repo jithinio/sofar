@@ -250,6 +250,20 @@ describe('foldLines', () => {
     expect(state.sessions[0]?.next_action).toBe('Fold next')
   })
 
+  it('session_closed records its reason when it sets ended; a prior write-back suppresses it (7.2, BD44)', () => {
+    const crashed = [
+      ev('session_started', { tool: 'claude-code' }, { session: 'sess-crash', source: 'hook' }),
+      ev('session_closed', { reason: 'crash' }, { session: 'sess-crash', source: 'hook' }),
+    ]
+    const { state } = foldLines(lines(crashed))
+    expect(state.sessions[0]?.closed_reason).toBe('crash')
+
+    // storyline's sess-1 wrote back first — the later close carries nothing
+    const closedAfterEnd = ev('session_closed', { reason: 'exit' }, { session: 'sess-1', source: 'hook' })
+    const written = foldLines(lines([...storyline(), closedAfterEnd])).state
+    expect(written.sessions[0]?.closed_reason).toBeUndefined()
+  })
+
   it('plan_updated fully replaces the plan structure', () => {
     const replace = ev('plan_updated', {
       plan: {
@@ -269,6 +283,84 @@ describe('foldLines', () => {
     expect(warnings).toHaveLength(1)
     expect(warnings[0]).toMatch(/already exists/)
     expect(state.phases[1]?.tasks).toHaveLength(1)
+  })
+})
+
+describe('derived per-session activity (7.2, BD44)', () => {
+  it('aggregates files (deduped, first-touch order), command count, and task changes per session', () => {
+    const { state, warnings } = foldLines(lines(storyline()))
+    expect(warnings).toEqual([])
+    expect(state.sessions[0]?.activity).toEqual({
+      files: ['src/core/log.ts', 'test/log.test.ts'], // dup touch collapsed
+      commands: 1,
+      task_changes: ['1.1 → active', '1.1 → done'], // log order, one entry per change
+    })
+  })
+
+  it('attributes strictly by envelope.session: interleaved sessions never leak into each other', () => {
+    const events = [
+      ev('session_started', { tool: 'claude-code' }, { session: 'sess-a', source: 'hook' }),
+      ev('session_started', { tool: 'claude-code' }, { session: 'sess-b', source: 'hook' }),
+      ev('file_touched', { path: 'a1.ts', op: 'edit' }, { session: 'sess-a', source: 'hook' }),
+      ev('file_touched', { path: 'b1.ts', op: 'write' }, { session: 'sess-b', source: 'hook' }),
+      ev('command_run', { cmd: 'npm test' }, { session: 'sess-a', source: 'hook' }),
+      ev('file_touched', { path: 'a2.ts', op: 'edit' }, { session: 'sess-a', source: 'hook' }),
+    ]
+    const { state } = foldLines(lines(events))
+    expect(state.sessions.find((s) => s.id === 'sess-a')?.activity).toEqual({
+      files: ['a1.ts', 'a2.ts'],
+      commands: 1,
+      task_changes: [],
+    })
+    expect(state.sessions.find((s) => s.id === 'sess-b')?.activity).toEqual({
+      files: ['b1.ts'],
+      commands: 0,
+      task_changes: [],
+    })
+  })
+
+  it('session "cli" is never aggregated and unregistered session ids stay unattached', () => {
+    const events = [
+      ev('session_started', { tool: 'claude-code' }, { session: 'sess-quiet', source: 'hook' }),
+      ev('file_touched', { path: 'cli.ts', op: 'edit' }, { session: 'cli', source: 'cli' }),
+      ev('command_run', { cmd: 'ls' }, { session: 'sess-never-registered', source: 'hook' }),
+    ]
+    const { state } = foldLines(lines(events))
+    // no mechanical events on sess-quiet → no activity key at all
+    expect(state.sessions).toHaveLength(1)
+    expect(state.sessions[0]?.activity).toBeUndefined()
+    expect(state.sessions.some((s) => s.id === 'cli')).toBe(false)
+  })
+
+  it('caps lists at 20 entries with a "+N more" sentinel; counts stay exact and deterministic', () => {
+    const events = [
+      ev('session_started', { tool: 'claude-code' }, { session: 'sess-busy', source: 'hook' }),
+      ...Array.from({ length: 25 }, (_, i) =>
+        ev('file_touched', { path: `src/f${i}.ts`, op: 'edit' }, { session: 'sess-busy', source: 'hook' }),
+      ),
+    ]
+    const serialized = lines(events)
+    const { state } = foldLines(serialized)
+    const activity = state.sessions[0]!.activity!
+    expect(activity.files).toHaveLength(21)
+    expect(activity.files[0]).toBe('src/f0.ts')
+    expect(activity.files[19]).toBe('src/f19.ts')
+    expect(activity.files[20]).toBe('+5 more')
+
+    // determinism: same log → deep-equal activity
+    expect(foldLines(serialized).state).toEqual(state)
+  })
+
+  it('a voided (corrected) mechanical event does not count toward activity', () => {
+    const touched = ev('file_touched', { path: 'oops.ts', op: 'edit' }, { session: 'sess-fix', source: 'hook' })
+    const events = [
+      ev('session_started', { tool: 'claude-code' }, { session: 'sess-fix', source: 'hook' }),
+      touched,
+      ev('command_run', { cmd: 'npm test' }, { session: 'sess-fix', source: 'hook' }),
+      ev('correction', { ref: touched.id }, { session: 'sess-fix' }),
+    ]
+    const { state } = foldLines(lines(events))
+    expect(state.sessions[0]?.activity).toEqual({ files: [], commands: 1, task_changes: [] })
   })
 })
 

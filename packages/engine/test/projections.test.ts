@@ -197,6 +197,43 @@ describe('full projections (3.6)', () => {
     expect(md).toContain('(none recorded)')
   })
 
+  it('renderSession derived resume block (7.2, BD44): activity + close reason for an unwritten session', () => {
+    const md = renderSession(populatedState(), {
+      id: 'sess-crash',
+      tool: 'claude-code',
+      started: '2026-07-07T01:00:00.000Z',
+      ended: '2026-07-07T02:00:00.000Z',
+      closed_reason: 'crash',
+      activity: {
+        files: ['src/a.ts', 'src/b.ts'],
+        commands: 3,
+        task_changes: ['1.2 → done'],
+      },
+    })
+    expect(md).toContain('- Ended: 2026-07-07T02:00:00.000Z (closed: crash)')
+    expect(md).toContain('(none recorded — ended without write-back; derived resume point below)')
+    expect(md).toContain('## Activity (derived from mechanical events)')
+    expect(md).toContain('- Derived: 2 files (src/a.ts, src/b.ts), 3 commands, task changes: 1.2 → done')
+    expect(md).toContain('  - src/a.ts')
+    expect(md).toContain('- Commands run: 3')
+    expect(md).toContain('  - 1.2 → done')
+  })
+
+  it('renderSession with a summary still renders as a write-back; activity only enriches', () => {
+    const md = renderSession(populatedState(), {
+      id: 'sess-full',
+      tool: 'claude-code',
+      started: '2026-07-07T01:00:00.000Z',
+      ended: '2026-07-07T02:00:00.000Z',
+      summary: 'did the work',
+      next_action: 'more work',
+      activity: { files: ['src/a.ts'], commands: 1, task_changes: [] },
+    })
+    expect(md).toContain('did the work')
+    expect(md).not.toContain('derived resume point')
+    expect(md).toContain('## Activity (derived from mechanical events)')
+  })
+
   it('regenerateProjections writes sessions/<session-id>.md per session, ids sanitized', () => {
     const dir = join(scratch, 'initiatives', 'with-sessions')
     const state = populatedState()
@@ -291,6 +328,67 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     expect(status).toContain('Repo memory (.harness/repo.md):')
     expect(status).toContain(REPO_MEMORY_TRUNCATION_MARKER)
     expect(status).toContain('Next action: do the thing') // essentials survive alongside it
+  })
+
+  it('derived resume fallback (7.2, BD44): an unwritten session with activity surfaces in status', () => {
+    const state = populatedState()
+    state.sessions = [
+      {
+        id: 'sess-crash',
+        tool: 'claude-code',
+        started: '2026-07-07T01:00:00.000Z',
+        ended: '2026-07-07T02:00:00.000Z',
+        closed_reason: 'crash',
+        activity: { files: ['src/a.ts', 'src/b.ts'], commands: 2, task_changes: ['1.2 → done'] },
+      },
+    ]
+    const status = renderStatus(state)
+    expect(status).toContain(
+      'Last session (claude-code, closed: crash) ended without write-back — derived: 2 files (src/a.ts, src/b.ts), 2 commands, task changes: 1.2 → done',
+    )
+    expect(status).toContain('(details in sessions/sess-crash.md)')
+    expect(status.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
+  })
+
+  it('derived fallback stays summary-first: a NEWER written session suppresses it; an older one does not', () => {
+    const crashed = {
+      id: 'sess-crash',
+      tool: 'claude-code',
+      started: '2026-07-07T01:00:00.000Z',
+      activity: { files: ['src/a.ts'], commands: 0, task_changes: [] },
+    }
+    const written = {
+      id: 'sess-written',
+      tool: 'claude-code',
+      started: '2026-07-07T03:00:00.000Z',
+      ended: '2026-07-07T04:00:00.000Z',
+      summary: 'the real write-back',
+      next_action: 'continue',
+    }
+
+    // crash BEFORE the written session → only the summary block renders
+    const older = populatedState()
+    older.sessions = [crashed, written]
+    const olderStatus = renderStatus(older)
+    expect(olderStatus).toContain('the real write-back')
+    expect(olderStatus).not.toContain('derived:')
+
+    // crash AFTER the written session → both render (summary first, derived after)
+    const newer = populatedState()
+    newer.sessions = [written, { ...crashed, started: '2026-07-07T05:00:00.000Z' }]
+    const newerStatus = renderStatus(newer)
+    expect(newerStatus).toContain('the real write-back')
+    expect(newerStatus).toContain('open, no write-back yet — derived: 1 file (src/a.ts)')
+    expect(newerStatus.indexOf('the real write-back')).toBeLessThan(newerStatus.indexOf('derived:'))
+
+    // a just-started session with no activity is skipped, not a blocker
+    const fresh = populatedState()
+    fresh.sessions = [
+      written,
+      { ...crashed, started: '2026-07-07T05:00:00.000Z' },
+      { id: 'sess-now', tool: 'claude-code', started: '2026-07-07T06:00:00.000Z' },
+    ]
+    expect(renderStatus(fresh)).toContain('derived: 1 file (src/a.ts)')
   })
 
   it('session id line (7.1, BD43): lands right under the title, clipped, cap intact', () => {
