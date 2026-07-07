@@ -713,3 +713,18 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   (b) OpenCode checklist run per docs/opencode-adapter.md §3, then flip 5.2.
   5.3's checkbox stays open until the arm-C scoring is recorded (honest
   record over checkmark, per BD32's principle).
+- 2026-07-07, later (claude-code / Fable 5, Phase 6 by delegated subagent,
+  verified by main session): Phase 6 complete, tasks 6.1–6.5, commits
+  50aaf4b..3b118b6, decisions BD38–BD42. Atomic projection writes
+  (temp+rename), CLI version single-sourced from package.json, repo.md now
+  surfaces in the SessionStart context with a 1,500-char budget (10k cap
+  holds against a 50k repo.md), engine tarball installs with ZERO runtime
+  deps (bundled-bin pattern; deps reclassified to devDependencies — used
+  set unchanged, BD7 law intact), root README as the npm front door.
+  Tests 235 → 245. Main-session verification: full gate green; independent
+  pack → global-install into temp prefix → installed binary ran init/new/
+  session-start (Repo memory section rendered)/status. Publishing remains
+  a user decision (flip engine "private", npm publish — schema does NOT
+  need publishing; it is bundled). Left off: nothing in flight. Next
+  action (user, unchanged): 5.2 manual OpenCode run, 5.3 arm-C scoring on
+  Opus 4.8. Engine is feature-complete AND shippable.
