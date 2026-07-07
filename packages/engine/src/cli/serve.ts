@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 import { createServer, type Server, type ServerResponse } from 'node:http'
 import { basename, join, relative, sep } from 'node:path'
 import { watch } from 'chokidar'
@@ -22,6 +22,7 @@ import { emptyState, foldLog, type InitiativeState } from '../core/fold'
 
 export const DEFAULT_PORT = 4173
 export const HEARTBEAT_MS = 15_000
+export const RECONCILE_MS = 250
 
 const SLUG_PATH_RE = /^[a-z0-9-]+$/ // slugs only — a path segment never walks the fs
 
@@ -71,6 +72,30 @@ export async function startServer(options: ServeOptions): Promise<ServeHandle> {
 
   // --- SSE clients -----------------------------------------------------------
   const clients = new Set<ServerResponse>()
+  const logVersions = new Map<string, string>()
+
+  function logVersion(slug: string): string | null {
+    try {
+      const stat = statSync(join(initiativesDir, slug, 'events.jsonl'))
+      return `${stat.size}:${stat.mtimeMs}`
+    } catch {
+      return null
+    }
+  }
+
+  function rememberCurrentLogs(): void {
+    for (const slug of listSlugs()) {
+      const version = logVersion(slug)
+      if (version !== null) logVersions.set(slug, version)
+    }
+  }
+
+  function broadcastIfLogChanged(slug: string): void {
+    const version = logVersion(slug)
+    if (version === null || logVersions.get(slug) === version) return
+    logVersions.set(slug, version)
+    broadcast(slug)
+  }
 
   function openEventStream(res: ServerResponse): void {
     res.writeHead(200, {
@@ -94,6 +119,12 @@ export async function startServer(options: ServeOptions): Promise<ServeHandle> {
   }, HEARTBEAT_MS)
   heartbeat.unref()
 
+  const reconcile = setInterval(() => {
+    if (clients.size === 0) return
+    for (const slug of listSlugs()) broadcastIfLogChanged(slug)
+  }, RECONCILE_MS)
+  reconcile.unref()
+
   // --- watcher: append to any .harness/**/events.jsonl → re-fold + push -----
   // A directory created and populated in one burst (harness new) can lose
   // the file's `add` event to a chokidar/fsevents race — the `addDir` for
@@ -101,6 +132,8 @@ export async function startServer(options: ServeOptions): Promise<ServeHandle> {
   // briefly for the log to land before folding (bounded, then push anyway).
   function broadcastWhenLogExists(slug: string, tries: number): void {
     if (tries <= 0 || existsSync(join(initiativesDir, slug, 'events.jsonl'))) {
+      const version = logVersion(slug)
+      if (version !== null) logVersions.set(slug, version)
       broadcast(slug)
       return
     }
@@ -119,6 +152,8 @@ export async function startServer(options: ServeOptions): Promise<ServeHandle> {
     }
     if (event !== 'add' && event !== 'change') return
     if (basename(path) !== 'events.jsonl') return // projections regenerate too — ignore
+    const version = logVersion(slug)
+    if (version !== null) logVersions.set(slug, version)
     broadcast(slug)
   })
 
@@ -162,6 +197,7 @@ export async function startServer(options: ServeOptions): Promise<ServeHandle> {
       server.listen(options.port ?? DEFAULT_PORT, '127.0.0.1', () => resolveListen())
     }),
   ])
+  rememberCurrentLogs()
 
   const address = server.address()
   const port = typeof address === 'object' && address !== null ? address.port : (options.port ?? DEFAULT_PORT)
@@ -171,6 +207,7 @@ export async function startServer(options: ServeOptions): Promise<ServeHandle> {
     url: `http://127.0.0.1:${port}`,
     async close() {
       clearInterval(heartbeat)
+      clearInterval(reconcile)
       for (const client of clients) client.end()
       clients.clear()
       await watcher.close()

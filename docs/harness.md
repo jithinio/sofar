@@ -13,7 +13,8 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   AGENTS.md protocol block with the three BD19 clauses, Stop-hook
   write-back parity proven. 5.2 docs + checklist simulation done — the
   manual OpenCode verification run is still pending, so its box stays
-  open. 235 tests green)
+  open. Codex cold-resume found and fixed one serve watcher race; 235 tests
+  green)
 - Next action: Task 5.3 remainder — ALL USER-DRIVEN: (a) the manual
   OpenCode run per docs/opencode-adapter.md §3 (steps 1–3 are scripted
   there; the agent prompt is in §3's intro), then flip 5.2; (b) fresh
@@ -413,6 +414,18 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   multi-hop routing reliably. Also field-noted: a session must LAUNCH
   inside the repo — no root file can route a blank workspace (the failed
   Codex attempt started in ~/Documents/Codex/<date>, not the repo).
+- BD36: serve now has a bounded reconciliation safety net for connected SSE
+  clients (Jul 7 Codex resume). A full-suite run reproduced a remaining
+  new-initiative miss: even the BD33 `addDir` fallback can fail to observe
+  a create+populate burst on fsevents, leaving the client with no state
+  event. The watcher remains the fast path, but while SSE clients are
+  connected the server scans initiative log size/mtime every 250ms and
+  broadcasts any changed log the watcher missed; versions are seeded after
+  watcher ready, and no scan broadcasts when no clients are attached. This
+  keeps the JSON-only localhost scope and preserves the SPEC 500ms existing
+  append SLA (watcher path still asserts it). Rejected unbounded polling
+  or static/UI work; rejected treating the failure as test-only because it
+  reproduced the exact product path the test protects.
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,
@@ -545,3 +558,19 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   checklist run per docs/opencode-adapter.md §3, then flip 5.2; (b) fresh
   session on OPUS 4.8 (switch via /model first) with only "resume this
   initiative", scored as arm-C on the user-held Phase 0 scorecard.
+- 2026-07-07, later (codex / GPT-5) — COLD RESUME + WATCHER HARDENING
+  (not the arm-C run): oriented via root AGENTS.md → docs/harness.md →
+  docs/SPEC.md → CLAUDE.md, asked nothing, and confirmed the remaining
+  initiative work is user-driven. Verification initially caught a real
+  serve regression in the already-known new-initiative SSE path: full
+  `npm test` failed 234/235 because `serve.test.ts` timed out waiting for
+  the fresh-log push. Fixed packages/engine/src/cli/serve.ts with BD36:
+  watcher remains the fast path, plus a 250ms connected-client
+  reconciliation of events.jsonl size/mtime for missed filesystem events.
+  Verification after the fix: focused serve suite 5/5, `npm run
+  typecheck`, full `npm test` 235/235, and `npm run build` all green.
+  Left off: no implementation work in flight. Next action (user,
+  unchanged): (a) OpenCode checklist run per docs/opencode-adapter.md §3,
+  then flip 5.2; (b) fresh Claude Code session on OPUS 4.8 with only
+  "resume this initiative", scored as arm-C on the user-held Phase 0
+  scorecard.
