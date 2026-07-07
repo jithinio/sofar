@@ -29,3 +29,27 @@ contracts.
   log the conflict in Decisions and surface it to the user.
 - docs/SPEC.md is authoritative over improvisation. Deviations require a
   Decision entry.
+
+<!-- sofar:protocol -->
+## Sofar protocol (jurisdiction is total)
+
+This repo's work memory lives in sofar records under `.sofar/`.
+1. ALL work state lives in sofar records — never in tool memory, scratch
+   files, or ad-hoc notes. If it is worth keeping, it goes in the record.
+2. Work that matches no existing initiative requires creating one first:
+   run `sofar new <slug>` before proceeding.
+3. Bindings (`.sofar/bindings.json`) resolve which record a session
+   serves — the current git branch selects the initiative.
+
+Session loop:
+- START: orient from the record — call `sofar_get_state` (MCP) or run
+  `sofar status`. Do not ask for context the record already answers.
+  Then call `sofar_start_session` passing the `session_id` from the
+  injected context line ("Session: <id> — …") so your events attach to
+  YOUR session — never omit it when that line is present (omitting mints
+  a separate session id and orphans the hook-registered one).
+- DURING: log decisions (`sofar_log_decision`) and task status changes
+  (`sofar_update_task`) as they happen.
+- BEFORE FINISHING: write back with `sofar_end_session` (summary +
+  next action). The Stop hook blocks sessions that skip this.
+<!-- /sofar:protocol -->
