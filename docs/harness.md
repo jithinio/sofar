@@ -13,7 +13,11 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   `harness adopt`; user-directed Jul 7 after install-on-existing-projects
   questions surfaced both gaps). 8.1 done (BD45): `harness uninit [--purge]`
   in src/cli/uninit.ts — surgical inverse of init, record kept unless
-  --purge, byte-clean fresh-repo round-trip under --purge. Phase 7 COMPLETE (parallel sessions +
+  --purge, byte-clean fresh-repo round-trip under --purge. 8.2 done (BD46):
+  `harness adopt <legacy-file> [slug] [--mark]` in src/cli/adopt.ts — env
+  checks with typed errors, self-contained migration brief (dialect replay
+  templates, retirement checklist), idempotent --mark banner; no markdown
+  parsing. Phase 7 COMPLETE (parallel sessions +
   resume robustness, added on user direction Jul 7 and finished the same
   day: 7.1 adopt-by-id sessions BD43 — harness_start_session takes an
   optional session_id delivered via the SessionStart context "Session:"
@@ -138,7 +142,7 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
       blocks in CLAUDE.md/AGENTS.md) while preserving ALL user content;
       .harness/ record KEPT by default, deleted only with --purge;
       idempotent; fresh-repo init → uninit --purge round-trips byte-clean
-- [ ] 8.2 `harness adopt <legacy-file> [slug]`: guided migration for
+- [x] 8.2 `harness adopt <legacy-file> [slug]`: guided migration for
       pre-harness prose records — env checks (init/initiative), emits a
       replay brief with exact dialect commands + protocol-retirement
       checklist; --mark stamps the legacy file with an idempotent
@@ -675,6 +679,37 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   installed) and rejected preserving arbitrary user JSON formatting (init
   already normalizes merged files to stable JSON; uninit rewrites the same
   form, so stable-formatted files round-trip byte-exact).
+- BD46: `harness adopt <legacy-file> [slug] [--mark]` (task 8.2) — the CLI
+  mechanizes environment checks + marking and prints THE MIGRATION BRIEF;
+  it never parses the legacy markdown (rejected freeform parsing: fragile
+  against hand-maintained prose — an agent executes the brief and
+  transcribes; the CLI carries the protocol, BD4 philosophy). Validation
+  order, every failure exit 1 with BD17 typed-error JSON on stderr (the
+  event-append error style): legacy file must exist (io_error), .harness/
+  must exist (io_error naming `harness init`), initiative must resolve —
+  positional slug wins, else branch binding (BD16) — with the resolver's
+  ToolError re-shaped to append "create the target initiative with
+  `harness new <slug>` first". The brief (src/cli/adopt.ts
+  renderMigrationBrief) is self-contained and verbatim-executable: goal
+  line (replay <file> into <slug>), four exact dialect templates sharing
+  ONE fresh suggested session id (`migration-<ulid>`) with the slug baked
+  in as the append positional — plan_updated with a filled PlanStructure
+  skeleton, decision_logged chose/over/because, note_added, session_ended
+  seeded with summary "migrated from <file>" and a next_action placeholder
+  pointing at the legacy file's own next-action line — all `--actor human`
+  (transcription is human-authored truth, BD26 precedent); then the
+  repo-knowledge move into .harness/repo.md, the protocol-retirement
+  checklist (delete the prose protocol from CLAUDE.md keeping only the
+  marker block; archive/delete the legacy file only after `harness status`
+  reproduces it), and the verification line. --mark prepends an idempotent
+  banner between `<!-- harness:superseded -->` markers (slug + new Date()
+  ISO date + "truth lives in the harness record"); a file already carrying
+  the start marker is never touched again, so a second --mark changes zero
+  bytes. Paths in the brief/banner render repo-relative (stable across
+  machines); SPEC §CLI gained the adopt line. Rejected appending migration
+  events directly from the CLI (it cannot transcribe what it refuses to
+  parse) and rejected requiring --mark before the replay (marking belongs
+  AFTER status reproduces the legacy state — the checklist says so).
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,

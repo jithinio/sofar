@@ -4,6 +4,7 @@ import { Command } from 'commander'
 import { version } from '../../package.json'
 import { createHarnessServer } from '../mcp/server'
 import { registerEventCommand } from './event'
+import { runAdopt } from './adopt'
 import { runInit } from './init'
 import { runUninit } from './uninit'
 import { runNew, runSwitch } from './new'
@@ -63,6 +64,17 @@ program
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((slug: string, opts: { root?: string }) => {
     emit(runSwitch(rootOf(opts), slug))
+  })
+
+program
+  .command('adopt <legacy-file> [slug]')
+  .description(
+    'guided migration of a pre-harness prose record: print the replay brief for an agent to execute; --mark stamps the legacy file superseded',
+  )
+  .option('--mark', 'prepend an idempotent SUPERSEDED banner to the legacy file')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action((legacyFile: string, slug: string | undefined, opts: { mark?: boolean; root?: string }) => {
+    emit(runAdopt(rootOf(opts), legacyFile, slug, { mark: opts.mark === true }))
   })
 
 program

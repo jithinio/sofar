@@ -133,6 +133,14 @@ Shims contain no logic — they invoke the harness CLI.
   emptied — the byte-clean round-trip). Idempotent (added Phase 8, BD45).
 - `harness new <slug> [--goal]` / `harness switch <slug>` — create/select
   initiative; bind current branch in bindings.json.
+- `harness adopt <legacy-file> [slug] [--mark]` — guided migration for
+  pre-harness prose records: validates env (legacy file, .harness/, target
+  initiative — positional wins, else branch binding), prints a self-contained
+  MIGRATION BRIEF (exact `harness event append` replay templates with the
+  slug + a fresh session id baked in, repo-knowledge move, protocol
+  retirement checklist, verification line) for an agent to execute; --mark
+  stamps an idempotent SUPERSEDED banner into the legacy file. NO freeform
+  markdown parsing — the agent transcribes (added Phase 8, BD46).
 - `harness status [slug]` — fold and print: goal, progress %, phase tree
   with statuses, next action, blocked, last session.
 - `harness export [slug] [--since <id>]` / `harness import <file|-> [slug]`
