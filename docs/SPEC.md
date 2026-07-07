@@ -17,7 +17,10 @@ harness/                 # workspace root: toolchain devDeps, shared tsconfig
                          # status)
       src/hooks/         # shim script sources, installed to .claude/hooks/
       test/
-  docs/                  # harness.md (initiative record), SPEC.md, CLAUDE.md
+  CLAUDE.md              # protocol — repo root so cold sessions auto-load
+                         # it (BD34); points at docs/harness.md + docs/SPEC.md
+  docs/                  # harness.md (initiative record), SPEC.md,
+                         # opencode-adapter.md
 ```
 Future packages (ui, sync, adapters) join packages/* post-v1; the
 engine-only scope law still applies during the Fable window.

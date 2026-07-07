@@ -392,6 +392,13 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
   asserts the push happens, not its speed. Rejected usePolling: constant
   cost to fix a first-push-only race. Rejected widening test timeouts
   alone: the miss was real product behavior, not test tightness.
+- BD34: Protocol CLAUDE.md moved docs/ → repo root (ceremony prep, Jul 7).
+  Claude Code auto-loads only a root CLAUDE.md; the 5.3 cold resume "from
+  the record alone" needs that routing — a zero-context session must reach
+  docs/harness.md without being told where to look. Internal references
+  path-fixed (docs/harness.md, docs/SPEC.md); SPEC §Repo layout updated.
+  Rejected a thin root pointer file to docs/CLAUDE.md: two protocol files
+  drift; one file, one home.
 
 ## Repo knowledge
 - Contracts: SPEC.md is authoritative for envelope, tools, layout,
