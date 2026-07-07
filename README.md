@@ -115,3 +115,18 @@ Authoritative contracts — envelope, event types, state shape, tool
 signatures, hook behavior, acceptance criteria — live in
 [docs/SPEC.md](docs/SPEC.md). This repo tracks its own development with the
 same protocol — self-hosted in its own `.sofar/` record.
+
+## Build-tool hygiene
+
+The record (`.sofar/`) is prose committed into your repo — plans, decisions,
+notes. Tools that scan your whole tree for content can ingest it. Known case:
+**Tailwind v4** auto-scans every non-gitignored file for class candidates and
+can mint invalid CSS from code-like prose in projections. Exclude the record
+in your `globals.css`:
+
+```css
+@source not "../.sofar";
+```
+
+The same principle applies to any scanner with tree-wide globs: point it away
+from `.sofar/`.
