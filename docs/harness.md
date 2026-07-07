@@ -9,7 +9,10 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 (00-spine, 01-roadmap, 02-action-plan, 03-architecture).
 
 ## Current state
-- Active phase: 6 COMPLETE (hardening + distribution readiness, all five
+- Active phase: 7 — parallel sessions + resume robustness (added on
+  user direction Jul 7: fix BD20 cross-adoption so agents can work in
+  parallel on one initiative, plus a derived resume point for sessions
+  that never wrote back). Phase 6 COMPLETE (hardening + distribution readiness, all five
   tasks done Jul 7: 6.3 atomic projection writes BD38, 6.4 version
   single-sourced BD39, 6.5 repo.md in the SessionStart context BD40,
   6.2 zero-dep installable tarball + packaging E2E BD41, 6.1 root README +
@@ -106,6 +109,17 @@ Conventions and protocol in CLAUDE.md. Strategy context in harness-docs/
 - [x] 6.5 repo.md surfaces in the SessionStart context block with its own
       budget (record layout defines it; nothing reads it today) — the
       ≤10,000-char cap guarantee must hold
+
+### Phase 7 — Parallel sessions + resume robustness [active]  (added Jul 7, BD43)
+- [ ] 7.1 Adopt-by-id sessions: SessionStart context carries the session id;
+      harness_start_session gains optional session_id and adopts ONLY on
+      exact id match — the newest-open heuristic (BD20) is removed
+- [ ] 7.2 Derived resume fallback: fold aggregates per-session activity
+      (files, commands, task changes); status + session projections surface
+      it whenever a session lacks a written summary
+- [ ] 7.3 Acceptance: two interleaved sessions on ONE initiative — correct
+      attribution, independent Stop gates, no cross-adoption; an unwritten
+      session still yields a usable resume block
 
 ## Decisions
 - BD1: Stack = TypeScript/Node ≥18. MCP SDK is TS-first; users have Node
