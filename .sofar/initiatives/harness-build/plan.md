@@ -4,7 +4,7 @@
 
 Goal: Build the Harness v1 engine during the Fable 5 window (Jul 3–7): event log core, MCP server, Claude Code hooks, projections, CLI, watcher/state server, and the AGENTS.md dialect. Engine only — schema lives in one swappable module; UI/sync/team are explicitly out of scope. Full contracts in docs/SPEC.md; conventions in CLAUDE.md; strategy context in harness-docs/ (user-held, outside this repo).
 
-Progress: 36/39 tasks done (92%)
+Progress: 37/39 tasks done (94%)
 
 ## Phase 1 — Event log core [done] — 6/6 done
 
@@ -66,11 +66,11 @@ Progress: 36/39 tasks done (92%)
 - [x] 8.2 harness adopt <legacy-file> [slug] [--mark]: env checks, replay brief with dialect commands + retirement checklist, idempotent superseded banner; NO markdown parsing
 - [x] 8.3 Acceptance: round-trip hashes; uninit preserves foreign content; adopt brief executed as scripted commands ends with status reflecting the legacy plan
 
-## Phase 9 — Rename to sofar [active] — 2/3 done
+## Phase 9 — Rename to sofar [active] — 3/3 done
 
 - [x] 9.1 Source rename harness → sofar on every identity surface: sofar-monorepo / @sofar/schema / sofar bin, MCP server + sofar_* tools, .sofar/ record dir, protocol + superseded markers, Stop message, hook shims, init/adopt/uninit emitted texts, README/SPEC/opencode docs, all test expectations — no back-compat aliases (BD50)
 - [x] 9.2 Self-install migration: uninit with the old binary → git mv .harness .sofar → re-init with the new binary (sofar shims/settings/.mcp.json/protocol blocks); .sofar/repo.md rebranded; record continuity verified (main → harness-build binding folds)
-- [ ] 9.3 Packaging sanity under the new name: npm pack → sofar-0.1.0.tgz installs, bin `sofar`, zero runtime deps; full gates green
+- [x] 9.3 Packaging sanity under the new name: npm pack → sofar-0.1.0.tgz installs, bin `sofar`, zero runtime deps; full gates green
 
 Active phase: Phase 5 — Dialect + forced handoff
-Next action: main session: verify, reinstall global binary as sofar, push, npm publish
+Next action: npm login + publish sofar 0.1.0; optional GitHub repo rename; then back to ceremony scoring + field test
