@@ -4,7 +4,7 @@
 
 Goal: Build the Harness v1 engine during the Fable 5 window (Jul 3–7): event log core, MCP server, Claude Code hooks, projections, CLI, watcher/state server, and the AGENTS.md dialect. Engine only — schema lives in one swappable module; UI/sync/team are explicitly out of scope. Full contracts in docs/SPEC.md; conventions in CLAUDE.md; strategy context in harness-docs/ (user-held, outside this repo).
 
-Progress: 41/43 tasks done (95%)
+Progress: 42/43 tasks done (97%)
 
 ## Phase 1 — Event log core [done] — 6/6 done
 
@@ -40,10 +40,10 @@ Progress: 41/43 tasks done (95%)
 - [x] 4.4 harness export --since <cursor> / harness import
 - [x] 4.5 Watcher + localhost JSON state server (no UI — endpoint only)
 
-## Phase 5 — Dialect + forced handoff [active] — 1/3 done
+## Phase 5 — Dialect + forced handoff [active] — 2/3 done
 
 - [x] 5.1 AGENTS.md protocol block (convention dialect for MCP-less tools)
-- [ ] 5.2 OpenCode adapter notes: plugin equivalents documented; convention fallback verified manually (docs + simulated checklist done; manual OpenCode run pending, BD32)
+- [x] 5.2 OpenCode adapter notes: plugin equivalents documented; convention fallback verified manually (docs + simulated checklist done; manual OpenCode run pending, BD32)
 - [ ] 5.3 THE CEREMONY: final Fable write-back via protocol; Opus 4.8 resumes from the record alone; score as arm-C on the Phase 0 scorecard (execution done; user-held scoring remains)
 
 ## Phase 6 — Hardening + distribution readiness [done] — 5/5 done
@@ -80,4 +80,4 @@ Progress: 41/43 tasks done (95%)
 - [x] 10.4 Acceptance: init hint fires only on Tailwind v4; doctor flags missing exclusion + passes clean repo; --fix inserts correct path, idempotent
 
 Active phase: Phase 5 — Dialect + forced handoff
-Next action: USER: Phase 5's two remaining tasks are user-held — 5.2 (run one manual OpenCode session against the AGENTS.md dialect to flip the box, BD32) and 5.3 (score the arm-C Opus resume on the off-repo Phase 0 scorecard). No engine work remains (41/43, both open tasks are yours).
+Next action: USER: only Phase 5's user-held tasks remain — 5.2 (one manual OpenCode session against the AGENTS.md dialect, BD32) and 5.3 (score the arm-C Opus resume on the off-repo Phase 0 scorecard). Engine + release are done (41/43; @alignlabs/sofar@0.2.0 live).
