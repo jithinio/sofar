@@ -126,6 +126,19 @@ Shims contain no logic — they invoke the sofar CLI.
   record a session serves. [Field finding, Jul 4: singular-record protocol
   caused a second initiative's state to leak into Claude Code native memory
   + a scratch dir — jurisdiction must be total, not per-file.]
+  As its FINAL output, init prints a scanner-defense hint when a tree-wide
+  class scanner is detected (Tailwind v4: `tailwindcss>=4` in package.json) —
+  the scanner would ingest committed `.sofar/` records; the hint points at
+  `sofar doctor --fix` (added Phase 10, D-P10).
+- `sofar doctor [--fix]` — audit a host repo across three axes: wiring
+  integrity (init's shims/settings/.mcp.json/protocol blocks intact), record
+  health (initiative logs fold without stub sessions or corrupt lines), and
+  scanner hazards (Tailwind v4 entry stylesheet lacking a `@source not`
+  exclusion for `.sofar`). Exit 1 when any FAIL-level finding remains, 0 on a
+  clean repo. `--fix` performs the one deterministic, safe repair: inserting
+  `@source not "<path-relative-to-stylesheet>/.sofar";` after the
+  `@import "tailwindcss"` line in each unprotected entry (idempotent); it never
+  touches wiring (re-run init) or record prose (added Phase 10, D-P10).
 - `sofar uninit [--purge]` — exact inverse of init, surgical: remove the
   four hook shims, our settings.json hook entries (matched on the shim path),
   .mcp.json's sofar server, and the protocol blocks (markers + one seam
@@ -180,3 +193,9 @@ Shims contain no logic — they invoke the sofar CLI.
 - **Phase 5:** AGENTS.md dialect drives a manual OpenCode session through
   read→work→write-back; the Jul 7 Fable→Opus handoff is executed and scored
   on the Phase 0 scorecard as an arm-C run.
+- **Phase 10:** the init scanner hint fires on `tailwindcss>=4` and stays
+  silent for v3 or no-tailwind; `sofar doctor` flags a Tailwind v4 entry
+  lacking the `.sofar` exclusion (exit 1) and passes a clean, wired repo
+  (exit 0); `sofar doctor --fix` inserts the correct stylesheet-relative
+  `@source not` path after the import and is idempotent (a second run changes
+  no bytes).

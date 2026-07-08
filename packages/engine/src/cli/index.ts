@@ -6,6 +6,7 @@ import { createSofarServer } from '../mcp/server'
 import { registerEventCommand } from './event'
 import { runAdopt } from './adopt'
 import { runInit } from './init'
+import { runDoctor } from './doctor'
 import { runUninit } from './uninit'
 import { runNew, runSwitch } from './new'
 import { runStatus } from './status'
@@ -46,6 +47,17 @@ program
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((opts: { purge?: boolean; root?: string }) => {
     emit(runUninit(rootOf(opts), { purge: opts.purge === true }))
+  })
+
+program
+  .command('doctor')
+  .description(
+    'audit this repo: wiring integrity, record health, and tree-wide scanner hazards (Tailwind v4 ingesting .sofar); --fix inserts the @source not exclusion',
+  )
+  .option('--fix', 'apply the safe scanner fix (insert `@source not "…/.sofar"` after the tailwindcss import)')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action((opts: { fix?: boolean; root?: string }) => {
+    emit(runDoctor(rootOf(opts), { fix: opts.fix === true }))
   })
 
 program

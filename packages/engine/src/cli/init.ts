@@ -1,6 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { mcpRegistration } from '../mcp/register'
+import { detectTailwindV4 } from './scanners'
 import { fail, ok, type CmdResult } from './shared'
 import sessionStartShim from '../hooks/session-start.sh'
 import postToolUseShim from '../hooks/post-tool-use.sh'
@@ -324,5 +325,29 @@ export function runInit(rootDir: string): CmdResult {
       ? 'sofar init: already initialized — nothing to do'
       : `sofar init: done (${changed} change${changed === 1 ? '' : 's'})`,
   )
+  // Scanner defense (task 10.1, D-P10): if a tree-wide class scanner will
+  // ingest .sofar/, raise the exclusion hint as the FINAL output. init only
+  // flags it; `sofar doctor --fix` does the precise, path-aware insert.
+  const hint = scannerHint(rootDir)
+  if (hint !== null) report.push('', hint)
   return ok(`${report.join('\n')}\n`)
+}
+
+/**
+ * The Tailwind-v4 scanner hint (task 10.1) — printed as init's final output
+ * when a `tailwindcss@>=4` dependency is present. Generic on purpose: init
+ * does not scan for the CSS entry (that is `sofar doctor`'s job); it points
+ * the user at the automatic fix and shows the hand-edit shape.
+ */
+function scannerHint(rootDir: string): string | null {
+  const tw = detectTailwindV4(rootDir)
+  if (!tw.v4) return null
+  return [
+    `note: Tailwind v4 detected (tailwindcss ${tw.range}). Its content scanner`,
+    '  ingests every non-gitignored file — including .sofar/ records — which can',
+    '  bloat or break your CSS build. Exclude the record from scanning:',
+    '    run `sofar doctor --fix`   (inserts `@source not` into your Tailwind entry)',
+    '  or add this by hand after `@import "tailwindcss";`:',
+    '    @source not "<relative-path>/.sofar";',
+  ].join('\n')
 }
