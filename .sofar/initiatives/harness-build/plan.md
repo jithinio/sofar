@@ -4,7 +4,7 @@
 
 Goal: Build the Harness v1 engine during the Fable 5 window (Jul 3–7): event log core, MCP server, Claude Code hooks, projections, CLI, watcher/state server, and the AGENTS.md dialect. Engine only — schema lives in one swappable module; UI/sync/team are explicitly out of scope. Full contracts in docs/SPEC.md; conventions in CLAUDE.md; strategy context in harness-docs/ (user-held, outside this repo).
 
-Progress: 42/48 tasks done (87%)
+Progress: 46/48 tasks done (95%)
 
 ## Phase 1 — Event log core [done] — 6/6 done
 
@@ -79,13 +79,13 @@ Progress: 42/48 tasks done (87%)
 - [x] 10.3 sofar doctor --fix: opt-in insert of @source not exclusion after the tailwindcss import (computed relative path to .sofar), gated behind explicit flag
 - [x] 10.4 Acceptance: init hint fires only on Tailwind v4; doctor flags missing exclusion + passes clean repo; --fix inserts correct path, idempotent
 
-## Phase 11 — Record-health deepening (field findings) [active] — 0/5 done
+## Phase 11 — Record-health deepening (field findings) [active] — 4/5 done
 
-- [ ] 11.1 sofar doctor: stale-phase check — flag a phase still active/pending whose tasks are all done (missing phase_status_changed → done); WARN-level
-- [ ] 11.2 sofar doctor: concurrent-edit check — a file touched by ≥2 still-open sessions (started, no write-back) → conflict-risk WARN
-- [ ] 11.3 sofar doctor: untracked-work check — a registered session with real file activity but zero task changes → work not reflected in the plan; WARN
-- [ ] 11.4 Surface the concurrent-edit / open-session file map in the SessionStart context and `sofar status` (both read surfaces; rendered only when concurrency exists)
-- [ ] 11.5 Acceptance: stale-phase fires only when all tasks done + phase open; concurrent-edit fires only for ≥2 open sessions; untracked-work fires on activity-without-tasks; surfacing appears on concurrency; ship 0.2.1
+- [x] 11.1 sofar doctor: stale-phase check — flag a phase still active/pending whose tasks are all done (missing phase_status_changed → done); WARN-level
+- [x] 11.2 sofar doctor: concurrent-edit check — a file touched by ≥2 still-open sessions (started, no write-back) → conflict-risk WARN
+- [x] 11.3 sofar doctor: untracked-work check — a registered session with real file activity but zero task changes → work not reflected in the plan; WARN
+- [x] 11.4 Surface the concurrent-edit / open-session file map in the SessionStart context and `sofar status` (both read surfaces; rendered only when concurrency exists)
+- [ ] 11.5 Acceptance: stale-phase fires only when all tasks done + phase open; concurrent-edit fires only for ≥2 open sessions; untracked-work fires on activity-without-tasks; surfacing appears on concurrency; ship 0.2.1 (active)
 
 Active phase: Phase 5 — Dialect + forced handoff
 Next action: USER: only 5.3 remains — score the arm-C Opus 4.8 resume on the off-repo Phase 0 scorecard (user-held, in the strategy vault outside this repo). Engine, 0.2.0 release, and the dialect field test are all done; 42/43.
