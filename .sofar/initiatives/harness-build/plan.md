@@ -4,7 +4,7 @@
 
 Goal: Build the Harness v1 engine during the Fable 5 window (Jul 3–7): event log core, MCP server, Claude Code hooks, projections, CLI, watcher/state server, and the AGENTS.md dialect. Engine only — schema lives in one swappable module; UI/sync/team are explicitly out of scope. Full contracts in docs/SPEC.md; conventions in CLAUDE.md; strategy context in harness-docs/ (user-held, outside this repo).
 
-Progress: 46/48 tasks done (95%)
+Progress: 46/51 tasks done (90%)
 
 ## Phase 1 — Event log core [done] — 6/6 done
 
@@ -87,5 +87,11 @@ Progress: 46/48 tasks done (95%)
 - [x] 11.4 Surface the concurrent-edit / open-session file map in the SessionStart context and `sofar status` (both read surfaces; rendered only when concurrency exists)
 - [ ] 11.5 Acceptance: stale-phase fires only when all tasks done + phase open; concurrent-edit fires only for ≥2 open sessions; untracked-work fires on activity-without-tasks; surfacing appears on concurrency; ship 0.2.1 (active)
 
+## Phase 12 — Concurrent-branch misroute hardening [pending] — 0/3 done
+
+- [ ] 12.1 Pin session initiative: MCP write tools without an explicit initiative use the ACTIVE session's initiative (already on ActiveSession) instead of re-resolving from the git branch — a concurrent branch switch cannot misroute a bound session's writes (root cause of the Phase 11 incident, BD58)
+- [ ] 12.2 doctor misroute-symptom check: flag task_status_changed events whose task id is absent from the initiative's plan (silent orphans that only fold-warn today) so an audit catches a misroute
+- [ ] 12.3 Acceptance: a session started on branch A keeps writing to A's initiative after the shared checkout flips to B; doctor flags an injected orphan task event; explicit-initiative + CLI-slug paths unaffected
+
 Active phase: Phase 5 — Dialect + forced handoff
-Next action: USER: only 5.3 remains — score the arm-C Opus 4.8 resume on the off-repo Phase 0 scorecard (user-held, in the strategy vault outside this repo). Engine, 0.2.0 release, and the dialect field test are all done; 42/43.
+Next action: USER: (1) publish 0.2.1 to close 11.5 — `npm login` then `npm publish -w @alignlabs/sofar` (mirrors the 0.2.0 flow); (2) the token-optimization session left the repo on its own branch — the checkout is now back on main, its work (token-optimization/, product doc/, bindings.json) preserved uncommitted for it to commit. Only 5.3 (arm-C scoring) + 11.5 (publish) remain.
