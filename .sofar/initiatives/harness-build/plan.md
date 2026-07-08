@@ -4,7 +4,7 @@
 
 Goal: Build the Harness v1 engine during the Fable 5 window (Jul 3–7): event log core, MCP server, Claude Code hooks, projections, CLI, watcher/state server, and the AGENTS.md dialect. Engine only — schema lives in one swappable module; UI/sync/team are explicitly out of scope. Full contracts in docs/SPEC.md; conventions in CLAUDE.md; strategy context in harness-docs/ (user-held, outside this repo).
 
-Progress: 37/39 tasks done (94%)
+Progress: 37/43 tasks done (86%)
 
 ## Phase 1 — Event log core [done] — 6/6 done
 
@@ -71,6 +71,13 @@ Progress: 37/39 tasks done (94%)
 - [x] 9.1 Source rename harness → sofar on every identity surface: sofar-monorepo / @sofar/schema / sofar bin, MCP server + sofar_* tools, .sofar/ record dir, protocol + superseded markers, Stop message, hook shims, init/adopt/uninit emitted texts, README/SPEC/opencode docs, all test expectations — no back-compat aliases (BD50)
 - [x] 9.2 Self-install migration: uninit with the old binary → git mv .harness .sofar → re-init with the new binary (sofar shims/settings/.mcp.json/protocol blocks); .sofar/repo.md rebranded; record continuity verified (main → harness-build binding folds)
 - [x] 9.3 Packaging sanity under the new name: npm pack → sofar-0.1.0.tgz installs, bin `sofar`, zero runtime deps; full gates green
+
+## Phase 10 — Host-repo scanner defense [pending] — 0/4 done
+
+- [ ] 10.1 sofar init detects tree-wide scanners (Tailwind v4: tailwindcss>=4 in package.json) and prints the .sofar exclusion hint as final output
+- [ ] 10.2 sofar doctor: audit host repo — wiring integrity, record health (no stub sessions), scanner hazards (Tailwind v4 without @source not .sofar)
+- [ ] 10.3 sofar doctor --fix: opt-in insert of @source not exclusion after the tailwindcss import (computed relative path to .sofar), gated behind explicit flag
+- [ ] 10.4 Acceptance: init hint fires only on Tailwind v4; doctor flags missing exclusion + passes clean repo; --fix inserts correct path, idempotent
 
 Active phase: Phase 5 — Dialect + forced handoff
 Next action: npm login + publish sofar 0.1.0; optional GitHub repo rename; then back to ceremony scoring + field test
