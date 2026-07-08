@@ -130,15 +130,23 @@ Shims contain no logic — they invoke the sofar CLI.
   class scanner is detected (Tailwind v4: `tailwindcss>=4` in package.json) —
   the scanner would ingest committed `.sofar/` records; the hint points at
   `sofar doctor --fix` (added Phase 10, D-P10).
-- `sofar doctor [--fix]` — audit a host repo across three axes: wiring
-  integrity (init's shims/settings/.mcp.json/protocol blocks intact), record
-  health (initiative logs fold without stub sessions or corrupt lines), and
-  scanner hazards (Tailwind v4 entry stylesheet lacking a `@source not`
-  exclusion for `.sofar`). Exit 1 when any FAIL-level finding remains, 0 on a
-  clean repo. `--fix` performs the one deterministic, safe repair: inserting
-  `@source not "<path-relative-to-stylesheet>/.sofar";` after the
+- `sofar doctor [--fix]` — audit a host repo across four axes: (1) wiring
+  integrity (init's shims/settings/.mcp.json/protocol blocks intact); (2)
+  record health — initiative logs fold without stub sessions or corrupt lines,
+  no STALE PHASE (all tasks done but the phase still active/pending, missing a
+  phase_status_changed — D-P11), no UNTRACKED WORK (a wrapped session with real
+  file activity but zero task changes — work missing from the plan, or
+  fragmented onto a sibling session because the hook session was not adopted);
+  (3) concurrency — no file under concurrent edit by ≥2 OPEN sessions (a live
+  clobber risk); (4) scanner hazards (Tailwind v4 entry stylesheet lacking a
+  `@source not` exclusion for `.sofar`). Record-health and concurrency findings
+  are WARN (surfaced, non-fatal); exit 1 only when a FAIL-level finding remains,
+  0 on a clean repo. `--fix` performs the one deterministic, safe repair:
+  inserting `@source not "<path-relative-to-stylesheet>/.sofar";` after the
   `@import "tailwindcss"` line in each unprotected entry (idempotent); it never
-  touches wiring (re-run init) or record prose (added Phase 10, D-P10).
+  touches wiring (re-run init) or record prose (added Phase 10, D-P10; deepened
+  Phase 11, D-P11). The concurrent-edit signal also surfaces in the SessionStart
+  context and `sofar status` (rendered only when open sessions overlap, D-P11).
 - `sofar uninit [--purge]` — exact inverse of init, surgical: remove the
   four hook shims, our settings.json hook entries (matched on the shim path),
   .mcp.json's sofar server, and the protocol blocks (markers + one seam
@@ -199,3 +207,10 @@ Shims contain no logic — they invoke the sofar CLI.
   (exit 0); `sofar doctor --fix` inserts the correct stylesheet-relative
   `@source not` path after the import and is idempotent (a second run changes
   no bytes).
+- **Phase 11:** `sofar doctor` flags a phase whose tasks are all done but is
+  still active (stale-phase) and does not flag one marked done; flags a wrapped
+  session with ≥3 files touched and zero task changes (untracked work) and not
+  one that changed a task; flags a file touched by ≥2 open sessions (concurrent
+  edit) and clears once one writes back; all three are WARN (exit stays 0). The
+  concurrent-edit signal renders in both `sofar status` and the SessionStart
+  context when open sessions overlap, and is absent otherwise.

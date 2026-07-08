@@ -265,6 +265,44 @@ function attachActivity(state: InitiativeState, acc: Map<string, ActivityAcc>): 
   }
 }
 
+// ---------------------------------------------------------------------------
+// Cross-session derivations (Phase 11, D-P11) — read-only over folded state.
+// ---------------------------------------------------------------------------
+
+export interface FileConflict {
+  /** A file path touched by more than one still-open session. */
+  path: string
+  /** The open sessions (started, no write-back) that touched it. */
+  sessions: string[]
+}
+
+/**
+ * Live concurrent-edit hazards: files touched by ≥2 sessions that are still
+ * OPEN (session_started with no session_ended/session_closed). Ended sessions
+ * are treated as wrapped, so this fires only in the genuine live-overlap
+ * window — the "another agent is in this file right now" signal. Deterministic
+ * (sorted by path); the "+N more" activity sentinel is not a real file and is
+ * skipped.
+ */
+export function openSessionFileConflicts(state: InitiativeState): FileConflict[] {
+  const byFile = new Map<string, string[]>()
+  for (const session of state.sessions) {
+    if (session.ended !== undefined || session.activity === undefined) continue
+    for (const file of session.activity.files) {
+      if (file.startsWith('+')) continue // the "+N more" overflow sentinel
+      const owners = byFile.get(file) ?? []
+      owners.push(session.id)
+      byFile.set(file, owners)
+    }
+  }
+  const conflicts: FileConflict[] = []
+  for (const [path, sessions] of byFile) {
+    if (sessions.length >= 2) conflicts.push({ path, sessions })
+  }
+  conflicts.sort((a, b) => a.path.localeCompare(b.path))
+  return conflicts
+}
+
 function findTask(state: InitiativeState, id: string): TaskState | undefined {
   for (const phase of state.phases) {
     const task = phase.tasks.find((t) => t.id === id)

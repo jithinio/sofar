@@ -1,4 +1,4 @@
-import type { InitiativeState, SessionState } from '../../core/fold'
+import { openSessionFileConflicts, type InitiativeState, type SessionState } from '../../core/fold'
 import { clip, describeActivity, pct, taskProgress } from './shared'
 
 /**
@@ -33,6 +33,10 @@ const SESSION_SUMMARY_BUDGET = 1_200
 const DERIVED_SESSION_BUDGET = 600
 const DECISION_LINE_BUDGET = 280
 const MAX_DECISIONS = 5
+// Concurrent-edit surfacing (task 11.4, D-P11) — rendered only when open
+// sessions share files, so it costs nothing in the common single-session case.
+const CONFLICT_LINE_BUDGET = 200
+const MAX_CONFLICT_LINES = 8
 
 /** Hard cap: anything over the limit is cut to fit, marker included. */
 export function enforceStatusLimit(text: string): string {
@@ -106,6 +110,13 @@ export function renderFullStatus(state: InitiativeState): string {
   lines.push(`Next action: ${state.current.next_action ?? '(none recorded)'}`)
   if (state.current.blocked_on !== undefined) {
     lines.push(`Blocked on: ${state.current.blocked_on}`)
+  }
+
+  const conflicts = openSessionFileConflicts(state)
+  if (conflicts.length > 0) {
+    lines.push('')
+    lines.push(`⚠ Concurrent edits — files touched by multiple open sessions (${conflicts.length}):`)
+    for (const c of conflicts) lines.push(`- ${c.path} (sessions ${c.sessions.join(', ')})`)
   }
 
   const last = lastWithSummary(state.sessions)
@@ -189,6 +200,19 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   }
   if (state.current.blocked_on !== undefined) {
     lines.push(`Blocked on: ${clip(state.current.blocked_on, BLOCKED_BUDGET)}`)
+  }
+
+  // Concurrent-edit heads-up (task 11.4, BD-P11): if another OPEN session is
+  // already in these files, the orienting agent should know BEFORE it edits.
+  const conflicts = openSessionFileConflicts(state)
+  if (conflicts.length > 0) {
+    lines.push(`⚠ Concurrent edits — ${conflicts.length} file(s) touched by multiple open sessions:`)
+    for (const c of conflicts.slice(0, MAX_CONFLICT_LINES)) {
+      lines.push(`- ${clip(`${c.path} (sessions ${c.sessions.join(', ')})`, CONFLICT_LINE_BUDGET)}`)
+    }
+    if (conflicts.length > MAX_CONFLICT_LINES) {
+      lines.push(`- …and ${conflicts.length - MAX_CONFLICT_LINES} more (run sofar doctor)`)
+    }
   }
   lines.push('')
 

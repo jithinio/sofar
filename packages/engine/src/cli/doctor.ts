@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
-import { foldLog } from '../core/fold'
+import { foldLog, openSessionFileConflicts, type InitiativeState } from '../core/fold'
 import { hookCommand, PROTOCOL_START, SHIMS } from './init'
 import {
   cssExcludesSofar,
@@ -12,12 +12,16 @@ import {
 import { errMessage, fail, ok, type CmdResult } from './shared'
 
 /**
- * `sofar doctor [--fix]` (tasks 10.2/10.3, D-P10) — audit a host repo for
+ * `sofar doctor [--fix]` (tasks 10.2/10.3 + 11.1/11.2/11.3) — audit a host repo:
  *   1. wiring integrity  — did init's artifacts survive? (shims, settings,
  *      .mcp.json, protocol blocks)
- *   2. record health     — do the initiative logs fold without stub sessions
- *      or corrupt lines?
- *   3. scanner hazards    — will a tree-wide class scanner (Tailwind v4)
+ *   2. record health     — logs fold without stub sessions or corrupt lines;
+ *      no STALE PHASES (all tasks done but phase still open, 11.1); no
+ *      UNTRACKED WORK (a wrapped session with real file activity but zero task
+ *      changes — work missing from the plan, 11.3)
+ *   3. concurrency        — no file under concurrent edit by ≥2 OPEN sessions
+ *      (live clobber risk, 11.2)
+ *   4. scanner hazards    — will a tree-wide class scanner (Tailwind v4)
  *      ingest .sofar/ because the entry stylesheet lacks a `@source not`
  *      exclusion?
  *
@@ -132,6 +136,16 @@ function auditWiring(rootDir: string): Section {
 // 2. Record health.
 // ---------------------------------------------------------------------------
 
+/** Below this many files, a session touching them without task changes is noise, not untracked work. */
+const UNTRACKED_FILE_THRESHOLD = 3
+
+interface Folded {
+  slug: string
+  state?: InitiativeState
+  warnings: string[]
+  error?: string
+}
+
 function listInitiatives(rootDir: string): string[] {
   const dir = join(rootDir, '.sofar', 'initiatives')
   if (!existsSync(dir)) return []
@@ -145,27 +159,42 @@ function listInitiatives(rootDir: string): string[] {
   }
 }
 
-function auditRecords(rootDir: string): Section {
+/** Fold every initiative with a log ONCE — record + concurrency checks share the result. */
+function foldInitiatives(rootDir: string): Folded[] {
+  return listInitiatives(rootDir)
+    .filter((slug) => existsSync(join(rootDir, '.sofar', 'initiatives', slug, 'events.jsonl')))
+    .map((slug) => {
+      const logPath = join(rootDir, '.sofar', 'initiatives', slug, 'events.jsonl')
+      try {
+        const result = foldLog(logPath)
+        return { slug, state: result.state, warnings: result.warnings }
+      } catch (err) {
+        return { slug, warnings: [], error: errMessage(err) }
+      }
+    })
+}
+
+/** Real (non-sentinel) file count from a session's derived activity. */
+function realFileCount(files: string[]): number {
+  return files.filter((f) => !f.startsWith('+')).length
+}
+
+function auditRecords(folded: Folded[]): Section {
   const findings: Finding[] = []
-  const slugs = listInitiatives(rootDir)
-  const withLog = slugs.filter((slug) =>
-    existsSync(join(rootDir, '.sofar', 'initiatives', slug, 'events.jsonl')),
-  )
-  if (withLog.length === 0) {
+  if (folded.length === 0) {
     findings.push({ level: 'ok', text: 'no initiative logs yet — nothing to fold' })
     return { title: 'Record health', findings }
   }
 
-  for (const slug of withLog) {
-    const logPath = join(rootDir, '.sofar', 'initiatives', slug, 'events.jsonl')
-    let result: ReturnType<typeof foldLog>
-    try {
-      result = foldLog(logPath)
-    } catch (err) {
-      findings.push({ level: 'fail', text: `${slug}: cannot read log — ${errMessage(err)}` })
+  for (const { slug, state, warnings, error } of folded) {
+    if (error !== undefined || state === undefined) {
+      findings.push({ level: 'fail', text: `${slug}: cannot read log — ${error ?? 'unknown error'}` })
       continue
     }
-    const stubs = result.state.sessions.filter((s) => s.tool === 'unknown').map((s) => s.id)
+    const before = findings.length
+
+    // Stub sessions (BD21): session_ended with no session_started.
+    const stubs = state.sessions.filter((s) => s.tool === 'unknown').map((s) => s.id)
     if (stubs.length > 0) {
       findings.push({
         level: 'warn',
@@ -173,18 +202,62 @@ function auditRecords(rootDir: string): Section {
         hint: `ids: ${stubs.join(', ')} (a hook or agent wrote back without registering the session)`,
       })
     }
-    if (result.warnings.length > 0) {
-      findings.push({
-        level: 'warn',
-        text: `${slug}: ${result.warnings.length} fold warning(s)`,
-        hint: result.warnings[0]!,
-      })
+
+    // Fold warnings (corrupt/unknown lines) — tolerated by design, surfaced here.
+    if (warnings.length > 0) {
+      findings.push({ level: 'warn', text: `${slug}: ${warnings.length} fold warning(s)`, hint: warnings[0]! })
     }
-    if (stubs.length === 0 && result.warnings.length === 0) {
-      findings.push({ level: 'ok', text: `${slug}: folds clean` })
+
+    // Stale phase (task 11.1): all tasks done but the phase never marked done.
+    for (const phase of state.phases) {
+      if (phase.status === 'done' || phase.tasks.length === 0) continue
+      if (phase.tasks.every((t) => t.status === 'done')) {
+        findings.push({
+          level: 'warn',
+          text: `${slug}: phase "${phase.name}" — all ${phase.tasks.length} tasks done but phase still ${phase.status}`,
+          hint: 'emit phase_status_changed to mark it done, else it keeps showing as the active phase',
+        })
+      }
     }
+
+    // Untracked work (task 11.3): a wrapped session that did real file work but
+    // touched no plan task — its work is not reflected in the phase tree. Only
+    // ended sessions (an open one may still add tasks); deterministic, so it
+    // catches purely-untracked sessions, not mixed ones.
+    for (const s of state.sessions) {
+      if (s.ended === undefined || s.activity === undefined) continue
+      if (realFileCount(s.activity.files) >= UNTRACKED_FILE_THRESHOLD && s.activity.task_changes.length === 0) {
+        findings.push({
+          level: 'warn',
+          text: `${slug}: session ${s.id} touched ${realFileCount(s.activity.files)} files but changed no plan tasks`,
+          hint: 'either the work is not tracked as tasks, or its tasks landed on a sibling session — adopt the hook session via start_session so files + task changes stay together',
+        })
+      }
+    }
+
+    if (findings.length === before) findings.push({ level: 'ok', text: `${slug}: folds clean` })
   }
   return { title: 'Record health', findings }
+}
+
+function auditConcurrency(folded: Folded[]): Section {
+  const findings: Finding[] = []
+  let conflictTotal = 0
+  for (const { slug, state } of folded) {
+    if (state === undefined) continue
+    for (const c of openSessionFileConflicts(state)) {
+      conflictTotal++
+      findings.push({
+        level: 'warn',
+        text: `${slug}: ${c.path} — touched by ${c.sessions.length} open sessions`,
+        hint: `sessions ${c.sessions.join(', ')} are both in-flight on this file (concurrent-edit / clobber risk)`,
+      })
+    }
+  }
+  if (conflictTotal === 0) {
+    findings.push({ level: 'ok', text: 'no files under concurrent edit by multiple open sessions' })
+  }
+  return { title: 'Concurrency', findings }
 }
 
 // ---------------------------------------------------------------------------
@@ -259,7 +332,13 @@ export function runDoctor(rootDir: string, options: DoctorOptions = {}): CmdResu
     return fail('sofar doctor: no .sofar/ record here — run `sofar init` first')
   }
 
-  const sections = [auditWiring(rootDir), auditRecords(rootDir), auditScanners(rootDir, fix)]
+  const folded = foldInitiatives(rootDir)
+  const sections = [
+    auditWiring(rootDir),
+    auditRecords(folded),
+    auditConcurrency(folded),
+    auditScanners(rootDir, fix),
+  ]
 
   const lines: string[] = [`sofar doctor — ${rootDir}`, '']
   let fails = 0
