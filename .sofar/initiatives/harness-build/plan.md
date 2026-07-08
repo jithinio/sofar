@@ -80,4 +80,4 @@ Progress: 41/43 tasks done (95%)
 - [x] 10.4 Acceptance: init hint fires only on Tailwind v4; doctor flags missing exclusion + passes clean repo; --fix inserts correct path, idempotent
 
 Active phase: Phase 5 — Dialect + forced handoff
-Next action: Await user go-ahead to start Phase 10; if yes, read docs/SPEC.md then implement 10.1 to 10.4 in order.
+Next action: USER: Phase 5's two remaining tasks are user-held — 5.2 (run one manual OpenCode session against the AGENTS.md dialect to flip the box, BD32) and 5.3 (score the arm-C Opus resume on the off-repo Phase 0 scorecard). No engine work remains (41/43, both open tasks are yours).

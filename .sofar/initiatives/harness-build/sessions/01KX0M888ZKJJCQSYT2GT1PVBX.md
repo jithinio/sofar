@@ -6,15 +6,15 @@
 - Tool: claude-code
 - Model: claude-opus-4-8[1m]
 - Started: 2026-07-08T10:26:51.807Z
-- Ended: (in progress)
+- Ended: 2026-07-08T10:40:21.560Z
 
 ## Summary
 
-(none recorded — no write-back yet; derived resume point below)
+Phase 10 (host-repo scanner defense) built, committed (896d4d1), and pushed to origin main. Added src/cli/scanners.ts (shared Tailwind-v4 detection + entry discovery + @source-not exclusion helpers) and src/cli/doctor.ts (runDoctor: wiring/record-health/scanner audit + --fix); wired `sofar doctor` into the CLI; init now prints a Tailwind-v4 scanner hint as final output. Decisions BD52 (conservative tailwindcss>=4 detection, no semver dep), BD53 (exclusion path relative to the STYLESHEET per Tailwind's @source contract, semantic idempotency), BD54 (doctor axes + --fix scoped to the one safe repair, exit 1 on FAIL). SPEC §CLI + §Acceptance extended. Tests: scanners.test.ts + acceptance.phase10.test.ts (10.4 acceptance) — 314 green, typecheck clean, build clean, verified E2E via the built CLI. Tasks 10.1-10.4 done, Phase 10 done (41/43, 95%). Only Phase 5's user-held 5.2/5.3 remain.
 
 ## Next action
 
-(none recorded)
+USER: Phase 5's two remaining tasks are user-held — 5.2 (run one manual OpenCode session against the AGENTS.md dialect to flip the box, BD32) and 5.3 (score the arm-C Opus resume on the off-repo Phase 0 scorecard). No engine work remains (41/43, both open tasks are yours).
 
 ## Activity (derived from mechanical events)
 
