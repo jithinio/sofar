@@ -80,4 +80,4 @@ Progress: 42/43 tasks done (97%)
 - [x] 10.4 Acceptance: init hint fires only on Tailwind v4; doctor flags missing exclusion + passes clean repo; --fix inserts correct path, idempotent
 
 Active phase: Phase 5 — Dialect + forced handoff
-Next action: USER: only Phase 5's user-held tasks remain — 5.2 (one manual OpenCode session against the AGENTS.md dialect, BD32) and 5.3 (score the arm-C Opus resume on the off-repo Phase 0 scorecard). Engine + release are done (41/43; @alignlabs/sofar@0.2.0 live).
+Next action: USER: only 5.3 remains — score the arm-C Opus 4.8 resume on the off-repo Phase 0 scorecard (user-held, in the strategy vault outside this repo). Engine, 0.2.0 release, and the dialect field test are all done; 42/43.

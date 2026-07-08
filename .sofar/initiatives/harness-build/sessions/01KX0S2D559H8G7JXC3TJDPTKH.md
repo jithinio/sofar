@@ -6,19 +6,12 @@
 - Tool: claude-code
 - Model: claude-opus-4-8[1m]
 - Started: 2026-07-08T11:51:03.077Z
-- Ended: (in progress)
+- Ended: 2026-07-08T11:51:59.694Z
 
 ## Summary
 
-(none recorded — no write-back yet; derived resume point below)
+Closed 5.2: a live, unassisted OpenCode session running Mistral Large (non-Claude, MCP-less) in a separate host UI repo drove the full AGENTS.md convention-dialect loop — oriented from the projection, worked (edited page.tsx, ran biome+tsc gates, self-corrected with biome --write), then obeyed the MANDATORY write-back via `sofar event append` (task_status_changed + decision_logged + note_added + session_ended, one reused --session ui-refine-5.1, --source opencode). This is the agent-COMPLIANCE bar BD32 held 5.2 open for, exceeded (it ran the DURING-loop decision/note steps voluntarily, un-hooked). Logged BD56, marked 5.2 done + note + audit-trail note, committed adcfe73, pushed. Phase 5 now 2/3, overall 42/43. Only 5.3 (user-held arm-C scoring) remains.
 
 ## Next action
 
-(none recorded)
-
-## Activity (derived from mechanical events)
-
-- Derived: task changes: 5.2 → done
-- Commands run: 0
-- Task changes:
-  - 5.2 → done
+USER: only 5.3 remains — score the arm-C Opus 4.8 resume on the off-repo Phase 0 scorecard (user-held, in the strategy vault outside this repo). All engine work, the 0.2.0 release, and the dialect field test (5.2) are done; 42/43.
