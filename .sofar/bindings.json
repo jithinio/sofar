@@ -1,3 +1,4 @@
 {
-  "main": "harness-build"
+  "main": "harness-build",
+  "token-optimization": "token-optimization"
 }
