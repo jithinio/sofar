@@ -13,6 +13,7 @@ import { GENERATED_HEADER } from '../src/projections/templates/shared'
 import {
   callTool,
   callToolExpectError,
+  callToolText,
   connectServer,
   makeRepoFixture,
   type Fixture,
@@ -220,10 +221,10 @@ describe('each tool appends exactly its event and projections regenerate', () =>
     await client.close()
   })
 
-  it('sofar_get_state appends nothing', async () => {
+  it('sofar_get_state appends nothing (default digest view)', async () => {
     const fixture = fx()
     const { client } = await connectServer(fixture.root)
-    const { isError } = await callTool(client, 'sofar_get_state', {})
+    const { isError } = await callToolText(client, 'sofar_get_state', {})
     expect(isError).toBe(false)
     expect(existsSync(fixture.eventsPath)).toBe(false)
     await client.close()
@@ -278,7 +279,9 @@ describe('initiative resolution: bindings.json + current branch', () => {
   it('get_state resolves the initiative from the branch binding', async () => {
     const fixture = fx({ branch: 'feat/phase-2', slug: 'sofar-build' })
     const { client } = await connectServer(fixture.root)
-    const { isError, body } = await callTool<InitiativeState>(client, 'sofar_get_state', {})
+    const { isError, body } = await callTool<InitiativeState>(client, 'sofar_get_state', {
+      view: 'full',
+    })
     expect(isError).toBe(false)
     expect(body.slug).toBe('sofar-build')
     await client.close()
@@ -287,7 +290,9 @@ describe('initiative resolution: bindings.json + current branch', () => {
   it('follows a worktree-style .git file to its HEAD', async () => {
     const fixture = fx({ worktree: true, branch: 'wt-branch', slug: 'wt-initiative' })
     const { client } = await connectServer(fixture.root)
-    const { isError, body } = await callTool<InitiativeState>(client, 'sofar_get_state', {})
+    const { isError, body } = await callTool<InitiativeState>(client, 'sofar_get_state', {
+      view: 'full',
+    })
     expect(isError).toBe(false)
     expect(body.slug).toBe('wt-initiative')
     await client.close()
@@ -302,6 +307,7 @@ describe('initiative resolution: bindings.json + current branch', () => {
     const { client } = await connectServer(fixture.root)
     const { body } = await callTool<InitiativeState>(client, 'sofar_get_state', {
       initiative: 'other-slug',
+      view: 'full',
     })
     expect(body.slug).toBe('other-slug')
     await client.close()
@@ -399,7 +405,9 @@ describe('stdio end-to-end via `sofar mcp`', () => {
       tool: 'claude-code',
     })
     expect(started.isError).toBe(false)
-    const state = await callTool<InitiativeState>(client, 'sofar_get_state', {})
+    const state = await callTool<InitiativeState>(client, 'sofar_get_state', {
+      view: 'full',
+    })
     expect(state.body.sessions[0]!.id).toBe(started.body.session_id)
 
     await client.close()

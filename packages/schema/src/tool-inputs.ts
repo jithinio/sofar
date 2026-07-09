@@ -57,8 +57,18 @@ export function isToolName(name: string): name is ToolName {
   return (TOOL_NAMES as readonly string[]).includes(name)
 }
 
+/**
+ * get_state output detail (progressive disclosure, token-optimization).
+ * "digest" (default) = summary-dense orientation projection with rationale
+ * surfaced (~1k tok); "full" = the complete folded InitiativeState,
+ * re-injectable in full (architecture Open-Q#5 compaction-proofing).
+ */
+export const GET_STATE_VIEWS = ['digest', 'full'] as const
+export type GetStateView = (typeof GET_STATE_VIEWS)[number]
+
 export interface GetStateArgs {
   initiative?: string
+  view?: GetStateView
 }
 export interface StartSessionArgs {
   initiative?: string
@@ -174,7 +184,14 @@ const planSchema = {
 export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
   sofar_get_state: {
     type: 'object',
-    properties: { initiative: initiativeProp },
+    properties: {
+      initiative: initiativeProp,
+      view: {
+        enum: [...GET_STATE_VIEWS],
+        description:
+          'Output detail: "digest" (default) = summary-dense orientation with rationale; "full" = the complete folded InitiativeState.',
+      },
+    },
     additionalProperties: false,
   },
   sofar_start_session: {
@@ -254,7 +271,7 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_get_state',
     description:
-      'Read the folded InitiativeState (goal, phases/tasks, decisions, sessions, next action) from the event log. Call this first to orient.',
+      'Orient on an initiative from the event log — call this first. Default returns a summary-dense digest (goal, active/next task, next action, recent decisions with rationale). Pass view:"full" for the complete folded InitiativeState.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_get_state,
   },
   {
@@ -317,6 +334,9 @@ function optSlug(v: unknown): boolean {
 const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
   sofar_get_state(a, e) {
     if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
+    if (a.view !== undefined && !(GET_STATE_VIEWS as readonly string[]).includes(a.view as string)) {
+      e.push(`view: must be one of ${GET_STATE_VIEWS.join('|')}`)
+    }
   },
   sofar_start_session(a, e) {
     if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')

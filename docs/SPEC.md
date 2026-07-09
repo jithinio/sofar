@@ -79,8 +79,14 @@ events not already present (dedupe by id — idempotent). Per-initiative
 streams; ordering by ulid. This is the entire future sync interface.
 
 ## MCP tools (server name: sofar)
-- sofar_get_state({initiative?}) → InitiativeState (resolves initiative
-  from bindings.json + current branch when omitted)
+- sofar_get_state({initiative?, view?}) → progressive disclosure (token-opt):
+  view "digest" (DEFAULT) returns the summary-dense orientation projection as
+  text (goal, active/next task, next action, phase summary, last-session
+  resume, recent decisions WITH rationale — the compaction-proof orient, ~1k
+  tok, rationale kept first-class); view "full" returns the complete folded
+  InitiativeState (re-injectable in full, architecture Open-Q#5). Resolves
+  initiative from bindings.json + current branch when omitted; neither view
+  appends.
 - sofar_start_session({initiative?, tool, model?, session_id?}) →
   {session_id} — session_id (from the SessionStart context "Session:" line)
   adopts exactly that OPEN session; an ended id is a typed invalid_input

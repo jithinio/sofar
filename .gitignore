@@ -6,3 +6,6 @@ dist/
 /packages/engine/README.md
 # personal Claude Code permission grants — never shared
 .claude/settings.local.json
+# user's private strategy vault (spine/roadmap/scorecard/vision) — lives
+# outside the engine repo by design; never committed (public repo + npm)
+/product doc/

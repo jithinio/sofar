@@ -81,6 +81,17 @@ export async function callTool<T = Record<string, unknown>>(
   return { isError: result.isError === true, body: JSON.parse(content[0]!.text) as T }
 }
 
+/** Call a tool and return the raw content[0].text — for tools that return text (e.g. get_state digest), not JSON. */
+export async function callToolText(
+  client: Client,
+  name: string,
+  args: Record<string, unknown> = {},
+): Promise<{ isError: boolean; text: string }> {
+  const result = await client.callTool({ name, arguments: args })
+  const content = result.content as Array<{ type: string; text: string }>
+  return { isError: result.isError === true, text: content[0]!.text }
+}
+
 /** Call a tool expecting a typed error; asserts isError in the caller. */
 export async function callToolExpectError(
   client: Client,

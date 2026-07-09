@@ -1,11 +1,11 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { TOOL_INPUT_SCHEMAS, TOOL_NAMES, type ToolName } from '@sofar/schema/tool-inputs'
 import { createSofarServer, SERVER_NAME } from '../src/mcp/server'
 import { foldLog, type InitiativeState } from '../src/core/fold'
 import { GENERATED_HEADER } from '../src/projections/templates/shared'
 import { handleSessionStart } from '../src/cli/event'
-import { callTool, connectServer, makeRepoFixture } from './helpers/mcp'
+import { callTool, callToolText, connectServer, makeRepoFixture } from './helpers/mcp'
 
 describe('MCP server skeleton (2.1)', () => {
   it('identifies as "sofar" and lists all seven typed tools', async () => {
@@ -126,9 +126,9 @@ describe('MCP tools round-trip (2.2)', () => {
     expect(decisionsMd.startsWith(GENERATED_HEADER)).toBe(true)
     expect(decisionsMd).toContain('chose **sqlite** over postgres because zero ops')
 
-    // get_state over MCP matches the direct fold (slug filled in from the
-    // resolved initiative — no initiative_created event exists in this log)
-    const viaTool = await callTool<InitiativeState>(client, 'sofar_get_state', {})
+    // get_state view:full over MCP matches the direct fold (slug filled in
+    // from the resolved initiative — no initiative_created event in this log)
+    const viaTool = await callTool<InitiativeState>(client, 'sofar_get_state', { view: 'full' })
     expect(viaTool.isError).toBe(false)
     expect(viaTool.body).toEqual(JSON.parse(JSON.stringify({ ...state, slug: fixture.slug })))
 
@@ -291,6 +291,78 @@ describe('MCP tools round-trip (2.2)', () => {
       expect(event.source).toBe('cli')
       expect(event.session).toBe(started.body.session_id)
     }
+    await client.close()
+  })
+})
+
+describe('get_state progressive disclosure — digest default vs view:full (token-opt)', () => {
+  /** Seed an initiative with a goal, a task, and a decision carrying rationale. */
+  async function seeded() {
+    const fixture = makeRepoFixture()
+    const { client } = await connectServer(fixture.root)
+    await callTool(client, 'sofar_start_session', { tool: 'claude-code' })
+    await callTool(client, 'sofar_update_plan', {
+      plan: {
+        goal: 'ship the widget',
+        phases: [{ name: 'Phase 1', tasks: [{ id: '1.1', title: 'first task', status: 'active' }] }],
+      },
+    })
+    await callTool(client, 'sofar_log_decision', {
+      chose: 'sqlite',
+      over: 'postgres',
+      because: 'zero ops overhead',
+    })
+    return { fixture, client }
+  }
+
+  it('default view returns the summary-dense digest with rationale surfaced (not the raw fold)', async () => {
+    const { client } = await seeded()
+    const { isError, text } = await callToolText(client, 'sofar_get_state', {})
+    expect(isError).toBe(false)
+    // It is the status projection (text), not a JSON dump of the state.
+    expect(text.startsWith('# Sofar status:')).toBe(true)
+    expect(text).toContain('Goal: ship the widget')
+    // The rationale "muscle" stays first-class: the rejected approach AND why.
+    expect(text).toContain('postgres') // what was rejected (M4 dead-end guard)
+    expect(text).toContain('zero ops overhead') // why
+    // Digest is bounded (SessionStart budget applies to the projection).
+    expect(text.length).toBeLessThanOrEqual(10_000)
+    await client.close()
+  })
+
+  it('digest is smaller than the full fold for the same state', async () => {
+    const { client } = await seeded()
+    const digest = await callToolText(client, 'sofar_get_state', {})
+    const full = await callToolText(client, 'sofar_get_state', { view: 'full' })
+    expect(digest.text.length).toBeLessThan(full.text.length)
+    await client.close()
+  })
+
+  it('view:"full" returns the complete folded InitiativeState object', async () => {
+    const { client } = await seeded()
+    const { isError, body } = await callTool<InitiativeState>(client, 'sofar_get_state', {
+      view: 'full',
+    })
+    expect(isError).toBe(false)
+    expect(body.goal).toBe('ship the widget')
+    expect(body.phases[0]!.tasks[0]!.id).toBe('1.1')
+    expect(body.decisions).toHaveLength(1)
+    expect(body.decisions[0]).toMatchObject({ chose: 'sqlite', over: 'postgres' })
+    await client.close()
+  })
+
+  it('rejects an unknown view with a typed invalid_input error, appends nothing', async () => {
+    const fixture = makeRepoFixture()
+    const { client } = await connectServer(fixture.root)
+    const { isError, body } = await callTool<{ code: string; errors: string[] }>(
+      client,
+      'sofar_get_state',
+      { view: 'summary' },
+    )
+    expect(isError).toBe(true)
+    expect(body.code).toBe('invalid_input')
+    expect(body.errors.join('\n')).toContain('view: must be one of')
+    expect(existsSync(fixture.eventsPath)).toBe(false)
     await client.close()
   })
 })

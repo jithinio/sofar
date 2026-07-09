@@ -49,7 +49,10 @@ const handlers: { [K in ToolName]: (ctx: ToolContext, args: ToolArgs[K]) => unkn
 }
 
 function okResult(value: unknown): CallToolResult {
-  return { content: [{ type: 'text', text: JSON.stringify(value) }] }
+  // Text results (e.g. get_state's digest projection) pass through raw — the
+  // MCP-native idiom; structured results are JSON-encoded as before.
+  const text = typeof value === 'string' ? value : JSON.stringify(value)
+  return { content: [{ type: 'text', text }] }
 }
 
 function errorResult(error: ToolError): CallToolResult {
