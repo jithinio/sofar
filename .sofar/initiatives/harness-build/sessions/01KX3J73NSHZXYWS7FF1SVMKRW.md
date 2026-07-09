@@ -6,12 +6,12 @@
 - Tool: claude-code
 - Model: claude-opus-4-8[1m]
 - Started: 2026-07-09T13:49:00.474Z
-- Ended: 2026-07-09T13:49:18.598Z
+- Ended: 2026-07-09T15:11:18.877Z
 
 ## Summary
 
-Reconciled the parallel token-optimization session's get_state progressive-disclosure work (view param: default digest ~1k tok / view:full = complete InitiativeState; digest reuses renderStatus so it inherits Phase 11's concurrent-edit surfacing) with my Phase 11 and cut release 0.3.0 (minor — get_state default flips full→digest, a behavior change). Committed as: feature (b3bddc7), token-opt record (bc022ce), release+bump (dfbca3b); gitignored the private `product doc/` strategy vault. 329 tests green, packaging verified, pushed to main (804cc76). Decided NOT to gate the release on finishing token-optimization (8/14) — the get_state increment is complete/validated; the initiative continues. CONCURRENCY: the BD58 misroute recurred on the HOOK side (my command_run events routed to token-optimization while the shared checkout was on its branch); fixed by switching back to main + discarding the uncommitted pollution (2 committed strays are log-only/unattached, zero fold impact); logged as a Phase 12 note (hook misroute is largely inherent — stateless per-invocation). Publish pending user.
+@alignlabs/sofar@0.3.0 published + propagation confirmed (registry latest->0.3.0, versions [0.1.0,0.2.0,0.3.0]; clean-prefix install serves --version 0.3.0, doctor present, zero runtime deps). Ships Phase 11 (record-health/doctor: stale-phase/concurrent-edit/untracked-work + concurrent-edit surfacing) and the token-optimization session's get_state progressive disclosure (view param, default digest ~1k tok / view:full). 11.5 done, Phase 11 done (5/5); overall 47/51. Recorded + pushed (688cb83). Release loop closed.
 
 ## Next action
 
-USER: publish 0.3.0 — `npm login` then `npm publish -w @alignlabs/sofar` (mirrors 0.2.0). Once live I'll confirm propagation + close 11.5. Then remaining: 5.3 (arm-C scoring), Phase 12 (misroute hardening), and the token-optimization session's ongoing work (2.3 section-fetch, lean tool-defs).
+USER-held: 5.3 (arm-C Opus resume scoring on the off-repo Phase 0 scorecard). Backlog: Phase 12 (concurrent-branch misroute hardening — 12.1 pin session initiative fixes MCP path, hook path largely inherent). Separate: the token-optimization initiative continues (2.3 section-fetch, Phase 4 lean tool-defs) toward a later release.

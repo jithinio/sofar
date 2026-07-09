@@ -94,4 +94,4 @@ Progress: 47/51 tasks done (92%)
 - [ ] 12.3 Acceptance: a session started on branch A keeps writing to A's initiative after the shared checkout flips to B; doctor flags an injected orphan task event; explicit-initiative + CLI-slug paths unaffected
 
 Active phase: Phase 5 — Dialect + forced handoff
-Next action: USER: publish 0.3.0 — `npm login` then `npm publish -w @alignlabs/sofar` (mirrors 0.2.0). Once live I'll confirm propagation + close 11.5. Then remaining: 5.3 (arm-C scoring), Phase 12 (misroute hardening), and the token-optimization session's ongoing work (2.3 section-fetch, lean tool-defs).
+Next action: USER-held: 5.3 (arm-C Opus resume scoring on the off-repo Phase 0 scorecard). Backlog: Phase 12 (concurrent-branch misroute hardening — 12.1 pin session initiative fixes MCP path, hook path largely inherent). Separate: the token-optimization initiative continues (2.3 section-fetch, Phase 4 lean tool-defs) toward a later release.
