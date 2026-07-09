@@ -4,7 +4,7 @@
 
 Goal: Build the Harness v1 engine during the Fable 5 window (Jul 3–7): event log core, MCP server, Claude Code hooks, projections, CLI, watcher/state server, and the AGENTS.md dialect. Engine only — schema lives in one swappable module; UI/sync/team are explicitly out of scope. Full contracts in docs/SPEC.md; conventions in CLAUDE.md; strategy context in harness-docs/ (user-held, outside this repo).
 
-Progress: 46/51 tasks done (90%)
+Progress: 47/51 tasks done (92%)
 
 ## Phase 1 — Event log core [done] — 6/6 done
 
@@ -79,13 +79,13 @@ Progress: 46/51 tasks done (90%)
 - [x] 10.3 sofar doctor --fix: opt-in insert of @source not exclusion after the tailwindcss import (computed relative path to .sofar), gated behind explicit flag
 - [x] 10.4 Acceptance: init hint fires only on Tailwind v4; doctor flags missing exclusion + passes clean repo; --fix inserts correct path, idempotent
 
-## Phase 11 — Record-health deepening (field findings) [active] — 4/5 done
+## Phase 11 — Record-health deepening (field findings) [done] — 5/5 done
 
 - [x] 11.1 sofar doctor: stale-phase check — flag a phase still active/pending whose tasks are all done (missing phase_status_changed → done); WARN-level
 - [x] 11.2 sofar doctor: concurrent-edit check — a file touched by ≥2 still-open sessions (started, no write-back) → conflict-risk WARN
 - [x] 11.3 sofar doctor: untracked-work check — a registered session with real file activity but zero task changes → work not reflected in the plan; WARN
 - [x] 11.4 Surface the concurrent-edit / open-session file map in the SessionStart context and `sofar status` (both read surfaces; rendered only when concurrency exists)
-- [ ] 11.5 Acceptance: stale-phase fires only when all tasks done + phase open; concurrent-edit fires only for ≥2 open sessions; untracked-work fires on activity-without-tasks; surfacing appears on concurrency; ship 0.2.1 (active)
+- [x] 11.5 Acceptance: stale-phase fires only when all tasks done + phase open; concurrent-edit fires only for ≥2 open sessions; untracked-work fires on activity-without-tasks; surfacing appears on concurrency; ship 0.2.1
 
 ## Phase 12 — Concurrent-branch misroute hardening [pending] — 0/3 done
 
@@ -94,4 +94,4 @@ Progress: 46/51 tasks done (90%)
 - [ ] 12.3 Acceptance: a session started on branch A keeps writing to A's initiative after the shared checkout flips to B; doctor flags an injected orphan task event; explicit-initiative + CLI-slug paths unaffected
 
 Active phase: Phase 5 — Dialect + forced handoff
-Next action: USER: (1) publish 0.2.1 to close 11.5 — `npm login` then `npm publish -w @alignlabs/sofar` (mirrors the 0.2.0 flow); (2) the token-optimization session left the repo on its own branch — the checkout is now back on main, its work (token-optimization/, product doc/, bindings.json) preserved uncommitted for it to commit. Only 5.3 (arm-C scoring) + 11.5 (publish) remain.
+Next action: USER: publish 0.3.0 — `npm login` then `npm publish -w @alignlabs/sofar` (mirrors 0.2.0). Once live I'll confirm propagation + close 11.5. Then remaining: 5.3 (arm-C scoring), Phase 12 (misroute hardening), and the token-optimization session's ongoing work (2.3 section-fetch, lean tool-defs).
