@@ -1,6 +1,6 @@
 {
   "name": "@alignlabs/sofar",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Sofar v1 engine — event log core, MCP server, CLI, hooks",
   "type": "module",
   "engines": {

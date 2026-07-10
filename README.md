@@ -13,19 +13,23 @@ any model, zero context) resumes without asking.
 
 ## Install
 
-Not yet on the npm registry. From a checkout:
+```
+npm install -g @alignlabs/sofar    # installs the `sofar` command
+```
+
+Or one-off: `npx @alignlabs/sofar <command>`. Requires Node ≥ 18. The
+package installs with zero runtime dependencies — `dist/cli.js` is fully
+bundled.
+
+From a checkout instead:
 
 ```
 npm install
 npm run build
 cd packages/engine
 npm pack
-npm install -g ./alignlabs-sofar-0.1.0.tgz
+npm install -g ./alignlabs-sofar-<version>.tgz
 ```
-
-The tarball installs with zero runtime dependencies — `dist/cli.js` is fully
-bundled. Published as `@alignlabs/sofar`: `npm install -g @alignlabs/sofar` (the command is still `sofar`), or `npx @alignlabs/sofar <command>`.
-Requires Node ≥ 18.
 
 ## Quickstart
 

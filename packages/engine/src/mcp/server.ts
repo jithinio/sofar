@@ -14,6 +14,7 @@ import {
   type ToolName,
 } from '@sofar/schema/tool-inputs'
 import { resolve } from 'node:path'
+import { version } from '../../package.json'
 import { createToolContext, ToolError, type ActiveSession, type ToolContext } from './context'
 import { getState } from './get-state'
 import { startSession } from './start-session'
@@ -36,7 +37,10 @@ import { addNote } from './add-note'
  */
 
 export const SERVER_NAME = 'sofar'
-export const SERVER_VERSION = '0.1.0'
+// Single-sourced from package.json (the cli/index.ts BD39 precedent) —
+// esbuild inlines the JSON import, so the handshake always reports the
+// manifest's version.
+export const SERVER_VERSION = version
 
 const handlers: { [K in ToolName]: (ctx: ToolContext, args: ToolArgs[K]) => unknown } = {
   sofar_get_state: getState,

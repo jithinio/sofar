@@ -1,6 +1,6 @@
 {
   "name": "sofar-monorepo",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Sofar v1 — event-log initiative memory for coding agents (npm workspaces monorepo)",
   "private": true,
   "type": "module",
