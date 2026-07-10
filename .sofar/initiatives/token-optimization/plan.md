@@ -2,40 +2,47 @@
 
 # Plan: token-optimization
 
-Goal: Reduce the token cost of CONSUMING a sofar record (Phase-0 scorecard cost axis M3/M6) WITHOUT regressing rationale-carried resume quality (M1/M4/M5). Apply the architecture's compaction-proofing principle (record re-injectable in full; top summary-dense, detail in files) to every read surface — chiefly sofar_get_state, which today returns the full raw fold (~14.2k tok, unbounded) where a summary-dense, rationale-first digest orients in ~1k. Serves the moat: integration cost -> 0. Step by step, each increment test-gated; resume-quality validated by an automated ablation (not hand-scored).
+Goal: Reduce the token cost of CONSUMING a sofar record (Phase-0 scorecard cost axis M3/M6) WITHOUT regressing rationale-carried resume quality (M1/M4/M5). Apply the architecture's compaction-proofing principle to every read surface. get_state digest default + view:full shipped in 0.3.0; the rejected-approaches ledger (Phase-3 M4 fix) is built+validated+committed, pending 0.3.1 release.
 
-Progress: 8/14 tasks done (57%)
+Progress: 16/17 tasks done (94%)
 
 ## Phase 1 — Audit & research [done] — 3/3 done
 
-- [x] 1.1 Quantify token surfaces (get_state ~14.2k, session block ~1k, tool defs, memory files)
+- [x] 1.1 Quantify token surfaces (get_state ~16k unbounded, session block ~1k)
 - [x] 1.2 Internet research: context engineering, agent-memory, MCP efficiency
-- [x] 1.3 Reconcile with strategy docs; reframe to scorecard axes (cut M3/M6, hold M1/M4/M5)
+- [x] 1.3 Reconcile with strategy docs; reframe to scorecard axes
 
-## Phase 2 — get_state progressive disclosure (P0) [pending] — 3/4 done
+## Phase 2 — get_state progressive disclosure (P0) [active] — 3/4 done
 
-- [x] 2.1 Design digest contract: default digest (rationale-first) + view:full (re-injectable in full) + section:* — SPEC decision
-- [x] 2.2 Implement view param + digest projection; default=digest, view:full = today's exact InitiativeState
+- [x] 2.1 Design digest contract (SPEC decision)
+- [x] 2.2 Implement view param + digest default (SHIPPED in 0.3.0)
 - [ ] 2.3 On-demand section fetch (decisions/phase, paginated)
-- [x] 2.4 Unit tests + token measurement (objective cost win)
+- [x] 2.4 Unit tests + token measurement
 
-## Phase 3 — Resume-quality validation (assistant-owned) [pending] — 2/2 done
+## Phase 3 — Resume-quality validation (assistant-owned) [done] — 2/2 done
 
-- [x] 3.1 Build automated resume ablation: fresh agent resumes from digest vs full; blind grader scores M1/M4/M5
-- [x] 3.2 Run it; confirm digest holds M4/M5; iterate digest (e.g. rejected-approaches ledger) if it regresses
+- [x] 3.1 Build automated resume ablation (digest vs full; grade M1/M4/M5)
+- [x] 3.2 Run it; found digest regresses M4 on counterintuitive rejected approaches
 
-## Phase 4 — Lean tool-definition pass (P1) [pending] — 0/2 done
+## Phase 4 — Rejected-approaches ledger (Phase-3 M4 fix) [done] — 3/3 done
 
-- [ ] 4.1 Measure baseline 7-tool definition footprint
-- [ ] 4.2 Trim descriptions, enforce enums, dedupe shared shapes; re-measure
+- [x] 4.1 Add over-only ledger to renderStatus (budgeted); committed 9b83163
+- [x] 4.2 Re-ablation confirms M4 restored (3/3 decline; digest ~1.67k tok, 90% under full)
+- [x] 4.3 Ship as 0.3.1 (version bump + commit + npm publish) — needs user publish confirm
 
-## Phase 5 — Compact serialization + session-block trims (P2) [pending] — 0/2 done
+## Phase 5 — Lean tool-definition pass (P1) [done] — 2/2 done
 
-- [ ] 5.1 Render uniform lists as terse tables in the digest
-- [ ] 5.2 Optional session-block trims: collapse done phases, lazy repo.md pointer
+- [x] 5.1 Measure baseline 7-tool definition footprint
+- [x] 5.2 Trim descriptions, enforce enums, dedupe shared shapes; re-measure
 
-## Phase 6 — Caching guidance + docs (P3) [pending] — 0/1 done
+## Phase 6 — Compact serialization + session-block trims (P2) [done] — 2/2 done
 
-- [ ] 6.1 Document two-lever model + prompt-caching (Lever A) guidance
+- [x] 6.1 Render uniform lists as terse tables in the digest
+- [x] 6.2 Optional session-block trims: collapse done phases, lazy repo.md pointer
 
-Next action: Get user go-ahead to build the rejected-approaches ledger fix on a fresh branch off main and ship it as 0.3.1; optionally void the 3 harmless committed harness-build strays.
+## Phase 7 — Caching guidance + docs (P3) [done] — 1/1 done
+
+- [x] 7.1 Document two-lever model + prompt-caching (Lever A) guidance
+
+Active phase: Phase 2 — get_state progressive disclosure (P0)
+Next action: User ratifies descoping 2.3 (see note — recommend drop; view:full + on-disk projections cover it), then cut 0.3.2 with the 5.2/6.2 trims + fix SERVER_VERSION drift in server.ts.
