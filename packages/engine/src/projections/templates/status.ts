@@ -29,6 +29,9 @@ const NEXT_ACTION_BUDGET = 500
 const BLOCKED_BUDGET = 500
 const PHASE_LINE_BUDGET = 100
 const MAX_PHASE_LINES = 12
+// Collapsed done-phases line (task 6.2, token-opt): bounded even when many
+// phases are done or names lack the "Phase N — title" convention.
+const DONE_PHASES_LINE_BUDGET = 220
 const SESSION_SUMMARY_BUDGET = 1_200
 const DERIVED_SESSION_BUDGET = 600
 const DECISION_LINE_BUDGET = 280
@@ -240,15 +243,27 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
     lines.push('')
   }
 
-  // Compact phase tree (statuses + per-phase progress), count-capped.
+  // Compact phase tree (statuses + per-phase progress), count-capped. Done
+  // phases collapse into one trailing line (task 6.2, token-opt): their
+  // per-phase detail carries little resume value (plan.md keeps it), the
+  // saving grows as an initiative ages, and the freed slots let more open
+  // phases fit under the cap. Names keep only their leading "Phase N"
+  // segment (text before " — "); names without that convention pass whole.
   if (state.phases.length > 0) {
+    const open = state.phases.filter((p) => p.status !== 'done')
+    const donePhases = state.phases.filter((p) => p.status === 'done')
     lines.push('Phases:')
-    for (const phase of state.phases.slice(0, MAX_PHASE_LINES)) {
+    for (const phase of open.slice(0, MAX_PHASE_LINES)) {
       const [phaseDone, phaseTotal] = taskProgress([phase])
       lines.push(`- ${clip(phase.name, PHASE_LINE_BUDGET)} [${phase.status}] ${phaseDone}/${phaseTotal}`)
     }
-    if (state.phases.length > MAX_PHASE_LINES) {
-      lines.push(`- …and ${state.phases.length - MAX_PHASE_LINES} more phases (see plan.md)`)
+    if (open.length > MAX_PHASE_LINES) {
+      lines.push(`- …and ${open.length - MAX_PHASE_LINES} more phases (see plan.md)`)
+    }
+    if (donePhases.length > 0) {
+      const [doneDone, doneTotal] = taskProgress(donePhases)
+      const names = donePhases.map((p) => p.name.split(' — ')[0]!).join(', ')
+      lines.push(clip(`- done: ${names} (${doneDone}/${doneTotal} tasks)`, DONE_PHASES_LINE_BUDGET))
     }
     lines.push('')
   }

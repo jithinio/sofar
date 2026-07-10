@@ -290,6 +290,36 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     expect(status).not.toContain('- (no alternative recorded)')
   })
 
+  it('collapses done phases into one line; open phases stay itemized (6.2, token-opt)', () => {
+    const state = populatedState()
+    state.phases = [
+      {
+        name: 'Phase 1 — Audit & research',
+        status: 'done',
+        tasks: [{ id: '1.1', title: 'audit', status: 'done' }],
+      },
+      {
+        name: 'Phase 2 — Build',
+        status: 'active',
+        tasks: [
+          { id: '2.1', title: 'build it', status: 'done' },
+          { id: '2.2', title: 'test it', status: 'active' },
+        ],
+      },
+      {
+        name: 'Phase 3 — Ship',
+        status: 'done',
+        tasks: [{ id: '3.1', title: 'ship it', status: 'done' }],
+      },
+    ]
+    const status = renderStatus(state)
+    expect(status).toContain('- Phase 2 — Build [active] 1/2')
+    // done phases are one summary line — leading name segment only —
+    // not individual "- <name> [done]" lines
+    expect(status).toContain('- done: Phase 1, Phase 3 (2/2 tasks)')
+    expect(status).not.toContain('[done]')
+  })
+
   it('handles an empty state without noise', () => {
     const status = renderStatus(emptyState())
     expect(status).toContain('(unnamed initiative)')
@@ -307,7 +337,9 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     expect(status).toContain('Next action: do the thing')
     expect(status).toContain('Blocked on: waiting')
     expect(status).toContain('Current task: 3.0')
-    expect(status).toContain('…and 28 more phases (see plan.md)')
+    // 37 open phases (3 of the 40 are done and collapse into one line).
+    expect(status).toContain('…and 25 more phases (see plan.md)')
+    expect(status).toContain('- done: Phase 0, Phase 1, Phase 2 (24/24 tasks)')
     expect(status).toContain('Recent decisions (last 5 of 60):')
     expect(status).toContain('chose choice 59')
     expect(status).toContain('summary 29')
