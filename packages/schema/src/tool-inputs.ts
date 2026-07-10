@@ -141,11 +141,14 @@ export interface ToolDef {
   inputSchema: ToolInputSchema
 }
 
+// Lean tool-definition pass (token-opt 5.2): descriptions are agent-facing
+// contract, injected into every session's context — keep load-bearing
+// semantics (adopt-by-id, full-replace, call-first), cut redundancy between
+// tool and property descriptions. Repeated 6×, so every char here counts.
 const initiativeProp = {
   type: 'string',
   minLength: 1,
-  description:
-    'Initiative slug. Omit to resolve from the current git branch via .sofar/bindings.json.',
+  description: 'Initiative slug; omit to resolve from the current git branch.',
 }
 
 const planTaskSchema = {
@@ -172,7 +175,6 @@ const planPhaseSchema = {
 
 const planSchema = {
   type: 'object',
-  description: 'Full plan structure — replaces the existing plan entirely.',
   properties: {
     goal: { type: 'string', minLength: 1 },
     phases: { type: 'array', items: planPhaseSchema },
@@ -188,8 +190,7 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       initiative: initiativeProp,
       view: {
         enum: [...GET_STATE_VIEWS],
-        description:
-          'Output detail: "digest" (default) = summary-dense orientation with rationale; "full" = the complete folded InitiativeState.',
+        description: 'Detail level; default "digest".',
       },
     },
     additionalProperties: false,
@@ -201,14 +202,14 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       tool: {
         type: 'string',
         minLength: 1,
-        description: 'Agent tool starting the session, e.g. "claude-code", "opencode", "codex".',
+        description: 'Agent tool name, e.g. "claude-code".',
       },
       model: { type: 'string', description: 'Model identifier, if known.' },
       session_id: {
         type: 'string',
         minLength: 1,
         description:
-          'Session id from the injected context line "Session: <id> — …". Pass it to adopt exactly that session; omit to mint a fresh id.',
+          'Session id from the injected "Session: <id>" line — pass it to adopt that session; omit to mint a fresh id.',
       },
     },
     required: ['tool'],
@@ -243,9 +244,9 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
     type: 'object',
     properties: {
       initiative: initiativeProp,
-      chose: { type: 'string', minLength: 1, description: 'What was chosen.' },
-      over: { type: 'string', minLength: 1, description: 'What was rejected.' },
-      because: { type: 'string', minLength: 1, description: 'Why.' },
+      chose: { type: 'string', minLength: 1 },
+      over: { type: 'string', minLength: 1 },
+      because: { type: 'string', minLength: 1 },
     },
     required: ['chose', 'over', 'because'],
     additionalProperties: false,
@@ -271,13 +272,13 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_get_state',
     description:
-      'Orient on an initiative from the event log — call this first. Default returns a summary-dense digest (goal, active/next task, next action, recent decisions with rationale). Pass view:"full" for the complete folded InitiativeState.',
+      'Orient on an initiative — call this first. Returns a summary-dense digest with rationale by default; view "full" returns the complete folded InitiativeState.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_get_state,
   },
   {
     name: 'sofar_start_session',
     description:
-      'Start a work session on an initiative. Returns {session_id}; subsequent events in this server process are attributed to it.',
+      'Start a work session. Returns {session_id}; subsequent events are attributed to it.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_start_session,
   },
   {
@@ -288,7 +289,7 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   },
   {
     name: 'sofar_update_task',
-    description: 'Set a task status (pending|active|done|blocked), with an optional note.',
+    description: "Set a task's status, optionally with a note.",
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_update_task,
   },
   {
@@ -300,7 +301,7 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_update_plan',
     description:
-      'Replace the full plan structure (goal + phases with tasks). This is a full replace, not a merge.',
+      'Replace the entire plan (goal + phases with tasks) — a full replace, not a merge.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_update_plan,
   },
   {
