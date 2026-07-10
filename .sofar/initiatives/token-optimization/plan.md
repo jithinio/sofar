@@ -38,4 +38,4 @@ Progress: 8/14 tasks done (57%)
 
 - [ ] 6.1 Document two-lever model + prompt-caching (Lever A) guidance
 
-Next action: Build the validated fix: add a rejected-approaches ledger (each decision's over + brief because) to the digest projection, then re-run the ablation to confirm M4 is restored while keeping the token win.
+Next action: Get user go-ahead to build the rejected-approaches ledger fix on a fresh branch off main and ship it as 0.3.1; optionally void the 3 harmless committed harness-build strays.
