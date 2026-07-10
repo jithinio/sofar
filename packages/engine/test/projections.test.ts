@@ -276,6 +276,20 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     expect(status).toContain('chose a over b — c')
   })
 
+  it('surfaces a rejected-approaches ledger (over-only), excluding "(no alternative recorded)" (D-ledger)', () => {
+    const state = populatedState()
+    state.decisions = [
+      { id: '01ARZ3NDEKTSV4RRFFQ69G5F01', ts: '2026-07-03T00:00:00.000Z', chose: 'sqlite', over: 'postgres', because: 'zero ops' },
+      { id: '01ARZ3NDEKTSV4RRFFQ69G5F02', ts: '2026-07-03T00:00:00.000Z', chose: 'x', over: '(no alternative recorded)', because: 'y' },
+    ]
+    const status = renderStatus(state)
+    // only the decision with a real alternative is counted + listed
+    expect(status).toContain('Rejected approaches — do NOT re-propose (1):')
+    expect(status).toContain('- postgres')
+    // the placeholder over is not promoted into the ledger as its own line
+    expect(status).not.toContain('- (no alternative recorded)')
+  })
+
   it('handles an empty state without noise', () => {
     const status = renderStatus(emptyState())
     expect(status).toContain('(unnamed initiative)')

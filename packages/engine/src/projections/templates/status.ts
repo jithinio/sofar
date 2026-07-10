@@ -33,6 +33,11 @@ const SESSION_SUMMARY_BUDGET = 1_200
 const DERIVED_SESSION_BUDGET = 600
 const DECISION_LINE_BUDGET = 280
 const MAX_DECISIONS = 5
+// Rejected-approaches ledger (D-ledger, Phase-3 validated): breadth of "what
+// NOT to re-propose" that the last-5 recent window drops — over-only, heavily
+// clipped, so it stays compact even as decisions accumulate.
+const REJECTED_OVER_LINE_BUDGET = 90
+const REJECTED_LEDGER_BUDGET = 2_800
 // Concurrent-edit surfacing (task 11.4, D-P11) — rendered only when open
 // sessions share files, so it costs nothing in the common single-session case.
 const CONFLICT_LINE_BUDGET = 200
@@ -79,6 +84,16 @@ function lastUnwrittenWithActivity(sessions: readonly SessionState[]): SessionSt
     if (session.activity !== undefined) return session
   }
   return undefined
+}
+
+/**
+ * A decision recorded a real rejected alternative — vs the placeholder
+ * "(no alternative recorded)" logged when nothing was weighed.
+ */
+function hasRealAlternative(over: string | undefined): boolean {
+  if (over === undefined) return false
+  const t = over.trim()
+  return t.length > 0 && !/^\(\s*(no alternative|none)/i.test(t)
 }
 
 /**
@@ -269,6 +284,29 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
     lines.push(`Recent decisions${skipped > 0 ? ` (last ${recent.length} of ${state.decisions.length})` : ''}:`)
     for (const d of recent) {
       lines.push(`- ${clip(`${d.ts.slice(0, 10)} chose ${d.chose} over ${d.over} — ${d.because}`, DECISION_LINE_BUDGET)}`)
+    }
+    lines.push('')
+  }
+
+  // Rejected-approaches ledger (D-ledger, Phase-3 validated): the `over` clause
+  // of every decision with a real alternative — the breadth of "what NOT to
+  // re-propose" that the last-5 window (and its 280-char clip) drop. Over-only;
+  // the `because` lives in decisions.md / get_state view:"full". This closes the
+  // M4 (dead-end recurrence) gap the resume ablation found in the bare digest.
+  const rejected = state.decisions.filter((d) => hasRealAlternative(d.over))
+  if (rejected.length > 0) {
+    lines.push(`Rejected approaches — do NOT re-propose (${rejected.length}):`)
+    let used = 0
+    let shown = 0
+    for (const d of rejected) {
+      const line = `- ${clip(d.over, REJECTED_OVER_LINE_BUDGET)}`
+      if (used + line.length + 1 > REJECTED_LEDGER_BUDGET) break
+      lines.push(line)
+      used += line.length + 1
+      shown++
+    }
+    if (shown < rejected.length) {
+      lines.push(`- …and ${rejected.length - shown} more (see decisions.md)`)
     }
     lines.push('')
   }
