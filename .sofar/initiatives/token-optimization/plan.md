@@ -2,9 +2,9 @@
 
 # Plan: token-optimization
 
-Goal: Reduce the token cost of CONSUMING a sofar record (Phase-0 scorecard cost axis M3/M6) WITHOUT regressing rationale-carried resume quality (M1/M4/M5). Apply the architecture's compaction-proofing principle to every read surface. get_state digest default + view:full shipped in 0.3.0; the rejected-approaches ledger (Phase-3 M4 fix) is built+validated+committed, pending 0.3.1 release.
+Goal: Reduce the token cost of CONSUMING a sofar record (Phase-0 scorecard cost axis M3/M6) WITHOUT regressing rationale-carried resume quality (M1/M4/M5). Apply the architecture's compaction-proofing principle to every read surface.
 
-Progress: 16/17 tasks done (94%)
+Progress: 17/17 tasks done (100%)
 
 ## Phase 1 — Audit & research [done] — 3/3 done
 
@@ -12,11 +12,10 @@ Progress: 16/17 tasks done (94%)
 - [x] 1.2 Internet research: context engineering, agent-memory, MCP efficiency
 - [x] 1.3 Reconcile with strategy docs; reframe to scorecard axes
 
-## Phase 2 — get_state progressive disclosure (P0) [active] — 3/4 done
+## Phase 2 — get_state progressive disclosure (P0) [done] — 3/3 done
 
 - [x] 2.1 Design digest contract (SPEC decision)
 - [x] 2.2 Implement view param + digest default (SHIPPED in 0.3.0)
-- [ ] 2.3 On-demand section fetch (decisions/phase, paginated)
 - [x] 2.4 Unit tests + token measurement
 
 ## Phase 3 — Resume-quality validation (assistant-owned) [done] — 2/2 done
@@ -28,7 +27,7 @@ Progress: 16/17 tasks done (94%)
 
 - [x] 4.1 Add over-only ledger to renderStatus (budgeted); committed 9b83163
 - [x] 4.2 Re-ablation confirms M4 restored (3/3 decline; digest ~1.67k tok, 90% under full)
-- [x] 4.3 Ship as 0.3.1 (version bump + commit + npm publish) — needs user publish confirm
+- [x] 4.3 Ship as 0.3.1 (version bump + commit + npm publish)
 
 ## Phase 5 — Lean tool-definition pass (P1) [done] — 2/2 done
 
@@ -37,12 +36,12 @@ Progress: 16/17 tasks done (94%)
 
 ## Phase 6 — Compact serialization + session-block trims (P2) [done] — 2/2 done
 
-- [x] 6.1 Render uniform lists as terse tables in the digest
+- [x] 6.1 Render uniform lists as terse tables in the digest (evaluated: declined, lists win)
 - [x] 6.2 Optional session-block trims: collapse done phases, lazy repo.md pointer
 
-## Phase 7 — Caching guidance + docs (P3) [done] — 1/1 done
+## Phase 7 — Caching guidance + docs (P3) [done] — 2/2 done
 
 - [x] 7.1 Document two-lever model + prompt-caching (Lever A) guidance
+- [x] 7.2 Cut 0.3.2: 5.2+6.2 trims, SERVER_VERSION single-sourced from package.json, README install refresh
 
-Active phase: Phase 2 — get_state progressive disclosure (P0)
-Next action: User ratifies descoping 2.3 (see note — recommend drop; view:full + on-disk projections cover it), then cut 0.3.2 with the 5.2/6.2 trims + fix SERVER_VERSION drift in server.ts.
+Next action: User runs: npm publish -w @alignlabs/sofar (0.3.2). Initiative done — no further build work.
