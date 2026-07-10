@@ -116,6 +116,38 @@ signatures, hook behavior, acceptance criteria — live in
 [docs/SPEC.md](docs/SPEC.md). This repo tracks its own development with the
 same protocol — self-hosted in its own `.sofar/` record.
 
+## Token economics
+
+Two different problems govern what a record costs an agent, and sofar treats
+them as two levers:
+
+**Lever A — price and latency: prompt caching.** Caching is the agent
+harness's job, but sofar is built to sit well in a cached prefix. The status
+block is injected once at session start, and the seven MCP tool definitions
+total ~1k tokens — both land in the prefix and stop costing after the first
+request. To keep it that way: orient once from the digest, and when you need
+history mid-session, read the generated projections (`plan.md`,
+`decisions.md`, `sessions/<id>.md`) from disk instead of re-pulling state
+dumps into the conversation.
+
+**Lever B — context-window occupancy.** Caching does not reduce the tokens a
+model must attend to, so every sofar read surface is budgeted:
+
+- `sofar_get_state` defaults to a summary-dense digest (~1–2k tokens);
+  the complete folded state (often 10× that on a mature record) stays
+  available via `view: "full"`.
+- The injected status block carries a hard 10,000-char cap with per-section
+  budgets and count caps; done phases collapse to a single summary line.
+- Detail is never deleted, only relocated — the full record survives in the
+  event log and its projections.
+
+One thing is deliberately never trimmed: **rationale**. The digest keeps
+recent decisions with their chose/over/because, plus a rejected-approaches
+ledger listing every decision's rejected alternative. Resume-ablation
+testing showed that dropping rejected alternatives is precisely what makes a
+fresh agent confidently re-propose a dead end the record had already ruled
+out — the cheapest tokens in the block are the ones that stop repeated work.
+
 ## Build-tool hygiene
 
 The record (`.sofar/`) is prose committed into your repo — plans, decisions,
