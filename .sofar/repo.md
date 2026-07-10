@@ -29,3 +29,11 @@
   banner at its top); it stays readable for the ceremony history but is
   never written again. Write-back means the sofar record: MCP tools or
   `sofar event append`, per the installed protocol blocks.
+- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`
+  from PATH (installed under ~/.local, npm prefix override needed:
+  `npm install -g --prefix ~/.local @alignlabs/sofar@latest`). After each
+  npm publish, upgrade the global install — otherwise this repo dogfoods
+  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for
+  three days; injected status was missing the rejected-approaches ledger).
+  A running Claude Code session keeps its already-launched MCP server;
+  new binary takes effect on the next session (or /mcp reconnect).
