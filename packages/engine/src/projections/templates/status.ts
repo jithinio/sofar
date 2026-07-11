@@ -64,6 +64,12 @@ const MAX_CONFLICT_LINES = 8
 // Counts are numeric and the breakdown has ≤5 fixed kinds; the budget is
 // belt-and-braces, not an expected cut.
 const STALENESS_LINE_BUDGET = 200
+// Notes since write-back (notes-in-digest 2.1): the drift CONTENT beside the
+// staleness line's drift signal — corrections recorded after the write-back
+// would otherwise die invisible in the log. Newest-last window mirroring
+// recent decisions; a record with no un-absorbed notes pays nothing.
+const NOTE_LINE_BUDGET = 200
+const MAX_NOTES = 5
 
 /** Hard cap: anything over the limit is cut to fit, marker included. */
 export function enforceStatusLimit(text: string): string {
@@ -280,6 +286,22 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
         STALENESS_LINE_BUDGET,
       ),
     )
+  }
+
+  // Notes since write-back (notes-in-digest 2.1): the content behind the
+  // staleness line's note count — rendered directly under it so drift-signal
+  // and drift-content read together. Also renders when nothing ever wrote
+  // back (the window is the whole log; every note is un-absorbed), where the
+  // header drops the write-back phrasing.
+  const notes = state.freshness.notes
+  if (notes.length > 0) {
+    const recent = notes.slice(-MAX_NOTES)
+    const skipped = notes.length - recent.length
+    const label = state.freshness.last_writeback_ts !== null ? 'Notes since write-back' : 'Notes'
+    lines.push(`${label}${skipped > 0 ? ` (last ${recent.length} of ${notes.length})` : ''}:`)
+    for (const n of recent) {
+      lines.push(`- ${clip(`${n.ts.slice(0, 10)} ${n.text}`, NOTE_LINE_BUDGET)}`)
+    }
   }
 
   if (state.current.blocked_on !== undefined) {
