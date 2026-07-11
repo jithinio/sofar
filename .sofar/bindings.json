@@ -1,3 +1,4 @@
 {
-  "main": "harness-build"
+  "main": "harness-build",
+  "notes-in-digest": "notes-in-digest"
 }
