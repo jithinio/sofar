@@ -2,9 +2,9 @@
 
 # Plan: cli-ui
 
-Goal: Build a CLI UI layer for the sofar engine: every command today (status, doctor, new/switch, adopt) prints flat plain text — boring, noisy, and hard to scan. Give CLI output structured terminal rendering: visual hierarchy, color and severity cues, alignment, progress display, animated per-use-case symbols, less noise so the signal (goal, next action, warnings) stands out. Constraint: terminal rendering only — this is not the guard-railed 'UI' (web/graphical); any new rendering dependency requires a logged Decision first. Agent-facing surfaces (renderStatus digest, hook stdout, export/import NDJSON, mcp stdio) stay byte-identical plain text forever.
+Goal: Build a CLI UI layer for the sofar engine: every command today (status, doctor, new/switch, adopt) prints flat plain text — boring, noisy, and hard to scan. Give CLI output structured terminal rendering: visual hierarchy, color and severity cues, alignment, progress display, animated per-use-case symbols, less noise so the signal (goal, next action, warnings) stands out. The layout must render the initiative object model (initiative → goal → phases → tasks → next action) at two zoom levels: single initiative (status) and multi-initiative portfolio (list). Constraint: terminal rendering only — this is not the guard-railed 'UI' (web/graphical); any new rendering dependency requires a logged Decision first. Agent-facing surfaces (renderStatus digest, hook stdout, export/import NDJSON, mcp stdio) stay byte-identical plain text forever.
 
-Progress: 0/11 tasks done (0%)
+Progress: 0/12 tasks done (0%)
 
 ## Phase 1 — UI kernel [pending] — 0/4 done
 
@@ -13,12 +13,13 @@ Progress: 0/11 tasks done (0%)
 - [ ] 1.3 Symbols + layout helpers: ✓ ✗ ⚠ ℹ ● [✓]/[•]/[ ] checkboxes, └/│ detail rails, ⋮ elision, … truncation; visible-width pad/truncate (ANSI-strip aware); tests
 - [ ] 1.4 Spinner kernel on stderr: per-use-case frame sets (scan=braille dots@80ms, write=growVertical, network=point, brand pulse=eased ping-pong ·✢✳✶✻✽ style); animate only isTTY&&!CI, static fallback line otherwise; cursor hide/restore + SIGINT-safe; tests
 
-## Phase 2 — Styled surfaces [pending] — 0/4 done
+## Phase 2 — Styled surfaces [pending] — 0/5 done
 
-- [ ] 2.1 sofar status styled renderer from InitiativeState (TTY path; plain renderFullStatus stays the piped fallback): header, progress meter, phase tree checkboxes, next-action callout, staleness warning, notes
-- [ ] 2.2 sofar doctor: Finding levels as ✓/⚠/✗ with section grouping, hints as dim └ lines; scan spinner during tree walk
-- [ ] 2.3 sofar list: aligned columns (visible-width), semantic coloring, current-branch initiative marker
-- [ ] 2.4 One-shot confirmations (new/switch/init/uninit/adopt): ✓/✗ result line + dim └ details; upgrade gets network spinner; serve startup banner
+- [ ] 2.1 Layout grammar for the initiative object model: one visual hierarchy (initiative header → goal → phase tree → tasks → next action → warnings) rendered at two zoom levels — full block (status: one initiative) and portfolio block/row (list: many initiatives, each with own goal/phases/progress); shared components so both surfaces stay visually congruent; tests
+- [ ] 2.2 sofar status styled renderer = full-zoom grammar applied to InitiativeState (TTY path; plain renderFullStatus stays the piped fallback): header, progress meter, phase tree checkboxes, next-action callout, staleness warning, notes
+- [ ] 2.3 sofar list styled renderer = portfolio-zoom grammar: per-initiative block (slug, bound branch, progress, active phase, next-action one-liner), aligned visible-width columns, current-branch marker; presentation only — what the surface lists is owned by the initiative-list initiative
+- [ ] 2.4 sofar doctor: Finding levels as ✓/⚠/✗ with section grouping, hints as dim └ lines; scan spinner during tree walk
+- [ ] 2.5 One-shot confirmations (new/switch/init/uninit/adopt): ✓/✗ result line + dim └ details; upgrade gets network spinner; serve startup banner
 
 ## Phase 3 — Contract + acceptance [pending] — 0/3 done
 

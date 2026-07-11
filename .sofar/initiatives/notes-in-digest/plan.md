@@ -25,4 +25,4 @@ Progress: 7/7 tasks done (100%)
 - [x] 4.1 Fold tests: selection rule over synthetic logs (incl. notes straddling the write-back boundary), replay determinism
 - [x] 4.2 Render tests: budget + count cap respected, clip behavior, absent-when-none, enforceStatusLimit ≤10k at worst case; digest and SessionStart parity via the shared seam
 
-Next action: Set goal/plan on cli-ui (sofar_update_plan); notes-in-digest merge+release still pending.
+Next action: None — initiative complete and closed.

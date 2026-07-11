@@ -99,4 +99,4 @@ Progress: 47/53 tasks done (88%)
 - [ ] 13.1 Convergent fold: sort envelope-valid events by id before pass-2 replay (D-sync-1) + merged-log convergence tests (same event set, shuffled file orders, deep-equal states) + monotonic-writer and skew-tolerance assertions
 
 Active phase: Phase 5 — Dialect + forced handoff
-Next action: None — initiative complete and closed. Main is the working branch; next work starts a fresh initiative.
+Next action: Start 1.1 on a cli-ui branch: settle zero-dep vendored kernel vs picocolors dep, log the Decision, then build cli/ui capability detection (1.2).

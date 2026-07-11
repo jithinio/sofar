@@ -25,4 +25,4 @@ Progress: 7/7 tasks done (100%)
 - [x] 4.1 SPEC §CLI + §MCP tools (+ FORMAT.md only if the listing becomes a conforming-reader concern); acceptance criteria: listing renders all initiatives, unbound-branch error carries the listing, budgets hold
 - [x] 4.2 Tests: derivation determinism (same records → deep-equal listing), CLI render, error-path listing, MCP count/clip budgets, empty .sofar/initiatives edge
 
-Next action: Start 1.1 on a cli-ui branch: settle zero-dep vendored kernel vs picocolors dep, log the Decision, then build cli/ui capability detection (1.2).
+Next action: None — initiative complete and closed.

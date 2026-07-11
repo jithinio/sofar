@@ -1,6 +1,4 @@
 {
   "main": "harness-build",
-  "notes-in-digest": "notes-in-digest",
-  "cli-ui": "cli-ui",
-  "initiative-list": "initiative-list"
+  "cli-ui": "cli-ui"
 }
