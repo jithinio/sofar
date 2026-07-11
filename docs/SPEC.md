@@ -89,6 +89,13 @@ event types — the derivation is read-side and retroactively covers every
 existing record. Companion derivation staleActivePhases(state) (the D-P11
 stale-phase check extracted from doctor — one detector, two surfaces) lists
 phases whose tasks are all done but whose status was never set to done.
+Repo-level derivation listInitiatives(rootDir) (initiative-list 1.2):
+every directory under .sofar/initiatives/ summarized — slug, bound
+branches (bindings.json inverted), tasks done/total, active phase, next
+action, last envelope-valid event id — ordered by last-event ulid
+DESCENDING (record recency), never-logged initiatives last by slug asc;
+tolerant like the fold (unreadable log or corrupt bindings.json → warning
++ thinner entry, never fatal); zero new event types.
 
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
@@ -120,6 +127,13 @@ identical behavior for never-merged logs.]
   staleness line: newest-last window of ≤5 notes, one date-prefixed line
   each clipped to 200 chars, overflow labeled "(last K of N)"; header is
   "Notes:" when nothing ever wrote back; absent when no notes selected.
+  view "initiatives" (initiative-list 3.1) returns the budgeted portfolio
+  listing over §State's listInitiatives — one clipped line per initiative
+  (slug, bound branch(es) or "unbound", done/total tasks with %, active
+  phase, next action), count-capped at 20 with an "+N more (run sofar
+  list)" overflow line — and is the ONLY view that skips initiative
+  resolution entirely (`initiative` ignored): it must work from an
+  unbound branch, which is exactly when a session needs it.
 - sofar_start_session({initiative?, tool, model?, session_id?}) →
   {session_id} — session_id (from the SessionStart context "Session:" line)
   adopts exactly that OPEN session; an ended id is a typed invalid_input
@@ -132,6 +146,10 @@ identical behavior for never-merged logs.]
 - sofar_add_note({initiative?, text}) → ok
 Every tool = validate payload → append event → regenerate projections →
 return. No tool mutates state except via an event.
+unknown_initiative errors — from any tool or CLI command that resolves a
+slug (explicit or branch-bound) — carry a count-capped (10) `available
+initiatives:` suffix, or a `sofar new` hint when none exist
+(initiative-list 2.2): the dead-end orients instead of blocking.
 
 ## Hooks (installed by `sofar init` as standalone scripts in .claude/hooks/)
 - SessionStart shim → `sofar event session-start` then prints the status
@@ -222,6 +240,14 @@ Shims contain no logic — they invoke the sofar CLI.
   staleness section (notes-in-digest 2.2): every selected note, full
   timestamp, no count cap or length clip, whitespace collapsed to keep each
   entry one list line; absent when none.
+- `sofar list` — every initiative under .sofar/initiatives/, one line each
+  (slug, bound branch(es) or "unbound", done/total tasks with %, active
+  phase, next action), most recently active first per §State's
+  listInitiatives; UNCAPPED entry count (terminal surface, the
+  sofar-status precedent), lines whitespace-collapsed so each initiative
+  stays one line; derivation warnings to stderr without failing — an
+  uninitialized repo prints the empty listing with a `sofar new` hint
+  (initiative-list 2.1).
 - `sofar export [slug] [--since <id>]` / `sofar import <file|-> [slug]`
   — per-initiative NDJSON over the §Cursor primitive; slug resolves like
   status (explicit wins, else branch binding) (extended Phase 4, BD28)
@@ -304,3 +330,13 @@ Shims contain no logic — they invoke the sofar CLI.
   order with notes.length === counts.notes; replay stays deterministic. The
   SessionStart block holds ≤10k chars with every section at worst case,
   notes section included.
+- **Listing (initiative-list):** on a repo with several initiatives —
+  including one with an empty/absent log and a corrupt bindings.json —
+  `sofar list` renders one line per initiative, most recently active
+  first, never-logged entries last by slug, warnings on stderr, exit 0;
+  get_state view:"initiatives" succeeds from an UNBOUND branch (no
+  unknown_initiative), count-caps at 20 lines with the overflow pointer,
+  and each line holds its clip budget; unknown_initiative errors carry
+  the available-initiatives suffix (≤10 named) or the `sofar new` hint on
+  an initiative-less repo; the derivation is deterministic (same records
+  → deep-equal listing, same warnings).
