@@ -10,6 +10,7 @@ import { runDoctor } from './doctor'
 import { runUninit } from './uninit'
 import { runNew, runSwitch } from './new'
 import { runStatus } from './status'
+import { runList } from './list'
 import { startServer, DEFAULT_PORT } from './serve'
 import { runExport, runImport } from './transfer'
 import { runUpgrade } from './upgrade'
@@ -96,6 +97,14 @@ program
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((slug: string | undefined, opts: { root?: string }) => {
     emit(runStatus(rootOf(opts), slug))
+  })
+
+program
+  .command('list')
+  .description('one line per initiative: slug, bound branch, progress, active phase, next action — most recently active first')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action((opts: { root?: string }) => {
+    emit(runList(rootOf(opts)))
   })
 
 program
