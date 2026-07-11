@@ -37,3 +37,5 @@
   three days; injected status was missing the rejected-approaches ledger).
   A running Claude Code session keeps its already-launched MCP server;
   new binary takes effect on the next session (or /mcp reconnect).
+- Commit messages: NO "Co-Authored-By" trailers — user ruling
+  2026-07-11; end the message after the descriptive body.

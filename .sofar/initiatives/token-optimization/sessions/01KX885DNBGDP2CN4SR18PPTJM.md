@@ -6,12 +6,12 @@
 - Tool: claude-code
 - Model: claude-fable-5
 - Started: 2026-07-11T09:29:31.563Z
-- Ended: (in progress)
+- Ended: 2026-07-11T09:30:22.589Z
 
 ## Summary
 
-(none recorded — session did not write back)
+Verified 0.4.0 live on npm (latest → 0.4.0, shasum f06766af…), recorded the publish, committed and pushed the record (branch + main).
 
 ## Next action
 
-(none recorded)
+User sends the design-partner one-pager (product doc/design-partner-onepager.md — ready, cross-family-validated claims). Next build: task 13.1 convergent fold.
