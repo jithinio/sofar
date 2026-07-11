@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import { validatePayload, isKnownEventType } from '@sofar/schema'
 import type { ToolErrorCode, ToolErrorShape } from '@sofar/schema/tool-inputs'
@@ -94,6 +94,30 @@ export function currentBranch(rootDir: string): string | null {
   }
 }
 
+/**
+ * Available-initiatives suffix for unknown_initiative errors (initiative-list
+ * 2.2): the dead-end becomes an orientation point — the caller learns what
+ * exists without a second round-trip. Directory names only, no folds (this
+ * runs on an error path); count-capped so a crowded record cannot bloat an
+ * error message.
+ */
+function knownInitiatives(sofarDir: string): string {
+  let slugs: string[]
+  try {
+    slugs = readdirSync(join(sofarDir, 'initiatives'), { withFileTypes: true })
+      .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+      .map((d) => d.name)
+      .sort()
+  } catch {
+    slugs = []
+  }
+  if (slugs.length === 0) return 'no initiatives exist yet — create one with `sofar new <slug>`'
+  const MAX_LISTED = 10
+  const listed = slugs.slice(0, MAX_LISTED).join(', ')
+  const more = slugs.length > MAX_LISTED ? `, …+${slugs.length - MAX_LISTED} more` : ''
+  return `available initiatives: ${listed}${more} (details: sofar list)`
+}
+
 // ---------------------------------------------------------------------------
 // Context.
 // ---------------------------------------------------------------------------
@@ -168,14 +192,14 @@ export function createToolContext(rootDir: string): ToolContext {
       if (branch === null) {
         throw new ToolError(
           'unknown_initiative',
-          `no current git branch found under ${rootDir} (not a repo, or detached HEAD) — pass \`initiative\` explicitly`,
+          `no current git branch found under ${rootDir} (not a repo, or detached HEAD) — pass \`initiative\` explicitly; ${knownInitiatives(sofarDir)}`,
         )
       }
       const bound = readBindings()[branch]
       if (bound === undefined) {
         throw new ToolError(
           'unknown_initiative',
-          `no initiative bound to branch "${branch}" in .sofar/bindings.json — pass \`initiative\` explicitly or bind the branch`,
+          `no initiative bound to branch "${branch}" in .sofar/bindings.json — pass \`initiative\` explicitly or bind the branch; ${knownInitiatives(sofarDir)}`,
         )
       }
       slug = bound
@@ -183,7 +207,7 @@ export function createToolContext(rootDir: string): ToolContext {
     if (!existsSync(initiativeDir(slug))) {
       throw new ToolError(
         'unknown_initiative',
-        `initiative "${slug}" not found under .sofar/initiatives/`,
+        `initiative "${slug}" not found under .sofar/initiatives/; ${knownInitiatives(sofarDir)}`,
       )
     }
     return slug
