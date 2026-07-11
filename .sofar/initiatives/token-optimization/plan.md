@@ -44,4 +44,4 @@ Progress: 17/17 tasks done (100%)
 - [x] 7.1 Document two-lever model + prompt-caching (Lever A) guidance
 - [x] 7.2 Cut 0.3.2: 5.2+6.2 trims, SERVER_VERSION single-sourced from package.json, README install refresh
 
-Next action: Offer to commit sofar upgrade (branch token-optimization); user has not asked to commit.
+Next action: Publish 0.5.0 to npm so users get the upgrade command: npm publish -w @alignlabs/sofar (needs npm auth).
