@@ -13,4 +13,4 @@ Progress: 4/4 tasks done (100%)
 - [x] 1.3 Render + command: projections/templates/next.ts, cli/next.ts, register in cli/index.ts
 - [x] 1.4 Acceptance tests: next.test.ts — render shape, stale-suffix rules, warnings to stderr, empty record; full suite + typecheck green
 
-Next action: User: publish 0.6.1 with OTP; then upgrade global, close next-command initiative (binding removal; branch deletion — remote needs user naming).
+Next action: User: npm publish -w @alignlabs/sofar (with OTP) from /Users/jins/IO/sofar; then sofar upgrade and close next-command (binding removal; remote branch deletions need user naming).

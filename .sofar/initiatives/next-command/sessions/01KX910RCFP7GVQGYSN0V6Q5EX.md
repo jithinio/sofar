@@ -6,12 +6,12 @@
 - Tool: claude-code
 - Model: claude-fable-5
 - Started: 2026-07-11T16:43:53.103Z
-- Ended: (in progress)
+- Ended: 2026-07-11T16:45:30.981Z
 
 ## Summary
 
-(none recorded — session did not write back)
+Brought the main repo checkout home: swept record tails onto next-command branch (pushed), switched /Users/jins/IO/sofar from next-command to main (71cbfaf == origin), unioned all session tails (5+3 appended, pushed), reinstalled + rebuilt — repo dir now reads 0.6.1 everywhere. main-merge worktree removed.
 
 ## Next action
 
-(none recorded)
+User: npm publish -w @alignlabs/sofar (with OTP) from /Users/jins/IO/sofar; then sofar upgrade and close next-command (binding removal; remote branch deletions need user naming).

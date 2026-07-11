@@ -1,4 +1,3 @@
 {
-  "main": "harness-build",
-  "next-command": "next-command"
+  "main": "harness-build"
 }
