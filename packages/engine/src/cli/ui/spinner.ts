@@ -4,7 +4,8 @@
  * frames. Degrades per caps.animate:
  *
  * - animate: redraw `\r␛[K <frame> <text>` on an unref'd interval, cursor
- *   hidden while running, restored on stop and on SIGINT.
+ *   hidden while running, restored on stop and on SIGINT (which is then
+ *   re-raised so ^C still terminates the process).
  * - static (piped/CI/dumb): one `⋯ text` line at start and one per text
  *   update — CI logs stay readable, never frame spam.
  *
@@ -65,6 +66,12 @@ export function createSpinner(options: SpinnerOptions): Spinner {
 
   const onSigint = (): void => {
     restoreCursor()
+    // `once` has already removed this listener; re-raise so the default
+    // terminate-on-SIGINT disposition still applies (installing ANY
+    // listener suppresses it — Node semantics). Restore-then-re-raise is
+    // the restore-cursor/ora practice: a spinner must never make ^C stop
+    // killing the process.
+    process.kill(process.pid, 'SIGINT')
   }
 
   const renderFrame = (): void => {

@@ -51,6 +51,12 @@ describe('detectCaps color ladder', () => {
       true,
     )
   })
+
+  it('CI ambient beats TERM=dumb (dumb only vetoes the TTY clause, not color itself)', () => {
+    const caps = detectCaps({ ...tty, env: { TERM: 'dumb', CI: 'true' } })
+    expect(caps.color).toBe(true)
+    expect(caps.animate).toBe(false) // dumb still kills animation
+  })
 })
 
 describe('stream caps (stdoutCaps / stderrCaps)', () => {
@@ -196,6 +202,21 @@ describe('text helpers', () => {
     expect(visibleWidth('plain')).toBe(5)
   })
 
+  it('stripAnsi strips the full escape grammar, not just semantic SGR', async () => {
+    const { stripAnsi } = await import('../src/cli/ui/text')
+    expect(stripAnsi('a\x1b[38;5;196mb\x1b[0mc')).toBe('abc') // 256-color + reset-all
+    expect(stripAnsi('a\x1b[38;2;1;2;3mb\x1b[0mc')).toBe('abc') // truecolor
+    expect(stripAnsi('t\x1b]0;pwn\x07u')).toBe('tu') // OSC (BEL-terminated)
+    expect(stripAnsi('t\x1b]0;pwn\x1b\\u')).toBe('tu') // OSC (ST-terminated)
+    expect(stripAnsi('cur\x1b[2Ksor')).toBe('cursor') // erase-line CSI
+  })
+
+  it('sanitizeProse also drops leftover control bytes (lone ESC, stray BEL) but keeps \\n and \\t', async () => {
+    const { sanitizeProse } = await import('../src/cli/ui/text')
+    expect(sanitizeProse('a \x1b b\x07c\rd')).toBe('a  bcd')
+    expect(sanitizeProse('line1\nline2\tend')).toBe('line1\nline2\tend')
+  })
+
   it('padEndVisible aligns styled and plain to the same column', async () => {
     const { padEndVisible, visibleWidth } = await import('../src/cli/ui/text')
     const styled = padEndVisible('\x1b[31mbad\x1b[39m', 8)
@@ -276,6 +297,28 @@ describe('spinner', () => {
     const out2 = capture()
     createSpinner({ caps: staticCaps, text: 'x', stream: out2 }).start().stop()
     expect(out2.chunks).toEqual(['⋯ x\n'])
+  })
+
+  it('SIGINT mid-animation restores the cursor, then re-raises so ^C still terminates', async () => {
+    const { createSpinner } = await import('../src/cli/ui/spinner')
+    // any SIGINT listener suppresses Node's default terminate-on-SIGINT;
+    // the handler must restore-then-re-raise, never swallow the signal
+    const kill = vi.spyOn(process, 'kill').mockImplementation(() => true)
+    const out = capture()
+    const spinner = createSpinner({ caps: liveCaps, text: 'interrupted', stream: out })
+    const before = process.listeners('SIGINT')
+    spinner.start()
+    try {
+      const added = process.listeners('SIGINT').filter((l) => !before.includes(l))
+      expect(added).toHaveLength(1)
+      ;(added[0] as () => void)() // deliver the signal to OUR handler only
+      expect(out.chunks.join('')).toContain('\x1b[?25h') // cursor restored first
+      expect(kill).toHaveBeenCalledWith(process.pid, 'SIGINT') // signal re-raised
+    } finally {
+      spinner.stop() // clears the interval + the once-wrapper still registered
+      kill.mockRestore()
+    }
+    expect(process.listeners('SIGINT')).toEqual(before)
   })
 
   it('framesFor maps use cases and honors the unicode gate', async () => {
