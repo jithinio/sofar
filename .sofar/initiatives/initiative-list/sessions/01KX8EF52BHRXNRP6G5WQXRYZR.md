@@ -6,12 +6,12 @@
 - Tool: claude-code
 - Model: claude-fable-5
 - Started: 2026-07-11T11:19:41.899Z
-- Ended: (in progress)
+- Ended: 2026-07-11T11:39:34.431Z
 
 ## Summary
 
-(none recorded — session did not write back)
+Researched CLI UI across Claude Code, Gemini CLI, opencode, Codex, Kiro + Node ecosystem (3 agents). Drafted cli-ui plan: 3 phases/11 tasks (UI kernel, styled surfaces, contract+acceptance). Logged direction decision (styled static output, ANSI-16 semantic law, no TUI framework) and a design-vocabulary note.
 
 ## Next action
 
-(none recorded)
+Start 1.1 on a cli-ui branch: settle zero-dep vendored kernel vs picocolors dep, log the Decision, then build cli/ui capability detection (1.2).

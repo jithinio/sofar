@@ -2,8 +2,26 @@
 
 # Plan: cli-ui
 
-Goal: Build a CLI UI layer for the sofar engine: every command today (status, doctor, new/switch, adopt) prints flat plain text — boring, noisy, and hard to scan. Give CLI output structured terminal rendering: visual hierarchy, color and severity cues, alignment, progress display, less noise so the signal (goal, next action, warnings) stands out. Constraint: terminal rendering only — this is not the guard-railed 'UI' (web/graphical); any new rendering dependency (color/TUI lib) requires a logged Decision first.
+Goal: Build a CLI UI layer for the sofar engine: every command today (status, doctor, new/switch, adopt) prints flat plain text — boring, noisy, and hard to scan. Give CLI output structured terminal rendering: visual hierarchy, color and severity cues, alignment, progress display, animated per-use-case symbols, less noise so the signal (goal, next action, warnings) stands out. Constraint: terminal rendering only — this is not the guard-railed 'UI' (web/graphical); any new rendering dependency requires a logged Decision first. Agent-facing surfaces (renderStatus digest, hook stdout, export/import NDJSON, mcp stdio) stay byte-identical plain text forever.
 
-Progress: 0/0 tasks done (0%)
+Progress: 0/11 tasks done (0%)
 
-(no plan recorded yet — call sofar_update_plan)
+## Phase 1 — UI kernel [pending] — 0/4 done
+
+- [ ] 1.1 Decision: rendering stack — zero-dep hand-rolled kernel (vendored picocolors detection logic + cli-spinners frames, ~130 lines) vs one dep (picocolors); settle and log via sofar_log_decision
+- [ ] 1.2 cli/ui capability detection + style primitives: color ladder NO_COLOR > --no-color > FORCE_COLOR > isTTY&&TERM!=dumb (+CI), unicode gate w/ ASCII fallbacks, semantic tokens (success/error/warn/info/muted/accent) — ANSI-16 only, no hex for text; tests
+- [ ] 1.3 Symbols + layout helpers: ✓ ✗ ⚠ ℹ ● [✓]/[•]/[ ] checkboxes, └/│ detail rails, ⋮ elision, … truncation; visible-width pad/truncate (ANSI-strip aware); tests
+- [ ] 1.4 Spinner kernel on stderr: per-use-case frame sets (scan=braille dots@80ms, write=growVertical, network=point, brand pulse=eased ping-pong ·✢✳✶✻✽ style); animate only isTTY&&!CI, static fallback line otherwise; cursor hide/restore + SIGINT-safe; tests
+
+## Phase 2 — Styled surfaces [pending] — 0/4 done
+
+- [ ] 2.1 sofar status styled renderer from InitiativeState (TTY path; plain renderFullStatus stays the piped fallback): header, progress meter, phase tree checkboxes, next-action callout, staleness warning, notes
+- [ ] 2.2 sofar doctor: Finding levels as ✓/⚠/✗ with section grouping, hints as dim └ lines; scan spinner during tree walk
+- [ ] 2.3 sofar list: aligned columns (visible-width), semantic coloring, current-branch initiative marker
+- [ ] 2.4 One-shot confirmations (new/switch/init/uninit/adopt): ✓/✗ result line + dim └ details; upgrade gets network spinner; serve startup banner
+
+## Phase 3 — Contract + acceptance [pending] — 0/3 done
+
+- [ ] 3.1 SPEC §CLI UI: color law, degradation ladder, flag/env contract, styled-vs-guaranteed-plain surface table, acceptance criteria
+- [ ] 3.2 Plain-surface regression guard: tests locking renderStatus digest, hook stdout, export/import NDJSON, mcp stdio to byte-identical output regardless of TTY/env
+- [ ] 3.3 Acceptance suite + live-fire pass: every command in TTY / piped / NO_COLOR / CI modes
