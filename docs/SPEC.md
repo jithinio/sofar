@@ -65,13 +65,25 @@ InitiativeState = { slug, goal, phases[ {name, status, tasks[ {id, title,
 status} ]} ], decisions[], sessions[ {id, tool, model?, started, ended?,
 summary?, next_action?, closed_reason?, activity?} ],
 files_touched[], current: {active_phase, next_action, blocked_on?},
-cursor: <last event id> }
+freshness, cursor: <last event id> }
 activity (Phase 7, BD44) = derived per-session aggregation of mechanical
 events attributed by envelope.session (session "cli" excluded; unregistered
 session ids stay unattached): { files[] deduped in first-touch order,
 commands count, task_changes[] as "<id> → <status>" in log order } — lists
 capped at 20 entries + "+N more" sentinel; present only when ≥1 such event
 exists. closed_reason = the session_closed reason when that close set ended.
+freshness (staleness-detection 1.1) = fold-time drift derivation from
+MECHANICAL signals only — content-semantic staleness inference is banned
+(D3/D12): { events_since_writeback: {files, commands, tasks, notes,
+decisions} counting payload-valid, unvoided file_touched / command_run /
+task_status_changed / note_added / decision_logged events appended after
+the last session_ended (ANY session/source incl. cli), last_writeback_ts:
+ts of that session_ended, or null when nothing ever wrote back }.
+session_ended is the ONLY reset (session_closed resets nothing); zero new
+event types — the derivation is read-side and retroactively covers every
+existing record. Companion derivation staleActivePhases(state) (the D-P11
+stale-phase check extracted from doctor — one detector, two surfaces) lists
+phases whose tasks are all done but whose status was never set to done.
 
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
@@ -86,7 +98,11 @@ streams; ordering by ulid. This is the entire future sync interface.
   tok, rationale kept first-class); view "full" returns the complete folded
   InitiativeState (re-injectable in full, architecture Open-Q#5). Resolves
   initiative from bindings.json + current branch when omitted; neither view
-  appends.
+  appends. The digest shares renderStatus with the SessionStart block, so it
+  carries the same staleness signals (staleness-detection 2.1/2.2/2.4): the
+  budgeted `⚠ next action may be stale: N events since write-back
+  (breakdown)` line when mechanical drift exists, stale-phase markers on
+  phase lines, and the clipped-summary pointer.
 - sofar_start_session({initiative?, tool, model?, session_id?}) →
   {session_id} — session_id (from the SessionStart context "Session:" line)
   adopts exactly that OPEN session; an ended id is a typed invalid_input
@@ -107,7 +123,14 @@ return. No tool mutates state except via an event.
   session_id.` line carrying the hook-registered session id (adopt-by-id,
   Phase 7, BD43). Includes a "Repo memory" section
   sourced from .sofar/repo.md when it exists and is not the untouched init
-  stub, budget-clipped to ~1,500 chars (added Phase 6, BD40). HARD LIMIT:
+  stub, budget-clipped to ~1,500 chars (added Phase 6, BD40). Staleness
+  surfacing (staleness-detection, mechanical signals only): when counted
+  events postdate the last write-back the block renders ONE budgeted line
+  `⚠ next action may be stale: N events since write-back (breakdown)`
+  under the next action (absent on a fresh record); a stale phase renders
+  as `[<status> — all tasks done; mark phase done?]` on its phase line; a
+  last-session summary cut by its budget carries `(clipped — full text in
+  sessions/<id>.md)` INSIDE the budget. HARD LIMIT:
   output ≤10,000 chars — projection generator must guarantee this.
 - PostToolUse shim (matcher: Edit|Write|MultiEdit|Bash) → appends
   file_touched / command_run from stdin JSON (tool_name, tool_input).
@@ -170,7 +193,12 @@ Shims contain no logic — they invoke the sofar CLI.
   stamps an idempotent SUPERSEDED banner into the legacy file. NO freeform
   markdown parsing — the agent transcribes (added Phase 8, BD46).
 - `sofar status [slug]` — fold and print: goal, progress %, phase tree
-  with statuses, next action, blocked, last session.
+  with statuses (stale phases marked, staleness-detection 2.2), next action,
+  blocked, last session; plus an UNCAPPED `⚠ Staleness:` section (terminal
+  surface, no 10k cap) when any mechanical signal fires: drift breakdown
+  since the last write-back, stale phases with the phase_status_changed fix,
+  and a pointer when the capped surfaces clip the last write-back summary
+  (staleness-detection 2.3).
 - `sofar export [slug] [--since <id>]` / `sofar import <file|-> [slug]`
   — per-initiative NDJSON over the §Cursor primitive; slug resolves like
   status (explicit wins, else branch binding) (extended Phase 4, BD28)
