@@ -99,4 +99,4 @@ Progress: 47/53 tasks done (88%)
 - [ ] 13.1 Convergent fold: sort envelope-valid events by id before pass-2 replay (D-sync-1) + merged-log convergence tests (same event set, shuffled file orders, deep-equal states) + monotonic-writer and skew-tolerance assertions
 
 Active phase: Phase 5 — Dialect + forced handoff
-Next action: USER-held: 5.3 (arm-C Opus resume scoring on the off-repo Phase 0 scorecard). Backlog: Phase 12 (concurrent-branch misroute hardening — 12.1 pin session initiative fixes MCP path, hook path largely inherent). Separate: the token-optimization initiative continues (2.3 section-fetch, Phase 4 lean tool-defs) toward a later release.
+Next action: None — initiative complete and closed. Main is the working branch; next work starts a fresh initiative.
