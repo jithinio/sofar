@@ -61,9 +61,12 @@ export function isToolName(name: string): name is ToolName {
  * get_state output detail (progressive disclosure, token-optimization).
  * "digest" (default) = summary-dense orientation projection with rationale
  * surfaced (~1k tok); "full" = the complete folded InitiativeState,
- * re-injectable in full (architecture Open-Q#5 compaction-proofing).
+ * re-injectable in full (architecture Open-Q#5 compaction-proofing);
+ * "initiatives" (initiative-list 3.1) = one budgeted line per initiative in
+ * the repo — the only view that skips initiative resolution, so it works
+ * from an unbound branch, which is exactly when a session needs it.
  */
-export const GET_STATE_VIEWS = ['digest', 'full'] as const
+export const GET_STATE_VIEWS = ['digest', 'full', 'initiatives'] as const
 export type GetStateView = (typeof GET_STATE_VIEWS)[number]
 
 export interface GetStateArgs {
@@ -190,7 +193,8 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       initiative: initiativeProp,
       view: {
         enum: [...GET_STATE_VIEWS],
-        description: 'Detail level; default "digest".',
+        description:
+          'Detail level; default "digest". "initiatives" lists every initiative in the repo (ignores `initiative`).',
       },
     },
     additionalProperties: false,
@@ -272,7 +276,7 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_get_state',
     description:
-      'Orient on an initiative — call this first. Returns a summary-dense digest with rationale by default; view "full" returns the complete folded InitiativeState.',
+      'Orient on an initiative — call this first. Returns a summary-dense digest with rationale by default; view "full" returns the complete folded InitiativeState; view "initiatives" lists every initiative in the repo.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_get_state,
   },
   {
