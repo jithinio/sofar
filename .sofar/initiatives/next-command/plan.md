@@ -12,3 +12,5 @@ Progress: 4/4 tasks done (100%)
 - [x] 1.2 Derivation: extend InitiativeListEntry with drift_events (freshness staleness signal) in core/listing + listing tests
 - [x] 1.3 Render + command: projections/templates/next.ts, cli/next.ts, register in cli/index.ts
 - [x] 1.4 Acceptance tests: next.test.ts — render shape, stale-suffix rules, warnings to stderr, empty record; full suite + typecheck green
+
+Next action: Merge next-command into main when ready (user merge ceremony), then close the initiative and remove the branch binding.
