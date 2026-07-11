@@ -10,6 +10,18 @@ import {
   sofarExclusionDirective,
 } from './scanners'
 import { errMessage, fail, ok, type CmdResult } from './shared'
+import {
+  createSpinner,
+  createStyle,
+  padEndVisible,
+  stderrCaps,
+  stdoutCaps,
+  symbolsFor,
+  visibleWidth,
+  type Caps,
+  type SpinnerStream,
+  type Style,
+} from './ui'
 
 /**
  * `sofar doctor [--fix]` (tasks 10.2/10.3 + 11.1/11.2/11.3) — audit a host repo:
@@ -32,11 +44,24 @@ import { errMessage, fail, ok, type CmdResult } from './shared'
  *
  * Exit code: 1 when any FAIL-level finding remains after fixes (so CI can gate
  * on it); 0 on a clean repo. WARN findings surface without failing.
+ *
+ * Rendering (cli-ui 2.4) is capability-gated: `caps.color` picks the styled
+ * report (✓/⚠/✗ level marks, bold sections, dim └ hints) — the styled layout
+ * is inherently color-coded (D1), so piped/NO_COLOR output keeps the
+ * pre-styling plain bytes. A scan spinner covers the tree walk on stderr.
  */
 
 export interface DoctorOptions {
   /** Apply the safe scanner fix (@source not insertion). */
   fix?: boolean
+}
+
+/** Progress channel for the tree-scan spinner — injectable for tests. */
+export interface DoctorProgress {
+  /** Spinner caps (default: stderrCaps() — progress lives on stderr). */
+  caps?: Caps
+  /** Spinner sink (default: process.stderr). */
+  stream?: SpinnerStream
 }
 
 type Level = 'ok' | 'warn' | 'fail'
@@ -263,7 +288,40 @@ function auditConcurrency(folded: Folded[]): Section {
 // 3. Scanner hazards (+ --fix).
 // ---------------------------------------------------------------------------
 
-function auditScanners(rootDir: string, fix: boolean): Section {
+interface ScanProgress {
+  caps: Caps
+  stream?: SpinnerStream
+}
+
+/**
+ * The tree walk is doctor's one genuinely long step (every other check is a
+ * handful of stats/reads), so the scan spinner wraps exactly this — and ONLY
+ * when stderr can animate (a real TTY): piped/CI runs must stay byte-identical
+ * to the unstyled command, so the spinner kernel's static-line fallback is
+ * skipped too (the same policy as the upgrade spinner).
+ */
+function scanEntries(rootDir: string, progress: ScanProgress): string[] {
+  if (!progress.caps.animate) return findTailwindCssEntries(rootDir)
+  const spinner = createSpinner({
+    caps: progress.caps,
+    text: 'scanning tree for Tailwind entry stylesheets',
+    useCase: 'scan',
+    ...(progress.stream !== undefined ? { stream: progress.stream } : {}),
+  }).start()
+  let entries: string[]
+  try {
+    entries = findTailwindCssEntries(rootDir)
+  } catch (err) {
+    spinner.fail(`tree scan failed — ${errMessage(err)}`)
+    throw err
+  }
+  spinner.succeed(
+    `tree scan: ${entries.length} Tailwind entry stylesheet${entries.length === 1 ? '' : 's'}`,
+  )
+  return entries
+}
+
+function auditScanners(rootDir: string, fix: boolean, progress: ScanProgress): Section {
   const findings: Finding[] = []
   const tw = detectTailwindV4(rootDir)
   if (!tw.v4) {
@@ -271,7 +329,7 @@ function auditScanners(rootDir: string, fix: boolean): Section {
     return { title: 'Scanner hazards', findings }
   }
 
-  const entries = findTailwindCssEntries(rootDir)
+  const entries = scanEntries(rootDir, progress)
   if (entries.length === 0) {
     findings.push({
       level: 'warn',
@@ -325,7 +383,86 @@ function auditScanners(rootDir: string, fix: boolean): Section {
 // Command.
 // ---------------------------------------------------------------------------
 
-export function runDoctor(rootDir: string, options: DoctorOptions = {}): CmdResult {
+interface Tally {
+  fails: number
+  warns: number
+  fixesApplied: number
+}
+
+function tallyOf(sections: Section[]): Tally {
+  const tally: Tally = { fails: 0, warns: 0, fixesApplied: 0 }
+  for (const section of sections) {
+    for (const f of section.findings) {
+      if (f.level === 'fail') tally.fails++
+      if (f.level === 'warn') tally.warns++
+      if (f.level === 'ok' && f.text.includes('added `@source not')) tally.fixesApplied++
+    }
+  }
+  return tally
+}
+
+/** Summary fragments, each count colored by its own severity (identity when plain). */
+function summaryParts(tally: Tally, style: Style): string[] {
+  const parts: string[] = []
+  if (tally.fixesApplied > 0) {
+    parts.push(style.success(`${tally.fixesApplied} fix${tally.fixesApplied === 1 ? '' : 'es'} applied`))
+  }
+  parts.push(
+    tally.fails === 0
+      ? style.success('no problems found')
+      : style.error(`${tally.fails} problem${tally.fails === 1 ? '' : 's'} found`),
+  )
+  if (tally.warns > 0) parts.push(style.warn(`${tally.warns} warning${tally.warns === 1 ? '' : 's'}`))
+  return parts
+}
+
+/** The pre-cli-ui plain report — the piped/NO_COLOR contract, byte-stable. */
+function renderPlain(rootDir: string, sections: Section[], tally: Tally): string {
+  const lines: string[] = [`sofar doctor — ${rootDir}`, '']
+  for (const section of sections) {
+    lines.push(`${section.title}:`)
+    for (const f of section.findings) {
+      lines.push(`${MARKER[f.level]}  ${f.text}`)
+      if (f.hint !== undefined) lines.push(`          ${f.hint}`)
+    }
+    lines.push('')
+  }
+  lines.push(`sofar doctor: ${summaryParts(tally, createStyle(false)).join(', ')}`)
+  return `${lines.join('\n')}\n`
+}
+
+/** Styled report (cli-ui 2.4): ✓/⚠/✗ level marks, bold sections, dim └ hints. */
+function renderStyled(rootDir: string, sections: Section[], tally: Tally, caps: Caps): string {
+  const style = createStyle(true)
+  const sym = symbolsFor(caps.unicode)
+  const mark: Record<Level, string> = {
+    ok: style.success(sym.ok),
+    warn: style.warn(sym.warn),
+    fail: style.error(sym.fail),
+  }
+  // ASCII fallback marks are uneven (√ / !! / ×) — pad so finding texts stay columnar.
+  const markWidth = Math.max(...[sym.ok, sym.warn, sym.fail].map((s) => visibleWidth(s)))
+  const lines: string[] = [`${style.bold('sofar doctor')} ${style.dim(`— ${rootDir}`)}`, '']
+  for (const section of sections) {
+    lines.push(style.bold(`${section.title}:`))
+    for (const f of section.findings) {
+      lines.push(`  ${padEndVisible(mark[f.level], markWidth)} ${f.text}`)
+      if (f.hint !== undefined) {
+        lines.push(style.dim(`${' '.repeat(markWidth + 3)}${sym.elbow} ${f.hint}`))
+      }
+    }
+    lines.push('')
+  }
+  lines.push(style.bold(`sofar doctor: ${summaryParts(tally, style).join(', ')}`))
+  return `${lines.join('\n')}\n`
+}
+
+export function runDoctor(
+  rootDir: string,
+  options: DoctorOptions = {},
+  caps: Caps = stdoutCaps(),
+  progress: DoctorProgress = {},
+): CmdResult {
   const fix = options.fix === true
   if (!existsSync(join(rootDir, '.sofar'))) {
     return fail('sofar doctor: no .sofar/ record here — run `sofar init` first')
@@ -336,31 +473,12 @@ export function runDoctor(rootDir: string, options: DoctorOptions = {}): CmdResu
     auditWiring(rootDir),
     auditRecords(folded),
     auditConcurrency(folded),
-    auditScanners(rootDir, fix),
+    auditScanners(rootDir, fix, { caps: progress.caps ?? stderrCaps(), stream: progress.stream }),
   ]
 
-  const lines: string[] = [`sofar doctor — ${rootDir}`, '']
-  let fails = 0
-  let warns = 0
-  let fixesApplied = 0
-  for (const section of sections) {
-    lines.push(`${section.title}:`)
-    for (const f of section.findings) {
-      if (f.level === 'fail') fails++
-      if (f.level === 'warn') warns++
-      if (f.level === 'ok' && f.text.includes('added `@source not')) fixesApplied++
-      lines.push(`${MARKER[f.level]}  ${f.text}`)
-      if (f.hint !== undefined) lines.push(`          ${f.hint}`)
-    }
-    lines.push('')
-  }
-
-  const parts: string[] = []
-  if (fixesApplied > 0) parts.push(`${fixesApplied} fix${fixesApplied === 1 ? '' : 'es'} applied`)
-  parts.push(fails === 0 ? 'no problems found' : `${fails} problem${fails === 1 ? '' : 's'} found`)
-  if (warns > 0) parts.push(`${warns} warning${warns === 1 ? '' : 's'}`)
-  lines.push(`sofar doctor: ${parts.join(', ')}`)
-
-  const stdout = `${lines.join('\n')}\n`
-  return fails === 0 ? ok(stdout) : { exitCode: 1, stdout, stderr: '' }
+  const tally = tallyOf(sections)
+  const stdout = caps.color
+    ? renderStyled(rootDir, sections, tally, caps)
+    : renderPlain(rootDir, sections, tally)
+  return tally.fails === 0 ? ok(stdout) : { exitCode: 1, stdout, stderr: '' }
 }

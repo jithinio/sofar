@@ -200,3 +200,63 @@ describe('runUpgrade — install orchestration (injected deps, no real npm)', ()
     expect(res.stderr).toContain('not a global npm install')
   })
 })
+
+describe('install spinner (cli-ui 2.5) — network use case on stderr', () => {
+  const live = { color: true, unicode: true, animate: true }
+  const piped = { color: false, unicode: true, animate: false }
+
+  const capture = () => {
+    const chunks: string[] = []
+    return { chunks, write: (c: string) => chunks.push(c) }
+  }
+
+  it('animates around the npm subprocess and closes with a green ✓ on success', async () => {
+    const out = capture()
+    const res = await runUpgrade(
+      { version: '9.9.9' },
+      { selfPath: posixGlobal, spawnInstall: async () => 0, spinnerStream: out },
+      live,
+    )
+    expect(res.exitCode).toBe(0)
+    expect(res.stdout).toContain('sofar upgraded (9.9.9)') // result message unchanged
+    const joined = out.chunks.join('')
+    expect(joined).toContain('installing @alignlabs/sofar@9.9.9')
+    expect(joined.endsWith('\x1b[32m✓\x1b[39m installing @alignlabs/sofar@9.9.9\n')).toBe(true)
+  })
+
+  it('closes with a red ✗ when npm fails or cannot be spawned', async () => {
+    const out = capture()
+    const res = await runUpgrade(
+      { version: '9.9.9' },
+      { selfPath: posixGlobal, spawnInstall: async () => 3, spinnerStream: out },
+      live,
+    )
+    expect(res.exitCode).toBe(3)
+    expect(out.chunks.join('')).toContain('\x1b[31m✗\x1b[39m installing @alignlabs/sofar@9.9.9')
+
+    const out2 = capture()
+    await runUpgrade(
+      { version: '9.9.9' },
+      {
+        selfPath: posixGlobal,
+        spawnInstall: async () => {
+          throw new Error('spawn npm ENOENT')
+        },
+        spinnerStream: out2,
+      },
+      live,
+    )
+    expect(out2.chunks.join('')).toContain('\x1b[31m✗\x1b[39m installing @alignlabs/sofar@9.9.9')
+  })
+
+  it('writes NOTHING to stderr when it cannot animate — piped runs stay byte-identical', async () => {
+    const out = capture()
+    const res = await runUpgrade(
+      { version: '9.9.9' },
+      { selfPath: posixGlobal, spawnInstall: async () => 0, spinnerStream: out },
+      piped,
+    )
+    expect(res.exitCode).toBe(0)
+    expect(out.chunks).toEqual([])
+  })
+})

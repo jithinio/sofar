@@ -180,3 +180,30 @@ describe('adopt --mark', () => {
     expect(readFileSync(legacyPath, 'utf8')).toBe(marked)
   })
 })
+
+describe('confirmation styling (cli-ui 2.5)', () => {
+  const styled = { color: true, unicode: true, animate: false }
+  const piped = { color: false, unicode: true, animate: false }
+
+  it('marks the --mark result with a green ✓; the brief itself stays plain', () => {
+    const root = adoptableRepo()
+    const result = runAdopt(root, 'legacy.md', 'legacy-widget', { mark: true }, styled)
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain(
+      '\x1b[32m✓\x1b[39m marked legacy.md superseded (banner prepended)',
+    )
+    // everything before the mark line — the agent-executed brief — is escape-free
+    expect(result.stdout.slice(0, result.stdout.indexOf('\x1b'))).toContain('Verify: run')
+  })
+
+  it('piped --mark output is byte-identical plain; validation JSON is never styled', () => {
+    const root = adoptableRepo()
+    const marked = runAdopt(root, 'legacy.md', 'legacy-widget', { mark: true }, piped)
+    expect(marked.stdout).not.toMatch(/\x1b\[/)
+    expect(marked.stdout).toContain('marked legacy.md superseded (banner prepended)')
+
+    const invalid = runAdopt(root, 'no-such.md', 'legacy-widget', {}, styled)
+    expect(invalid.exitCode).toBe(1)
+    expect(() => JSON.parse(invalid.stderr)).not.toThrow() // BD17 contract intact
+  })
+})

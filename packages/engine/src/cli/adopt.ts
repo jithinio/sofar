@@ -4,6 +4,7 @@ import { ulid } from 'ulid'
 import type { ToolErrorShape } from '@sofar/schema/tool-inputs'
 import { createToolContext, ToolError } from '../mcp/context'
 import { ok, type CmdResult } from './shared'
+import { type Caps, createStyle, stdoutCaps, symbolsFor } from './ui'
 
 /**
  * `sofar adopt <legacy-file> [slug] [--mark]` (task 8.2, SPEC §CLI, BD46) —
@@ -49,6 +50,17 @@ function supersededBanner(slug: string): string {
 
 function typedFail(shape: ToolErrorShape): CmdResult {
   return { exitCode: 1, stdout: '', stderr: `${JSON.stringify(shape)}\n` }
+}
+
+/**
+ * --mark result styling (cli-ui 2.5): green ✓ when caps allow, identical
+ * wording either way. Nothing else here is ever styled — the brief is
+ * agent-executed copy-paste material, and the typed-error JSON on stderr is
+ * an agent-facing contract (BD17).
+ */
+function renderMarkResult(line: string, caps: Caps): string {
+  if (!caps.color) return line
+  return `${createStyle(true).success(symbolsFor(caps.unicode).ok)} ${line}`
 }
 
 /**
@@ -120,6 +132,7 @@ export function runAdopt(
   legacyFile: string,
   slug?: string,
   options: AdoptOptions = {},
+  caps: Caps = stdoutCaps(),
 ): CmdResult {
   const legacyPath = isAbsolute(legacyFile) ? legacyFile : join(rootDir, legacyFile)
   // Brief/banner texts use the repo-relative form — stable across machines.
@@ -168,10 +181,10 @@ export function runAdopt(
     // very feature) must still get stamped. Field finding from the
     // self-host migration, Jul 7.
     if (content.trimStart().startsWith(SUPERSEDED_START)) {
-      lines.push(`${displayFile} already marked superseded — no change`)
+      lines.push(renderMarkResult(`${displayFile} already marked superseded — no change`, caps))
     } else {
       writeFileSync(legacyPath, `${supersededBanner(resolved)}${content}`, 'utf8')
-      lines.push(`marked ${displayFile} superseded (banner prepended)`)
+      lines.push(renderMarkResult(`marked ${displayFile} superseded (banner prepended)`, caps))
     }
   }
   return ok(`${lines.join('\n')}\n`)

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { makeEvent } from '../src/core/envelope'
 import { appendEvent } from '../src/core/log'
 import type { InitiativeState } from '../src/core/fold'
-import { startServer, type ServeHandle } from '../src/cli/serve'
+import { renderServeBanner, startServer, type ServeHandle } from '../src/cli/serve'
 import { makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
 
 /**
@@ -225,5 +225,22 @@ describe('sofar serve — SSE push on append (acceptance bullet 3)', () => {
     )
     expect((await waiter).slug).toBe('live')
     // close with the second client still connected — afterEach asserts no hang
+  })
+})
+
+describe('startup banner (cli-ui 2.5)', () => {
+  it('is byte-identical to the historical line when caps disallow color', () => {
+    expect(
+      renderServeBanner('http://127.0.0.1:4173', { color: false, unicode: true, animate: false }),
+    ).toBe('sofar serve: http://127.0.0.1:4173 (GET /state, /state/<slug>, /events SSE)\n')
+  })
+
+  it('accents the brand name and dims the URL/endpoints when color is on', () => {
+    expect(
+      renderServeBanner('http://127.0.0.1:4173', { color: true, unicode: true, animate: false }),
+    ).toBe(
+      '\x1b[35msofar serve\x1b[39m: ' +
+        '\x1b[2mhttp://127.0.0.1:4173 (GET /state, /state/<slug>, /events SSE)\x1b[22m\n',
+    )
   })
 })
