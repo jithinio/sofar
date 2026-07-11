@@ -4,7 +4,7 @@
 
 Goal: Build a CLI UI layer for the sofar engine: every command today (status, doctor, new/switch, adopt) prints flat plain text — boring, noisy, and hard to scan. Give CLI output structured terminal rendering: visual hierarchy, color and severity cues, alignment, progress display, animated per-use-case symbols, less noise so the signal (goal, next action, warnings) stands out. The layout must render the initiative object model (initiative → goal → phases → tasks → next action) at two zoom levels: single initiative (status) and multi-initiative portfolio (list). Constraint: terminal rendering only — this is not the guard-railed 'UI' (web/graphical); any new rendering dependency requires a logged Decision first. Agent-facing surfaces (renderStatus digest, hook stdout, export/import NDJSON, mcp stdio) stay byte-identical plain text forever.
 
-Progress: 4/12 tasks done (33%)
+Progress: 12/12 tasks done (100%)
 
 ## Phase 1 — UI kernel [pending] — 4/4 done
 
@@ -13,18 +13,18 @@ Progress: 4/12 tasks done (33%)
 - [x] 1.3 Symbols + layout helpers: ✓ ✗ ⚠ ℹ ● [✓]/[•]/[ ] checkboxes, └/│ detail rails, ⋮ elision, … truncation; visible-width pad/truncate (ANSI-strip aware); tests
 - [x] 1.4 Spinner kernel on stderr: per-use-case frame sets (scan=braille dots@80ms, write=growVertical, network=point, brand pulse=eased ping-pong ·✢✳✶✻✽ style); animate only isTTY&&!CI, static fallback line otherwise; cursor hide/restore + SIGINT-safe; tests
 
-## Phase 2 — Styled surfaces [pending] — 0/5 done
+## Phase 2 — Styled surfaces [pending] — 5/5 done
 
-- [ ] 2.1 Layout grammar for the initiative object model: one visual hierarchy (initiative header → goal → phase tree → tasks → next action → warnings) rendered at two zoom levels — full block (status: one initiative) and portfolio block/row (list: many initiatives, each with own goal/phases/progress); shared components so both surfaces stay visually congruent; tests (active)
-- [ ] 2.2 sofar status styled renderer = full-zoom grammar applied to InitiativeState (TTY path; plain renderFullStatus stays the piped fallback): header, progress meter, phase tree checkboxes, next-action callout, staleness warning, notes
-- [ ] 2.3 sofar list styled renderer = portfolio-zoom grammar: per-initiative block (slug, bound branch, progress, active phase, next-action one-liner), aligned visible-width columns, current-branch marker; presentation only — what the surface lists is owned by the initiative-list initiative
-- [ ] 2.4 sofar doctor: Finding levels as ✓/⚠/✗ with section grouping, hints as dim └ lines; scan spinner during tree walk
-- [ ] 2.5 One-shot confirmations (new/switch/init/uninit/adopt): ✓/✗ result line + dim └ details; upgrade gets network spinner; serve startup banner
+- [x] 2.1 Layout grammar for the initiative object model: one visual hierarchy (initiative header → goal → phase tree → tasks → next action → warnings) rendered at two zoom levels — full block (status: one initiative) and portfolio block/row (list: many initiatives, each with own goal/phases/progress); shared components so both surfaces stay visually congruent; tests
+- [x] 2.2 sofar status styled renderer = full-zoom grammar applied to InitiativeState (TTY path; plain renderFullStatus stays the piped fallback): header, progress meter, phase tree checkboxes, next-action callout, staleness warning, notes
+- [x] 2.3 sofar list styled renderer = portfolio-zoom grammar: per-initiative block (slug, bound branch, progress, active phase, next-action one-liner), aligned visible-width columns, current-branch marker; presentation only — what the surface lists is owned by the initiative-list initiative
+- [x] 2.4 sofar doctor: Finding levels as ✓/⚠/✗ with section grouping, hints as dim └ lines; scan spinner during tree walk
+- [x] 2.5 One-shot confirmations (new/switch/init/uninit/adopt): ✓/✗ result line + dim └ details; upgrade gets network spinner; serve startup banner
 
-## Phase 3 — Contract + acceptance [pending] — 0/3 done
+## Phase 3 — Contract + acceptance [pending] — 3/3 done
 
-- [ ] 3.1 SPEC §CLI UI: color law, degradation ladder, flag/env contract, styled-vs-guaranteed-plain surface table, acceptance criteria
-- [ ] 3.2 Plain-surface regression guard: tests locking renderStatus digest, hook stdout, export/import NDJSON, mcp stdio to byte-identical output regardless of TTY/env
-- [ ] 3.3 Acceptance suite + live-fire pass: every command in TTY / piped / NO_COLOR / CI modes
+- [x] 3.1 SPEC §CLI UI: color law, degradation ladder, flag/env contract, styled-vs-guaranteed-plain surface table, acceptance criteria
+- [x] 3.2 Plain-surface regression guard: tests locking renderStatus digest, hook stdout, export/import NDJSON, mcp stdio to byte-identical output regardless of TTY/env
+- [x] 3.3 Acceptance suite + live-fire pass: every command in TTY / piped / NO_COLOR / CI modes
 
-Next action: Phase 2: start 2.1 layout grammar (initiative object model at status/list zoom levels) in the cli-ui worktree, then wire status (2.2).
+Next action: User: authorize npm publish of @alignlabs/sofar@0.6.0; then upgrade global install and close the initiative (branch+binding removal).
