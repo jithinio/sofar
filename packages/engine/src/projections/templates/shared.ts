@@ -37,13 +37,45 @@ export function doc(lines: readonly string[]): string {
 }
 
 /**
+ * Truncation-aware clip result (staleness-detection 1.3): budgeted sections
+ * that want to KNOW they were cut — the mechanical clipped-summary signal —
+ * use the *Detect variants; `clipped` is true only when the budget forced a
+ * cut. Detection lives at the render seam because budgets do.
+ */
+export interface ClipResult {
+  text: string
+  clipped: boolean
+}
+
+/** clip(), reporting whether it cut. */
+export function clipDetect(text: string, max: number): ClipResult {
+  const oneLine = text.replace(/\s+/g, ' ').trim()
+  if (oneLine.length <= max) return { text: oneLine, clipped: false }
+  return { text: `${oneLine.slice(0, Math.max(0, max - 1))}…`, clipped: true }
+}
+
+/**
  * Collapse whitespace and hard-cap a string's length (budgeted sections of
  * the status projection — BD24). The ellipsis is inside the budget.
  */
 export function clip(text: string, max: number): string {
-  const oneLine = text.replace(/\s+/g, ' ').trim()
-  if (oneLine.length <= max) return oneLine
-  return `${oneLine.slice(0, Math.max(0, max - 1))}…`
+  return clipDetect(text, max).text
+}
+
+/**
+ * Multi-line budget clip for hand-written blocks, reporting whether it cut:
+ * unlike clip() it preserves line structure (e.g. repo.md is prose the
+ * author formatted); the truncation marker lands INSIDE the budget so the
+ * section total never exceeds it.
+ */
+export function clipBlockDetect(text: string, budget: number, marker: string): ClipResult {
+  const trimmed = text.trim()
+  if (trimmed.length <= budget) return { text: trimmed, clipped: false }
+  const suffix = `\n${marker}`
+  return {
+    text: `${trimmed.slice(0, Math.max(0, budget - suffix.length)).trimEnd()}${suffix}`,
+    clipped: true,
+  }
 }
 
 /** Task-level progress across phases: [done, total]. */

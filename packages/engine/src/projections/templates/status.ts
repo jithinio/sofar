@@ -1,5 +1,5 @@
 import { openSessionFileConflicts, type InitiativeState, type SessionState } from '../../core/fold'
-import { clip, describeActivity, pct, taskProgress } from './shared'
+import { clip, clipBlockDetect, describeActivity, pct, taskProgress } from './shared'
 
 /**
  * Status projection — the SessionStart context block (task 3.6, BD3):
@@ -51,18 +51,6 @@ export function enforceStatusLimit(text: string): string {
   if (text.length <= STATUS_CHAR_LIMIT) return text
   const marker = `\n${STATUS_TRUNCATION_MARKER}\n`
   return text.slice(0, STATUS_CHAR_LIMIT - marker.length) + marker
-}
-
-/**
- * Multi-line budget clip for hand-written blocks: unlike clip() it preserves
- * line structure (repo.md is prose the author formatted); the truncation
- * marker lands INSIDE the budget so the section total never exceeds it.
- */
-function clipBlock(text: string, budget: number, marker: string): string {
-  const trimmed = text.trim()
-  if (trimmed.length <= budget) return trimmed
-  const suffix = `\n${marker}`
-  return `${trimmed.slice(0, Math.max(0, budget - suffix.length)).trimEnd()}${suffix}`
 }
 
 function lastWithSummary(sessions: readonly SessionState[]): SessionState | undefined {
@@ -239,7 +227,7 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   const repoMemory = options?.repoMemory?.trim() ?? ''
   if (repoMemory.length > 0) {
     lines.push('Repo memory (.sofar/repo.md):')
-    lines.push(clipBlock(repoMemory, REPO_MEMORY_CHAR_BUDGET, REPO_MEMORY_TRUNCATION_MARKER))
+    lines.push(clipBlockDetect(repoMemory, REPO_MEMORY_CHAR_BUDGET, REPO_MEMORY_TRUNCATION_MARKER).text)
     lines.push('')
   }
 
