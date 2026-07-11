@@ -30,4 +30,4 @@ Progress: 12/12 tasks done (100%)
 - [x] 4.2 Render tests: staleness line present on stale state and absent on fresh; new budget respected; enforceStatusLimit ≤10k with all sections at worst case; clipped-summary pointer fires only when actually clipped
 - [x] 4.3 Doctor regression: stale-phase WARN behavior byte-identical after the extraction to core (Phase 11 acceptance still passes)
 
-Next action: Review the staleness-detection diff on branch staleness-detection (worktree, unpushed) and decide whether to merge and cut a release.
+Next action: None — initiative complete and closed.

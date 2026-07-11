@@ -44,4 +44,4 @@ Progress: 17/17 tasks done (100%)
 - [x] 7.1 Document two-lever model + prompt-caching (Lever A) guidance
 - [x] 7.2 Cut 0.3.2: 5.2+6.2 trims, SERVER_VERSION single-sourced from package.json, README install refresh
 
-Next action: Optional cleanup: delete merged staleness-detection branch refs (local + origin) and formally close that initiative's record. Both initiatives otherwise complete and deployed.
+Next action: Merge token-optimization into main when ready (docs + record commits accumulated since the 0.5.0 release merge).
