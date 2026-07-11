@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { detectCaps } from '../src/cli/ui/caps'
+import { describe, expect, it, vi } from 'vitest'
+import { detectCaps, stderrCaps, stdoutCaps } from '../src/cli/ui/caps'
 import { createStyle } from '../src/cli/ui/style'
 
 /** UI kernel (Phase 1, cli-ui). Everything is pure — no TTY faking. */
@@ -50,6 +50,59 @@ describe('detectCaps color ladder', () => {
     expect(detectCaps({ ...tty, isTTY: false, env: { CI: 'true' } }).color).toBe(
       true,
     )
+  })
+})
+
+describe('stream caps (stdoutCaps / stderrCaps)', () => {
+  /** Force a stream's TTY-ness for one call, restoring the original shape. */
+  function withTTY<T>(stream: NodeJS.WriteStream, isTTY: boolean, fn: () => T): T {
+    const desc = Object.getOwnPropertyDescriptor(stream, 'isTTY')
+    Object.defineProperty(stream, 'isTTY', { value: isTTY, configurable: true })
+    try {
+      return fn()
+    } finally {
+      if (desc !== undefined) Object.defineProperty(stream, 'isTTY', desc)
+      else delete (stream as { isTTY?: boolean }).isTTY
+    }
+  }
+
+  /** Pin the color-relevant env so the developer's shell can't leak in. */
+  function stubColorEnv(overrides: Record<string, string>): void {
+    for (const name of ['NO_COLOR', 'FORCE_COLOR', 'CI']) vi.stubEnv(name, undefined)
+    vi.stubEnv('TERM', 'xterm-256color')
+    for (const [name, value] of Object.entries(overrides)) vi.stubEnv(name, value)
+  }
+
+  it('ambient CI never restyles a piped stream (byte-identity for agents/tests)', () => {
+    stubColorEnv({ CI: 'true' })
+    try {
+      expect(withTTY(process.stdout, false, () => stdoutCaps().color)).toBe(false)
+      expect(withTTY(process.stderr, false, () => stderrCaps().color)).toBe(false)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('explicit FORCE_COLOR still styles a piped stream, even in CI', () => {
+    stubColorEnv({ CI: 'true', FORCE_COLOR: '1' })
+    try {
+      const caps = withTTY(process.stdout, false, () => stdoutCaps())
+      expect(caps.color).toBe(true)
+      expect(caps.animate).toBe(false)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('a real TTY keeps color in CI but never animates there', () => {
+    stubColorEnv({ CI: 'true' })
+    try {
+      const caps = withTTY(process.stdout, true, () => stdoutCaps())
+      expect(caps.color).toBe(true)
+      expect(caps.animate).toBe(false)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 })
 

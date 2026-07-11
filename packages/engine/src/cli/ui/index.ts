@@ -28,3 +28,4 @@ export {
   type SpinnerUseCase,
 } from './frames'
 export { createSpinner, type Spinner, type SpinnerOptions, type SpinnerStream } from './spinner'
+export { renderInitiative, type LayoutOptions, type Zoom } from './layout'

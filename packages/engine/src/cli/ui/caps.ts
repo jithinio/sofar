@@ -65,12 +65,26 @@ export function detectCaps(input: CapsInput = {}): Caps {
   return { color, unicode, animate }
 }
 
+/**
+ * Stream-scoped caps drop the ladder's ambient-CI clause when the stream is
+ * piped: command output there is consumed byte-for-byte by agents and tests,
+ * so only an explicit FORCE_COLOR/--color opt-in may restyle it. The clause
+ * stays in detectCaps for callers that KNOW their bytes feed a CI log
+ * renderer.
+ */
+function streamCaps(isTTY: boolean): Caps {
+  if (isTTY || !('CI' in process.env)) return detectCaps({ isTTY })
+  const env: Record<string, string | undefined> = { ...process.env }
+  delete env.CI
+  return detectCaps({ isTTY, env })
+}
+
 /** Caps for the human report stream (stdout). */
 export function stdoutCaps(): Caps {
-  return detectCaps({ isTTY: process.stdout.isTTY === true })
+  return streamCaps(process.stdout.isTTY === true)
 }
 
 /** Caps for the progress stream (stderr) — spinners live here (clig.dev). */
 export function stderrCaps(): Caps {
-  return detectCaps({ isTTY: process.stderr.isTTY === true })
+  return streamCaps(process.stderr.isTTY === true)
 }
