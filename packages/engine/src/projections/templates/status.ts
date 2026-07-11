@@ -5,7 +5,15 @@ import {
   type InitiativeState,
   type SessionState,
 } from '../../core/fold'
-import { clip, clipBlockDetect, describeActivity, describeFreshness, pct, taskProgress } from './shared'
+import {
+  clip,
+  clipBlockDetect,
+  clipDetect,
+  describeActivity,
+  describeFreshness,
+  pct,
+  taskProgress,
+} from './shared'
 
 /**
  * Status projection — the SessionStart context block (task 3.6, BD3):
@@ -132,6 +140,36 @@ export function renderFullStatus(state: InitiativeState): string {
     lines.push(`Blocked on: ${state.current.blocked_on}`)
   }
 
+  const last = lastWithSummary(state.sessions)
+
+  // Staleness section (staleness-detection 2.3) — the terminal surface gets
+  // the full mechanical picture, uncapped: drift breakdown since the last
+  // write-back, every stale phase, and a pointer when the capped surfaces
+  // (SessionStart block / get_state digest) clip the last summary. Rendered
+  // only when at least one signal fires.
+  const drift = freshnessTotal(state.freshness)
+  const staleness: string[] = []
+  if (drift > 0 && state.freshness.last_writeback_ts !== null) {
+    staleness.push(
+      `- next action may be stale: ${drift} event${drift === 1 ? '' : 's'} since the last write-back (${state.freshness.last_writeback_ts}) — ${describeFreshness(state.freshness.events_since_writeback)}`,
+    )
+  }
+  for (const sp of stalePhases) {
+    staleness.push(
+      `- phase "${sp.name}": all ${sp.tasks_done} tasks done but still ${sp.status} — emit phase_status_changed to mark it done`,
+    )
+  }
+  if (last?.summary !== undefined && clipDetect(last.summary, SESSION_SUMMARY_BUDGET).clipped) {
+    staleness.push(
+      `- last write-back summary exceeds the SessionStart budget (${SESSION_SUMMARY_BUDGET} chars) and is clipped there — full text in sessions/${last.id}.md`,
+    )
+  }
+  if (staleness.length > 0) {
+    lines.push('')
+    lines.push('⚠ Staleness:')
+    lines.push(...staleness)
+  }
+
   const conflicts = openSessionFileConflicts(state)
   if (conflicts.length > 0) {
     lines.push('')
@@ -139,7 +177,6 @@ export function renderFullStatus(state: InitiativeState): string {
     for (const c of conflicts) lines.push(`- ${c.path} (sessions ${c.sessions.join(', ')})`)
   }
 
-  const last = lastWithSummary(state.sessions)
   if (last !== undefined) {
     lines.push('')
     lines.push(`Last session (${last.tool}, ended ${last.ended ?? '?'}):`)
