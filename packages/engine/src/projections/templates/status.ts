@@ -176,6 +176,19 @@ export function renderFullStatus(state: InitiativeState): string {
     lines.push(...staleness)
   }
 
+  // Notes since write-back (notes-in-digest 2.2) — the terminal surface gets
+  // every selected note UNCAPPED (no count cap, no length clip): the 10k cap
+  // is a SessionStart context budget, not a terminal constraint. Entries stay
+  // one line each (whitespace collapsed) so the list shape holds.
+  if (state.freshness.notes.length > 0) {
+    lines.push('')
+    const label = state.freshness.last_writeback_ts !== null ? 'Notes since write-back' : 'Notes'
+    lines.push(`${label} (${state.freshness.notes.length}):`)
+    for (const n of state.freshness.notes) {
+      lines.push(`- ${n.ts} ${n.text.replace(/\s+/g, ' ').trim()}`)
+    }
+  }
+
   const conflicts = openSessionFileConflicts(state)
   if (conflicts.length > 0) {
     lines.push('')
