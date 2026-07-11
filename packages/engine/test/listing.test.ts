@@ -138,6 +138,36 @@ describe('listInitiatives', () => {
     expect(warnings.some((w) => /^demo: line \d+: unparseable JSON/.test(w))).toBe(true)
   })
 
+  it('computes drift_events: mechanical events after the write-back count, a fresh or never-written-back log stays 0', () => {
+    const fixture = makeRepoFixture({ slug: 'fresh', bind: false })
+    const writeBack = (slug: string) => [
+      ev(slug, 'session_started', { tool: 'claude-code' }),
+      ev(slug, 'session_ended', { summary: 'did work', next_action: 'do next thing' }),
+    ]
+    writeInitiative(fixture.root, 'fresh', planned('fresh', writeBack('fresh')))
+    writeInitiative(
+      fixture.root,
+      'drifted',
+      planned('drifted', [
+        ...writeBack('drifted'),
+        ev('drifted', 'file_touched', { path: 'src/a.ts', op: 'edit' }),
+        ev('drifted', 'command_run', { cmd: 'npm test' }),
+      ]),
+    )
+    // Mechanical events but no session_ended — no next_action to go stale.
+    writeInitiative(
+      fixture.root,
+      'unwrapped',
+      planned('unwrapped', [ev('unwrapped', 'file_touched', { path: 'src/b.ts', op: 'edit' })]),
+    )
+
+    const { entries } = listInitiatives(fixture.root)
+    const bySlug = new Map(entries.map((e) => [e.slug, e]))
+    expect(bySlug.get('fresh')!.drift_events).toBe(0)
+    expect(bySlug.get('drifted')!.drift_events).toBe(2)
+    expect(bySlug.get('unwrapped')!.drift_events).toBe(0)
+  })
+
   it('is deterministic — same records → deep-equal listing, same warnings', () => {
     const fixture = makeRepoFixture({ slug: 'a' })
     writeInitiative(fixture.root, 'a', planned('a'))
@@ -164,6 +194,7 @@ describe('listing renders', () => {
       tasks_total: 0,
       active_phase: null,
       next_action: null,
+      drift_events: 0,
       last_event_id: null,
       ...overrides,
     }

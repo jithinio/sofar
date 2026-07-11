@@ -18,7 +18,7 @@ import { clip, pct } from './shared'
 export const MAX_LIST_ENTRIES = 20
 const LIST_LINE_BUDGET = 220
 
-const EMPTY_LISTING = '(no initiatives — create one with `sofar new <slug>`)'
+export const EMPTY_LISTING = '(no initiatives — create one with `sofar new <slug>`)'
 
 function entryLine(entry: InitiativeListEntry): string {
   const branch = entry.branches.length > 0 ? entry.branches.join(', ') : 'unbound'

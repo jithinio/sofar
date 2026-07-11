@@ -11,6 +11,7 @@ import { runUninit } from './uninit'
 import { runNew, runSwitch } from './new'
 import { runStatus } from './status'
 import { runList } from './list'
+import { runNext } from './next'
 import { startServer, renderServeBanner, DEFAULT_PORT } from './serve'
 import { runExport, runImport } from './transfer'
 import { runUpgrade } from './upgrade'
@@ -111,6 +112,16 @@ program
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((opts: { root?: string }) => {
     emit(runList(rootOf(opts)))
+  })
+
+program
+  .command('next')
+  .description(
+    "every initiative's next action, one line each, most recently active first — entries with record drift since their last write-back flagged ⚠ may be stale",
+  )
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action((opts: { root?: string }) => {
+    emit(runNext(rootOf(opts)))
   })
 
 program
