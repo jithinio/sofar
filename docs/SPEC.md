@@ -13,6 +13,9 @@ sofar/                   # workspace root: toolchain devDeps, shared tsconfig
       src/mcp/           # server.ts + one file per tool
       src/cli/           # commands: init, new, switch, status, export,
                          # import, event (used by hook shims), serve
+      src/cli/ui/        #   terminal rendering kernel (caps/style/symbols/
+                         #   frames/spinner/layout) — §CLI UI; human
+                         #   surfaces ONLY, agent surfaces never import it
       src/projections/   # generator.ts + templates/ (plan.md, decisions.md,
                          # status)
       src/hooks/         # shim script sources, installed to .claude/hooks/
@@ -273,6 +276,149 @@ Shims contain no logic — they invoke the sofar CLI.
   command; --force reinstalls at the target. Non-global installs (local dep,
   npx cache) print manual guidance and never run npm.
 
+## CLI UI (terminal rendering — human surfaces only)
+Rendering kernel: src/cli/ui/ — caps, style, symbols, text, frames,
+spinner, layout. Zero new dependencies (cli-ui D1/D2, Jul 11): color
+detection + formatter mechanics vendored from picocolors, the unicode gate
+from is-unicode-supported, frame glyph sets from cli-spinners (all MIT); no
+TUI framework, no truecolor themes, no background detection. cli/ui may be
+imported ONLY by human-facing CLI command modules; src/projections/**,
+src/mcp/**, and src/cli/event.ts NEVER import it — the agent-facing bytes
+(guaranteed-plain table below) stay plain forever.
+
+Capability model — detectCaps({env, argv, isTTY, platform}) is a PURE
+function returning three INDEPENDENT booleans (tests pass inputs, never
+fake a TTY):
+- color, by precedence class:
+  1. veto — NO_COLOR present (ANY value, incl. empty; no-color.org:
+     "regardless of its value"), `--no-color`, or FORCE_COLOR=0
+     (force-color.org) → off, beats everything below;
+  2. force — FORCE_COLOR set to anything but 0, or `--color` → on, even
+     when piped;
+  3. ambient — (isTTY && TERM ≠ dumb) || CI present → on; else off.
+- unicode — non-Windows: TERM ≠ linux (kernel console); Windows: modern
+  hosts only (Windows Terminal, VS Code, Cmder — via its ConEmuTask value;
+  plain ConEmu is NOT detected and degrades to ASCII — Terminus, JetBrains
+  JediTerm, TERM=xterm-256color|alacritty). Off → cp437-safe ASCII glyph
+  substitution (✓→√ · ✗→× · ⚠→!! · ℹ→i · ●→* · ○→o · [✓]→[x] · [•]→[*] ·
+  └→`- · │→| · ⋮→: · …→... · ▸→>), same layout and wording.
+- animate — isTTY && CI absent && TERM ≠ dumb. Independent of color BOTH
+  ways: a NO_COLOR TTY still animates (an uncolored spinner is fine); a
+  FORCE_COLOR pipe never does (a colored CI log full of frames is not).
+
+Stream scoping: stdoutCaps()/stderrCaps() derive caps from THAT stream's
+own isTTY, and STRIP ambient CI when the stream is piped — piped command
+output is consumed byte-for-byte by agents and tests, so only an explicit
+FORCE_COLOR/--color restyles it (the CI clause stays in detectCaps for
+callers that KNOW their bytes feed a CI log renderer). stdout is the
+report channel; stderr is the messaging/progress channel (clig.dev).
+Text landing on stderr styles under stderrCaps-derived caps: a stdout TTY
+never pushes escapes into a redirected stderr, and vice versa.
+
+Flag/env contract:
+
+| Control | Effect |
+|---|---|
+| NO_COLOR (any value, incl. empty) | color off everywhere; beats TTY, FORCE_COLOR, `--color` |
+| `--no-color` | same veto, per-invocation |
+| FORCE_COLOR=0 | same veto |
+| FORCE_COLOR=anything else | color on, even piped/CI; loses only to the vetoes; never enables animate or unicode |
+| `--color` | same force, per-invocation |
+| CI present | ambient color for TTY-less CI log renderers (detectCaps only — stream-scoped caps strip it when the stream is piped); animate always off |
+| TERM=dumb | no ambient TTY color, no animate (CI's ambient clause or an explicit force still colors) |
+| TERM=linux | unicode off → ASCII fallback glyphs |
+
+[detectCaps honors `--color`/`--no-color` from argv, but the commander
+wiring does not yet declare the flags, so the shipped binary currently
+rejects them as unknown options — flag registration queued in the cli-ui
+record; the env controls are the working boundary today.]
+
+Color law (semantic ANSI-16, cli-ui D1): green=success/done ·
+red=error/blocked · yellow=warn/active · cyan=info/identifiers ·
+magenta=sofar brand accent · dim=secondary/metadata (muted) ·
+bold=headers/emphasis. ANSI-16 SGR ONLY — never hex/256-color/truecolor
+for text, never black/white foregrounds, no background detection: the
+user's terminal theme supplies the palette. Mechanics: a nested style
+re-opens its outer style after the inner close (the picocolors fix);
+padding/alignment measures VISIBLE width (escapes stripped); truncation
+happens on plain text BEFORE styling; record prose is sanitized before
+styled rendering — the FULL ANSI grammar (SGR in any palette, 256-color/
+truecolor included, OSC, cursor controls) is stripped and leftover control
+bytes (a lone ESC, a stray BEL) dropped — so a hostile or accidental
+escape sequence inside a log degrades to plain characters on the styled
+layouts and the color law holds for arbitrary record content; the plain
+renderers are agent contract bytes and pass record content through
+untouched. Corrupt content is never fatal (repo error law). Style
+disabled → every formatter is the identity function.
+
+Degradation ladder — each capability degrades independently; the floor is
+the pre-cli-ui renderer:
+- color off → the styled layouts (inherently color-coded, D1) are skipped
+  entirely: status/list/doctor print their pre-styling plain renders
+  BYTE-IDENTICALLY (renderFullStatus, renderFullInitiativeList, the
+  marker-column doctor report); confirmations keep identical wording,
+  minus marks/rails.
+- unicode off → glyph substitution only (table above); layout, wording,
+  and color unchanged.
+- animate off → shipped spinners are skipped entirely (silent stderr).
+  The spinner kernel itself degrades animate → in-place redraw (\r +
+  erase-line at the frame set's interval, cursor hidden while running and
+  restored on stop and on SIGINT — where the handler re-raises the signal
+  after restoring, so the default terminate-on-^C disposition survives the
+  spinner (installing any SIGINT listener would otherwise suppress it) —
+  unref'd timer) and non-animate → one static
+  `⋯ text` line at start plus one per text change; but every shipped call
+  site (doctor tree scan, upgrade install) constructs the spinner ONLY
+  when stderr animates, so a piped/CI stderr carries zero spinner bytes —
+  not even the static line.
+Spinners and progress write to stderr ONLY, never stdout. Frame sets are
+keyed by use case: scan=braille sweep, write=filling bar, network=packet
+in flight, brand=eased ✳ pulse; ASCII fallbacks line spinner (all) /
+bouncing bar (write).
+
+Surfaces. Styled-capable (render under stream-scoped caps; with color off
+the stdout bytes equal the plain renderer):
+
+| Command | stdout (report) | stderr (messaging) |
+|---|---|---|
+| status | full-zoom layout grammar / renderFullStatus | fold warnings + resolution failures — always plain |
+| list | portfolio-zoom blocks / renderFullInitiativeList | derivation warnings — always plain |
+| doctor | ✓/⚠/✗ findings report / marker-column report | scan spinner (animate-gated) |
+| new, switch | ✓ confirmation + dim └ details | ✗ failure, styled under stderrCaps |
+| init | dim └ detail rails + ✓ result; scanner hint always plain (copy-paste material) | ✗ failure, styled under stderrCaps |
+| uninit | dim └ details + notices + ✓ result | warnings + ✗ failures, styled under stderrCaps |
+| adopt | MIGRATION BRIEF always plain (agent-executed); --mark result line ✓-styled | typed-error JSON (BD17) — always plain |
+| upgrade | --check/--dry-run/result reports — plain text | network spinner (animate-gated) + npm's inherited output |
+| serve | (HTTP JSON only — no terminal report) | one-line banner, accent+dim; identical wording plain |
+
+Note: status and list NEVER style stderr — their warnings AND their
+failure text (e.g. a resolution error) print plain under every caps
+combination. The ✗-styled failure register in the table is deliberately
+scoped to the confirmation commands (new, switch, init, uninit); do not
+"complete" it on status/list — the plain bytes there are locked by the
+acceptance tests.
+
+Guaranteed-plain (agent-facing — zero ESC bytes under EVERY env/flag/TTY
+combination, FORCE_COLOR and `--color` included):
+- sofar_get_state (all views) and every MCP tool response — mcp stdio
+  (src/mcp/**)
+- SessionStart hook stdout (renderStatus context block), Stop hook stderr
+  block message, PostToolUse/SessionEnd — src/cli/event.ts
+- `sofar event append` {ok, event_id} / typed-error JSON output
+- `sofar export` NDJSON stdout and `sofar import` report (§Cursor
+  primitive)
+- generated projections on disk (plan.md, decisions.md, sessions/*.md) —
+  src/projections/**
+- `sofar serve` HTTP response bodies
+
+Handler purity: styled command handlers keep the pure {exitCode, stdout,
+stderr} shape (BD22) — caps and columns are OPTIONAL trailing parameters
+defaulting to detection (stdoutCaps(), stderrCaps(),
+columnsOf(process.stdout)); process/env access lives only in those
+defaults, so tests inject caps and never fake a TTY. Styling is
+presentation only: which initiatives/phases/tasks render and their order
+stay the underlying derivation's, and exit codes are styling-independent.
+
 ## Acceptance criteria (definition of done)
 - **Phase 1:** 1k concurrent appends from 4 processes → zero lost/interleaved
   lines; fold of a log with an injected corrupt line succeeds with warning;
@@ -340,3 +486,29 @@ Shims contain no logic — they invoke the sofar CLI.
   the available-initiatives suffix (≤10 named) or the `sofar new` hint on
   an initiative-less repo; the derivation is deterministic (same records
   → deep-equal listing, same warnings).
+- **CLI UI (cli-ui):** with stdout and stderr both piped and no explicit
+  opt-in, every command emits ZERO ESC (\x1b) bytes — ambient CI included;
+  FORCE_COLOR=1 on the same piped invocation carries ANSI-16 SGR on the
+  styled-capable surfaces ONLY, while every guaranteed-plain surface
+  (get_state digest, hook stdout, `sofar event` JSON, export/import
+  NDJSON, mcp stdio, on-disk projections) stays byte-identical under EVERY
+  env/flag/TTY combination; NO_COLOR (any value, incl. empty) renders
+  plain even on a TTY and beats FORCE_COLOR. With color off, status/list/
+  doctor stdout is byte-identical to the pre-cli-ui plain renderers.
+  Spinners never write to stdout: frames appear only on an animating
+  stderr TTY, and a piped/CI stderr carries no spinner bytes at all (not
+  even the static line). src/projections/**, src/mcp/**, and
+  src/cli/event.ts import nothing from cli/ui (locked statically by
+  test; the lock resolves bundler-style `.js`/`.mjs`/`.cjs`-suffixed
+  relative specifiers, so importing '../cli/ui/index.js' from a protected
+  file fails it). Exit codes are styling-independent: styled and plain
+  runs over the same repo state exit identically (doctor's fail→1 law
+  included). Hostile record content: with record prose (goal, phase/task
+  names, next action, blocked_on, notes, write-back summary, file paths)
+  carrying raw ANSI bytes — 256-color/truecolor SGR, reset-all,
+  background/reverse codes, OSC sequences, lone ESC — styled status/list
+  output still satisfies the semantic-ANSI-16 law with the escapes
+  degraded to plain characters, while the plain renderers keep passing
+  record bytes through untouched (agent contract). An animated spinner's
+  SIGINT handler restores the cursor and re-raises the signal, so ^C
+  still terminates the process.
