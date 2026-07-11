@@ -3,6 +3,7 @@ import { createServer, type Server, type ServerResponse } from 'node:http'
 import { basename, join, relative, sep } from 'node:path'
 import { watch } from 'chokidar'
 import { emptyState, foldLog, type InitiativeState } from '../core/fold'
+import { type Caps, createStyle, stderrCaps } from './ui'
 
 /**
  * `sofar serve [--port 4173]` (task 4.5, SPEC §CLI) — the watcher +
@@ -36,6 +37,18 @@ export interface ServeHandle {
   port: number
   url: string
   close(): Promise<void>
+}
+
+/**
+ * One-line startup banner (cli-ui 2.5) for the stderr messaging channel:
+ * brand accent on the command name, dim URL/endpoints — quiet. Wording is
+ * identical styled or plain, so piped stderr stays byte-identical.
+ */
+export function renderServeBanner(url: string, caps: Caps = stderrCaps()): string {
+  const endpoints = `${url} (GET /state, /state/<slug>, /events SSE)`
+  if (!caps.color) return `sofar serve: ${endpoints}\n`
+  const style = createStyle(true)
+  return `${style.accent('sofar serve')}: ${style.dim(endpoints)}\n`
 }
 
 export async function startServer(options: ServeOptions): Promise<ServeHandle> {

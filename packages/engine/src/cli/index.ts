@@ -11,7 +11,7 @@ import { runUninit } from './uninit'
 import { runNew, runSwitch } from './new'
 import { runStatus } from './status'
 import { runList } from './list'
-import { startServer, DEFAULT_PORT } from './serve'
+import { startServer, renderServeBanner, DEFAULT_PORT } from './serve'
 import { runExport, runImport } from './transfer'
 import { runUpgrade } from './upgrade'
 import { emit, readAllStdin } from './shared'
@@ -152,7 +152,7 @@ program
       return
     }
     const handle = await startServer({ root: rootOf(opts), port })
-    process.stderr.write(`sofar serve: ${handle.url} (GET /state, /state/<slug>, /events SSE)\n`)
+    process.stderr.write(renderServeBanner(handle.url))
     // long-running: the server keeps the event loop alive until Ctrl-C
   })
 

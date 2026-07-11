@@ -261,3 +261,47 @@ describe('sofar uninit edge cases', () => {
     expect(existsSync(join(root, '.claude'))).toBe(true)
   })
 })
+
+describe('confirmation styling (cli-ui 2.5)', () => {
+  const styled = { color: true, unicode: true, animate: false }
+  const piped = { color: false, unicode: true, animate: false }
+
+  it('styles details, notice, result, and warn-colors stderr warnings', () => {
+    const root = freshRepo()
+    runInit(root)
+    // Warnings are stderr-bound: they style under the stderr caps (arg 4),
+    // never under the stdout caps.
+    const result = runUninit(root, { purge: true }, styled, styled)
+    expect(result.exitCode).toBe(0)
+    const lines = result.stdout.trimEnd().split('\n')
+    expect(lines[0]).toBe('\x1b[2m  └ removed .claude/hooks/session-start.sh\x1b[22m')
+    expect(lines.at(-1)).toMatch(/^\x1b\[32m✓\x1b\[39m sofar uninit: done \(\d+ changes\)$/)
+    expect(result.stderr.startsWith('\x1b[33mwarning: --purge deleted the sofar record')).toBe(true)
+    expect(result.stderr.endsWith('\x1b[39m')).toBe(true)
+  })
+
+  it('a styled stdout never styles a piped stderr: warnings stay plain bytes', () => {
+    const root = freshRepo()
+    runInit(root)
+    const result = runUninit(root, { purge: true }, styled, piped)
+    expect(result.stderr.startsWith('warning: --purge deleted the sofar record')).toBe(true)
+    expect(result.stderr).not.toContain('\x1b[')
+  })
+
+  it('the record-kept notice rides a dim └ rail too', () => {
+    const root = freshRepo()
+    runInit(root)
+    const result = runUninit(root, {}, styled)
+    expect(result.stdout).toContain(
+      '\x1b[2m  └ record kept at .sofar/ (use --purge to delete it)\x1b[22m',
+    )
+  })
+
+  it('piped output is byte-identical to the plain report', () => {
+    const root = freshRepo()
+    expect(runUninit(root, {}, piped).stdout).toBe('sofar uninit: nothing to remove\n')
+    expect(runUninit(root, {}, styled).stdout).toBe(
+      '\x1b[32m✓\x1b[39m sofar uninit: nothing to remove\n',
+    )
+  })
+})

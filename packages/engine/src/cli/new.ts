@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createToolContext, currentBranch, ToolError } from '../mcp/context'
 import { errMessage, fail, ok, type CmdResult } from './shared'
+import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui'
 
 /**
  * `sofar new <slug> [--goal <text>]` / `sofar switch <slug>` (task 4.2,
@@ -60,20 +61,56 @@ function writeBinding(path: string, branch: string, slug: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Confirmation styling (cli-ui 2.5). Wording is identical styled or plain —
+// caps only add the ✓/✗ mark, color, and the dim └ detail rail — so piped
+// output stays byte-identical to the unstyled report. Failure text lands on
+// stderr, so it styles under the STDERR stream's caps (errCaps): a stdout
+// TTY must not push escapes into a redirected stderr.
+// ---------------------------------------------------------------------------
+
+function renderConfirmation(report: string[], caps: Caps): string {
+  const [result = '', ...details] = report
+  if (!caps.color) return report.join('\n')
+  const style = createStyle(true)
+  const symbols = symbolsFor(caps.unicode)
+  return [
+    `${style.success(symbols.ok)} ${result}`,
+    ...details.map((line) => style.dim(`  ${symbols.elbow} ${line}`)),
+  ].join('\n')
+}
+
+function renderFailure(message: string, caps: Caps): string {
+  if (!caps.color) return message
+  return `${createStyle(true).error(symbolsFor(caps.unicode).fail)} ${message}`
+}
+
+// ---------------------------------------------------------------------------
 // Commands.
 // ---------------------------------------------------------------------------
 
-export function runNew(rootDir: string, slug: string, options: NewOptions = {}): CmdResult {
+export function runNew(
+  rootDir: string,
+  slug: string,
+  options: NewOptions = {},
+  caps: Caps = stdoutCaps(),
+  errCaps: Caps = stderrCaps(),
+): CmdResult {
   if (!SLUG_RE.test(slug)) {
     return fail(
-      `sofar new: invalid slug "${slug}" — slugs are lowercase letters, digits, and hyphens only ([a-z0-9-]+)`,
+      renderFailure(
+        `sofar new: invalid slug "${slug}" — slugs are lowercase letters, digits, and hyphens only ([a-z0-9-]+)`,
+        errCaps,
+      ),
     )
   }
 
   const ctx = createToolContext(rootDir)
   if (existsSync(ctx.initiativeDir(slug))) {
     return fail(
-      `sofar new: initiative "${slug}" already exists — use \`sofar switch ${slug}\` to bind this branch to it`,
+      renderFailure(
+        `sofar new: initiative "${slug}" already exists — use \`sofar switch ${slug}\` to bind this branch to it`,
+        errCaps,
+      ),
     )
   }
 
@@ -83,7 +120,10 @@ export function runNew(rootDir: string, slug: string, options: NewOptions = {}):
   const branch = bind ? currentBranch(rootDir) : null
   if (bind && branch === null) {
     return fail(
-      `sofar new: ${NO_BRANCH_HINT} — re-run with --no-bind and add the binding to .sofar/bindings.json yourself`,
+      renderFailure(
+        `sofar new: ${NO_BRANCH_HINT} — re-run with --no-bind and add the binding to .sofar/bindings.json yourself`,
+        errCaps,
+      ),
     )
   }
 
@@ -107,38 +147,50 @@ export function runNew(rootDir: string, slug: string, options: NewOptions = {}):
     }
   } catch (err) {
     if (err instanceof BindingsAbort || err instanceof ToolError) {
-      return fail(`sofar new: ${errMessage(err)}`)
+      return fail(renderFailure(`sofar new: ${errMessage(err)}`, errCaps))
     }
     throw err
   }
-  return ok(`${report.join('\n')}\n`)
+  return ok(`${renderConfirmation(report, caps)}\n`)
 }
 
-export function runSwitch(rootDir: string, slug: string): CmdResult {
+export function runSwitch(
+  rootDir: string,
+  slug: string,
+  caps: Caps = stdoutCaps(),
+  errCaps: Caps = stderrCaps(),
+): CmdResult {
   const ctx = createToolContext(rootDir)
   if (!existsSync(ctx.initiativeDir(slug))) {
     return fail(
-      `sofar switch: initiative "${slug}" not found under .sofar/initiatives/ — create it with \`sofar new ${slug}\``,
+      renderFailure(
+        `sofar switch: initiative "${slug}" not found under .sofar/initiatives/ — create it with \`sofar new ${slug}\``,
+        errCaps,
+      ),
     )
   }
 
   const branch = currentBranch(rootDir)
   if (branch === null) {
     return fail(
-      `sofar switch: ${NO_BRANCH_HINT} — add the binding to .sofar/bindings.json yourself`,
+      renderFailure(
+        `sofar switch: ${NO_BRANCH_HINT} — add the binding to .sofar/bindings.json yourself`,
+        errCaps,
+      ),
     )
   }
 
   try {
     mkdirSync(ctx.sofarDir, { recursive: true })
     const changed = writeBinding(ctx.bindingsPath, branch, slug)
-    return ok(
-      changed
-        ? `bound branch "${branch}" → ${slug}\n`
-        : `branch "${branch}" already bound to ${slug} — nothing to do\n`,
-    )
+    const line = changed
+      ? `bound branch "${branch}" → ${slug}`
+      : `branch "${branch}" already bound to ${slug} — nothing to do`
+    return ok(`${renderConfirmation([line], caps)}\n`)
   } catch (err) {
-    if (err instanceof BindingsAbort) return fail(`sofar switch: ${err.message}`)
+    if (err instanceof BindingsAbort) {
+      return fail(renderFailure(`sofar switch: ${err.message}`, errCaps))
+    }
     throw err
   }
 }

@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { mcpRegistration } from '../mcp/register'
 import { detectTailwindV4 } from './scanners'
 import { fail, ok, type CmdResult } from './shared'
+import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui'
 import sessionStartShim from '../hooks/session-start.sh'
 import postToolUseShim from '../hooks/post-tool-use.sh'
 import stopShim from '../hooks/stop.sh'
@@ -303,10 +304,37 @@ function appendProtocolBlock(rootDir: string, file: string, block: string, repor
 }
 
 // ---------------------------------------------------------------------------
+// Confirmation styling (cli-ui 2.5). Wording is identical styled or plain —
+// caps only add the ✓/✗ mark, color, and dim └ rails on the per-file detail
+// lines — so piped output stays byte-identical to the unstyled report.
+// Failure text lands on stderr, so it styles under the STDERR stream's caps
+// (errCaps): a stdout TTY must not push escapes into a redirected stderr.
+// ---------------------------------------------------------------------------
+
+function renderReport(details: string[], result: string, caps: Caps): string {
+  if (!caps.color) return [...details, result].join('\n')
+  const style = createStyle(true)
+  const symbols = symbolsFor(caps.unicode)
+  return [
+    ...details.map((line) => style.dim(`  ${symbols.elbow} ${line}`)),
+    `${style.success(symbols.ok)} ${result}`,
+  ].join('\n')
+}
+
+function renderFailure(message: string, caps: Caps): string {
+  if (!caps.color) return message
+  return `${createStyle(true).error(symbolsFor(caps.unicode).fail)} ${message}`
+}
+
+// ---------------------------------------------------------------------------
 // Command.
 // ---------------------------------------------------------------------------
 
-export function runInit(rootDir: string): CmdResult {
+export function runInit(
+  rootDir: string,
+  caps: Caps = stdoutCaps(),
+  errCaps: Caps = stderrCaps(),
+): CmdResult {
   const report: string[] = []
   try {
     initSofarDir(rootDir, report)
@@ -316,21 +344,22 @@ export function runInit(rootDir: string): CmdResult {
     appendProtocolBlock(rootDir, 'CLAUDE.md', PROTOCOL_BLOCK, report)
     appendProtocolBlock(rootDir, 'AGENTS.md', AGENTS_PROTOCOL_BLOCK, report)
   } catch (err) {
-    if (err instanceof InitAbort) return fail(`sofar init: ${err.message}`)
+    if (err instanceof InitAbort) return fail(renderFailure(`sofar init: ${err.message}`, errCaps))
     throw err
   }
   const changed = report.filter((line) => !line.startsWith('unchanged')).length
-  report.push(
+  const result =
     changed === 0
       ? 'sofar init: already initialized — nothing to do'
-      : `sofar init: done (${changed} change${changed === 1 ? '' : 's'})`,
-  )
+      : `sofar init: done (${changed} change${changed === 1 ? '' : 's'})`
+  const lines = [renderReport(report, result, caps)]
   // Scanner defense (task 10.1, D-P10): if a tree-wide class scanner will
   // ingest .sofar/, raise the exclusion hint as the FINAL output. init only
   // flags it; `sofar doctor --fix` does the precise, path-aware insert.
+  // The hint stays unstyled: its last line is a copy-pasteable directive.
   const hint = scannerHint(rootDir)
-  if (hint !== null) report.push('', hint)
-  return ok(`${report.join('\n')}\n`)
+  if (hint !== null) lines.push('', hint)
+  return ok(`${lines.join('\n')}\n`)
 }
 
 /**

@@ -3,6 +3,7 @@ import { basename, dirname, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { version as CURRENT_VERSION } from '../../package.json'
 import { errMessage, fail, ok, type CmdResult } from './shared'
+import { type Caps, createSpinner, stderrCaps, type SpinnerStream } from './ui'
 
 /**
  * `sofar upgrade [version]` — self-update the globally-installed sofar.
@@ -192,9 +193,15 @@ export interface UpgradeDeps {
   fetchLatest?: () => string | null
   /** Override the installer (tests). */
   spawnInstall?: (prefix: string, target: string) => Promise<number>
+  /** Override the spinner's output stream (tests). */
+  spinnerStream?: SpinnerStream
 }
 
-export async function runUpgrade(opts: UpgradeOptions, deps: UpgradeDeps = {}): Promise<CmdResult> {
+export async function runUpgrade(
+  opts: UpgradeOptions,
+  deps: UpgradeDeps = {},
+  caps: Caps = stderrCaps(),
+): Promise<CmdResult> {
   const selfPath = deps.selfPath ?? resolveSelfPath()
   const plan = planUpgrade(selfPath)
 
@@ -208,18 +215,33 @@ export async function runUpgrade(opts: UpgradeOptions, deps: UpgradeDeps = {}): 
   if (decision.action === 'report') return decision.result
 
   const spawnInstall = deps.spawnInstall ?? defaultSpawnInstall
+  // Network spinner (cli-ui 2.5) around the npm subprocess ONLY when stderr
+  // can animate: piped/CI runs must stay byte-identical to the unstyled
+  // command, so the spinner kernel's static-line fallback is skipped too.
+  const spinner =
+    caps.animate
+      ? createSpinner({
+          caps,
+          text: `installing ${PACKAGE_NAME}@${decision.target}`,
+          useCase: 'network',
+          ...(deps.spinnerStream !== undefined ? { stream: deps.spinnerStream } : {}),
+        }).start()
+      : null
   let code: number
   try {
     code = await spawnInstall(decision.prefix, decision.target)
   } catch (err) {
+    spinner?.fail()
     return fail(`sofar upgrade: could not run npm (${errMessage(err)}). Is npm on your PATH?`)
   }
   if (code === 0) {
+    spinner?.succeed()
     return ok(
       `\nsofar upgraded (${decision.target}). ` +
         `Reconnect the sofar MCP server (/mcp) or restart your agent to load it.\n`,
     )
   }
+  spinner?.fail()
   // Preserve npm's exit code so CI/callers see the real failure code, not a flat 1.
   return { exitCode: code, stdout: '', stderr: `sofar upgrade: npm exited ${code} (see output above).` }
 }

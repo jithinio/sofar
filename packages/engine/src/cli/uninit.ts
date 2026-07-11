@@ -10,6 +10,7 @@ import {
 import { join } from 'node:path'
 import { PROTOCOL_END, PROTOCOL_START, SHIMS } from './init'
 import { fail, ok, type CmdResult } from './shared'
+import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui'
 
 /**
  * `sofar uninit [--purge]` (task 8.1, SPEC §CLI, BD45) — the exact inverse
@@ -202,10 +203,45 @@ function removeDirIfEmpty(rootDir: string, rel: string, report: string[]): boole
 }
 
 // ---------------------------------------------------------------------------
+// Confirmation styling (cli-ui 2.5). Wording is identical styled or plain —
+// caps only add the ✓/✗ mark, color, dim └ rails on the detail/notice lines,
+// and warn color on stderr warnings — so piped output stays byte-identical
+// to the unstyled report. Failure and warning text lands on stderr, so it
+// styles under the STDERR stream's caps (errCaps): a stdout TTY must not
+// push escapes into a redirected stderr.
+// ---------------------------------------------------------------------------
+
+function renderReport(details: string[], result: string, caps: Caps): string {
+  if (!caps.color) return [...details, result].join('\n')
+  const style = createStyle(true)
+  const symbols = symbolsFor(caps.unicode)
+  return [
+    ...details.map((line) => style.dim(`  ${symbols.elbow} ${line}`)),
+    `${style.success(symbols.ok)} ${result}`,
+  ].join('\n')
+}
+
+function renderFailure(message: string, caps: Caps): string {
+  if (!caps.color) return message
+  return `${createStyle(true).error(symbolsFor(caps.unicode).fail)} ${message}`
+}
+
+function renderWarnings(warnings: string[], caps: Caps): string {
+  if (!caps.color) return warnings.join('\n')
+  const style = createStyle(true)
+  return warnings.map((line) => style.warn(line)).join('\n')
+}
+
+// ---------------------------------------------------------------------------
 // Command.
 // ---------------------------------------------------------------------------
 
-export function runUninit(rootDir: string, options: UninitOptions = {}): CmdResult {
+export function runUninit(
+  rootDir: string,
+  options: UninitOptions = {},
+  caps: Caps = stdoutCaps(),
+  errCaps: Caps = stderrCaps(),
+): CmdResult {
   const purge = options.purge === true
   const report: string[] = []
   const warnings: string[] = []
@@ -236,16 +272,19 @@ export function runUninit(rootDir: string, options: UninitOptions = {}): CmdResu
       }
     }
   } catch (err) {
-    if (err instanceof UninitAbort) return fail(`sofar uninit: ${err.message}`)
+    if (err instanceof UninitAbort) {
+      return fail(renderFailure(`sofar uninit: ${err.message}`, errCaps))
+    }
     throw err
   }
 
   const changes = report.length
-  const lines = [...report, ...notes]
-  lines.push(
+  const result =
     changes === 0
       ? 'sofar uninit: nothing to remove'
-      : `sofar uninit: done (${changes} change${changes === 1 ? '' : 's'})`,
+      : `sofar uninit: done (${changes} change${changes === 1 ? '' : 's'})`
+  return ok(
+    `${renderReport([...report, ...notes], result, caps)}\n`,
+    renderWarnings(warnings, errCaps),
   )
-  return ok(`${lines.join('\n')}\n`, warnings.join('\n'))
 }

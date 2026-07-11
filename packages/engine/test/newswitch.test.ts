@@ -143,3 +143,48 @@ describe('sofar switch', () => {
     expect(result.stderr).toContain('detached')
   })
 })
+
+describe('confirmation styling (cli-ui 2.5)', () => {
+  const styled = { color: true, unicode: true, animate: false }
+  const piped = { color: false, unicode: true, animate: false }
+
+  it('runNew: green ✓ result line + dim └ detail when caps allow', () => {
+    const fixture = fx()
+    const result = runNew(fixture.root, 'shiny', { goal: 'g' }, styled)
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toBe(
+      '\x1b[32m✓\x1b[39m created .sofar/initiatives/shiny/ (goal: g)\n' +
+        '\x1b[2m  └ bound branch "main" → shiny\x1b[22m\n',
+    )
+  })
+
+  it('runNew piped output is byte-identical to the unstyled report', () => {
+    const fixture = fx()
+    const result = runNew(fixture.root, 'plain-one', { goal: 'g' }, piped)
+    expect(result.stdout).toBe(
+      'created .sofar/initiatives/plain-one/ (goal: g)\nbound branch "main" → plain-one\n',
+    )
+  })
+
+  it('failure lines carry the red ✗ mark, wording unchanged', () => {
+    const fixture = fx()
+    // Failure text is stderr-bound: it styles under the stderr caps (arg 5),
+    // never under the stdout caps.
+    const result = runNew(fixture.root, 'Bad Slug', {}, styled, styled)
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr.startsWith('\x1b[31m✗\x1b[39m sofar new: invalid slug')).toBe(true)
+    expect(
+      runNew(fixture.root, 'Bad Slug', {}, styled, piped).stderr.startsWith('sofar new:'),
+    ).toBe(true)
+  })
+
+  it('runSwitch styles its single confirmation line', () => {
+    const fixture = fx({ slug: 'first' })
+    expect(runNew(fixture.root, 'second', { bind: false }).exitCode).toBe(0)
+    const result = runSwitch(fixture.root, 'second', styled)
+    expect(result.stdout).toBe('\x1b[32m✓\x1b[39m bound branch "main" → second\n')
+    expect(runSwitch(fixture.root, 'second', piped).stdout).toBe(
+      'branch "main" already bound to second — nothing to do\n',
+    )
+  })
+})

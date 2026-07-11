@@ -258,3 +258,53 @@ describe('sofar init merges — never clobbers — user files', () => {
     expect(readFileSync(join(root, '.claude', 'settings.json'), 'utf8')).toBe('{ not json')
   })
 })
+
+describe('confirmation styling (cli-ui 2.5)', () => {
+  const styled = { color: true, unicode: true, animate: false }
+  const piped = { color: false, unicode: true, animate: false }
+
+  it('renders dim └ rails on detail lines and a green ✓ on the result line', () => {
+    const root = freshRepo()
+    const result = runInit(root, styled)
+    expect(result.exitCode).toBe(0)
+    const lines = result.stdout.trimEnd().split('\n')
+    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (10 changes)')
+    expect(lines[0]).toBe('\x1b[2m  └ created .sofar/repo.md\x1b[22m')
+    for (const line of lines.slice(0, -1)) {
+      expect(line.startsWith('\x1b[2m  └ ')).toBe(true)
+      expect(line.endsWith('\x1b[22m')).toBe(true)
+    }
+  })
+
+  it('piped output is byte-identical to the historical plain report', () => {
+    const root = freshRepo()
+    expect(runInit(root, piped).stdout).toBe(
+      [
+        'created .sofar/repo.md',
+        'created .sofar/bindings.json',
+        'created .claude/hooks/session-start.sh',
+        'created .claude/hooks/post-tool-use.sh',
+        'created .claude/hooks/stop.sh',
+        'created .claude/hooks/session-end.sh',
+        'created .claude/settings.json',
+        'created .mcp.json',
+        'created CLAUDE.md (sofar protocol block)',
+        'created AGENTS.md (sofar protocol block)',
+        'sofar init: done (10 changes)',
+        '',
+      ].join('\n'),
+    )
+  })
+
+  it('marks the abort path with a red ✗, wording unchanged', () => {
+    const root = freshRepo()
+    mkdirSync(join(root, '.claude'), { recursive: true })
+    writeFileSync(join(root, '.claude', 'settings.json'), '{ not json')
+    // Failure text is stderr-bound: it styles under the stderr caps (arg 3),
+    // never under the stdout caps.
+    const result = runInit(root, styled, styled)
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr.startsWith('\x1b[31m✗\x1b[39m sofar init:')).toBe(true)
+    expect(runInit(root, styled, piped).stderr.startsWith('sofar init:')).toBe(true)
+  })
+})
