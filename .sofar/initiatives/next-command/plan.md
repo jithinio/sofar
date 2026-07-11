@@ -13,4 +13,4 @@ Progress: 4/4 tasks done (100%)
 - [x] 1.3 Render + command: projections/templates/next.ts, cli/next.ts, register in cli/index.ts
 - [x] 1.4 Acceptance tests: next.test.ts — render shape, stale-suffix rules, warnings to stderr, empty record; full suite + typecheck green
 
-Next action: User: npm publish -w @alignlabs/sofar (with OTP) from /Users/jins/IO/sofar; then sofar upgrade and close next-command (binding removal; remote branch deletions need user naming).
+Next action: Both initiatives shipped and closed — nothing pending. Optional: user names origin/cli-ui + origin/next-command for remote deletion; harness-build record next_action is stale and could use a refresh session.
