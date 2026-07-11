@@ -337,11 +337,20 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
     lines.push('')
   }
 
-  // Last written-back session.
+  // Last written-back session. When the budget cuts the summary (1.3
+  // detection), the pointer to the full text rides INSIDE the budget
+  // (staleness-detection 2.4) — the reader learns the render is partial and
+  // where the rest lives, at no extra cap cost.
   const last = lastWithSummary(state.sessions)
   if (last !== undefined) {
     lines.push(`Last session (${last.tool}, ended ${last.ended ?? '?'}):`)
-    lines.push(`  ${clip(last.summary!, SESSION_SUMMARY_BUDGET)}`)
+    const summary = clipDetect(last.summary!, SESSION_SUMMARY_BUDGET)
+    if (summary.clipped) {
+      const pointer = ` (clipped — full text in sessions/${clip(last.id, SESSION_ID_BUDGET)}.md)`
+      lines.push(`  ${clip(last.summary!, Math.max(0, SESSION_SUMMARY_BUDGET - pointer.length))}${pointer}`)
+    } else {
+      lines.push(`  ${summary.text}`)
+    }
     lines.push('')
   }
 
