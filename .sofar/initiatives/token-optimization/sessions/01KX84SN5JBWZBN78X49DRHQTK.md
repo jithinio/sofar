@@ -6,12 +6,12 @@
 - Tool: claude-code
 - Model: claude-fable-5
 - Started: 2026-07-11T08:30:40.306Z
-- Ended: (in progress)
+- Ended: 2026-07-11T08:32:48.388Z
 
 ## Summary
 
-(none recorded — session did not write back)
+Executed both founder rulings: renamed bench to handoff-bench with normative M2 classification anchors shipped in RUBRIC.md (include/exclude classes + the settled-decision re-raise rule); spec'd D-sync-1 ulid-normative convergent fold in FORMAT.md + SPEC.md with both riders (monotonic-writer obligation, fold totality under skew, accepted-in-v1, vector-clock reserved), logged the decision and queued task 13.1 in harness-build, committed and pushed (ee9e12f, main ff'd).
 
 ## Next action
 
-(none recorded)
+Founder morning sequence stands: spot-check (product doc/spot-check/) → say the word and staleness-detection merges → one-pager goes out. Engine: task 13.1 (convergent fold) ready to build after the staleness merge.
