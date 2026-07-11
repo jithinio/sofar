@@ -170,3 +170,69 @@ describe('text helpers', () => {
     expect(columnsOf({ columns: 120 })).toBe(120)
   })
 })
+
+describe('spinner', () => {
+  const capture = () => {
+    const chunks: string[] = []
+    return { chunks, write: (c: string) => chunks.push(c) }
+  }
+  const staticCaps = { color: false, unicode: true, animate: false }
+  const liveCaps = { color: false, unicode: true, animate: true }
+
+  it('static mode prints one line at start and one per text change', async () => {
+    const { createSpinner } = await import('../src/cli/ui/spinner')
+    const out = capture()
+    const s = createSpinner({ caps: staticCaps, text: 'scanning', stream: out })
+    s.start()
+    s.update('still scanning')
+    s.update('still scanning') // unchanged — no extra line
+    s.succeed('done')
+    expect(out.chunks).toEqual(['⋯ scanning\n', '⋯ still scanning\n', '✓ done\n'])
+  })
+
+  it('animated mode redraws frames in place and cleans up', async () => {
+    const vi_ = (await import('vitest')).vi
+    vi_.useFakeTimers()
+    try {
+      const { createSpinner } = await import('../src/cli/ui/spinner')
+      const { DOTS } = await import('../src/cli/ui/frames')
+      const out = capture()
+      const before = process.listenerCount('SIGINT')
+      const s = createSpinner({ caps: liveCaps, text: 'folding', stream: out, frames: DOTS })
+      s.start()
+      expect(process.listenerCount('SIGINT')).toBe(before + 1)
+      vi_.advanceTimersByTime(DOTS.intervalMs * 2)
+      s.succeed('folded')
+      expect(process.listenerCount('SIGINT')).toBe(before)
+      const joined = out.chunks.join('')
+      expect(joined.startsWith('\x1b[?25l')).toBe(true) // cursor hidden first
+      expect(joined).toContain('⠋ folding')
+      expect(joined).toContain('⠹ folding') // advanced frames
+      expect(joined).toContain('\x1b[?25h') // cursor restored
+      expect(joined.endsWith('✓ folded\n')).toBe(true)
+    } finally {
+      vi_.useRealTimers()
+    }
+  })
+
+  it('fail closes with the ✗ mark; stop can be silent', async () => {
+    const { createSpinner } = await import('../src/cli/ui/spinner')
+    const out = capture()
+    createSpinner({ caps: staticCaps, text: 'x', stream: out }).start().fail()
+    expect(out.chunks.at(-1)).toBe('✗ x\n')
+    const out2 = capture()
+    createSpinner({ caps: staticCaps, text: 'x', stream: out2 }).start().stop()
+    expect(out2.chunks).toEqual(['⋯ x\n'])
+  })
+
+  it('framesFor maps use cases and honors the unicode gate', async () => {
+    const { framesFor, DOTS, GROW_VERTICAL, POINT, BRAND_PULSE, LINE, BOUNCING_BAR } =
+      await import('../src/cli/ui/frames')
+    expect(framesFor('scan', true)).toBe(DOTS)
+    expect(framesFor('write', true)).toBe(GROW_VERTICAL)
+    expect(framesFor('network', true)).toBe(POINT)
+    expect(framesFor('brand', true)).toBe(BRAND_PULSE)
+    expect(framesFor('scan', false)).toBe(LINE)
+    expect(framesFor('write', false)).toBe(BOUNCING_BAR)
+  })
+})
