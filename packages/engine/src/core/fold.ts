@@ -353,6 +353,34 @@ export interface FileConflict {
   sessions: string[]
 }
 
+/** A phase whose tasks are all done but that was never marked done (D-P11). */
+export interface StalePhase {
+  name: string
+  /** The lagging status the phase is stuck on — never 'done'. */
+  status: PhaseStatus
+  /** How many tasks are done (== the phase's task total). */
+  tasks_done: number
+}
+
+/**
+ * Stale-active-phase detection (staleness-detection 1.2): every task in the
+ * phase is done but the phase itself was never marked done — the missing
+ * phase_status_changed keeps it presenting as live work. Extracted from
+ * doctor's inline D-P11 check so ONE detector feeds both surfaces (doctor
+ * WARN + status renders). Empty phases are never stale (nothing was
+ * completed); order follows the plan's phase order — deterministic.
+ */
+export function staleActivePhases(state: InitiativeState): StalePhase[] {
+  const stale: StalePhase[] = []
+  for (const phase of state.phases) {
+    if (phase.status === 'done' || phase.tasks.length === 0) continue
+    if (phase.tasks.every((t) => t.status === 'done')) {
+      stale.push({ name: phase.name, status: phase.status, tasks_done: phase.tasks.length })
+    }
+  }
+  return stale
+}
+
 /**
  * Live concurrent-edit hazards: files touched by ≥2 sessions that are still
  * OPEN (session_started with no session_ended/session_closed). Ended sessions

@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
-import { foldLog, openSessionFileConflicts, type InitiativeState } from '../core/fold'
+import { foldLog, openSessionFileConflicts, staleActivePhases, type InitiativeState } from '../core/fold'
 import { hookCommand, PROTOCOL_START, SHIMS } from './init'
 import {
   cssExcludesSofar,
@@ -208,16 +208,15 @@ function auditRecords(folded: Folded[]): Section {
       findings.push({ level: 'warn', text: `${slug}: ${warnings.length} fold warning(s)`, hint: warnings[0]! })
     }
 
-    // Stale phase (task 11.1): all tasks done but the phase never marked done.
-    for (const phase of state.phases) {
-      if (phase.status === 'done' || phase.tasks.length === 0) continue
-      if (phase.tasks.every((t) => t.status === 'done')) {
-        findings.push({
-          level: 'warn',
-          text: `${slug}: phase "${phase.name}" — all ${phase.tasks.length} tasks done but phase still ${phase.status}`,
-          hint: 'emit phase_status_changed to mark it done, else it keeps showing as the active phase',
-        })
-      }
+    // Stale phase (task 11.1): all tasks done but the phase never marked
+    // done — detection extracted to core (staleness-detection 1.2) so the
+    // status renders share it; the WARN text here is unchanged.
+    for (const stale of staleActivePhases(state)) {
+      findings.push({
+        level: 'warn',
+        text: `${slug}: phase "${stale.name}" — all ${stale.tasks_done} tasks done but phase still ${stale.status}`,
+        hint: 'emit phase_status_changed to mark it done, else it keeps showing as the active phase',
+      })
     }
 
     // Untracked work (task 11.3): a wrapped session that did real file work but
