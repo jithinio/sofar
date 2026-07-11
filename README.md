@@ -117,8 +117,11 @@ sofar mcp [--root]             stdio MCP server
 
 Authoritative contracts — envelope, event types, state shape, tool
 signatures, hook behavior, acceptance criteria — live in
-[docs/SPEC.md](docs/SPEC.md). This repo tracks its own development with the
-same protocol — self-hosted in its own `.sofar/` record.
+[docs/SPEC.md](docs/SPEC.md). The on-disk record format — what a conforming
+third-party reader or writer of `.sofar/` must implement, engine not
+required — is specified in [docs/FORMAT.md](docs/FORMAT.md). This repo
+tracks its own development with the same protocol — self-hosted in its own
+`.sofar/` record.
 
 ## Token economics
 
