@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { foldLog } from './fold'
+import { foldLog, freshnessTotal } from './fold'
 
 /**
  * Initiative listing (initiative-list 1.2): the portfolio derivation behind
@@ -26,6 +26,14 @@ export interface InitiativeListEntry {
   tasks_total: number
   active_phase: string | null
   next_action: string | null
+  /**
+   * Counted mechanical events since the last write-back (next-command 1.2)
+   * — the staleness-detection freshness signal, portfolio-shaped: > 0 means
+   * next_action predates record movement and may be stale. 0 when the last
+   * event is the write-back AND when nothing ever wrote back (a never-
+   * written-back record has no next_action to go stale — the render rule).
+   */
+  drift_events: number
   /** ulid of the last envelope-valid event (state.cursor) — the recency key. */
   last_event_id: string | null
 }
@@ -98,6 +106,7 @@ export function listInitiatives(rootDir: string): InitiativeListing {
       tasks_total: 0,
       active_phase: null,
       next_action: null,
+      drift_events: 0,
       last_event_id: null,
     }
     const logPath = join(initiativesDir, slug, 'events.jsonl')
@@ -114,6 +123,9 @@ export function listInitiatives(rootDir: string): InitiativeListing {
         }
         entry.active_phase = state.current.active_phase
         entry.next_action = state.current.next_action
+        if (state.freshness.last_writeback_ts !== null) {
+          entry.drift_events = freshnessTotal(state.freshness)
+        }
         entry.last_event_id = state.cursor
       } catch (err) {
         warnings.push(`${slug}: failed to read events.jsonl — listed without detail (${errMessage(err)})`)
