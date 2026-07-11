@@ -4,7 +4,7 @@
 
 Goal: Build the Harness v1 engine during the Fable 5 window (Jul 3–7): event log core, MCP server, Claude Code hooks, projections, CLI, watcher/state server, and the AGENTS.md dialect. Engine only — schema lives in one swappable module; UI/sync/team are explicitly out of scope. Full contracts in docs/SPEC.md; conventions in CLAUDE.md; strategy context in harness-docs/ (user-held, outside this repo).
 
-Progress: 47/52 tasks done (90%)
+Progress: 47/53 tasks done (88%)
 
 ## Phase 1 — Event log core [done] — 6/6 done
 
@@ -93,6 +93,10 @@ Progress: 47/52 tasks done (90%)
 - [ ] 12.2 doctor misroute-symptom check: flag task_status_changed events whose task id is absent from the initiative's plan (silent orphans that only fold-warn today) so an audit catches a misroute
 - [ ] 12.3 Acceptance: a session started on branch A keeps writing to A's initiative after the shared checkout flips to B; doctor flags an injected orphan task event; explicit-initiative + CLI-slug paths unaffected
 - [ ] 12.4 next_action single-scalar collision: current.next_action derives from the last-appended session_ended (BD9), so concurrent same-initiative sessions with differing next-actions leave a last-writer-wins result that can be stale (observed live in token-optimization: parallel publish 0.3.x sessions). Options — surface per-open-session next-actions in status/context, or model release/publish as a task (task_status_changed) not a session next-action. Distinct from 12.1 misroute: right initiative, wrong scalar.
+
+## Phase 13 - Sync contract [pending] — 0/1 done
+
+- [ ] 13.1 Convergent fold: sort envelope-valid events by id before pass-2 replay (D-sync-1) + merged-log convergence tests (same event set, shuffled file orders, deep-equal states) + monotonic-writer and skew-tolerance assertions
 
 Active phase: Phase 5 — Dialect + forced handoff
 Next action: USER-held: 5.3 (arm-C Opus resume scoring on the off-repo Phase 0 scorecard). Backlog: Phase 12 (concurrent-branch misroute hardening — 12.1 pin session initiative fixes MCP path, hook path largely inherent). Separate: the token-optimization initiative continues (2.3 section-fetch, Phase 4 lean tool-defs) toward a later release.

@@ -134,9 +134,31 @@ the `name` string; task identity is the `id` string.
 
 ## 5. Fold semantics (what a READER must implement)
 
-State is reconstructed by folding `events.jsonl` top to bottom. The fold
-MUST be deterministic: the same log always yields the same state and the
-same warnings. Replay order is **file order** (line order), not id order.
+State is reconstructed by folding `events.jsonl`. The fold MUST be
+deterministic AND convergent: the same **event set** always yields the same
+state and the same warnings, regardless of the order events arrived in the
+file. Replay order is therefore **ULID id order** (lexicographic), not file
+order: a reader MUST sort envelope-valid events by `id` before replay
+(pass 2). Two consequences, stated as riders:
+
+- **Rider (a) — writer obligation:** writers MUST use a monotonic ULID
+  generator within a process (see §3 `id`), so that local causal order
+  survives the sort. A writer that mints randomly-ordered same-millisecond
+  ids produces a log whose fold is still deterministic, but whose
+  within-millisecond ordering is arbitrary.
+- **Rider (b) — fold totality under skew:** cross-machine clock skew can
+  produce causally-misordered ids (e.g. a `task_status_changed` sorting
+  before its task's `task_added`). The fold MUST NOT crash or reject the
+  log in that case: it applies events in id order and resolves conflicts
+  by that order (the misordered status change is skipped with a warning by
+  the normal unknown-task tolerance rule; the later creation applies). This
+  skew tolerance is **accepted-in-v1**: id order is the tie-breaker, and
+  causal correctness across machines is bounded by clock quality. A
+  vector-clock or hybrid-logical-clock upgrade is **reserved** for a future
+  envelope version — v1 readers and writers must not invent one.
+
+(Single-writer logs that never cross machines fold identically under file
+order and id order; the distinction only matters after §7 imports.)
 
 ### 5.1 Tolerance — skip with a warning, never fail
 
@@ -158,8 +180,8 @@ The fold is two-pass:
 
 - **Pass 1:** decode all envelope-valid lines; collect the `ref` of every
   `correction` event with a valid payload into a *voided* set.
-- **Pass 2:** replay in file order, skipping any event whose `id` is in the
-  voided set.
+- **Pass 2:** replay in ULID id order (§5 riders), skipping any event whose
+  `id` is in the voided set.
 
 Note the consequence: voiding is collected from **all** correction events,
 including corrections that are themselves voided. Correcting a correction
@@ -209,7 +231,8 @@ does not un-void its original target (v1 behavior — see also §8).
   phase with status `blocked`, `phase <name>`; for each blocked task, its
   remembered block note if any, else `task <id> (<title>)`; all joined with
   `"; "`.
-- `cursor` — the `id` of the **last envelope-valid event** in file order,
+- `cursor` — the **maximum `id` among envelope-valid events** (the last in
+  id order; equivalently the last in file order for a never-merged log),
   including events that were voided, of unknown type, or payload-invalid.
   The cursor tracks what sync has seen (§7), not what state applied.
 

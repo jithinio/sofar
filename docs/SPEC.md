@@ -77,6 +77,14 @@ exists. closed_reason = the session_closed reason when that close set ended.
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
 events not already present (dedupe by id — idempotent). Per-initiative
 streams; ordering by ulid. This is the entire future sync interface.
+Fold replay order is NORMATIVELY ulid id order, not file order (convergent
+fold: same event set → identical state on every replica; D-sync-1, Jul 11).
+Riders: (a) writers MUST mint monotonic ulids within a process; (b) fold is
+total under cross-machine clock skew — causally-misordered events resolve
+by id order via the normal skip-with-warning tolerance; accepted-in-v1,
+vector/hybrid-clock upgrade reserved for a future envelope version.
+[Engine currently folds in file order — change queued as task 13.1;
+identical behavior for never-merged logs.]
 
 ## MCP tools (server name: sofar)
 - sofar_get_state({initiative?, view?}) → progressive disclosure (token-opt):
