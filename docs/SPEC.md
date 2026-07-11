@@ -248,3 +248,17 @@ Shims contain no logic — they invoke the sofar CLI.
   edit) and clears once one writes back; all three are WARN (exit stays 0). The
   concurrent-edit signal renders in both `sofar status` and the SessionStart
   context when open sessions overlap, and is absent otherwise.
+- **Staleness (staleness-detection):** a log carrying counted mechanical
+  events (file_touched / command_run / task_status_changed / note_added /
+  decision_logged, any source incl. cli) after its last session_ended
+  renders the `⚠ next action may be stale` line in renderStatus
+  (SessionStart block + get_state digest) and the `⚠ Staleness:` section in
+  `sofar status`; a log whose last event is the write-back renders neither,
+  and a log that never wrote back renders no staleness line. Freshness
+  counters reset on a new session_ended; replay stays deterministic (same
+  log → deep-equal state incl. freshness). The SessionStart block holds ≤10k
+  chars with every section at worst case, staleness line included. `sofar
+  doctor` stale-phase WARN text is byte-identical after the detector's
+  extraction to core (Phase 11 criteria unchanged). The clipped-summary
+  pointer renders only when the last write-back summary actually exceeds
+  its budget, and lands inside that budget.
