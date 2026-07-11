@@ -4,12 +4,12 @@
 
 Goal: Portfolio read surface for the multi-initiative record: sofar list (CLI) with one line per initiative (slug, progress, active phase, next action, bound branch); the same listing in the unknown_initiative error path so an unbound branch orients instead of dead-ending; an MCP listing surface per a pre-registered shape decision. Driver: Jul 11 audit — status and get_state resolve exactly ONE initiative; the only all-initiatives surface is serve GET /state. Constraints: read-side derivation over existing folds, zero new event types; MCP surface budget-boxed (count caps + clip budgets); a list is a record read, not a live dashboard (spine D3).
 
-Progress: 0/7 tasks done (0%)
+Progress: 1/7 tasks done (14%)
 
-## Phase 1 — shape decision & listing derivation [pending] — 0/2 done
+## Phase 1 — shape decision & listing derivation [pending] — 1/2 done
 
-- [ ] 1.1 Pre-register the surface shape as a logged decision BEFORE building: MCP shape (get_state view:'initiatives' vs a new sofar_list_initiatives tool), what a list line carries (slug, progress, active phase, next action, bound branch), ordering rule; include why the losing options lose
-- [ ] 1.2 Listing derivation: per-initiative summary over existing folds + reverse binding map (bindings.json branch→slug inverted); zero new event types; deterministic order; missing/corrupt logs degrade to a warning line, never fatal
+- [x] 1.1 Pre-register the surface shape as a logged decision BEFORE building: MCP shape (get_state view:'initiatives' vs a new sofar_list_initiatives tool), what a list line carries (slug, progress, active phase, next action, bound branch), ordering rule; include why the losing options lose
+- [ ] 1.2 Listing derivation: per-initiative summary over existing folds + reverse binding map (bindings.json branch→slug inverted); zero new event types; deterministic order; missing/corrupt logs degrade to a warning line, never fatal (active)
 
 ## Phase 2 — CLI surfaces [pending] — 0/2 done
 
@@ -24,3 +24,5 @@ Progress: 0/7 tasks done (0%)
 
 - [ ] 4.1 SPEC §CLI + §MCP tools (+ FORMAT.md only if the listing becomes a conforming-reader concern); acceptance criteria: listing renders all initiatives, unbound-branch error carries the listing, budgets hold
 - [ ] 4.2 Tests: derivation determinism (same records → deep-equal listing), CLI render, error-path listing, MCP count/clip budgets, empty .sofar/initiatives edge
+
+Next action: Seed the cli-ui plan: pick rendering approach (Decision on any color/TUI dep) and phase out the surfaces (status, doctor, new/switch).

@@ -2,7 +2,7 @@
 
 # Plan: cli-ui
 
-Goal: (goal not recorded yet — set one with sofar_update_plan)
+Goal: Build a CLI UI layer for the sofar engine: every command today (status, doctor, new/switch, adopt) prints flat plain text — boring, noisy, and hard to scan. Give CLI output structured terminal rendering: visual hierarchy, color and severity cues, alignment, progress display, less noise so the signal (goal, next action, warnings) stands out. Constraint: terminal rendering only — this is not the guard-railed 'UI' (web/graphical); any new rendering dependency (color/TUI lib) requires a logged Decision first.
 
 Progress: 0/0 tasks done (0%)
 
