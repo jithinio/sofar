@@ -6,12 +6,12 @@
 - Tool: claude-code
 - Model: claude-fable-5
 - Started: 2026-07-11T09:25:45.786Z
-- Ended: (in progress)
+- Ended: 2026-07-11T09:27:26.769Z
 
 ## Summary
 
-(none recorded — session did not write back)
+Spot-check CLEARED (all 5 founder verdicts recorded: rulings 1-3+5 agreed, GLM M2 reading + shipped anchors ratified) — all judge-provenance mitigations discharged; evidence file + action plan updated, decision logged. Merged staleness-detection (clean, SPEC sections coexist), gates green (353 tests, typecheck clean), bumped 0.4.0 (root+engine+schema+lockfile), built CLI reads 0.4.0, committed 26dc99c, pushed branch + main, staleness worktree removed.
 
 ## Next action
 
-(none recorded)
+User: npm publish -w @alignlabs/sofar (0.4.0), then send the one-pager. Next build: task 13.1 convergent fold (harness-build Phase 13).

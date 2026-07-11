@@ -44,4 +44,4 @@ Progress: 17/17 tasks done (100%)
 - [x] 7.1 Document two-lever model + prompt-caching (Lever A) guidance
 - [x] 7.2 Cut 0.3.2: 5.2+6.2 trims, SERVER_VERSION single-sourced from package.json, README install refresh
 
-Next action: User: 20-min spot-check → merge staleness-detection → send one-pager. Separately user-held: brillo main push (ships 20 commits incl. design-consistency landing) and the migration apply.
+Next action: User: npm publish -w @alignlabs/sofar (0.4.0), then send the one-pager. Next build: task 13.1 convergent fold (harness-build Phase 13).
