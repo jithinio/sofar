@@ -77,8 +77,13 @@ MECHANICAL signals only — content-semantic staleness inference is banned
 (D3/D12): { events_since_writeback: {files, commands, tasks, notes,
 decisions} counting payload-valid, unvoided file_touched / command_run /
 task_status_changed / note_added / decision_logged events appended after
-the last session_ended (ANY session/source incl. cli), last_writeback_ts:
-ts of that session_ended, or null when nothing ever wrote back }.
+the last session_ended (ANY session/source incl. cli), notes: [{ts, text}]
+— the CONTENT of the counted note_added events (notes-in-digest 1.2: the
+counters say THAT the record drifted, the notes say WHAT), log order,
+uncapped at fold, notes.length === counts.notes by construction; when
+nothing ever wrote back the window is the whole log — every note is
+un-absorbed, last_writeback_ts: ts of that session_ended, or null when
+nothing ever wrote back }.
 session_ended is the ONLY reset (session_closed resets nothing); zero new
 event types — the derivation is read-side and retroactively covers every
 existing record. Companion derivation staleActivePhases(state) (the D-P11
@@ -110,7 +115,11 @@ identical behavior for never-merged logs.]
   carries the same staleness signals (staleness-detection 2.1/2.2/2.4): the
   budgeted `⚠ next action may be stale: N events since write-back
   (breakdown)` line when mechanical drift exists, stale-phase markers on
-  phase lines, and the clipped-summary pointer.
+  phase lines, and the clipped-summary pointer — plus the budgeted
+  notes-since-write-back section (notes-in-digest 2.1) directly under the
+  staleness line: newest-last window of ≤5 notes, one date-prefixed line
+  each clipped to 200 chars, overflow labeled "(last K of N)"; header is
+  "Notes:" when nothing ever wrote back; absent when no notes selected.
 - sofar_start_session({initiative?, tool, model?, session_id?}) →
   {session_id} — session_id (from the SessionStart context "Session:" line)
   adopts exactly that OPEN session; an ended id is a typed invalid_input
@@ -138,7 +147,10 @@ return. No tool mutates state except via an event.
   under the next action (absent on a fresh record); a stale phase renders
   as `[<status> — all tasks done; mark phase done?]` on its phase line; a
   last-session summary cut by its budget carries `(clipped — full text in
-  sessions/<id>.md)` INSIDE the budget. HARD LIMIT:
+  sessions/<id>.md)` INSIDE the budget. Un-absorbed notes (notes-in-digest
+  2.1) render as a budgeted section under the staleness line — see §MCP
+  get_state digest for the exact rule; both surfaces share renderStatus.
+  HARD LIMIT:
   output ≤10,000 chars — projection generator must guarantee this.
 - PostToolUse shim (matcher: Edit|Write|MultiEdit|Bash) → appends
   file_touched / command_run from stdin JSON (tool_name, tool_input).
@@ -206,7 +218,10 @@ Shims contain no logic — they invoke the sofar CLI.
   surface, no 10k cap) when any mechanical signal fires: drift breakdown
   since the last write-back, stale phases with the phase_status_changed fix,
   and a pointer when the capped surfaces clip the last write-back summary
-  (staleness-detection 2.3).
+  (staleness-detection 2.3). Un-absorbed notes render UNCAPPED after the
+  staleness section (notes-in-digest 2.2): every selected note, full
+  timestamp, no count cap or length clip, whitespace collapsed to keep each
+  entry one list line; absent when none.
 - `sofar export [slug] [--since <id>]` / `sofar import <file|-> [slug]`
   — per-initiative NDJSON over the §Cursor primitive; slug resolves like
   status (explicit wins, else branch binding) (extended Phase 4, BD28)
@@ -278,3 +293,14 @@ Shims contain no logic — they invoke the sofar CLI.
   extraction to core (Phase 11 criteria unchanged). The clipped-summary
   pointer renders only when the last write-back summary actually exceeds
   its budget, and lands inside that budget.
+- **Notes surfacing (notes-in-digest):** a log with note_added events after
+  its last session_ended renders their content on all three resume surfaces
+  — renderStatus (SessionStart block + get_state digest, budgeted: ≤5
+  newest-last lines, 200 chars each) and `sofar status` (uncapped) — and a
+  log whose write-back postdates every note renders no notes section on any
+  surface; a never-written-back log renders all its notes (header "Notes:").
+  Overflow past the digest cap is labeled "(last K of N)"; a voided
+  (corrected) note never renders. freshness.notes carries {ts, text} in log
+  order with notes.length === counts.notes; replay stays deterministic. The
+  SessionStart block holds ≤10k chars with every section at worst case,
+  notes section included.
