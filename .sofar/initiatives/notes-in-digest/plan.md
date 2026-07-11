@@ -4,23 +4,25 @@
 
 Goal: Surface note_added events on the resume read surfaces — get_state digest, SessionStart status block, sofar status — so a recorded correction can reach the next session instead of dying invisible in the log. Driver: the 2026-07-11 incident — '0.5.0 published' was recorded as a note minutes after the write-back, but no surface renders notes, so the stale next_action won and a session re-proposed done work. Staleness detection (0.4.0) announces THAT the record drifted; this initiative shows WHAT changed. Constraint: compaction-proofing discipline — count-capped, budget-boxed, one-line entries that never crowd out rationale (decisions + rejected-approaches ledger).
 
-Progress: 0/7 tasks done (0%)
+Progress: 7/7 tasks done (100%)
 
-## Phase 1 — selection rule & fold derivation [pending] — 0/2 done
+## Phase 1 — selection rule & fold derivation [done] — 2/2 done
 
-- [ ] 1.1 Pre-register the note-selection rule as a logged decision BEFORE building: which notes render — notes since last write-back (the correction window, pairs with staleness), last-K overall, or both with separate caps; include why the losing options lose
-- [ ] 1.2 Fold: expose the selected notes on state (ts + text, ordered), zero new event types, deterministic replay (same log → deep-equal state)
+- [x] 1.1 Pre-register the note-selection rule as a logged decision BEFORE building: which notes render — notes since last write-back (the correction window, pairs with staleness), last-K overall, or both with separate caps; include why the losing options lose
+- [x] 1.2 Fold: expose the selected notes on state (ts + text, ordered), zero new event types, deterministic replay (same log → deep-equal state)
 
-## Phase 2 — surfacing on read surfaces [pending] — 0/2 done
+## Phase 2 — surfacing on read surfaces [done] — 2/2 done
 
-- [ ] 2.1 renderStatus (SessionStart block + get_state digest via the shared seam): budgeted notes section — new per-section budget const, count cap, one-line clipped entries; rendered adjacent to the staleness warning so drift-signal and drift-content read together
-- [ ] 2.2 renderFullStatus (sofar status): uncapped notes section on the terminal surface
+- [x] 2.1 renderStatus (SessionStart block + get_state digest via the shared seam): budgeted notes section — new per-section budget const, count cap, one-line clipped entries; rendered adjacent to the staleness warning so drift-signal and drift-content read together
+- [x] 2.2 renderFullStatus (sofar status): uncapped notes section on the terminal surface
 
-## Phase 3 — SPEC [pending] — 0/1 done
+## Phase 3 — SPEC [done] — 1/1 done
 
-- [ ] 3.1 SPEC §State (derivation shape) + §MCP tools/§Hooks (surface behavior); §Acceptance: notes render when present and are absent when none; 10k SessionStart cap holds with all sections at worst case
+- [x] 3.1 SPEC §State (derivation shape) + §MCP tools/§Hooks (surface behavior); §Acceptance: notes render when present and are absent when none; 10k SessionStart cap holds with all sections at worst case
 
-## Phase 4 — tests [pending] — 0/2 done
+## Phase 4 — tests [done] — 2/2 done
 
-- [ ] 4.1 Fold tests: selection rule over synthetic logs (incl. notes straddling the write-back boundary), replay determinism
-- [ ] 4.2 Render tests: budget + count cap respected, clip behavior, absent-when-none, enforceStatusLimit ≤10k at worst case; digest and SessionStart parity via the shared seam
+- [x] 4.1 Fold tests: selection rule over synthetic logs (incl. notes straddling the write-back boundary), replay determinism
+- [x] 4.2 Render tests: budget + count cap respected, clip behavior, absent-when-none, enforceStatusLimit ≤10k at worst case; digest and SessionStart parity via the shared seam
+
+Next action: Review the branch, merge notes-in-digest to main, then release (bump + publish) and close the initiative.
