@@ -328,10 +328,9 @@ Flag/env contract:
 | TERM=dumb | no ambient TTY color, no animate (CI's ambient clause or an explicit force still colors) |
 | TERM=linux | unicode off → ASCII fallback glyphs |
 
-[detectCaps honors `--color`/`--no-color` from argv, but the commander
-wiring does not yet declare the flags, so the shipped binary currently
-rejects them as unknown options — flag registration queued in the cli-ui
-record; the env controls are the working boundary today.]
+`--color`/`--no-color` are registered as program-level commander options
+(accepted before or after the subcommand); the kernel reads them from
+argv directly, so registration is acceptance-only.
 
 Color law (semantic ANSI-16, cli-ui D1): green=success/done ·
 red=error/blocked · yellow=warn/active · cyan=info/identifiers ·

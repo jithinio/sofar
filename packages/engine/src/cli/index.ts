@@ -24,6 +24,12 @@ program
   // Single-sourced from package.json (task 6.4, BD39) — esbuild inlines the
   // JSON import, so the bundle always carries the manifest's version.
   .version(version)
+  // Registration only: the UI kernel (cli/ui/caps.ts) reads these straight
+  // from process.argv, so commander merely has to accept them anywhere on
+  // the line (SPEC §CLI UI ladder). --no-color also defines the paired
+  // opts.color default; the value is unused.
+  .option('--color', 'force styled output, even piped')
+  .option('--no-color', 'plain output, even on a TTY')
 
 /** Every repo-scoped command takes --root (default: cwd) — the mcp/event precedent. */
 function rootOf(opts: { root?: string }): string {

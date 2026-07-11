@@ -75,6 +75,10 @@ const MODES = [
   { name: 'piped-CI', env: { CI: 'true' }, wantSgr: false },
   { name: 'FORCE_COLOR=1', env: { FORCE_COLOR: '1' }, wantSgr: true },
   { name: 'NO_COLOR>FORCE_COLOR', env: { NO_COLOR: '1', FORCE_COLOR: '1' }, wantSgr: false },
+  // flag registration (SPEC §CLI UI): commander accepts the pair, the
+  // kernel reads argv — --color forces piped SGR, --no-color vetoes a force
+  { name: '--color flag', env: {}, args: ['--color'], wantSgr: true },
+  { name: '--no-color>FORCE_COLOR', env: { FORCE_COLOR: '1' }, args: ['--no-color'], wantSgr: false },
 ]
 
 // --- scratch repo + CLI runner -------------------------------------------------
@@ -95,8 +99,8 @@ function scratchRepo() {
   return root
 }
 
-function cli(root, args, modeEnv) {
-  return spawnSync(process.execPath, [cliPath, ...args, '--root', root], {
+function cli(root, args, modeEnv, modeArgs = []) {
+  return spawnSync(process.execPath, [cliPath, ...args, ...modeArgs, '--root', root], {
     env: { ...baseEnv(), ...modeEnv },
     encoding: 'utf8',
     timeout: 30_000,
@@ -123,7 +127,7 @@ let failures = 0
 for (const mode of MODES) {
   const root = scratchRepo()
   for (const [label, args, wantExit, isReport] of STEPS) {
-    const r = cli(root, args, mode.env)
+    const r = cli(root, args, mode.env, mode.args ?? [])
     const problems = []
     if (r.status !== wantExit) problems.push(`exit ${r.status} (want ${wantExit})`)
 
