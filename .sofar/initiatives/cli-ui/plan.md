@@ -27,4 +27,4 @@ Progress: 12/12 tasks done (100%)
 - [x] 3.2 Plain-surface regression guard: tests locking renderStatus digest, hook stdout, export/import NDJSON, mcp stdio to byte-identical output regardless of TTY/env
 - [x] 3.3 Acceptance suite + live-fire pass: every command in TTY / piped / NO_COLOR / CI modes
 
-Next action: Merge ceremony: merge cli-ui branch to main (union events.jsonl lineages via sofar export/import — never textual merge), release, close initiative.
+Next action: If wanted: run next-command merge ceremony (merge to main, union events, bump 0.6.1/0.7.0, user-OTP publish) — user to confirm; also name origin/cli-ui deletion if desired.

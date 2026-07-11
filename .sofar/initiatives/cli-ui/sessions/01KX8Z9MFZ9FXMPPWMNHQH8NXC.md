@@ -6,12 +6,12 @@
 - Tool: claude-code
 - Model: claude-fable-5
 - Started: 2026-07-11T16:13:46.879Z
-- Ended: (in progress)
+- Ended: 2026-07-11T16:19:07.066Z
 
 ## Summary
 
-(none recorded — session did not write back)
+Merged cli-ui to main: union merge (bdeb904) + export/import event union 20/23 (602d59f), verified 12/12 fold + 564 tests, release commit 0.6.0 lockstep (ced61db) pushed. npm publish blocked by permission gate — needs the user to explicitly authorize publishing.
 
 ## Next action
 
-(none recorded)
+User: authorize npm publish of @alignlabs/sofar@0.6.0; then upgrade global install and close the initiative (branch+binding removal).
