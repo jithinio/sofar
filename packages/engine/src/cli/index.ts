@@ -12,6 +12,7 @@ import { runNew, runSwitch } from './new'
 import { runStatus } from './status'
 import { startServer, DEFAULT_PORT } from './serve'
 import { runExport, runImport } from './transfer'
+import { runUpgrade } from './upgrade'
 import { emit, readAllStdin } from './shared'
 
 const program = new Command()
@@ -154,6 +155,25 @@ program
     const handle = createSofarServer({ rootDir: opts.root })
     await handle.connectStdio()
     // stdio transport keeps the process alive until the client disconnects
+  })
+
+program
+  .command('upgrade [version]')
+  .description(
+    'self-update the globally-installed sofar to the latest release (or a given version), resolving the true install prefix from sofar\'s own location so a custom npm prefix is handled correctly',
+  )
+  .option('--check', 'report installed-vs-latest and the resolved install; change nothing')
+  .option('--dry-run', 'print the exact npm command that would run; change nothing')
+  .option('--force', 'reinstall even when already at the target version')
+  .action(async (version: string | undefined, opts: { check?: boolean; dryRun?: boolean; force?: boolean }) => {
+    emit(
+      await runUpgrade({
+        ...(version !== undefined ? { version } : {}),
+        check: opts.check === true,
+        dryRun: opts.dryRun === true,
+        force: opts.force === true,
+      }),
+    )
   })
 
 registerEventCommand(program)

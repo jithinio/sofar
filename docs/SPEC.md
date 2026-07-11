@@ -223,6 +223,14 @@ Shims contain no logic — they invoke the sofar CLI.
 - `sofar mcp [--root <dir>]` — start the stdio MCP server (server name:
   sofar) exposing §MCP tools; --root overrides the repo root (default:
   cwd). Added in Phase 2 (BD13); `sofar init` registers it in .mcp.json.
+- `sofar upgrade [version] [--check|--dry-run|--force]` — self-update the
+  globally-installed CLI to `latest` (or a pinned version). Derives the real
+  npm prefix from the running binary's own path (…/lib/node_modules/…) rather
+  than `npm config get prefix`, so a custom-prefix install is updated in place
+  instead of a naive `npm i -g` installing to the wrong root. --check reports
+  installed-vs-latest and the resolved prefix; --dry-run prints the exact npm
+  command; --force reinstalls at the target. Non-global installs (local dep,
+  npx cache) print manual guidance and never run npm.
 
 ## Acceptance criteria (definition of done)
 - **Phase 1:** 1k concurrent appends from 4 processes → zero lost/interleaved
