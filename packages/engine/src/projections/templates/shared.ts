@@ -1,4 +1,4 @@
-import type { SessionActivity } from '../../core/fold'
+import type { FreshnessState, SessionActivity } from '../../core/fold'
 
 /**
  * Shared template pieces. Projections are generated files — the header
@@ -29,6 +29,23 @@ export function describeActivity(activity: SessionActivity): string {
     parts.push(`task changes: ${activity.task_changes.join(', ')}`)
   }
   return parts.length > 0 ? parts.join(', ') : '(no mechanical events)'
+}
+
+/**
+ * One-line breakdown of the freshness counters (staleness-detection 2.1):
+ * "3 files, 2 commands, 1 task change" — zero-count kinds are omitted.
+ * Shared by renderStatus (budgeted line) and renderFullStatus (uncapped
+ * staleness section) so both surfaces state the same drift.
+ */
+export function describeFreshness(counts: FreshnessState['events_since_writeback']): string {
+  const n = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`
+  const parts: string[] = []
+  if (counts.files > 0) parts.push(n(counts.files, 'file'))
+  if (counts.commands > 0) parts.push(n(counts.commands, 'command'))
+  if (counts.tasks > 0) parts.push(n(counts.tasks, 'task change'))
+  if (counts.notes > 0) parts.push(n(counts.notes, 'note'))
+  if (counts.decisions > 0) parts.push(n(counts.decisions, 'decision'))
+  return parts.join(', ')
 }
 
 /** Join non-empty template sections into a document with a trailing newline. */

@@ -1,5 +1,11 @@
-import { openSessionFileConflicts, type InitiativeState, type SessionState } from '../../core/fold'
-import { clip, clipBlockDetect, describeActivity, pct, taskProgress } from './shared'
+import {
+  freshnessTotal,
+  openSessionFileConflicts,
+  staleActivePhases,
+  type InitiativeState,
+  type SessionState,
+} from '../../core/fold'
+import { clip, clipBlockDetect, describeActivity, describeFreshness, pct, taskProgress } from './shared'
 
 /**
  * Status projection — the SessionStart context block (task 3.6, BD3):
@@ -45,6 +51,11 @@ const REJECTED_LEDGER_BUDGET = 2_800
 // sessions share files, so it costs nothing in the common single-session case.
 const CONFLICT_LINE_BUDGET = 200
 const MAX_CONFLICT_LINES = 8
+// Staleness line (staleness-detection 2.1) — rendered only when mechanical
+// events postdate the last write-back, so a fresh record pays nothing.
+// Counts are numeric and the breakdown has ≤5 fixed kinds; the budget is
+// belt-and-braces, not an expected cut.
+const STALENESS_LINE_BUDGET = 200
 
 /** Hard cap: anything over the limit is cut to fit, marker included. */
 export function enforceStatusLimit(text: string): string {
@@ -204,6 +215,21 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   if (state.current.next_action !== null) {
     lines.push(`Next action: ${clip(state.current.next_action, NEXT_ACTION_BUDGET)}`)
   }
+
+  // Staleness heads-up (staleness-detection 2.1): mechanical events landed
+  // AFTER the write-back that minted the next_action — the resuming agent
+  // should distrust it in proportion. Rendered only when drift exists and
+  // something ever wrote back (no write-back → no next_action to stale).
+  const drift = freshnessTotal(state.freshness)
+  if (drift > 0 && state.freshness.last_writeback_ts !== null) {
+    lines.push(
+      clip(
+        `⚠ next action may be stale: ${drift} event${drift === 1 ? '' : 's'} since write-back (${describeFreshness(state.freshness.events_since_writeback)})`,
+        STALENESS_LINE_BUDGET,
+      ),
+    )
+  }
+
   if (state.current.blocked_on !== undefined) {
     lines.push(`Blocked on: ${clip(state.current.blocked_on, BLOCKED_BUDGET)}`)
   }
