@@ -1,4 +1,3 @@
 {
-  "main": "harness-build",
-  "cli-ui": "cli-ui"
+  "main": "harness-build"
 }
