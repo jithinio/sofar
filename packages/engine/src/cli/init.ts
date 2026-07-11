@@ -2,7 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync
 import { join } from 'node:path'
 import { mcpRegistration } from '../mcp/register'
 import { detectTailwindV4 } from './scanners'
-import { fail, ok, type CmdResult } from './shared'
+import { fail, ok, REPO_MD_STUB, type CmdResult } from './shared'
 import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui'
 import sessionStartShim from '../hooks/session-start.sh'
 import postToolUseShim from '../hooks/post-tool-use.sh'
@@ -105,13 +105,10 @@ Prohibitions:
 ${PROTOCOL_END}
 `
 
-export const REPO_MD_STUB = `# Repo memory
-
-Hand-written, repo-scoped notes for agents working here: conventions,
-commands, gotchas — anything true of the repo across all initiatives.
-Sofar never generates or overwrites this file; initiative state lives in
-.sofar/initiatives/<slug>/ instead.
-`
+// REPO_MD_STUB moved to ./shared (ui-free) so event.ts can import it without
+// transitively reaching cli/ui through this module; re-exported here for the
+// existing importers (init is where the stub is written to disk).
+export { REPO_MD_STUB } from './shared'
 
 const HOOK_COMMAND_PREFIX = '$CLAUDE_PROJECT_DIR/.claude/hooks/'
 

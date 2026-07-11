@@ -4,7 +4,7 @@ import type { Command } from 'commander'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
 import { createToolContext, ToolError, type ToolContext } from '../mcp/context'
 import { renderStatus } from '../projections/templates/status'
-import { REPO_MD_STUB } from './init'
+import { REPO_MD_STUB } from './shared'
 
 /**
  * `sofar event <subcommand>` — the internal surface hook shims call

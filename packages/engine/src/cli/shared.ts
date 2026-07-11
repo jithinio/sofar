@@ -27,6 +27,22 @@ export function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
+/**
+ * The `sofar init` repo.md stub (SPEC §Record layout). Lives here — ui-free
+ * command plumbing — rather than in init.ts because the hook surface
+ * (event.ts, a guaranteed-plain agent-facing surface) compares repo.md
+ * against it, and init.ts imports cli/ui: the plain-surface guard
+ * (test/plain-surface-guard.test.ts) forbids event.ts from reaching cli/ui
+ * even transitively.
+ */
+export const REPO_MD_STUB = `# Repo memory
+
+Hand-written, repo-scoped notes for agents working here: conventions,
+commands, gotchas — anything true of the repo across all initiatives.
+Sofar never generates or overwrites this file; initiative state lives in
+.sofar/initiatives/<slug>/ instead.
+`
+
 /** Read stdin to a string (for `sofar import -`); empty when run on a TTY. */
 export async function readAllStdin(): Promise<string> {
   if (process.stdin.isTTY) return ''
