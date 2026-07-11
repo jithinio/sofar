@@ -6,22 +6,25 @@
 - Tool: claude-code
 - Model: claude-fable-5
 - Started: 2026-07-11T11:51:57.525Z
-- Ended: (in progress)
+- Ended: 2026-07-11T11:59:28.442Z
 
 ## Summary
 
-(none recorded — no write-back yet; derived resume point below)
+Phase 1 built and verified: 1.1 Decision D2 (zero-dep vendored kernel), 1.2 caps+style, 1.3 symbols+text, 1.4 spinner+frames — 27 kernel tests, full suite 431 green, live-fire demo OK. Work on cli-ui branch in isolated worktree .claude/worktrees/cli-ui (shared checkout carries a live concurrent session on initiative-list — untouched). Pushed origin/cli-ui (f65fedb..74da4a2).
 
 ## Next action
 
-(none recorded)
+Phase 2: start 2.1 layout grammar (initiative object model at status/list zoom levels) in the cli-ui worktree, then wire status (2.2).
 
 ## Activity (derived from mechanical events)
 
-- Derived: task changes: 1.1 → done, 1.2 → active, 1.2 → done, 1.3 → active
+- Derived: task changes: 1.1 → done, 1.2 → active, 1.2 → done, 1.3 → active, 1.3 → done, 1.4 → active, 1.4 → done
 - Commands run: 0
 - Task changes:
   - 1.1 → done
   - 1.2 → active
   - 1.2 → done
   - 1.3 → active
+  - 1.3 → done
+  - 1.4 → active
+  - 1.4 → done

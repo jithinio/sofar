@@ -4,14 +4,14 @@
 
 Goal: Build a CLI UI layer for the sofar engine: every command today (status, doctor, new/switch, adopt) prints flat plain text — boring, noisy, and hard to scan. Give CLI output structured terminal rendering: visual hierarchy, color and severity cues, alignment, progress display, animated per-use-case symbols, less noise so the signal (goal, next action, warnings) stands out. The layout must render the initiative object model (initiative → goal → phases → tasks → next action) at two zoom levels: single initiative (status) and multi-initiative portfolio (list). Constraint: terminal rendering only — this is not the guard-railed 'UI' (web/graphical); any new rendering dependency requires a logged Decision first. Agent-facing surfaces (renderStatus digest, hook stdout, export/import NDJSON, mcp stdio) stay byte-identical plain text forever.
 
-Progress: 2/12 tasks done (16%)
+Progress: 4/12 tasks done (33%)
 
-## Phase 1 — UI kernel [pending] — 2/4 done
+## Phase 1 — UI kernel [pending] — 4/4 done
 
 - [x] 1.1 Decision: rendering stack — zero-dep hand-rolled kernel (vendored picocolors detection logic + cli-spinners frames, ~130 lines) vs one dep (picocolors); settle and log via sofar_log_decision
 - [x] 1.2 cli/ui capability detection + style primitives: color ladder NO_COLOR > --no-color > FORCE_COLOR > isTTY&&TERM!=dumb (+CI), unicode gate w/ ASCII fallbacks, semantic tokens (success/error/warn/info/muted/accent) — ANSI-16 only, no hex for text; tests
-- [ ] 1.3 Symbols + layout helpers: ✓ ✗ ⚠ ℹ ● [✓]/[•]/[ ] checkboxes, └/│ detail rails, ⋮ elision, … truncation; visible-width pad/truncate (ANSI-strip aware); tests (active)
-- [ ] 1.4 Spinner kernel on stderr: per-use-case frame sets (scan=braille dots@80ms, write=growVertical, network=point, brand pulse=eased ping-pong ·✢✳✶✻✽ style); animate only isTTY&&!CI, static fallback line otherwise; cursor hide/restore + SIGINT-safe; tests
+- [x] 1.3 Symbols + layout helpers: ✓ ✗ ⚠ ℹ ● [✓]/[•]/[ ] checkboxes, └/│ detail rails, ⋮ elision, … truncation; visible-width pad/truncate (ANSI-strip aware); tests
+- [x] 1.4 Spinner kernel on stderr: per-use-case frame sets (scan=braille dots@80ms, write=growVertical, network=point, brand pulse=eased ping-pong ·✢✳✶✻✽ style); animate only isTTY&&!CI, static fallback line otherwise; cursor hide/restore + SIGINT-safe; tests
 
 ## Phase 2 — Styled surfaces [pending] — 0/5 done
 
@@ -26,3 +26,5 @@ Progress: 2/12 tasks done (16%)
 - [ ] 3.1 SPEC §CLI UI: color law, degradation ladder, flag/env contract, styled-vs-guaranteed-plain surface table, acceptance criteria
 - [ ] 3.2 Plain-surface regression guard: tests locking renderStatus digest, hook stdout, export/import NDJSON, mcp stdio to byte-identical output regardless of TTY/env
 - [ ] 3.3 Acceptance suite + live-fire pass: every command in TTY / piped / NO_COLOR / CI modes
+
+Next action: Phase 2: start 2.1 layout grammar (initiative object model at status/list zoom levels) in the cli-ui worktree, then wire status (2.2).
