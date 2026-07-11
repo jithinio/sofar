@@ -114,3 +114,59 @@ describe('createStyle', () => {
     expect(s.muted('x')).toBe(s.dim('x'))
   })
 })
+
+describe('symbolsFor', () => {
+  it('unicode set uses the shared CLI vocabulary', async () => {
+    const { symbolsFor } = await import('../src/cli/ui/symbols')
+    const u = symbolsFor(true)
+    expect([u.ok, u.fail, u.warn, u.boxActive, u.elbow]).toEqual([
+      '✓',
+      '✗',
+      '⚠',
+      '[•]',
+      '└',
+    ])
+  })
+
+  it('ascii set is cp437-safe (no multibyte glyphs)', async () => {
+    const { symbolsFor } = await import('../src/cli/ui/symbols')
+    for (const v of Object.values(symbolsFor(false))) {
+      for (const ch of v) expect(ch.charCodeAt(0)).toBeLessThan(0x2510)
+    }
+  })
+})
+
+describe('text helpers', () => {
+  it('visibleWidth ignores SGR escapes', async () => {
+    const { visibleWidth } = await import('../src/cli/ui/text')
+    expect(visibleWidth('\x1b[32mok\x1b[39m')).toBe(2)
+    expect(visibleWidth('plain')).toBe(5)
+  })
+
+  it('padEndVisible aligns styled and plain to the same column', async () => {
+    const { padEndVisible, visibleWidth } = await import('../src/cli/ui/text')
+    const styled = padEndVisible('\x1b[31mbad\x1b[39m', 8)
+    const plain = padEndVisible('bad', 8)
+    expect(visibleWidth(styled)).toBe(8)
+    expect(visibleWidth(plain)).toBe(8)
+  })
+
+  it('padStartVisible right-aligns and never truncates', async () => {
+    const { padStartVisible } = await import('../src/cli/ui/text')
+    expect(padStartVisible('42', 4)).toBe('  42')
+    expect(padStartVisible('12345', 4)).toBe('12345')
+  })
+
+  it('truncatePlain cuts with ellipsis and rejects styled input', async () => {
+    const { truncatePlain } = await import('../src/cli/ui/text')
+    expect(truncatePlain('hello world', 8)).toBe('hello w…')
+    expect(truncatePlain('short', 8)).toBe('short')
+    expect(() => truncatePlain('\x1b[1mx\x1b[22m', 8)).toThrow(/styled/)
+  })
+
+  it('columnsOf defaults to 80 when piped', async () => {
+    const { columnsOf } = await import('../src/cli/ui/text')
+    expect(columnsOf({})).toBe(80)
+    expect(columnsOf({ columns: 120 })).toBe(120)
+  })
+})
