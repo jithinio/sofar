@@ -112,11 +112,14 @@ export function renderFullStatus(state: InitiativeState): string {
   lines.push(`Progress: ${done}/${total} tasks done (${pct(done, total)}) across ${state.phases.length} phase(s)`)
   lines.push('')
 
+  const stalePhases = staleActivePhases(state)
+  const staleNames = new Set(stalePhases.map((p) => p.name))
+
   if (state.phases.length > 0) {
     lines.push('Phases:')
     for (const phase of state.phases) {
       const [phaseDone, phaseTotal] = taskProgress([phase])
-      lines.push(`- ${phase.name} [${phase.status}] ${phaseDone}/${phaseTotal}`)
+      lines.push(`- ${phase.name} ${phaseMark(phase, staleNames)} ${phaseDone}/${phaseTotal}`)
       for (const task of phase.tasks) {
         lines.push(`  - ${TASK_MARKS[task.status] ?? '[ ]'} ${task.id} ${task.title}`)
       }
@@ -158,6 +161,18 @@ const TASK_MARKS: Record<string, string> = {
   active: '[~]',
   blocked: '[!]',
   pending: '[ ]',
+}
+
+/**
+ * Phase-line status bracket, staleness-aware (staleness-detection 2.2): a
+ * stale phase (1.2 detector — all tasks done, phase not done) carries the
+ * nudge inside its bracket. Constant-bounded suffix, so phase lines stay
+ * budget-safe wherever names are clipped.
+ */
+function phaseMark(phase: { name: string; status: string }, staleNames: ReadonlySet<string>): string {
+  return staleNames.has(phase.name)
+    ? `[${phase.status} — all tasks done; mark phase done?]`
+    : `[${phase.status}]`
 }
 
 export interface StatusOptions {
@@ -266,10 +281,13 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   if (state.phases.length > 0) {
     const open = state.phases.filter((p) => p.status !== 'done')
     const donePhases = state.phases.filter((p) => p.status === 'done')
+    // Stale-phase marker (staleness-detection 2.2): stale phases are never
+    // 'done', so every one of them lives in the itemized open list.
+    const staleNames = new Set(staleActivePhases(state).map((p) => p.name))
     lines.push('Phases:')
     for (const phase of open.slice(0, MAX_PHASE_LINES)) {
       const [phaseDone, phaseTotal] = taskProgress([phase])
-      lines.push(`- ${clip(phase.name, PHASE_LINE_BUDGET)} [${phase.status}] ${phaseDone}/${phaseTotal}`)
+      lines.push(`- ${clip(phase.name, PHASE_LINE_BUDGET)} ${phaseMark(phase, staleNames)} ${phaseDone}/${phaseTotal}`)
     }
     if (open.length > MAX_PHASE_LINES) {
       lines.push(`- …and ${open.length - MAX_PHASE_LINES} more phases (see plan.md)`)
