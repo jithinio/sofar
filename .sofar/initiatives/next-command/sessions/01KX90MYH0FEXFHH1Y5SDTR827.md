@@ -6,12 +6,12 @@
 - Tool: claude-code
 - Model: claude-fable-5
 - Started: 2026-07-11T16:37:26.176Z
-- Ended: (in progress)
+- Ended: 2026-07-11T16:41:25.970Z
 
 ## Summary
 
-(none recorded — session did not write back)
+next-command merge ceremony: merged to main (8e3d276, 5 conflicts hand-resolved), events unioned (12+6 appended), 572/572 green, sofar next live-fire OK, 0.6.1 release commit pushed (71cbfaf). Publish blocked on npm 2FA — user runs it interactively.
 
 ## Next action
 
-(none recorded)
+User: publish 0.6.1 with OTP; then upgrade global, close next-command initiative (binding removal; branch deletion — remote needs user naming).
