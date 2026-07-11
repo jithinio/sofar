@@ -77,6 +77,7 @@ describe('fold freshness (1.1)', () => {
     const state = foldOf(events)
     expect(state.freshness).toEqual({
       events_since_writeback: { files: 1, commands: 2, tasks: 1, notes: 1, decisions: 1 },
+      notes: [{ ts: events.find((e) => e.type === 'note_added')!.ts, text: 'n' }],
       last_writeback_ts: writeback.ts,
     })
     expect(freshnessTotal(state.freshness)).toBe(6)
@@ -88,6 +89,7 @@ describe('fold freshness (1.1)', () => {
     const state = foldOf([...events, second])
     expect(state.freshness).toEqual({
       events_since_writeback: { files: 0, commands: 0, tasks: 0, notes: 0, decisions: 0 },
+      notes: [],
       last_writeback_ts: second.ts,
     })
   })
@@ -105,6 +107,7 @@ describe('fold freshness (1.1)', () => {
   it('empty state carries zeroed freshness (shape is always present)', () => {
     expect(emptyState().freshness).toEqual({
       events_since_writeback: { files: 0, commands: 0, tasks: 0, notes: 0, decisions: 0 },
+      notes: [],
       last_writeback_ts: null,
     })
   })
@@ -341,6 +344,10 @@ describe('10k cap with every section at worst case (4.2)', () => {
     state.current = { active_phase: phases[3]!.name, next_action: 'z'.repeat(3_000), blocked_on: 'w'.repeat(2_000) }
     state.freshness = {
       events_since_writeback: { files: 99_999, commands: 99_999, tasks: 99_999, notes: 99_999, decisions: 99_999 },
+      notes: Array.from({ length: 200 }, (_, i) => ({
+        ts: '2026-07-11T00:00:00.000Z',
+        text: `note ${i} ${'n'.repeat(500)}`,
+      })),
       last_writeback_ts: '2026-07-11T00:00:00.000Z',
     }
 

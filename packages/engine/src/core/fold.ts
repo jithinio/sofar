@@ -7,6 +7,7 @@ import {
   type DecisionLoggedPayload,
   type FileTouchedPayload,
   type InitiativeCreatedPayload,
+  type NoteAddedPayload,
   type PhaseStatus,
   type PhaseStatusChangedPayload,
   type PlanUpdatedPayload,
@@ -84,12 +85,26 @@ export interface SessionState {
   activity?: SessionActivity
 }
 
+/** One un-absorbed note: appended after the last write-back (notes-in-digest 1.2). */
+export interface NoteEntry {
+  ts: string
+  text: string
+}
+
 /**
  * Fold-time freshness (staleness-detection 1.1): how much MECHANICAL record
  * activity landed after the last write-back (session_ended). Derived purely
  * from event order in the log — zero new event types, any source incl. cli.
  * The counts are the drift signal behind "next action may be stale": every
  * counted event postdates the next_action the last write-back recorded.
+ *
+ * `notes` (notes-in-digest 1.2) carries the CONTENT for the one drift kind
+ * that has prose: the counters say THAT the record moved, the notes say WHAT
+ * changed. Same selection window as the counters by construction — living in
+ * this struct means the session_ended reset clears both together, so signal
+ * and content can never disagree. When nothing ever wrote back the window is
+ * the whole log: every note is un-absorbed. Log order, uncapped here
+ * (notes are hand-written, low-frequency); render surfaces cap and clip.
  */
 export interface FreshnessState {
   /** Events appended after the last session_ended, by kind. */
@@ -105,6 +120,8 @@ export interface FreshnessState {
     /** decision_logged */
     decisions: number
   }
+  /** Notes in the window, {ts, text} in log order — notes.length === counts.notes. */
+  notes: NoteEntry[]
   /** ts of the last session_ended, or null when nothing ever wrote back. */
   last_writeback_ts: string | null
 }
@@ -153,6 +170,7 @@ export function emptyState(): InitiativeState {
 function emptyFreshness(): FreshnessState {
   return {
     events_since_writeback: { files: 0, commands: 0, tasks: 0, notes: 0, decisions: 0 },
+    notes: [],
     last_writeback_ts: null,
   }
 }
@@ -335,6 +353,10 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
       break
     case 'note_added':
       counts.notes += 1
+      state.freshness.notes.push({
+        ts: event.ts,
+        text: (event.payload as unknown as NoteAddedPayload).text,
+      })
       break
     case 'decision_logged':
       counts.decisions += 1
