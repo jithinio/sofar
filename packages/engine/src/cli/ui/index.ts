@@ -10,6 +10,7 @@ export { createStyle, type Style, type Format } from './style'
 export { symbolsFor, type Symbols } from './symbols'
 export {
   stripAnsi,
+  sanitizeProse,
   visibleWidth,
   padEndVisible,
   padStartVisible,

@@ -10,7 +10,7 @@ import {
 import { clipDetect, describeFreshness, pct, taskProgress } from '../../projections/templates/shared'
 import type { Style } from './style'
 import type { Symbols } from './symbols'
-import { stripAnsi, truncatePlain, visibleWidth } from './text'
+import { sanitizeProse, truncatePlain, visibleWidth } from './text'
 
 /**
  * Layout grammar (2.1) — ONE visual hierarchy over the initiative object
@@ -58,10 +58,10 @@ function fullZoom(state: InitiativeState, { style: s, symbols: sym }: LayoutOpti
   const [done, total] = taskProgress(state.phases)
   const phaseCount = state.phases.length
   lines.push(
-    `${s.bold(state.slug || '(unnamed initiative)')}  ${done}/${total} tasks (${pct(done, total)})` +
+    `${s.bold(oneLine(state.slug) || '(unnamed initiative)')}  ${done}/${total} tasks (${pct(done, total)})` +
       s.dim(` · ${phaseCount} phase${phaseCount === 1 ? '' : 's'}`),
   )
-  lines.push(s.muted(state.goal || '(none recorded)'))
+  lines.push(s.muted(oneLine(state.goal) || '(none recorded)'))
 
   const staleNames = new Set(staleActivePhases(state).map((p) => p.name))
   if (state.phases.length > 0) {
@@ -76,18 +76,18 @@ function fullZoom(state: InitiativeState, { style: s, symbols: sym }: LayoutOpti
   const next = state.current.next_action
   lines.push(
     next !== null
-      ? s.bold(`${sym.pointer} Next: ${next}`)
+      ? s.bold(`${sym.pointer} Next: ${oneLine(next)}`)
       : `${sym.pointer} Next: ${s.dim('(none recorded)')}`,
   )
   if (state.current.blocked_on !== undefined) {
-    lines.push(s.error(`${sym.fail} Blocked on: ${state.current.blocked_on}`))
+    lines.push(s.error(`${sym.fail} Blocked on: ${oneLine(state.current.blocked_on)}`))
   }
 
   const staleness = stalenessItems(state)
   if (staleness.length > 0) {
     lines.push('')
     lines.push(s.warn(`${sym.warn} Staleness`))
-    for (const item of staleness) lines.push(`  ${s.dim(`${sym.elbow} ${item}`)}`)
+    for (const item of staleness) lines.push(`  ${s.dim(`${sym.elbow} ${oneLine(item)}`)}`)
   }
 
   const notes = state.freshness.notes
@@ -95,7 +95,7 @@ function fullZoom(state: InitiativeState, { style: s, symbols: sym }: LayoutOpti
     lines.push('')
     const label = state.freshness.last_writeback_ts !== null ? 'Notes since write-back' : 'Notes'
     lines.push(`${s.bold(label)} ${s.dim(`(${notes.length})`)}`)
-    for (const n of notes) lines.push(`  ${s.dim(n.ts)} ${oneLine(n.text)}`)
+    for (const n of notes) lines.push(`  ${s.dim(oneLine(n.ts))} ${oneLine(n.text)}`)
   }
 
   const conflicts = openSessionFileConflicts(state)
@@ -104,20 +104,22 @@ function fullZoom(state: InitiativeState, { style: s, symbols: sym }: LayoutOpti
     lines.push(
       s.warn(`${sym.warn} Concurrent edits — files touched by multiple open sessions (${conflicts.length})`),
     )
-    for (const c of conflicts) lines.push(`  ${c.path} ${s.dim(`(sessions ${c.sessions.join(', ')})`)}`)
+    for (const c of conflicts)
+      lines.push(`  ${oneLine(c.path)} ${s.dim(`(sessions ${oneLine(c.sessions.join(', '))})`)}`)
   }
 
   const last = lastWithSummary(state.sessions)
   if (last !== undefined) {
     lines.push('')
-    lines.push(s.dim(`Last session (${last.tool}, ended ${last.ended ?? '?'})`))
-    lines.push(`  ${last.summary!}`)
+    lines.push(s.dim(oneLine(`Last session (${last.tool}, ended ${last.ended ?? '?'})`)))
+    // the summary block keeps its author's line breaks; escapes still degrade
+    lines.push(`  ${sanitizeProse(last.summary!)}`)
   }
 
   if (state.files_touched.length > 0) {
     lines.push('')
     lines.push(`${s.bold('Files touched')} ${s.dim(`(${state.files_touched.length})`)}`)
-    for (const file of state.files_touched) lines.push(`  ${s.dim(file)}`)
+    for (const file of state.files_touched) lines.push(`  ${s.dim(oneLine(file))}`)
   }
 
   return lines
@@ -131,9 +133,10 @@ function phaseLine(
   sym: Symbols,
 ): string {
   const [done, total] = taskProgress([phase])
+  const name = oneLine(phase.name) // stale-set lookup stays on the raw name
   if (staleNames.has(phase.name)) {
     // Stale (1.2 detector): all tasks done, phase not — carry the nudge.
-    return `${s.warn(sym.warn)} ${phase.name} ${s.dim(`${done}/${total}`)}${s.dim(' — all tasks done; mark phase done?')}`
+    return `${s.warn(sym.warn)} ${name} ${s.dim(`${done}/${total}`)}${s.dim(' — all tasks done; mark phase done?')}`
   }
   const glyph =
     phase.status === 'done'
@@ -143,20 +146,21 @@ function phaseLine(
         : phase.status === 'blocked'
           ? s.error(sym.fail)
           : s.dim(sym.circle)
-  return `${glyph} ${phase.name} ${s.dim(`${done}/${total}`)}`
+  return `${glyph} ${name} ${s.dim(`${done}/${total}`)}`
 }
 
 /** Checkbox triplet + red blocked box; done text recedes to dim. */
 function taskLine(task: TaskState, s: Style, sym: Symbols): string {
+  const label = oneLine(`${task.id} ${task.title}`)
   switch (task.status) {
     case 'done':
-      return `  ${s.success(sym.boxDone)} ${s.dim(`${task.id} ${task.title}`)}`
+      return `  ${s.success(sym.boxDone)} ${s.dim(label)}`
     case 'active':
-      return `  ${s.warn(sym.boxActive)} ${task.id} ${task.title}`
+      return `  ${s.warn(sym.boxActive)} ${label}`
     case 'blocked':
-      return `  ${s.error(`[${sym.fail}] ${task.id} ${task.title}`)}`
+      return `  ${s.error(`[${sym.fail}] ${label}`)}`
     case 'pending':
-      return `  ${s.dim(sym.boxPending)} ${task.id} ${task.title}`
+      return `  ${s.dim(sym.boxPending)} ${label}`
   }
 }
 
@@ -239,13 +243,19 @@ function fit(text: string, columns: number, glyph: string, ellipsis: string): st
 }
 
 /**
- * Collapse whitespace so one-line slots hold their shape (clip() semantics).
- * Record prose is free text: SGR escapes in it are stripped so a hostile or
- * accidental \x1b[ sequence degrades to plain characters instead of crashing
- * truncatePlain — corrupt record content is never fatal (repo law).
+ * Collapse whitespace so one-line slots hold their shape (clip() semantics)
+ * on SANITIZED record prose. Record prose is free text: the full ANSI
+ * grammar (SGR in any palette, OSC, cursor controls — not just our own
+ * `m`-final SGR) plus leftover control bytes is stripped, so a hostile or
+ * accidental escape sequence degrades to plain characters instead of
+ * restyling the terminal or crashing truncatePlain — corrupt record
+ * content is never fatal (repo law). BOTH zooms route every record-derived
+ * string through here (full zoom's summary block keeps its line breaks via
+ * sanitizeProse directly); the plain renderers never do — they are agent
+ * contract bytes and pass record content through untouched.
  */
 function oneLine(text: string): string {
-  return stripAnsi(text).replace(/\s+/g, ' ').trim()
+  return sanitizeProse(text).replace(/\s+/g, ' ').trim()
 }
 
 /** Newest session that wrote back (same walk as status.ts, unexported there). */
