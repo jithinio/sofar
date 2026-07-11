@@ -44,4 +44,4 @@ Progress: 17/17 tasks done (100%)
 - [x] 7.1 Document two-lever model + prompt-caching (Lever A) guidance
 - [x] 7.2 Cut 0.3.2: 5.2+6.2 trims, SERVER_VERSION single-sourced from package.json, README install refresh
 
-Next action: User runs: npm publish -w @alignlabs/sofar (0.3.2). Initiative done — no further build work.
+Next action: User reviews the five deliverables: staleness plan (build go/no-go), FORMAT.md ambiguity rulings, one-pager fact-check trio, sofar-bench naming + public-workload gate + R03 inclusion; then wrap-up commit/push of the accumulated record+doc changes.

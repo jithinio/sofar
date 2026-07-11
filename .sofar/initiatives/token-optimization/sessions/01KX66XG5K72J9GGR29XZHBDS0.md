@@ -6,12 +6,12 @@
 - Tool: claude-code
 - Model: claude-fable-5
 - Started: 2026-07-10T14:29:14.547Z
-- Ended: (in progress)
+- Ended: 2026-07-10T14:37:00.392Z
 
 ## Summary
 
-(none recorded — session did not write back)
+Built + ran the automated Phase-0 scoring: extracted the Jul 8 ceremony transcript + record-as-read, blind-graded R01 C-model with 2 independent graders (M1=0 M2=0 M3=1 M4=fail-strict/pass-lenient M5=Y+Y; M6 write-back ~82s, staleness=Y), ran directional A/C/C-abl arm probes. Results + caveats in product doc/sofar-phase0-run-R01-cmodel.md; note logged with the stale-next_action digest finding.
 
 ## Next action
 
-(none recorded)
+User: rule M4 strict-vs-lenient + M6 friction, enter R01 into the HTML scorecard; then arms A/B on the frozen SaaS snapshot. Build: 0.3.1 publish still pending; Phase 6 digest trims next.

@@ -9,3 +9,4 @@ dist/
 # user's private strategy vault (spine/roadmap/scorecard/vision) — lives
 # outside the engine repo by design; never committed (public repo + npm)
 /product doc/
+.gstack/
