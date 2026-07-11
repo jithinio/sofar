@@ -15,7 +15,7 @@ Progress: 4/12 tasks done (33%)
 
 ## Phase 2 — Styled surfaces [pending] — 0/5 done
 
-- [ ] 2.1 Layout grammar for the initiative object model: one visual hierarchy (initiative header → goal → phase tree → tasks → next action → warnings) rendered at two zoom levels — full block (status: one initiative) and portfolio block/row (list: many initiatives, each with own goal/phases/progress); shared components so both surfaces stay visually congruent; tests
+- [ ] 2.1 Layout grammar for the initiative object model: one visual hierarchy (initiative header → goal → phase tree → tasks → next action → warnings) rendered at two zoom levels — full block (status: one initiative) and portfolio block/row (list: many initiatives, each with own goal/phases/progress); shared components so both surfaces stay visually congruent; tests (active)
 - [ ] 2.2 sofar status styled renderer = full-zoom grammar applied to InitiativeState (TTY path; plain renderFullStatus stays the piped fallback): header, progress meter, phase tree checkboxes, next-action callout, staleness warning, notes
 - [ ] 2.3 sofar list styled renderer = portfolio-zoom grammar: per-initiative block (slug, bound branch, progress, active phase, next-action one-liner), aligned visible-width columns, current-branch marker; presentation only — what the surface lists is owned by the initiative-list initiative
 - [ ] 2.4 sofar doctor: Finding levels as ✓/⚠/✗ with section grouping, hints as dim └ lines; scan spinner during tree walk
