@@ -393,6 +393,7 @@ the stdout bytes equal the plain renderer):
 |---|---|---|
 | status | full-zoom layout grammar / renderFullStatus | fold warnings + resolution failures — always plain |
 | list | portfolio-zoom blocks / renderFullInitiativeList | derivation warnings — always plain |
+| next | styled action lines (bold slug, dim branch, warn stale suffix, pointer on current branch) / renderNextActions | derivation warnings — always plain |
 | doctor | ✓/⚠/✗ findings report / marker-column report | scan spinner (animate-gated) |
 | new, switch | ✓ confirmation + dim └ details | ✗ failure, styled under stderrCaps |
 | init | dim └ detail rails + ✓ result; scanner hint always plain (copy-paste material) | ✗ failure, styled under stderrCaps |
@@ -401,7 +402,7 @@ the stdout bytes equal the plain renderer):
 | upgrade | --check/--dry-run/result reports — plain text | network spinner (animate-gated) + npm's inherited output |
 | serve | (HTTP JSON only — no terminal report) | one-line banner, accent+dim; identical wording plain |
 
-Note: status and list NEVER style stderr — their warnings AND their
+Note: status, list, and next NEVER style stderr — their warnings AND their
 failure text (e.g. a resolution error) print plain under every caps
 combination. The ✗-styled failure register in the table is deliberately
 scoped to the confirmation commands (new, switch, init, uninit); do not
