@@ -1,4 +1,5 @@
 {
   "main": "harness-build",
-  "token-optimization": "token-optimization"
+  "token-optimization": "token-optimization",
+  "staleness-detection": "staleness-detection"
 }

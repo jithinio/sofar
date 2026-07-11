@@ -84,6 +84,37 @@ export interface SessionState {
   activity?: SessionActivity
 }
 
+/**
+ * Fold-time freshness (staleness-detection 1.1): how much MECHANICAL record
+ * activity landed after the last write-back (session_ended). Derived purely
+ * from event order in the log — zero new event types, any source incl. cli.
+ * The counts are the drift signal behind "next action may be stale": every
+ * counted event postdates the next_action the last write-back recorded.
+ */
+export interface FreshnessState {
+  /** Events appended after the last session_ended, by kind. */
+  events_since_writeback: {
+    /** file_touched */
+    files: number
+    /** command_run */
+    commands: number
+    /** task_status_changed */
+    tasks: number
+    /** note_added */
+    notes: number
+    /** decision_logged */
+    decisions: number
+  }
+  /** ts of the last session_ended, or null when nothing ever wrote back. */
+  last_writeback_ts: string | null
+}
+
+/** Total drift since the last write-back — the "N events" of the staleness line. */
+export function freshnessTotal(freshness: FreshnessState): number {
+  const c = freshness.events_since_writeback
+  return c.files + c.commands + c.tasks + c.notes + c.decisions
+}
+
 export interface InitiativeState {
   slug: string
   goal: string
@@ -96,6 +127,7 @@ export interface InitiativeState {
     next_action: string | null
     blocked_on?: string
   }
+  freshness: FreshnessState
   cursor: string | null
 }
 
@@ -113,7 +145,15 @@ export function emptyState(): InitiativeState {
     sessions: [],
     files_touched: [],
     current: { active_phase: null, next_action: null },
+    freshness: emptyFreshness(),
     cursor: null,
+  }
+}
+
+function emptyFreshness(): FreshnessState {
+  return {
+    events_since_writeback: { files: 0, commands: 0, tasks: 0, notes: 0, decisions: 0 },
+    last_writeback_ts: null,
   }
 }
 
@@ -188,6 +228,7 @@ export function foldLines(lines: readonly string[]): FoldResult {
 
     applyEvent(state, event, blockNotes, warnings, lineNo)
     recordActivity(activity, event)
+    recordFreshness(state, event)
   }
 
   attachActivity(state, activity)
@@ -266,6 +307,42 @@ function attachActivity(state: InitiativeState, acc: Map<string, ActivityAcc>): 
 }
 
 // ---------------------------------------------------------------------------
+// Fold-time freshness (staleness-detection 1.1).
+// ---------------------------------------------------------------------------
+
+/**
+ * Count mechanical drift after the last write-back. Runs on payload-valid,
+ * unvoided events only (same guard as applyEvent/recordActivity), on ANY
+ * session/source including "cli" — a cli-appended task change stales the
+ * next_action exactly as an agent edit does. session_ended is the ONLY
+ * reset: it is the write-back that mints a new next_action; a mechanical
+ * session_closed carries no summary and resets nothing.
+ */
+function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
+  const counts = state.freshness.events_since_writeback
+  switch (event.type) {
+    case 'session_ended':
+      state.freshness = { ...emptyFreshness(), last_writeback_ts: event.ts }
+      break
+    case 'file_touched':
+      counts.files += 1
+      break
+    case 'command_run':
+      counts.commands += 1
+      break
+    case 'task_status_changed':
+      counts.tasks += 1
+      break
+    case 'note_added':
+      counts.notes += 1
+      break
+    case 'decision_logged':
+      counts.decisions += 1
+      break
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Cross-session derivations (Phase 11, D-P11) — read-only over folded state.
 // ---------------------------------------------------------------------------
 
@@ -274,6 +351,34 @@ export interface FileConflict {
   path: string
   /** The open sessions (started, no write-back) that touched it. */
   sessions: string[]
+}
+
+/** A phase whose tasks are all done but that was never marked done (D-P11). */
+export interface StalePhase {
+  name: string
+  /** The lagging status the phase is stuck on — never 'done'. */
+  status: PhaseStatus
+  /** How many tasks are done (== the phase's task total). */
+  tasks_done: number
+}
+
+/**
+ * Stale-active-phase detection (staleness-detection 1.2): every task in the
+ * phase is done but the phase itself was never marked done — the missing
+ * phase_status_changed keeps it presenting as live work. Extracted from
+ * doctor's inline D-P11 check so ONE detector feeds both surfaces (doctor
+ * WARN + status renders). Empty phases are never stale (nothing was
+ * completed); order follows the plan's phase order — deterministic.
+ */
+export function staleActivePhases(state: InitiativeState): StalePhase[] {
+  const stale: StalePhase[] = []
+  for (const phase of state.phases) {
+    if (phase.status === 'done' || phase.tasks.length === 0) continue
+    if (phase.tasks.every((t) => t.status === 'done')) {
+      stale.push({ name: phase.name, status: phase.status, tasks_done: phase.tasks.length })
+    }
+  }
+  return stale
 }
 
 /**

@@ -1,5 +1,19 @@
-import { openSessionFileConflicts, type InitiativeState, type SessionState } from '../../core/fold'
-import { clip, describeActivity, pct, taskProgress } from './shared'
+import {
+  freshnessTotal,
+  openSessionFileConflicts,
+  staleActivePhases,
+  type InitiativeState,
+  type SessionState,
+} from '../../core/fold'
+import {
+  clip,
+  clipBlockDetect,
+  clipDetect,
+  describeActivity,
+  describeFreshness,
+  pct,
+  taskProgress,
+} from './shared'
 
 /**
  * Status projection — the SessionStart context block (task 3.6, BD3):
@@ -45,24 +59,17 @@ const REJECTED_LEDGER_BUDGET = 2_800
 // sessions share files, so it costs nothing in the common single-session case.
 const CONFLICT_LINE_BUDGET = 200
 const MAX_CONFLICT_LINES = 8
+// Staleness line (staleness-detection 2.1) — rendered only when mechanical
+// events postdate the last write-back, so a fresh record pays nothing.
+// Counts are numeric and the breakdown has ≤5 fixed kinds; the budget is
+// belt-and-braces, not an expected cut.
+const STALENESS_LINE_BUDGET = 200
 
 /** Hard cap: anything over the limit is cut to fit, marker included. */
 export function enforceStatusLimit(text: string): string {
   if (text.length <= STATUS_CHAR_LIMIT) return text
   const marker = `\n${STATUS_TRUNCATION_MARKER}\n`
   return text.slice(0, STATUS_CHAR_LIMIT - marker.length) + marker
-}
-
-/**
- * Multi-line budget clip for hand-written blocks: unlike clip() it preserves
- * line structure (repo.md is prose the author formatted); the truncation
- * marker lands INSIDE the budget so the section total never exceeds it.
- */
-function clipBlock(text: string, budget: number, marker: string): string {
-  const trimmed = text.trim()
-  if (trimmed.length <= budget) return trimmed
-  const suffix = `\n${marker}`
-  return `${trimmed.slice(0, Math.max(0, budget - suffix.length)).trimEnd()}${suffix}`
 }
 
 function lastWithSummary(sessions: readonly SessionState[]): SessionState | undefined {
@@ -113,11 +120,14 @@ export function renderFullStatus(state: InitiativeState): string {
   lines.push(`Progress: ${done}/${total} tasks done (${pct(done, total)}) across ${state.phases.length} phase(s)`)
   lines.push('')
 
+  const stalePhases = staleActivePhases(state)
+  const staleNames = new Set(stalePhases.map((p) => p.name))
+
   if (state.phases.length > 0) {
     lines.push('Phases:')
     for (const phase of state.phases) {
       const [phaseDone, phaseTotal] = taskProgress([phase])
-      lines.push(`- ${phase.name} [${phase.status}] ${phaseDone}/${phaseTotal}`)
+      lines.push(`- ${phase.name} ${phaseMark(phase, staleNames)} ${phaseDone}/${phaseTotal}`)
       for (const task of phase.tasks) {
         lines.push(`  - ${TASK_MARKS[task.status] ?? '[ ]'} ${task.id} ${task.title}`)
       }
@@ -130,6 +140,36 @@ export function renderFullStatus(state: InitiativeState): string {
     lines.push(`Blocked on: ${state.current.blocked_on}`)
   }
 
+  const last = lastWithSummary(state.sessions)
+
+  // Staleness section (staleness-detection 2.3) — the terminal surface gets
+  // the full mechanical picture, uncapped: drift breakdown since the last
+  // write-back, every stale phase, and a pointer when the capped surfaces
+  // (SessionStart block / get_state digest) clip the last summary. Rendered
+  // only when at least one signal fires.
+  const drift = freshnessTotal(state.freshness)
+  const staleness: string[] = []
+  if (drift > 0 && state.freshness.last_writeback_ts !== null) {
+    staleness.push(
+      `- next action may be stale: ${drift} event${drift === 1 ? '' : 's'} since the last write-back (${state.freshness.last_writeback_ts}) — ${describeFreshness(state.freshness.events_since_writeback)}`,
+    )
+  }
+  for (const sp of stalePhases) {
+    staleness.push(
+      `- phase "${sp.name}": all ${sp.tasks_done} tasks done but still ${sp.status} — emit phase_status_changed to mark it done`,
+    )
+  }
+  if (last?.summary !== undefined && clipDetect(last.summary, SESSION_SUMMARY_BUDGET).clipped) {
+    staleness.push(
+      `- last write-back summary exceeds the SessionStart budget (${SESSION_SUMMARY_BUDGET} chars) and is clipped there — full text in sessions/${last.id}.md`,
+    )
+  }
+  if (staleness.length > 0) {
+    lines.push('')
+    lines.push('⚠ Staleness:')
+    lines.push(...staleness)
+  }
+
   const conflicts = openSessionFileConflicts(state)
   if (conflicts.length > 0) {
     lines.push('')
@@ -137,7 +177,6 @@ export function renderFullStatus(state: InitiativeState): string {
     for (const c of conflicts) lines.push(`- ${c.path} (sessions ${c.sessions.join(', ')})`)
   }
 
-  const last = lastWithSummary(state.sessions)
   if (last !== undefined) {
     lines.push('')
     lines.push(`Last session (${last.tool}, ended ${last.ended ?? '?'}):`)
@@ -159,6 +198,18 @@ const TASK_MARKS: Record<string, string> = {
   active: '[~]',
   blocked: '[!]',
   pending: '[ ]',
+}
+
+/**
+ * Phase-line status bracket, staleness-aware (staleness-detection 2.2): a
+ * stale phase (1.2 detector — all tasks done, phase not done) carries the
+ * nudge inside its bracket. Constant-bounded suffix, so phase lines stay
+ * budget-safe wherever names are clipped.
+ */
+function phaseMark(phase: { name: string; status: string }, staleNames: ReadonlySet<string>): string {
+  return staleNames.has(phase.name)
+    ? `[${phase.status} — all tasks done; mark phase done?]`
+    : `[${phase.status}]`
 }
 
 export interface StatusOptions {
@@ -216,6 +267,21 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   if (state.current.next_action !== null) {
     lines.push(`Next action: ${clip(state.current.next_action, NEXT_ACTION_BUDGET)}`)
   }
+
+  // Staleness heads-up (staleness-detection 2.1): mechanical events landed
+  // AFTER the write-back that minted the next_action — the resuming agent
+  // should distrust it in proportion. Rendered only when drift exists and
+  // something ever wrote back (no write-back → no next_action to stale).
+  const drift = freshnessTotal(state.freshness)
+  if (drift > 0 && state.freshness.last_writeback_ts !== null) {
+    lines.push(
+      clip(
+        `⚠ next action may be stale: ${drift} event${drift === 1 ? '' : 's'} since write-back (${describeFreshness(state.freshness.events_since_writeback)})`,
+        STALENESS_LINE_BUDGET,
+      ),
+    )
+  }
+
   if (state.current.blocked_on !== undefined) {
     lines.push(`Blocked on: ${clip(state.current.blocked_on, BLOCKED_BUDGET)}`)
   }
@@ -239,7 +305,7 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   const repoMemory = options?.repoMemory?.trim() ?? ''
   if (repoMemory.length > 0) {
     lines.push('Repo memory (.sofar/repo.md):')
-    lines.push(clipBlock(repoMemory, REPO_MEMORY_CHAR_BUDGET, REPO_MEMORY_TRUNCATION_MARKER))
+    lines.push(clipBlockDetect(repoMemory, REPO_MEMORY_CHAR_BUDGET, REPO_MEMORY_TRUNCATION_MARKER).text)
     lines.push('')
   }
 
@@ -252,10 +318,13 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   if (state.phases.length > 0) {
     const open = state.phases.filter((p) => p.status !== 'done')
     const donePhases = state.phases.filter((p) => p.status === 'done')
+    // Stale-phase marker (staleness-detection 2.2): stale phases are never
+    // 'done', so every one of them lives in the itemized open list.
+    const staleNames = new Set(staleActivePhases(state).map((p) => p.name))
     lines.push('Phases:')
     for (const phase of open.slice(0, MAX_PHASE_LINES)) {
       const [phaseDone, phaseTotal] = taskProgress([phase])
-      lines.push(`- ${clip(phase.name, PHASE_LINE_BUDGET)} [${phase.status}] ${phaseDone}/${phaseTotal}`)
+      lines.push(`- ${clip(phase.name, PHASE_LINE_BUDGET)} ${phaseMark(phase, staleNames)} ${phaseDone}/${phaseTotal}`)
     }
     if (open.length > MAX_PHASE_LINES) {
       lines.push(`- …and ${open.length - MAX_PHASE_LINES} more phases (see plan.md)`)
@@ -268,11 +337,20 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
     lines.push('')
   }
 
-  // Last written-back session.
+  // Last written-back session. When the budget cuts the summary (1.3
+  // detection), the pointer to the full text rides INSIDE the budget
+  // (staleness-detection 2.4) — the reader learns the render is partial and
+  // where the rest lives, at no extra cap cost.
   const last = lastWithSummary(state.sessions)
   if (last !== undefined) {
     lines.push(`Last session (${last.tool}, ended ${last.ended ?? '?'}):`)
-    lines.push(`  ${clip(last.summary!, SESSION_SUMMARY_BUDGET)}`)
+    const summary = clipDetect(last.summary!, SESSION_SUMMARY_BUDGET)
+    if (summary.clipped) {
+      const pointer = ` (clipped — full text in sessions/${clip(last.id, SESSION_ID_BUDGET)}.md)`
+      lines.push(`  ${clip(last.summary!, Math.max(0, SESSION_SUMMARY_BUDGET - pointer.length))}${pointer}`)
+    } else {
+      lines.push(`  ${summary.text}`)
+    }
     lines.push('')
   }
 

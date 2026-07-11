@@ -1,4 +1,4 @@
-import type { SessionActivity } from '../../core/fold'
+import type { FreshnessState, SessionActivity } from '../../core/fold'
 
 /**
  * Shared template pieces. Projections are generated files — the header
@@ -31,9 +31,44 @@ export function describeActivity(activity: SessionActivity): string {
   return parts.length > 0 ? parts.join(', ') : '(no mechanical events)'
 }
 
+/**
+ * One-line breakdown of the freshness counters (staleness-detection 2.1):
+ * "3 files, 2 commands, 1 task change" — zero-count kinds are omitted.
+ * Shared by renderStatus (budgeted line) and renderFullStatus (uncapped
+ * staleness section) so both surfaces state the same drift.
+ */
+export function describeFreshness(counts: FreshnessState['events_since_writeback']): string {
+  const n = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`
+  const parts: string[] = []
+  if (counts.files > 0) parts.push(n(counts.files, 'file'))
+  if (counts.commands > 0) parts.push(n(counts.commands, 'command'))
+  if (counts.tasks > 0) parts.push(n(counts.tasks, 'task change'))
+  if (counts.notes > 0) parts.push(n(counts.notes, 'note'))
+  if (counts.decisions > 0) parts.push(n(counts.decisions, 'decision'))
+  return parts.join(', ')
+}
+
 /** Join non-empty template sections into a document with a trailing newline. */
 export function doc(lines: readonly string[]): string {
   return lines.join('\n').replace(/\n+$/, '') + '\n'
+}
+
+/**
+ * Truncation-aware clip result (staleness-detection 1.3): budgeted sections
+ * that want to KNOW they were cut — the mechanical clipped-summary signal —
+ * use the *Detect variants; `clipped` is true only when the budget forced a
+ * cut. Detection lives at the render seam because budgets do.
+ */
+export interface ClipResult {
+  text: string
+  clipped: boolean
+}
+
+/** clip(), reporting whether it cut. */
+export function clipDetect(text: string, max: number): ClipResult {
+  const oneLine = text.replace(/\s+/g, ' ').trim()
+  if (oneLine.length <= max) return { text: oneLine, clipped: false }
+  return { text: `${oneLine.slice(0, Math.max(0, max - 1))}…`, clipped: true }
 }
 
 /**
@@ -41,9 +76,23 @@ export function doc(lines: readonly string[]): string {
  * the status projection — BD24). The ellipsis is inside the budget.
  */
 export function clip(text: string, max: number): string {
-  const oneLine = text.replace(/\s+/g, ' ').trim()
-  if (oneLine.length <= max) return oneLine
-  return `${oneLine.slice(0, Math.max(0, max - 1))}…`
+  return clipDetect(text, max).text
+}
+
+/**
+ * Multi-line budget clip for hand-written blocks, reporting whether it cut:
+ * unlike clip() it preserves line structure (e.g. repo.md is prose the
+ * author formatted); the truncation marker lands INSIDE the budget so the
+ * section total never exceeds it.
+ */
+export function clipBlockDetect(text: string, budget: number, marker: string): ClipResult {
+  const trimmed = text.trim()
+  if (trimmed.length <= budget) return { text: trimmed, clipped: false }
+  const suffix = `\n${marker}`
+  return {
+    text: `${trimmed.slice(0, Math.max(0, budget - suffix.length)).trimEnd()}${suffix}`,
+    clipped: true,
+  }
 }
 
 /** Task-level progress across phases: [done, total]. */
