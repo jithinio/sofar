@@ -21,6 +21,11 @@ Or one-off: `npx @alignlabs/sofar <command>`. Requires Node ≥ 18. The
 package installs with zero runtime dependencies — `dist/cli.js` is fully
 bundled.
 
+Update an existing install with `sofar upgrade` (`--check` to preview,
+`--dry-run` to print the exact command). It resolves the real install prefix
+from the running binary, so it updates the copy actually on your `PATH` —
+even a custom prefix that a plain `npm install -g` would miss.
+
 From a checkout instead:
 
 ```
@@ -111,6 +116,7 @@ sofar import <file|-> [slug]   append missing events, dedupe by id
 sofar event append ...         validated single-event append (the dialect surface)
 sofar serve [--port]           localhost JSON state + SSE on change (127.0.0.1 only)
 sofar mcp [--root]             stdio MCP server
+sofar upgrade [version]        self-update the global install (--check, --dry-run)
 ```
 
 ## Contracts
