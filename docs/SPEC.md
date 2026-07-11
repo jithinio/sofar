@@ -248,6 +248,17 @@ Shims contain no logic — they invoke the sofar CLI.
   stays one line; derivation warnings to stderr without failing — an
   uninitialized repo prints the empty listing with a `sofar new` hint
   (initiative-list 2.1).
+- `sofar next` — the portfolio next-actions surface: one line per
+  initiative (slug, bound branch(es) or "unbound", the next action the
+  last write-back recorded or "(no next action recorded)"), most recently
+  active first per §State's listInitiatives; an initiative whose record
+  moved since its last write-back (drift_events > 0, the staleness-
+  detection freshness signal) carries a `⚠ may be stale (N events since
+  write-back)` suffix — an initiative that never wrote back carries none;
+  UNCAPPED entry count (terminal surface), lines whitespace-collapsed so
+  each initiative stays one line; derivation warnings to stderr without
+  failing — an uninitialized repo prints the empty listing with a
+  `sofar new` hint (next-command 1.1).
 - `sofar export [slug] [--since <id>]` / `sofar import <file|-> [slug]`
   — per-initiative NDJSON over the §Cursor primitive; slug resolves like
   status (explicit wins, else branch binding) (extended Phase 4, BD28)
@@ -340,3 +351,14 @@ Shims contain no logic — they invoke the sofar CLI.
   the available-initiatives suffix (≤10 named) or the `sofar new` hint on
   an initiative-less repo; the derivation is deterministic (same records
   → deep-equal listing, same warnings).
+- **Next actions (next-command):** on a repo with several initiatives,
+  `sofar next` renders one line per initiative — slug, branch(es) or
+  "unbound", next action or "(no next action recorded)" — in the same
+  recency order as `sofar list`, warnings on stderr, exit 0; an
+  initiative with counted mechanical events after its last session_ended
+  renders the `⚠ may be stale (N events since write-back)` suffix, one
+  whose last event is the write-back renders no suffix, and one that
+  never wrote back renders no suffix; drift_events is additive on
+  InitiativeListEntry (same records → deep-equal listing, listing
+  renders byte-identical); an uninitialized repo prints the empty
+  listing with the `sofar new` hint.
