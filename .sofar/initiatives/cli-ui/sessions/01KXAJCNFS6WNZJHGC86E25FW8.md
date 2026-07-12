@@ -6,15 +6,15 @@
 - Tool: claude-code
 - Model: claude-fable-5
 - Started: 2026-07-12T07:06:43.578Z
-- Ended: (in progress)
+- Ended: 2026-07-12T07:18:14.293Z
 
 ## Summary
 
-(none recorded — no write-back yet; derived resume point below)
+Phase 4 polish built inline: 4.1 wrapPlain hanging indent + two-part next entries with blank separators, 4.2 pie progress ○◔◑◕● on status/list/next headers (checkbox color ramp), 4.3 status --watch (chokidar redraw + 600ms active-task pulse, row-accurate rewind, piped fallback). 590/590 tests, SPEC updated, live-fired. Release 0.6.3 committed+pushed (9431a27); publish awaits user OTP.
 
 ## Next action
 
-(none recorded)
+User: npm publish -w @alignlabs/sofar (OTP), then sofar upgrade — try sofar next (balanced layout) and sofar status --watch (live pulse).
 
 ## Activity (derived from mechanical events)
 

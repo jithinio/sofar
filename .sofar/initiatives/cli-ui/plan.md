@@ -35,4 +35,4 @@ Progress: 16/16 tasks done (100%)
 - [x] 4.3 sofar status --watch: TTY-gated live re-render (chokidar on the initiative log + pulse timer), active-task marker breathes warn↔dim, cursor-safe redraw, one-shot fallback when piped
 
 Active phase: Phase 4 — Polish round (user feedback on 0.6.2)
-Next action: None — initiative complete, shipped (0.6.0-0.6.2) and closed.
+Next action: User: npm publish -w @alignlabs/sofar (OTP), then sofar upgrade — try sofar next (balanced layout) and sofar status --watch (live pulse).
