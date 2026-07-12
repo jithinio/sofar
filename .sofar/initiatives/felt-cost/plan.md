@@ -34,4 +34,4 @@ Progress: 11/12 tasks done (91%)
 - [ ] 5.3 Release 0.8.1 + rollout (publish, upgrade) (active)
 
 Active phase: Phase 5 — Polish round (user feedback on 0.8.0)
-Next action: User: npm publish -w @alignlabs/sofar (OTP), then sofar upgrade. Statusline restarts with the session. Other repos: one-time `sofar init` re-run each to get the UserPromptSubmit shim (doctor flags which); statusLine can go in ~/.claude/settings.json once globally instead of per-repo.
+Next action: User: npm publish -w @alignlabs/sofar (OTP), then sofar upgrade; restart session for the statusline. Other repos: one-time sofar init re-run each (doctor flags them); statusLine can live once in ~/.claude/settings.json.
