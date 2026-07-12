@@ -4,7 +4,7 @@
 
 Goal: Make harness cost felt at the moment it is incurred — cold-resume advisory, statusline rent-meter with cache-read health bands, batch-complete end-session nudge (behind SPEC) — and pin the injection's byte-stability against regression. Governed by the zero-model-API-calls invariant: no play may add a model call, API key, or inference cost to sofar.
 
-Progress: 11/12 tasks done (91%)
+Progress: 12/12 tasks done (100%)
 
 ## Phase 1 — Invariants & pinning [done] — 2/2 done
 
@@ -27,11 +27,10 @@ Progress: 11/12 tasks done (91%)
 - [x] 4.1 SPEC decision: UserPromptSubmit shim + additionalContext contract
 - [x] 4.2 Implement nudge behind the SPEC + tests
 
-## Phase 5 — Polish round (user feedback on 0.8.0) [active] — 2/3 done
+## Phase 5 — Polish round (user feedback on 0.8.0) [done] — 3/3 done
 
 - [x] 5.1 Statusline harness-identity segments: restore model · dir:branch (custom statusLine replaces Claude Code's default)
-- [x] 5.2 Styled statusline (D7): forced caps for the ANSI status bar — bold model, 📁/🌿 icons, banded colors; --no-color plain fallback
-- [ ] 5.3 Release 0.8.1 + rollout (publish, upgrade) (active)
+- [x] 5.2 Styled statusline: forced caps (D7), glyphs not emoji (D8), task-progress pie (D9), text cache label (D10); --no-color plain fallback
+- [x] 5.3 Release 0.8.1 + rollout (publish, upgrade)
 
-Active phase: Phase 5 — Polish round (user feedback on 0.8.0)
-Next action: User: npm publish -w @alignlabs/sofar (OTP), then sofar upgrade + session restart. Other repos: one-time sofar init re-run (doctor flags them); statusLine can live once in ~/.claude/settings.json.
+Next action: None — initiative complete. Other repos: one-time `sofar init` re-run each for the UserPromptSubmit shim (doctor flags them); statusLine can live once in ~/.claude/settings.json. Next engine work starts a new initiative (sofar new).
