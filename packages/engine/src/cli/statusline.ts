@@ -10,12 +10,13 @@ import { createStyle, pieFor, symbolsFor, type Caps } from './ui'
  * D7/D8) — the rent-meter. Wired as Claude Code's statusLine command, it
  * reads the statusline JSON from stdin and prints ONE line:
  *
- *   <model> · ▸ <dir> ⎇ <branch> · <slug> <done>/<total>
- *     · $<session cost> · ↺ <warm%>[⚠|✓] · <pie> <used%>
+ *   <model> · ▸ <dir> ⎇ <branch> · <pie> <slug> <done>/<total>
+ *     · $<session cost> · cache <warm%>[⚠|✓] · <pie> <used%>
  *
  * Icons are text glyphs in the house vocabulary (cli-ui 1.3), never emoji
- * (D8): ▸ dir, ⎇ branch, ↺ cache rewarm, and the kernel's progress pie
- * (○◔◑◕●) as the context-fill gauge.
+ * (D8): ▸ dir, ⎇ branch, and the kernel's progress pie (○◔◑◕●) as both
+ * gauges — task progress (D9) and context fill. The cache segment keeps
+ * its text label in every mode (D10).
  *
  * The model and dir/branch segments restore what Claude Code's own default
  * status line shows — a custom statusLine command REPLACES the default
@@ -238,7 +239,9 @@ export function runStatusline(rootDir: string, input: string, caps: Caps = PLAIN
 
   const rent = rentSegment(hook)
   if (rent !== null) {
-    const text = `${icons ? '↺' : 'cache'} ${rent.pct}%${rent.marker === null ? '' : ` ${rent.marker}`}`
+    // Text label in every mode (D10) — the word carries the meaning better
+    // than any rewarm glyph; the ✓/⚠ band marks stay.
+    const text = `cache ${rent.pct}%${rent.marker === null ? '' : ` ${rent.marker}`}`
     segments.push(rent.tone === null ? text : style[rent.tone](text))
   }
 
