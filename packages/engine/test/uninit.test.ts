@@ -12,7 +12,13 @@ import {
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { hookCommand, PROTOCOL_START, PROTOCOL_END, runInit } from '../src/cli/init'
+import {
+  hookCommand,
+  PROTOCOL_START,
+  PROTOCOL_END,
+  runInit,
+  STATUSLINE_SETTINGS_ENTRY,
+} from '../src/cli/init'
 import { runUninit } from '../src/cli/uninit'
 
 /**
@@ -123,6 +129,54 @@ describe('sofar uninit on an inited fresh repo', () => {
     expect(existsSync(join(root, '.mcp.json'))).toBe(false)
     expect(existsSync(join(root, 'CLAUDE.md'))).toBe(false)
     expect(existsSync(join(root, 'AGENTS.md'))).toBe(false)
+    expect([...hashTree(root).keys()]).toEqual(['.git/HEAD'])
+  })
+})
+
+describe('sofar uninit statusLine symmetry (init-statusline D1)', () => {
+  it('removes the statusLine that init --statusline installed, with the hooks', () => {
+    const root = freshRepo()
+    expect(runInit(root, { statusline: true }).exitCode).toBe(0)
+
+    const result = runUninit(root)
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain(
+      'updated .claude/settings.json (sofar hook entries + statusLine removed)',
+    )
+    expect(readJSON(join(root, '.claude', 'settings.json'))).toEqual({})
+  })
+
+  it('keeps a customized statusLine — user config, not ours', () => {
+    const root = freshRepo()
+    mkdirSync(join(root, '.claude'), { recursive: true })
+    const custom = { type: 'command', command: 'my-own-statusline.sh' }
+    writeFileSync(join(root, '.claude', 'settings.json'), stableJSON({ statusLine: custom }))
+    expect(runInit(root, { statusline: true }).exitCode).toBe(0) // theirs wins, untouched
+
+    expect(runUninit(root).exitCode).toBe(0)
+    const settings = readJSON(join(root, '.claude', 'settings.json'))
+    expect(settings.statusLine).toEqual(custom)
+    expect(settings.hooks).toBeUndefined() // our hook entries still stripped
+  })
+
+  it('removes a hand-wired entry that matches ours exactly, even sans hooks', () => {
+    const root = freshRepo()
+    mkdirSync(join(root, '.claude'), { recursive: true })
+    writeFileSync(
+      join(root, '.claude', 'settings.json'),
+      stableJSON({ statusLine: { ...STATUSLINE_SETTINGS_ENTRY } }),
+    )
+
+    const result = runUninit(root)
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('updated .claude/settings.json (sofar statusLine removed)')
+    expect(readJSON(join(root, '.claude', 'settings.json'))).toEqual({})
+  })
+
+  it('init --statusline → uninit --purge round-trips a fresh repo byte-clean', () => {
+    const root = freshRepo()
+    expect(runInit(root, { statusline: true }).exitCode).toBe(0)
+    expect(runUninit(root, { purge: true }).exitCode).toBe(0)
     expect([...hashTree(root).keys()]).toEqual(['.git/HEAD'])
   })
 })

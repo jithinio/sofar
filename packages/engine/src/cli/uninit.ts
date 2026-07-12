@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { join } from 'node:path'
-import { GITATTRIBUTES_LINE, PROTOCOL_END, PROTOCOL_START, SHIMS } from './init'
+import { GITATTRIBUTES_LINE, isSofarStatusline, PROTOCOL_END, PROTOCOL_START, SHIMS } from './init'
 import { fail, ok, type CmdResult } from './shared'
 import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui'
 
@@ -17,11 +17,14 @@ import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui
  * of `sofar init`, surgical: remove ONLY what init installed and preserve
  * every byte of user content around it.
  *
- *   - the four hook shims in .claude/hooks/ (other files there are sacred;
+ *   - the five hook shims in .claude/hooks/ (other files there are sacred;
  *     directories go only when THIS run emptied them)
- *   - settings.json hook entries whose command points at one of our four
+ *   - settings.json hook entries whose command points at one of our five
  *     shims (matched on the shim path substring); emptied matcher groups,
  *     event arrays, and the hooks key itself are pruned
+ *   - the settings.json statusLine entry, ONLY when it is exactly the one
+ *     `init --statusline` installs — a customized statusLine is user
+ *     config, kept (init-statusline D1)
  *   - .mcp.json's mcpServers.sofar (other servers/keys untouched)
  *   - the marker-delimited protocol blocks in CLAUDE.md / AGENTS.md, plus
  *     exactly one adjacent blank-line seam so pre-init spacing is restored
@@ -72,7 +75,7 @@ function stableJSON(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`
 }
 
-/** A settings command is ours iff it points at one of the four shim paths. */
+/** A settings command is ours iff it points at one of the five shim paths. */
 const SHIM_PATH_SUBSTRINGS = SHIMS.map((shim) => `.claude/hooks/${shim.file}`)
 
 function isShimCommand(hook: unknown): boolean {
@@ -103,36 +106,50 @@ function stripSettings(rootDir: string, purge: boolean, report: string[]): boole
   const path = join(rootDir, '.claude', 'settings.json')
   if (!existsSync(path)) return false
   const settings = readJSONObject(path, '.claude/settings.json')
-  if (!isObj(settings.hooks)) return false // no hooks object → nothing of ours
 
-  const hooks = settings.hooks
-  let changed = false
-  // Scan EVERY event key, not just our four — a user may have moved an entry.
-  for (const eventName of Object.keys(hooks)) {
-    const entries = hooks[eventName]
-    if (!Array.isArray(entries)) continue
-    const kept = entries.filter((entry) => {
-      if (!isObj(entry) || !Array.isArray(entry.hooks)) return true // foreign shape — keep
-      const remaining = entry.hooks.filter((h) => !isShimCommand(h))
-      if (remaining.length === entry.hooks.length) return true // untouched
-      changed = true
-      if (remaining.length === 0) return false // emptied matcher group → drop
-      entry.hooks = remaining
-      return true
-    })
-    if (kept.length === 0) delete hooks[eventName] // emptied event array → drop key
-    else hooks[eventName] = kept
+  const removedParts: string[] = []
+
+  if (isObj(settings.hooks)) {
+    const hooks = settings.hooks
+    let changed = false
+    // Scan EVERY event key, not just our five — a user may have moved an entry.
+    for (const eventName of Object.keys(hooks)) {
+      const entries = hooks[eventName]
+      if (!Array.isArray(entries)) continue
+      const kept = entries.filter((entry) => {
+        if (!isObj(entry) || !Array.isArray(entry.hooks)) return true // foreign shape — keep
+        const remaining = entry.hooks.filter((h) => !isShimCommand(h))
+        if (remaining.length === entry.hooks.length) return true // untouched
+        changed = true
+        if (remaining.length === 0) return false // emptied matcher group → drop
+        entry.hooks = remaining
+        return true
+      })
+      if (kept.length === 0) delete hooks[eventName] // emptied event array → drop key
+      else hooks[eventName] = kept
+    }
+    if (changed) {
+      if (Object.keys(hooks).length === 0) delete settings.hooks
+      removedParts.push('hook entries')
+    }
   }
-  if (!changed) return false
 
-  if (Object.keys(hooks).length === 0) delete settings.hooks
+  // statusLine: ours iff exactly what `init --statusline` installs — a
+  // customized entry is user config, kept (theirs-wins, mirrored from init).
+  if (isSofarStatusline(settings.statusLine)) {
+    delete settings.statusLine
+    removedParts.push('statusLine')
+  }
+
+  if (removedParts.length === 0) return false
+  const what = `sofar ${removedParts.join(' + ')} removed`
   if (purge && Object.keys(settings).length === 0) {
     unlinkSync(path)
-    report.push('removed .claude/settings.json (nothing left after sofar hook entries removed)')
+    report.push(`removed .claude/settings.json (nothing left after ${what})`)
     return true
   }
   writeFileSync(path, stableJSON(settings), 'utf8')
-  report.push('updated .claude/settings.json (sofar hook entries removed)')
+  report.push(`updated .claude/settings.json (${what})`)
   return false
 }
 
