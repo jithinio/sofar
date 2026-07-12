@@ -250,9 +250,18 @@ describe('acceptance 2 + packaging — the BUILT CLI: init idempotency and .sh t
     const again = cli(repoB, ['import', '-'], exported.stdout)
     expect(JSON.parse(again.stdout.trim())).toEqual({ appended: 0, skipped: 1 }) // idempotent
 
-    // A's initiative_created folds after B's — the replica now shows A's goal
+    // Convergent fold (D-sync-1, task 13.1): replay is id order, so B's
+    // LATER-minted initiative_created wins over A's imported one — file
+    // arrival order no longer decides.
     const replicaStatus = cli(repoB, ['status'])
     expect(replicaStatus.status).toBe(0)
-    expect(replicaStatus.stdout).toContain('Goal: smoke the bundle')
+    expect(replicaStatus.stdout).toContain('Goal: replica')
+
+    // …and the reverse import converges A onto the identical state: both
+    // repos now hold the same event set, so both fold B's later goal.
+    const exportedB = cli(repoB, ['export'])
+    expect(exportedB.status).toBe(0)
+    expect(cli(repoA, ['import', '-'], exportedB.stdout).status).toBe(0)
+    expect(cli(repoA, ['status']).stdout).toContain('Goal: replica')
   }, 60_000)
 })

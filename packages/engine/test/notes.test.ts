@@ -27,18 +27,20 @@ function foldOf(events: EventEnvelope[]): InitiativeState {
 }
 
 /** A write-back with a note on each side of it — the straddle storyline. */
+// Mint order matters: replay is id order (D-sync-1, task 13.1), so the
+// post-write-back notes must be MINTED after the session_ended too.
 function straddleStoryline(): { events: EventEnvelope[]; post: EventEnvelope[] } {
-  const post = [
-    ev('note_added', { text: 'correction one' }, { session: 'cli', source: 'cli', actor: 'human' }),
-    ev('note_added', { text: 'correction two' }),
-  ]
   const events = [
     ev('initiative_created', { slug: 'demo', goal: 'g' }),
     ev('session_started', { tool: 'claude-code' }),
     ev('note_added', { text: 'absorbed by the write-back' }),
     ev('session_ended', { summary: 'built the thing', next_action: 'ship the thing' }),
-    ...post,
   ]
+  const post = [
+    ev('note_added', { text: 'correction one' }, { session: 'cli', source: 'cli', actor: 'human' }),
+    ev('note_added', { text: 'correction two' }),
+  ]
+  events.push(...post)
   return { events, post }
 }
 

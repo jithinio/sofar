@@ -146,8 +146,9 @@ describe('foldLines', () => {
   })
 
   it('skips unknown event types with a warning but advances the cursor', () => {
+    const events = storyline() // mint before `future` — replay is id order (13.1)
     const future = ev('hologram_rendered', { pixels: 12 })
-    const { state, warnings } = foldLines(lines([...storyline(), future]))
+    const { state, warnings } = foldLines(lines([...events, future]))
     expect(warnings).toHaveLength(1)
     expect(warnings[0]).toMatch(/unknown event type "hologram_rendered"/)
     expect(state.cursor).toBe(future.id)
@@ -181,11 +182,12 @@ describe('foldLines', () => {
   })
 
   it('derives blocked_on from blocked tasks, preferring the blocking note', () => {
+    const events = storyline() // mint before `extra` — replay is id order (13.1)
     const extra = [
       ev('task_status_changed', { id: '1.2', status: 'blocked', note: 'waiting on SDK release' }),
       ev('task_status_changed', { id: '2.1', status: 'blocked' }),
     ]
-    const { state } = foldLines(lines([...storyline(), ...extra]))
+    const { state } = foldLines(lines([...events, ...extra]))
     expect(state.current.blocked_on).toBe(
       'task 1.2: waiting on SDK release; task 2.1 (stdio server)',
     )
@@ -227,8 +229,9 @@ describe('foldLines', () => {
   })
 
   it('session_closed never overrides an earlier session_ended timestamp or write-back', () => {
+    const events = storyline() // mint before `closed` — replay is id order (13.1)
     const closed = ev('session_closed', { reason: 'exit' }, { session: 'sess-1', source: 'hook' })
-    const { state, warnings } = foldLines(lines([...storyline(), closed]))
+    const { state, warnings } = foldLines(lines([...events, closed]))
     expect(warnings).toEqual([])
     const session = state.sessions.find((s) => s.id === 'sess-1')
     expect(session?.summary).toBe('Scaffold + log done')
@@ -265,21 +268,23 @@ describe('foldLines', () => {
   })
 
   it('plan_updated fully replaces the plan structure', () => {
+    const events = storyline() // mint before `replace` — replay is id order (13.1)
     const replace = ev('plan_updated', {
       plan: {
         goal: 'Revised goal',
         phases: [{ name: 'Only phase', status: 'active', tasks: [] }],
       },
     })
-    const { state } = foldLines(lines([...storyline(), replace]))
+    const { state } = foldLines(lines([...events, replace]))
     expect(state.goal).toBe('Revised goal')
     expect(state.phases).toHaveLength(1)
     expect(state.current.active_phase).toBe('Only phase')
   })
 
   it('warns and skips duplicate task_added ids', () => {
+    const events = storyline() // mint before `dup` — replay is id order (13.1)
     const dup = ev('task_added', { phase: 'Phase 2 — MCP server', id: '1.1', title: 'Duplicate' })
-    const { state, warnings } = foldLines(lines([...storyline(), dup]))
+    const { state, warnings } = foldLines(lines([...events, dup]))
     expect(warnings).toHaveLength(1)
     expect(warnings[0]).toMatch(/already exists/)
     expect(state.phases[1]?.tasks).toHaveLength(1)

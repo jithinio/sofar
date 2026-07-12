@@ -148,9 +148,27 @@ export interface InitiativeState {
   cursor: string | null
 }
 
+/**
+ * A task_status_changed that applied to no task: skipped at replay AND its
+ * id is absent from the final plan (task 12.2, BD58). Replay-time skips that
+ * a later task_added / plan_updated legitimizes (clock-skew ordering,
+ * D-sync-1 rider b) are NOT orphans — only ids the plan never knew are the
+ * misroute symptom doctor audits for.
+ */
+export interface OrphanTaskEvent {
+  /** ulid of the orphaned task_status_changed event */
+  event_id: string
+  ts: string
+  /** envelope.session of the writer — the misrouted session, if any */
+  session: string
+  task_id: string
+  status: TaskStatus
+}
+
 export interface FoldResult {
   state: InitiativeState
   warnings: string[]
+  orphan_task_events: OrphanTaskEvent[]
 }
 
 export function emptyState(): InitiativeState {
@@ -221,10 +239,18 @@ export function foldLines(lines: readonly string[]): FoldResult {
     }
   }
 
-  // Pass 2 — replay in log order.
+  // Convergent fold (task 13.1, D-sync-1): replay order is NORMATIVELY ulid
+  // id order, not file order — the same event SET folds to a deep-equal
+  // state on every replica, so cross-import and compaction cannot fork
+  // states. Stable sort: a duplicated id keeps file order. Pass-1 decode
+  // warnings stay in file order (they describe lines, not events).
+  parsed.sort((a, b) => (a.event.id < b.event.id ? -1 : a.event.id > b.event.id ? 1 : 0))
+
+  // Pass 2 — replay in id order.
   const state = emptyState()
   const blockNotes = new Map<string, string>() // task id → note from its blocking event
   const activity = new Map<string, ActivityAcc>() // envelope.session → derived activity (BD44)
+  const orphanCandidates: OrphanTaskEvent[] = [] // task 12.2: replay-time skips, filtered against the final plan below
 
   for (const { lineNo, event } of parsed) {
     // Cursor tracks the last envelope-valid event: sync (export/import)
@@ -247,11 +273,29 @@ export function foldLines(lines: readonly string[]): FoldResult {
     applyEvent(state, event, blockNotes, warnings, lineNo)
     recordActivity(activity, event)
     recordFreshness(state, event)
+
+    // Orphan candidate (task 12.2): a task_status_changed that applyEvent
+    // just skipped — the id is not (yet) in the plan.
+    if (event.type === 'task_status_changed') {
+      const p = event.payload as unknown as TaskStatusChangedPayload
+      if (findTask(state, p.id) === undefined) {
+        orphanCandidates.push({
+          event_id: event.id,
+          ts: event.ts,
+          session: event.session,
+          task_id: p.id,
+          status: p.status,
+        })
+      }
+    }
   }
 
   attachActivity(state, activity)
   deriveCurrent(state, blockNotes)
-  return { state, warnings }
+  // Keep only ids the FINAL plan never absorbed (a later task_added /
+  // plan_updated clears the candidate — that skip was ordering, not misroute).
+  const orphans = orphanCandidates.filter((c) => findTask(state, c.task_id) === undefined)
+  return { state, warnings, orphan_task_events: orphans }
 }
 
 // ---------------------------------------------------------------------------
@@ -428,6 +472,48 @@ export function openSessionFileConflicts(state: InitiativeState): FileConflict[]
   }
   conflicts.sort((a, b) => a.path.localeCompare(b.path))
   return conflicts
+}
+
+/** A concurrent session's write-back that lost the next_action scalar (task 12.4). */
+export interface ParallelWriteback {
+  session_id: string
+  tool: string
+  ended: string
+  next_action: string
+}
+
+/**
+ * Parallel write-backs (task 12.4, BD58 family): current.next_action is a
+ * single scalar derived from the last session_ended (BD9), so when
+ * concurrent same-initiative sessions each write back, the losers' next
+ * actions vanish from every resume surface. This surfaces exactly those:
+ * ended sessions with a next_action whose [started, ended] interval
+ * OVERLAPS the winner's — parallel threads of work, not superseded history
+ * (a session that ended before the winner started is sequential; its next
+ * action lost on purpose). Winner = max (ended, array order) among
+ * next_action-bearing sessions. Duplicates of the winner's text are noise,
+ * not collisions, and are dropped. Deterministic: newest-ended first.
+ */
+export function overlappingWritebacks(state: InitiativeState): ParallelWriteback[] {
+  const wrapped = state.sessions.filter(
+    (s): s is SessionState & { ended: string; next_action: string } =>
+      s.ended !== undefined && s.next_action !== undefined,
+  )
+  if (wrapped.length < 2) return []
+  let winner = wrapped[0]!
+  for (const s of wrapped) {
+    if (s.ended >= winner.ended) winner = s
+  }
+  return wrapped
+    .filter(
+      (s) =>
+        s !== winner &&
+        s.next_action !== winner.next_action &&
+        s.started <= winner.ended &&
+        s.ended >= winner.started,
+    )
+    .sort((a, b) => (a.ended < b.ended ? 1 : a.ended > b.ended ? -1 : 0))
+    .map((s) => ({ session_id: s.id, tool: s.tool, ended: s.ended, next_action: s.next_action }))
 }
 
 function findTask(state: InitiativeState, id: string): TaskState | undefined {

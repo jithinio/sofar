@@ -102,6 +102,19 @@ event types — the derivation is read-side and retroactively covers every
 existing record. Companion derivation staleActivePhases(state) (the D-P11
 stale-phase check extracted from doctor — one detector, two surfaces) lists
 phases whose tasks are all done but whose status was never set to done.
+Companion derivation overlappingWritebacks(state) (task 12.4, BD58 family):
+current.next_action is last-writer-wins (BD9), so when concurrent sessions
+each write back, the losers' next actions vanish from the scalar — this
+lists ended, next_action-bearing sessions whose [started, ended] interval
+overlaps the winner's (winner = max ended, tie → later session order),
+excluding duplicates of the winner's text; newest-ended first. Rendered in
+renderStatus (SessionStart block + get_state digest, ≤3 lines, 260-char
+clip) and `sofar status` (uncapped), directly under the next action.
+FoldResult additionally carries orphan_task_events (task 12.2, BD58):
+task_status_changed events that were skipped at replay AND whose task id
+is absent from the FINAL plan — replay-time skips later legitimized by a
+task_added/plan_updated (clock-skew ordering, D-sync-1 rider b) are NOT
+orphans. Additive; InitiativeState itself is unchanged.
 Repo-level derivation listInitiatives(rootDir) (initiative-list 1.2):
 every directory under .sofar/initiatives/ summarized — slug, bound
 branches (bindings.json inverted), tasks done/total, active phase, next
@@ -120,8 +133,10 @@ Riders: (a) writers MUST mint monotonic ulids within a process; (b) fold is
 total under cross-machine clock skew — causally-misordered events resolve
 by id order via the normal skip-with-warning tolerance; accepted-in-v1,
 vector/hybrid-clock upgrade reserved for a future envelope version.
-[Engine currently folds in file order — change queued as task 13.1;
-identical behavior for never-merged logs.]
+Implemented task 13.1: foldLines sorts envelope-valid events by id (stable
+— a duplicated id keeps file order) before pass-2 replay; pass-1 decode
+warnings keep file order (they describe lines, not events); cursor is
+therefore the MAX event id, identical on every replica.
 
 ## MCP tools (server name: sofar)
 - sofar_get_state({initiative?, view?}) → progressive disclosure (token-opt):
@@ -159,6 +174,16 @@ identical behavior for never-merged logs.]
 - sofar_add_note({initiative?, text}) → ok
 Every tool = validate payload → append event → regenerate projections →
 return. No tool mutates state except via an event.
+Write tools (update_task, log_decision, add_note, update_plan) with
+`initiative` omitted resolve to the ACTIVE session's pinned initiative when
+one exists (task 12.1, BD58) — the pin is set by start_session, so a
+concurrent branch switch on the shared checkout cannot misroute an
+already-started session's writes (the Phase 11 incident's root cause);
+branch → bindings resolution is the fallback when no session is active,
+and an explicit `initiative` always wins. end_session already resolves via
+the active session (BD15). start_session and get_state keep branch
+resolution: start_session is what establishes the pin, and get_state is a
+read (explicit `initiative` scopes cross-initiative reads).
 unknown_initiative errors — from any tool or CLI command that resolves a
 slug (explicit or branch-bound) — carry a count-capped (10) `available
 initiatives:` suffix, or a `sofar new` hint when none exist
@@ -224,7 +249,11 @@ Shims contain no logic — they invoke the sofar CLI.
   no STALE PHASE (all tasks done but the phase still active/pending, missing a
   phase_status_changed — D-P11), no UNTRACKED WORK (a wrapped session with real
   file activity but zero task changes — work missing from the plan, or
-  fragmented onto a sibling session because the hook session was not adopted);
+  fragmented onto a sibling session because the hook session was not adopted),
+  no ORPHAN TASK EVENTS (task_status_changed whose id the plan never absorbed
+  — the misroute symptom of a branch-switched write, task 12.2, BD58; one WARN
+  per distinct orphan id, skew-ordered events later legitimized by task_added/
+  plan_updated excluded);
   (3) concurrency — no file under concurrent edit by ≥2 OPEN sessions (a live
   clobber risk); (4) scanner hazards (Tailwind v4 entry stylesheet lacking a
   `@source not` exclusion for `.sofar`). Record-health and concurrency findings
@@ -551,6 +580,25 @@ stay the underlying derivation's, and exit codes are styling-independent.
   record bytes through untouched (agent contract). An animated spinner's
   SIGINT handler restores the cursor and re-raises the signal, so ^C
   still terminates the process.
+- **Phase 12 (misroute hardening, BD58):** a session started on branch A
+  keeps writing to A's initiative through every MCP write tool after the
+  shared checkout flips to branch B; an explicit `initiative` arg and the
+  CLI-slug path (`sofar event append <slug>`) are unaffected, and a server
+  with no active session still resolves from the branch. `sofar doctor`
+  flags an injected task_status_changed whose id is not in the plan (WARN,
+  exit 0) and does not flag applied task events or skew-ordered ones the
+  plan later absorbs. overlappingWritebacks surfaces the losing overlapping
+  session's next_action (winner excluded, duplicates of the winner's text
+  excluded, sequential sessions excluded) and renders in renderStatus and
+  `sofar status` only when present.
+- **Phase 13 (convergent fold, D-sync-1):** the same event set folds to a
+  deep-equal state from shuffled file orders and from merged two-writer
+  logs in any concatenation order, cursor included (max id); same-process
+  ids from makeEvent are strictly increasing (monotonic writer, rider a); a
+  task_status_changed whose id sorts before its task_added resolves totally
+  by skip-with-warning from either file order with identical states, and is
+  not an orphan (rider b); a duplicated id (pre-dedupe merge artifact)
+  keeps file order via the stable sort and folds deterministically.
 - **Next actions (next-command):** on a repo with several initiatives,
   `sofar next` renders one line per initiative — slug, branch(es) or
   "unbound", next action or "(no next action recorded)" — in the same

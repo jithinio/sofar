@@ -45,16 +45,23 @@ function foldOf(events: EventEnvelope[]): InitiativeState {
   return foldLines(events.map(serializeEvent)).state
 }
 
-/** A registered session that wrote back, then post-write-back drift of every counted kind. */
+/**
+ * A registered session that wrote back, then post-write-back drift of every
+ * counted kind. Minted in causal order — replay is id order (D-sync-1, task
+ * 13.1), so mint order IS replay order.
+ */
 function staleStoryline(): { events: EventEnvelope[]; writeback: EventEnvelope } {
-  const writeback = ev('session_ended', { summary: 'built the thing', next_action: 'ship the thing' })
-  const events = [
+  const pre = [
     ev('initiative_created', { slug: 'demo', goal: 'g' }),
     ev('plan_updated', {
       plan: { phases: [{ name: 'PA', status: 'active', tasks: [{ id: 'a1', title: 't' }] }] },
     }),
     ev('session_started', { tool: 'claude-code' }),
     ev('file_touched', { path: 'src/pre.ts', op: 'edit' }), // BEFORE write-back — must not linger
+  ]
+  const writeback = ev('session_ended', { summary: 'built the thing', next_action: 'ship the thing' })
+  const events = [
+    ...pre,
     writeback,
     // Drift, one of each kind — sessions and sources vary incl. cli.
     ev('file_touched', { path: 'src/a.ts', op: 'edit' }, { session: 'sess-2' }),
