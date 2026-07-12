@@ -40,4 +40,4 @@ Progress: 15/15 tasks done (100%)
 - [x] 6.2 Version 0.9.1 staged: bump lockstep, full suite green, user publishes (OTP); then sofar-cloud bumps catalog + re-runs fold-parity/integration/drill export leg expecting raw diff zero
 
 Active phase: Phase 6 — Byte canonicalization (0.9.1)
-Next action: In sofar-cloud: bump the @alignlabs/sofar catalog to 0.9.1, re-run fold-parity + integration suites, re-run the drill export leg expecting raw diff zero (no jq -S). Also still open there: the doorbell fix (Bun idleTimeout + initial SSE flush).
+Next action: In sofar-cloud: bump the @alignlabs/sofar catalog to 0.9.1, re-run fold-parity + integration suites, re-run the drill export leg expecting raw diff zero (no jq -S). Nothing else open.

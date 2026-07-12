@@ -6,15 +6,15 @@
 - Tool: claude-code
 - Model: claude-fable-5
 - Started: 2026-07-12T16:25:51.401Z
-- Ended: 2026-07-12T16:26:05.312Z
+- Ended: (in progress)
 
 ## Summary
 
-0.9.1 published and upgraded — verified npm latest=0.9.1, installed sofar=0.9.1. Phase 6 complete (15/15): envelope bytes are canonical, writer/puller parity holds.
+(none recorded — no write-back yet; derived resume point below)
 
 ## Next action
 
-In sofar-cloud: bump the @alignlabs/sofar catalog to 0.9.1, re-run fold-parity + integration suites, re-run the drill export leg expecting raw diff zero (no jq -S). Also still open there: the doorbell fix (Bun idleTimeout + initial SSE flush).
+(none recorded)
 
 ## Activity (derived from mechanical events)
 
