@@ -68,7 +68,7 @@ function writeBinding(path: string, branch: string, slug: string): boolean {
 // TTY must not push escapes into a redirected stderr.
 // ---------------------------------------------------------------------------
 
-function renderConfirmation(report: string[], caps: Caps): string {
+export function renderConfirmation(report: string[], caps: Caps): string {
   const [result = '', ...details] = report
   if (!caps.color) return report.join('\n')
   const style = createStyle(true)
@@ -79,7 +79,7 @@ function renderConfirmation(report: string[], caps: Caps): string {
   ].join('\n')
 }
 
-function renderFailure(message: string, caps: Caps): string {
+export function renderFailure(message: string, caps: Caps): string {
   if (!caps.color) return message
   return `${createStyle(true).error(symbolsFor(caps.unicode).fail)} ${message}`
 }

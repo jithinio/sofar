@@ -15,6 +15,7 @@ import { runNext } from './next'
 import { registerStatuslineCommand } from './statusline'
 import { startServer, renderServeBanner, DEFAULT_PORT } from './serve'
 import { runExport, runImport } from './transfer'
+import { runLogin, runLink, runPush, runPull, runPullWatch } from './cloud'
 import { runUpgrade } from './upgrade'
 import { emit, readAllStdin } from './shared'
 
@@ -162,6 +163,76 @@ program
       return
     }
     emit(runImport(rootOf(opts), stream, slug !== undefined ? { slug } : {}))
+  })
+
+program
+  .command('login')
+  .description('sign in to api.sofar.sh (RFC-8628 device flow) and store a machine token — the credential never touches the repo')
+  .option('--api <url>', 'API base URL (default: SOFAR_API_URL, .sofar/remote.json, then https://api.sofar.sh)')
+  .option('--scopes <scopes>', 'comma-separated token scopes: sync (read-write) or read (read-only)', 'sync')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action(async (opts: { api?: string; scopes?: string; root?: string }) => {
+    emit(
+      await runLogin(rootOf(opts), {
+        ...(opts.api !== undefined ? { api: opts.api } : {}),
+        ...(opts.scopes !== undefined ? { scopes: opts.scopes } : {}),
+      }),
+    )
+  })
+
+program
+  .command('link')
+  .description('bind this repo to a sofar-cloud org/repo: writes the committable .sofar/remote.json (idempotent on org+name)')
+  .requiredOption('--org <slug>', 'organization slug on the server')
+  .option('--name <repo>', 'repo name on the server (default: this directory\'s basename)')
+  .option('--api <url>', 'API base URL (default: SOFAR_API_URL, .sofar/remote.json, then https://api.sofar.sh)')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action(async (opts: { org: string; name?: string; api?: string; root?: string }) => {
+    emit(
+      await runLink(rootOf(opts), {
+        org: opts.org,
+        ...(opts.name !== undefined ? { name: opts.name } : {}),
+        ...(opts.api !== undefined ? { api: opts.api } : {}),
+      }),
+    )
+  })
+
+/** Shared option shape for push/pull. */
+function syncOptions(slug: string | undefined, opts: { all?: boolean; full?: boolean; api?: string }) {
+  return {
+    ...(slug !== undefined ? { slug } : {}),
+    all: opts.all === true,
+    full: opts.full === true,
+    ...(opts.api !== undefined ? { api: opts.api } : {}),
+  }
+}
+
+program
+  .command('push [slug]')
+  .description('push initiative events to the linked sofar-cloud repo (ulid order, from genesis on first push; idempotent by event id)')
+  .option('--all', 'push every initiative under .sofar/initiatives/')
+  .option('--full', 'ignore the ack cursor and re-push the stream from event zero')
+  .option('--api <url>', 'API base URL override')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action(async (slug: string | undefined, opts: { all?: boolean; full?: boolean; api?: string; root?: string }) => {
+    emit(await runPush(rootOf(opts), syncOptions(slug, opts)))
+  })
+
+program
+  .command('pull [slug]')
+  .description('pull initiative events from the linked sofar-cloud repo (since-cursor paging, dedupe by id); --watch keeps pulling on the doorbell')
+  .option('--all', 'pull every initiative under .sofar/initiatives/')
+  .option('--full', 'ignore the inbound cursor and re-pull the stream from genesis')
+  .option('--watch', 'stay connected: subscribe to the doorbell (SSE) and pull on every ring (^C to stop)')
+  .option('--api <url>', 'API base URL override')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action(async (slug: string | undefined, opts: { all?: boolean; full?: boolean; watch?: boolean; api?: string; root?: string }) => {
+    if (opts.watch === true) {
+      const result = await runPullWatch(rootOf(opts), syncOptions(slug, opts))
+      if (result !== undefined) emit(result) // fatal setup/auth failure
+      return
+    }
+    emit(await runPull(rootOf(opts), syncOptions(slug, opts)))
   })
 
 program
