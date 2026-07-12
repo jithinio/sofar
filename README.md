@@ -103,6 +103,10 @@ logic — each invokes the CLI.
   On `--resume` of a cold session (record idle past the longest cache TTL,
   transcript worth re-warming), one advisory line precedes the block naming
   the estimated re-warm cost and the cheaper fresh-start alternative.
+- `UserPromptSubmit` — the batch-complete nudge: once ≥5 record events
+  accumulate after the last write-back, each new prompt carries one context
+  line suggesting `sofar_end_session` while context is warm, so the Stop
+  gate becomes a fallback instead of a forced extra turn.
 - `PostToolUse` — appends mechanical `file_touched` / `command_run` events
   for Edit/Write/MultiEdit/Bash calls.
 - `Stop` — the write-back gate: if the session has not appended

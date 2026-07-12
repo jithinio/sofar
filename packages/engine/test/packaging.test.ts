@@ -125,7 +125,7 @@ const tarball = join(packDest, tarballBase)
     // record scaffold + shims + registrations + protocol blocks (SPEC §CLI)
     expect(existsSync(join(root, '.sofar', 'repo.md'))).toBe(true)
     expect(existsSync(join(root, '.sofar', 'bindings.json'))).toBe(true)
-    for (const shim of ['session-start.sh', 'post-tool-use.sh', 'stop.sh', 'session-end.sh']) {
+    for (const shim of ['session-start.sh', 'user-prompt-submit.sh', 'post-tool-use.sh', 'stop.sh', 'session-end.sh']) {
       const path = join(root, '.claude', 'hooks', shim)
       expect(existsSync(path)).toBe(true)
       expect(statSync(path).mode & 0o777).toBe(0o755)

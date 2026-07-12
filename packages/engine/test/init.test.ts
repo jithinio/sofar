@@ -100,6 +100,13 @@ describe('sofar init on a fresh repo', () => {
       SessionStart: [
         { hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh' }] },
       ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            { type: 'command', command: '$CLAUDE_PROJECT_DIR/.claude/hooks/user-prompt-submit.sh' },
+          ],
+        },
+      ],
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit|Bash',
@@ -310,7 +317,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
     const result = runInit(root, styled)
     expect(result.exitCode).toBe(0)
     const lines = result.stdout.trimEnd().split('\n')
-    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (11 changes)')
+    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (12 changes)')
     expect(lines[0]).toBe('\x1b[2m  └ created .sofar/repo.md\x1b[22m')
     for (const line of lines.slice(0, -1)) {
       expect(line.startsWith('\x1b[2m  └ ')).toBe(true)
@@ -326,6 +333,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
         'created .sofar/bindings.json',
         'created .gitattributes (union merge for event logs)',
         'created .claude/hooks/session-start.sh',
+        'created .claude/hooks/user-prompt-submit.sh',
         'created .claude/hooks/post-tool-use.sh',
         'created .claude/hooks/stop.sh',
         'created .claude/hooks/session-end.sh',
@@ -333,7 +341,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
         'created .mcp.json',
         'created CLAUDE.md (sofar protocol block)',
         'created AGENTS.md (sofar protocol block)',
-        'sofar init: done (11 changes)',
+        'sofar init: done (12 changes)',
         '',
       ].join('\n'),
     )

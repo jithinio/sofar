@@ -253,6 +253,18 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   composed output is re-capped to the same hard limit.
   HARD LIMIT:
   output ≤10,000 chars — projection generator must guarantee this.
+- UserPromptSubmit shim (felt-cost 4.1/4.2, D5) → the batch-complete nudge:
+  when the prompt's session_id is registered AND initiative drift since the
+  last write-back is ≥5 mechanical events, stdout (exit 0 =
+  additionalContext for this hook; lands after the cached prefix, so it is
+  cache-safe) carries ONE line nudging an in-flow sofar_end_session — a
+  write-back while context is warm makes the Stop gate a fallback instead
+  of a forced extra turn. Stateless: re-fires on every prompt until a
+  write-back resets drift (staleness-line precedent). Repeat session_ended
+  events for one session are LEGAL and last-wins in the fold (ended/
+  summary/next_action overwritten, freshness reset, Stop passes once any
+  exists). Best-effort (BD22): every failure path is silence, never a
+  blocked prompt.
 - PostToolUse shim (matcher: Edit|Write|MultiEdit|Bash) → appends
   file_touched / command_run from stdin JSON (tool_name, tool_input).
 - Stop shim → reads stdin JSON; if stop_hook_active is true → exit 0

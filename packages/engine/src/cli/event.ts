@@ -2,6 +2,7 @@ import { readFileSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { Command } from 'commander'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
+import { freshnessTotal } from '../core/fold'
 import { createToolContext, ToolError, type ToolContext } from '../mcp/context'
 import { enforceStatusLimit, renderStatus } from '../projections/templates/status'
 import { REPO_MD_STUB } from './shared'
@@ -315,6 +316,44 @@ export function handleSessionEnd(rootDir: string, input: string): HookResult {
   }
 }
 
+/**
+ * UserPromptSubmit (felt-cost 4.1/4.2, D5) — the batch-complete nudge.
+ * When the session is registered and the initiative has accumulated ≥5
+ * mechanical events since the last write-back, stdout (exit 0 =
+ * additionalContext for this hook) carries ONE line nudging an in-flow
+ * sofar_end_session — a write-back while context is warm makes the Stop
+ * gate a fallback instead of a forced extra turn. Stateless: it re-fires
+ * on every prompt until the write-back resets drift (staleness-line
+ * precedent). Best-effort per BD22 — every failure path is silence.
+ */
+export const NUDGE_DRIFT_MIN = 5
+
+export function handleUserPrompt(rootDir: string, input: string): HookResult {
+  try {
+    const bound = resolveBound(rootDir)
+    if (bound === null) return { ...OK }
+    const { ctx, slug } = bound
+
+    const sessionId = strField(parseHook(input), 'session_id')
+    if (sessionId === null) return { ...OK }
+
+    const state = ctx.foldState(slug)
+    if (!state.sessions.some((s) => s.id === sessionId)) return { ...OK } // not ours to nudge
+    const drift = freshnessTotal(state.freshness)
+    if (drift < NUDGE_DRIFT_MIN) return { ...OK }
+
+    return {
+      ...OK,
+      stdout:
+        `sofar: ${drift} record events since the last write-back — if the current batch of work ` +
+        `is complete, write back now with sofar_end_session (summary + next action) while context ` +
+        `is warm; an unwritten session gets force-blocked at Stop.`,
+    }
+  } catch {
+    return { ...OK }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // `sofar event append` — the convention-dialect surface (task 5.1, BD30).
 // ---------------------------------------------------------------------------
@@ -418,6 +457,12 @@ const SUBCOMMANDS: ReadonlyArray<{
     description:
       'PostToolUse hook: append mechanical file_touched (Edit|Write|MultiEdit) / command_run (Bash) events',
     handler: handlePostTool,
+  },
+  {
+    name: 'user-prompt',
+    description:
+      'UserPromptSubmit hook: nudge an in-flow write-back (one additionalContext line) when drift since the last session_ended ≥5 events',
+    handler: handleUserPrompt,
   },
   {
     name: 'stop',

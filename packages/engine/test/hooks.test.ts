@@ -13,6 +13,8 @@ import {
   handleSessionEnd,
   handleSessionStart,
   handleStop,
+  handleUserPrompt,
+  NUDGE_DRIFT_MIN,
   STOP_BLOCK_MESSAGE,
 } from '../src/cli/event'
 import { STATUS_CHAR_LIMIT } from '../src/projections/templates/status'
@@ -59,6 +61,7 @@ const hookStdin = (fields: Record<string, unknown>): string =>
 describe('hook shims (3.1) — zero logic, exec the CLI (BD4)', () => {
   const shims: Array<[string, string]> = [
     ['session-start.sh', 'session-start'],
+    ['user-prompt-submit.sh', 'user-prompt'],
     ['post-tool-use.sh', 'post-tool'],
     ['stop.sh', 'stop'],
     ['session-end.sh', 'session-end'],
@@ -237,6 +240,68 @@ describe('cold-resume advisory (felt-cost 2.1/2.2) — resume-only, read-side, b
       hookStdin({ source: 'resume', transcript_path: transcript }),
     )
     expect(resume.stdout.startsWith('⚠ Cold resume:')).toBe(true)
+  })
+})
+
+describe('sofar event user-prompt — batch-complete nudge (felt-cost 4.1/4.2, D5)', () => {
+  /** Registered session + n mechanical drift events since the last write-back. */
+  function drifted(n: number): Fixture {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({ source: 'startup' }))
+    for (let i = 0; i < n; i++) {
+      handlePostTool(
+        fixture.root,
+        hookStdin({ hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: `cmd ${i}` } }),
+      )
+    }
+    return fixture
+  }
+
+  it('drift ≥ threshold → ONE additionalContext line naming the drift and sofar_end_session', () => {
+    const fixture = drifted(NUDGE_DRIFT_MIN)
+    const before = readFileSync(fixture.eventsPath, 'utf8')
+    const result = handleUserPrompt(fixture.root, hookStdin({}))
+    expect(result.exitCode).toBe(0)
+    // session_started + N drift events all count toward the total
+    expect(result.stdout).toContain('record events since the last write-back')
+    expect(result.stdout).toContain('sofar_end_session')
+    expect(result.stdout.includes('\n')).toBe(false) // one line
+    // read-side: the nudge itself appends nothing
+    expect(readFileSync(fixture.eventsPath, 'utf8')).toBe(before)
+  })
+
+  it('drift below threshold → silence', () => {
+    const fixture = drifted(0)
+    expect(handleUserPrompt(fixture.root, hookStdin({}))).toEqual({ exitCode: 0, stdout: '', stderr: '' })
+  })
+
+  it('write-back resets the drift → silence until the next batch accumulates', () => {
+    const fixture = drifted(NUDGE_DRIFT_MIN)
+    appendEvent(
+      fixture.eventsPath,
+      makeEvent({
+        initiative: fixture.slug,
+        session: 'claude-sess-1',
+        source: 'claude-code',
+        actor: 'agent',
+        type: 'session_ended',
+        payload: { summary: 'batch one done', next_action: 'start batch two' },
+      }),
+    )
+    expect(handleUserPrompt(fixture.root, hookStdin({})).stdout).toBe('')
+  })
+
+  it('unregistered session → not ours to nudge, even with drift', () => {
+    const fixture = drifted(NUDGE_DRIFT_MIN)
+    const result = handleUserPrompt(fixture.root, hookStdin({ session_id: 'someone-else' }))
+    expect(result).toEqual({ exitCode: 0, stdout: '', stderr: '' })
+  })
+
+  it('unbound repo / unreadable stdin → silence, exit 0 (BD22)', () => {
+    const unbound = fx({ bind: false })
+    expect(handleUserPrompt(unbound.root, hookStdin({}))).toEqual({ exitCode: 0, stdout: '', stderr: '' })
+    const fixture = drifted(NUDGE_DRIFT_MIN)
+    expect(handleUserPrompt(fixture.root, 'not json{{{')).toEqual({ exitCode: 0, stdout: '', stderr: '' })
   })
 })
 

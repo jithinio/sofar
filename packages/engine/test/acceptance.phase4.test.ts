@@ -209,7 +209,7 @@ describe('acceptance 2 + packaging — the BUILT CLI: init idempotency and .sh t
     expect(first.stdout).toContain('created .claude/hooks/session-start.sh')
 
     // the bundled shim text survived packaging (the .sh loader regression)
-    for (const shim of ['session-start.sh', 'post-tool-use.sh', 'stop.sh', 'session-end.sh']) {
+    for (const shim of ['session-start.sh', 'user-prompt-submit.sh', 'post-tool-use.sh', 'stop.sh', 'session-end.sh']) {
       const installed = join(root, '.claude', 'hooks', shim)
       expect(readFileSync(installed, 'utf8')).toBe(
         readFileSync(join(here, '..', 'src', 'hooks', shim), 'utf8'),

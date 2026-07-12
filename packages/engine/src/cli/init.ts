@@ -5,6 +5,7 @@ import { detectTailwindV4 } from './scanners'
 import { fail, ok, REPO_MD_STUB, type CmdResult } from './shared'
 import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui'
 import sessionStartShim from '../hooks/session-start.sh'
+import userPromptSubmitShim from '../hooks/user-prompt-submit.sh'
 import postToolUseShim from '../hooks/post-tool-use.sh'
 import stopShim from '../hooks/stop.sh'
 import sessionEndShim from '../hooks/session-end.sh'
@@ -123,7 +124,7 @@ const HOOK_COMMAND_PREFIX = '$CLAUDE_PROJECT_DIR/.claude/hooks/'
 
 interface ShimSpec {
   file: string
-  event: 'SessionStart' | 'PostToolUse' | 'Stop' | 'SessionEnd'
+  event: 'SessionStart' | 'UserPromptSubmit' | 'PostToolUse' | 'Stop' | 'SessionEnd'
   matcher?: string
   text: string
 }
@@ -131,6 +132,7 @@ interface ShimSpec {
 /** Order here is the order entries land in settings.json. */
 export const SHIMS: readonly ShimSpec[] = [
   { file: 'session-start.sh', event: 'SessionStart', text: sessionStartShim },
+  { file: 'user-prompt-submit.sh', event: 'UserPromptSubmit', text: userPromptSubmitShim },
   {
     file: 'post-tool-use.sh',
     event: 'PostToolUse',
