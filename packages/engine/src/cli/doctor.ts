@@ -1,6 +1,12 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
-import { foldLog, openSessionFileConflicts, staleActivePhases, type InitiativeState } from '../core/fold'
+import {
+  foldLog,
+  openSessionFileConflicts,
+  staleActivePhases,
+  type InitiativeState,
+  type OrphanTaskEvent,
+} from '../core/fold'
 import { hookCommand, PROTOCOL_START, SHIMS } from './init'
 import {
   cssExcludesSofar,
@@ -168,6 +174,7 @@ interface Folded {
   slug: string
   state?: InitiativeState
   warnings: string[]
+  orphans: OrphanTaskEvent[]
   error?: string
 }
 
@@ -192,9 +199,9 @@ function foldInitiatives(rootDir: string): Folded[] {
       const logPath = join(rootDir, '.sofar', 'initiatives', slug, 'events.jsonl')
       try {
         const result = foldLog(logPath)
-        return { slug, state: result.state, warnings: result.warnings }
+        return { slug, state: result.state, warnings: result.warnings, orphans: result.orphan_task_events }
       } catch (err) {
-        return { slug, warnings: [], error: errMessage(err) }
+        return { slug, warnings: [], orphans: [], error: errMessage(err) }
       }
     })
 }
@@ -211,7 +218,7 @@ function auditRecords(folded: Folded[]): Section {
     return { title: 'Record health', findings }
   }
 
-  for (const { slug, state, warnings, error } of folded) {
+  for (const { slug, state, warnings, orphans, error } of folded) {
     if (error !== undefined || state === undefined) {
       findings.push({ level: 'fail', text: `${slug}: cannot read log — ${error ?? 'unknown error'}` })
       continue
@@ -257,6 +264,25 @@ function auditRecords(folded: Folded[]): Section {
           hint: 'either the work is not tracked as tasks, or its tasks landed on a sibling session — adopt the hook session via start_session so files + task changes stay together',
         })
       }
+    }
+
+    // Misroute symptom (task 12.2, BD58): task_status_changed events whose id
+    // the plan never absorbed — until now they only fold-warned generically.
+    // A cluster of them usually means another initiative's task ids landed
+    // here via a branch-switch misroute. One WARN per distinct orphan id.
+    const byTask = new Map<string, OrphanTaskEvent[]>()
+    for (const o of orphans) {
+      const group = byTask.get(o.task_id) ?? []
+      group.push(o)
+      byTask.set(o.task_id, group)
+    }
+    for (const [taskId, group] of byTask) {
+      const last = group[group.length - 1]!
+      findings.push({
+        level: 'warn',
+        text: `${slug}: ${group.length} task event(s) for "${taskId}" — no such task in the plan`,
+        hint: `possible misroute from another initiative (session ${last.session}, last event ${last.event_id}) — correct the event(s) or add the task`,
+      })
     }
 
     if (findings.length === before) findings.push({ level: 'ok', text: `${slug}: folds clean` })

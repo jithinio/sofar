@@ -1,6 +1,7 @@
 import {
   freshnessTotal,
   openSessionFileConflicts,
+  overlappingWritebacks,
   staleActivePhases,
   type InitiativeState,
   type SessionState,
@@ -64,6 +65,11 @@ const MAX_CONFLICT_LINES = 8
 // Counts are numeric and the breakdown has ≤5 fixed kinds; the budget is
 // belt-and-braces, not an expected cut.
 const STALENESS_LINE_BUDGET = 200
+// Parallel write-backs (task 12.4): concurrent sessions' next-actions that
+// lost the single-scalar race — rendered only when overlapping write-backs
+// disagree, so the common single-session case pays nothing.
+const PARALLEL_LINE_BUDGET = 260
+const MAX_PARALLEL_LINES = 3
 // Notes since write-back (notes-in-digest 2.1): the drift CONTENT beside the
 // staleness line's drift signal — corrections recorded after the write-back
 // would otherwise die invisible in the log. Newest-last window mirroring
@@ -142,6 +148,17 @@ export function renderFullStatus(state: InitiativeState): string {
   }
 
   lines.push(`Next action: ${state.current.next_action ?? '(none recorded)'}`)
+
+  // Parallel write-backs (task 12.4) — terminal surface, uncapped: every
+  // overlapping session's swallowed next_action with its full identity.
+  const parallel = overlappingWritebacks(state)
+  if (parallel.length > 0) {
+    lines.push(`⚠ Parallel write-backs (${parallel.length}):`)
+    for (const w of parallel) {
+      lines.push(`- ${w.session_id} (${w.tool}, ended ${w.ended}): ${w.next_action}`)
+    }
+  }
+
   if (state.current.blocked_on !== undefined) {
     lines.push(`Blocked on: ${state.current.blocked_on}`)
   }
@@ -285,6 +302,23 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
 
   if (state.current.next_action !== null) {
     lines.push(`Next action: ${clip(state.current.next_action, NEXT_ACTION_BUDGET)}`)
+  }
+
+  // Parallel write-backs (task 12.4, BD58 family): the next_action above is
+  // last-writer-wins — when concurrent sessions wrapped with DIFFERENT next
+  // actions, the losers are parallel threads the resuming agent must see,
+  // directly under the scalar that swallowed them.
+  const parallel = overlappingWritebacks(state)
+  if (parallel.length > 0) {
+    lines.push(
+      `⚠ Parallel write-backs — ${parallel.length} overlapping session(s) also recorded a next action:`,
+    )
+    for (const w of parallel.slice(0, MAX_PARALLEL_LINES)) {
+      lines.push(`- ${clip(`${w.tool}, ended ${w.ended.slice(0, 10)}: ${w.next_action}`, PARALLEL_LINE_BUDGET)}`)
+    }
+    if (parallel.length > MAX_PARALLEL_LINES) {
+      lines.push(`- …and ${parallel.length - MAX_PARALLEL_LINES} more (run sofar status)`)
+    }
   }
 
   // Staleness heads-up (staleness-detection 2.1): mechanical events landed

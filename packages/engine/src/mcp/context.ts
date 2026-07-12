@@ -140,6 +140,13 @@ export interface ToolContext {
   eventsPath(slug: string): string
   /** Explicit arg wins; else current branch → bindings.json; else typed error. */
   resolveInitiative(explicit?: string): string
+  /**
+   * Write-tool resolution (task 12.1, BD58): explicit arg wins; else the
+   * ACTIVE session's pinned initiative; else branch → bindings.json. Pinning
+   * means a concurrent branch switch on the shared checkout cannot misroute
+   * an already-started session's writes — the Phase 11 incident's root cause.
+   */
+  resolveWriteInitiative(explicit?: string): string
   /** Fold an initiative's log (missing log = empty state, slug filled in). */
   foldState(slug: string): InitiativeState
   /** The ONLY mutation path: validate payload → append → regenerate projections. */
@@ -213,6 +220,16 @@ export function createToolContext(rootDir: string): ToolContext {
     return slug
   }
 
+  function resolveWriteInitiative(explicit?: string): string {
+    if (explicit === undefined) {
+      const active = session.get()
+      // Route through resolveInitiative's explicit path so a pinned slug
+      // whose directory vanished mid-session still errors typed.
+      if (active !== null) return resolveInitiative(active.initiative)
+    }
+    return resolveInitiative(explicit)
+  }
+
   function foldState(slug: string): InitiativeState {
     const logPath = eventsPath(slug)
     let state: InitiativeState
@@ -275,6 +292,7 @@ export function createToolContext(rootDir: string): ToolContext {
     initiativeDir,
     eventsPath,
     resolveInitiative,
+    resolveWriteInitiative,
     foldState,
     appendAndProject,
   }
