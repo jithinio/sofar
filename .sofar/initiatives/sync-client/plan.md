@@ -4,7 +4,7 @@
 
 Goal: Ship the v2 sync client (sofar-cloud Phase 5.1, the D14 seam): sofar login via RFC-8628 device flow, sofar link, push/pull sync with offline queue + doorbell SSE against api.sofar.sh, importable @alignlabs/sofar/client subpath — release as 0.9.0
 
-Progress: 12/13 tasks done (92%)
+Progress: 13/13 tasks done (100%)
 
 ## Phase 1 — Client core (config, credentials, HTTP) [done] — 2/2 done
 
@@ -28,10 +28,10 @@ Progress: 12/13 tasks done (92%)
 - [x] 4.2 @alignlabs/sofar/client subpath export: src/lib/client.ts entry, build.mjs bundle, self-contained d.ts, side-effect-free import
 - [x] 4.3 docs/SPEC.md §Sync client section + invariant wording amendment + README sync quickstart
 
-## Phase 5 — Acceptance + release [pending] — 2/3 done
+## Phase 5 — Acceptance + release [done] — 3/3 done
 
 - [x] 5.1 Contract tests vs in-process mock server: device flow, queue, batching/splitting, retry/backoff, cursor logic, 401/404/413/429, idempotent re-push, round-trip, downtime drill
 - [x] 5.2 Live E2E behind env flag (SOFAR_LIVE_API): login via manual claim+approve path, round-trip against locally running api.sofar.sh
-- [ ] 5.3 Version 0.9.0 staged: bump, changelog/README, full suite green, user publishes (OTP)
+- [x] 5.3 Version 0.9.0 staged: bump, changelog/README, full suite green, user publishes (OTP)
 
-Next action: User: npm publish -w @alignlabs/sofar (OTP) for 0.9.0 (sync client + D11), then sofar upgrade; separately fix sofar-cloud doorbell (idleTimeout + initial SSE flush) per the note.
+Next action: sync-client is done. Open pointer: fix sofar-cloud doorbell (Bun idleTimeout + initial SSE flush — see the Jul 12 note) in that repo; then sofar pull --watch rides real rings instead of gap-polling.
