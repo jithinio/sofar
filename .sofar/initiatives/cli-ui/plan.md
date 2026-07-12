@@ -4,28 +4,35 @@
 
 Goal: Build a CLI UI layer for the sofar engine: every command today (status, doctor, new/switch, adopt) prints flat plain text — boring, noisy, and hard to scan. Give CLI output structured terminal rendering: visual hierarchy, color and severity cues, alignment, progress display, animated per-use-case symbols, less noise so the signal (goal, next action, warnings) stands out. The layout must render the initiative object model (initiative → goal → phases → tasks → next action) at two zoom levels: single initiative (status) and multi-initiative portfolio (list). Constraint: terminal rendering only — this is not the guard-railed 'UI' (web/graphical); any new rendering dependency requires a logged Decision first. Agent-facing surfaces (renderStatus digest, hook stdout, export/import NDJSON, mcp stdio) stay byte-identical plain text forever.
 
-Progress: 13/13 tasks done (100%)
+Progress: 16/16 tasks done (100%)
 
 ## Phase 1 — UI kernel [done] — 4/4 done
 
-- [x] 1.1 Decision: rendering stack — zero-dep hand-rolled kernel vs picocolors; settled: zero-dep vendored (D2)
-- [x] 1.2 cli/ui capability detection + style primitives (color ladder, unicode gate, semantic ANSI-16 tokens)
+- [x] 1.1 Decision: zero-dep vendored kernel (D2)
+- [x] 1.2 Capability detection + semantic ANSI-16 style primitives
 - [x] 1.3 Symbols vocabulary + visible-width layout helpers
-- [x] 1.4 Spinner kernel on stderr: per-use-case frame sets, static non-TTY fallback, SIGINT-safe
+- [x] 1.4 Spinner kernel: per-use-case frames, static fallback, SIGINT-safe
 
 ## Phase 2 — Styled surfaces [done] — 6/6 done
 
-- [x] 2.1 Layout grammar: initiative object model at full/portfolio zoom, shared components
-- [x] 2.2 sofar status styled renderer (full zoom; plain piped fallback)
-- [x] 2.3 sofar list styled renderer (portfolio zoom; presentation only)
-- [x] 2.4 sofar doctor: ✓/⚠/✗ findings + scan spinner
+- [x] 2.1 Layout grammar: full/portfolio zoom
+- [x] 2.2 Styled sofar status
+- [x] 2.3 Styled sofar list
+- [x] 2.4 Styled doctor + scan spinner
 - [x] 2.5 One-shot confirmations + upgrade spinner + serve banner
-- [x] 2.6 Styled sofar next (addendum — next-command landed parallel in 0.6.1 without the UI layer): capability-gated like list, bold slug + dim branch + warn stale suffix + current-branch pointer, SPEC surface-table row, 7 tests
+- [x] 2.6 Styled sofar next (addendum)
 
 ## Phase 3 — Contract + acceptance [done] — 3/3 done
 
-- [x] 3.1 SPEC §CLI UI: color law, ladder, flag/env contract, surface table, acceptance; + --color/--no-color commander registration
-- [x] 3.2 Plain-surface regression guard: import-graph lock + hostile-env byte checks
-- [x] 3.3 Acceptance suite + 57-cell live-fire matrix
+- [x] 3.1 SPEC §CLI UI + --color/--no-color flags
+- [x] 3.2 Plain-surface regression guard
+- [x] 3.3 Acceptance suite + 57-cell live-fire
 
-Next action: If wanted: run next-command merge ceremony (merge to main, union events, bump 0.6.1/0.7.0, user-OTP publish) — user to confirm; also name origin/cli-ui deletion if desired.
+## Phase 4 — Polish round (user feedback on 0.6.2) [active] — 3/3 done
+
+- [x] 4.1 Layout balance: greedy word-wrap with hanging indent (wrapPlain helper), blank line between entries, 2-line entry shape for next (header: pointer+slug+branch+pie; body: wrapped action; stale on own line)
+- [x] 4.2 Pie progress glyphs ○◔◑◕● (green full / yellow partial / dim zero, ASCII falls back to bare counts) on status header, list blocks, next entries
+- [x] 4.3 sofar status --watch: TTY-gated live re-render (chokidar on the initiative log + pulse timer), active-task marker breathes warn↔dim, cursor-safe redraw, one-shot fallback when piped
+
+Active phase: Phase 4 — Polish round (user feedback on 0.6.2)
+Next action: None — initiative complete, shipped (0.6.0-0.6.2) and closed.

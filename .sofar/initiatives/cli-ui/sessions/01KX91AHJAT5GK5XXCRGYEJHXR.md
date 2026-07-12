@@ -6,12 +6,12 @@
 - Tool: claude-code
 - Model: claude-fable-5
 - Started: 2026-07-11T16:49:13.802Z
-- Ended: (in progress)
+- Ended: 2026-07-11T16:54:44.117Z
 
 ## Summary
 
-(none recorded — session did not write back)
+cli-ui addendum 2.6: styled sofar next (capability-gated like list — bold slug, dim branch tag, warn stale suffix, current-branch pointer; sanitizeProse on record text), SPEC surface-table row + stderr-plain note, 7 new tests (579 total green), live-fired piped-clean/forced-styled. Commits 1385560 + release 0.6.2 ab62917 pushed. Publish awaits user OTP.
 
 ## Next action
 
-(none recorded)
+User: npm publish -w @alignlabs/sofar (OTP) from /Users/jins/IO/sofar, then sofar upgrade — 0.6.2 delivers the styled next.
