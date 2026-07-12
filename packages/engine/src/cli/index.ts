@@ -9,7 +9,7 @@ import { runInit } from './init'
 import { runDoctor } from './doctor'
 import { runUninit } from './uninit'
 import { runNew, runSwitch } from './new'
-import { runStatus } from './status'
+import { runStatus, runStatusWatch } from './status'
 import { runList } from './list'
 import { runNext } from './next'
 import { startServer, renderServeBanner, DEFAULT_PORT } from './serve'
@@ -101,8 +101,14 @@ program
 program
   .command('status [slug]')
   .description('fold and print the initiative: goal, progress, phase tree, next action, blocked, last session')
+  .option('--watch', 'live status (TTY only; piped falls back to one shot): re-render on record changes, active tasks pulse, ^C to exit')
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action((slug: string | undefined, opts: { root?: string }) => {
+  .action((slug: string | undefined, opts: { watch?: boolean; root?: string }) => {
+    if (opts.watch === true) {
+      const result = runStatusWatch(rootOf(opts), slug)
+      if (result !== undefined) emit(result) // non-TTY fallback / resolution failure
+      return // live path: watcher + timer hold the process until ^C
+    }
     emit(runStatus(rootOf(opts), slug))
   })
 
