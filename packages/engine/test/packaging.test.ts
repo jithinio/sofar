@@ -151,3 +151,166 @@ const tarball = join(packDest, tarballBase)
     expect(status.stdout).toContain('Goal: prove the tarball')
   }, 60_000)
 })
+
+// ---------------------------------------------------------------------------
+// Library surface E2E (library-surface 1.3, L1/L2) — the SAME tarball also
+// serves programmatic consumers: subpath exports with self-contained types,
+// no side effects on import, and fold/cursor parity with the CLI. Reuses the
+// pack + global install from the suite above (vitest runs files in order).
+// ---------------------------------------------------------------------------
+
+/** The globally installed package dir — the packed artifact, post-install. */
+const installedPkg = join(prefix, 'lib', 'node_modules', '@alignlabs', 'sofar')
+
+/** This repo's own record — the dogfood fixture the acceptance demands. */
+const repoRecord = join(here, '..', '..', '..', '.sofar', 'initiatives', 'harness-build', 'events.jsonl')
+
+/** Copy the live record into a hermetic fixture repo (the log may grow under us). */
+function recordFixture(): { root: string; log: string } {
+  const root = freshRepo()
+  const dir = join(root, '.sofar', 'initiatives', 'harness-build')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(root, '.sofar', 'bindings.json'), '{\n  "main": "harness-build"\n}\n')
+  const log = join(dir, 'events.jsonl')
+  writeFileSync(log, readFileSync(repoRecord))
+  return { root, log }
+}
+
+describe('library surface E2E (library-surface 1.3) — subpath exports from the same tarball', () => {
+  it('ships the library bundles and a self-contained d.ts tree; bin and manifest law unchanged', () => {
+    for (const file of [
+      join('dist', 'schema.js'),
+      join('dist', 'engine.js'),
+      join('dist', 'types', 'engine', 'src', 'lib', 'schema.d.ts'),
+      join('dist', 'types', 'engine', 'src', 'lib', 'engine.d.ts'),
+      join('dist', 'types', 'schema', 'src', 'events.d.ts'),
+    ]) {
+      expect(existsSync(join(installedPkg, file)), `${file} missing from installed package`).toBe(true)
+    }
+
+    // Self-contained types (L2): the private workspace package's bare name
+    // must not appear anywhere in the published declaration tree.
+    const dtsDir = join(installedPkg, 'dist', 'types')
+    const leaked = readdirSync(dtsDir, { recursive: true })
+      .map(String)
+      .filter((f) => f.endsWith('.d.ts'))
+      .filter((f) => readFileSync(join(dtsDir, f), 'utf8').includes('@sofar/schema'))
+    expect(leaked).toEqual([])
+
+    const spec = JSON.parse(readFileSync(join(installedPkg, 'package.json'), 'utf8')) as {
+      bin: Record<string, string>
+      exports: Record<string, unknown>
+      dependencies?: unknown
+    }
+    expect(spec.bin).toEqual({ sofar: 'dist/cli.js' }) // bin unchanged
+    expect(Object.keys(spec.exports)).toEqual(['./schema', './engine', './package.json'])
+    expect(spec.dependencies).toBeUndefined() // still zero runtime deps
+  })
+
+  it('a fresh ESM project imports both subpaths with no side effects, and the guard tolerates corruption', () => {
+    const proj = join(scratch, 'consumer')
+    mkdirSync(proj, { recursive: true })
+    writeFileSync(join(proj, 'package.json'), '{ "name": "consumer", "private": true, "type": "module" }\n')
+    const tarball = join(packDest, tarballName())
+    expect(npm(['install', tarball], proj).status).toBe(0)
+
+    // Import both subpaths and exercise guard + fold. Stdout must be EXACTLY
+    // the probe's own output — any extra byte means import ran CLI code.
+    writeFileSync(
+      join(proj, 'probe.mjs'),
+      [
+        "import { validateEnvelope, makeEvent } from '@alignlabs/sofar/schema'",
+        "import { foldLines } from '@alignlabs/sofar/engine'",
+        "const bad = validateEnvelope('not an event')",
+        "if (bad.ok !== false) throw new Error('guard accepted junk')",
+        "const ev = makeEvent({ initiative: 'demo', session: 'cli', source: 'cli', actor: 'human', type: 'initiative_created', payload: { slug: 'demo', goal: 'g' } })",
+        'const good = validateEnvelope(ev)',
+        "if (!good.ok) throw new Error('guard rejected a minted event')",
+        "const { state, warnings } = foldLines([JSON.stringify(ev), '{\"torn', ''])",
+        "if (warnings.length !== 1) throw new Error('corrupt line did not warn')",
+        "if (state.slug !== 'demo') throw new Error('fold missed the valid line')",
+        "console.log('LIBRARY-OK')",
+      ].join('\n'),
+    )
+    const probe = spawnSync(process.execPath, [join(proj, 'probe.mjs')], { encoding: 'utf8', timeout: 30_000 })
+    expect(probe.status).toBe(0)
+    expect(probe.stdout).toBe('LIBRARY-OK\n') // exactly — no side-effect output
+    expect(probe.stderr).toBe('')
+
+    // Types resolve for a TS consumer (bundler-style resolution, strict).
+    writeFileSync(
+      join(proj, 'probe.ts'),
+      [
+        "import { validateEnvelope, type EventEnvelope } from '@alignlabs/sofar/schema'",
+        "import { foldLines, type InitiativeState } from '@alignlabs/sofar/engine'",
+        'const check = validateEnvelope({})',
+        'const events: string[] = []',
+        'const state: InitiativeState = foldLines(events).state',
+        'export function keep(e: EventEnvelope): string {',
+        '  return check.ok ? state.slug : e.id',
+        '}',
+      ].join('\n'),
+    )
+    writeFileSync(
+      join(proj, 'tsconfig.json'),
+      JSON.stringify(
+        {
+          compilerOptions: {
+            target: 'ES2022',
+            module: 'ESNext',
+            moduleResolution: 'Bundler',
+            strict: true,
+            noEmit: true,
+            skipLibCheck: false,
+          },
+          include: ['probe.ts'],
+        },
+        null,
+        2,
+      ),
+    )
+    const tsc = spawnSync(
+      join(engineDir, '..', '..', 'node_modules', '.bin', 'tsc'),
+      ['-p', join(proj, 'tsconfig.json')],
+      { cwd: proj, encoding: 'utf8', timeout: 60_000 },
+    )
+    expect(tsc.stdout).toBe('')
+    expect(tsc.status).toBe(0)
+  }, 120_000)
+
+  it('fold parity: the installed bundle folds this repo\'s own record identically to the source fold', async () => {
+    const { foldLines: bundleFold } = (await import(
+      join(installedPkg, 'dist', 'engine.js')
+    )) as typeof import('../src/lib/engine')
+    const { foldLines: sourceFold } = await import('../src/core/fold')
+
+    const lines = readFileSync(repoRecord, 'utf8').split('\n')
+    const viaBundle = bundleFold(lines)
+    const viaSource = sourceFold(lines)
+    expect(viaBundle.state).toEqual(viaSource.state)
+    expect(viaBundle.warnings).toEqual(viaSource.warnings)
+    expect(viaBundle.state.slug).toBe('harness-build') // the fixture is real
+  })
+
+  it('cursor round-trip: exportNDJSON via the library == sofar export --since via the CLI', async () => {
+    const { root, log } = recordFixture()
+    const { exportNDJSON, readEvents } = (await import(
+      join(installedPkg, 'dist', 'engine.js')
+    )) as typeof import('../src/lib/engine')
+
+    const events = readEvents(log).events
+    expect(events.length).toBeGreaterThan(10)
+    const since = events[Math.floor(events.length / 2)]!.id
+
+    const viaLibrary = exportNDJSON(log, since)
+    const viaCli = sofar(['export', 'harness-build', '--since', since], { cwd: root })
+    expect(viaCli.status).toBe(0)
+    expect(viaCli.stdout).toBe(viaLibrary) // byte-identical NDJSON
+    expect(viaLibrary.length).toBeGreaterThan(0)
+  })
+})
+
+/** Tarball filename for the current manifest — shared by both suites. */
+function tarballName(): string {
+  return `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
+}

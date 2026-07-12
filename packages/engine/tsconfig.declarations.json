@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "rootDir": "..",
+    "outDir": "dist/types",
+    "paths": {
+      "@sofar/schema": ["../schema/src/events.ts"],
+      "@sofar/schema/tool-inputs": ["../schema/src/tool-inputs.ts"]
+    }
+  },
+  "include": ["src/lib"]
+}

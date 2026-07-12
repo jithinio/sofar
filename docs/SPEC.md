@@ -138,6 +138,26 @@ Implemented task 13.1: foldLines sorts envelope-valid events by id (stable
 warnings keep file order (they describe lines, not events); cursor is
 therefore the MAX event id, identical on every replica.
 
+## Library surface (library-surface, L1/L2 — added for sofar-cloud + D11)
+@alignlabs/sofar additionally publishes typed ESM subpath exports so other
+services consume the engine programmatically (fold parity: cloud state must
+come from the engine's OWN fold, never a reimplementation):
+- "@alignlabs/sofar/schema" — the v1 envelope type + validateEnvelope (the
+  tolerant guard: validates, never throws or repairs — skip-and-warn stays
+  the caller's decision) + makeEvent, and every event payload type/validator
+  from @sofar/schema (events module).
+- "@alignlabs/sofar/engine" — foldLines/foldLog (deterministic, total,
+  ulid-normative — EXACTLY the CLI's fold), InitiativeState + component
+  types + the cross-session derivations, the cursor primitive (readEvents /
+  exportEvents / exportNDJSON / importNDJSON), and serializeEvent.
+Laws: importing a subpath executes no CLI code and has no side effects; the
+bin and the zero-runtime-deps manifest are unchanged; the d.ts tree under
+dist/types is SELF-CONTAINED — the private @sofar/schema name never appears
+in published declarations (build-time specifier rewrite, L2); consumers use
+bundler-style module resolution. The @sofar/schema workspace package itself
+stays private and unpublished (D13: one stewarded npm name; the bare name
+also collides with a sofar-cloud-internal package).
+
 ## MCP tools (server name: sofar)
 - sofar_get_state({initiative?, view?}) → progressive disclosure (token-opt):
   view "digest" (DEFAULT) returns the summary-dense orientation projection as

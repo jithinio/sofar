@@ -115,6 +115,23 @@ session start, task changes, decisions, and the mandatory `session_ended`
 write-back. No hook can block these tools, so the convention states
 write-back as mandatory.
 
+**Library** (services and tooling built on the format). Typed ESM subpath
+exports on the same package — importing them runs no CLI code:
+
+```ts
+import { validateEnvelope, type EventEnvelope } from '@alignlabs/sofar/schema'
+import { foldLines, exportNDJSON } from '@alignlabs/sofar/engine'
+```
+
+`/schema` is the format layer: the v1 envelope type, the tolerant
+`validateEnvelope` guard (validates — never throws or repairs), `makeEvent`,
+and every event payload type + validator. `/engine` is the state layer: the
+deterministic ulid-ordered fold (exactly what the CLI uses — a consumer's
+state always matches `sofar status` over the same log), `InitiativeState`
+and its derivations, and the cursor primitive (`exportNDJSON` /
+`importNDJSON` — the sync interface). Types are self-contained; use
+bundler-style module resolution.
+
 ## Record layout
 
 ```
