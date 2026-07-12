@@ -199,7 +199,15 @@ Shims contain no logic — they invoke the sofar CLI.
   + .claude/settings.json hooks block, emit .mcp.json registration, append
   protocol blocks to CLAUDE.md and AGENTS.md (idempotent; the AGENTS.md
   block is the CLI convention dialect for MCP-less tools — added Phase 5,
-  BD31). Each installed protocol block
+  BD31). Writes the union-merge rule for committed event logs to
+  .gitattributes — the exact line `.sofar/**/events.jsonl merge=union`
+  (team-readiness T2): file created when missing, otherwise MERGED (rule
+  appended, user content byte-preserved — never clobbered); idempotent,
+  and any existing line already targeting `.sofar/**/events.jsonl` wins
+  over ours (the customized-entry precedent). Union merge is safe for the
+  record and ONLY for it: the log is append-only and the fold replays in
+  ulid id order (D-sync-1), so a merge that keeps both sides' lines in
+  arbitrary order folds to the same state on every clone. Each installed protocol block
   MUST include: (a) all work state lives in sofar records — never in tool
   memory or scratch files; (b) work matching no existing initiative requires
   creating one (sofar new) before proceeding; (c) bindings resolve which
@@ -229,7 +237,9 @@ Shims contain no logic — they invoke the sofar CLI.
   context and `sofar status` (rendered only when open sessions overlap, D-P11).
 - `sofar uninit [--purge]` — exact inverse of init, surgical: remove the
   four hook shims, our settings.json hook entries (matched on the shim path),
-  .mcp.json's sofar server, and the protocol blocks (markers + one seam
+  .mcp.json's sofar server, our exact .gitattributes union-merge line (a
+  customized events.jsonl rule is user content — kept; team-readiness T2),
+  and the protocol blocks (markers + one seam
   blank line), preserving all user content; .sofar/ is kept with a notice
   unless --purge deletes it (--purge alone may also delete files the run
   emptied — the byte-clean round-trip). Idempotent (added Phase 8, BD45).

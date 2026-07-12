@@ -191,6 +191,34 @@ describe('sofar uninit preserves foreign content in the files it edits', () => {
     )
   })
 
+  it('removes only our union-merge line from .gitattributes; user rules stay byte-exact', () => {
+    const root = freshRepo()
+    writeFileSync(join(root, '.gitattributes'), '*.png binary\n')
+    runInit(root)
+
+    const result = runUninit(root)
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('updated .gitattributes (sofar union-merge rule removed)')
+    expect(readFileSync(join(root, '.gitattributes'), 'utf8')).toBe('*.png binary\n')
+  })
+
+  it('keeps a user-customized events.jsonl rule (never installed by us, never removed)', () => {
+    const root = freshRepo()
+    const custom = '.sofar/**/events.jsonl -merge\n'
+    writeFileSync(join(root, '.gitattributes'), custom)
+    runInit(root) // leaves the customized rule alone (theirs wins)
+
+    expect(runUninit(root).exitCode).toBe(0)
+    expect(readFileSync(join(root, '.gitattributes'), 'utf8')).toBe(custom)
+  })
+
+  it('without --purge an emptied .gitattributes stays, like the other managed files', () => {
+    const root = freshRepo()
+    runInit(root)
+    expect(runUninit(root).exitCode).toBe(0)
+    expect(readFileSync(join(root, '.gitattributes'), 'utf8')).toBe('')
+  })
+
   it('restores CLAUDE.md/AGENTS.md user prose byte-exactly (one seam collapsed)', () => {
     const root = freshRepo()
     const claudeProse = '# My project\n\nHouse rules live here.\n'

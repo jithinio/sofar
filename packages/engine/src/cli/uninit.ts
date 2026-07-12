@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { join } from 'node:path'
-import { PROTOCOL_END, PROTOCOL_START, SHIMS } from './init'
+import { GITATTRIBUTES_LINE, PROTOCOL_END, PROTOCOL_START, SHIMS } from './init'
 import { fail, ok, type CmdResult } from './shared'
 import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui'
 
@@ -193,6 +193,29 @@ function stripProtocolBlock(
   report.push(`updated ${file} (sofar protocol block removed)`)
 }
 
+/**
+ * Remove exactly the union-merge line init installed (team-readiness T2).
+ * A user-customized events.jsonl rule differs byte-wise and is therefore
+ * user content — kept, like every other foreign line.
+ */
+function stripGitattributes(rootDir: string, purge: boolean, report: string[]): void {
+  const path = join(rootDir, '.gitattributes')
+  if (!existsSync(path)) return
+  const content = readFileSync(path, 'utf8')
+  const lines = content.split('\n')
+  const kept = lines.filter((line) => line.trimEnd() !== GITATTRIBUTES_LINE)
+  if (kept.length === lines.length) return // no line of ours — untouched
+  const result = kept.join('\n')
+
+  if (purge && result.length === 0) {
+    unlinkSync(path)
+    report.push('removed .gitattributes (contained only the sofar union-merge rule)')
+    return
+  }
+  writeFileSync(path, result, 'utf8')
+  report.push('updated .gitattributes (sofar union-merge rule removed)')
+}
+
 /** Remove a directory ONLY when it exists and is empty. */
 function removeDirIfEmpty(rootDir: string, rel: string, report: string[]): boolean {
   const path = join(rootDir, rel)
@@ -251,6 +274,7 @@ export function runUninit(
     const shimsRemoved = removeShims(rootDir, report)
     const settingsDeleted = stripSettings(rootDir, purge, report)
     stripMcp(rootDir, purge, report)
+    stripGitattributes(rootDir, purge, report)
     stripProtocolBlock(rootDir, 'CLAUDE.md', purge, report, warnings)
     stripProtocolBlock(rootDir, 'AGENTS.md', purge, report, warnings)
 

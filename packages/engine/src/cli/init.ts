@@ -110,6 +110,15 @@ ${PROTOCOL_END}
 // existing importers (init is where the stub is written to disk).
 export { REPO_MD_STUB } from './shared'
 
+/**
+ * Union-merge attribute for committed event logs (team-readiness T2):
+ * two branches appending to the same events.jsonl must merge without
+ * conflicts. git's union driver keeps both sides' lines — safe here and
+ * ONLY here because the log is append-only and the fold replays in ulid
+ * id order (D-sync-1), so line order carries no meaning.
+ */
+export const GITATTRIBUTES_LINE = '.sofar/**/events.jsonl merge=union'
+
 const HOOK_COMMAND_PREFIX = '$CLAUDE_PROJECT_DIR/.claude/hooks/'
 
 interface ShimSpec {
@@ -199,6 +208,32 @@ function initSofarDir(rootDir: string, report: string[]): void {
   report.push(
     `${createIfMissing(join(sofarDir, 'bindings.json'), '{}\n')} .sofar/bindings.json`,
   )
+}
+
+/**
+ * Merge the union-merge rule into .gitattributes — never clobber: user
+ * content is byte-preserved, the rule is appended. Any existing line
+ * already targeting the events pattern wins over ours (the .mcp.json
+ * precedent: a customized entry is the user's, theirs stays).
+ */
+function ensureGitattributes(rootDir: string, report: string[]): void {
+  const path = join(rootDir, '.gitattributes')
+  if (!existsSync(path)) {
+    writeFileSync(path, `${GITATTRIBUTES_LINE}\n`, 'utf8')
+    report.push('created .gitattributes (union merge for event logs)')
+    return
+  }
+  const content = readFileSync(path, 'utf8')
+  const hasEventsRule = content
+    .split(/\r?\n/)
+    .some((line) => line.trim().split(/\s+/)[0] === '.sofar/**/events.jsonl')
+  if (hasEventsRule) {
+    report.push('unchanged .gitattributes (events.jsonl rule present)')
+    return
+  }
+  const separator = content.endsWith('\n') || content.length === 0 ? '' : '\n'
+  writeFileSync(path, `${content}${separator}${GITATTRIBUTES_LINE}\n`, 'utf8')
+  report.push('updated .gitattributes (union merge for event logs appended)')
 }
 
 function installShims(rootDir: string, report: string[]): void {
@@ -335,6 +370,7 @@ export function runInit(
   const report: string[] = []
   try {
     initSofarDir(rootDir, report)
+    ensureGitattributes(rootDir, report)
     installShims(rootDir, report)
     mergeSettings(rootDir, report)
     mergeMcpJson(rootDir, report)

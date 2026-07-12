@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 import {
   AGENTS_PROTOCOL_BLOCK,
+  GITATTRIBUTES_LINE,
   hookCommand,
   PROTOCOL_BLOCK,
   PROTOCOL_START,
@@ -80,6 +81,9 @@ describe('sofar init on a fresh repo', () => {
     expect(readFileSync(join(root, '.sofar', 'repo.md'), 'utf8')).toBe(REPO_MD_STUB)
     expect(readFileSync(join(root, '.sofar', 'bindings.json'), 'utf8')).toBe('{}\n')
     expect(statSync(join(root, '.sofar', 'initiatives')).isDirectory()).toBe(true)
+
+    // .gitattributes: union-merge rule for committed event logs (team-readiness T2)
+    expect(readFileSync(join(root, '.gitattributes'), 'utf8')).toBe(`${GITATTRIBUTES_LINE}\n`)
 
     // Shims: exact source text (bundled, not read from disk), executable
     for (const shim of SHIMS) {
@@ -235,6 +239,44 @@ describe('sofar init merges — never clobbers — user files', () => {
     expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe(edited)
   })
 
+  it('merges the union-merge rule into an existing .gitattributes — never clobbers (T2)', () => {
+    const root = freshRepo()
+    writeFileSync(join(root, '.gitattributes'), '*.png binary\n')
+
+    expect(runInit(root).exitCode).toBe(0)
+    expect(readFileSync(join(root, '.gitattributes'), 'utf8')).toBe(
+      `*.png binary\n${GITATTRIBUTES_LINE}\n`,
+    )
+
+    // double-init adds nothing
+    const again = runInit(root)
+    expect(again.exitCode).toBe(0)
+    expect(again.stdout).toContain('unchanged .gitattributes')
+    expect(readFileSync(join(root, '.gitattributes'), 'utf8')).toBe(
+      `*.png binary\n${GITATTRIBUTES_LINE}\n`,
+    )
+  })
+
+  it('adds a newline seam when the existing .gitattributes lacks a trailing one', () => {
+    const root = freshRepo()
+    writeFileSync(join(root, '.gitattributes'), '*.png binary')
+    expect(runInit(root).exitCode).toBe(0)
+    expect(readFileSync(join(root, '.gitattributes'), 'utf8')).toBe(
+      `*.png binary\n${GITATTRIBUTES_LINE}\n`,
+    )
+  })
+
+  it('a user-customized events.jsonl rule wins over ours', () => {
+    const root = freshRepo()
+    const custom = '.sofar/**/events.jsonl -merge\n'
+    writeFileSync(join(root, '.gitattributes'), custom)
+
+    const result = runInit(root)
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('unchanged .gitattributes (events.jsonl rule present)')
+    expect(readFileSync(join(root, '.gitattributes'), 'utf8')).toBe(custom)
+  })
+
   it('never overwrites a hand-written repo.md', () => {
     const root = freshRepo()
     mkdirSync(join(root, '.sofar'), { recursive: true })
@@ -268,7 +310,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
     const result = runInit(root, styled)
     expect(result.exitCode).toBe(0)
     const lines = result.stdout.trimEnd().split('\n')
-    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (10 changes)')
+    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (11 changes)')
     expect(lines[0]).toBe('\x1b[2m  └ created .sofar/repo.md\x1b[22m')
     for (const line of lines.slice(0, -1)) {
       expect(line.startsWith('\x1b[2m  └ ')).toBe(true)
@@ -282,6 +324,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
       [
         'created .sofar/repo.md',
         'created .sofar/bindings.json',
+        'created .gitattributes (union merge for event logs)',
         'created .claude/hooks/session-start.sh',
         'created .claude/hooks/post-tool-use.sh',
         'created .claude/hooks/stop.sh',
@@ -290,7 +333,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
         'created .mcp.json',
         'created CLAUDE.md (sofar protocol block)',
         'created AGENTS.md (sofar protocol block)',
-        'sofar init: done (10 changes)',
+        'sofar init: done (11 changes)',
         '',
       ].join('\n'),
     )

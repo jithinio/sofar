@@ -151,6 +151,7 @@ describe('acceptance 1 — uninit round-trips (hash-based)', () => {
       stableJSON({ mcpServers: { other: { command: 'other-server', args: [] } } }),
     )
     writeFileSync(join(root, '.claude', 'hooks', 'my-hook.sh'), '#!/bin/sh\necho mine\n')
+    writeFileSync(join(root, '.gitattributes'), '*.png binary\n')
     const before = hashTree(root)
 
     expect(runInit(root).exitCode).toBe(0)
