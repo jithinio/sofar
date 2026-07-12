@@ -10,6 +10,8 @@ sofar/                   # workspace root: toolchain devDeps, shared tsconfig
       test/              #   step yet); tool-inputs = MCP tool arg schemas
     engine/              # sofar — the npm bin (CLI + MCP server + hooks)
       src/core/          # envelope.ts, log.ts (append), fold.ts, cursor.ts
+      src/client/        # v2 sync client: config/http/device/repos/push/
+                         # pull/doorbell — §Sync client
       src/mcp/           # server.ts + one file per tool
       src/cli/           # commands: init, new, switch, status, export,
                          # import, event (used by hook shims), serve
@@ -33,12 +35,16 @@ engine-only scope law still applies during the Fable window.
 ## Architectural invariants
 
 - **Zero model API calls.** sofar never calls a model: no API keys, no
-  inference costs, no user content sent anywhere. Everything the engine
+  inference costs, no user content fed to any model. Everything the engine
   produces is a read-side derivation computed locally; record write-backs
   are the agent's own tool-call args, which keeps their output tokens
   minimal by construction. Any change that would add a model call to sofar
   (e.g. cheap-model or Batch-API bookkeeping) is rejected until a Decision
-  explicitly revisits this invariant (felt-cost D3, Jul 2026).
+  explicitly revisits this invariant (felt-cost D3, Jul 2026). The ONLY
+  egress in the product is the v2 sync client (§Sync client, sync-client
+  D4, Jul 2026): record events pushed to the user's OWN authenticated
+  sofar-cloud repo, opt-in via `sofar login` + `sofar link`, revocable
+  server-side — nothing else ever leaves the machine.
 - **Injection byte-stability.** For an unchanged record, the SessionStart
   status block renders byte-identically — no timestamps, counters, or other
   volatile bytes are introduced at render time (all dates in the block come
@@ -154,6 +160,83 @@ Implemented task 13.1: foldLines sorts envelope-valid events by id (stable
 warnings keep file order (they describe lines, not events); cursor is
 therefore the MAX event id, identical on every replica.
 
+## Sync client (v2 — api.sofar.sh, the D14 seam; sync-client, Jul 2026)
+The client half of sofar-cloud sync. The server (private repo) is
+authoritative for the wire; the client implements it exactly and stays
+useful with the API completely gone — local work is NEVER blocked by sync.
+
+Base URL resolution: `--api` flag > `SOFAR_API_URL` env > `.sofar/
+remote.json` api_url > `https://api.sofar.sh`. Errors on /v1 are
+`{"error":{"code":"snake_case","message":"…"}}`; the device endpoints
+speak OAuth flat-string errors (`{"error":"code"}`) — the client
+normalizes both. Cross-org/unknown resources return 404, never 403;
+client copy never pretends to distinguish "doesn't exist" from "not a
+member".
+
+Storage triad (sync-client D2 — three homes, three lifetimes):
+- `.sofar/remote.json` — COMMITTABLE `{version, api_url, org, name,
+  repo_id}` written by `sofar link`; repo_id is not a secret, teammates
+  share the binding.
+- `~/.config/sofar/credentials.json` (XDG_CONFIG_HOME-aware) — sfr_
+  tokens keyed by normalized api_url, file mode 0600, dir 0700.
+  Credentials never touch the repo and are NEVER printed after mint.
+- `~/.local/state/sofar/sync/<sha256(clone-path)>.json`
+  (XDG_STATE_HOME-aware) — per-CLONE cursors `{streams: {<slug>:
+  {pushed, pulled}}}`, invalidated when api_url/repo_id change. Never
+  committed: cursors mutate per sync; a lost cursor file is safe because
+  push/pull are idempotent by event id.
+
+Commands (styled-capable confirmation surfaces; wording identical plain):
+- `sofar login [--api <url>] [--scopes sync|read]` — RFC-8628 device
+  flow (client_id `sofar-cli`): POST /api/auth/device/code → print
+  user_code + verification_uri_complete, attempt a browser open → poll
+  /api/auth/device/token every `interval`s (`authorization_pending`
+  continues, `slow_down` adds 5s, `access_denied`/`expired_token` abort
+  with clear copy, the `expires_in` deadline aborts as expired) → the
+  short-lived access_token immediately mints the real credential at
+  POST /v1/tokens `{name: <hostname>, scopes}` → store, discard the
+  access_token. `--scopes read` mints a read-only token.
+- `sofar link --org <slug> [--name <repo>]` — POST /v1/repos (idempotent
+  on org+name, 201/200 → {repo_id}), writes `.sofar/remote.json`.
+- `sofar push [slug|--all] [--full]` — per initiative stream, wire lines
+  are the engine's canonical envelope JSONL (exactly what `sofar export`
+  emits — never re-serialized), ulid order, FROM EVENT ZERO on first
+  push (the server refolds the whole stream; a stream missing genesis
+  folds to an empty slug/goal). Batches ≤1000 lines AND ≤5MB (server
+  413s; a stricter 413 halves the batch), uncompressed. Response
+  `{accepted, duplicates, invalid[], head}`: partial acceptance is
+  normal; `invalid` lines are a client bug surfaced loudly, never fatal,
+  and never wedge the queue. Idempotent by event id: 429 (Retry-After
+  honored)/5xx/network re-send the SAME batch with capped exponential
+  backoff; the ack cursor advances only on 2xx and persists per batch.
+  The offline queue IS the log after the ack cursor — an unreachable API
+  fails the command politely, local work is untouched, the next push
+  drains with zero loss and no duplicate state effects.
+- `sofar pull [slug|--all] [--full] [--watch]` — GET …/events?since=
+  <cursor>&limit=<n> pages in ulid order; every response carries
+  X-Sofar-Cursor; empty body = caught up. Pages import with `sofar
+  import` semantics (dedupe by id — pulling your own pushed events back
+  is safe by construction), projections regenerate when anything landed,
+  and the inbound cursor persists AFTER each imported page (crash
+  between the two re-pulls a page; the reverse order could lose one).
+  Inbound cursor is independent of the push ack cursor. `--full` drops
+  the stream cursor (re-pull/re-push from genesis — recovery, cheap
+  under dedupe).
+- `--watch` — doorbell: GET /v1/doorbell?streams=<repo_id>/<slug>,…
+  (SSE, authed). `data:` events are `{"stream","head"}`; `: heartbeat`
+  comments ~25s; NOTIFICATION ONLY — every ring and every (re)connect
+  after a drop triggers a since-cursor pull, so a missed doorbell can
+  never lose data. Reconnect uses capped backoff + an idle watchdog;
+  401/404 stop the loop (they need a human, not a retry).
+
+Library subpath "@alignlabs/sofar/client" (sync-client D1): the whole
+client core — config/credential/cursor stores, device flow, createRepo,
+pushStream/pullStream/splitBatches, runDoorbell — importable by the
+Tauri shell and iOS app. Same laws as /schema and /engine: side-effect-
+free import (env/fs resolved at call time), self-contained d.ts, zero
+runtime deps (native fetch; the SSE reader is hand-rolled), bin and
+manifest law unchanged.
+
 ## Library surface (library-surface, L1/L2 — added for sofar-cloud + D11)
 @alignlabs/sofar additionally publishes typed ESM subpath exports so other
 services consume the engine programmatically (fold parity: cloud state must
@@ -166,6 +249,8 @@ come from the engine's OWN fold, never a reimplementation):
   ulid-normative — EXACTLY the CLI's fold), InitiativeState + component
   types + the cross-session derivations, the cursor primitive (readEvents /
   exportEvents / exportNDJSON / importNDJSON), and serializeEvent.
+- "@alignlabs/sofar/client" — the v2 sync client core (§Sync client;
+  sync-client D1, Jul 2026).
 Laws: importing a subpath executes no CLI code and has no side effects; the
 bin and the zero-runtime-deps manifest are unchanged; the d.ts tree under
 dist/types is SELF-CONTAINED — the private @sofar/schema name never appears
@@ -371,6 +456,9 @@ Shims contain no logic — they invoke the sofar CLI.
 - `sofar export [slug] [--since <id>]` / `sofar import <file|-> [slug]`
   — per-initiative NDJSON over the §Cursor primitive; slug resolves like
   status (explicit wins, else branch binding) (extended Phase 4, BD28)
+- `sofar login` / `sofar link` / `sofar push` / `sofar pull [--watch]`
+  — the v2 sync client against api.sofar.sh; full contract in §Sync
+  client (sync-client, Jul 2026).
 - `sofar event <subcommand>` — append-side surface: session-start,
   post-tool, stop, session-end are internal subcommands for the hook shims;
   `event append --type <event_type> --payload <json-object> [--session <id>]
@@ -543,6 +631,9 @@ the stdout bytes equal the plain renderer):
 | next | two-part entry blocks (header: pointer + pie + bold slug + dim branch tag + dim task fraction; body: hanging-indent word-wrapped action; stale warning on its own line; blank line between entries) / renderNextActions | derivation warnings — always plain |
 | doctor | ✓/⚠/✗ findings report / marker-column report | scan spinner (animate-gated) |
 | new, switch | ✓ confirmation + dim └ details | ✗ failure, styled under stderrCaps |
+| login | code/url prompt (bold code) + ✓ confirmation + dim └ details; the sfr_ token NEVER prints | network spinner while polling (animate-gated); ✗ failure, styled under stderrCaps |
+| link | ✓ confirmation + dim └ details | ✗ failure, styled under stderrCaps |
+| push, pull | ✓ per-stream result lines | plain warnings (invalid lines, retries); ✗ failure, styled under stderrCaps; `--watch` banner dim |
 | init | dim └ detail rails + ✓ result; scanner hint always plain (copy-paste material) | ✗ failure, styled under stderrCaps |
 | uninit | dim └ details + notices + ✓ result | warnings + ✗ failures, styled under stderrCaps |
 | adopt | MIGRATION BRIEF always plain (agent-executed); --mark result line ✓-styled | typed-error JSON (BD17) — always plain |
@@ -689,6 +780,27 @@ stay the underlying derivation's, and exit codes are styling-independent.
   by skip-with-warning from either file order with identical states, and is
   not an orphan (rider b); a duplicated id (pre-dedupe merge artifact)
   keeps file order via the stable sort and folds deterministically.
+- **Sync client (sync-client):** round-trip — push a stream from one
+  clone, pull since genesis into a fresh clone: byte-identical event
+  set, deep-equal fold, zero-diff `sofar status`, projections present.
+  Idempotency — a `--full` re-push of an already-pushed stream reports
+  accepted=0, duplicates=n, and the server stream is unchanged.
+  Downtime drill — with the API down, local appends are unaffected and
+  push fails politely with the ack cursor intact; after restart the
+  queue drains (exactly the events past the cursor), and a further push
+  finds nothing to do. Retries re-send the byte-identical batch on
+  5xx/network and honor Retry-After on 429; server-rejected `invalid`
+  lines surface on stderr without failing the push or wedging the
+  cursor. Batching splits at both 1000 lines and 5MB with every batch
+  under both limits and no event dropped or reordered. Pull pages by
+  X-Sofar-Cursor persisting the inbound cursor after every imported
+  page; the inbound cursor is independent of the push ack. Doorbell
+  rings and reconnects each trigger a since-cursor pull; heartbeats
+  dispatch nothing; 401 aborts instead of looping. Login stores the
+  minted credential 0600 keyed by api_url, honors slow_down (+5s),
+  aborts clearly on denial/expiry, and no CLI output ever contains the
+  sfr_ token. Live E2E (behind SOFAR_LIVE_API, local api.sofar.sh):
+  device login via the claim+approve path, link, and the round-trip.
 - **Next actions (next-command):** on a repo with several initiatives,
   `sofar next` renders one line per initiative — slug, branch(es) or
   "unbound", next action or "(no next action recorded)" — in the same

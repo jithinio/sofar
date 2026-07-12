@@ -82,6 +82,27 @@ the same log to the same state.
   `git config user.email` at append time, so attribution survives merges
   and imports; a machine without a configured email just omits the field.
 
+## Sync (sofar-cloud)
+
+Optional, off until you opt in: push/pull the record through
+[api.sofar.sh](https://sofar.sh) instead of (or alongside) git.
+
+```
+sofar login                 # device flow: code + browser approval
+sofar link --org <org>      # bind this repo; writes .sofar/remote.json — commit it
+sofar push [--all]          # send events (ulid order, idempotent by id)
+sofar pull [--all|--watch]  # fetch events; --watch keeps pulling on the doorbell
+```
+
+Local work never blocks on sync: with the API unreachable, `push` fails
+politely and the un-acked tail of the log simply waits — the next push
+drains it with zero loss and no duplicates (events dedupe by id on both
+sides). `.sofar/remote.json` is the only sync file that belongs in git;
+credentials live in `~/.config/sofar/credentials.json` (0600) and
+per-clone cursors under `~/.local/state/sofar/`. `sofar login --scopes
+read` mints a read-only token for consumers that should never write.
+`SOFAR_API_URL` overrides the endpoint (self-hosted / local dev).
+
 ## Integration surfaces
 
 `sofar init` wires all three; a tool uses whichever it can.
@@ -128,6 +149,7 @@ exports on the same package — importing them runs no CLI code:
 ```ts
 import { validateEnvelope, type EventEnvelope } from '@alignlabs/sofar/schema'
 import { foldLines, exportNDJSON } from '@alignlabs/sofar/engine'
+import { pushStream, pullStream, runDoorbell } from '@alignlabs/sofar/client'
 ```
 
 `/schema` is the format layer: the v1 envelope type, the tolerant
@@ -136,8 +158,10 @@ and every event payload type + validator. `/engine` is the state layer: the
 deterministic ulid-ordered fold (exactly what the CLI uses — a consumer's
 state always matches `sofar status` over the same log), `InitiativeState`
 and its derivations, and the cursor primitive (`exportNDJSON` /
-`importNDJSON` — the sync interface). Types are self-contained; use
-bundler-style module resolution.
+`importNDJSON` — the sync interface). `/client` is the sofar-cloud sync
+client the CLI itself runs — device-flow login, link, push/pull, doorbell —
+for shells and apps that sync programmatically. Types are self-contained;
+use bundler-style module resolution.
 
 ## Record layout
 
@@ -166,6 +190,10 @@ sofar switch <slug>            rebind the current branch
 sofar status [slug]            fold and print the full initiative tree
 sofar export [slug] [--since]  event log as NDJSON (sync cursor primitive)
 sofar import <file|-> [slug]   append missing events, dedupe by id
+sofar login [--scopes read]    sign in to api.sofar.sh (device flow), store a machine token
+sofar link --org <org>         bind repo to a cloud org/repo (.sofar/remote.json, committable)
+sofar push [slug|--all]        push events to the linked repo (idempotent, offline-safe)
+sofar pull [slug|--all]        pull events since cursor; --watch follows the doorbell
 sofar event append ...         validated single-event append (the dialect surface)
 sofar statusline               rent-meter for Claude Code's statusLine (stdin JSON → one line)
 sofar serve [--port]           localhost JSON state + SSE on change (127.0.0.1 only)
