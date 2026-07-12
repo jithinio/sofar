@@ -6,12 +6,24 @@
 - Tool: claude-code
 - Model: claude-fable-5
 - Started: 2026-07-12T07:11:08.777Z
-- Ended: (in progress)
+- Ended: 2026-07-12T07:46:30.281Z
 
 ## Summary
 
-(none recorded — session did not write back)
+Shipped Phase 12 + Phase 13: 12.1 MCP writes pin to the active session's initiative; 12.2 doctor WARNs on orphan task events; 12.3 acceptance (branch-flip, explicit/CLI paths); 12.4 BD59 parallel write-backs surfaced; 13.1 convergent fold (id-order replay, D-sync-1). 618 tests green. The new orphan check caught a LIVE misroute mid-session (main rebound to team-readiness): 8 events corrected out and re-appended here.
 
 ## Next action
 
-(none recorded)
+Only 5.3 remains (user-held scoring of the Fable→Opus handoff, arm-C). Consider releasing Phase 12+13 engine changes (next lockstep bump).
+
+## Activity (derived from mechanical events)
+
+- Derived: task changes: 12.1 → active, 12.1 → done, 12.2 → done, 12.3 → done, 12.4 → done, 13.1 → done
+- Commands run: 0
+- Task changes:
+  - 12.1 → active
+  - 12.1 → done
+  - 12.2 → done
+  - 12.3 → done
+  - 12.4 → done
+  - 13.1 → done

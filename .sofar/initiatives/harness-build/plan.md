@@ -4,7 +4,7 @@
 
 Goal: Build the Harness v1 engine during the Fable 5 window (Jul 3–7): event log core, MCP server, Claude Code hooks, projections, CLI, watcher/state server, and the AGENTS.md dialect. Engine only — schema lives in one swappable module; UI/sync/team are explicitly out of scope. Full contracts in docs/SPEC.md; conventions in CLAUDE.md; strategy context in harness-docs/ (user-held, outside this repo).
 
-Progress: 47/53 tasks done (88%)
+Progress: 52/53 tasks done (98%)
 
 ## Phase 1 — Event log core [done] — 6/6 done
 
@@ -87,16 +87,16 @@ Progress: 47/53 tasks done (88%)
 - [x] 11.4 Surface the concurrent-edit / open-session file map in the SessionStart context and `sofar status` (both read surfaces; rendered only when concurrency exists)
 - [x] 11.5 Acceptance: stale-phase fires only when all tasks done + phase open; concurrent-edit fires only for ≥2 open sessions; untracked-work fires on activity-without-tasks; surfacing appears on concurrency; ship 0.2.1
 
-## Phase 12 — Concurrent-branch misroute hardening [pending] — 0/4 done
+## Phase 12 — Concurrent-branch misroute hardening [done] — 4/4 done
 
-- [ ] 12.1 Pin session initiative: MCP write tools without an explicit initiative use the ACTIVE session's initiative (already on ActiveSession) instead of re-resolving from the git branch — a concurrent branch switch cannot misroute a bound session's writes (root cause of the Phase 11 incident, BD58)
-- [ ] 12.2 doctor misroute-symptom check: flag task_status_changed events whose task id is absent from the initiative's plan (silent orphans that only fold-warn today) so an audit catches a misroute
-- [ ] 12.3 Acceptance: a session started on branch A keeps writing to A's initiative after the shared checkout flips to B; doctor flags an injected orphan task event; explicit-initiative + CLI-slug paths unaffected
-- [ ] 12.4 next_action single-scalar collision: current.next_action derives from the last-appended session_ended (BD9), so concurrent same-initiative sessions with differing next-actions leave a last-writer-wins result that can be stale (observed live in token-optimization: parallel publish 0.3.x sessions). Options — surface per-open-session next-actions in status/context, or model release/publish as a task (task_status_changed) not a session next-action. Distinct from 12.1 misroute: right initiative, wrong scalar.
+- [x] 12.1 Pin session initiative: MCP write tools without an explicit initiative use the ACTIVE session's initiative (already on ActiveSession) instead of re-resolving from the git branch — a concurrent branch switch cannot misroute a bound session's writes (root cause of the Phase 11 incident, BD58)
+- [x] 12.2 doctor misroute-symptom check: flag task_status_changed events whose task id is absent from the initiative's plan (silent orphans that only fold-warn today) so an audit catches a misroute
+- [x] 12.3 Acceptance: a session started on branch A keeps writing to A's initiative after the shared checkout flips to B; doctor flags an injected orphan task event; explicit-initiative + CLI-slug paths unaffected
+- [x] 12.4 next_action single-scalar collision: current.next_action derives from the last-appended session_ended (BD9), so concurrent same-initiative sessions with differing next-actions leave a last-writer-wins result that can be stale (observed live in token-optimization: parallel publish 0.3.x sessions). Options — surface per-open-session next-actions in status/context, or model release/publish as a task (task_status_changed) not a session next-action. Distinct from 12.1 misroute: right initiative, wrong scalar.
 
-## Phase 13 - Sync contract [pending] — 0/1 done
+## Phase 13 - Sync contract [done] — 1/1 done
 
-- [ ] 13.1 Convergent fold: sort envelope-valid events by id before pass-2 replay (D-sync-1) + merged-log convergence tests (same event set, shuffled file orders, deep-equal states) + monotonic-writer and skew-tolerance assertions
+- [x] 13.1 Convergent fold: sort envelope-valid events by id before pass-2 replay (D-sync-1) + merged-log convergence tests (same event set, shuffled file orders, deep-equal states) + monotonic-writer and skew-tolerance assertions
 
 Active phase: Phase 5 — Dialect + forced handoff
-Next action: Implement cli-ui task 2.1 layout grammar, then wire task 2.2 status renderer.
+Next action: Only 5.3 remains (user-held scoring of the Fable→Opus handoff, arm-C). Consider releasing Phase 12+13 engine changes (next lockstep bump).
