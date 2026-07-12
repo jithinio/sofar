@@ -4,7 +4,7 @@
 
 Goal: Make harness cost felt at the moment it is incurred — cold-resume advisory, statusline rent-meter with cache-read health bands, batch-complete end-session nudge (behind SPEC) — and pin the injection's byte-stability against regression. Governed by the zero-model-API-calls invariant: no play may add a model call, API key, or inference cost to sofar.
 
-Progress: 9/9 tasks done (100%)
+Progress: 11/12 tasks done (91%)
 
 ## Phase 1 — Invariants & pinning [done] — 2/2 done
 
@@ -27,4 +27,11 @@ Progress: 9/9 tasks done (100%)
 - [x] 4.1 SPEC decision: UserPromptSubmit shim + additionalContext contract
 - [x] 4.2 Implement nudge behind the SPEC + tests
 
-Next action: None — felt-cost fully shipped and rolled out. New sessions on main need a binding only when the next initiative starts (sofar new). Statusline + nudge go live on the next Claude Code session restart.
+## Phase 5 — Polish round (user feedback on 0.8.0) [active] — 2/3 done
+
+- [x] 5.1 Statusline harness-identity segments: restore model · dir:branch (custom statusLine replaces Claude Code's default)
+- [x] 5.2 Styled statusline (D7): forced caps for the ANSI status bar — bold model, 📁/🌿 icons, banded colors; --no-color plain fallback
+- [ ] 5.3 Release 0.8.1 + rollout (publish, upgrade) (active)
+
+Active phase: Phase 5 — Polish round (user feedback on 0.8.0)
+Next action: User: npm publish -w @alignlabs/sofar (OTP), then sofar upgrade. Statusline restarts with the session. Other repos: one-time `sofar init` re-run each to get the UserPromptSubmit shim (doctor flags which); statusLine can go in ~/.claude/settings.json once globally instead of per-repo.
