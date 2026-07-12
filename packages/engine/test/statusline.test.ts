@@ -204,12 +204,41 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
       [
         '\x1b[1mFable 5\x1b[22m',
         `▸ ${basename(fixture.root)} ⎇ \x1b[32mmain\x1b[39m`,
-        `\x1b[35m${fixture.slug}\x1b[39m 1/3`,
+        `\x1b[33m◔\x1b[39m \x1b[35m${fixture.slug}\x1b[39m 1/3`, // task pie: in progress → warn (D9)
         '$1.23',
         '\x1b[32m↺ 72% ✓\x1b[39m',
         '\x1b[2m◑ 41%\x1b[22m', // pie gauge: 41% fill rounds to half
       ].join(sep),
     )
+  })
+
+  it('styled: completed record → success-green full pie (D9)', () => {
+    const fixture = fx()
+    appendEvents(fixture.eventsPath, [
+      makeEvent({
+        initiative: fixture.slug,
+        session: 'cli',
+        source: 'cli',
+        actor: 'agent',
+        type: 'plan_updated',
+        payload: {
+          plan: {
+            phases: [
+              {
+                name: 'Ship',
+                status: 'done',
+                tasks: [
+                  { id: '1.1', title: 'a', status: 'done' },
+                  { id: '1.2', title: 'b', status: 'done' },
+                ],
+              },
+            ],
+          },
+        },
+      }),
+    ])
+    const line = runStatusline(fixture.root, statusJson(), STATUSLINE_FORCED_CAPS)
+    expect(line).toContain(`\x1b[32m●\x1b[39m \x1b[35m${fixture.slug}\x1b[39m 2/2`)
   })
 
   it('styled: cold cache goes red, near-compaction context goes warn/error', () => {

@@ -217,7 +217,20 @@ export function runStatusline(rootDir: string, input: string, caps: Caps = PLAIN
   const record = recordSegment(rootDir, hook)
   if (record !== null) {
     const slug = style.accent(record.slug)
-    segments.push(record.total > 0 ? `${slug} ${record.done}/${record.total}` : slug)
+    // Task-progress pie (D9), colored by the next.ts convention: done →
+    // success, in progress → warn, untouched → dim. Glyph mode only.
+    const pie = icons ? pieFor(record.done, record.total, sym) : ''
+    const pieCell =
+      pie === ''
+        ? ''
+        : `${
+            record.done === record.total
+              ? style.success(pie)
+              : record.done > 0
+                ? style.warn(pie)
+                : style.dim(pie)
+          } `
+    segments.push(record.total > 0 ? `${pieCell}${slug} ${record.done}/${record.total}` : slug)
   }
 
   const cost = isObj(hook.cost) ? numField(hook.cost.total_cost_usd) : null

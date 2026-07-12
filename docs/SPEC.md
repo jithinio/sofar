@@ -382,10 +382,12 @@ Shims contain no logic — they invoke the sofar CLI.
 - `sofar statusline` (felt-cost 3.1/3.2, D4; identity segments D6; styling
   D7/D8) — the rent-meter, wired as Claude Code's statusLine command. Reads
   statusline JSON from stdin, prints ONE line: `<model> · ▸ <dir> ⎇
-  <branch> · <slug> <done>/<total> · $<total_cost_usd> · ↺ <warm%>[⚠|✓] ·
-  <pie> <used%>`. Icons are house-vocabulary text GLYPHS, never emoji (D8):
-  ▸ dir, ⎇ branch, ↺ cache rewarm, kernel progress pie (○◔◑◕●) as the
-  context-fill gauge. The leading model (model.display_name) and dir/branch
+  <branch> · <pie> <slug> <done>/<total> · $<total_cost_usd> ·
+  ↺ <warm%>[⚠|✓] · <pie> <used%>`. Icons are house-vocabulary text GLYPHS,
+  never emoji (D8): ▸ dir, ⎇ branch, ↺ cache rewarm, kernel progress pie
+  (○◔◑◕●) as BOTH gauges — task progress on the record segment (D9,
+  next.ts coloring: success done / warn in-progress / dim untouched) and
+  context fill. The leading model (model.display_name) and dir/branch
   segments restore what Claude Code's default status line shows — a custom
   statusLine REPLACES the default, and the rent-meter must not cost the
   user the line they had (D6). Branch comes from .git/HEAD via bounded
