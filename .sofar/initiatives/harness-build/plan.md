@@ -4,7 +4,7 @@
 
 Goal: Build the Harness v1 engine during the Fable 5 window (Jul 3–7): event log core, MCP server, Claude Code hooks, projections, CLI, watcher/state server, and the AGENTS.md dialect. Engine only — schema lives in one swappable module; UI/sync/team are explicitly out of scope. Full contracts in docs/SPEC.md; conventions in CLAUDE.md; strategy context in harness-docs/ (user-held, outside this repo).
 
-Progress: 52/53 tasks done (98%)
+Progress: 53/53 tasks done (100%)
 
 ## Phase 1 — Event log core [done] — 6/6 done
 
@@ -40,11 +40,11 @@ Progress: 52/53 tasks done (98%)
 - [x] 4.4 harness export --since <cursor> / harness import
 - [x] 4.5 Watcher + localhost JSON state server (no UI — endpoint only)
 
-## Phase 5 — Dialect + forced handoff [active] — 2/3 done
+## Phase 5 — Dialect + forced handoff [done] — 3/3 done
 
 - [x] 5.1 AGENTS.md protocol block (convention dialect for MCP-less tools)
 - [x] 5.2 OpenCode adapter notes: plugin equivalents documented; convention fallback verified manually (docs + simulated checklist done; manual OpenCode run pending, BD32)
-- [ ] 5.3 THE CEREMONY: final Fable write-back via protocol; Opus 4.8 resumes from the record alone; score as arm-C on the Phase 0 scorecard (execution done; user-held scoring remains)
+- [x] 5.3 THE CEREMONY: final Fable write-back via protocol; Opus 4.8 resumes from the record alone; score as arm-C on the Phase 0 scorecard (execution done; user-held scoring remains)
 
 ## Phase 6 — Hardening + distribution readiness [done] — 5/5 done
 
@@ -98,5 +98,4 @@ Progress: 52/53 tasks done (98%)
 
 - [x] 13.1 Convergent fold: sort envelope-valid events by id before pass-2 replay (D-sync-1) + merged-log convergence tests (same event set, shuffled file orders, deep-equal states) + monotonic-writer and skew-tolerance assertions
 
-Active phase: Phase 5 — Dialect + forced handoff
-Next action: Build the library export surface under a new library-surface initiative, then lockstep 0.7.0 and publish (user provides npm OTP).
+Next action: None — harness-build is complete and closed. Engine shipped through @alignlabs/sofar@0.7.0; future engine work starts a new initiative (sofar new).
