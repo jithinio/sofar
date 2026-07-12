@@ -34,4 +34,4 @@ Progress: 12/13 tasks done (92%)
 - [x] 5.2 Live E2E behind env flag (SOFAR_LIVE_API): login via manual claim+approve path, round-trip against locally running api.sofar.sh
 - [ ] 5.3 Version 0.9.0 staged: bump, changelog/README, full suite green, user publishes (OTP)
 
-Next action: User: npm publish -w @alignlabs/sofar (OTP) for 0.9.0, then sofar upgrade; separately fix sofar-cloud doorbell (idleTimeout:0 + initial SSE flush) per the note.
+Next action: User: npm publish -w @alignlabs/sofar (OTP) for 0.9.0 (sync client + D11), then sofar upgrade; separately fix sofar-cloud doorbell (idleTimeout + initial SSE flush) per the note.
