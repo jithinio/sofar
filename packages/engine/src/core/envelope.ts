@@ -1,4 +1,5 @@
 import { monotonicFactory } from 'ulid'
+import { gitUserEmail } from './identity'
 
 // Same-millisecond ulids from the default generator are randomly ordered;
 // the cursor contract (export "events since id") needs creation order to
@@ -30,6 +31,12 @@ export interface EventEnvelope {
   session: string
   source: Source
   actor: Actor
+  /**
+   * Author identity — `git config user.email` stamped when the event was
+   * minted, absent when unavailable (team-readiness T1). Strictly additive:
+   * the envelope stays v1 and readers tolerate absence everywhere.
+   */
+  user?: string
   type: string
   payload: Record<string, unknown>
 }
@@ -87,6 +94,9 @@ export function validateEnvelope(value: unknown): EnvelopeValidation {
   if (typeof value.actor !== 'string' || !(ACTORS as readonly string[]).includes(value.actor)) {
     errors.push({ field: 'actor', message: `must be one of: ${ACTORS.join(', ')}` })
   }
+  if (value.user !== undefined && (typeof value.user !== 'string' || value.user.length === 0)) {
+    errors.push({ field: 'user', message: 'when present, must be a non-empty string' })
+  }
   if (typeof value.type !== 'string' || value.type.length === 0) {
     errors.push({ field: 'type', message: 'must be a non-empty event type' })
   }
@@ -107,8 +117,13 @@ export interface MakeEventInput {
   payload: Record<string, unknown>
 }
 
-/** Build a valid envelope with a fresh ulid id and current timestamp. */
+/**
+ * Build a valid envelope with a fresh ulid id and current timestamp.
+ * Locally-minted events are stamped with author identity here — imported
+ * events never pass through makeEvent, so `sofar import` cannot restamp.
+ */
 export function makeEvent(input: MakeEventInput): EventEnvelope {
+  const user = gitUserEmail()
   const event: EventEnvelope = {
     v: ENVELOPE_VERSION,
     id: ulid(),
@@ -117,6 +132,7 @@ export function makeEvent(input: MakeEventInput): EventEnvelope {
     session: input.session,
     source: input.source,
     actor: input.actor,
+    ...(user !== undefined ? { user } : {}),
     type: input.type,
     payload: input.payload,
   }

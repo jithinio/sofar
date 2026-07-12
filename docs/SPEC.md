@@ -47,12 +47,22 @@ One JSON object per line in events.jsonl:
 ```json
 {"v":1,"id":"<ulid>","ts":"<ISO8601>","initiative":"<slug>",
  "session":"<session-id|cli>","source":"claude-code|opencode|codex|cli|hook",
- "actor":"agent|human","type":"<event_type>","payload":{}}
+ "actor":"agent|human","user":"<git user.email — OPTIONAL>",
+ "type":"<event_type>","payload":{}}
 ```
 Rules: ulid ids (sortable); appends are atomic single-line writes with
 O_APPEND; a reader must tolerate a torn final line (skip + warn); events are
 immutable — corrections are new events of type `correction` referencing the
 target id.
+`user` (team-readiness T1, Jul 12) is OPTIONAL author identity: stamped when
+the event is minted, from `git config user.email`, and omitted whenever that
+is unavailable — the identity lookup must NEVER fail an append. Strictly
+additive: the envelope stays v1, events without `user` remain valid forever,
+and every reader (fold included) tolerates absence; when present it must be
+a non-empty string (a malformed value fails envelope validation like any
+other corruption — skip + warn, never fatal). `sofar import` never restamps:
+imported events keep their original `user` (or its absence) — authorship is
+minting-machine truth.
 
 ## Event types (payload schemas in packages/schema/ — the swappable part)
 initiative_created · plan_updated (full plan structure) ·
