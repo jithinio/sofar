@@ -224,10 +224,15 @@ named invariant — sofar holds no API keys and sends nothing anywhere):
   input price. The SessionStart injection says so — one line with the
   estimated token cost and the fresh-start alternative — and stays silent on
   warm or small resumes.
-- *Rent-meter* (opt-in): `sofar statusline` renders record progress, session
-  cost, and the cache-read share of input tokens — a healthy stable-prefix
-  session runs 50–80% (`✓`); under 30% (`⚠`) means something is churning
-  your prompt prefix. Wire it in `.claude/settings.json`:
+- *Rent-meter* (opt-in): `sofar statusline` renders model + 📁 dir 🌿 branch
+  (the segments Claude Code's default status line showed — a custom
+  statusLine replaces the default, so sofar carries them forward), record
+  progress, session cost, and the cache-read share of input tokens — a
+  healthy stable-prefix session runs 50–80% (green `✓`); under 30% (red
+  `⚠`) means something is churning your prompt prefix; context % warms
+  through yellow (≥70%) to red (≥90%) as compaction nears. Styled for the
+  status bar by default; `--no-color` gives the plain line. Wire it in
+  `.claude/settings.json`:
 
   ```json
   { "statusLine": { "type": "command", "command": "sofar statusline" } }

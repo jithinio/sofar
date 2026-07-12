@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
+import { basename } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { rmSync } from 'node:fs'
 import { makeEvent } from '../src/core/envelope'
@@ -6,6 +7,7 @@ import { appendEvents } from '../src/core/log'
 import {
   CACHE_JUDGE_MIN_TOKENS,
   runStatusline,
+  STATUSLINE_FORCED_CAPS,
 } from '../src/cli/statusline'
 import { makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
 
@@ -98,7 +100,40 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
   it('falls back to workspace.current_dir when the invocation root has no record', () => {
     const fixture = planned()
     const line = runStatusline('/nonexistent', statusJson({ workspace: { current_dir: fixture.root } }))
-    expect(line.startsWith(`${fixture.slug} 1/3`)).toBe(true)
+    expect(line).toContain(`${fixture.slug} 1/3`)
+  })
+
+  it('harness-identity segments (D6): model · dir:branch lead the line, all six in order', () => {
+    const fixture = planned()
+    const line = runStatusline(
+      fixture.root,
+      statusJson({
+        model: { display_name: 'Fable 5' },
+        workspace: { current_dir: fixture.root },
+      }),
+    )
+    expect(line).toBe(
+      `Fable 5 · ${basename(fixture.root)}:main · ${fixture.slug} 1/3 · $1.23 · cache 72% ✓ · ctx 41%`,
+    )
+  })
+
+  it('worktree-style .git file (gitdir pointer) still resolves the branch', () => {
+    const fixture = fx({ bind: false, worktree: true })
+    const line = runStatusline('/nonexistent', statusJson({ workspace: { current_dir: fixture.root } }))
+    expect(line.startsWith(`${basename(fixture.root)}:main · `)).toBe(true)
+  })
+
+  it('detached HEAD → dir segment without a branch suffix', () => {
+    const fixture = fx({ bind: false, branch: null })
+    const line = runStatusline('/nonexistent', statusJson({ workspace: { current_dir: fixture.root } }))
+    expect(line.startsWith(`${basename(fixture.root)} · `)).toBe(true)
+    expect(line).not.toContain(':')
+  })
+
+  it('model only (no workspace/cwd) → model leads, dir omitted', () => {
+    const fixture = fx({ bind: false })
+    const line = runStatusline('/nonexistent', statusJson({ model: { display_name: 'Fable 5' } }))
+    expect(line).toBe('Fable 5 · $1.23 · cache 72% ✓ · ctx 41%')
   })
 
   it('garbage or empty stdin → empty line, no throw', () => {
@@ -155,6 +190,49 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
       }),
     )
     expect(line).toBe('$1.23')
+  })
+
+  it('styled (D7): bold model, 📁/🌿 icons, accent slug, banded cache, dim ctx + separators', () => {
+    const fixture = planned()
+    const line = runStatusline(
+      fixture.root,
+      statusJson({ model: { display_name: 'Fable 5' }, workspace: { current_dir: fixture.root } }),
+      STATUSLINE_FORCED_CAPS,
+    )
+    const sep = ' \x1b[2m·\x1b[22m '
+    expect(line).toBe(
+      [
+        '\x1b[1mFable 5\x1b[22m',
+        `📁 ${basename(fixture.root)} 🌿 \x1b[32mmain\x1b[39m`,
+        `\x1b[35m${fixture.slug}\x1b[39m 1/3`,
+        '$1.23',
+        '\x1b[32m♻ 72% ✓\x1b[39m',
+        '\x1b[2m🧠 41%\x1b[22m',
+      ].join(sep),
+    )
+  })
+
+  it('styled: cold cache goes red, near-compaction context goes warn/error', () => {
+    const fixture = fx({ bind: false })
+    const line = runStatusline(
+      fixture.root,
+      statusJson({
+        context_window: {
+          used_percentage: 91,
+          current_usage: { input_tokens: 16_000, cache_read_input_tokens: 4_000 },
+        },
+      }),
+      STATUSLINE_FORCED_CAPS,
+    )
+    expect(line).toContain('\x1b[31m♻ 20% ⚠\x1b[39m')
+    expect(line).toContain('\x1b[31m🧠 91%\x1b[39m')
+  })
+
+  it('styled: default lib caps stay plain — the command opts into styling, not the library', () => {
+    const fixture = fx({ bind: false })
+    const line = runStatusline(fixture.root, statusJson({ model: { display_name: 'Fable 5' } }))
+    expect(line).toBe('Fable 5 · $1.23 · cache 72% ✓ · ctx 41%')
+    expect(line).not.toContain('\x1b')
   })
 
   it('usage counters found at top-level current_usage too', () => {
