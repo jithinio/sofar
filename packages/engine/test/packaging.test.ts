@@ -181,8 +181,10 @@ describe('library surface E2E (library-surface 1.3) — subpath exports from the
     for (const file of [
       join('dist', 'schema.js'),
       join('dist', 'engine.js'),
+      join('dist', 'client.js'),
       join('dist', 'types', 'engine', 'src', 'lib', 'schema.d.ts'),
       join('dist', 'types', 'engine', 'src', 'lib', 'engine.d.ts'),
+      join('dist', 'types', 'engine', 'src', 'lib', 'client.d.ts'),
       join('dist', 'types', 'schema', 'src', 'events.d.ts'),
     ]) {
       expect(existsSync(join(installedPkg, file)), `${file} missing from installed package`).toBe(true)
@@ -203,7 +205,7 @@ describe('library surface E2E (library-surface 1.3) — subpath exports from the
       dependencies?: unknown
     }
     expect(spec.bin).toEqual({ sofar: 'dist/cli.js' }) // bin unchanged
-    expect(Object.keys(spec.exports)).toEqual(['./schema', './engine', './package.json'])
+    expect(Object.keys(spec.exports)).toEqual(['./schema', './engine', './client', './package.json'])
     expect(spec.dependencies).toBeUndefined() // still zero runtime deps
   })
 
@@ -221,6 +223,7 @@ describe('library surface E2E (library-surface 1.3) — subpath exports from the
       [
         "import { validateEnvelope, makeEvent } from '@alignlabs/sofar/schema'",
         "import { foldLines } from '@alignlabs/sofar/engine'",
+        "import { splitBatches, normalizeApiUrl, errorParts, DEFAULT_API_URL } from '@alignlabs/sofar/client'",
         "const bad = validateEnvelope('not an event')",
         "if (bad.ok !== false) throw new Error('guard accepted junk')",
         "const ev = makeEvent({ initiative: 'demo', session: 'cli', source: 'cli', actor: 'human', type: 'initiative_created', payload: { slug: 'demo', goal: 'g' } })",
@@ -229,6 +232,11 @@ describe('library surface E2E (library-surface 1.3) — subpath exports from the
         "const { state, warnings } = foldLines([JSON.stringify(ev), '{\"torn', ''])",
         "if (warnings.length !== 1) throw new Error('corrupt line did not warn')",
         "if (state.slug !== 'demo') throw new Error('fold missed the valid line')",
+        "if (normalizeApiUrl(DEFAULT_API_URL + '/') !== DEFAULT_API_URL) throw new Error('client normalize broken')",
+        "const batches = splitBatches([ev])",
+        "if (batches.length !== 1 || batches[0].ids[0] !== ev.id) throw new Error('client splitBatches broken')",
+        "const parts = errorParts({ error: { code: 'not_found', message: 'x' } })",
+        "if (parts.code !== 'not_found') throw new Error('client errorParts broken')",
         "console.log('LIBRARY-OK')",
       ].join('\n'),
     )
@@ -243,11 +251,14 @@ describe('library surface E2E (library-surface 1.3) — subpath exports from the
       [
         "import { validateEnvelope, type EventEnvelope } from '@alignlabs/sofar/schema'",
         "import { foldLines, type InitiativeState } from '@alignlabs/sofar/engine'",
+        "import { splitBatches, type PushBatch, type RemoteConfig } from '@alignlabs/sofar/client'",
         'const check = validateEnvelope({})',
         'const events: string[] = []',
         'const state: InitiativeState = foldLines(events).state',
+        'const batches: PushBatch[] = splitBatches([])',
+        "const remote: RemoteConfig = { version: 1, api_url: 'https://api.sofar.sh', org: 'o', name: 'n', repo_id: 'r' }",
         'export function keep(e: EventEnvelope): string {',
-        '  return check.ok ? state.slug : e.id',
+        '  return check.ok ? state.slug : e.id + batches.length + remote.org',
         '}',
       ].join('\n'),
     )

@@ -32,7 +32,7 @@ chmodSync('dist/cli.js', 0o755)
 // ---------------------------------------------------------------------------
 
 await build({
-  entryPoints: ['src/lib/schema.ts', 'src/lib/engine.ts'],
+  entryPoints: ['src/lib/schema.ts', 'src/lib/engine.ts', 'src/lib/client.ts'],
   bundle: true,
   platform: 'node',
   format: 'esm',
