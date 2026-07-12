@@ -4,7 +4,7 @@
 
 Goal: Ship the v2 sync client (sofar-cloud Phase 5.1, the D14 seam): sofar login via RFC-8628 device flow, sofar link, push/pull sync with offline queue + doorbell SSE against api.sofar.sh, importable @alignlabs/sofar/client subpath — release as 0.9.0
 
-Progress: 13/13 tasks done (100%)
+Progress: 14/15 tasks done (93%)
 
 ## Phase 1 — Client core (config, credentials, HTTP) [done] — 2/2 done
 
@@ -34,4 +34,10 @@ Progress: 13/13 tasks done (100%)
 - [x] 5.2 Live E2E behind env flag (SOFAR_LIVE_API): login via manual claim+approve path, round-trip against locally running api.sofar.sh
 - [x] 5.3 Version 0.9.0 staged: bump, changelog/README, full suite green, user publishes (OTP)
 
-Next action: sync-client is done. Open pointer: fix sofar-cloud doorbell (Bun idleTimeout + initial SSE flush — see the Jul 12 note) in that repo; then sofar pull --watch rides real rings instead of gap-polling.
+## Phase 6 — Byte canonicalization (0.9.1) [active] — 1/2 done
+
+- [x] 6.1 Canonical serializeEvent: fixed envelope schema order (v,id,ts,initiative,session,source,actor,user?,type,payload; unknown additive fields preserved after payload), payload keys code-point-sorted recursively, arrays in order — jsonb reordering invisible, writer/puller byte parity; SPEC §Envelope amendment + property/jsonb/idempotence/historical-parity tests
+- [ ] 6.2 Version 0.9.1 staged: bump lockstep, full suite green, user publishes (OTP); then sofar-cloud bumps catalog + re-runs fold-parity/integration/drill export leg expecting raw diff zero (active)
+
+Active phase: Phase 6 — Byte canonicalization (0.9.1)
+Next action: User: npm publish -w @alignlabs/sofar (OTP) for 0.9.1, then sofar upgrade; then in sofar-cloud bump the catalog, re-run fold-parity + integration, re-run drill export leg expecting raw diff zero.
