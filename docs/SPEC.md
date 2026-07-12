@@ -401,10 +401,20 @@ Shims contain no logic — they invoke the sofar CLI.
   record a session serves. [Field finding, Jul 4: singular-record protocol
   caused a second initiative's state to leak into Claude Code native memory
   + a scratch dir — jurisdiction must be total, not per-file.]
+  With `--statusline`, init also merges the rent-meter wiring
+  `"statusLine": { "type": "command", "command": "sofar statusline" }` into
+  .claude/settings.json — ONLY when the key is absent: an existing
+  statusLine, whatever its value, is the user's and wins (felt-cost D4's
+  clobber concern, honored under explicit opt-in — D4 informed re-test,
+  init-statusline D1). Without the flag, when the project settings carry
+  no statusLine, init prints a plain opt-in hint (points at
+  `sofar init --statusline`, notes a project statusLine shadows a personal
+  ~/.claude/settings.json one).
   As its FINAL output, init prints a scanner-defense hint when a tree-wide
   class scanner is detected (Tailwind v4: `tailwindcss>=4` in package.json) —
   the scanner would ingest committed `.sofar/` records; the hint points at
-  `sofar doctor --fix` (added Phase 10, D-P10).
+  `sofar doctor --fix` (added Phase 10, D-P10). The statusline hint, when
+  both fire, prints before it — the scanner hint keeps the final slot.
 - `sofar doctor [--fix]` — audit a host repo across four axes: (1) wiring
   integrity (init's shims/settings/.mcp.json/protocol blocks intact); (2)
   record health — initiative logs fold without stub sessions or corrupt lines,
@@ -427,10 +437,12 @@ Shims contain no logic — they invoke the sofar CLI.
   Phase 11, D-P11). The concurrent-edit signal also surfaces in the SessionStart
   context and `sofar status` (rendered only when open sessions overlap, D-P11).
 - `sofar uninit [--purge]` — exact inverse of init, surgical: remove the
-  four hook shims, our settings.json hook entries (matched on the shim path),
-  .mcp.json's sofar server, our exact .gitattributes union-merge line (a
-  customized events.jsonl rule is user content — kept; team-readiness T2),
-  and the protocol blocks (markers + one seam
+  five hook shims, our settings.json hook entries (matched on the shim path),
+  the settings.json statusLine entry ONLY when it is exactly the one
+  `--statusline` installs (a customized statusLine is user config — kept;
+  init-statusline D1), .mcp.json's sofar server, our exact .gitattributes
+  union-merge line (a customized events.jsonl rule is user content — kept;
+  team-readiness T2), and the protocol blocks (markers + one seam
   blank line), preserving all user content; .sofar/ is kept with a notice
   unless --purge deletes it (--purge alone may also delete files the run
   emptied — the byte-clean round-trip). Idempotent (added Phase 8, BD45).
@@ -518,8 +530,13 @@ Shims contain no logic — they invoke the sofar CLI.
   inputs are missing; exit 0 always; READ-SIDE ONLY (never appends);
   no model call ever (§Architectural invariants). Root resolution: --root
   or cwd, falling back to the JSON's workspace.current_dir then cwd. NOT
-  auto-installed by `sofar init` (never clobber an existing statusLine
-  config) — README documents the one-line settings.json entry.
+  auto-installed by `sofar init` by default (never clobber an existing
+  statusLine config — felt-cost D4); `sofar init --statusline` opts in,
+  merging the entry only when the project settings has none (an existing
+  statusLine always wins), plain init prints an opt-in hint while unwired,
+  and `sofar uninit` removes the entry only when it is exactly ours
+  (D4 informed re-test, init-statusline D1) — README documents the flag
+  and the one-line settings.json entry.
 - `sofar serve [--port 4173]` — chokidar watch on .sofar/ → GET /state
   (JSON InitiativeState per initiative), Server-Sent Events on change.
 - `sofar mcp [--root <dir>]` — start the stdio MCP server (server name:
