@@ -1,12 +1,14 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
 import { rmSync } from 'node:fs'
 import { makeEvent, type EventEnvelope } from '../src/core/envelope'
 import { appendEvent } from '../src/core/log'
 import { foldLog } from '../src/core/fold'
 import {
+  COLD_RESUME_GAP_MS,
+  COLD_RESUME_MIN_TRANSCRIPT_BYTES,
   handlePostTool,
   handleSessionEnd,
   handleSessionStart,
@@ -134,6 +136,107 @@ describe('sofar event session-start — session registration (BD20) + context in
     expect(handleSessionStart(fixture.root, 'not json{{{').exitCode).toBe(0)
     expect(handleSessionStart(fixture.root, JSON.stringify({ cwd: '/x' })).exitCode).toBe(0)
     expect(logEvents(fixture.eventsPath)).toHaveLength(0)
+  })
+})
+
+describe('cold-resume advisory (felt-cost 2.1/2.2) — resume-only, read-side, best-effort', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** Register the session (record's last event = real now) + a transcript at the size floor. */
+  function coldSetup(transcriptBytes = COLD_RESUME_MIN_TRANSCRIPT_BYTES): {
+    fixture: Fixture
+    transcript: string
+  } {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({ source: 'startup' }))
+    const transcript = join(fixture.root, 'transcript.jsonl')
+    writeFileSync(transcript, 'x'.repeat(transcriptBytes))
+    return { fixture, transcript }
+  }
+
+  function jumpAhead(ms: number): void {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(Date.now() + ms))
+  }
+
+  it('cold record + substantial transcript → one advisory line ABOVE the untouched status block', () => {
+    const { fixture, transcript } = coldSetup()
+    jumpAhead(2 * COLD_RESUME_GAP_MS)
+
+    const compact = handleSessionStart(fixture.root, hookStdin({ source: 'compact' }))
+    const resume = handleSessionStart(
+      fixture.root,
+      hookStdin({ source: 'resume', transcript_path: transcript }),
+    )
+    expect(resume.exitCode).toBe(0)
+    expect(resume.stdout.startsWith('⚠ Cold resume: ~2h since this record\'s last event')).toBe(true)
+    expect(resume.stdout).toContain('re-warms at full input price')
+    // composes AROUND the block: everything after the advisory is byte-identical
+    // to a compact re-fire of the same record (felt-cost 1.2 pins the block)
+    expect(resume.stdout.endsWith(compact.stdout)).toBe(true)
+    expect(logEvents(fixture.eventsPath)).toHaveLength(1) // no duplicate registration
+  })
+
+  it('gaps ≥48h render as days', () => {
+    const { fixture, transcript } = coldSetup()
+    jumpAhead(72 * 60 * 60 * 1000)
+    const resume = handleSessionStart(
+      fixture.root,
+      hookStdin({ source: 'resume', transcript_path: transcript }),
+    )
+    expect(resume.stdout).toContain('~3d since this record\'s last event')
+  })
+
+  it('warm record (gap under the TTL) → no advisory', () => {
+    const { fixture, transcript } = coldSetup()
+    const resume = handleSessionStart(
+      fixture.root,
+      hookStdin({ source: 'resume', transcript_path: transcript }),
+    )
+    expect(resume.stdout.startsWith('# Sofar status:')).toBe(true)
+  })
+
+  it('startup and compact sources never advise, even cold with a big transcript', () => {
+    const { fixture, transcript } = coldSetup()
+    jumpAhead(2 * COLD_RESUME_GAP_MS)
+    for (const source of ['startup', 'compact']) {
+      const result = handleSessionStart(fixture.root, hookStdin({ source, transcript_path: transcript }))
+      expect(result.stdout.startsWith('# Sofar status:')).toBe(true)
+    }
+  })
+
+  it('small transcript → cheap re-warm, no advisory', () => {
+    const { fixture, transcript } = coldSetup(COLD_RESUME_MIN_TRANSCRIPT_BYTES - 1)
+    jumpAhead(2 * COLD_RESUME_GAP_MS)
+    const resume = handleSessionStart(
+      fixture.root,
+      hookStdin({ source: 'resume', transcript_path: transcript }),
+    )
+    expect(resume.stdout.startsWith('# Sofar status:')).toBe(true)
+  })
+
+  it('missing transcript file → best-effort silence (no advisory, exit 0)', () => {
+    const { fixture } = coldSetup()
+    jumpAhead(2 * COLD_RESUME_GAP_MS)
+    const resume = handleSessionStart(
+      fixture.root,
+      hookStdin({ source: 'resume', transcript_path: join(fixture.root, 'nope.jsonl') }),
+    )
+    expect(resume.exitCode).toBe(0)
+    expect(resume.stdout.startsWith('# Sofar status:')).toBe(true)
+  })
+
+  it('torn trailing log line is skipped when measuring the gap (fold-style tolerance)', () => {
+    const { fixture, transcript } = coldSetup()
+    appendFileSync(fixture.eventsPath, '{"v":1,"id":"torn')
+    jumpAhead(2 * COLD_RESUME_GAP_MS)
+    const resume = handleSessionStart(
+      fixture.root,
+      hookStdin({ source: 'resume', transcript_path: transcript }),
+    )
+    expect(resume.stdout.startsWith('⚠ Cold resume:')).toBe(true)
   })
 })
 

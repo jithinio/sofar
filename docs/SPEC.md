@@ -242,6 +242,15 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   sessions/<id>.md)` INSIDE the budget. Un-absorbed notes (notes-in-digest
   2.1) render as a budgeted section under the staleness line — see §MCP
   get_state digest for the exact rule; both surfaces share renderStatus.
+  Cold-resume advisory (felt-cost 2.1/2.2): on source=resume ONLY, when the
+  record's last event predates the longest cache TTL (1h — heuristic, the
+  TTL is server-controlled) AND the transcript file is ≥80KB (~20k tokens
+  at bytes/4), ONE advisory line precedes the block naming the estimated
+  re-warm cost and the fresh-start alternative. Best-effort: any failure
+  (missing transcript, empty log, unparseable ts) renders no advisory,
+  never an error. The advisory composes AROUND the status block — never
+  inside renderStatus (byte-stability, §Architectural invariants) — and the
+  composed output is re-capped to the same hard limit.
   HARD LIMIT:
   output ≤10,000 chars — projection generator must guarantee this.
 - PostToolUse shim (matcher: Edit|Write|MultiEdit|Bash) → appends

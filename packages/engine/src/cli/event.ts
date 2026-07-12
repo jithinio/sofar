@@ -1,9 +1,9 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { Command } from 'commander'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
 import { createToolContext, ToolError, type ToolContext } from '../mcp/context'
-import { renderStatus } from '../projections/templates/status'
+import { enforceStatusLimit, renderStatus } from '../projections/templates/status'
 import { REPO_MD_STUB } from './shared'
 
 /**
@@ -87,6 +87,73 @@ function readRepoMemory(rootDir: string): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Cold-resume advisory (felt-cost 2.1/2.2) — resume-only, read-side,
+// best-effort: any failure renders no advisory, never an error. A resume
+// past every prompt-cache TTL re-warms the whole transcript at full input
+// price while the record is the cheap orientation path — the advisory makes
+// that cost felt at the moment it is incurred. Thresholds are heuristics:
+// the TTL is server-controlled (5m–1h), so "cold" is measured against the
+// longest published TTL, and bytes/4 is a rough token estimate (transcript
+// JSONL carries harness overhead). Informed re-test of token-optimization's
+// "leading with prompt caching" rejection (felt-cost D2): this play spends
+// no record tokens and leaves the status block's bytes untouched.
+// ---------------------------------------------------------------------------
+
+/** A resume is "cold" when the record's last event predates the longest cache TTL. */
+export const COLD_RESUME_GAP_MS = 60 * 60 * 1000
+/** Below ~20k estimated tokens (~4 bytes/token) a re-warm is cheap — stay quiet. */
+export const COLD_RESUME_MIN_TRANSCRIPT_BYTES = 80_000
+
+/** Epoch ms of the last parseable event line; null on any failure. */
+function lastEventMs(eventsPath: string): number | null {
+  try {
+    const lines = readFileSync(eventsPath, 'utf8').split('\n')
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i]!.trim()
+      if (line.length === 0) continue
+      try {
+        const event: unknown = JSON.parse(line)
+        if (isObj(event) && typeof event.ts === 'string') {
+          const ms = Date.parse(event.ts)
+          if (!Number.isNaN(ms)) return ms
+        }
+      } catch {
+        // torn/corrupt trailing line — skip it, same tolerance as the fold
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function coldResumeAdvisory(hook: Obj, eventsPath: string): string | null {
+  if (strField(hook, 'source') !== 'resume') return null
+  const transcriptPath = strField(hook, 'transcript_path')
+  if (transcriptPath === null) return null
+  let transcriptBytes: number
+  try {
+    transcriptBytes = statSync(transcriptPath).size
+  } catch {
+    return null
+  }
+  if (transcriptBytes < COLD_RESUME_MIN_TRANSCRIPT_BYTES) return null
+  const last = lastEventMs(eventsPath)
+  if (last === null) return null
+  const gapMs = Date.now() - last
+  if (gapMs < COLD_RESUME_GAP_MS) return null
+
+  const hours = Math.round(gapMs / 3_600_000)
+  const gap = hours < 48 ? `~${hours}h` : `~${Math.round(hours / 24)}d`
+  const kTokens = Math.round(transcriptBytes / 4_000)
+  return (
+    `⚠ Cold resume: ${gap} since this record's last event — past any prompt-cache TTL, ` +
+    `so this transcript (~${kTokens}k tokens, rough estimate) re-warms at full input price. ` +
+    `If the resume is deliberate, carry on; otherwise a fresh session oriented from this block is the cheaper path.`
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Handlers.
 // ---------------------------------------------------------------------------
 
@@ -100,6 +167,10 @@ function readRepoMemory(rootDir: string): string | null {
  * Re-fires on resume/clear/compact reuse the same session_id: the append is
  * skipped if the session is already registered, but the status block is
  * printed every time (re-injection after compact is the point).
+ * On source=resume a cold-resume advisory (felt-cost 2.1/2.2) may precede
+ * the block: cold record (last event past the longest cache TTL) + a
+ * substantial transcript → one line naming the re-warm cost and the fresh
+ * start alternative. Best-effort; total output stays ≤10,000 chars.
  */
 export function handleSessionStart(rootDir: string, input: string): HookResult {
   try {
@@ -107,7 +178,11 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     if (bound === null) return { ...OK }
     const { ctx, slug } = bound
 
-    const sessionId = strField(parseHook(input), 'session_id')
+    const hook = parseHook(input)
+    const sessionId = strField(hook, 'session_id')
+    // Advisory reads the log BEFORE the registration append below — the gap
+    // is measured to the prior session's last event, not our own bookkeeping.
+    const advisory = coldResumeAdvisory(hook, ctx.eventsPath(slug))
     let state = ctx.foldState(slug)
     if (sessionId !== null && !state.sessions.some((s) => s.id === sessionId)) {
       ctx.appendAndProject(slug, 'session_started', { tool: HOOK_TOOL }, {
@@ -120,12 +195,16 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     // ≤10,000 chars (BD3/BD24) — repo memory has its own budget (BD40); the
     // session id line (7.1, BD43) tells the agent what to pass to
     // sofar_start_session so it adopts ITS OWN session, never a parallel one.
+    // The advisory composes AROUND the status block (never inside it — the
+    // block's byte-stability is pinned, felt-cost 1.2); the composed output
+    // is re-capped so the injection contract stays ≤10,000 chars.
+    const status = renderStatus(state, {
+      ...(repoMemory !== null ? { repoMemory } : {}),
+      ...(sessionId !== null ? { sessionId } : {}),
+    })
     return {
       ...OK,
-      stdout: renderStatus(state, {
-        ...(repoMemory !== null ? { repoMemory } : {}),
-        ...(sessionId !== null ? { sessionId } : {}),
-      }),
+      stdout: advisory === null ? status : enforceStatusLimit(`${advisory}\n\n${status}`),
     }
   } catch {
     return { ...OK }
