@@ -4,12 +4,13 @@
 
 Goal: Make the engine safe for first team adoption (identity, merge safety, team docs). Guard-rails: no sync-service code, no envelope-breaking changes, no content inference; SPEC.md authoritative, deviations require a logged decision.
 
-Progress: 2/3 tasks done (66%)
+Progress: 3/3 tasks done (100%)
 
-## Phase 1 — Team readiness [active] — 2/3 done
+## Phase 1 — Team readiness [active] — 3/3 done
 
 - [x] T1 Identity field: optional envelope `user` stamped at append from git config user.email (fallback: omit, never fail); strictly additive, envelope stays v1; SPEC §Envelope + decision + tests (stamps when config exists, succeeds without, mixed-log fold deterministic)
 - [x] T2 Merge safety: sofar init writes `.sofar/**/events.jsonl merge=union` to .gitattributes — idempotent, merges with existing file, never clobbers; SPEC §CLI init + tests (fresh repo gets line, double-init adds nothing, pre-existing content preserved)
-- [ ] T3 TEAM section in README (<40 lines): install, one init, commit .sofar/, pull, status; why union merge is safe (append-only + fold sorts by id) and author identity from git config (active)
+- [x] T3 TEAM section in README (<40 lines): install, one init, commit .sofar/, pull, status; why union merge is safe (append-only + fold sorts by id) and author identity from git config
 
 Active phase: Phase 1 — Team readiness
+Next action: team-readiness is complete; only open item is publishing a release (version bump + npm publish + global upgrade) when the user calls for it.
