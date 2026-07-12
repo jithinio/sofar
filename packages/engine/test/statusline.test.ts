@@ -192,7 +192,7 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
     expect(line).toBe('$1.23')
   })
 
-  it('styled (D7/D8): bold model, ▸/⎇ glyphs, accent slug, banded cache, dim pie ctx + separators', () => {
+  it('styled (D7/D8): toned model, ▸/⎇ glyphs, accent slug, banded cache, green ctx label + separators', () => {
     const fixture = planned()
     const line = runStatusline(
       fixture.root,
@@ -202,14 +202,40 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
     const sep = ' \x1b[2m·\x1b[22m '
     expect(line).toBe(
       [
-        '\x1b[1mFable 5\x1b[22m',
+        '\x1b[1m\x1b[35mFable 5\x1b[39m\x1b[22m', // Fable family: bold accent (D11)
         `▸ ${basename(fixture.root)} ⎇ \x1b[32mmain\x1b[39m`,
         `\x1b[33m◔\x1b[39m \x1b[35m${fixture.slug}\x1b[39m 1/3`, // task pie: in progress → warn (D9)
         '$1.23',
         '\x1b[32mcache 72% ✓\x1b[39m',
-        '\x1b[2m◑ 41%\x1b[22m', // pie gauge: 41% fill rounds to half
+        '\x1b[32mctx 41%\x1b[39m', // healthy band: word over glyph, success tone (D11)
       ].join(sep),
     )
+  })
+
+  it.each([
+    ['Fable 5', '\x1b[1m\x1b[35mFable 5\x1b[39m\x1b[22m'],
+    ['Opus 4.8', '\x1b[35mOpus 4.8\x1b[39m'],
+    ['Sonnet 5', '\x1b[36mSonnet 5\x1b[39m'],
+    ['Haiku 4.5', '\x1b[32mHaiku 4.5\x1b[39m'],
+    ['GPT-6', '\x1b[1mGPT-6\x1b[22m'], // unknown family keeps the D6 bold
+  ])('styled: model family tones (D11): %s', (name, styled) => {
+    const fixture = fx({ bind: false })
+    const line = runStatusline(
+      fixture.root,
+      statusJson({ model: { display_name: name } }),
+      STATUSLINE_FORCED_CAPS,
+    )
+    expect(line.startsWith(styled)).toBe(true)
+  })
+
+  it('styled: ctx warn band (≥70) goes yellow', () => {
+    const fixture = fx({ bind: false })
+    const line = runStatusline(
+      fixture.root,
+      statusJson({ context_window: { used_percentage: 75 } }),
+      STATUSLINE_FORCED_CAPS,
+    )
+    expect(line).toContain('\x1b[33mctx 75%\x1b[39m')
   })
 
   it('styled: completed record → success-green full pie (D9)', () => {
@@ -254,7 +280,7 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
       STATUSLINE_FORCED_CAPS,
     )
     expect(line).toContain('\x1b[31mcache 20% ⚠\x1b[39m')
-    expect(line).toContain('\x1b[31m◕ 91%\x1b[39m')
+    expect(line).toContain('\x1b[31mctx 91%\x1b[39m')
   })
 
   it('styled: default lib caps stay plain — the command opts into styling, not the library', () => {

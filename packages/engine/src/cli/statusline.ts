@@ -3,7 +3,7 @@ import { basename, dirname, join } from 'node:path'
 import type { Command } from 'commander'
 import { createToolContext } from '../mcp/context'
 import { readAllStdin } from './shared'
-import { createStyle, pieFor, symbolsFor, type Caps } from './ui'
+import { createStyle, pieFor, symbolsFor, type Caps, type Style } from './ui'
 
 /**
  * `sofar statusline` (felt-cost 3.1/3.2 D4; identity segments D6; styling
@@ -11,12 +11,14 @@ import { createStyle, pieFor, symbolsFor, type Caps } from './ui'
  * reads the statusline JSON from stdin and prints ONE line:
  *
  *   <model> · ▸ <dir> ⎇ <branch> · <pie> <slug> <done>/<total>
- *     · $<session cost> · cache <warm%>[⚠|✓] · <pie> <used%>
+ *     · $<session cost> · cache <warm%>[⚠|✓] · ctx <used%>
  *
  * Icons are text glyphs in the house vocabulary (cli-ui 1.3), never emoji
- * (D8): ▸ dir, ⎇ branch, and the kernel's progress pie (○◔◑◕●) as both
- * gauges — task progress (D9) and context fill. The cache segment keeps
- * its text label in every mode (D10).
+ * (D8): ▸ dir, ⎇ branch, and the kernel's progress pie (○◔◑◕●) as the
+ * task-progress gauge (D9). Both meters keep their text labels in every
+ * mode (D10, extended to ctx by D11): `cache` and `ctx` — word over glyph.
+ * The model name is toned by family and the ctx percentage by fill band
+ * (D11), both within the color law's semantic palette (D1).
  *
  * The model and dir/branch segments restore what Claude Code's own default
  * status line shows — a custom statusLine command REPLACES the default
@@ -118,6 +120,20 @@ function modelSegment(hook: Obj): string | null {
   return isObj(hook.model) ? strField(hook.model.display_name) : null
 }
 
+/**
+ * Model name toned by family (D11), inside the color law's ANSI-16
+ * semantic palette (D1): Fable bold accent, Opus accent, Sonnet info,
+ * Haiku success. Unknown families keep the plain bold of D6.
+ */
+function modelDisplay(model: string, style: Style): string {
+  const family = model.toLowerCase()
+  if (family.includes('fable')) return style.bold(style.accent(model))
+  if (family.includes('opus')) return style.accent(model)
+  if (family.includes('sonnet')) return style.info(model)
+  if (family.includes('haiku')) return style.success(model)
+  return style.bold(model)
+}
+
 /** Working directory + branch, from the harness-reported paths. */
 function dirSegment(hook: Obj): { name: string; branch: string | null } | null {
   const workspace = isObj(hook.workspace) ? hook.workspace : {}
@@ -200,7 +216,7 @@ export function runStatusline(rootDir: string, input: string, caps: Caps = PLAIN
   const segments: string[] = []
 
   const model = modelSegment(hook)
-  if (model !== null) segments.push(style.bold(model))
+  if (model !== null) segments.push(modelDisplay(model, style))
 
   const dir = dirSegment(hook)
   if (dir !== null) {
@@ -247,14 +263,16 @@ export function runStatusline(rootDir: string, input: string, caps: Caps = PLAIN
 
   const ctxPct = isObj(hook.context_window) ? numField(hook.context_window.used_percentage) : null
   if (ctxPct !== null) {
-    const pct = Math.round(ctxPct)
-    const text = icons ? `${pieFor(pct, 100, sym)} ${pct}%` : `ctx ${pct}%`
+    // Text label in every mode (D10's word-over-glyph, extended by D11) —
+    // and the healthy band is success-green, not dim: the gauge is a
+    // reassurance until it becomes a warning.
+    const text = `ctx ${Math.round(ctxPct)}%`
     segments.push(
       ctxPct >= CTX_ERROR_FROM
         ? style.error(text)
         : ctxPct >= CTX_WARN_FROM
           ? style.warn(text)
-          : style.dim(text),
+          : style.success(text),
     )
   }
 
