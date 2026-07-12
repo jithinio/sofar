@@ -76,3 +76,50 @@ export function columnsOf(stream: { columns?: number }): number {
   const c = stream.columns
   return typeof c === 'number' && c > 0 ? c : 80
 }
+
+/**
+ * Greedy word-wrap for PLAIN text (4.1) — refuses styled input like
+ * truncatePlain: wrap first, style each line after. Words longer than
+ * `width` are hard-cut so a pathological token cannot blow the layout.
+ * Always returns at least one line.
+ */
+export function wrapPlain(s: string, width: number): string[] {
+  if (s !== stripAnsi(s)) {
+    throw new Error('wrapPlain: styled input — wrap before styling')
+  }
+  const w = Math.max(1, width)
+  const lines: string[] = []
+  let line = ''
+  for (let word of s.split(/\s+/).filter(Boolean)) {
+    while (word.length > w) {
+      if (line.length > 0) {
+        lines.push(line)
+        line = ''
+      }
+      lines.push(word.slice(0, w))
+      word = word.slice(w)
+    }
+    if (word.length === 0) continue
+    if (line.length === 0) line = word
+    else if (line.length + 1 + word.length <= w) line += ` ${word}`
+    else {
+      lines.push(line)
+      line = word
+    }
+  }
+  if (line.length > 0) lines.push(line)
+  return lines.length > 0 ? lines : ['']
+}
+
+/**
+ * Terminal rows a set of logical lines occupies at `columns` — a line
+ * wider than the terminal soft-wraps onto extra rows. The --watch redraw
+ * moves the cursor up by ROWS, not lines; counting lines under-scrolls
+ * and smears frames.
+ */
+export function terminalRows(lines: readonly string[], columns: number): number {
+  const w = Math.max(1, columns)
+  let rows = 0
+  for (const line of lines) rows += Math.max(1, Math.ceil(visibleWidth(line) / w))
+  return rows
+}

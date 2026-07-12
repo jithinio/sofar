@@ -33,6 +33,8 @@ export interface Symbols {
   ellipsis: string
   /** ▸ — pointer/current-row marker. */
   pointer: string
+  /** ○◔◑◕● — progress pie, empty→full; empty array = no pie (ASCII). */
+  pie: readonly string[]
 }
 
 const UNICODE: Symbols = {
@@ -50,6 +52,7 @@ const UNICODE: Symbols = {
   vellipsis: '⋮',
   ellipsis: '…',
   pointer: '▸',
+  pie: ['○', '◔', '◑', '◕', '●'],
 }
 
 const ASCII: Symbols = {
@@ -67,8 +70,25 @@ const ASCII: Symbols = {
   vellipsis: ':',
   ellipsis: '...',
   pointer: '>',
+  pie: [],
 }
 
 export function symbolsFor(unicode: boolean): Symbols {
   return unicode ? UNICODE : ASCII
+}
+
+/**
+ * Progress pie (4.2): quantize done/total onto the pie glyph ramp. The
+ * endpoints are honest — ● only at 100%, ○ only at 0 — and everything
+ * in between rounds to a quarter. Empty string when the symbol set has
+ * no pie (ASCII: the numeric fraction already carries the value).
+ */
+export function pieFor(done: number, total: number, sym: Symbols): string {
+  if (sym.pie.length === 0 || total <= 0) return ''
+  const r = Math.min(1, Math.max(0, done / total))
+  if (r === 0) return sym.pie[0]!
+  if (r === 1) return sym.pie[sym.pie.length - 1]!
+  if (r < 0.375) return sym.pie[1]!
+  if (r < 0.625) return sym.pie[2]!
+  return sym.pie[3]!
 }

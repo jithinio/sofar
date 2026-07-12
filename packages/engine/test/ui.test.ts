@@ -332,3 +332,45 @@ describe('spinner', () => {
     expect(framesFor('write', false)).toBe(BOUNCING_BAR)
   })
 })
+
+describe('wrapPlain + terminalRows (4.1)', () => {
+  it('greedy-wraps on word boundaries and never exceeds width', async () => {
+    const { wrapPlain } = await import('../src/cli/ui/text')
+    const lines = wrapPlain('Implement cli-ui task layout grammar then wire status renderer', 20)
+    expect(lines.length).toBeGreaterThan(1)
+    for (const l of lines) expect(l.length).toBeLessThanOrEqual(20)
+    expect(lines.join(' ')).toBe('Implement cli-ui task layout grammar then wire status renderer')
+  })
+
+  it('hard-cuts pathological long tokens; empty input yields one line', async () => {
+    const { wrapPlain } = await import('../src/cli/ui/text')
+    expect(wrapPlain('x'.repeat(25), 10)).toEqual(['x'.repeat(10), 'x'.repeat(10), 'x'.repeat(5)])
+    expect(wrapPlain('', 10)).toEqual([''])
+    expect(() => wrapPlain('\x1b[1mx\x1b[22m', 10)).toThrow(/styled/)
+  })
+
+  it('terminalRows counts soft-wrapped rows, not logical lines', async () => {
+    const { terminalRows } = await import('../src/cli/ui/text')
+    expect(terminalRows(['short', 'x'.repeat(85)], 80)).toBe(3) // 1 + 2
+    expect(terminalRows([''], 80)).toBe(1)
+  })
+})
+
+describe('pieFor (4.2)', () => {
+  it('quantizes with honest endpoints', async () => {
+    const { pieFor, symbolsFor } = await import('../src/cli/ui/symbols')
+    const u = symbolsFor(true)
+    expect(pieFor(0, 8, u)).toBe('○')
+    expect(pieFor(1, 8, u)).toBe('◔')
+    expect(pieFor(4, 8, u)).toBe('◑')
+    expect(pieFor(6, 8, u)).toBe('◕')
+    expect(pieFor(7, 8, u)).toBe('◕') // not ● until truly done
+    expect(pieFor(8, 8, u)).toBe('●')
+  })
+
+  it('ASCII set and zero-total render no pie', async () => {
+    const { pieFor, symbolsFor } = await import('../src/cli/ui/symbols')
+    expect(pieFor(3, 8, symbolsFor(false))).toBe('')
+    expect(pieFor(0, 0, symbolsFor(true))).toBe('')
+  })
+})

@@ -7,7 +7,7 @@
 
 export { detectCaps, stdoutCaps, stderrCaps, type Caps, type CapsInput } from './caps'
 export { createStyle, type Style, type Format } from './style'
-export { symbolsFor, type Symbols } from './symbols'
+export { symbolsFor, pieFor, type Symbols } from './symbols'
 export {
   stripAnsi,
   sanitizeProse,
@@ -16,6 +16,8 @@ export {
   padStartVisible,
   truncatePlain,
   columnsOf,
+  wrapPlain,
+  terminalRows,
 } from './text'
 export {
   framesFor,

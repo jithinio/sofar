@@ -343,6 +343,13 @@ Flag/env contract:
 (accepted before or after the subcommand); the kernel reads them from
 argv directly, so registration is acceptance-only.
 
+Progress pies (4.2): initiative headers on the styled status/list/next
+surfaces carry a pie glyph quantized from tasks done/total — ○ ◔ ◑ ◕ ●
+with honest endpoints (● only at 100%, ○ only at 0) — colored on the
+checkbox ramp (green complete, yellow in progress, dim untouched). The
+ASCII set renders no pie: the numeric fraction already carries the value.
+Zero-total initiatives render no pie and no fraction.
+
 Color law (semantic ANSI-16, cli-ui D1): green=success/done ·
 red=error/blocked · yellow=warn/active · cyan=info/identifiers ·
 magenta=sofar brand accent · dim=secondary/metadata (muted) ·
@@ -392,8 +399,9 @@ the stdout bytes equal the plain renderer):
 | Command | stdout (report) | stderr (messaging) |
 |---|---|---|
 | status | full-zoom layout grammar / renderFullStatus | fold warnings + resolution failures — always plain |
+| status --watch | live full-zoom render: redraw on record changes (chokidar) + active-task marker pulses warn↔dim @600ms; TTY-gated by animate, piped/CI falls back to the one-shot result; ^C restores the cursor and re-raises | (same as status) |
 | list | portfolio-zoom blocks / renderFullInitiativeList | derivation warnings — always plain |
-| next | styled action lines (bold slug, dim branch, warn stale suffix, pointer on current branch) / renderNextActions | derivation warnings — always plain |
+| next | two-part entry blocks (header: pointer + pie + bold slug + dim branch tag + dim task fraction; body: hanging-indent word-wrapped action; stale warning on its own line; blank line between entries) / renderNextActions | derivation warnings — always plain |
 | doctor | ✓/⚠/✗ findings report / marker-column report | scan spinner (animate-gated) |
 | new, switch | ✓ confirmation + dim └ details | ✗ failure, styled under stderrCaps |
 | init | dim └ detail rails + ✓ result; scanner hint always plain (copy-paste material) | ✗ failure, styled under stderrCaps |

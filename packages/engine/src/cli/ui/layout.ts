@@ -9,7 +9,7 @@ import {
 } from '../../core/fold'
 import { clipDetect, describeFreshness, pct, taskProgress } from '../../projections/templates/shared'
 import type { Style } from './style'
-import type { Symbols } from './symbols'
+import { pieFor, type Symbols } from './symbols'
 import { sanitizeProse, truncatePlain, visibleWidth } from './text'
 
 /**
@@ -35,6 +35,13 @@ export interface LayoutOptions {
   symbols: Symbols
   /** Terminal width (columnsOf(stream)); portfolio truncation budget. */
   columns: number
+  /**
+   * Pulse beat for live surfaces (status --watch, 4.3): true renders the
+   * active-task marker on its dim beat, false/absent on its bright beat.
+   * A one-shot print always renders bright — the pulse is only visible
+   * when a live process alternates frames.
+   */
+  pulse?: boolean
 }
 
 /** Render one initiative at the requested zoom. Lines, no trailing newline. */
@@ -53,12 +60,13 @@ const SESSION_SUMMARY_BUDGET = 1_200
 // Full zoom — one initiative, the whole tree (`sofar status`).
 // ---------------------------------------------------------------------------
 
-function fullZoom(state: InitiativeState, { style: s, symbols: sym }: LayoutOptions): string[] {
+function fullZoom(state: InitiativeState, options: LayoutOptions): string[] {
+  const { style: s, symbols: sym } = options
   const lines: string[] = []
   const [done, total] = taskProgress(state.phases)
   const phaseCount = state.phases.length
   lines.push(
-    `${s.bold(oneLine(state.slug) || '(unnamed initiative)')}  ${done}/${total} tasks (${pct(done, total)})` +
+    `${pieCell(done, total, s, sym)}${s.bold(oneLine(state.slug) || '(unnamed initiative)')}  ${done}/${total} tasks (${pct(done, total)})` +
       s.dim(` · ${phaseCount} phase${phaseCount === 1 ? '' : 's'}`),
   )
   lines.push(s.muted(oneLine(state.goal) || '(none recorded)'))
@@ -68,7 +76,7 @@ function fullZoom(state: InitiativeState, { style: s, symbols: sym }: LayoutOpti
     lines.push('')
     for (const phase of state.phases) {
       lines.push(phaseLine(phase, staleNames, s, sym))
-      for (const task of phase.tasks) lines.push(taskLine(task, s, sym))
+      for (const task of phase.tasks) lines.push(taskLine(task, s, sym, options.pulse === true))
     }
   }
 
@@ -149,14 +157,18 @@ function phaseLine(
   return `${glyph} ${name} ${s.dim(`${done}/${total}`)}`
 }
 
-/** Checkbox triplet + red blocked box; done text recedes to dim. */
-function taskLine(task: TaskState, s: Style, sym: Symbols): string {
+/**
+ * Checkbox triplet + red blocked box; done text recedes to dim. The
+ * active marker carries the pulse: bright (warn) beat by default, dim
+ * beat when a live surface alternates frames (4.3).
+ */
+function taskLine(task: TaskState, s: Style, sym: Symbols, pulse = false): string {
   const label = oneLine(`${task.id} ${task.title}`)
   switch (task.status) {
     case 'done':
       return `  ${s.success(sym.boxDone)} ${s.dim(label)}`
     case 'active':
-      return `  ${s.warn(sym.boxActive)} ${label}`
+      return `  ${pulse ? s.dim(sym.boxActive) : s.warn(sym.boxActive)} ${label}`
     case 'blocked':
       return `  ${s.error(`[${sym.fail}] ${label}`)}`
     case 'pending':
@@ -199,20 +211,22 @@ function portfolioZoom(
   const [done, total] = taskProgress(state.phases)
   const slug = oneLine(state.slug) || '(unnamed initiative)'
   const progress = `${done}/${total} tasks (${pct(done, total)})`
+  const pie = pieCell(done, total, s, sym)
+  const pieWidth = visibleWidth(pie)
 
   const head = `${slug}  ${progress}`
-  if (visibleWidth(head) > columns) {
+  if (pieWidth + visibleWidth(head) > columns) {
     // Degenerate width: the structural pair itself overflows — cut it as
     // one plain run (segment styling can't survive an intra-segment cut).
-    lines.push(s.bold(truncatePlain(head, columns, sym.ellipsis)))
+    lines.push(pie + s.bold(truncatePlain(head, Math.max(0, columns - pieWidth), sym.ellipsis)))
   } else {
     let phasePart = ''
     if (state.current.active_phase !== null) {
-      const avail = columns - visibleWidth(head) - (2 + visibleWidth(sym.bullet) + 1)
+      const avail = columns - pieWidth - visibleWidth(head) - (2 + visibleWidth(sym.bullet) + 1)
       const name = truncatePlain(oneLine(state.current.active_phase), Math.max(0, avail), sym.ellipsis)
       if (name.length > 0) phasePart = `  ${s.warn(sym.bullet)} ${name}`
     }
-    lines.push(`${s.bold(slug)}  ${progress}${phasePart}`)
+    lines.push(`${pie}${s.bold(slug)}  ${progress}${phasePart}`)
   }
 
   const detail =
@@ -240,6 +254,18 @@ function portfolioZoom(
 /** Truncate plain text to what remains after "  <glyph> " at `columns`. */
 function fit(text: string, columns: number, glyph: string, ellipsis: string): string {
   return truncatePlain(text, Math.max(0, columns - (2 + visibleWidth(glyph) + 1)), ellipsis)
+}
+
+/**
+ * Rendered pie + trailing space, or '' when the set has none (4.2):
+ * green at 100%, yellow in progress, dim untouched — the checkbox color
+ * ramp at initiative altitude.
+ */
+function pieCell(done: number, total: number, s: Style, sym: Symbols): string {
+  const pie = pieFor(done, total, sym)
+  if (pie === '') return ''
+  const colored = total > 0 && done === total ? s.success(pie) : done > 0 ? s.warn(pie) : s.dim(pie)
+  return `${colored} `
 }
 
 /**

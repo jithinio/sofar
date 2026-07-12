@@ -211,7 +211,8 @@ describe('sofar status: styled path (cli-ui 2.2)', () => {
     expect(r.stderr).toBe('')
 
     const out = r.stdout
-    expect(out.startsWith(`\x1b[1m${fixture.slug}\x1b[22m  1/4 tasks (25%)`)).toBe(true)
+    // 4.2: warn-colored pie (1/4 = quarter) leads the bold header
+  expect(out.startsWith(`\x1b[33m◔\x1b[39m \x1b[1m${fixture.slug}\x1b[22m  1/4 tasks (25%)`)).toBe(true)
     expect(out).toContain('\x1b[2mship the demo\x1b[22m')
     // phase line: yellow bullet + name + dim fraction
     expect(out).toContain('\x1b[33m●\x1b[39m Build \x1b[2m1/3\x1b[22m')
@@ -268,5 +269,24 @@ describe('sofar status: styled path (cli-ui 2.2)', () => {
     expect(r.exitCode).toBe(1)
     expect(r.stderr).toContain('no initiative bound to branch "main"')
     expect(r.stderr).not.toContain('\x1b[')
+  })
+})
+
+describe('sofar status --watch (cli-ui 4.3)', () => {
+  it('falls back to the one-shot result when animation is unavailable', async () => {
+    const { runStatusWatch } = await import('../src/cli/status')
+    const fixture = fx()
+    seed(fixture)
+    const piped = { color: false, unicode: true, animate: false }
+    const watch = runStatusWatch(fixture.root, undefined, piped)
+    expect(watch).toEqual(runStatus(fixture.root, undefined, piped))
+  })
+
+  it('fails like runStatus on an unresolvable initiative', async () => {
+    const { runStatusWatch } = await import('../src/cli/status')
+    const fixture = fx({ bind: false })
+    const r = runStatusWatch(fixture.root, undefined, { color: false, unicode: true, animate: false })
+    expect(r).toBeDefined()
+    expect(r!.exitCode).toBe(1)
   })
 })

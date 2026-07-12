@@ -76,7 +76,7 @@ describe('full zoom — plain content', () => {
   const text = lines.join('\n')
 
   it('bold-header slot carries slug, progress fraction/percent, phase count', () => {
-    expect(lines[0]).toBe('cli-ui  2/5 tasks (40%) · 2 phases')
+    expect(lines[0]).toBe('◑ cli-ui  2/5 tasks (40%) · 2 phases')
   })
 
   it('goal renders on its own muted line', () => {
@@ -243,7 +243,7 @@ describe('portfolio zoom', () => {
   it('full block: header + next-action detail + blocked + staleness (4 lines)', () => {
     const lines = renderInitiative(richState(), plain('portfolio'))
     expect(lines).toEqual([
-      'cli-ui  2/5 tasks (40%)  ● Phase 2 — surfaces',
+      '◑ cli-ui  2/5 tasks (40%)  ● Phase 2 — surfaces',
       '  └ next: Apply the grammar to sofar status',
       '  ✗ blocked: task 2.3: waiting on initiative-list',
       '  ⚠ next action may be stale: 4 events since write-back',
@@ -308,18 +308,18 @@ describe('portfolio zoom — truncation', () => {
 
   it('the variable tail truncates with an ellipsis; structure survives', () => {
     const lines = renderInitiative(richState(), plain('portfolio', 40))
-    expect(lines[0]).toBe('cli-ui  2/5 tasks (40%)  ● Phase 2 — su…')
+    expect(lines[0]).toBe('◑ cli-ui  2/5 tasks (40%)  ● Phase 2 — …')
     expect(lines[1]).toBe('  └ next: Apply the grammar to sofar st…')
   })
 
   it('active phase drops entirely when no width remains for it', () => {
     const lines = renderInitiative(richState(), plain('portfolio', 25))
-    expect(lines[0]).toBe('cli-ui  2/5 tasks (40%)')
+    expect(lines[0]).toBe('◑ cli-ui  2/5 tasks (40%)')
   })
 
   it('degenerate width truncates the header itself', () => {
     const lines = renderInitiative(richState(), plain('portfolio', 10))
-    expect(lines[0]).toBe('cli-ui  2…')
+    expect(lines[0]).toBe('◑ cli-ui …')
     expect(visibleWidth(lines[0]!)).toBe(10)
   })
 
@@ -328,5 +328,20 @@ describe('portfolio zoom — truncation', () => {
     const lines = renderInitiative(richState(), opts)
     for (const line of lines) expect(visibleWidth(line)).toBeLessThanOrEqual(40)
     expect(lines[1]).toContain('...')
+  })
+})
+
+describe('pulse beat (4.3)', () => {
+  it('active-task marker breathes warn↔dim; everything else is frame-stable', async () => {
+    const { renderInitiative } = await import('../src/cli/ui/layout')
+    const { createStyle } = await import('../src/cli/ui/style')
+    const { symbolsFor } = await import('../src/cli/ui/symbols')
+    const opts = { zoom: 'full' as const, style: createStyle(true), symbols: symbolsFor(true), columns: 80 }
+    const bright = renderInitiative(richState(), { ...opts, pulse: false })
+    const dim = renderInitiative(richState(), { ...opts, pulse: true })
+    expect(bright.join('\n')).toContain('\x1b[33m[•]\x1b[39m')
+    expect(dim.join('\n')).toContain('\x1b[2m[•]\x1b[22m')
+    const stable = (lines: string[]) => lines.filter((l) => !l.includes('[•]'))
+    expect(stable(dim)).toEqual(stable(bright))
   })
 })

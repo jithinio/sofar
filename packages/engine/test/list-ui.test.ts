@@ -125,7 +125,7 @@ describe('sofar list: styled path', () => {
     const demo = lines.find((l) => stripAnsi(l).includes('demo  1/2 tasks'))!
     const other = lines.find((l) => stripAnsi(l).includes('other  1/2 tasks'))!
     expect(demo.startsWith('\x1b[35m▸\x1b[39m ')).toBe(true)
-    expect(stripAnsi(other).startsWith('  other')).toBe(true)
+    expect(stripAnsi(other).startsWith('  ◑ other')).toBe(true)
   })
 
   it('right-aligns dim branch tags to the column edge on visible width', () => {
@@ -133,7 +133,7 @@ describe('sofar list: styled path', () => {
     const lines = runList(fixture.root, STYLED, 80).stdout.split('\n')
     const demo = lines.find((l) => stripAnsi(l).includes('demo  1/2 tasks'))!
     const other = lines.find((l) => stripAnsi(l).includes('other  1/2 tasks'))!
-    expect(stripAnsi(demo)).toMatch(/^▸ demo {2}1\/2 tasks \(50%\) {2}● Phase 1 +\[main\]$/)
+    expect(stripAnsi(demo)).toMatch(/^▸ ◑ demo {2}1\/2 tasks \(50%\) {2}● Phase 1 +\[main\]$/)
     expect(demo.endsWith('\x1b[2m[main]\x1b[22m')).toBe(true)
     expect(visibleWidth(demo)).toBe(80)
     expect(stripAnsi(other)).toMatch(/\[unbound\]$/)
