@@ -44,9 +44,13 @@ program
   .description(
     'make this repo sofar-ready: .sofar/, hook shims + settings, .mcp.json entry, CLAUDE.md + AGENTS.md protocol blocks (idempotent)',
   )
+  .option(
+    '--statusline',
+    'also wire `sofar statusline` as the project statusLine (merged only when settings.json has none — an existing statusLine is never touched)',
+  )
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action((opts: { root?: string }) => {
-    emit(runInit(rootOf(opts)))
+  .action((opts: { statusline?: boolean; root?: string }) => {
+    emit(runInit(rootOf(opts), { statusline: opts.statusline === true }))
   })
 
 program

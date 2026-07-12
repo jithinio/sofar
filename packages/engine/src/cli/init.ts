@@ -122,6 +122,31 @@ export const GITATTRIBUTES_LINE = '.sofar/**/events.jsonl merge=union'
 
 const HOOK_COMMAND_PREFIX = '$CLAUDE_PROJECT_DIR/.claude/hooks/'
 
+/**
+ * The settings.json statusLine entry `--statusline` installs (D4 informed
+ * re-test, init-statusline D1). Merged ONLY when the key is absent — an
+ * existing statusLine, whatever its value, is the user's and wins.
+ */
+export const STATUSLINE_SETTINGS_ENTRY = {
+  type: 'command',
+  command: 'sofar statusline',
+} as const
+
+/** Is this settings.statusLine value exactly the one --statusline installs? */
+export function isSofarStatusline(v: unknown): boolean {
+  return (
+    isObj(v) &&
+    v.type === STATUSLINE_SETTINGS_ENTRY.type &&
+    v.command === STATUSLINE_SETTINGS_ENTRY.command &&
+    Object.keys(v).length === 2
+  )
+}
+
+export interface InitOptions {
+  /** Wire `sofar statusline` as the project statusLine (merged only when absent). */
+  statusline?: boolean
+}
+
 interface ShimSpec {
   file: string
   event: 'SessionStart' | 'UserPromptSubmit' | 'PostToolUse' | 'Stop' | 'SessionEnd'
@@ -259,7 +284,11 @@ function hasCommand(entries: unknown[], command: string): boolean {
   )
 }
 
-function mergeSettings(rootDir: string, report: string[]): void {
+function mergeSettings(
+  rootDir: string,
+  statusline: boolean,
+  report: string[],
+): { statuslineAbsent: boolean } {
   const path = join(rootDir, '.claude', 'settings.json')
   const settings = readJSONObject(path, '.claude/settings.json')
 
@@ -288,12 +317,30 @@ function mergeSettings(rootDir: string, report: string[]): void {
     hooks[shim.event] = entries
   }
 
-  if (added === 0 && existsSync(path)) {
-    report.push('unchanged .claude/settings.json')
-    return
+  // statusLine (--statusline, D4 informed re-test): merged ONLY when the key
+  // is absent — an existing entry, ours or customized, is never rewritten.
+  let statuslineNote = ''
+  let statuslineWiredNow = false
+  if (statusline) {
+    if (settings.statusLine === undefined) {
+      settings.statusLine = STATUSLINE_SETTINGS_ENTRY
+      statuslineWiredNow = true
+      statuslineNote = ' (statusLine wired)'
+    } else {
+      statuslineNote = isSofarStatusline(settings.statusLine)
+        ? ' (statusLine already wired)'
+        : ' (existing statusLine kept)'
+    }
+  }
+  const statuslineAbsent = settings.statusLine === undefined
+
+  if (added === 0 && !statuslineWiredNow && existsSync(path)) {
+    report.push(`unchanged .claude/settings.json${statuslineNote}`)
+    return { statuslineAbsent }
   }
   settings.hooks = hooks
-  report.push(`${writeIfChanged(path, stableJSON(settings))} .claude/settings.json`)
+  report.push(`${writeIfChanged(path, stableJSON(settings))} .claude/settings.json${statuslineNote}`)
+  return { statuslineAbsent }
 }
 
 function mergeMcpJson(rootDir: string, report: string[]): void {
@@ -366,15 +413,18 @@ function renderFailure(message: string, caps: Caps): string {
 
 export function runInit(
   rootDir: string,
+  options: InitOptions = {},
   caps: Caps = stdoutCaps(),
   errCaps: Caps = stderrCaps(),
 ): CmdResult {
+  const statusline = options.statusline === true
   const report: string[] = []
+  let statuslineAbsent = false
   try {
     initSofarDir(rootDir, report)
     ensureGitattributes(rootDir, report)
     installShims(rootDir, report)
-    mergeSettings(rootDir, report)
+    statuslineAbsent = mergeSettings(rootDir, statusline, report).statuslineAbsent
     mergeMcpJson(rootDir, report)
     appendProtocolBlock(rootDir, 'CLAUDE.md', PROTOCOL_BLOCK, report)
     appendProtocolBlock(rootDir, 'AGENTS.md', AGENTS_PROTOCOL_BLOCK, report)
@@ -388,6 +438,11 @@ export function runInit(
       ? 'sofar init: already initialized — nothing to do'
       : `sofar init: done (${changed} change${changed === 1 ? '' : 's'})`
   const lines = [renderReport(report, result, caps)]
+  // Opt-in nudge (init-statusline D1): when the project settings carry no
+  // statusLine and the flag was not passed, point at it. Unstyled, like the
+  // scanner hint — and always BEFORE it: the scanner hint keeps the final
+  // slot (SPEC §CLI).
+  if (!statusline && statuslineAbsent) lines.push('', STATUSLINE_HINT)
   // Scanner defense (task 10.1, D-P10): if a tree-wide class scanner will
   // ingest .sofar/, raise the exclusion hint as the FINAL output. init only
   // flags it; `sofar doctor --fix` does the precise, path-aware insert.
@@ -396,6 +451,21 @@ export function runInit(
   if (hint !== null) lines.push('', hint)
   return ok(`${lines.join('\n')}\n`)
 }
+
+/**
+ * The rent-meter opt-in hint — printed by plain init while the project
+ * settings has no statusLine. A project-level statusLine shadows a personal
+ * ~/.claude/settings.json one, which is exactly why wiring it stays opt-in
+ * (felt-cost D4): the hint names the trade so the choice is informed.
+ */
+export const STATUSLINE_HINT = [
+  'note: Claude Code statusline not wired. `sofar statusline` renders the',
+  '  rent-meter (model, dir/branch, record progress, session cost, cache',
+  '  health, context %) in the status bar. Opt in with:',
+  '    sofar init --statusline',
+  '  (a project statusLine shadows a personal ~/.claude/settings.json one —',
+  '  skip this if you prefer yours)',
+].join('\n')
 
 /**
  * The Tailwind-v4 scanner hint (task 10.1) — printed as init's final output

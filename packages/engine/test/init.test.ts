@@ -22,6 +22,8 @@ import {
   REPO_MD_STUB,
   runInit,
   SHIMS,
+  STATUSLINE_HINT,
+  STATUSLINE_SETTINGS_ENTRY,
 } from '../src/cli/init'
 
 /**
@@ -308,15 +310,87 @@ describe('sofar init merges — never clobbers — user files', () => {
   })
 })
 
+describe('sofar init --statusline (opt-in rent-meter wiring, D4 informed re-test)', () => {
+  it('wires statusLine on a fresh repo alongside the hooks — and prints no hint', () => {
+    const root = freshRepo()
+    const result = runInit(root, { statusline: true })
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('created .claude/settings.json (statusLine wired)')
+    expect(result.stdout).not.toContain('sofar init --statusline') // hint is for the unwired
+
+    const settings = readJSON(join(root, '.claude', 'settings.json'))
+    expect(settings.statusLine).toEqual(STATUSLINE_SETTINGS_ENTRY)
+    expect(Object.keys(settings.hooks as object)).toHaveLength(5) // hooks untouched by the flag
+  })
+
+  it('is byte-level idempotent: a second --statusline run changes no file', () => {
+    const root = freshRepo()
+    runInit(root, { statusline: true })
+    const first = hashTree(root)
+
+    const second = runInit(root, { statusline: true })
+    expect(second.exitCode).toBe(0)
+    expect(second.stdout).toContain('already initialized — nothing to do')
+    expect(second.stdout).toContain('unchanged .claude/settings.json (statusLine already wired)')
+    expect(hashTree(root)).toEqual(first)
+  })
+
+  it('never clobbers an existing statusLine — theirs wins, whatever it is', () => {
+    const root = freshRepo()
+    mkdirSync(join(root, '.claude'), { recursive: true })
+    const custom = { statusLine: { type: 'command', command: 'my-own-statusline.sh' } }
+    writeFileSync(join(root, '.claude', 'settings.json'), JSON.stringify(custom, null, 2))
+
+    const result = runInit(root, { statusline: true })
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('(existing statusLine kept)')
+    expect(readJSON(join(root, '.claude', 'settings.json')).statusLine).toEqual(custom.statusLine)
+  })
+
+  it('wires into an already-inited repo (flag added on a later run)', () => {
+    const root = freshRepo()
+    runInit(root)
+    const result = runInit(root, { statusline: true })
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('updated .claude/settings.json (statusLine wired)')
+    expect(readJSON(join(root, '.claude', 'settings.json')).statusLine).toEqual(
+      STATUSLINE_SETTINGS_ENTRY,
+    )
+  })
+
+  it('plain init hints at the flag while unwired, and stops once wired', () => {
+    const root = freshRepo()
+    const unwired = runInit(root)
+    expect(unwired.stdout).toContain(STATUSLINE_HINT)
+    expect(unwired.stdout).toContain('sofar init --statusline')
+    expect(unwired.stdout).toContain('shadows a personal') // the D4 trade, named
+
+    runInit(root, { statusline: true })
+    const wired = runInit(root)
+    expect(wired.stdout).not.toContain('sofar init --statusline')
+  })
+
+  it('a custom statusLine also silences the hint — the user already chose', () => {
+    const root = freshRepo()
+    mkdirSync(join(root, '.claude'), { recursive: true })
+    writeFileSync(
+      join(root, '.claude', 'settings.json'),
+      JSON.stringify({ statusLine: { type: 'command', command: 'my-own.sh' } }, null, 2),
+    )
+    expect(runInit(root).stdout).not.toContain('sofar init --statusline')
+  })
+})
+
 describe('confirmation styling (cli-ui 2.5)', () => {
   const styled = { color: true, unicode: true, animate: false }
   const piped = { color: false, unicode: true, animate: false }
 
   it('renders dim └ rails on detail lines and a green ✓ on the result line', () => {
     const root = freshRepo()
-    const result = runInit(root, styled)
+    const result = runInit(root, {}, styled)
     expect(result.exitCode).toBe(0)
-    const lines = result.stdout.trimEnd().split('\n')
+    // The report block ends at the blank line before the (unstyled) hint.
+    const lines = (result.stdout.split('\n\n')[0] ?? '').split('\n')
     expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (12 changes)')
     expect(lines[0]).toBe('\x1b[2m  └ created .sofar/repo.md\x1b[22m')
     for (const line of lines.slice(0, -1)) {
@@ -325,9 +399,9 @@ describe('confirmation styling (cli-ui 2.5)', () => {
     }
   })
 
-  it('piped output is byte-identical to the historical plain report', () => {
+  it('piped output is byte-identical to the historical plain report + opt-in hint', () => {
     const root = freshRepo()
-    expect(runInit(root, piped).stdout).toBe(
+    expect(runInit(root, {}, piped).stdout).toBe(
       [
         'created .sofar/repo.md',
         'created .sofar/bindings.json',
@@ -343,6 +417,8 @@ describe('confirmation styling (cli-ui 2.5)', () => {
         'created AGENTS.md (sofar protocol block)',
         'sofar init: done (12 changes)',
         '',
+        STATUSLINE_HINT,
+        '',
       ].join('\n'),
     )
   })
@@ -351,11 +427,11 @@ describe('confirmation styling (cli-ui 2.5)', () => {
     const root = freshRepo()
     mkdirSync(join(root, '.claude'), { recursive: true })
     writeFileSync(join(root, '.claude', 'settings.json'), '{ not json')
-    // Failure text is stderr-bound: it styles under the stderr caps (arg 3),
+    // Failure text is stderr-bound: it styles under the stderr caps (arg 4),
     // never under the stdout caps.
-    const result = runInit(root, styled, styled)
+    const result = runInit(root, {}, styled, styled)
     expect(result.exitCode).toBe(1)
     expect(result.stderr.startsWith('\x1b[31m✗\x1b[39m sofar init:')).toBe(true)
-    expect(runInit(root, styled, piped).stderr.startsWith('sofar init:')).toBe(true)
+    expect(runInit(root, {}, styled, piped).stderr.startsWith('sofar init:')).toBe(true)
   })
 })

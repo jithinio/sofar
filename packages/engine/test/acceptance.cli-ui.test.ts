@@ -196,7 +196,7 @@ function freshRepo(): string {
 /** freshRepo + init (plain caps — setup must not depend on ambient env). */
 function initializedRepo(): string {
   const root = freshRepo()
-  expect(runInit(root, PLAIN, PLAIN).exitCode).toBe(0)
+  expect(runInit(root, {}, PLAIN, PLAIN).exitCode).toBe(0)
   return root
 }
 
@@ -412,7 +412,7 @@ describe('matrix: sofar init / uninit', () => {
   it('init: dim └ detail rails + ✓ result under styled caps; plain report piped', () => {
     const m = runMatrix(() => {
       const root = freshRepo()
-      return (caps, errCaps) => runInit(root, caps, errCaps)
+      return (caps, errCaps) => runInit(root, {}, caps, errCaps)
     })
     assertMatrixLaws(m)
 
@@ -431,7 +431,7 @@ describe('matrix: sofar init / uninit', () => {
         join(root, 'package.json'),
         JSON.stringify({ dependencies: { tailwindcss: '^4.1.0' } }, null, 2),
       )
-      return (caps, errCaps) => runInit(root, caps, errCaps)
+      return (caps, errCaps) => runInit(root, {}, caps, errCaps)
     })
     assertMatrixLaws(m)
 
