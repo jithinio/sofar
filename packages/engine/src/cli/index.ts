@@ -12,6 +12,7 @@ import { runNew, runSwitch } from './new'
 import { runStatus, runStatusWatch } from './status'
 import { runList } from './list'
 import { runNext } from './next'
+import { registerStatuslineCommand } from './statusline'
 import { startServer, renderServeBanner, DEFAULT_PORT } from './serve'
 import { runExport, runImport } from './transfer'
 import { runUpgrade } from './upgrade'
@@ -209,5 +210,6 @@ program
   })
 
 registerEventCommand(program)
+registerStatuslineCommand(program, rootOf)
 
 await program.parseAsync(process.argv)

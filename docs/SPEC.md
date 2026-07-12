@@ -367,6 +367,20 @@ Shims contain no logic — they invoke the sofar CLI.
   regenerate projections, print {ok, event_id} JSON; any failure exits 1
   with the typed-error JSON and appends nothing (added Phase 5, BD30; slug
   resolves like status).
+- `sofar statusline` (felt-cost 3.1/3.2, D4) — the rent-meter, wired as
+  Claude Code's statusLine command. Reads statusline JSON from stdin,
+  prints ONE plain line: `<slug> <done>/<total> · $<total_cost_usd> ·
+  cache <warm%>[⚠|✓] · ctx <used%>`. Warm share = cache_read /
+  (cache_read + cache_creation + input) from the first usage object found
+  (top-level current_usage, context_window.current_usage, or
+  cost.current_usage). Health judged only after ≥10k tokens: <30% → ⚠
+  (prefix non-determinism), ≥50% → ✓ (healthy stable-prefix band, 50–80%
+  per the Jul-12 research). Every segment independent and omitted when its
+  inputs are missing; exit 0 always; READ-SIDE ONLY (never appends);
+  no model call ever (§Architectural invariants). Root resolution: --root
+  or cwd, falling back to the JSON's workspace.current_dir then cwd. NOT
+  auto-installed by `sofar init` (never clobber an existing statusLine
+  config) — README documents the one-line settings.json entry.
 - `sofar serve [--port 4173]` — chokidar watch on .sofar/ → GET /state
   (JSON InitiativeState per initiative), Server-Sent Events on change.
 - `sofar mcp [--root <dir>]` — start the stdio MCP server (server name:

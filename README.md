@@ -100,6 +100,9 @@ logic — each invokes the CLI.
 - `SessionStart` — registers the session in the log and prints the status
   projection as injected context (hard limit 10,000 chars), including a
   budgeted "Repo memory" section from `.sofar/repo.md` when it has content.
+  On `--resume` of a cold session (record idle past the longest cache TTL,
+  transcript worth re-warming), one advisory line precedes the block naming
+  the estimated re-warm cost and the cheaper fresh-start alternative.
 - `PostToolUse` — appends mechanical `file_touched` / `command_run` events
   for Edit/Write/MultiEdit/Bash calls.
 - `Stop` — the write-back gate: if the session has not appended
@@ -160,6 +163,7 @@ sofar status [slug]            fold and print the full initiative tree
 sofar export [slug] [--since]  event log as NDJSON (sync cursor primitive)
 sofar import <file|-> [slug]   append missing events, dedupe by id
 sofar event append ...         validated single-event append (the dialect surface)
+sofar statusline               rent-meter for Claude Code's statusLine (stdin JSON → one line)
 sofar serve [--port]           localhost JSON state + SSE on change (127.0.0.1 only)
 sofar mcp [--root]             stdio MCP server
 sofar upgrade [version]        self-update the global install (--check, --dry-run)
@@ -206,6 +210,24 @@ ledger listing every decision's rejected alternative. Resume-ablation
 testing showed that dropping rejected alternatives is precisely what makes a
 fresh agent confidently re-propose a dead end the record had already ruled
 out — the cheapest tokens in the block are the ones that stop repeated work.
+
+**Making cost felt.** Two surfaces turn invisible harness costs into visible
+moments, both read-side and both computed without a single model call (a
+named invariant — sofar holds no API keys and sends nothing anywhere):
+
+- *Cold-resume advisory* (automatic): resuming a session whose record has
+  been idle past the longest cache TTL re-warms the whole transcript at full
+  input price. The SessionStart injection says so — one line with the
+  estimated token cost and the fresh-start alternative — and stays silent on
+  warm or small resumes.
+- *Rent-meter* (opt-in): `sofar statusline` renders record progress, session
+  cost, and the cache-read share of input tokens — a healthy stable-prefix
+  session runs 50–80% (`✓`); under 30% (`⚠`) means something is churning
+  your prompt prefix. Wire it in `.claude/settings.json`:
+
+  ```json
+  { "statusLine": { "type": "command", "command": "sofar statusline" } }
+  ```
 
 ## Build-tool hygiene
 
