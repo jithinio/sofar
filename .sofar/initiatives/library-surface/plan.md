@@ -4,14 +4,13 @@
 
 Goal: Expose the engine as a typed ESM library via subpath exports on @alignlabs/sofar (schema: envelope + payload types + guards; engine: fold + cursor) so sofar-cloud's sync service materializes InitiativeState with the engine's OWN fold (fold parity, SPEC-v2 Phase 3 prerequisite) and third parties can build on the format (D11) — one stewarded npm name, no second package (D13).
 
-Progress: 3/4 tasks done (75%)
+Progress: 4/4 tasks done (100%)
 
-## Phase 1 — Library export surface (0.7.0) [active] — 3/4 done
+## Phase 1 — Library export surface (0.7.0) [done] — 4/4 done
 
 - [x] 1.1 Entry modules src/lib/schema.ts (envelope type + guard + makeEvent + payload schemas) and src/lib/engine.ts (fold + state types + derivations + cursor + serializeEvent) — no CLI imports, no side effects
 - [x] 1.2 Build + types: esbuild ESM bundles dist/schema.js + dist/engine.js (bin untouched); tsc declaration emit to dist/types with self-contained @sofar/schema specifier rewrite; package.json subpath exports "./schema" + "./engine" with types
 - [x] 1.3 Acceptance: packed tarball installs in a fresh ESM project (types resolve, no side effects, guard rejects corrupt line without throwing); fold parity over this repo's own record vs in-repo fold; cursor export --since round-trip library == CLI; pack contents dist + d.ts, bin unchanged
-- [ ] 1.4 Lockstep 0.7.0 (root + schema + engine), record write-back, commit, push, npm publish (user OTP) (active)
+- [x] 1.4 Lockstep 0.7.0 (root + schema + engine), record write-back, commit, push, npm publish (user OTP)
 
-Active phase: Phase 1 — Library export surface (0.7.0)
-Next action: Publish @alignlabs/sofar 0.7.0 (user npm OTP), then log the published version in this record (explicit initiative library-surface) and report it to sofar-cloud.
+Next action: None here — initiative complete. sofar-cloud: bump catalog to @alignlabs/sofar@0.7.0, delete the temporary local envelope copy, import foldLines from /engine for SPEC-v2 Phase 3 fold parity.
