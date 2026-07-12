@@ -24,6 +24,13 @@ export interface DoorbellOptions {
   onRing: (ring: DoorbellRing) => void | Promise<void>
   /** Fired on EVERY successful (re)connect — do the catch-up pull here. */
   onConnect?: () => void | Promise<void>
+  /**
+   * Fired after a non-fatal drop or failed attempt, before the backoff
+   * sleep. Doing the same catch-up pull here degrades the doorbell to
+   * capped-backoff polling when the SSE channel is unusable (idle-killed
+   * connections, buffering proxies) — data still flows, only through pull.
+   */
+  onGap?: () => void | Promise<void>
   onWarn?: (message: string) => void
   /** Abort to stop the loop (runDoorbell then resolves). */
   signal: AbortSignal
@@ -111,6 +118,12 @@ export async function runDoorbell(opts: DoorbellOptions): Promise<void> {
       opts.signal.removeEventListener('abort', abortNow)
     }
 
+    if (opts.signal.aborted) return
+    try {
+      await opts.onGap?.()
+    } catch (err) {
+      opts.onWarn?.(`catch-up pull failed (${err instanceof Error ? err.message : String(err)})`)
+    }
     if (opts.signal.aborted) return
     await sleep(backoffMs)
     backoffMs = Math.min(backoffMs * 2, 30_000)

@@ -119,6 +119,34 @@ describe('runDoorbell', () => {
     await withTimeout(done)
   })
 
+  it('degrades to gap-driven catch-up when the SSE channel is unusable', async () => {
+    // An unreachable doorbell (idle-killed connections, buffering proxies,
+    // hard-down endpoint) must not make watch mode deaf: every failed cycle
+    // fires onGap so the caller's since-cursor pull still runs.
+    const controller = new AbortController()
+    let gaps = 0
+    const warns: string[] = []
+    const done = runDoorbell({
+      apiUrl: 'http://127.0.0.1:9', // nothing listens here
+      token: 'sfr_whatever',
+      streams: ['repo_x/main'],
+      signal: controller.signal,
+      sleep: noSleep,
+      onRing: () => {},
+      onConnect: () => {
+        throw new Error('must not connect')
+      },
+      onGap: () => {
+        gaps += 1
+        if (gaps >= 3) controller.abort()
+      },
+      onWarn: (w) => warns.push(w),
+    })
+    await withTimeout(done)
+    expect(gaps).toBeGreaterThanOrEqual(3)
+    expect(warns.some((w) => w.includes('reconnecting'))).toBe(true)
+  })
+
   it('throws on 401 instead of retrying forever', async () => {
     const repoId = repoFixture()
     const controller = new AbortController()

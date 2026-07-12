@@ -227,7 +227,11 @@ Commands (styled-capable confirmation surfaces; wording identical plain):
   comments ~25s; NOTIFICATION ONLY — every ring and every (re)connect
   after a drop triggers a since-cursor pull, so a missed doorbell can
   never lose data. Reconnect uses capped backoff + an idle watchdog;
-  401/404 stop the loop (they need a human, not a retry).
+  401/404 stop the loop (they need a human, not a retry). Every failed
+  or dropped cycle ALSO fires the catch-up pull (onGap), so against an
+  SSE-hostile path (idle-killed connections, buffering proxies, a down
+  doorbell) watch mode degrades to capped-backoff polling instead of
+  going deaf — data always flows through pull.
 
 Library subpath "@alignlabs/sofar/client" (sync-client D1): the whole
 client core — config/credential/cursor stores, device flow, createRepo,

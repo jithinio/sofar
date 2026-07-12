@@ -535,6 +535,9 @@ export async function runPullWatch(
       onLine(renderSyncLines([pullLine(report)], caps).trimEnd())
     }
   }
+  const pullAll = async (): Promise<void> => {
+    for (const slug of target.slugs) await pullAndReport(slug)
+  }
 
   try {
     await runDoorbell({
@@ -542,9 +545,10 @@ export async function runPullWatch(
       token: target.credential.token,
       streams: target.slugs.map((slug) => `${target.remote.repo_id}/${slug}`),
       signal: deps.signal ?? new AbortController().signal,
-      onConnect: async () => {
-        for (const slug of target.slugs) await pullAndReport(slug)
-      },
+      onConnect: pullAll,
+      // Doorbell down ≠ data down: pull on every gap too, so watch mode
+      // degrades to capped-backoff polling instead of going deaf.
+      onGap: pullAll,
       onRing: async ({ stream }) => {
         const prefix = `${target.remote.repo_id}/`
         const slug = stream.startsWith(prefix) ? stream.slice(prefix.length) : null
