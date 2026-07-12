@@ -27,4 +27,4 @@ Progress: 9/9 tasks done (100%)
 - [x] 4.1 SPEC decision: UserPromptSubmit shim + additionalContext contract
 - [x] 4.2 Implement nudge behind the SPEC + tests
 
-Next action: Review + merge felt-cost into main; publish + sofar upgrade, THEN re-run sofar init (new shim needs `event user-prompt` in the installed binary) and wire the statusline one-liner from README.
+Next action: None — felt-cost fully shipped and rolled out. New sessions on main need a binding only when the next initiative starts (sofar new). Statusline + nudge go live on the next Claude Code session restart.

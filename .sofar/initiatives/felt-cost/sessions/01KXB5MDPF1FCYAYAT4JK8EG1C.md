@@ -6,12 +6,12 @@
 - Tool: claude-code
 - Model: claude-fable-5
 - Started: 2026-07-12T12:43:00.687Z
-- Ended: (in progress)
+- Ended: 2026-07-12T12:47:52.444Z
 
 ## Summary
 
-(none recorded — session did not write back)
+Release staged: felt-cost ff-merged to main, lockstep bump 0.7.0→0.8.0, 647/647 green at 0.8.0, pushed. npm publish blocked pending user approval (public-registry action). Branch deleted, binding cleaned, doctor's only 2 problems are the expected not-yet-installed UserPromptSubmit shim.
 
 ## Next action
 
-(none recorded)
+User: npm publish -w @alignlabs/sofar (OTP). Then: sofar upgrade → sofar init (installs UserPromptSubmit shim) → add statusLine {"type":"command","command":"sofar statusline"} to .claude/settings.json.
