@@ -53,6 +53,35 @@ The work loop, per session:
 3. Before finishing → write back `session_ended` (summary + next action).
    Under Claude Code the Stop hook blocks a session that skips this.
 
+## Team
+
+```
+# one person, once:
+sofar init
+git add .sofar .gitattributes .claude .mcp.json CLAUDE.md AGENTS.md
+git commit -m "adopt sofar"
+
+# every dev:
+npm install -g @alignlabs/sofar
+git pull
+sofar status        # the shared record, folded locally
+```
+
+No service, no server: the record is files in git, and every clone folds
+the same log to the same state.
+
+- **Merges cannot conflict on truth.** `init` marks event logs
+  `merge=union` in `.gitattributes`, so branches that both appended to an
+  initiative merge cleanly. Union merge (keep both sides' lines, order
+  arbitrary) is safe precisely because the log is append-only and the
+  fold replays events in ulid id order — line order in the file carries
+  no meaning, so any merge of the same events folds to the same state.
+  Generated projections may still conflict textually; take either side —
+  they are rebuilt from the log on the next append.
+- **Events carry their author.** Each event is stamped with `user` from
+  `git config user.email` at append time, so attribution survives merges
+  and imports; a machine without a configured email just omits the field.
+
 ## Integration surfaces
 
 `sofar init` wires all three; a tool uses whichever it can.
