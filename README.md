@@ -184,7 +184,7 @@ so readers never see a half-written file.
 ## CLI
 
 ```
-sofar init                     make a repo sofar-ready (idempotent)
+sofar init [--statusline]      make a repo sofar-ready (idempotent); --statusline wires the rent-meter
 sofar new <slug> [--goal]      create an initiative, bind the current branch
 sofar switch <slug>            rebind the current branch
 sofar status [slug]            fold and print the full initiative tree
@@ -259,8 +259,10 @@ named invariant — sofar holds no API keys and sends nothing anywhere):
   healthy stable-prefix session runs 50–80% (green `✓`); under 30% (red
   `⚠`) means something is churning your prompt prefix; context % warms
   through yellow (≥70%) to red (≥90%) as compaction nears. Styled for the
-  status bar by default; `--no-color` gives the plain line. Wire it in
-  `.claude/settings.json`:
+  status bar by default; `--no-color` gives the plain line. Wire it with
+  `sofar init --statusline` (merged only when `.claude/settings.json` has no
+  statusLine — an existing one, e.g. your personal `~/.claude` statusline
+  shining through, is never touched), or by hand:
 
   ```json
   { "statusLine": { "type": "command", "command": "sofar statusline" } }
