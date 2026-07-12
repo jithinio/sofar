@@ -3,15 +3,19 @@ import { basename, dirname, join } from 'node:path'
 import type { Command } from 'commander'
 import { createToolContext } from '../mcp/context'
 import { readAllStdin } from './shared'
-import { createStyle, type Caps } from './ui'
+import { createStyle, pieFor, symbolsFor, type Caps } from './ui'
 
 /**
  * `sofar statusline` (felt-cost 3.1/3.2 D4; identity segments D6; styling
- * D7) — the rent-meter. Wired as Claude Code's statusLine command, it reads
- * the statusline JSON from stdin and prints ONE line:
+ * D7/D8) — the rent-meter. Wired as Claude Code's statusLine command, it
+ * reads the statusline JSON from stdin and prints ONE line:
  *
- *   <model> · 📁 <dir> 🌿 <branch> · <slug> <done>/<total>
- *     · $<session cost> · ♻ <warm%>[⚠|✓] · 🧠 <used%>
+ *   <model> · ▸ <dir> ⎇ <branch> · <slug> <done>/<total>
+ *     · $<session cost> · ↺ <warm%>[⚠|✓] · <pie> <used%>
+ *
+ * Icons are text glyphs in the house vocabulary (cli-ui 1.3), never emoji
+ * (D8): ▸ dir, ⎇ branch, ↺ cache rewarm, and the kernel's progress pie
+ * (○◔◑◕●) as the context-fill gauge.
  *
  * The model and dir/branch segments restore what Claude Code's own default
  * status line shows — a custom statusLine command REPLACES the default
@@ -191,6 +195,7 @@ export function runStatusline(rootDir: string, input: string, caps: Caps = PLAIN
   const hook = parseJson(input)
   const style = createStyle(caps.color)
   const icons = caps.unicode
+  const sym = symbolsFor(caps.unicode)
   const segments: string[] = []
 
   const model = modelSegment(hook)
@@ -200,7 +205,9 @@ export function runStatusline(rootDir: string, input: string, caps: Caps = PLAIN
   if (dir !== null) {
     if (icons) {
       segments.push(
-        dir.branch === null ? `📁 ${dir.name}` : `📁 ${dir.name} 🌿 ${style.success(dir.branch)}`,
+        dir.branch === null
+          ? `${sym.pointer} ${dir.name}`
+          : `${sym.pointer} ${dir.name} ⎇ ${style.success(dir.branch)}`,
       )
     } else {
       segments.push(dir.branch === null ? dir.name : `${dir.name}:${dir.branch}`)
@@ -218,13 +225,14 @@ export function runStatusline(rootDir: string, input: string, caps: Caps = PLAIN
 
   const rent = rentSegment(hook)
   if (rent !== null) {
-    const text = `${icons ? '♻' : 'cache'} ${rent.pct}%${rent.marker === null ? '' : ` ${rent.marker}`}`
+    const text = `${icons ? '↺' : 'cache'} ${rent.pct}%${rent.marker === null ? '' : ` ${rent.marker}`}`
     segments.push(rent.tone === null ? text : style[rent.tone](text))
   }
 
   const ctxPct = isObj(hook.context_window) ? numField(hook.context_window.used_percentage) : null
   if (ctxPct !== null) {
-    const text = `${icons ? '🧠' : 'ctx'} ${Math.round(ctxPct)}%`
+    const pct = Math.round(ctxPct)
+    const text = icons ? `${pieFor(pct, 100, sym)} ${pct}%` : `ctx ${pct}%`
     segments.push(
       ctxPct >= CTX_ERROR_FROM
         ? style.error(text)

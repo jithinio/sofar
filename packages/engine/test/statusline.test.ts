@@ -192,7 +192,7 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
     expect(line).toBe('$1.23')
   })
 
-  it('styled (D7): bold model, 📁/🌿 icons, accent slug, banded cache, dim ctx + separators', () => {
+  it('styled (D7/D8): bold model, ▸/⎇ glyphs, accent slug, banded cache, dim pie ctx + separators', () => {
     const fixture = planned()
     const line = runStatusline(
       fixture.root,
@@ -203,11 +203,11 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
     expect(line).toBe(
       [
         '\x1b[1mFable 5\x1b[22m',
-        `📁 ${basename(fixture.root)} 🌿 \x1b[32mmain\x1b[39m`,
+        `▸ ${basename(fixture.root)} ⎇ \x1b[32mmain\x1b[39m`,
         `\x1b[35m${fixture.slug}\x1b[39m 1/3`,
         '$1.23',
-        '\x1b[32m♻ 72% ✓\x1b[39m',
-        '\x1b[2m🧠 41%\x1b[22m',
+        '\x1b[32m↺ 72% ✓\x1b[39m',
+        '\x1b[2m◑ 41%\x1b[22m', // pie gauge: 41% fill rounds to half
       ].join(sep),
     )
   })
@@ -224,8 +224,8 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
       }),
       STATUSLINE_FORCED_CAPS,
     )
-    expect(line).toContain('\x1b[31m♻ 20% ⚠\x1b[39m')
-    expect(line).toContain('\x1b[31m🧠 91%\x1b[39m')
+    expect(line).toContain('\x1b[31m↺ 20% ⚠\x1b[39m')
+    expect(line).toContain('\x1b[31m◕ 91%\x1b[39m')
   })
 
   it('styled: default lib caps stay plain — the command opts into styling, not the library', () => {

@@ -224,7 +224,7 @@ named invariant — sofar holds no API keys and sends nothing anywhere):
   input price. The SessionStart injection says so — one line with the
   estimated token cost and the fresh-start alternative — and stays silent on
   warm or small resumes.
-- *Rent-meter* (opt-in): `sofar statusline` renders model + 📁 dir 🌿 branch
+- *Rent-meter* (opt-in): `sofar statusline` renders model + ▸ dir ⎇ branch
   (the segments Claude Code's default status line showed — a custom
   statusLine replaces the default, so sofar carries them forward), record
   progress, session cost, and the cache-read share of input tokens — a

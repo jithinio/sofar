@@ -380,23 +380,25 @@ Shims contain no logic — they invoke the sofar CLI.
   with the typed-error JSON and appends nothing (added Phase 5, BD30; slug
   resolves like status).
 - `sofar statusline` (felt-cost 3.1/3.2, D4; identity segments D6; styling
-  D7) — the rent-meter, wired as Claude Code's statusLine command. Reads
-  statusline JSON from stdin, prints ONE line: `<model> · 📁 <dir> 🌿
-  <branch> · <slug> <done>/<total> · $<total_cost_usd> · ♻ <warm%>[⚠|✓] ·
-  🧠 <used%>`. The leading model (model.display_name) and dir/branch
+  D7/D8) — the rent-meter, wired as Claude Code's statusLine command. Reads
+  statusline JSON from stdin, prints ONE line: `<model> · ▸ <dir> ⎇
+  <branch> · <slug> <done>/<total> · $<total_cost_usd> · ↺ <warm%>[⚠|✓] ·
+  <pie> <used%>`. Icons are house-vocabulary text GLYPHS, never emoji (D8):
+  ▸ dir, ⎇ branch, ↺ cache rewarm, kernel progress pie (○◔◑◕●) as the
+  context-fill gauge. The leading model (model.display_name) and dir/branch
   segments restore what Claude Code's default status line shows — a custom
   statusLine REPLACES the default, and the rent-meter must not cost the
   user the line they had (D6). Branch comes from .git/HEAD via bounded
   upward walk from workspace.current_dir (worktree `gitdir:` file aware) —
   one file read, no subprocess; detached HEAD drops the branch. STYLED BY
-  DEFAULT (D7): the consumer renders ANSI + emoji even though stdout is
+  DEFAULT (D7): the consumer renders ANSI even though stdout is
   piped, so the command forces styled caps (bold model, success-green
   branch, accent slug, band-colored cache — success/error by band, dim
   unjudged — and ctx dim/<70, warn/≥70, error/≥90, dim separators); TTY
   detection is deliberately bypassed. `--no-color` or NO_COLOR falls back
   to the plain line, byte-identical to the 0.8.0 format (`dir:branch`,
-  `cache`/`ctx` labels, no ANSI); runStatusline's library default is the
-  plain line. Warm share = cache_read /
+  `cache`/`ctx` labels, no ANSI, no glyph icons); runStatusline's library
+  default is the plain line. Warm share = cache_read /
   (cache_read + cache_creation + input) from the first usage object found
   (top-level current_usage, context_window.current_usage, or
   cost.current_usage). Health judged only after ≥10k tokens: <30% → ⚠
