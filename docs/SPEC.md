@@ -30,6 +30,22 @@ sofar/                   # workspace root: toolchain devDeps, shared tsconfig
 Future packages (ui, sync, adapters) join packages/* post-v1; the
 engine-only scope law still applies during the Fable window.
 
+## Architectural invariants
+
+- **Zero model API calls.** sofar never calls a model: no API keys, no
+  inference costs, no user content sent anywhere. Everything the engine
+  produces is a read-side derivation computed locally; record write-backs
+  are the agent's own tool-call args, which keeps their output tokens
+  minimal by construction. Any change that would add a model call to sofar
+  (e.g. cheap-model or Batch-API bookkeeping) is rejected until a Decision
+  explicitly revisits this invariant (felt-cost D3, Jul 2026).
+- **Injection byte-stability.** For an unchanged record, the SessionStart
+  status block renders byte-identically — no timestamps, counters, or other
+  volatile bytes are introduced at render time (all dates in the block come
+  from event data). Pinned by regression test (felt-cost 1.2). Any
+  cache-cost play built on this must cite token-optimization's rejected
+  "leading with prompt caching" as an informed re-test (felt-cost D2).
+
 ## Record layout (what the engine manages inside a user repo)
 ```
 .sofar/

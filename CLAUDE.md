@@ -29,6 +29,10 @@ contracts.
   log the conflict in Decisions and surface it to the user.
 - docs/SPEC.md is authoritative over improvisation. Deviations require a
   Decision entry.
+- Zero model API calls (SPEC §Architectural invariants): sofar itself never
+  calls a model — no API keys, no inference costs, no user content sent
+  anywhere. Cheap-model or Batch-API bookkeeping is rejected (felt-cost D3);
+  revisiting requires a new Decision that cites this one.
 
 <!-- sofar:protocol -->
 ## Sofar protocol (jurisdiction is total)
