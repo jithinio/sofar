@@ -76,6 +76,22 @@ Rules: ulid ids (sortable); appends are atomic single-line writes with
 O_APPEND; a reader must tolerate a torn final line (skip + warn); events are
 immutable — corrections are new events of type `correction` referencing the
 target id.
+Canonical serialization (0.9.1): serializeEvent is the ONLY envelope
+serializer, and its byte form is a pure function of the envelope value —
+envelope fields in the fixed schema order above (`user` omitted when
+absent; unknown additive fields preserved after `payload`, sorted);
+payload and every nested object with keys sorted lexicographically by
+code point, arrays in order; no whitespace; `ts` is carried verbatim,
+never reformatted. Writer and puller therefore emit identical bytes for
+the same event even when a store reorders keys (Postgres jsonb does) —
+events.jsonl is git-committed, so byte divergence on identical events
+would mean spurious diffs/merge conflicts. Canonicalization is
+forward-only: existing log lines are never rewritten (append-only
+stands); a historical line whose payload keys were inserted unsorted
+keeps its bytes in place and only fresh serializations (push wire,
+export, pull appends) carry the sorted form. Pull writes the canonical
+form of the PARSED event, never raw wire bytes — a non-canonical server
+can never poison a local log.
 `user` (team-readiness T1, Jul 12) is OPTIONAL author identity: stamped when
 the event is minted, from `git config user.email`, and omitted whenever that
 is unavailable — the identity lookup must NEVER fail an append. Strictly
