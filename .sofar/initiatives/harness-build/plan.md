@@ -99,4 +99,4 @@ Progress: 52/53 tasks done (98%)
 - [x] 13.1 Convergent fold: sort envelope-valid events by id before pass-2 replay (D-sync-1) + merged-log convergence tests (same event set, shuffled file orders, deep-equal states) + monotonic-writer and skew-tolerance assertions
 
 Active phase: Phase 5 — Dialect + forced handoff
-Next action: Wrap up the concurrent Phase 12/13 session (write-back pending).
+Next action: Build the library export surface under a new library-surface initiative, then lockstep 0.7.0 and publish (user provides npm OTP).
