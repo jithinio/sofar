@@ -1,6 +1,6 @@
 {
   "name": "@alignlabs/sofar",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Sofar v1 engine \u2014 event log core, MCP server, CLI, hooks",
   "type": "module",
   "engines": {
@@ -12,6 +12,7 @@
   "exports": {
     "./schema": {
       "types": "./dist/types/engine/src/lib/schema.d.ts",
+      "browser": "./dist/schema.browser.js",
       "default": "./dist/schema.js"
     },
     "./engine": {

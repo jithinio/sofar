@@ -41,6 +41,32 @@ await build({
   banner: { js: requireShim },
 })
 
+// Browser build of the schema entry (exports."./schema".browser). The node
+// bundle above hard-crashes browsers twice over: the require shim imports
+// node:module at module scope, and envelope.ts pulls identity.ts
+// (node:child_process) for the best-effort `user` stamp. Identity's
+// contract is "no git → undefined, never fail" — a browser is just
+// another no-git runtime, so it gets the stub and everything else is
+// identical. Found live: app.sofar.sh white-screened on this banner.
+await build({
+  entryPoints: { 'schema.browser': 'src/lib/schema.ts' },
+  bundle: true,
+  platform: 'browser',
+  format: 'esm',
+  target: 'es2022',
+  outdir: 'dist',
+  plugins: [
+    {
+      name: 'browser-identity-stub',
+      setup(b) {
+        b.onResolve({ filter: /^\.\.?\/.*\/identity$|^\.\/identity$/ }, (args) => ({
+          path: join(dirname(args.importer), 'identity.browser.ts'),
+        }))
+      },
+    },
+  ],
+})
+
 // Declaration emit (L2): tsc writes d.ts for the lib entry closure — engine
 // sources under dist/types/engine/, the @sofar/schema sources under
 // dist/types/schema/ (rootDir spans packages/). The workspace package is
