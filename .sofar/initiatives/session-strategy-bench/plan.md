@@ -31,4 +31,4 @@ Progress: 6/12 tasks done (50%)
 - [ ] 4.3 Honest-summary paragraph: where S won, where L won (P3 territory), with numbers — marketing copy comes only from this (deliverable 5)
 
 Active phase: Phase 3 — Runs
-Next action: When driver finishes (~hours): review runs/*/telemetry.md + task diffs, append run log to evidence file, then Phase 3.3 blind grading (dual graders, ≥1 cross-family GLM per rubric).
+Next action: When limits reset: rerun scratchpad resume-driver.sh steps 2-4 (or by hand: run-workload.sh s2w1.env S — resumes at task 5; then s2w2.env S — resumes at task 2; then extract-usage.py for all 4 arms), re-arm the driver.log monitor, then evidence-file run log + blind grading proposal.
