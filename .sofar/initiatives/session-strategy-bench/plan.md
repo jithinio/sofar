@@ -4,7 +4,7 @@
 
 Goal: Automated controlled benchmark: one long session vs fresh-sessions-per-task (Sofar pattern), measuring cost shape, output quality, and time. Second scenario of handoff-bench; reuses its harness, blind-grading machinery, and evidence format. MEASURES only — read-side; zero engine/injection changes; findings that suggest engine changes are logged as proposals.
 
-Progress: 4/12 tasks done (33%)
+Progress: 6/12 tasks done (50%)
 
 ## Phase 1 — Pre-registration freeze (all frozen/committed before run 1) [done] — 4/4 done
 
@@ -13,12 +13,12 @@ Progress: 4/12 tasks done (33%)
 - [x] 1.3 Workload W1 — feature build: frozen snapshot repo + 5–8 real dependent tasks, ≥2h agent work (deliverable 3)
 - [x] 1.4 Workload W2 — refactor: frozen snapshot + task list; minimum 2 workload types before any headline claim (deliverable 3)
 
-## Phase 2 — Runner (deliverable 1) [active] — 0/2 done
+## Phase 2 — Runner (deliverable 1) [done] — 2/2 done
 
-- [ ] 2.1 Runner script: arm L (one headless claude -p session, all tasks sequential, never ends) + arm S (fresh headless session per task: orient from record → work → sofar write-back, Stop-gate satisfied); same model/snapshot/task list/templated prompts; resumable (active)
-- [ ] 2.2 Usage extraction from transcripts: per-call input, cache read/write with 5m/1h split, output tokens, per-call latency; wall-clock per task; diff/artifact capture per task (active)
+- [x] 2.1 Runner script: arm L (one headless claude -p session, all tasks sequential, never ends) + arm S (fresh headless session per task: orient from record → work → sofar write-back, Stop-gate satisfied); same model/snapshot/task list/templated prompts; resumable
+- [x] 2.2 Usage extraction from transcripts: per-call input, cache read/write with 5m/1h split, output tokens, per-call latency; wall-clock per task; diff/artifact capture per task
 
-## Phase 3 — Runs [pending] — 0/3 done
+## Phase 3 — Runs [active] — 0/3 done
 
 - [ ] 3.1 Run W1 (feature) both arms — runner, rubric, predictions committed before this executes
 - [ ] 3.2 Run W2 (refactor) both arms
@@ -30,5 +30,5 @@ Progress: 4/12 tasks done (33%)
 - [ ] 4.2 Caveats log in evidence file: observational confounds, grader provenance, workload count — every caveat, none dropped
 - [ ] 4.3 Honest-summary paragraph: where S won, where L won (P3 territory), with numbers — marketing copy comes only from this (deliverable 5)
 
-Active phase: Phase 2 — Runner (deliverable 1)
-Next action: Smoke-test per scenario2 README checklist (arm L --resume cache reads; arm S headless MCP permissions + Stop-gate pass; 5m/1h usage fields), pin MODEL in workload.env, then ask the user to sanction run 3.1 (real API spend, hours).
+Active phase: Phase 3 — Runs
+Next action: User picks MODEL (identical across arms) + PERMISSION_MODE (skip needed for headless npm/tests — classifier blocked me from defaulting it; user call) and sanctions run 3.1: W1 both arms in brillo-bench worktrees (hours, real spend).
