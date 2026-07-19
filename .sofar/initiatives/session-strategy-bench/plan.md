@@ -20,7 +20,7 @@ Progress: 6/12 tasks done (50%)
 
 ## Phase 3 — Runs [active] — 0/3 done
 
-- [ ] 3.1 Run W1 (feature) both arms — runner, rubric, predictions committed before this executes
+- [ ] 3.1 Run W1 (feature) both arms — runner, rubric, predictions committed before this executes (active)
 - [ ] 3.2 Run W2 (refactor) both arms
 - [ ] 3.3 Blind grading: dual graders, ≥1 cross-family (GLM or equivalent); label 'blind LLM-graded, cross-family' only if both ran
 
@@ -31,4 +31,4 @@ Progress: 6/12 tasks done (50%)
 - [ ] 4.3 Honest-summary paragraph: where S won, where L won (P3 territory), with numbers — marketing copy comes only from this (deliverable 5)
 
 Active phase: Phase 3 — Runs
-Next action: User picks MODEL (identical across arms) + PERMISSION_MODE (skip needed for headless npm/tests — classifier blocked me from defaulting it; user call) and sanctions run 3.1: W1 both arms in brillo-bench worktrees (hours, real spend).
+Next action: When driver finishes (~hours): review runs/*/telemetry.md + task diffs, append run log to evidence file, then Phase 3.3 blind grading (dual graders, ≥1 cross-family GLM per rubric).
