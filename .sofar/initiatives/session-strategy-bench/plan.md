@@ -4,19 +4,19 @@
 
 Goal: Automated controlled benchmark: one long session vs fresh-sessions-per-task (Sofar pattern), measuring cost shape, output quality, and time. Second scenario of handoff-bench; reuses its harness, blind-grading machinery, and evidence format. MEASURES only — read-side; zero engine/injection changes; findings that suggest engine changes are logged as proposals.
 
-Progress: 1/12 tasks done (8%)
+Progress: 4/12 tasks done (33%)
 
-## Phase 1 — Pre-registration freeze (all frozen/committed before run 1) [active] — 1/4 done
+## Phase 1 — Pre-registration freeze (all frozen/committed before run 1) [done] — 4/4 done
 
 - [x] 1.1 Evidence file alongside R04's with P1–P4 predictions frozen verbatim (deliverable 2a)
-- [ ] 1.2 Grading rubric frozen — adapt handoff-bench RUBRIC.md: correctness, completeness, consistency-with-prior-decisions; graders see products only, never arm labels (deliverable 2b)
-- [ ] 1.3 Workload W1 — feature build: frozen snapshot repo + 5–8 real dependent tasks, ≥2h agent work (deliverable 3)
-- [ ] 1.4 Workload W2 — refactor: frozen snapshot + task list; minimum 2 workload types before any headline claim (deliverable 3)
+- [x] 1.2 Grading rubric frozen — adapt handoff-bench RUBRIC.md: correctness, completeness, consistency-with-prior-decisions; graders see products only, never arm labels (deliverable 2b)
+- [x] 1.3 Workload W1 — feature build: frozen snapshot repo + 5–8 real dependent tasks, ≥2h agent work (deliverable 3)
+- [x] 1.4 Workload W2 — refactor: frozen snapshot + task list; minimum 2 workload types before any headline claim (deliverable 3)
 
-## Phase 2 — Runner (deliverable 1) [pending] — 0/2 done
+## Phase 2 — Runner (deliverable 1) [active] — 0/2 done
 
-- [ ] 2.1 Runner script: arm L (one headless claude -p session, all tasks sequential, never ends) + arm S (fresh headless session per task: orient from record → work → sofar write-back, Stop-gate satisfied); same model/snapshot/task list/templated prompts; resumable
-- [ ] 2.2 Usage extraction from transcripts: per-call input, cache read/write with 5m/1h split, output tokens, per-call latency; wall-clock per task; diff/artifact capture per task
+- [ ] 2.1 Runner script: arm L (one headless claude -p session, all tasks sequential, never ends) + arm S (fresh headless session per task: orient from record → work → sofar write-back, Stop-gate satisfied); same model/snapshot/task list/templated prompts; resumable (active)
+- [ ] 2.2 Usage extraction from transcripts: per-call input, cache read/write with 5m/1h split, output tokens, per-call latency; wall-clock per task; diff/artifact capture per task (active)
 
 ## Phase 3 — Runs [pending] — 0/3 done
 
@@ -30,5 +30,5 @@ Progress: 1/12 tasks done (8%)
 - [ ] 4.2 Caveats log in evidence file: observational confounds, grader provenance, workload count — every caveat, none dropped
 - [ ] 4.3 Honest-summary paragraph: where S won, where L won (P3 territory), with numbers — marketing copy comes only from this (deliverable 5)
 
-Active phase: Phase 1 — Pre-registration freeze (all frozen/committed before run 1)
-Next action: 1.2 — freeze the grading rubric: adapt ~/IO/handoff-bench RUBRIC.md anchors (correctness, completeness, consistency-with-prior-decisions) into the evidence file; graders must never see arm labels.
+Active phase: Phase 2 — Runner (deliverable 1)
+Next action: Smoke-test per scenario2 README checklist (arm L --resume cache reads; arm S headless MCP permissions + Stop-gate pass; 5m/1h usage fields), pin MODEL in workload.env, then ask the user to sanction run 3.1 (real API spend, hours).
