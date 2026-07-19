@@ -6,12 +6,11 @@ Goal: Make the rent-meter installable from init: sofar init --statusline opt-in 
 
 Progress: 4/4 tasks done (100%)
 
-## Phase 1 — init --statusline [active] — 4/4 done
+## Phase 1 — init --statusline [done] — 4/4 done
 
 - [x] 1.1 SPEC §CLI amendment: init --statusline contract, statusline not-auto-installed clause update, uninit statusLine symmetry (D4 informed re-test)
 - [x] 1.2 init: --statusline merge-if-absent (theirs wins), wired/kept report parentheticals, unwired opt-in hint before the scanner hint + tests
 - [x] 1.3 uninit: remove statusLine only when exactly ours, purge round-trip stays byte-clean + tests
 - [x] 1.4 README rent-meter wiring via init --statusline; full suite + typecheck green
 
-Active phase: Phase 1 — init --statusline
-Next action: Ship it in the next release: bump + npm publish (user runs it) + sofar upgrade, then run `sofar init --statusline` in repos that want the rent-meter.
+Next action: User runs sofar init --statusline in repos wanting the rent-meter; release ship (bump + publish) still pending if new work lands.
