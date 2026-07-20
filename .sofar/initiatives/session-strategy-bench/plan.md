@@ -31,4 +31,4 @@ Progress: 10/12 tasks done (83%)
 - [ ] 4.3 Honest-summary paragraph: where S won, where L won (P3 territory), with numbers — marketing copy comes only from this (deliverable 5)
 
 Active phase: Phase 3 — Runs
-Next action: Get user sanction for Phase 3.3 blind grading (24 task diffs, dual graders incl. one cross-family GLM) — until it runs, no quality claim exists and the honest summary stays incomplete.
+Next action: On grading completion: run aggregate-grades.py, append the M-quality tables + grader-split log to the evidence file, finalize the honest summary with the quality verdict on P2, then mark 3.3/4.3 done.
