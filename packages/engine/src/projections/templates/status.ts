@@ -76,6 +76,11 @@ const MAX_PARALLEL_LINES = 3
 // recent decisions; a record with no un-absorbed notes pays nothing.
 const NOTE_LINE_BUDGET = 200
 const MAX_NOTES = 5
+// File-locality hint (speed T4): where the active task's work actually
+// lives, from the fold's task_files derivation — one budgeted line, absent
+// when no file_touched ever landed while the task was active.
+const TASK_FILES_LINE_BUDGET = 300
+const MAX_TASK_FILES = 8
 
 /** Hard cap: anything over the limit is cut to fit, marker included. */
 export function enforceStatusLimit(text: string): string {
@@ -292,6 +297,12 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
     const next = active.tasks.find((t) => t.status === 'pending')
     if (current !== undefined) {
       lines.push(`Current task: ${clip(`${current.id} ${current.title}`, TASK_LINE_BUDGET)}`)
+      // File-locality hint (speed T4): the active task's most recent files,
+      // newest first — silently absent when the record has no data.
+      const files = state.task_files[current.id]
+      if (files !== undefined && files.length > 0) {
+        lines.push(`  ${clip(`files: ${files.slice(0, MAX_TASK_FILES).join(', ')}`, TASK_FILES_LINE_BUDGET - 2)}`)
+      }
     }
     if (next !== undefined) {
       lines.push(`Next task: ${clip(`${next.id} ${next.title}`, TASK_LINE_BUDGET)}`)

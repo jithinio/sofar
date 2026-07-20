@@ -132,6 +132,13 @@ export function freshnessTotal(freshness: FreshnessState): number {
   return c.files + c.commands + c.tasks + c.notes + c.decisions
 }
 
+/**
+ * Per-task file cap (speed T4): task_files lists hold the most recent
+ * touches only — render surfaces show fewer still, so the fold stays
+ * bounded without a sentinel.
+ */
+export const TASK_FILES_CAP = 20
+
 export interface InitiativeState {
   slug: string
   goal: string
@@ -139,6 +146,14 @@ export interface InitiativeState {
   decisions: DecisionState[]
   sessions: SessionState[]
   files_touched: string[]
+  /**
+   * File-locality hints (speed T4): task id → file paths touched while that
+   * task was ACTIVE, deduped, most-recent-first, capped at TASK_FILES_CAP.
+   * Derived purely from existing file_touched events at replay time (any
+   * session/source, payload-valid, unvoided) — zero new event types; a
+   * file_touched attributes to EVERY task active at that point in the log.
+   */
+  task_files: Record<string, string[]>
   current: {
     active_phase: string | null
     next_action: string | null
@@ -179,6 +194,7 @@ export function emptyState(): InitiativeState {
     decisions: [],
     sessions: [],
     files_touched: [],
+    task_files: {},
     current: { active_phase: null, next_action: null },
     freshness: emptyFreshness(),
     cursor: null,
@@ -273,6 +289,7 @@ export function foldLines(lines: readonly string[]): FoldResult {
     applyEvent(state, event, blockNotes, warnings, lineNo)
     recordActivity(activity, event)
     recordFreshness(state, event)
+    recordTaskFiles(state, event)
 
     // Orphan candidate (task 12.2): a task_status_changed that applyEvent
     // just skipped — the id is not (yet) in the plan.
@@ -405,6 +422,36 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
     case 'decision_logged':
       counts.decisions += 1
       break
+  }
+}
+
+// ---------------------------------------------------------------------------
+// File-locality hints (speed T4).
+// ---------------------------------------------------------------------------
+
+/**
+ * Attribute a file_touched to every task ACTIVE at this point in the replay
+ * (task activity windows are what the record actually knows — envelope
+ * events carry sessions, not tasks). Runs on payload-valid, unvoided events
+ * only, any session/source including "cli" (the freshness precedent). Lists
+ * are deduped most-recent-first: a re-touch moves the path to the front;
+ * beyond TASK_FILES_CAP the oldest entry drops. Derived only from record
+ * events → identical record folds to identical task_files (byte-stability
+ * safe by construction).
+ */
+function recordTaskFiles(state: InitiativeState, event: EventEnvelope): void {
+  if (event.type !== 'file_touched') return
+  const path = (event.payload as unknown as FileTouchedPayload).path
+  for (const phase of state.phases) {
+    for (const task of phase.tasks) {
+      if (task.status !== 'active') continue
+      const files = state.task_files[task.id] ?? []
+      const existing = files.indexOf(path)
+      if (existing !== -1) files.splice(existing, 1)
+      files.unshift(path)
+      if (files.length > TASK_FILES_CAP) files.pop()
+      state.task_files[task.id] = files
+    }
   }
 }
 
