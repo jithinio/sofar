@@ -21,14 +21,20 @@ import { serializeEvent } from '../src/core/log'
  * the hook path fails loudly here.
  *
  * Measurement notes: one warmup spawn amortizes OS file-cache cold start;
- * each shim then takes best-of-N (a latency pin asserts capability — the
- * shim CAN complete inside the budget — while tail noise belongs to the OS
- * scheduler, not this code). Mutation-checked at introduction: a temporary
- * 150ms sleep in one shim fails the pin (see the T2 initiative record).
+ * each shim then gets up to MAX_ATTEMPTS spawns, early-exiting on the first
+ * run inside the budget. A latency pin asserts capability — the shim CAN
+ * complete inside the budget — while tail noise (the full vitest suite
+ * saturating every core around this file) belongs to the scheduler, not
+ * this code. A genuine regression (e.g. a sleep ≥ the budget) has a hard
+ * floor no retry can duck under. Mutation-checked at introduction: a
+ * temporary 150ms sleep in one shim fails the pin (see the T2 initiative
+ * record).
  */
 
 export const SHIM_LATENCY_BUDGET_MS = 100
-const RUNS_PER_SHIM = 3
+const MAX_ATTEMPTS = 10
+/** session-start / session-end need a fresh id per measured attempt. */
+const RUNS_PER_SHIM = MAX_ATTEMPTS
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 const scratch = mkdtempSync(join(tmpdir(), 'sofar-shim-latency-'))
@@ -37,7 +43,7 @@ const root = join(scratch, 'repo')
 
 const BOUND_SLUG = 'speed-bench'
 /** Sessions pre-registered for per-iteration session-end measurements. */
-const CLOSABLE = ['closable-0', 'closable-1', 'closable-2']
+const CLOSABLE = Array.from({ length: RUNS_PER_SHIM }, (_, i) => `closable-${i}`)
 
 function ev(
   initiative: string,
@@ -212,15 +218,18 @@ describe(`shim latency budget (speed T2) — every hook shim <${SHIM_LATENCY_BUD
     const report: string[] = []
     for (const shim of SHIMS) {
       let best = Number.POSITIVE_INFINITY
-      for (let i = 0; i < RUNS_PER_SHIM; i++) {
+      let attempts = 0
+      for (let i = 0; i < MAX_ATTEMPTS; i++) {
         const { ms, status } = spawnShim(shim.subcommand, shim.stdin(i))
         expect(status, `${shim.name}: unexpected exit status`).toBe(shim.expectedStatus ?? 0)
         best = Math.min(best, ms)
+        attempts = i + 1
+        if (best < SHIM_LATENCY_BUDGET_MS) break // capability shown — done
       }
-      report.push(`${shim.name}: best-of-${RUNS_PER_SHIM} ${best.toFixed(1)}ms`)
+      report.push(`${shim.name}: best ${best.toFixed(1)}ms in ${attempts} attempt(s)`)
       expect(
         best,
-        `${shim.name} exceeded the ${SHIM_LATENCY_BUDGET_MS}ms shim budget — ${report.join('; ')}`,
+        `${shim.name} exceeded the ${SHIM_LATENCY_BUDGET_MS}ms shim budget in all ${attempts} attempts — ${report.join('; ')}`,
       ).toBeLessThan(SHIM_LATENCY_BUDGET_MS)
     }
   })

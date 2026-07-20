@@ -115,8 +115,17 @@ file_touched (path, op) · command_run (cmd) · note_added · correction (ref)
 InitiativeState = { slug, goal, phases[ {name, status, tasks[ {id, title,
 status} ]} ], decisions[], sessions[ {id, tool, model?, started, ended?,
 summary?, next_action?, closed_reason?, activity?} ],
-files_touched[], current: {active_phase, next_action, blocked_on?},
-freshness, cursor: <last event id> }
+files_touched[], task_files, current: {active_phase, next_action,
+blocked_on?}, freshness, cursor: <last event id> }
+task_files (speed T4) = derived file-locality map, task id → file paths
+touched while that task was ACTIVE at replay time: existing file_touched
+events only (payload-valid, unvoided, any session/source incl. cli — the
+freshness precedent), attributed to EVERY task active at that point in
+ulid order; deduped most-recent-first (a re-touch moves the path to the
+front), capped at 20 per task (oldest drops, no sentinel). Zero new event
+types, zero new capture — read-side and retroactive over every existing
+record; derived only from record events, so an identical record folds to
+identical task_files (injection byte-stability holds by construction).
 activity (Phase 7, BD44) = derived per-session aggregation of mechanical
 events attributed by envelope.session (session "cli" excluded; unregistered
 session ids stay unattached): { files[] deduped in first-touch order,
@@ -360,6 +369,13 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   sessions/<id>.md)` INSIDE the budget. Un-absorbed notes (notes-in-digest
   2.1) render as a budgeted section under the staleness line — see §MCP
   get_state digest for the exact rule; both surfaces share renderStatus.
+  File-locality hint (speed T4): directly under the "Current task" line,
+  ONE budgeted line `files: a.ts, b.ts, …` naming the active task's
+  task_files (§State) — at most 8 files, most-recent first, 300-char clip,
+  silently absent when the task has no data. Both renderStatus surfaces
+  (SessionStart block + get_state digest) carry it; ablation-gated (the
+  automated resume ablation re-ran on introduction — result recorded in
+  the speed initiative).
   Cold-resume advisory (felt-cost 2.1/2.2): on source=resume ONLY, when the
   record's last event predates the longest cache TTL (1h — heuristic, the
   TTL is server-controlled) AND the transcript file is ≥80KB (~20k tokens
@@ -888,10 +904,13 @@ stay the underlying derivation's, and exit codes are styling-independent.
   <100ms END-TO-END — process spawn of the built CLI, boot, fold, and its
   append/render — against a realistic seeded record (hundreds of events in
   the bound initiative, multiple sibling initiatives, repo memory present,
-  drift and open sessions arming every render section). Best-of-3 per shim
-  after one warmup spawn (the pin asserts capability; scheduler tail noise
-  is not a regression). Mutation-checked at introduction: a temporary 150ms
-  sleep in one shim fails the pin (byte-stability precedent, felt-cost 1.2).
+  drift and open sessions arming every render section). Up to 10 attempts
+  per shim after one warmup spawn, early-exit on the first run inside the
+  budget, assert the minimum (the pin asserts capability; scheduler noise
+  from a saturated parallel test run is not a regression, while a genuine
+  sleep ≥ budget has a floor no retry ducks). Mutation-checked at
+  introduction: a temporary 150ms sleep in one shim fails the pin
+  (byte-stability precedent, felt-cost 1.2).
 - **Speed (speed T3 — persistent MCP daemon):** a genuinely spawned stdio
   `sofar mcp` server and the serve daemon's /mcp endpoint return identical
   tool listings (the frozen 7) and identical results for an identical
@@ -902,6 +921,17 @@ stay the underlying derivation's, and exit codes are styling-independent.
   correctly, neither blocks the other); connecting to a port with no
   daemon fails in <2s (never a hang); /state, /state/<slug>, and /events
   behavior is unchanged.
+- **Speed (speed T4 — file-locality hints):** a file_touched landing while
+  a task is active appears in that task's task_files (and in every
+  concurrently-active task's); one landing while the task is not active
+  does not; a re-touch moves the path to the front (deduped,
+  most-recent-first) and the per-task list caps at 20; a voided
+  file_touched never attributes; replay stays deterministic (same log →
+  deep-equal state, task_files included, from shuffled file orders). The
+  renderStatus "files:" line names at most 8 most-recent files inside its
+  300-char clip, renders on both renderStatus surfaces, is absent for a
+  task with no data, and the SessionStart block holds ≤10k chars with the
+  line at worst case. The byte-stability pin passes unmodified.
 - **Next actions (next-command):** on a repo with several initiatives,
   `sofar next` renders one line per initiative — slug, branch(es) or
   "unbound", next action or "(no next action recorded)" — in the same
