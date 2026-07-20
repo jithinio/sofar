@@ -4,7 +4,7 @@
 
 Goal: Automated controlled benchmark: one long session vs fresh-sessions-per-task (Sofar pattern), measuring cost shape, output quality, and time. Second scenario of handoff-bench; reuses its harness, blind-grading machinery, and evidence format. MEASURES only — read-side; zero engine/injection changes; findings that suggest engine changes are logged as proposals.
 
-Progress: 6/12 tasks done (50%)
+Progress: 10/12 tasks done (83%)
 
 ## Phase 1 — Pre-registration freeze (all frozen/committed before run 1) [done] — 4/4 done
 
@@ -18,17 +18,17 @@ Progress: 6/12 tasks done (50%)
 - [x] 2.1 Runner script: arm L (one headless claude -p session, all tasks sequential, never ends) + arm S (fresh headless session per task: orient from record → work → sofar write-back, Stop-gate satisfied); same model/snapshot/task list/templated prompts; resumable
 - [x] 2.2 Usage extraction from transcripts: per-call input, cache read/write with 5m/1h split, output tokens, per-call latency; wall-clock per task; diff/artifact capture per task
 
-## Phase 3 — Runs [active] — 0/3 done
+## Phase 3 — Runs [active] — 2/3 done
 
-- [ ] 3.1 Run W1 (feature) both arms — runner, rubric, predictions committed before this executes (active)
-- [ ] 3.2 Run W2 (refactor) both arms
+- [x] 3.1 Run W1 (feature) both arms — runner, rubric, predictions committed before this executes
+- [x] 3.2 Run W2 (refactor) both arms
 - [ ] 3.3 Blind grading: dual graders, ≥1 cross-family (GLM or equivalent); label 'blind LLM-graded, cross-family' only if both ran
 
-## Phase 4 — Evidence + honest summary [pending] — 0/3 done
+## Phase 4 — Evidence + honest summary [pending] — 2/3 done
 
-- [ ] 4.1 Per-task tables + cost-per-task-over-task-index curve per arm; M-capture write-back overhead (arm S) reported alongside the rent it replaces (deliverable 4)
-- [ ] 4.2 Caveats log in evidence file: observational confounds, grader provenance, workload count — every caveat, none dropped
+- [x] 4.1 Per-task tables + cost-per-task-over-task-index curve per arm; M-capture write-back overhead (arm S) reported alongside the rent it replaces (deliverable 4)
+- [x] 4.2 Caveats log in evidence file: observational confounds, grader provenance, workload count — every caveat, none dropped
 - [ ] 4.3 Honest-summary paragraph: where S won, where L won (P3 territory), with numbers — marketing copy comes only from this (deliverable 5)
 
 Active phase: Phase 3 — Runs
-Next action: When limits reset: rerun scratchpad resume-driver.sh steps 2-4 (or by hand: run-workload.sh s2w1.env S — resumes at task 5; then s2w2.env S — resumes at task 2; then extract-usage.py for all 4 arms), re-arm the driver.log monitor, then evidence-file run log + blind grading proposal.
+Next action: Get user sanction for Phase 3.3 blind grading (24 task diffs, dual graders incl. one cross-family GLM) — until it runs, no quality claim exists and the honest summary stays incomplete.
