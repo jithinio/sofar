@@ -152,6 +152,16 @@ describe('event append — session_ended satisfies the Stop hook (write-back par
       }).exitCode,
     ).toBe(0)
 
+    // real work through the dialect — gate-relevant drift (speed T1)
+    expect(
+      append(root, {
+        type: 'file_touched',
+        payload: '{"path":"src/dialect.ts","op":"edit"}',
+        session: SESSION,
+        source: 'opencode',
+      }).exitCode,
+    ).toBe(0)
+
     // the write-back gate is armed — same exit 2 + stderr the MCP loop faces
     const blocked = handleStop(root, stopInput)
     expect(blocked.exitCode).toBe(2)

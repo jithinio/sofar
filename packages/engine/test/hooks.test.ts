@@ -5,7 +5,7 @@ import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
 import { rmSync } from 'node:fs'
 import { makeEvent, type EventEnvelope } from '../src/core/envelope'
 import { appendEvent } from '../src/core/log'
-import { foldLog } from '../src/core/fold'
+import { foldLog, freshnessTotal } from '../src/core/fold'
 import {
   COLD_RESUME_GAP_MS,
   COLD_RESUME_MIN_TRANSCRIPT_BYTES,
@@ -415,9 +415,23 @@ describe('sofar event stop — write-back enforcement (3.4, BD2)', () => {
     )
   }
 
-  it('blocks a started-but-unwritten session: exit 2 with the exact write-back message (acceptance)', () => {
+  /** Seed gate-relevant drift the way a real session does — a PostToolUse Edit. */
+  function seedDrift(fixture: Fixture, sessionId = 'claude-sess-1'): void {
+    handlePostTool(
+      fixture.root,
+      hookStdin({
+        session_id: sessionId,
+        hook_event_name: 'PostToolUse',
+        tool_name: 'Edit',
+        tool_input: { file_path: 'src/drift.ts', old_string: 'a', new_string: 'b' },
+      }),
+    )
+  }
+
+  it('blocks a started-but-unwritten session with drift: exit 2 with the exact write-back message (acceptance)', () => {
     const fixture = fx()
     handleSessionStart(fixture.root, hookStdin({}))
+    seedDrift(fixture)
 
     const result = handleStop(fixture.root, stopStdin())
     expect(result.exitCode).toBe(2)
@@ -427,12 +441,13 @@ describe('sofar event stop — write-back enforcement (3.4, BD2)', () => {
     )
     expect(result.stdout).toBe('')
     // the check appends nothing
-    expect(logEvents(fixture.eventsPath)).toHaveLength(1)
+    expect(logEvents(fixture.eventsPath)).toHaveLength(2)
   })
 
   it('passes a session that wrote back via a session_ended event (acceptance)', () => {
     const fixture = fx()
     handleSessionStart(fixture.root, hookStdin({}))
+    seedDrift(fixture)
     appendSessionEnded(fixture, 'claude-sess-1')
 
     expect(handleStop(fixture.root, stopStdin())).toEqual({ exitCode: 0, stdout: '', stderr: '' })
@@ -441,6 +456,7 @@ describe('sofar event stop — write-back enforcement (3.4, BD2)', () => {
   it('passes after the MCP adopt-and-end flow closes the hook-registered session', async () => {
     const fixture = fx()
     handleSessionStart(fixture.root, hookStdin({}))
+    seedDrift(fixture)
 
     // blocked before write-back
     expect(handleStop(fixture.root, stopStdin()).exitCode).toBe(2)
@@ -461,9 +477,10 @@ describe('sofar event stop — write-back enforcement (3.4, BD2)', () => {
     expect(handleStop(fixture.root, stopStdin()).exitCode).toBe(0)
   })
 
-  it('stop_hook_active → exit 0 even when the session has not written back (loop guard, acceptance)', () => {
+  it('stop_hook_active → exit 0 even when the session has not written back with drift (loop guard, acceptance)', () => {
     const fixture = fx()
     handleSessionStart(fixture.root, hookStdin({}))
+    seedDrift(fixture) // drift armed — only the loop guard lets this exit 0
 
     const result = handleStop(fixture.root, stopStdin({ stop_hook_active: true }))
     expect(result).toEqual({ exitCode: 0, stdout: '', stderr: '' })
@@ -471,8 +488,9 @@ describe('sofar event stop — write-back enforcement (3.4, BD2)', () => {
 
   it('unregistered session_id → exit 0 (never block sessions the sofar does not govern)', () => {
     const fixture = fx()
-    // log exists but this session never registered
+    // log exists (with drift) but this session never registered
     handleSessionStart(fixture.root, hookStdin({ session_id: 'some-other-session' }))
+    seedDrift(fixture, 'some-other-session')
     expect(handleStop(fixture.root, stopStdin()).exitCode).toBe(0)
 
     // empty log entirely
@@ -480,9 +498,10 @@ describe('sofar event stop — write-back enforcement (3.4, BD2)', () => {
     expect(handleStop(fresh.root, stopStdin()).exitCode).toBe(0)
   })
 
-  it('a mechanical session_closed is NOT a write-back — stop still blocks', () => {
+  it('a mechanical session_closed is NOT a write-back — stop still blocks a drifted session', () => {
     const fixture = fx()
     handleSessionStart(fixture.root, hookStdin({}))
+    seedDrift(fixture)
     appendEvent(
       fixture.eventsPath,
       makeEvent({
@@ -504,6 +523,171 @@ describe('sofar event stop — write-back enforcement (3.4, BD2)', () => {
 
     const unbound = fx({ bind: false })
     expect(handleStop(unbound.root, stopStdin()).exitCode).toBe(0)
+  })
+})
+
+describe('sofar event stop — drift gate (speed T1)', () => {
+  const stopStdin = (fields: Record<string, unknown> = {}): string =>
+    hookStdin({ hook_event_name: 'Stop', stop_hook_active: false, ...fields })
+
+  /** Append one record event via the writer path (source cli unless given). */
+  function appendRecord(
+    fixture: Fixture,
+    type: string,
+    payload: Record<string, unknown>,
+    session = 'cli',
+    source: 'cli' | 'claude-code' | 'hook' = 'cli',
+  ): void {
+    appendEvent(
+      fixture.eventsPath,
+      makeEvent({
+        initiative: fixture.slug,
+        session,
+        source,
+        actor: 'agent',
+        type,
+        payload,
+      }),
+    )
+  }
+
+  it('zero-event session ends ungated: exit 0, no stderr, no session_ended required (acceptance)', () => {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({}))
+
+    expect(handleStop(fixture.root, stopStdin())).toEqual({ exitCode: 0, stdout: '', stderr: '' })
+    // the gate appends nothing — the log still holds only the registration
+    expect(logEvents(fixture.eventsPath)).toHaveLength(1)
+  })
+
+  it('read-only session ends ungated: uncounted lifecycle/plan-structure events never gate (T1 decision)', () => {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({}))
+    // events since (never-)write-back that are NOT mutation-class: another
+    // session's lifecycle pair and a plan-structure update
+    appendRecord(fixture, 'session_started', { tool: 'claude-code' }, 'other-sess', 'hook')
+    appendRecord(fixture, 'session_closed', { reason: 'exit' }, 'other-sess', 'hook')
+    appendRecord(fixture, 'plan_updated', {
+      plan: { goal: 'g', phases: [{ name: 'P1', tasks: [{ id: 'T1', title: 't' }] }] },
+    })
+
+    expect(handleStop(fixture.root, stopStdin())).toEqual({ exitCode: 0, stdout: '', stderr: '' })
+  })
+
+  it('one task update since the write-back gates: exit 2 with the exact BD2 message (acceptance)', () => {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({}))
+    appendRecord(fixture, 'task_added', { id: 'T1', title: 'the task', phase: 'P1' })
+    // an EARLIER session wrote back — the stopping session stays unwritten
+    appendRecord(fixture, 'session_started', { tool: 'claude-code' }, 'earlier-sess', 'hook')
+    appendRecord(
+      fixture,
+      'session_ended',
+      { session_id: 'earlier-sess', summary: 'seeded', next_action: 'work T1' },
+      'earlier-sess',
+      'claude-code',
+    )
+    // task_added is uncounted; the status change after the write-back is the drift
+    appendRecord(fixture, 'task_status_changed', { id: 'T1', status: 'active' })
+
+    const result = handleStop(fixture.root, stopStdin())
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toBe(STOP_BLOCK_MESSAGE)
+  })
+
+  it('drift computation error gates (fail closed) — a throw or NaN is never a silent skip (acceptance)', () => {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({}))
+    // zero real drift: without the failure this session would end ungated
+    expect(handleStop(fixture.root, stopStdin()).exitCode).toBe(0)
+
+    const thrown = handleStop(fixture.root, stopStdin(), () => {
+      throw new Error('drift computation broke')
+    })
+    expect(thrown.exitCode).toBe(2)
+    expect(thrown.stderr).toBe(STOP_BLOCK_MESSAGE)
+
+    expect(handleStop(fixture.root, stopStdin(), () => Number.NaN).exitCode).toBe(2)
+  })
+
+  it('in-flow write-back at drift ≥5 then an eventless turn ends silently (acceptance)', () => {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({}))
+    for (const cmd of ['npm test', 'npm run build', 'git status']) {
+      handlePostTool(
+        fixture.root,
+        hookStdin({ hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: cmd } }),
+      )
+    }
+    for (const file of ['src/a.ts', 'src/b.ts']) {
+      handlePostTool(
+        fixture.root,
+        hookStdin({
+          hook_event_name: 'PostToolUse',
+          tool_name: 'Edit',
+          tool_input: { file_path: file, old_string: 'a', new_string: 'b' },
+        }),
+      )
+    }
+    // drift 5 → the UserPromptSubmit nudge fires (the in-flow prompt)
+    expect(handleUserPrompt(fixture.root, hookStdin({})).stdout).toContain('write back now')
+    // the agent writes back in-flow
+    appendEvent(
+      fixture.eventsPath,
+      makeEvent({
+        initiative: fixture.slug,
+        session: 'claude-sess-1',
+        source: 'claude-code',
+        actor: 'agent',
+        type: 'session_ended',
+        payload: { summary: 'batch complete', next_action: 'answer follow-ups' },
+      }),
+    )
+    expect(freshnessTotal(foldLog(fixture.eventsPath).state.freshness)).toBe(0)
+
+    // one Q&A turn later (no events): Stop ends the session silently
+    expect(handleStop(fixture.root, stopStdin())).toEqual({ exitCode: 0, stdout: '', stderr: '' })
+  })
+
+  it('a concurrent unwritten session with own activity stays gated after another write-back resets the counter (Phase 7 independent gates)', () => {
+    const fixture = fx()
+    const S1 = 'concurrent-s1'
+    const S2 = 'concurrent-s2'
+    const S3 = 'concurrent-s3'
+    for (const id of [S1, S2, S3]) handleSessionStart(fixture.root, hookStdin({ session_id: id }))
+    // S2 does real work; S3 never touches anything
+    handlePostTool(
+      fixture.root,
+      hookStdin({
+        session_id: S2,
+        hook_event_name: 'PostToolUse',
+        tool_name: 'Edit',
+        tool_input: { file_path: 'src/s2.ts', old_string: 'a', new_string: 'b' },
+      }),
+    )
+    // S1 writes back — the shared freshness counter resets
+    appendEvent(
+      fixture.eventsPath,
+      makeEvent({
+        initiative: fixture.slug,
+        session: S1,
+        source: 'claude-code',
+        actor: 'agent',
+        type: 'session_ended',
+        payload: { summary: 'S1 done', next_action: 'S2 continues' },
+      }),
+    )
+    expect(freshnessTotal(foldLog(fixture.eventsPath).state.freshness)).toBe(0)
+
+    // S2 (own activity) still gates; S3 (nothing) ends silently
+    const gated = handleStop(fixture.root, stopStdin({ session_id: S2 }))
+    expect(gated.exitCode).toBe(2)
+    expect(gated.stderr).toBe(STOP_BLOCK_MESSAGE)
+    expect(handleStop(fixture.root, stopStdin({ session_id: S3 }))).toEqual({
+      exitCode: 0,
+      stdout: '',
+      stderr: '',
+    })
   })
 })
 

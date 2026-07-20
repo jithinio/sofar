@@ -2,7 +2,7 @@ import { readFileSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { Command } from 'commander'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
-import { freshnessTotal } from '../core/fold'
+import { freshnessTotal, type InitiativeState } from '../core/fold'
 import { createToolContext, ToolError, type ToolContext } from '../mcp/context'
 import { enforceStatusLimit, renderStatus } from '../projections/templates/status'
 import { REPO_MD_STUB } from './shared'
@@ -254,17 +254,34 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
 }
 
 /**
- * Stop (task 3.4, BD2) — the write-back gate. Exit 2 blocks the stop and
- * feeds stderr back to the agent; every other path exits 0:
+ * Stop (task 3.4, BD2; drift-gated speed T1) — the write-back gate. Exit 2
+ * blocks the stop and feeds stderr back to the agent; every other path
+ * exits 0:
  *  - stop_hook_active → 0 (loop guard: we already blocked once)
  *  - unreadable stdin / missing session_id / unbound repo → 0 (never block
  *    sessions the sofar does not govern)
  *  - session not registered in the log → 0
  *  - session registered AND written back (session_ended folded) → 0
+ *  - zero gate-relevant drift → 0 (speed T1: nothing moved since the last
+ *    write-back, so there is nothing to write back — the empty-wait killer)
  * Write-back check is fold-based: only session_ended sets session.summary,
  * so a voided (corrected) session_ended does not count (BD23).
+ *
+ * Gate-relevant drift (speed T1 decision, Option B) = the staleness/nudge
+ * counter total — mutation-class events only (files, commands, tasks,
+ * notes, decisions) since the last write-back, initiative-scoped — OR'd
+ * with the stopping session's own derived activity (BD44): a concurrent
+ * session's write-back resets the shared counter, and that must never
+ * exempt an unwritten session that did real work (Phase 7 independent
+ * gates). The gate runs LAST, so it only ever converts an exit-2 into an
+ * exit-0. Fail closed: an error inside the drift computation enforces the
+ * block — `computeDrift` is injectable for exactly that test seam.
  */
-export function handleStop(rootDir: string, input: string): HookResult {
+export function handleStop(
+  rootDir: string,
+  input: string,
+  computeDrift: (state: InitiativeState) => number = (state) => freshnessTotal(state.freshness),
+): HookResult {
   try {
     const hook = parseHook(input)
     if (hook.stop_hook_active === true) return { ...OK }
@@ -276,9 +293,20 @@ export function handleStop(rootDir: string, input: string): HookResult {
     if (bound === null) return { ...OK }
     const { ctx, slug } = bound
 
-    const session = ctx.foldState(slug).sessions.find((s) => s.id === sessionId)
+    const state = ctx.foldState(slug)
+    const session = state.sessions.find((s) => s.id === sessionId)
     if (session === undefined) return { ...OK } // never registered — not ours to block
     if (session.summary !== undefined) return { ...OK } // write-back done
+
+    // Drift gate (speed T1): silent exit only when the initiative-wide
+    // counter is zero AND this session contributed no mechanical activity.
+    // NaN or a throw is NOT zero — both enforce (fail closed, never a
+    // silent skip of the gate).
+    try {
+      if (computeDrift(state) === 0 && session.activity === undefined) return { ...OK }
+    } catch {
+      // fall through to the block below
+    }
 
     return { exitCode: 2, stdout: '', stderr: STOP_BLOCK_MESSAGE }
   } catch {

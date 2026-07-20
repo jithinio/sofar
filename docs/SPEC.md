@@ -373,10 +373,26 @@ initiatives:` suffix, or a `sofar new` hint when none exist
 - PostToolUse shim (matcher: Edit|Write|MultiEdit|Bash) → appends
   file_touched / command_run from stdin JSON (tool_name, tool_input).
 - Stop shim → reads stdin JSON; if stop_hook_active is true → exit 0
-  (loop guard). Else if no session_ended event exists for this session_id →
-  exit 2 with stderr: "Write back to the sofar record before finishing: call
-  sofar_end_session (or append session_ended via `sofar event append`)."
-  Else exit 0.
+  (loop guard). Else if no session_ended event exists for this session_id
+  AND gate-relevant drift is nonzero → exit 2 with stderr: "Write back to
+  the sofar record before finishing: call sofar_end_session (or append
+  session_ended via `sofar event append`)." Else exit 0.
+  Gate-relevant drift (drift-gated Stop, speed T1): nonzero when EITHER
+  the staleness/nudge counter total — freshness.events_since_writeback
+  (file_touched + command_run + task_status_changed + note_added +
+  decision_logged), initiative-scoped, any session/source — is nonzero,
+  OR the stopping session itself carries derived mechanical activity
+  (BD44 session.activity): its own un-written-back work keeps concurrent
+  gates independent — another session's write-back resetting the shared
+  counter never exempts this one (the Phase 7 independent-gates law).
+  Read-side, zero new event types. Mutation-class only: pure reads emit
+  no events and never gate; session lifecycle and plan-structure events
+  are uncounted (matching the staleness line — speed T1 decision). Zero
+  on both → exit 0 silently even without a write-back (nothing moved,
+  nothing to write back). ANY error in the drift computation enforces
+  the block (fail closed — never a silent skip); every other resolution
+  failure keeps exiting 0 (BD22). The gate only ever converts an exit-2
+  into an exit-0 — no today-exit-0 path becomes blocking.
 - SessionEnd shim → appends mechanical session-close marker (fallback only;
   cannot feed back to the agent).
 Shims contain no logic — they invoke the sofar CLI.
@@ -714,8 +730,9 @@ stay the underlying derivation's, and exit codes are styling-independent.
   regenerate; invalid payloads rejected with typed errors; get_state resolves
   initiative from branch binding.
 - **Phase 3:** SessionStart output verified ≤10k chars on a large synthetic
-  initiative; Stop shim blocks a session lacking session_ended and passes one
-  that has it; stop_hook_active loop guard verified; PostToolUse produces
+  initiative; Stop shim blocks a session lacking session_ended when
+  gate-relevant drift is nonzero (speed T1) and passes one that has written
+  back; stop_hook_active loop guard verified; PostToolUse produces
   file_touched for an Edit and command_run for a Bash call.
 - **Phase 4:** `sofar init` on a fresh repo yields a working end-to-end
   loop (start session → tool events → end session → status shows it);
@@ -838,6 +855,18 @@ stay the underlying derivation's, and exit codes are styling-independent.
   aborts clearly on denial/expiry, and no CLI output ever contains the
   sfr_ token. Live E2E (behind SOFAR_LIVE_API, local api.sofar.sh):
   device login via the claim+approve path, link, and the round-trip.
+- **Speed (speed T1 — drift-gated Stop):** a registered session with zero
+  gate-relevant drift ends ungated (exit 0, no stderr) even without a
+  session_ended — covering the zero-event session and the read-only session
+  (no counted events per the T1 decision; uncounted lifecycle/plan-structure
+  events since the write-back do not gate); one task_status_changed since
+  the last write-back gates (exit 2, exact BD2 message); an error in the
+  drift computation gates (fail closed); an in-flow write-back at drift ≥5
+  followed by a further eventless turn ends silently; a concurrent
+  unwritten session with its own mechanical activity stays gated after
+  another session's write-back resets the shared counter (Phase 7
+  independent gates). The loop guard and every BD22 exit-0 path are
+  byte-identical to Phase 3 behavior.
 - **Next actions (next-command):** on a repo with several initiatives,
   `sofar next` renders one line per initiative — slug, branch(es) or
   "unbound", next action or "(no next action recorded)" — in the same
