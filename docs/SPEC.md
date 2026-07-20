@@ -867,6 +867,15 @@ stay the underlying derivation's, and exit codes are styling-independent.
   another session's write-back resets the shared counter (Phase 7
   independent gates). The loop guard and every BD22 exit-0 path are
   byte-identical to Phase 3 behavior.
+- **Speed (speed T2 — shim-latency budget):** every hook shim (SessionStart,
+  PostToolUse, UserPromptSubmit nudge, Stop, SessionEnd) completes in
+  <100ms END-TO-END — process spawn of the built CLI, boot, fold, and its
+  append/render — against a realistic seeded record (hundreds of events in
+  the bound initiative, multiple sibling initiatives, repo memory present,
+  drift and open sessions arming every render section). Best-of-3 per shim
+  after one warmup spawn (the pin asserts capability; scheduler tail noise
+  is not a regression). Mutation-checked at introduction: a temporary 150ms
+  sleep in one shim fails the pin (byte-stability precedent, felt-cost 1.2).
 - **Next actions (next-command):** on a repo with several initiatives,
   `sofar next` renders one line per initiative — slug, branch(es) or
   "unbound", next action or "(no next action recorded)" — in the same
