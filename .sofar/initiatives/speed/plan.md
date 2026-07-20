@@ -13,4 +13,4 @@ Progress: 4/4 tasks done (100%)
 - [x] T3 Persistent MCP daemon: serve the frozen 7-tool MCP surface over HTTP from sofar serve; stdio stays default; opt-in .mcp.json config; parity + no-hang tests
 - [x] T4 File-locality orientation hints: per-task touched-files line from existing PostToolUse events, budgeted + byte-stable; ablation-gated before merge
 
-Next action: Push is done; nothing open on speed. Candidates for a next initiative: (a) relativize files:-line paths (needs a byte-stability-compatible design — see T4 follow-up note), (b) chase the pre-existing client-doorbell load flake, (c) resume session-strategy-bench's pending publish decision.
+Next action: Nothing open on speed (initiative closable). Candidates: (a) relativize files:-line paths (byte-stability-compatible design needed — T4 follow-up note), (b) pre-existing client-doorbell load flake, (c) resume session-strategy-bench's pending publish decision.
