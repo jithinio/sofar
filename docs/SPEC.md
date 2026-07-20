@@ -315,6 +315,19 @@ also collides with a sofar-cloud-internal package).
 - sofar_add_note({initiative?, text}) → ok
 Every tool = validate payload → append event → regenerate projections →
 return. No tool mutates state except via an event.
+Transports (speed T3): stdio (`sofar mcp`) is the DEFAULT and the only
+transport `sofar init` registers — zero-config users lose nothing. The
+SAME frozen 7-tool surface is additionally served over streamable HTTP at
+`/mcp` on the `sofar serve` daemon (127.0.0.1 only), opt-in via a
+documented .mcp.json entry `{"type": "http", "url":
+"http://127.0.0.1:4173/mcp"}` — sessions connect to the running daemon
+instead of spawning a per-session process. One MCP session = one fresh
+server handle with its OWN ToolContext and active-session pin (BD58: the
+pin is never shared between concurrent agent sessions on the daemon).
+Transport only — tool definitions, results, and typed errors are
+parity-locked stdio vs HTTP by test. Daemon absent → the HTTP connection
+is refused immediately (never a hang); the documented fallback is to
+start `sofar serve` or keep the stdio registration.
 Write tools (update_task, log_decision, add_note, update_plan) with
 `initiative` omitted resolve to the ACTIVE session's pinned initiative when
 one exists (task 12.1, BD58) — the pin is set by start_session, so a
@@ -554,7 +567,10 @@ Shims contain no logic — they invoke the sofar CLI.
   (D4 informed re-test, init-statusline D1) — README documents the flag
   and the one-line settings.json entry.
 - `sofar serve [--port 4173]` — chokidar watch on .sofar/ → GET /state
-  (JSON InitiativeState per initiative), Server-Sent Events on change.
+  (JSON InitiativeState per initiative), Server-Sent Events on change;
+  plus the opt-in MCP endpoint at /mcp (streamable HTTP, POST/GET/DELETE,
+  one isolated server handle per MCP session — §MCP tools transports,
+  speed T3). Still 127.0.0.1 only, JSON only.
 - `sofar mcp [--root <dir>]` — start the stdio MCP server (server name:
   sofar) exposing §MCP tools; --root overrides the repo root (default:
   cwd). Added in Phase 2 (BD13); `sofar init` registers it in .mcp.json.
@@ -876,6 +892,16 @@ stay the underlying derivation's, and exit codes are styling-independent.
   after one warmup spawn (the pin asserts capability; scheduler tail noise
   is not a regression). Mutation-checked at introduction: a temporary 150ms
   sleep in one shim fails the pin (byte-stability precedent, felt-cost 1.2).
+- **Speed (speed T3 — persistent MCP daemon):** a genuinely spawned stdio
+  `sofar mcp` server and the serve daemon's /mcp endpoint return identical
+  tool listings (the frozen 7) and identical results for an identical
+  call script covering every tool — digest/portfolio text byte-equal,
+  typed errors included — and the two records fold to the same state
+  (volatile ulids/timestamps redacted); two concurrent HTTP clients on one
+  daemon hold isolated MCP sessions (each session's write-backs land
+  correctly, neither blocks the other); connecting to a port with no
+  daemon fails in <2s (never a hang); /state, /state/<slug>, and /events
+  behavior is unchanged.
 - **Next actions (next-command):** on a repo with several initiatives,
   `sofar next` renders one line per initiative — slug, branch(es) or
   "unbound", next action or "(no next action recorded)" — in the same

@@ -558,7 +558,7 @@ describe('matrix: sofar upgrade (pure handler, injected deps)', () => {
 
 describe('matrix: sofar serve banner (pure renderer — no ports)', () => {
   const URL_ = 'http://127.0.0.1:4173'
-  const WORDING = 'sofar serve: http://127.0.0.1:4173 (GET /state, /state/<slug>, /events SSE)\n'
+  const WORDING = 'sofar serve: http://127.0.0.1:4173 (GET /state, /state/<slug>, /events SSE, /mcp MCP)\n'
 
   it('plain and disabled cells carry the exact plain wording; styled adds accent+dim only', () => {
     expect(renderServeBanner(URL_, PLAIN)).toBe(WORDING)

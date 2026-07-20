@@ -232,7 +232,7 @@ describe('startup banner (cli-ui 2.5)', () => {
   it('is byte-identical to the historical line when caps disallow color', () => {
     expect(
       renderServeBanner('http://127.0.0.1:4173', { color: false, unicode: true, animate: false }),
-    ).toBe('sofar serve: http://127.0.0.1:4173 (GET /state, /state/<slug>, /events SSE)\n')
+    ).toBe('sofar serve: http://127.0.0.1:4173 (GET /state, /state/<slug>, /events SSE, /mcp MCP)\n')
   })
 
   it('accents the brand name and dims the URL/endpoints when color is on', () => {
@@ -240,7 +240,7 @@ describe('startup banner (cli-ui 2.5)', () => {
       renderServeBanner('http://127.0.0.1:4173', { color: true, unicode: true, animate: false }),
     ).toBe(
       '\x1b[35msofar serve\x1b[39m: ' +
-        '\x1b[2mhttp://127.0.0.1:4173 (GET /state, /state/<slug>, /events SSE)\x1b[22m\n',
+        '\x1b[2mhttp://127.0.0.1:4173 (GET /state, /state/<slug>, /events SSE, /mcp MCP)\x1b[22m\n',
     )
   })
 })

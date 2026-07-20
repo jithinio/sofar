@@ -1,8 +1,12 @@
+import { randomUUID } from 'node:crypto'
 import { existsSync, readdirSync, statSync } from 'node:fs'
-import { createServer, type Server, type ServerResponse } from 'node:http'
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { basename, join, relative, sep } from 'node:path'
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 import { watch } from 'chokidar'
 import { emptyState, foldLog, type InitiativeState } from '../core/fold'
+import { createSofarServer } from '../mcp/server'
 import { type Caps, createStyle, stderrCaps } from './ui'
 
 /**
@@ -10,12 +14,21 @@ import { type Caps, createStyle, stderrCaps } from './ui'
  * localhost JSON state server. node:http only, bound to 127.0.0.1 ONLY
  * (localhost law: JSON on localhost, no UI, no sync, no telemetry).
  *
- * Routes (GET, nothing else):
- *   /state         → { initiatives: { <slug>: InitiativeState } }
- *   /state/<slug>  → single InitiativeState (404 unknown)
+ * Routes:
+ *   /state         → { initiatives: { <slug>: InitiativeState } }  (GET)
+ *   /state/<slug>  → single InitiativeState (404 unknown)          (GET)
  *   /events        → SSE: `event: state` + {slug, state} JSON pushed when a
  *                    chokidar watch sees an events.jsonl append (≤500ms,
  *                    SPEC §Acceptance Phase 4); `: heartbeat` every 15s.
+ *   /mcp           → the frozen 7-tool MCP surface over streamable HTTP
+ *                    (speed T3): POST for JSON-RPC, GET for the notification
+ *                    stream, DELETE for session termination. One FRESH
+ *                    SofarServerHandle per MCP session — its own ToolContext
+ *                    and active-session pin — so concurrent agent sessions
+ *                    on the daemon can never share the BD58 pin (the Phase
+ *                    11/12 misroute class). Transport only: the tool surface
+ *                    is byte-identical to `sofar mcp` stdio, which remains
+ *                    the default registration.
  *
  * startServer is a factory returning {port, close} so tests can run on an
  * ephemeral port and shut down without dangling handles.
@@ -45,7 +58,7 @@ export interface ServeHandle {
  * identical styled or plain, so piped stderr stays byte-identical.
  */
 export function renderServeBanner(url: string, caps: Caps = stderrCaps()): string {
-  const endpoints = `${url} (GET /state, /state/<slug>, /events SSE)`
+  const endpoints = `${url} (GET /state, /state/<slug>, /events SSE, /mcp MCP)`
   if (!caps.color) return `sofar serve: ${endpoints}\n`
   const style = createStyle(true)
   return `${style.accent('sofar serve')}: ${style.dim(endpoints)}\n`
@@ -170,9 +183,95 @@ export async function startServer(options: ServeOptions): Promise<ServeHandle> {
     broadcast(slug)
   })
 
+  // --- MCP over streamable HTTP (speed T3) -----------------------------------
+  // One transport (and one fresh SofarServerHandle behind it) per MCP
+  // session: the per-session ToolContext keeps the BD58 active-session pin
+  // isolated between concurrent agent sessions on this daemon.
+  const mcpTransports = new Map<string, StreamableHTTPServerTransport>()
+
+  function readBody(req: IncomingMessage): Promise<unknown> {
+    return new Promise((resolveBody) => {
+      const chunks: Buffer[] = []
+      req.on('data', (chunk: Buffer) => chunks.push(chunk))
+      req.on('end', () => {
+        try {
+          resolveBody(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+        } catch {
+          resolveBody(undefined) // the transport 400s an unparseable body
+        }
+      })
+      req.on('error', () => resolveBody(undefined))
+    })
+  }
+
+  function mcpError(res: ServerResponse, status: number, message: string): void {
+    // JSON-RPC error shape — MCP clients parse this, not our {error} shape.
+    json(res, status, { jsonrpc: '2.0', error: { code: -32000, message }, id: null })
+  }
+
+  async function handleMcp(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const sessionHeader = req.headers['mcp-session-id']
+    const sessionId = typeof sessionHeader === 'string' ? sessionHeader : undefined
+    try {
+      if (req.method === 'POST') {
+        const body = await readBody(req)
+        const existing = sessionId !== undefined ? mcpTransports.get(sessionId) : undefined
+        if (existing !== undefined) {
+          await existing.handleRequest(req, res, body)
+          return
+        }
+        if (sessionId === undefined && isInitializeRequest(body)) {
+          const transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: () => randomUUID(),
+            onsessioninitialized: (sid) => {
+              mcpTransports.set(sid, transport)
+            },
+          })
+          transport.onclose = () => {
+            if (transport.sessionId !== undefined) mcpTransports.delete(transport.sessionId)
+          }
+          const handle = createSofarServer({ rootDir: options.root })
+          await handle.server.connect(transport)
+          await transport.handleRequest(req, res, body)
+          return
+        }
+        mcpError(
+          res,
+          sessionId === undefined ? 400 : 404,
+          sessionId === undefined
+            ? 'Bad Request: not an initialize request and no mcp-session-id header'
+            : 'Session not found — reinitialize',
+        )
+        return
+      }
+      if (req.method === 'GET' || req.method === 'DELETE') {
+        const transport = sessionId !== undefined ? mcpTransports.get(sessionId) : undefined
+        if (transport === undefined) {
+          mcpError(
+            res,
+            sessionId === undefined ? 400 : 404,
+            sessionId === undefined ? 'Bad Request: missing mcp-session-id header' : 'Session not found — reinitialize',
+          )
+          return
+        }
+        await transport.handleRequest(req, res)
+        return
+      }
+      mcpError(res, 405, 'Method not allowed')
+    } catch {
+      // a broken MCP exchange must never take the daemon down
+      if (!res.headersSent) mcpError(res, 500, 'Internal error')
+      else res.end()
+    }
+  }
+
   // --- http ------------------------------------------------------------------
   const server: Server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+    if (url.pathname === '/mcp') {
+      void handleMcp(req, res)
+      return
+    }
     if (req.method !== 'GET') {
       json(res, 405, { error: 'method not allowed' })
       return
@@ -223,6 +322,9 @@ export async function startServer(options: ServeOptions): Promise<ServeHandle> {
       clearInterval(reconcile)
       for (const client of clients) client.end()
       clients.clear()
+      // Close MCP sessions before the listener: transport.close() fires
+      // onclose, which prunes the map.
+      await Promise.all([...mcpTransports.values()].map((transport) => transport.close().catch(() => {})))
       await watcher.close()
       await new Promise<void>((resolveClose, rejectClose) => {
         server.close((err) => (err ? rejectClose(err) : resolveClose()))

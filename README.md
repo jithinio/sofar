@@ -114,6 +114,24 @@ read` mints a read-only token for consumers that should never write.
 validate payload → append event → regenerate projections; nothing mutates
 state except through an event.
 
+Prefer connecting to a running daemon instead of spawning a server per
+session? `sofar serve` also exposes the same seven tools over streamable
+HTTP at `/mcp` (localhost only). Opt in by replacing the stdio entry in
+`.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "sofar": { "type": "http", "url": "http://127.0.0.1:4173/mcp" }
+  }
+}
+```
+
+stdio stays the default — `sofar init` always registers it, and the two
+transports return identical results. If the daemon is not running, the
+HTTP connection is refused immediately (never a hang): start `sofar serve`
+(e.g. under your process manager) or switch back to the stdio entry.
+
 **Hook shims** (Claude Code). Standalone scripts installed to
 `.claude/hooks/` and registered in `.claude/settings.json`; they contain no
 logic — each invokes the CLI.
@@ -196,8 +214,8 @@ sofar push [slug|--all]        push events to the linked repo (idempotent, offli
 sofar pull [slug|--all]        pull events since cursor; --watch follows the doorbell
 sofar event append ...         validated single-event append (the dialect surface)
 sofar statusline               rent-meter for Claude Code's statusLine (stdin JSON → one line)
-sofar serve [--port]           localhost JSON state + SSE on change (127.0.0.1 only)
-sofar mcp [--root]             stdio MCP server
+sofar serve [--port]           localhost JSON state + SSE on change + MCP at /mcp (127.0.0.1 only)
+sofar mcp [--root]             stdio MCP server (default registration; /mcp on serve is the opt-in)
 sofar upgrade [version]        self-update the global install (--check, --dry-run)
 ```
 
