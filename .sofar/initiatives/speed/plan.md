@@ -13,4 +13,4 @@ Progress: 4/4 tasks done (100%)
 - [x] T3 Persistent MCP daemon: serve the frozen 7-tool MCP surface over HTTP from sofar serve; stdio stays default; opt-in .mcp.json config; parity + no-hang tests
 - [x] T4 File-locality orientation hints: per-task touched-files line from existing PostToolUse events, budgeted + byte-stable; ablation-gated before merge
 
-Next action: User to decide: run a ~$8 W1-L control re-run to re-baseline the ambient-drift confound, or publish R02 as-is with the confound stated. Engine proposals logged (T4 hint never renders at orientation; command_run stores no output) become their own initiatives if pursued.
+Next action: Initiative deliverable is done. If pursued: (a) the two engine findings become their own initiatives; (b) a future R03 with equalized arms (both get .claude skills) and same-window arm pairing would remove the two documented confounds. No action otherwise required.
