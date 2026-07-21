@@ -13,4 +13,4 @@ Progress: 4/4 tasks done (100%)
 - [x] T3 Persistent MCP daemon: serve the frozen 7-tool MCP surface over HTTP from sofar serve; stdio stays default; opt-in .mcp.json config; parity + no-hang tests
 - [x] T4 File-locality orientation hints: per-task touched-files line from existing PostToolUse events, budgeted + byte-stable; ablation-gated before merge
 
-Next action: On grading completion: aggregate-grades.py --grading-dir grading-r02 --robustness C for P2' + Grader-C table, then write the R02 evidence section and surface the control-re-run decision.
+Next action: Confirm whether to extend the completed cli-ui terminal redesign or name the other surface to redesign.

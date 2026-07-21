@@ -4,7 +4,7 @@
 
 Goal: Automated controlled benchmark: one long session vs fresh-sessions-per-task (Sofar pattern), measuring cost shape, output quality, and time. Second scenario of handoff-bench; reuses its harness, blind-grading machinery, and evidence format. MEASURES only — read-side; zero engine/injection changes; findings that suggest engine changes are logged as proposals.
 
-Progress: 15/20 tasks done (75%)
+Progress: 20/20 tasks done (100%)
 
 ## Phase 1 — Pre-registration freeze (all frozen/committed before run 1) [done] — 4/4 done
 
@@ -36,13 +36,13 @@ Progress: 15/20 tasks done (75%)
 - [x] 5.2 Freeze R02 section in the evidence file BEFORE any arm runs: P1'–P5' verbatim, method, version note, every deviation from R01 on its own line
 - [x] 5.3 Machinery: R02 workload envs (MODEL pinned), fresh arm worktrees, task-7 probe spec appended to both TASKS.md, sidecar replay script, Grader C runner
 
-## Phase 6 — S2-R02 execution + evidence [pending] — 0/5 done
+## Phase 6 — S2-R02 execution + evidence [pending] — 5/5 done
 
-- [ ] 6.1 Run W1 tasks 1–7 both arms (fresh clones, arm S on published 0.10.0 default stdio config) (active)
-- [ ] 6.2 Run W2 tasks 1–7 both arms
-- [ ] 6.3 P5' fabricated-path sidecar: post-hoc replay orientation probes, verify every named path against the tree, cost logged separately
-- [ ] 6.4 Blind grading: primary pair (Claude + GLM, worse-of-two) adjudicates P2'; Grader C (gpt-5.5) robustness table reported separately
-- [ ] 6.5 R02 evidence section: per-task tables, R01-vs-R02 arm-S delta table (tasks 1–6), P1'–P5' verdicts unsoftened, complete caveats, honest summary
+- [x] 6.1 Run W1 tasks 1–7 both arms (fresh clones, arm S on published 0.10.0 default stdio config)
+- [x] 6.2 Run W2 tasks 1–7 both arms
+- [x] 6.3 P5' fabricated-path sidecar: post-hoc replay orientation probes, verify every named path against the tree, cost logged separately
+- [x] 6.4 Blind grading: primary pair (Claude + GLM, worse-of-two) adjudicates P2'; Grader C (gpt-5.5) robustness table reported separately
+- [x] 6.5 R02 evidence section: per-task tables, R01-vs-R02 arm-S delta table (tasks 1–6), P1'–P5' verdicts unsoftened, complete caveats, honest summary
 
 Active phase: Phase 5 — S2-R02 post-speed re-run (pre-registration freeze)
 Next action: When the driver exits: extract telemetry, run the sidecar, grade (A+B primary, C robustness), write the R02 evidence section.
