@@ -13,4 +13,4 @@ Progress: 4/4 tasks done (100%)
 - [x] T3 Persistent MCP daemon: serve the frozen 7-tool MCP surface over HTTP from sofar serve; stdio stays default; opt-in .mcp.json config; parity + no-hang tests
 - [x] T4 File-locality orientation hints: per-task touched-files line from existing PostToolUse events, budgeted + byte-stable; ablation-gated before merge
 
-Next action: Confirm user ran `npm deprecate @alignlabs/sofar` (needed interactive auth); then two commits land: record-hygiene (event.ts+tests+CLAUDE.md+SPEC hunks) and release/rename (rest+record), push origin main.
+Next action: User runs the handoff prompt in sofar-cloud (dependency migration to sofar.sh ^0.11.0) and deploys the marketing site (bun run deploy).
