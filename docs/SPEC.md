@@ -356,8 +356,13 @@ initiatives:` suffix, or a `sofar new` hint when none exist
 - SessionStart shim → `sofar event session-start` then prints the status
   projection to stdout (context injection). The block opens with a
   `Session: <id> — when calling sofar_start_session, pass this as
-  session_id.` line carrying the hook-registered session id (adopt-by-id,
-  Phase 7, BD43). Includes a "Repo memory" section
+  session_id.` line carrying the session id from the hook payload
+  (adopt-by-id, Phase 7, BD43). This shim APPENDS NOTHING: registration is
+  LAZY (record-hygiene D2) — a session enters the log on its first real
+  event, via sofar_start_session's unknown-id branch or the first
+  PostToolUse append. A session that only reads and exits is never
+  registered, so it mints no session_started, no session_closed, and no
+  sessions/<id>.md. Includes a "Repo memory" section
   sourced from .sofar/repo.md when it exists and is not the untouched init
   stub, budget-clipped to ~1,500 chars (added Phase 6, BD40). Staleness
   surfacing (staleness-detection, mechanical signals only): when counted
@@ -400,7 +405,20 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   exists). Best-effort (BD22): every failure path is silence, never a
   blocked prompt.
 - PostToolUse shim (matcher: Edit|Write|MultiEdit|Bash) → appends
-  file_touched / command_run from stdin JSON (tool_name, tool_input).
+  file_touched / command_run from stdin JSON (tool_name, tool_input),
+  preceded by a session_started for an unregistered session (lazy
+  registration, record-hygiene D2; envelope session "cli" is never
+  registered).
+  SELF-RECORDING COMMANDS ARE EXEMPT (record-hygiene D1): a Bash command
+  whose every shell segment leads with `git` or `sofar` appends NOTHING.
+  Both keep their own ledger — git its history, sofar the record itself —
+  and logging them makes the record un-settleable: committing the record is
+  a Bash call, so it would append an event about committing the record and
+  the tree would be dirty the instant it is clean. The tree can only reach
+  clean if some record-committing action appends zero events. Nothing is
+  lost: the fold counts command_run and never reads `cmd`. Segment split is
+  quote-unaware and every ambiguity resolves toward LOGGING, so the
+  exemption can never swallow real work (`cd x && git push` is logged).
 - Stop shim → reads stdin JSON; if stop_hook_active is true → exit 0
   (loop guard). Else if no session_ended event exists for this session_id
   AND gate-relevant drift is nonzero → exit 2 with stderr: "Write back to
@@ -765,7 +783,11 @@ stay the underlying derivation's, and exit codes are styling-independent.
   initiative; Stop shim blocks a session lacking session_ended when
   gate-relevant drift is nonzero (speed T1) and passes one that has written
   back; stop_hook_active loop guard verified; PostToolUse produces
-  file_touched for an Edit and command_run for a Bash call.
+  file_touched for an Edit and command_run for a Bash call, appends nothing
+  for a self-recording command (git/sofar, record-hygiene D1), and registers
+  an unregistered session before its first real event (lazy registration,
+  record-hygiene D2 — SessionStart alone leaves the log untouched, so a
+  session that did nothing leaves no trace).
 - **Phase 4:** `sofar init` on a fresh repo yields a working end-to-end
   loop (start session → tool events → end session → status shows it);
   init is idempotent (second run changes nothing); serve pushes an SSE on

@@ -284,15 +284,34 @@ describe('acceptance 2+3+4 — end-to-end smoke through the built CLI', () => {
     expect(existsSync(join(fixture.initiativeDir, 'sessions', `${SESSION}.md`))).toBe(true)
   }, 60_000)
 
-  it('session-end without write-back appends the mechanical session_closed', () => {
+  it('a session that did nothing leaves NO trace (lazy registration, record-hygiene D2)', () => {
     const fixture = fx()
     runEvent(fixture, 'session-start', { ...base })
     const closed = runEvent(fixture, 'session-end', { ...base, hook_event_name: 'SessionEnd', reason: 'prompt_input_exit' })
     expect(closed.status).toBe(0)
 
+    // no session_started to register it, so no session_closed to mark it
+    // ended, and no sessions/<id>.md minted for a session that only read
+    expect(logEvents(fixture.eventsPath)).toEqual([])
+    expect(existsSync(join(fixture.initiativeDir, 'sessions', `${SESSION}.md`))).toBe(false)
+  }, 60_000)
+
+  it('session-end without write-back appends the mechanical session_closed once the session did work', () => {
+    const fixture = fx()
+    runEvent(fixture, 'session-start', { ...base })
+    runEvent(fixture, 'post-tool', {
+      ...base,
+      hook_event_name: 'PostToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: 'npm test' },
+      tool_response: {},
+    })
+    const closed = runEvent(fixture, 'session-end', { ...base, hook_event_name: 'SessionEnd', reason: 'prompt_input_exit' })
+    expect(closed.status).toBe(0)
+
     const events = logEvents(fixture.eventsPath)
-    expect(events.map((e) => e.type)).toEqual(['session_started', 'session_closed'])
-    expect(events[1]!.payload).toEqual({ reason: 'prompt_input_exit' })
+    expect(events.map((e) => e.type)).toEqual(['session_started', 'command_run', 'session_closed'])
+    expect(events[2]!.payload).toEqual({ reason: 'prompt_input_exit' })
     const { state } = foldLog(fixture.eventsPath)
     expect(state.sessions[0]!.ended).toBeDefined()
     expect(state.sessions[0]!.summary).toBeUndefined()

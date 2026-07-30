@@ -324,8 +324,18 @@ describe('acceptance 3 — an unwritten session still yields a usable resume blo
     expect(resume.stdout.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
 
     // …and the Stop gate never blocks the crashed session's id retroactively
-    // for the NEW session: D is registered-but-unwritten, so D blocks; C's
-    // fate does not leak into D's gate.
+    // for the NEW session. D registers lazily on its first real event
+    // (record-hygiene D2); once it has done work it blocks on its own
+    // account, and C's fate does not leak into D's gate.
+    expect(handleStop(fixture.root, stopStdin('phase7-session-d')).exitCode).toBe(0) // no work yet
+    handlePostTool(
+      fixture.root,
+      hookStdin('phase7-session-d', {
+        hook_event_name: 'PostToolUse',
+        tool_name: 'Write',
+        tool_input: { file_path: 'src/d1.ts', content: 'x' },
+      }),
+    )
     expect(handleStop(fixture.root, stopStdin('phase7-session-d')).exitCode).toBe(2)
   })
 })

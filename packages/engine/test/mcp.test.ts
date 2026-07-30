@@ -4,7 +4,7 @@ import { TOOL_INPUT_SCHEMAS, TOOL_NAMES, type ToolName } from '@sofar/schema/too
 import { createSofarServer, SERVER_NAME } from '../src/mcp/server'
 import { foldLog, type InitiativeState } from '../src/core/fold'
 import { GENERATED_HEADER } from '../src/projections/templates/shared'
-import { handleSessionStart } from '../src/cli/event'
+import { handlePostTool } from '../src/cli/event'
 import { callTool, callToolText, connectServer, makeRepoFixture } from './helpers/mcp'
 
 describe('MCP server skeleton (2.1)', () => {
@@ -148,9 +148,17 @@ describe('MCP tools round-trip (2.2)', () => {
 
   it('start_session with session_id adopts exactly the hook-registered open session (BD43)', async () => {
     const fixture = makeRepoFixture()
-    // the SessionStart hook registered Claude Code's session in the log AND
-    // injected the id into context — the agent passes it back explicitly
-    handleSessionStart(fixture.root, JSON.stringify({ session_id: 'claude-hook-sess' }))
+    // SessionStart injected the id into context; the session entered the log
+    // lazily, on its first real event (record-hygiene D2). The agent passes
+    // that id back explicitly.
+    handlePostTool(
+      fixture.root,
+      JSON.stringify({
+        session_id: 'claude-hook-sess',
+        tool_name: 'Bash',
+        tool_input: { command: 'npm test' },
+      }),
+    )
 
     const { client, handle } = await connectServer(fixture.root)
     const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
@@ -165,9 +173,10 @@ describe('MCP tools round-trip (2.2)', () => {
       initiative: fixture.slug,
     })
 
-    // adoption appends nothing — the session_started from the hook stands alone
+    // adoption appends nothing — the lazily-registered session_started and
+    // its triggering command_run stand alone
     const lines = readFileSync(fixture.eventsPath, 'utf8').trim().split('\n')
-    expect(lines).toHaveLength(1)
+    expect(lines.map((l) => JSON.parse(l).type)).toEqual(['session_started', 'command_run'])
 
     // end_session closes the adopted (hook-registered) session
     await callTool(client, 'sofar_end_session', {
@@ -186,8 +195,17 @@ describe('MCP tools round-trip (2.2)', () => {
 
   it('start_session WITHOUT session_id mints fresh even when another session is open (BD20 heuristic removed)', async () => {
     const fixture = makeRepoFixture()
-    // a parallel agent's session is open — it must NOT be cross-adopted
-    handleSessionStart(fixture.root, JSON.stringify({ session_id: 'parallel-agent-sess' }))
+    // a parallel agent's session is open — it must NOT be cross-adopted.
+    // Registration is lazy now (record-hygiene D2), so the parallel session
+    // enters the log via a real event rather than via SessionStart.
+    handlePostTool(
+      fixture.root,
+      JSON.stringify({
+        session_id: 'parallel-agent-sess',
+        tool_name: 'Bash',
+        tool_input: { command: 'npm test' },
+      }),
+    )
 
     const { client, handle } = await connectServer(fixture.root)
     const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', {

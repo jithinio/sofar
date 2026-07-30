@@ -56,4 +56,8 @@ Session loop:
   (`sofar_update_task`) as they happen.
 - BEFORE FINISHING: write back with `sofar_end_session` (summary +
   next action). The Stop hook blocks sessions that skip this.
+- ORDER MATTERS: write back BEFORE the final commit, then commit code and
+  record together. git and sofar commands are exempt from the record
+  (record-hygiene D1), so a write-back followed by a commit leaves the tree
+  clean; committing first and writing back after guarantees trailing dirt.
 <!-- /sofar:protocol -->

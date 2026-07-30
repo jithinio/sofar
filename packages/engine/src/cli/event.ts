@@ -36,6 +36,58 @@ export const STOP_BLOCK_MESSAGE =
 const HOOK_TOOL = 'claude-code'
 
 // ---------------------------------------------------------------------------
+// Self-recording commands (record-hygiene D1) — the exemption that lets the
+// working tree settle.
+// ---------------------------------------------------------------------------
+
+/**
+ * Commands whose only effect lands in a ledger that already records itself:
+ * `git` keeps its own history, and `sofar` writes the record directly.
+ *
+ * Logging either as command_run makes the record un-settleable. Committing
+ * the record is itself a Bash call, so PostToolUse appends an event ABOUT
+ * committing the record — the tree is dirty the instant it is clean, and no
+ * amount of committing converges. The tree can only reach clean if some
+ * record-committing action appends zero events; this exemption is that
+ * action.
+ *
+ * Nothing is lost: the fold COUNTS command_run and never reads `cmd` (a bare
+ * tally in recordActivity, an explicit no-op in applyEvent — core/fold.ts),
+ * so an exempt command costs a counter increment and no semantics. Counting
+ * a commit as drift was backwards anyway — drift means "the record moved
+ * since the last write-back", and committing is the act of recording.
+ */
+const SELF_RECORDING_COMMANDS = new Set(['git', 'sofar'])
+
+/** Leading executable of one shell segment, ignoring `VAR=val` prefixes and any path. */
+function leadingToken(segment: string): string | null {
+  for (const word of segment.trim().split(/\s+/)) {
+    if (word.length === 0) continue
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(word)) continue // env assignment prefix
+    return word.replace(/^.*\//, '') // /usr/bin/git → git
+  }
+  return null
+}
+
+/**
+ * True when EVERY segment of a (possibly compound) command is self-recording
+ * — `git add .sofar && git commit -m …` is exempt, `cd x && git push` is not.
+ *
+ * Deliberately conservative: this splits on shell operators without honouring
+ * quotes, so a quoted `&&` yields a fragment whose leading token is not
+ * git/sofar and the command is logged. Every ambiguity resolves toward
+ * logging, so the exemption can never swallow real work.
+ */
+export function isSelfRecordingCommand(cmd: string): boolean {
+  const segments = cmd.split(/&&|\|\||;|\||\n/).filter((s) => s.trim().length > 0)
+  if (segments.length === 0) return false
+  return segments.every((segment) => {
+    const token = leadingToken(segment)
+    return token !== null && SELF_RECORDING_COMMANDS.has(token)
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Defensive stdin parsing — missing/unknown fields must never crash a shim.
 // ---------------------------------------------------------------------------
 
@@ -159,15 +211,22 @@ function coldResumeAdvisory(hook: Obj, eventsPath: string): string | null {
 // ---------------------------------------------------------------------------
 
 /**
- * SessionStart (task 3.2) — registers Claude Code's session_id in the log
- * (the correlation anchor, BD20/BD43) and prints the status projection to
- * stdout for context injection (≤10,000 chars — guaranteed by renderStatus).
- * The block opens with a "Session: <id>" line (task 7.1, BD43) — the agent
- * passes that id to sofar_start_session as session_id to adopt exactly
- * its own session (the newest-open heuristic is gone).
- * Re-fires on resume/clear/compact reuse the same session_id: the append is
- * skipped if the session is already registered, but the status block is
- * printed every time (re-injection after compact is the point).
+ * SessionStart (task 3.2) — prints the status projection to stdout for
+ * context injection (≤10,000 chars — guaranteed by renderStatus). The block
+ * opens with a "Session: <id>" line (task 7.1, BD43) — the agent passes that
+ * id to sofar_start_session as session_id to adopt exactly its own session
+ * (the newest-open heuristic is gone).
+ *
+ * This hook APPENDS NOTHING (record-hygiene D2). Registration is lazy: the
+ * session enters the log on its first real event — sofar_start_session's
+ * unknown-id branch (mcp/start-session.ts) or the first PostToolUse append.
+ * Registering eagerly meant opening a session dirtied the record before any
+ * work existed, and a session that only read and exited still minted a
+ * session_started, a session_closed, and a permanent tracked projection file
+ * for having done nothing. The id line does not depend on the append — it
+ * comes from the hook payload — so adopt-by-id is untouched.
+ * Re-fires on resume/clear/compact reuse the same session_id and reprint the
+ * block every time (re-injection after compact is the point).
  * On source=resume a cold-resume advisory (felt-cost 2.1/2.2) may precede
  * the block: cold record (last event past the longest cache TTL) + a
  * substantial transcript → one line naming the re-warm cost and the fresh
@@ -181,17 +240,11 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
 
     const hook = parseHook(input)
     const sessionId = strField(hook, 'session_id')
-    // Advisory reads the log BEFORE the registration append below — the gap
-    // is measured to the prior session's last event, not our own bookkeeping.
+    // The gap is measured to the prior session's last event; with lazy
+    // registration this hook writes nothing, so no bookkeeping of ours can
+    // ever mask a cold record.
     const advisory = coldResumeAdvisory(hook, ctx.eventsPath(slug))
-    let state = ctx.foldState(slug)
-    if (sessionId !== null && !state.sessions.some((s) => s.id === sessionId)) {
-      ctx.appendAndProject(slug, 'session_started', { tool: HOOK_TOOL }, {
-        session: sessionId,
-        source: 'hook',
-      })
-      state = ctx.foldState(slug)
-    }
+    const state = ctx.foldState(slug)
     const repoMemory = readRepoMemory(rootDir)
     // ≤10,000 chars (BD3/BD24) — repo memory has its own budget (BD40); the
     // session id line (7.1, BD43) tells the agent what to pass to
@@ -216,6 +269,13 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
  * PostToolUse (task 3.3) — mechanical file_touched / command_run events.
  * Edit|MultiEdit → {op:'edit'}, Write → {op:'write'}, Bash → command_run;
  * any other tool_name (or missing fields) appends nothing.
+ *
+ * Two record-hygiene rules apply here (D1/D2):
+ *  - a self-recording Bash command (git, sofar) appends nothing — see
+ *    SELF_RECORDING_COMMANDS for why the record cannot settle otherwise;
+ *  - this is the lazy-registration point: SessionStart no longer registers,
+ *    so a session enters the log immediately before its first real event.
+ *    Sessions that only read and exit never register at all.
  */
 export function handlePostTool(rootDir: string, input: string): HookResult {
   try {
@@ -237,16 +297,23 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
     } else if (toolName === 'Bash') {
       const cmd = strField(toolInput, 'command')
       if (cmd === null) return { ...OK }
+      if (isSelfRecordingCommand(cmd)) return { ...OK }
       type = 'command_run'
       payload = { cmd }
     } else {
       return { ...OK }
     }
 
-    ctx.appendAndProject(slug, type, payload, {
-      session: strField(hook, 'session_id') ?? 'cli',
-      source: 'hook',
-    })
+    const session = strField(hook, 'session_id') ?? 'cli'
+    // Lazy registration: one fold to see whether this session is already in
+    // the log — the same read the Stop and UserPromptSubmit shims already do
+    // on every invocation, and it only precedes an append that folds anyway.
+    // "cli" is never a session identity (the fold skips it), so it is never
+    // registered.
+    if (session !== 'cli' && !ctx.foldState(slug).sessions.some((s) => s.id === session)) {
+      ctx.appendAndProject(slug, 'session_started', { tool: HOOK_TOOL }, { session, source: 'hook' })
+    }
+    ctx.appendAndProject(slug, type, payload, { session, source: 'hook' })
     return { ...OK }
   } catch {
     return { ...OK }

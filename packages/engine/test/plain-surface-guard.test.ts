@@ -6,7 +6,7 @@ import { makeEvent, type EventEnvelope } from '../src/core/envelope'
 import { appendEvents } from '../src/core/log'
 import { foldLog } from '../src/core/fold'
 import { renderStatus } from '../src/projections/templates/status'
-import { handleSessionStart, handleStop, STOP_BLOCK_MESSAGE } from '../src/cli/event'
+import { handlePostTool, handleSessionStart, handleStop, STOP_BLOCK_MESSAGE } from '../src/cli/event'
 import { runExport, runImport } from '../src/cli/transfer'
 import { createSpinner } from '../src/cli/ui/spinner'
 import {
@@ -358,8 +358,16 @@ describe('behavioral guard — guaranteed-plain surfaces under FORCE_COLOR=1 + C
     stubHostileEnv()
     const fixture = fx()
     seedRichLog(fixture)
-    // register a session that never writes back → Stop blocks it
-    handleSessionStart(fixture.root, JSON.stringify({ session_id: 'claude-hostile-2' }))
+    // register a session that never writes back → Stop blocks it. Registration
+    // is lazy now (record-hygiene D2), so it lands via a real event.
+    handlePostTool(
+      fixture.root,
+      JSON.stringify({
+        session_id: 'claude-hostile-2',
+        tool_name: 'Bash',
+        tool_input: { command: 'npm test' },
+      }),
+    )
 
     const result = withTTY(process.stderr, true, () =>
       handleStop(fixture.root, JSON.stringify({ session_id: 'claude-hostile-2' })),

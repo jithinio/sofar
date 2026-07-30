@@ -58,6 +58,26 @@ const hookStdin = (fields: Record<string, unknown>): string =>
     ...fields,
   })
 
+/**
+ * Register a session directly. SessionStart no longer appends
+ * (record-hygiene D2), so tests that need a REGISTERED session — Stop gating,
+ * SessionEnd close markers — seed it here instead of leaning on the
+ * SessionStart hook's incidental side effect.
+ */
+function registerSession(fixture: Fixture, sessionId = 'claude-sess-1'): void {
+  appendEvent(
+    fixture.eventsPath,
+    makeEvent({
+      initiative: fixture.slug,
+      session: sessionId,
+      source: 'hook',
+      actor: 'agent',
+      type: 'session_started',
+      payload: { tool: 'claude-code' },
+    }),
+  )
+}
+
 describe('hook shims (3.1) — zero logic, exec the CLI (BD4)', () => {
   const shims: Array<[string, string]> = [
     ['session-start.sh', 'session-start'],
@@ -80,8 +100,8 @@ describe('hook shims (3.1) — zero logic, exec the CLI (BD4)', () => {
   }
 })
 
-describe('sofar event session-start — session registration (BD20) + context injection (3.2)', () => {
-  it('appends session_started with envelope.session = Claude session_id, source hook, tool claude-code', () => {
+describe('sofar event session-start — context injection only, lazy registration (3.2, record-hygiene D2)', () => {
+  it('appends NOTHING but still delivers the block and the adopt-by-id line', () => {
     const fixture = fx()
     const result = handleSessionStart(fixture.root, hookStdin({ hook_event_name: 'SessionStart', source: 'startup' }))
     expect(result.exitCode).toBe(0)
@@ -89,13 +109,25 @@ describe('sofar event session-start — session registration (BD20) + context in
     // stdout is the status projection — the injected context (3.2, BD3)
     expect(result.stdout).toContain(`# Sofar status: ${fixture.slug}`)
     expect(result.stdout.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
-    // the adopt-by-id delivery line (7.1, BD43): the agent reads its id here
+    // the adopt-by-id delivery line (7.1, BD43) comes from the hook payload,
+    // NOT from the log — so it survives the registration append going away
     expect(result.stdout).toContain(
       'Session: claude-sess-1 — when calling sofar_start_session, pass this as session_id.',
     )
 
-    const events = logEvents(fixture.eventsPath)
-    expect(events).toHaveLength(1)
+    // Opening a session no longer dirties the record: a session that only
+    // reads and exits leaves no event, no projection file, nothing to commit.
+    expect(logEvents(fixture.eventsPath)).toHaveLength(0)
+  })
+
+  it('the first real event registers the session (lazy registration), exactly once', () => {
+    const fixture = fx()
+    handleSessionStart(fixture.root, hookStdin({ source: 'startup' }))
+    expect(logEvents(fixture.eventsPath)).toHaveLength(0)
+
+    handlePostTool(fixture.root, hookStdin({ tool_name: 'Bash', tool_input: { command: 'npm test' } }))
+    let events = logEvents(fixture.eventsPath)
+    expect(events.map((e) => e.type)).toEqual(['session_started', 'command_run'])
     expect(events[0]).toMatchObject({
       type: 'session_started',
       payload: { tool: 'claude-code' },
@@ -104,17 +136,26 @@ describe('sofar event session-start — session registration (BD20) + context in
       actor: 'agent',
       initiative: fixture.slug,
     })
-    const { state } = foldLog(fixture.eventsPath)
+
+    // second event on the same session does not re-register
+    handlePostTool(fixture.root, hookStdin({ tool_name: 'Write', tool_input: { file_path: '/repo/a.ts' } }))
+    events = logEvents(fixture.eventsPath)
+    expect(events.map((e) => e.type)).toEqual(['session_started', 'command_run', 'file_touched'])
+
+    const { state, warnings } = foldLog(fixture.eventsPath)
+    expect(warnings).toEqual([])
     expect(state.sessions[0]).toMatchObject({ id: 'claude-sess-1', tool: 'claude-code' })
+    // activity attaches to the lazily-registered session (fold attachActivity
+    // merges by id after the full pass, so registration order is irrelevant)
+    expect(state.sessions[0]!.activity).toMatchObject({ commands: 1, files: ['/repo/a.ts'] })
   })
 
-  it('re-fire with the same session_id (resume/compact) does not append a duplicate but still prints context', () => {
+  it('re-fire with the same session_id (resume/compact) still appends nothing but reprints context', () => {
     const fixture = fx()
     handleSessionStart(fixture.root, hookStdin({ source: 'startup' }))
     handleSessionStart(fixture.root, hookStdin({ source: 'resume' }))
     const compacted = handleSessionStart(fixture.root, hookStdin({ source: 'compact' }))
-    expect(logEvents(fixture.eventsPath)).toHaveLength(1)
-    expect(foldLog(fixture.eventsPath).warnings).toEqual([])
+    expect(logEvents(fixture.eventsPath)).toHaveLength(0)
     expect(compacted.stdout).toContain('# Sofar status:') // re-injection after compact
   })
 
@@ -153,7 +194,7 @@ describe('cold-resume advisory (felt-cost 2.1/2.2) — resume-only, read-side, b
     transcript: string
   } {
     const fixture = fx()
-    handleSessionStart(fixture.root, hookStdin({ source: 'startup' }))
+    registerSession(fixture)
     const transcript = join(fixture.root, 'transcript.jsonl')
     writeFileSync(transcript, 'x'.repeat(transcriptBytes))
     return { fixture, transcript }
@@ -247,7 +288,7 @@ describe('sofar event user-prompt — batch-complete nudge (felt-cost 4.1/4.2, D
   /** Registered session + n mechanical drift events since the last write-back. */
   function drifted(n: number): Fixture {
     const fixture = fx()
-    handleSessionStart(fixture.root, hookStdin({ source: 'startup' }))
+    registerSession(fixture)
     for (let i = 0; i < n; i++) {
       handlePostTool(
         fixture.root,
@@ -316,6 +357,7 @@ describe('sofar event post-tool — mechanical file/command events (3.3)', () =>
 
   it('Edit → exactly one file_touched {path, op: edit} (acceptance)', () => {
     const fixture = fx()
+    registerSession(fixture)
     const result = handlePostTool(
       fixture.root,
       postToolStdin('Edit', { file_path: '/repo/src/a.ts', old_string: 'x', new_string: 'y' }),
@@ -323,8 +365,8 @@ describe('sofar event post-tool — mechanical file/command events (3.3)', () =>
     expect(result).toEqual({ exitCode: 0, stdout: '', stderr: '' })
 
     const events = logEvents(fixture.eventsPath)
-    expect(events).toHaveLength(1)
-    expect(events[0]).toMatchObject({
+    expect(events).toHaveLength(2) // session_started (seeded) + the file_touched
+    expect(events[1]).toMatchObject({
       type: 'file_touched',
       payload: { path: '/repo/src/a.ts', op: 'edit' },
       session: 'claude-sess-1',
@@ -336,10 +378,11 @@ describe('sofar event post-tool — mechanical file/command events (3.3)', () =>
 
   it('MultiEdit → op edit; Write → op write', () => {
     const fixture = fx()
+    registerSession(fixture)
     handlePostTool(fixture.root, postToolStdin('MultiEdit', { file_path: '/repo/multi.ts' }))
     handlePostTool(fixture.root, postToolStdin('Write', { file_path: '/repo/new.ts', content: 'x' }))
 
-    const events = logEvents(fixture.eventsPath)
+    const events = logEvents(fixture.eventsPath).filter((e) => e.type !== 'session_started')
     expect(events.map((e) => [e.type, e.payload.path, e.payload.op])).toEqual([
       ['file_touched', '/repo/multi.ts', 'edit'],
       ['file_touched', '/repo/new.ts', 'write'],
@@ -348,17 +391,46 @@ describe('sofar event post-tool — mechanical file/command events (3.3)', () =>
 
   it('Bash → exactly one command_run {cmd} (acceptance)', () => {
     const fixture = fx()
+    registerSession(fixture)
     handlePostTool(fixture.root, postToolStdin('Bash', { command: 'npm test', description: 'run tests' }))
 
     const events = logEvents(fixture.eventsPath)
-    expect(events).toHaveLength(1)
-    expect(events[0]).toMatchObject({
+    expect(events).toHaveLength(2) // session_started (seeded) + the command_run
+    expect(events[1]).toMatchObject({
       type: 'command_run',
       payload: { cmd: 'npm test' },
       session: 'claude-sess-1',
       source: 'hook',
     })
     expect(foldLog(fixture.eventsPath).warnings).toEqual([])
+  })
+
+  it('self-recording commands (git, sofar) append nothing — record-hygiene D1', () => {
+    const fixture = fx()
+    registerSession(fixture)
+    const exempt = [
+      'git status',
+      'git push origin main',
+      'git add ".sofar/" && git -c user.name="J" commit -m "record: wrap"',
+      'GIT_CONFIG_GLOBAL=/dev/null git -C /repo log',
+      '/usr/bin/git diff',
+      'sofar status',
+      'sofar event append --type note_added --payload {}',
+    ]
+    for (const cmd of exempt) {
+      expect(handlePostTool(fixture.root, postToolStdin('Bash', { command: cmd })).exitCode).toBe(0)
+    }
+    // only the seeded registration remains: committing the record appended
+    // nothing about committing the record, so the tree can settle
+    expect(logEvents(fixture.eventsPath).map((e) => e.type)).toEqual(['session_started'])
+    expect(freshnessTotal(foldLog(fixture.eventsPath).state.freshness)).toBe(0)
+
+    // conservative: any non-exempt segment logs the whole command
+    const logged = ['cd /repo && git push', 'npm test', 'git log | head', 'gitleaks detect']
+    for (const cmd of logged) handlePostTool(fixture.root, postToolStdin('Bash', { command: cmd }))
+    expect(logEvents(fixture.eventsPath).filter((e) => e.type === 'command_run')).toHaveLength(
+      logged.length,
+    )
   })
 
   it('unknown tool_name → exit 0, zero appends', () => {
@@ -430,7 +502,7 @@ describe('sofar event stop — write-back enforcement (3.4, BD2)', () => {
 
   it('blocks a started-but-unwritten session with drift: exit 2 with the exact write-back message (acceptance)', () => {
     const fixture = fx()
-    handleSessionStart(fixture.root, hookStdin({}))
+    registerSession(fixture)
     seedDrift(fixture)
 
     const result = handleStop(fixture.root, stopStdin())
@@ -446,7 +518,7 @@ describe('sofar event stop — write-back enforcement (3.4, BD2)', () => {
 
   it('passes a session that wrote back via a session_ended event (acceptance)', () => {
     const fixture = fx()
-    handleSessionStart(fixture.root, hookStdin({}))
+    registerSession(fixture)
     seedDrift(fixture)
     appendSessionEnded(fixture, 'claude-sess-1')
 
@@ -455,7 +527,7 @@ describe('sofar event stop — write-back enforcement (3.4, BD2)', () => {
 
   it('passes after the MCP adopt-and-end flow closes the hook-registered session', async () => {
     const fixture = fx()
-    handleSessionStart(fixture.root, hookStdin({}))
+    registerSession(fixture)
     seedDrift(fixture)
 
     // blocked before write-back
@@ -479,7 +551,7 @@ describe('sofar event stop — write-back enforcement (3.4, BD2)', () => {
 
   it('stop_hook_active → exit 0 even when the session has not written back with drift (loop guard, acceptance)', () => {
     const fixture = fx()
-    handleSessionStart(fixture.root, hookStdin({}))
+    registerSession(fixture)
     seedDrift(fixture) // drift armed — only the loop guard lets this exit 0
 
     const result = handleStop(fixture.root, stopStdin({ stop_hook_active: true }))
@@ -489,7 +561,7 @@ describe('sofar event stop — write-back enforcement (3.4, BD2)', () => {
   it('unregistered session_id → exit 0 (never block sessions the sofar does not govern)', () => {
     const fixture = fx()
     // log exists (with drift) but this session never registered
-    handleSessionStart(fixture.root, hookStdin({ session_id: 'some-other-session' }))
+    registerSession(fixture, 'some-other-session')
     seedDrift(fixture, 'some-other-session')
     expect(handleStop(fixture.root, stopStdin()).exitCode).toBe(0)
 
@@ -500,7 +572,7 @@ describe('sofar event stop — write-back enforcement (3.4, BD2)', () => {
 
   it('a mechanical session_closed is NOT a write-back — stop still blocks a drifted session', () => {
     const fixture = fx()
-    handleSessionStart(fixture.root, hookStdin({}))
+    registerSession(fixture)
     seedDrift(fixture)
     appendEvent(
       fixture.eventsPath,
@@ -553,7 +625,7 @@ describe('sofar event stop — drift gate (speed T1)', () => {
 
   it('zero-event session ends ungated: exit 0, no stderr, no session_ended required (acceptance)', () => {
     const fixture = fx()
-    handleSessionStart(fixture.root, hookStdin({}))
+    registerSession(fixture)
 
     expect(handleStop(fixture.root, stopStdin())).toEqual({ exitCode: 0, stdout: '', stderr: '' })
     // the gate appends nothing — the log still holds only the registration
@@ -562,7 +634,7 @@ describe('sofar event stop — drift gate (speed T1)', () => {
 
   it('read-only session ends ungated: uncounted lifecycle/plan-structure events never gate (T1 decision)', () => {
     const fixture = fx()
-    handleSessionStart(fixture.root, hookStdin({}))
+    registerSession(fixture)
     // events since (never-)write-back that are NOT mutation-class: another
     // session's lifecycle pair and a plan-structure update
     appendRecord(fixture, 'session_started', { tool: 'claude-code' }, 'other-sess', 'hook')
@@ -576,7 +648,7 @@ describe('sofar event stop — drift gate (speed T1)', () => {
 
   it('one task update since the write-back gates: exit 2 with the exact BD2 message (acceptance)', () => {
     const fixture = fx()
-    handleSessionStart(fixture.root, hookStdin({}))
+    registerSession(fixture)
     appendRecord(fixture, 'task_added', { id: 'T1', title: 'the task', phase: 'P1' })
     // an EARLIER session wrote back — the stopping session stays unwritten
     appendRecord(fixture, 'session_started', { tool: 'claude-code' }, 'earlier-sess', 'hook')
@@ -597,7 +669,7 @@ describe('sofar event stop — drift gate (speed T1)', () => {
 
   it('drift computation error gates (fail closed) — a throw or NaN is never a silent skip (acceptance)', () => {
     const fixture = fx()
-    handleSessionStart(fixture.root, hookStdin({}))
+    registerSession(fixture)
     // zero real drift: without the failure this session would end ungated
     expect(handleStop(fixture.root, stopStdin()).exitCode).toBe(0)
 
@@ -612,8 +684,8 @@ describe('sofar event stop — drift gate (speed T1)', () => {
 
   it('in-flow write-back at drift ≥5 then an eventless turn ends silently (acceptance)', () => {
     const fixture = fx()
-    handleSessionStart(fixture.root, hookStdin({}))
-    for (const cmd of ['npm test', 'npm run build', 'git status']) {
+    registerSession(fixture)
+    for (const cmd of ['npm test', 'npm run build', 'make lint']) {
       handlePostTool(
         fixture.root,
         hookStdin({ hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: cmd } }),
@@ -654,7 +726,7 @@ describe('sofar event stop — drift gate (speed T1)', () => {
     const S1 = 'concurrent-s1'
     const S2 = 'concurrent-s2'
     const S3 = 'concurrent-s3'
-    for (const id of [S1, S2, S3]) handleSessionStart(fixture.root, hookStdin({ session_id: id }))
+    for (const id of [S1, S2, S3]) registerSession(fixture, id)
     // S2 does real work; S3 never touches anything
     handlePostTool(
       fixture.root,
@@ -697,7 +769,7 @@ describe('sofar event session-end — mechanical close marker (3.5, BD21)', () =
 
   it('appends session_closed; fold marks the session ended without touching next_action', () => {
     const fixture = fx()
-    handleSessionStart(fixture.root, hookStdin({}))
+    registerSession(fixture)
 
     const before = foldLog(fixture.eventsPath).state
     expect(before.current.next_action).toBeNull()
@@ -725,7 +797,7 @@ describe('sofar event session-end — mechanical close marker (3.5, BD21)', () =
 
   it('missing reason defaults to "unknown"', () => {
     const fixture = fx()
-    handleSessionStart(fixture.root, hookStdin({}))
+    registerSession(fixture)
     handleSessionEnd(fixture.root, hookStdin({ hook_event_name: 'SessionEnd' }))
     expect(logEvents(fixture.eventsPath)[1]).toMatchObject({
       type: 'session_closed',
@@ -742,7 +814,7 @@ describe('sofar event session-end — mechanical close marker (3.5, BD21)', () =
 
   it('already-ended session (write-back done) → exit 0, no duplicate close', async () => {
     const fixture = fx()
-    handleSessionStart(fixture.root, hookStdin({}))
+    registerSession(fixture)
 
     const { client } = await connectServer(fixture.root)
     const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
@@ -766,7 +838,7 @@ describe('sofar event session-end — mechanical close marker (3.5, BD21)', () =
 
   it('unreadable stdin / missing session_id / unbound repo → exit 0 (BD22)', () => {
     const fixture = fx()
-    handleSessionStart(fixture.root, hookStdin({}))
+    registerSession(fixture)
     expect(handleSessionEnd(fixture.root, 'not-json').exitCode).toBe(0)
     expect(handleSessionEnd(fixture.root, JSON.stringify({ reason: 'exit' })).exitCode).toBe(0)
     expect(logEvents(fixture.eventsPath)).toHaveLength(1)
