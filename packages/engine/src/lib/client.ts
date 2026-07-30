@@ -1,5 +1,5 @@
 /**
- * Library entry: "@alignlabs/sofar/client" (sync-client 4.2, SPEC §Sync
+ * Library entry: "sofar.sh/client" (sync-client 4.2, SPEC §Sync
  * client).
  *
  * The v2 sync client as an importable surface — the Tauri shell and the iOS

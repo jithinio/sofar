@@ -26,8 +26,8 @@ await build({
 chmodSync('dist/cli.js', 0o755)
 
 // ---------------------------------------------------------------------------
-// Library surface (library-surface 1.2, L1/L2): "@alignlabs/sofar/schema" and
-// "@alignlabs/sofar/engine" — self-contained ESM bundles, no shebang, never
+// Library surface (library-surface 1.2, L1/L2): "sofar.sh/schema" and
+// "sofar.sh/engine" — self-contained ESM bundles, no shebang, never
 // executable. Side-effect-free entry modules; the CLI bundle is untouched.
 // ---------------------------------------------------------------------------
 

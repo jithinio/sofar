@@ -96,7 +96,7 @@ const tarball = join(packDest, tarballBase)
     const installed = npm(['install', '-g', '--prefix', prefix, tarball], scratch)
     expect(installed.status).toBe(0)
 
-    const pkgDir = join(prefix, 'lib', 'node_modules', '@alignlabs', 'sofar')
+    const pkgDir = join(prefix, 'lib', 'node_modules', 'sofar.sh')
     expect(existsSync(join(pkgDir, 'dist', 'cli.js'))).toBe(true)
     expect(existsSync(join(prefix, 'bin', 'sofar'))).toBe(true)
     // npm auto-includes README.md (prepack copies the repo-root one in)
@@ -160,7 +160,7 @@ const tarball = join(packDest, tarballBase)
 // ---------------------------------------------------------------------------
 
 /** The globally installed package dir — the packed artifact, post-install. */
-const installedPkg = join(prefix, 'lib', 'node_modules', '@alignlabs', 'sofar')
+const installedPkg = join(prefix, 'lib', 'node_modules', 'sofar.sh')
 
 /** This repo's own record — the dogfood fixture the acceptance demands. */
 const repoRecord = join(here, '..', '..', '..', '.sofar', 'initiatives', 'harness-build', 'events.jsonl')
@@ -221,9 +221,9 @@ describe('library surface E2E (library-surface 1.3) — subpath exports from the
     writeFileSync(
       join(proj, 'probe.mjs'),
       [
-        "import { validateEnvelope, makeEvent } from '@alignlabs/sofar/schema'",
-        "import { foldLines } from '@alignlabs/sofar/engine'",
-        "import { splitBatches, normalizeApiUrl, errorParts, DEFAULT_API_URL } from '@alignlabs/sofar/client'",
+        "import { validateEnvelope, makeEvent } from 'sofar.sh/schema'",
+        "import { foldLines } from 'sofar.sh/engine'",
+        "import { splitBatches, normalizeApiUrl, errorParts, DEFAULT_API_URL } from 'sofar.sh/client'",
         "const bad = validateEnvelope('not an event')",
         "if (bad.ok !== false) throw new Error('guard accepted junk')",
         "const ev = makeEvent({ initiative: 'demo', session: 'cli', source: 'cli', actor: 'human', type: 'initiative_created', payload: { slug: 'demo', goal: 'g' } })",
@@ -249,9 +249,9 @@ describe('library surface E2E (library-surface 1.3) — subpath exports from the
     writeFileSync(
       join(proj, 'probe.ts'),
       [
-        "import { validateEnvelope, type EventEnvelope } from '@alignlabs/sofar/schema'",
-        "import { foldLines, type InitiativeState } from '@alignlabs/sofar/engine'",
-        "import { splitBatches, type PushBatch, type RemoteConfig } from '@alignlabs/sofar/client'",
+        "import { validateEnvelope, type EventEnvelope } from 'sofar.sh/schema'",
+        "import { foldLines, type InitiativeState } from 'sofar.sh/engine'",
+        "import { splitBatches, type PushBatch, type RemoteConfig } from 'sofar.sh/client'",
         'const check = validateEnvelope({})',
         'const events: string[] = []',
         'const state: InitiativeState = foldLines(events).state',

@@ -258,7 +258,7 @@ Commands (styled-capable confirmation surfaces; wording identical plain):
   doorbell) watch mode degrades to capped-backoff polling instead of
   going deaf — data always flows through pull.
 
-Library subpath "@alignlabs/sofar/client" (sync-client D1): the whole
+Library subpath "sofar.sh/client" (sync-client D1): the whole
 client core — config/credential/cursor stores, device flow, createRepo,
 pushStream/pullStream/splitBatches, runDoorbell — importable by the
 Tauri shell and iOS app. Same laws as /schema and /engine: side-effect-
@@ -267,18 +267,18 @@ runtime deps (native fetch; the SSE reader is hand-rolled), bin and
 manifest law unchanged.
 
 ## Library surface (library-surface, L1/L2 — added for sofar-cloud + D11)
-@alignlabs/sofar additionally publishes typed ESM subpath exports so other
+sofar.sh additionally publishes typed ESM subpath exports so other
 services consume the engine programmatically (fold parity: cloud state must
 come from the engine's OWN fold, never a reimplementation):
-- "@alignlabs/sofar/schema" — the v1 envelope type + validateEnvelope (the
+- "sofar.sh/schema" — the v1 envelope type + validateEnvelope (the
   tolerant guard: validates, never throws or repairs — skip-and-warn stays
   the caller's decision) + makeEvent, and every event payload type/validator
   from @sofar/schema (events module).
-- "@alignlabs/sofar/engine" — foldLines/foldLog (deterministic, total,
+- "sofar.sh/engine" — foldLines/foldLog (deterministic, total,
   ulid-normative — EXACTLY the CLI's fold), InitiativeState + component
   types + the cross-session derivations, the cursor primitive (readEvents /
   exportEvents / exportNDJSON / importNDJSON), and serializeEvent.
-- "@alignlabs/sofar/client" — the v2 sync client core (§Sync client;
+- "sofar.sh/client" — the v2 sync client core (§Sync client;
   sync-client D1, Jul 2026).
 Laws: importing a subpath executes no CLI code and has no side effects; the
 bin and the zero-runtime-deps manifest are unchanged; the d.ts tree under

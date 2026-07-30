@@ -10,13 +10,13 @@ import { type Caps, createSpinner, stderrCaps, type SpinnerStream } from './ui'
  *
  * The paper-cut this removes: sofar is often installed under a NON-DEFAULT npm
  * prefix (e.g. ~/.local while `npm config get prefix` reports /usr/local), so a
- * plain `npm i -g @alignlabs/sofar@latest` installs into the wrong place and
+ * plain `npm i -g sofar.sh@latest` installs into the wrong place and
  * leaves the copy actually on $PATH untouched. The fix is to stop trusting
  * npm's configured prefix and instead derive the real one from the running
  * binary's own location — the file that IS on $PATH knows where it lives.
  */
 
-export const PACKAGE_NAME = '@alignlabs/sofar'
+export const PACKAGE_NAME = 'sofar.sh'
 
 export interface UpgradeOptions {
   /** Explicit target version; omit for the `latest` dist-tag. */
@@ -39,7 +39,7 @@ export type UpgradePlan =
  * that value is exactly what lies when sofar was installed under a custom
  * prefix, which is the whole reason a naive global install misses the live
  * copy. npm's posix global layout is
- * `<prefix>/lib/node_modules/@alignlabs/sofar/…`, so the prefix is the
+ * `<prefix>/lib/node_modules/sofar.sh/…`, so the prefix is the
  * directory holding `lib`. Anything that is not that layout — a project-local
  * dependency, an npx cache, a source checkout, or a Windows global root — is
  * reported `not-global` with a reason, and the caller prints manual guidance

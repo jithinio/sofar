@@ -995,7 +995,7 @@ describe('spinner law: frames only on an animating stderr, never stdout, nothing
     const spun = await runUpgrade({}, { ...deps, spinnerStream: animated }, { color: true, unicode: true, animate: true })
     expect(spun.exitCode).toBe(0)
     const frames = animated.chunks.join('')
-    expect(frames).toContain('installing @alignlabs/sofar@99.0.0')
+    expect(frames).toContain('installing sofar.sh@99.0.0')
     expect(frames).toContain('\x1b[?25l')
     expect(frames).toContain('\x1b[?25h')
 

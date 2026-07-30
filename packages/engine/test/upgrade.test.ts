@@ -16,10 +16,10 @@ import {
  * network/spawn edges are exercised via injected deps.
  */
 
-const posixGlobal = '/Users/x/.local/lib/node_modules/@alignlabs/sofar/dist/cli.js'
-const defaultGlobal = '/usr/local/lib/node_modules/@alignlabs/sofar/dist/cli.js'
-const localDep = '/Users/x/proj/node_modules/@alignlabs/sofar/dist/cli.js'
-const npxCache = '/Users/x/.npm/_npx/abc123/node_modules/@alignlabs/sofar/dist/cli.js'
+const posixGlobal = '/Users/x/.local/lib/node_modules/sofar.sh/dist/cli.js'
+const defaultGlobal = '/usr/local/lib/node_modules/sofar.sh/dist/cli.js'
+const localDep = '/Users/x/proj/node_modules/sofar.sh/dist/cli.js'
+const npxCache = '/Users/x/.npm/_npx/abc123/node_modules/sofar.sh/dist/cli.js'
 const sourceCheckout = '/Users/x/proj/packages/engine/src/cli/upgrade.ts'
 
 const globalPlan = (prefix: string): UpgradePlan => ({ kind: 'global-npm', prefix, selfPath: 'x' })
@@ -105,7 +105,7 @@ describe('resolveUpgrade — pure decision core', () => {
     expect(d.action).toBe('report')
     if (d.action === 'report') {
       expect(d.result.stdout.trim()).toBe(
-        'npm install -g --prefix /Users/x/.local @alignlabs/sofar@0.4.0',
+        'npm install -g --prefix /Users/x/.local sofar.sh@0.4.0',
       )
     }
   })
@@ -220,8 +220,8 @@ describe('install spinner (cli-ui 2.5) — network use case on stderr', () => {
     expect(res.exitCode).toBe(0)
     expect(res.stdout).toContain('sofar upgraded (9.9.9)') // result message unchanged
     const joined = out.chunks.join('')
-    expect(joined).toContain('installing @alignlabs/sofar@9.9.9')
-    expect(joined.endsWith('\x1b[32m✓\x1b[39m installing @alignlabs/sofar@9.9.9\n')).toBe(true)
+    expect(joined).toContain('installing sofar.sh@9.9.9')
+    expect(joined.endsWith('\x1b[32m✓\x1b[39m installing sofar.sh@9.9.9\n')).toBe(true)
   })
 
   it('closes with a red ✗ when npm fails or cannot be spawned', async () => {
@@ -232,7 +232,7 @@ describe('install spinner (cli-ui 2.5) — network use case on stderr', () => {
       live,
     )
     expect(res.exitCode).toBe(3)
-    expect(out.chunks.join('')).toContain('\x1b[31m✗\x1b[39m installing @alignlabs/sofar@9.9.9')
+    expect(out.chunks.join('')).toContain('\x1b[31m✗\x1b[39m installing sofar.sh@9.9.9')
 
     const out2 = capture()
     await runUpgrade(
@@ -246,7 +246,7 @@ describe('install spinner (cli-ui 2.5) — network use case on stderr', () => {
       },
       live,
     )
-    expect(out2.chunks.join('')).toContain('\x1b[31m✗\x1b[39m installing @alignlabs/sofar@9.9.9')
+    expect(out2.chunks.join('')).toContain('\x1b[31m✗\x1b[39m installing sofar.sh@9.9.9')
   })
 
   it('writes NOTHING to stderr when it cannot animate — piped runs stay byte-identical', async () => {

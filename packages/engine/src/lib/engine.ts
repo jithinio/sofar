@@ -1,5 +1,5 @@
 /**
- * Library entry: "@alignlabs/sofar/engine" (library-surface 1.1, L1).
+ * Library entry: "sofar.sh/engine" (library-surface 1.1, L1).
  *
  * The state layer for programmatic consumers: the deterministic, total,
  * ulid-normative fold (EXACTLY what the CLI uses — fold parity is the point,

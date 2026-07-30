@@ -31,7 +31,7 @@
   `sofar event append`, per the installed protocol blocks.
 - Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`
   from PATH (installed under ~/.local, npm prefix override needed:
-  `npm install -g --prefix ~/.local @alignlabs/sofar@latest`). After each
+  `npm install -g --prefix ~/.local sofar.sh@latest`). After each
   npm publish, upgrade the global install — otherwise this repo dogfoods
   a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for
   three days; injected status was missing the rejected-approaches ledger).

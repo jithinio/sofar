@@ -1,5 +1,5 @@
 /**
- * Library entry: "@alignlabs/sofar/schema" (library-surface 1.1, L1).
+ * Library entry: "sofar.sh/schema" (library-surface 1.1, L1).
  *
  * The format layer for programmatic consumers (sofar-cloud sync, D11 third
  * parties): the v1 event envelope with its tolerant runtime guard, and every

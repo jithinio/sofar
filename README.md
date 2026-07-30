@@ -14,10 +14,10 @@ any model, zero context) resumes without asking.
 ## Install
 
 ```
-npm install -g @alignlabs/sofar    # installs the `sofar` command
+npm install -g sofar.sh    # installs the `sofar` command
 ```
 
-Or one-off: `npx @alignlabs/sofar <command>`. Requires Node ≥ 18. The
+Or one-off: `npx sofar.sh <command>`. Requires Node ≥ 18. The
 package installs with zero runtime dependencies — `dist/cli.js` is fully
 bundled.
 
@@ -62,7 +62,7 @@ git add .sofar .gitattributes .claude .mcp.json CLAUDE.md AGENTS.md
 git commit -m "adopt sofar"
 
 # every dev:
-npm install -g @alignlabs/sofar
+npm install -g sofar.sh
 git pull
 sofar status        # the shared record, folded locally
 ```
@@ -165,9 +165,9 @@ write-back as mandatory.
 exports on the same package — importing them runs no CLI code:
 
 ```ts
-import { validateEnvelope, type EventEnvelope } from '@alignlabs/sofar/schema'
-import { foldLines, exportNDJSON } from '@alignlabs/sofar/engine'
-import { pushStream, pullStream, runDoorbell } from '@alignlabs/sofar/client'
+import { validateEnvelope, type EventEnvelope } from 'sofar.sh/schema'
+import { foldLines, exportNDJSON } from 'sofar.sh/engine'
+import { pushStream, pullStream, runDoorbell } from 'sofar.sh/client'
 ```
 
 `/schema` is the format layer: the v1 envelope type, the tolerant
