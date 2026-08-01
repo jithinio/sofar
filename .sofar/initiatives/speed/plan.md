@@ -13,4 +13,4 @@ Progress: 4/4 tasks done (100%)
 - [x] T3 Persistent MCP daemon: serve the frozen 7-tool MCP surface over HTTP from sofar serve; stdio stays default; opt-in .mcp.json config; parity + no-hang tests
 - [x] T4 File-locality orientation hints: per-task touched-files line from existing PostToolUse events, budgeted + byte-stable; ablation-gated before merge
 
-Next action: Nothing required — distribution is complete for npm/yarn/pnpm/bun. packaging/homebrew/ (sofar.rb + update-formula.sh) is uncommitted and parked until brew is revisited.
+Next action: Await go-ahead to sofar new; first task is the on-disk session-to-initiative pin for hooks.

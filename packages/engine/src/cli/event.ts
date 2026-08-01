@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path'
 import type { Command } from 'commander'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
 import { freshnessTotal, type InitiativeState } from '../core/fold'
-import { createToolContext, ToolError, type ToolContext } from '../mcp/context'
+import { createToolContext, homeInitiative, ToolError, type ToolContext } from '../mcp/context'
 import { enforceStatusLimit, renderStatus } from '../projections/templates/status'
 import { REPO_MD_STUB } from './shared'
 
@@ -112,12 +112,43 @@ function strField(hook: Obj, key: string): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null
 }
 
-/** Resolve the bound initiative; null on any failure (unbound repo etc.). */
-function resolveBound(rootDir: string): { ctx: ToolContext; slug: string } | null {
+/**
+ * Resolve the initiative this hook must write to; null on any failure
+ * (unbound repo etc.).
+ *
+ * Session pinning (record-integrity 1.2, D1) — a REGISTERED session's home
+ * initiative wins over the current branch. MCP writes have been pinned since
+ * BD58 (resolveWriteInitiative), but hooks resolved by branch alone, and a
+ * hook runs in a fresh process where the in-memory pin is always null. That
+ * asymmetry tore sessions in half: a branch switch during live work sent
+ * file_touched/command_run to whatever branch HEAD happened to name while the
+ * same session's decisions and write-back went to its real initiative.
+ *
+ * Order: branch → bindings.json is computed first but NOT trusted blindly —
+ * it is passed as the preferred candidate, so the common case (branch and
+ * registration agree) settles in one file read. An unbound branch is a miss
+ * rather than an error here: a registered session still resolves through its
+ * home, which also stops the silent event drop that unbound branches caused.
+ * A session registered nowhere falls back to the branch and registers there.
+ */
+function resolveBound(
+  rootDir: string,
+  sessionId?: string | null,
+): { ctx: ToolContext; slug: string } | null {
   try {
     const ctx = createToolContext(rootDir)
-    const slug = ctx.resolveInitiative()
-    return { ctx, slug }
+    let branchSlug: string | null = null
+    try {
+      branchSlug = ctx.resolveInitiative()
+    } catch {
+      branchSlug = null // unbound/detached — a pinned home may still answer
+    }
+    if (sessionId != null) {
+      const home = homeInitiative(ctx.sofarDir, sessionId, branchSlug)
+      if (home !== null) return { ctx, slug: home }
+    }
+    if (branchSlug === null) return null
+    return { ctx, slug: branchSlug }
   } catch {
     return null
   }
@@ -234,12 +265,12 @@ function coldResumeAdvisory(hook: Obj, eventsPath: string): string | null {
  */
 export function handleSessionStart(rootDir: string, input: string): HookResult {
   try {
-    const bound = resolveBound(rootDir)
+    const hook = parseHook(input)
+    const sessionId = strField(hook, 'session_id')
+    const bound = resolveBound(rootDir, sessionId)
     if (bound === null) return { ...OK }
     const { ctx, slug } = bound
 
-    const hook = parseHook(input)
-    const sessionId = strField(hook, 'session_id')
     // The gap is measured to the prior session's last event; with lazy
     // registration this hook writes nothing, so no bookkeeping of ours can
     // ever mask a cold record.
@@ -279,11 +310,12 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
  */
 export function handlePostTool(rootDir: string, input: string): HookResult {
   try {
-    const bound = resolveBound(rootDir)
+    const hook = parseHook(input)
+    const session = strField(hook, 'session_id') ?? 'cli'
+    const bound = resolveBound(rootDir, session)
     if (bound === null) return { ...OK }
     const { ctx, slug } = bound
 
-    const hook = parseHook(input)
     const toolName = strField(hook, 'tool_name')
     const toolInput = isObj(hook.tool_input) ? hook.tool_input : {}
 
@@ -304,7 +336,6 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
       return { ...OK }
     }
 
-    const session = strField(hook, 'session_id') ?? 'cli'
     // Lazy registration: one fold to see whether this session is already in
     // the log — the same read the Stop and UserPromptSubmit shims already do
     // on every invocation, and it only precedes an append that folds anyway.
@@ -356,7 +387,7 @@ export function handleStop(
     const sessionId = strField(hook, 'session_id')
     if (sessionId === null) return { ...OK }
 
-    const bound = resolveBound(rootDir)
+    const bound = resolveBound(rootDir, sessionId)
     if (bound === null) return { ...OK }
     const { ctx, slug } = bound
 
@@ -390,13 +421,13 @@ export function handleStop(
  */
 export function handleSessionEnd(rootDir: string, input: string): HookResult {
   try {
-    const bound = resolveBound(rootDir)
-    if (bound === null) return { ...OK }
-    const { ctx, slug } = bound
-
     const hook = parseHook(input)
     const sessionId = strField(hook, 'session_id')
     if (sessionId === null) return { ...OK }
+
+    const bound = resolveBound(rootDir, sessionId)
+    if (bound === null) return { ...OK }
+    const { ctx, slug } = bound
 
     const session = ctx.foldState(slug).sessions.find((s) => s.id === sessionId)
     if (session === undefined || session.ended !== undefined) return { ...OK }
@@ -425,12 +456,12 @@ export const NUDGE_DRIFT_MIN = 5
 
 export function handleUserPrompt(rootDir: string, input: string): HookResult {
   try {
-    const bound = resolveBound(rootDir)
-    if (bound === null) return { ...OK }
-    const { ctx, slug } = bound
-
     const sessionId = strField(parseHook(input), 'session_id')
     if (sessionId === null) return { ...OK }
+
+    const bound = resolveBound(rootDir, sessionId)
+    if (bound === null) return { ...OK }
+    const { ctx, slug } = bound
 
     const state = ctx.foldState(slug)
     if (!state.sessions.some((s) => s.id === sessionId)) return { ...OK } // not ours to nudge

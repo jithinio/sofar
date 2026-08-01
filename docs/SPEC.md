@@ -162,6 +162,13 @@ task_status_changed events that were skipped at replay AND whose task id
 is absent from the FINAL plan — replay-time skips later legitimized by a
 task_added/plan_updated (clock-skew ordering, D-sync-1 rider b) are NOT
 orphans. Additive; InitiativeState itself is unchanged.
+FoldResult also carries unregistered_sessions (record-integrity 2.1): every
+session id appearing on an event in THIS log that no session_started here
+ever registered, sorted, never including "cli". The fold attaches activity
+to registered sessions only (BD21/BD44), so such events were previously
+counted by freshness and files_touched while attributable to no session —
+invisible mass. A non-empty list is the misroute signature and feeds
+doctor's session-routing audit. Additive; InitiativeState unchanged.
 Repo-level derivation listInitiatives(rootDir) (initiative-list 1.2):
 every directory under .sofar/initiatives/ summarized — slug, bound
 branches (bindings.json inverted), tasks done/total, active phase, next
@@ -344,9 +351,31 @@ concurrent branch switch on the shared checkout cannot misroute an
 already-started session's writes (the Phase 11 incident's root cause);
 branch → bindings resolution is the fallback when no session is active,
 and an explicit `initiative` always wins. end_session already resolves via
-the active session (BD15). start_session and get_state keep branch
-resolution: start_session is what establishes the pin, and get_state is a
-read (explicit `initiative` scopes cross-initiative reads).
+the active session (BD15). get_state keeps branch resolution — it is a read
+(explicit `initiative` scopes cross-initiative reads). start_session
+resolves by branch ONLY when `initiative` is named or the session has no
+home yet (record-integrity 1.4): lazy registration (D2) means the
+PostToolUse hook has usually registered the session already, so resolving
+by branch alone registered the same id a SECOND time in another log
+whenever the binding moved in between — the dominant tear shape observed
+(11 of 14 double-registrations were hook-then-claude-code across two
+initiatives). With a home present it adopts there; an explicit `initiative`
+still re-homes deliberately.
+HOOK writes are pinned too (record-integrity 1.2, D1). A hook runs in a
+fresh process where the in-memory pin above is always null, so before this
+it resolved by branch alone — and a branch switch during live work sent
+file_touched/command_run to whatever branch HEAD named while the same
+session's decisions and write-back went to its real initiative. Every hook
+subcommand now resolves through the session's HOME initiative: the one
+whose log registered it with session_started, derived from the logs rather
+than stored in a second place (D1). Branch → bindings is computed first and
+passed as the preferred candidate, so the common case (branch and
+registration agree) costs one file read; siblings are scanned only on a
+miss, and among them the LATEST session_started wins so a deliberate
+re-home beats a stale registration. A session registered nowhere falls back
+to the branch and registers there (lazy registration, D2 — unchanged). An
+UNBOUND branch is a miss rather than an error for a registered session,
+which also ends the silent event drop unbound branches used to cause.
 unknown_initiative errors — from any tool or CLI command that resolves a
 slug (explicit or branch-bound) — carry a count-capped (10) `available
 initiatives:` suffix, or a `sofar new` hint when none exist
@@ -478,7 +507,7 @@ Shims contain no logic — they invoke the sofar CLI.
   the scanner would ingest committed `.sofar/` records; the hint points at
   `sofar doctor --fix` (added Phase 10, D-P10). The statusline hint, when
   both fire, prints before it — the scanner hint keeps the final slot.
-- `sofar doctor [--fix]` — audit a host repo across four axes: (1) wiring
+- `sofar doctor [--fix]` — audit a host repo across five axes: (1) wiring
   integrity (init's shims/settings/.mcp.json/protocol blocks intact); (2)
   record health — initiative logs fold without stub sessions or corrupt lines,
   no STALE PHASE (all tasks done but the phase still active/pending, missing a
@@ -489,8 +518,17 @@ Shims contain no logic — they invoke the sofar CLI.
   — the misroute symptom of a branch-switched write, task 12.2, BD58; one WARN
   per distinct orphan id, skew-ordered events later legitimized by task_added/
   plan_updated excluded);
-  (3) concurrency — no file under concurrent edit by ≥2 OPEN sessions (a live
-  clobber risk); (4) scanner hazards (Tailwind v4 entry stylesheet lacking a
+  (3) session routing — no session id spans more than one initiative
+  (record-integrity 2.2). Reports at FAIL, not WARN: a split session's work is
+  torn across records and no single fold can show it whole. Two shapes, both
+  from the pre-pin misroute — TORN (registered by session_started in ≥2
+  initiatives, so MCP writes and hook writes went to different logs) and
+  LEAKED (events in an initiative that never registered the session, counted
+  by that initiative's freshness and files_touched while attributable to no
+  session). Derived from FoldResult.unregistered_sessions plus each state's
+  registered ids; deterministic, sessions sorted by id and footprints by slug;
+  (4) concurrency — no file under concurrent edit by ≥2 OPEN sessions (a live
+  clobber risk); (5) scanner hazards (Tailwind v4 entry stylesheet lacking a
   `@source not` exclusion for `.sofar`). Record-health and concurrency findings
   are WARN (surfaced, non-fatal); exit 1 only when a FAIL-level finding remains,
   0 on a clean repo. `--fix` performs the one deterministic, safe repair:

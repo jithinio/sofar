@@ -184,6 +184,18 @@ export interface FoldResult {
   state: InitiativeState
   warnings: string[]
   orphan_task_events: OrphanTaskEvent[]
+  /**
+   * Session ids that appear on events in THIS log but were never registered
+   * here by a session_started (record-integrity 2.1). The fold deliberately
+   * attaches activity to registered sessions only (BD21/BD44), so before this
+   * existed such events were counted by freshness and files_touched while
+   * being attributable to no session at all — invisible mass.
+   *
+   * A non-empty list means events arrived from a session living somewhere
+   * else: the misroute signature. Sorted; "cli" is never a session identity
+   * and never appears.
+   */
+  unregistered_sessions: string[]
 }
 
 export function emptyState(): InitiativeState {
@@ -266,6 +278,7 @@ export function foldLines(lines: readonly string[]): FoldResult {
   const state = emptyState()
   const blockNotes = new Map<string, string>() // task id → note from its blocking event
   const activity = new Map<string, ActivityAcc>() // envelope.session → derived activity (BD44)
+  const seenSessions = new Set<string>() // every session id on any event (record-integrity 2.1)
   const orphanCandidates: OrphanTaskEvent[] = [] // task 12.2: replay-time skips, filtered against the final plan below
 
   for (const { lineNo, event } of parsed) {
@@ -286,6 +299,7 @@ export function foldLines(lines: readonly string[]): FoldResult {
       continue
     }
 
+    if (event.session !== 'cli') seenSessions.add(event.session)
     applyEvent(state, event, blockNotes, warnings, lineNo)
     recordActivity(activity, event)
     recordFreshness(state, event)
@@ -312,7 +326,9 @@ export function foldLines(lines: readonly string[]): FoldResult {
   // Keep only ids the FINAL plan never absorbed (a later task_added /
   // plan_updated clears the candidate — that skip was ordering, not misroute).
   const orphans = orphanCandidates.filter((c) => findTask(state, c.task_id) === undefined)
-  return { state, warnings, orphan_task_events: orphans }
+  const registered = new Set(state.sessions.map((s) => s.id))
+  const unregistered = [...seenSessions].filter((id) => !registered.has(id)).sort()
+  return { state, warnings, orphan_task_events: orphans, unregistered_sessions: unregistered }
 }
 
 // ---------------------------------------------------------------------------

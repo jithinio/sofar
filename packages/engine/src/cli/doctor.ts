@@ -175,6 +175,8 @@ interface Folded {
   state?: InitiativeState
   warnings: string[]
   orphans: OrphanTaskEvent[]
+  /** Session ids seen on events here but never registered here (2.1). */
+  unregistered: string[]
   error?: string
 }
 
@@ -199,9 +201,15 @@ function foldInitiatives(rootDir: string): Folded[] {
       const logPath = join(rootDir, '.sofar', 'initiatives', slug, 'events.jsonl')
       try {
         const result = foldLog(logPath)
-        return { slug, state: result.state, warnings: result.warnings, orphans: result.orphan_task_events }
+        return {
+          slug,
+          state: result.state,
+          warnings: result.warnings,
+          orphans: result.orphan_task_events,
+          unregistered: result.unregistered_sessions,
+        }
       } catch (err) {
-        return { slug, warnings: [], orphans: [], error: errMessage(err) }
+        return { slug, warnings: [], orphans: [], unregistered: [], error: errMessage(err) }
       }
     })
 }
@@ -288,6 +296,73 @@ function auditRecords(folded: Folded[]): Section {
     if (findings.length === before) findings.push({ level: 'ok', text: `${slug}: folds clean` })
   }
   return { title: 'Record health', findings }
+}
+
+/** One session's footprint in one initiative (record-integrity 2.1). */
+interface Footprint {
+  slug: string
+  registered: boolean
+}
+
+/**
+ * Split sessions (record-integrity 2.1/2.2) — one session id with events in
+ * more than one initiative. This is data corruption, not hygiene, so it
+ * reports at FAIL: the session's work is torn across records and no single
+ * fold can show it whole.
+ *
+ * Two shapes, both caught here:
+ *  - TORN — registered (session_started) in ≥2 initiatives. Its MCP writes
+ *    and its hook writes went to different logs.
+ *  - LEAKED — events in an initiative that never registered it, so the fold
+ *    attributes them to nobody while they still inflate that initiative's
+ *    freshness counters and files_touched.
+ *
+ * Phase 1 stops new splits at the source (hook writes now follow the session
+ * home). Anything reported here is either history or a pre-fix session still
+ * in flight. Deterministic: sessions sorted by id, footprints by slug.
+ */
+function auditSplitSessions(folded: Folded[]): Section {
+  const footprints = new Map<string, Footprint[]>()
+  const add = (id: string, slug: string, registered: boolean): void => {
+    if (id === 'cli') return
+    const list = footprints.get(id) ?? []
+    list.push({ slug, registered })
+    footprints.set(id, list)
+  }
+  for (const { slug, state, unregistered } of folded) {
+    if (state !== undefined) for (const s of state.sessions) add(s.id, slug, true)
+    for (const id of unregistered) add(id, slug, false)
+  }
+
+  const findings: Finding[] = []
+  const split = [...footprints.entries()]
+    .filter(([, list]) => list.length > 1)
+    .sort(([a], [b]) => a.localeCompare(b))
+
+  for (const [id, list] of split) {
+    list.sort((a, b) => a.slug.localeCompare(b.slug))
+    const homes = list.filter((f) => f.registered).map((f) => f.slug)
+    const leaked = list.filter((f) => !f.registered).map((f) => f.slug)
+    const shape = homes.length > 1 ? 'torn' : 'leaked'
+    let hint: string
+    if (homes.length > 1) {
+      hint = `registered in ${homes.join(', ')} — its writes were split across ${homes.length} records`
+    } else if (homes.length === 1) {
+      hint = `registered in ${homes[0]!}; events also landed in ${leaked.join(', ')} where it is unknown`
+    } else {
+      hint = `registered nowhere; events landed in ${leaked.join(', ')} — no log claims this session`
+    }
+    findings.push({
+      level: 'fail',
+      text: `session ${id} spans ${list.length} initiatives (${shape}): ${list.map((f) => f.slug).join(', ')}`,
+      hint,
+    })
+  }
+
+  if (findings.length === 0) {
+    findings.push({ level: 'ok', text: 'no session spans more than one initiative' })
+  }
+  return { title: 'Session routing', findings }
 }
 
 function auditConcurrency(folded: Folded[]): Section {
@@ -498,6 +573,7 @@ export function runDoctor(
   const sections = [
     auditWiring(rootDir),
     auditRecords(folded),
+    auditSplitSessions(folded),
     auditConcurrency(folded),
     auditScanners(rootDir, fix, { caps: progress.caps ?? stderrCaps(), stream: progress.stream }),
   ]

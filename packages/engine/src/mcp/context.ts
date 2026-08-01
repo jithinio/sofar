@@ -94,6 +94,100 @@ export function currentBranch(rootDir: string): string | null {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Session → home initiative (record-integrity 1.1, D1).
+// ---------------------------------------------------------------------------
+
+/** Initiative slugs present under .sofar/initiatives/, sorted; [] on any failure. */
+function initiativeSlugs(sofarDir: string): string[] {
+  try {
+    return readdirSync(join(sofarDir, 'initiatives'), { withFileTypes: true })
+      .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+      .map((d) => d.name)
+      .sort()
+  } catch {
+    return []
+  }
+}
+
+/**
+ * ts of this log's session_started for `sessionId`, or null. The substring
+ * pre-filter matters: the overwhelmingly common answer is "not here", and it
+ * is reached without parsing a single line.
+ */
+function registeredAt(logPath: string, sessionId: string): string | null {
+  let text: string
+  try {
+    text = readFileSync(logPath, 'utf8')
+  } catch {
+    return null // no log yet, or unreadable — indistinguishable and both "no"
+  }
+  if (!text.includes(sessionId)) return null
+  for (const line of text.split('\n')) {
+    if (line.length === 0 || !line.includes(sessionId)) continue
+    try {
+      const event: unknown = JSON.parse(line)
+      if (
+        typeof event === 'object' &&
+        event !== null &&
+        (event as Record<string, unknown>).type === 'session_started' &&
+        (event as Record<string, unknown>).session === sessionId
+      ) {
+        const ts = (event as Record<string, unknown>).ts
+        if (typeof ts === 'string') return ts
+      }
+    } catch {
+      // torn/corrupt line — same tolerance as the fold, never fatal
+    }
+  }
+  return null
+}
+
+/**
+ * A session's HOME initiative: the one whose log registered it with
+ * session_started (record-integrity D1 — derived from the truth log, never
+ * copied into a second store that could desync).
+ *
+ * `preferred` (the branch-bound slug) is checked FIRST and wins outright when
+ * it registered the session — branch and registration agree, so the common
+ * path costs one file read. Siblings are scanned only on a miss, which is
+ * precisely the situation that produced a misroute before this existed: the
+ * session is live in an initiative the current branch no longer points at.
+ * Among siblings the LATEST session_started wins, so a deliberate re-home
+ * (start_session naming an initiative) beats a stale earlier registration.
+ *
+ * Returns null when no log has registered the session — a brand-new session,
+ * whose home is legitimately the current branch (lazy registration, D2).
+ *
+ * Best-effort by contract (BD22): an unreadable log is skipped, never fatal.
+ */
+export function homeInitiative(
+  sofarDir: string,
+  sessionId: string,
+  preferred?: string | null,
+): string | null {
+  if (sessionId.length === 0 || sessionId === 'cli') return null
+
+  const eventsPathFor = (slug: string): string =>
+    join(sofarDir, 'initiatives', slug, 'events.jsonl')
+
+  if (preferred != null && registeredAt(eventsPathFor(preferred), sessionId) !== null) {
+    return preferred
+  }
+
+  let home: string | null = null
+  let latest = ''
+  for (const slug of initiativeSlugs(sofarDir)) {
+    if (slug === preferred) continue // already missed above
+    const ts = registeredAt(eventsPathFor(slug), sessionId)
+    if (ts !== null && ts >= latest) {
+      latest = ts
+      home = slug
+    }
+  }
+  return home
+}
+
 /**
  * Available-initiatives suffix for unknown_initiative errors (initiative-list
  * 2.2): the dead-end becomes an orientation point — the caller learns what
@@ -102,15 +196,7 @@ export function currentBranch(rootDir: string): string | null {
  * error message.
  */
 function knownInitiatives(sofarDir: string): string {
-  let slugs: string[]
-  try {
-    slugs = readdirSync(join(sofarDir, 'initiatives'), { withFileTypes: true })
-      .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
-      .map((d) => d.name)
-      .sort()
-  } catch {
-    slugs = []
-  }
+  const slugs = initiativeSlugs(sofarDir)
   if (slugs.length === 0) return 'no initiatives exist yet — create one with `sofar new <slug>`'
   const MAX_LISTED = 10
   const listed = slugs.slice(0, MAX_LISTED).join(', ')

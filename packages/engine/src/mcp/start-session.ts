@@ -1,6 +1,6 @@
 import { ulid } from 'ulid'
 import type { StartSessionArgs } from '@sofar/schema/tool-inputs'
-import { ToolError, toSource, type ToolContext } from './context'
+import { homeInitiative, ToolError, toSource, type ToolContext } from './context'
 
 /**
  * sofar_start_session — adopt-by-id (task 7.1, BD43, replacing BD20's
@@ -23,7 +23,19 @@ import { ToolError, toSource, type ToolContext } from './context'
  * mapped to envelope.source.
  */
 export function startSession(ctx: ToolContext, args: StartSessionArgs): { session_id: string } {
-  const slug = ctx.resolveInitiative(args.initiative)
+  let slug = ctx.resolveInitiative(args.initiative)
+
+  // Home beats branch when no initiative is named (record-integrity 1.4, D1).
+  // Lazy registration (D2) means the PostToolUse hook usually registers a
+  // session BEFORE the agent gets here; resolving by branch alone then
+  // registered the same id a SECOND time in another log whenever the binding
+  // had moved in between — the dominant tear shape in this repo's own record
+  // (11 of 14 double-registrations were hook-then-claude-code across two
+  // initiatives). An explicit `initiative` still re-homes deliberately.
+  if (args.initiative === undefined && args.session_id !== undefined) {
+    const home = homeInitiative(ctx.sofarDir, args.session_id, slug)
+    if (home !== null) slug = home
+  }
 
   if (args.session_id !== undefined) {
     const existing = ctx.foldState(slug).sessions.find((s) => s.id === args.session_id)
