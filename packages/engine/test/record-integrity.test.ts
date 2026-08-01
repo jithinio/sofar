@@ -1,11 +1,20 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+// (mkdirSync/writeFileSync also back the Phase 4 ref fixtures below)
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { makeEvent, type EventEnvelope } from '../src/core/envelope'
 import { appendEvent } from '../src/core/log'
 import { foldLog } from '../src/core/fold'
-import { handlePostTool, handleSessionEnd, handleStop } from '../src/cli/event'
+import {
+  handlePostTool,
+  handleSessionEnd,
+  handleSessionStart,
+  handleStop,
+  handleUserPrompt,
+} from '../src/cli/event'
 import { runDoctor } from '../src/cli/doctor'
+import { readGitState } from '../src/core/git'
+import { unwrittenSessions } from '../src/projections/templates/status'
 import { homeInitiative } from '../src/mcp/context'
 import {
   callTool,
@@ -72,6 +81,21 @@ function register(root: string, slug: string, session: string, ts?: string): voi
     ...event,
     ...(ts !== undefined ? { ts } : {}),
   })
+}
+
+/** Close `session` in `slug` with a write-back, so the split reads as history. */
+function endSession(root: string, slug: string, session: string): void {
+  appendEvent(
+    join(root, '.sofar', 'initiatives', slug, 'events.jsonl'),
+    makeEvent({
+      initiative: slug,
+      session,
+      source: 'claude-code',
+      actor: 'agent',
+      type: 'session_ended',
+      payload: { session_id: session, summary: 'done', next_action: 'none' },
+    }),
+  )
 }
 
 function logEvents(path: string): EventEnvelope[] {
@@ -248,16 +272,33 @@ describe('split-session detection (2.1/2.2)', () => {
     expect(foldLog(f.eventsPath).unregistered_sessions).toEqual([])
   })
 
-  it('doctor FAILS on a torn session registered in two initiatives', () => {
+  it('doctor FAILS on a torn session that is still open', () => {
     const f = fx({ slug: 'alpha' })
     addInitiative(f.root, 'beta')
     register(f.root, 'alpha', 'sess-torn')
     register(f.root, 'beta', 'sess-torn')
 
+    // Exit code is not the assertion here — the bare fixture has no wiring, so
+    // auditWiring fails regardless. The routing finding's LEVEL is the subject.
     const r = runDoctor(f.root)
-    expect(r.exitCode).toBe(1)
-    expect(r.stdout).toContain('session sess-torn spans 2 initiatives (torn)')
-    expect(r.stdout).toContain('alpha, beta')
+    expect(r.stdout).toContain('FAIL  session sess-torn spans 2 initiatives (torn, live)')
+    expect(r.stdout).toContain('still OPEN')
+  })
+
+  it('doctor WARNS but does not fail once every session in the split has ended (3.2)', () => {
+    const f = fx({ slug: 'alpha' })
+    addInitiative(f.root, 'beta')
+    register(f.root, 'alpha', 'sess-torn')
+    register(f.root, 'beta', 'sess-torn')
+    for (const slug of ['alpha', 'beta']) {
+      endSession(f.root, slug, 'sess-torn')
+    }
+
+    const r = runDoctor(f.root)
+    // WARN, not FAIL: settled history must never fail the audit forever.
+    expect(r.stdout).toContain('WARN  session sess-torn spans 2 initiatives (torn, history)')
+    expect(r.stdout).not.toContain('FAIL  session sess-torn')
+    expect(r.stdout).toContain('settled history')
   })
 
   it('doctor FAILS on a leaked session whose events landed where it is unknown', () => {
@@ -277,8 +318,7 @@ describe('split-session detection (2.1/2.2)', () => {
     )
 
     const r = runDoctor(f.root)
-    expect(r.exitCode).toBe(1)
-    expect(r.stdout).toContain('session sess-leak spans 2 initiatives (leaked)')
+    expect(r.stdout).toContain('FAIL  session sess-leak spans 2 initiatives (leaked, live)')
     expect(r.stdout).toContain('events also landed in beta')
   })
 
@@ -339,6 +379,111 @@ describe('start_session honours the session home (1.4)', () => {
     }
 
     expect(logEvents(betaLog).filter((e) => e.type === 'session_started')).toHaveLength(1)
+  })
+})
+
+describe('cross-session awareness (Phase 4)', () => {
+  /** Give the fixture repo a local + origin ref so git state is readable. */
+  function writeRefs(root: string, head: string, origin?: string): void {
+    mkdirSync(join(root, '.git', 'refs', 'heads'), { recursive: true })
+    writeFileSync(join(root, '.git', 'refs', 'heads', 'main'), `${head}\n`)
+    if (origin !== undefined) {
+      mkdirSync(join(root, '.git', 'refs', 'remotes', 'origin'), { recursive: true })
+      writeFileSync(join(root, '.git', 'refs', 'remotes', 'origin', 'main'), `${origin}\n`)
+    }
+  }
+
+  const sha = (c: string): string => c.repeat(40)
+
+  it('reads git state from refs — synced, unpushed, and never-pushed (4.1)', () => {
+    const f = fx({ slug: 'alpha' })
+    writeRefs(f.root, sha('a'), sha('a'))
+    expect(readGitState(f.root)).toEqual({
+      branch: 'main',
+      head: 'aaaaaaa',
+      upstream: 'aaaaaaa',
+      synced: true,
+    })
+
+    writeRefs(f.root, sha('b'), sha('a'))
+    expect(readGitState(f.root)?.synced).toBe(false)
+
+    const g = fx({ slug: 'alpha' })
+    writeRefs(g.root, sha('c'))
+    expect(readGitState(g.root)).toMatchObject({ upstream: null, synced: false })
+  })
+
+  it('renders one derived Git line in the status block (4.1)', () => {
+    const f = fx({ slug: 'alpha' })
+    writeRefs(f.root, sha('a'), sha('a'))
+    register(f.root, 'alpha', 'sess-1')
+
+    const out = handleSessionStart(f.root, JSON.stringify({ session_id: 'sess-1', cwd: '/tmp' })).stdout
+    expect(out).toContain('Git: main @ aaaaaaa — in sync with origin/main')
+
+    writeRefs(f.root, sha('b'), sha('a'))
+    expect(
+      handleSessionStart(f.root, JSON.stringify({ session_id: 'sess-1', cwd: '/tmp' })).stdout,
+    ).toContain('unpushed work')
+  })
+
+  it('tells a live session that a sibling wrapped, and whether it is pushed (4.2)', () => {
+    const f = fx({ slug: 'alpha' })
+    writeRefs(f.root, sha('a'), sha('a'))
+    register(f.root, 'alpha', 'mine')
+    register(f.root, 'alpha', 'sibling')
+    endSession(f.root, 'alpha', 'sibling')
+
+    const out = handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout
+    expect(out).toContain('session sibling wrapped while you worked')
+    expect(out).toContain('pushed (in sync with origin/main)')
+  })
+
+  it('says NOT pushed when the local tip is ahead of origin (4.2)', () => {
+    const f = fx({ slug: 'alpha' })
+    writeRefs(f.root, sha('b'), sha('a'))
+    register(f.root, 'alpha', 'mine')
+    register(f.root, 'alpha', 'sibling')
+    endSession(f.root, 'alpha', 'sibling')
+
+    const out = handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout
+    expect(out).toContain('NOT pushed (origin/main at aaaaaaa)')
+  })
+
+  it('stays silent when no sibling wrapped, and ignores mechanical closes (4.2)', () => {
+    const f = fx({ slug: 'alpha' })
+    writeRefs(f.root, sha('a'), sha('a'))
+    register(f.root, 'alpha', 'mine')
+    register(f.root, 'alpha', 'sibling')
+    // A bare session_closed is not a write-back — nothing to report.
+    handleSessionEnd(f.root, JSON.stringify({ session_id: 'sibling', reason: 'clear' }))
+
+    expect(handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout).toBe('')
+  })
+
+  it('reports EVERY unwritten session, not just the newest (4.3)', () => {
+    const f = fx({ slug: 'alpha' })
+    // Three sessions with real activity; none writes back.
+    for (const id of ['s1', 's2', 's3']) {
+      handlePostTool(f.root, bashStdin(id, 'npm test'))
+    }
+    const state = foldLog(f.eventsPath).state
+    expect(unwrittenSessions(state.sessions).map((s) => s.id)).toEqual(['s3', 's2', 's1'])
+
+    const out = handleSessionStart(f.root, JSON.stringify({ session_id: 's3', cwd: '/tmp' })).stdout
+    expect(out).toContain('2 other session(s) did work without writing back')
+    expect(out).toContain('s2')
+    expect(out).toContain('s1')
+  })
+
+  it('a single write-back no longer hides the other unwritten sessions (4.3)', () => {
+    const f = fx({ slug: 'alpha' })
+    for (const id of ['s1', 's2']) handlePostTool(f.root, bashStdin(id, 'npm test'))
+    endSession(f.root, 'alpha', 's2') // pre-4.3 this hid s1 from the block entirely
+
+    const out = handleSessionStart(f.root, JSON.stringify({ session_id: 's2', cwd: '/tmp' })).stdout
+    expect(out).toContain('1 other session(s) did work without writing back')
+    expect(out).toContain('s1')
   })
 })
 

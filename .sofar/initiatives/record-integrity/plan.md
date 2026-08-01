@@ -2,9 +2,9 @@
 
 # Plan: record-integrity
 
-Goal: Stop cross-initiative event misroutes: pin hook writes to a session's home initiative, detect split sessions, and repair the live record.
+Goal: Stop cross-initiative event misroutes: pin writes to a session's home initiative, detect split sessions, and give parallel sessions awareness of each other.
 
-Progress: 6/11 tasks done (54%)
+Progress: 11/11 tasks done (100%)
 
 ## Phase 1 — Pin writes to the session home (stop the bleeding) [done] — 4/4 done
 
@@ -16,17 +16,17 @@ Progress: 6/11 tasks done (54%)
 ## Phase 2 — Detect splits [done] — 2/2 done
 
 - [x] 2.1 FoldResult.unregistered_sessions: session ids seen on events but never registered in that log
-- [x] 2.2 doctor "Session routing" section reports splits at FAIL, distinguishing torn from leaked
+- [x] 2.2 doctor "Session routing" section, graded by liveness — FAIL when a session is still open, WARN for settled history
 
-## Phase 3 — Repair the live record [pending] — 0/2 done
+## Phase 3 — Repair (scoped down) [done] — 2/2 done
 
-- [ ] 3.1 Reattribute the speed/record-integrity split via correction events; leave merged initiatives as history
-- [ ] 3.2 Decide the policy for the 19 historical splits — repair, annotate, or accept as history
+- [x] 3.1 Close the one abandoned session (40742c6d in harness-build) — doctor now exits 0
+- [x] 3.2 Reattribution rejected as unsound: corrections void, they cannot move, and ulid replay order would refile events after their own session_ended
 
-## Phase 4 — Cross-session awareness (the original ask) [pending] — 0/3 done
+## Phase 4 — Cross-session awareness (the original ask) [done] — 3/3 done
 
-- [ ] 4.1 Derive git state (HEAD, ahead/behind, dirty) at render time — never log it
-- [ ] 4.2 UserPromptSubmit surfaces other sessions' movement since this session's last read
-- [ ] 4.3 Report all unwritten sessions, not just the newest (status.ts lastUnwrittenWithActivity)
+- [x] 4.1 core/git.ts readGitState — branch/head/upstream/synced from refs, no subprocess; one Git line in the status block
+- [x] 4.2 UserPromptSubmit parallel-wrap line: a sibling's write-back plus push state, derived, stateless
+- [x] 4.3 Report every unwritten session, not just the newest
 
-Next action: Phase 3: decide repair policy for the 21 splits (doctor now exits 1 until then).
+Next action: Push origin main; Phase 4 is unverified against a real second live session.

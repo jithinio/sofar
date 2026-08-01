@@ -6,6 +6,7 @@ import {
   type InitiativeState,
   type SessionState,
 } from '../../core/fold'
+import type { GitState } from '../../core/git'
 import {
   clip,
   clipBlockDetect,
@@ -111,6 +112,25 @@ function lastUnwrittenWithActivity(sessions: readonly SessionState[]): SessionSt
     if (session.activity !== undefined) return session
   }
   return undefined
+}
+
+/** Cap on the sibling-count line so a crowded record cannot bloat the block. */
+export const UNWRITTEN_SIBLING_CAP = 5
+
+/**
+ * EVERY session that did mechanical work and never wrote back
+ * (record-integrity 4.3), newest first.
+ *
+ * lastUnwrittenWithActivity answers a different question — "what is the best
+ * derived resume point" — and deliberately stops at the newest written-back
+ * session. That is right for resuming and wrong for accounting: with parallel
+ * sessions, one write-back hid every other session's unwritten work from the
+ * block entirely. This scans the whole list so the count is honest.
+ */
+export function unwrittenSessions(sessions: readonly SessionState[]): SessionState[] {
+  return sessions
+    .filter((s) => s.summary === undefined && s.activity !== undefined)
+    .reverse()
 }
 
 /**
@@ -267,6 +287,13 @@ export interface StatusOptions {
    * BD20's newest-open adoption heuristic.
    */
   sessionId?: string
+  /**
+   * Derived git state (record-integrity 4.1) — read from refs by the caller,
+   * never stored in the record. Rendered as one line so a session can see
+   * whether the work in front of it has been pushed without a human saying
+   * so. Omitted entirely when the caller could not read git.
+   */
+  git?: GitState
 }
 
 export function renderStatus(state: InitiativeState, options?: StatusOptions): string {
@@ -281,6 +308,18 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
       `Session: ${clip(sessionId, SESSION_ID_BUDGET)} — when calling sofar_start_session, pass this as session_id.`,
       '',
     )
+  }
+
+  // Git state (record-integrity 4.1): one derived line, never an event.
+  const git = options?.git
+  if (git !== undefined) {
+    const sync =
+      git.upstream === null
+        ? 'no origin ref — never pushed'
+        : git.synced
+          ? `in sync with origin/${git.branch}`
+          : `differs from origin/${git.branch} (${git.upstream}) — unpushed work`
+    lines.push(`Git: ${clip(`${git.branch} @ ${git.head} — ${sync}`, GOAL_BUDGET)}`, '')
   }
 
   lines.push(`Goal: ${state.goal ? clip(state.goal, GOAL_BUDGET) : '(none recorded)'}`, '')
@@ -447,6 +486,23 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
       ),
     )
     lines.push(`  (details in sessions/${clip(unwritten.id, SESSION_ID_BUDGET)}.md)`)
+    lines.push('')
+  }
+
+  // Every OTHER unwritten session (record-integrity 4.3): the derived line
+  // above names one, and with parallel sessions the rest used to vanish —
+  // a single write-back was enough to hide them all. One budgeted line.
+  const allUnwritten = unwrittenSessions(state.sessions)
+  const others = allUnwritten.filter((s) => s.id !== unwritten?.id)
+  if (others.length > 0) {
+    const named = others.slice(0, UNWRITTEN_SIBLING_CAP).map((s) => clip(s.id, SESSION_ID_BUDGET))
+    const more = others.length > named.length ? `, +${others.length - named.length} more` : ''
+    lines.push(
+      clip(
+        `⚠ ${others.length} other session(s) did work without writing back: ${named.join(', ')}${more}`,
+        DERIVED_SESSION_BUDGET,
+      ),
+    )
     lines.push('')
   }
 

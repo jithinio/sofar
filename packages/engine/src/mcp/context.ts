@@ -1,11 +1,16 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { isAbsolute, join } from 'node:path'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { validatePayload, isKnownEventType } from '@sofar/schema'
 import type { ToolErrorCode, ToolErrorShape } from '@sofar/schema/tool-inputs'
 import { makeEvent, SOURCES, type Actor, type EventEnvelope, type Source } from '../core/envelope'
 import { appendEvent } from '../core/log'
 import { foldLog, emptyState, type InitiativeState } from '../core/fold'
+import { currentBranch } from '../core/git'
 import { regenerateProjections } from '../projections/generator'
+
+// Branch → initiative resolution reads git; the reader itself lives in core/
+// (record-integrity 4.1) so projections can use it without depending on mcp/.
+export { currentBranch } from '../core/git'
 
 /**
  * Shared tool context: repo root, record paths (SPEC §Record layout),
@@ -63,35 +68,6 @@ export function toSource(tool: string | undefined): Source {
   return tool !== undefined && (SOURCES as readonly string[]).includes(tool)
     ? (tool as Source)
     : 'cli'
-}
-
-// ---------------------------------------------------------------------------
-// Git branch → initiative resolution.
-// ---------------------------------------------------------------------------
-
-/**
- * Current branch from .git/HEAD without spawning git. Supports a
- * worktree-style .git FILE ("gitdir: <path>") by following it to that HEAD.
- * Returns null for detached HEAD or when no .git is readable.
- */
-export function currentBranch(rootDir: string): string | null {
-  try {
-    const dotGit = join(rootDir, '.git')
-    let headPath: string
-    if (statSync(dotGit).isDirectory()) {
-      headPath = join(dotGit, 'HEAD')
-    } else {
-      const gitdirMatch = /^gitdir:\s*(.+)\s*$/m.exec(readFileSync(dotGit, 'utf8'))
-      if (!gitdirMatch) return null
-      const gitDir = gitdirMatch[1]!.trim()
-      headPath = join(isAbsolute(gitDir) ? gitDir : join(rootDir, gitDir), 'HEAD')
-    }
-    const head = readFileSync(headPath, 'utf8').trim()
-    const refMatch = /^ref:\s*refs\/heads\/(.+)$/.exec(head)
-    return refMatch ? refMatch[1]! : null
-  } catch {
-    return null
-  }
 }
 
 // ---------------------------------------------------------------------------

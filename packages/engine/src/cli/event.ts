@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path'
 import type { Command } from 'commander'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
 import { freshnessTotal, type InitiativeState } from '../core/fold'
+import { readGitState } from '../core/git'
 import { createToolContext, homeInitiative, ToolError, type ToolContext } from '../mcp/context'
 import { enforceStatusLimit, renderStatus } from '../projections/templates/status'
 import { REPO_MD_STUB } from './shared'
@@ -283,9 +284,13 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     // The advisory composes AROUND the status block (never inside it — the
     // block's byte-stability is pinned, felt-cost 1.2); the composed output
     // is re-capped so the injection contract stays ≤10,000 chars.
+    // Git state is READ, never logged (record-integrity 4.1) — refs only, so
+    // it costs no subprocess inside the 100ms shim budget.
+    const git = readGitState(rootDir)
     const status = renderStatus(state, {
       ...(repoMemory !== null ? { repoMemory } : {}),
       ...(sessionId !== null ? { sessionId } : {}),
+      ...(git !== null ? { git } : {}),
     })
     return {
       ...OK,
@@ -454,6 +459,64 @@ export function handleSessionEnd(rootDir: string, input: string): HookResult {
  */
 export const NUDGE_DRIFT_MIN = 5
 
+/** Character budget for the parallel-wrap line (record-integrity 4.2). */
+export const PARALLEL_WRAP_BUDGET = 420
+
+function clipTo(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, Math.max(0, max - 1))}…`
+}
+
+/**
+ * Parallel wrap-ups (record-integrity 4.2) — what OTHER sessions finished
+ * while this one was working, plus whether the result is pushed.
+ *
+ * This is the line that answers the complaint this initiative started from:
+ * a session had no way to learn that a sibling had committed and pushed, so
+ * a human had to say it out loud in every other window. Everything here is
+ * derived — sibling write-backs come from the fold, push state comes from
+ * git refs — so it costs no new events and no new stored state.
+ *
+ * Selection is deliberately narrow to stay quiet: only sessions that ENDED
+ * with a real write-back (summary present, so a mechanical session_closed
+ * does not qualify) at or after this session started. Stateless and
+ * re-firing, like the drift nudge it sits beside — there is no "already
+ * told you" bit to keep, and repeating a true fact is cheaper than storing
+ * one.
+ */
+function parallelWrapLine(
+  state: InitiativeState,
+  sessionId: string,
+  git: ReturnType<typeof readGitState>,
+): string | null {
+  const me = state.sessions.find((s) => s.id === sessionId)
+  if (me === undefined) return null
+
+  const others = state.sessions
+    .filter(
+      (s): s is typeof s & { ended: string; summary: string } =>
+        s.id !== sessionId && s.ended !== undefined && s.summary !== undefined && s.ended >= me.started,
+    )
+    .sort((a, b) => (a.ended < b.ended ? 1 : -1))
+  if (others.length === 0) return null
+
+  const newest = others[0]!
+  const more = others.length > 1 ? ` (+${others.length - 1} more)` : ''
+  const next = newest.next_action !== undefined ? ` — next: ${newest.next_action}` : ''
+  const push =
+    git === null
+      ? ''
+      : git.upstream === null
+        ? ` Git: ${git.branch} @ ${git.head}, never pushed.`
+        : git.synced
+          ? ` Git: ${git.branch} @ ${git.head}, pushed (in sync with origin/${git.branch}).`
+          : ` Git: ${git.branch} @ ${git.head}, NOT pushed (origin/${git.branch} at ${git.upstream}).`
+
+  return clipTo(
+    `sofar: session ${newest.id} wrapped while you worked${more} — "${newest.summary}"${next}.${push}`,
+    PARALLEL_WRAP_BUDGET,
+  )
+}
+
 export function handleUserPrompt(rootDir: string, input: string): HookResult {
   try {
     const sessionId = strField(parseHook(input), 'session_id')
@@ -465,16 +528,21 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
 
     const state = ctx.foldState(slug)
     if (!state.sessions.some((s) => s.id === sessionId)) return { ...OK } // not ours to nudge
-    const drift = freshnessTotal(state.freshness)
-    if (drift < NUDGE_DRIFT_MIN) return { ...OK }
 
-    return {
-      ...OK,
-      stdout:
+    const lines: string[] = []
+    const wrap = parallelWrapLine(state, sessionId, readGitState(rootDir))
+    if (wrap !== null) lines.push(wrap)
+
+    const drift = freshnessTotal(state.freshness)
+    if (drift >= NUDGE_DRIFT_MIN) {
+      lines.push(
         `sofar: ${drift} record events since the last write-back — if the current batch of work ` +
-        `is complete, write back now with sofar_end_session (summary + next action) while context ` +
-        `is warm; an unwritten session gets force-blocked at Stop.`,
+          `is complete, write back now with sofar_end_session (summary + next action) while context ` +
+          `is warm; an unwritten session gets force-blocked at Stop.`,
+      )
     }
+
+    return lines.length === 0 ? { ...OK } : { ...OK, stdout: lines.join('\n') }
   } catch {
     return { ...OK }
   }

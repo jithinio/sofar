@@ -302,6 +302,8 @@ function auditRecords(folded: Folded[]): Section {
 interface Footprint {
   slug: string
   registered: boolean
+  /** Registered here and not yet ended — the split is still moving (3.2). */
+  open: boolean
 }
 
 /**
@@ -317,20 +319,27 @@ interface Footprint {
  *    attributes them to nobody while they still inflate that initiative's
  *    freshness counters and files_touched.
  *
- * Phase 1 stops new splits at the source (hook writes now follow the session
- * home). Anything reported here is either history or a pre-fix session still
- * in flight. Deterministic: sessions sorted by id, footprints by slug.
+ * Phase 1 stops new splits at the source (writes now follow the session home),
+ * so severity grades by LIVENESS rather than shape (D3): a split whose
+ * sessions have all ENDED is settled history — unrepairable by construction,
+ * since no event carries a self-evident misplacement marker — and reports at
+ * WARN so it stays visible without permanently failing the audit. A split
+ * with a session still OPEN is a pre-fix session actively tearing right now,
+ * and reports at FAIL. Deterministic: sessions sorted by id, footprints by
+ * slug.
  */
 function auditSplitSessions(folded: Folded[]): Section {
   const footprints = new Map<string, Footprint[]>()
-  const add = (id: string, slug: string, registered: boolean): void => {
+  const add = (id: string, slug: string, registered: boolean, open = false): void => {
     if (id === 'cli') return
     const list = footprints.get(id) ?? []
-    list.push({ slug, registered })
+    list.push({ slug, registered, open })
     footprints.set(id, list)
   }
   for (const { slug, state, unregistered } of folded) {
-    if (state !== undefined) for (const s of state.sessions) add(s.id, slug, true)
+    if (state !== undefined) {
+      for (const s of state.sessions) add(s.id, slug, true, s.ended === undefined)
+    }
     for (const id of unregistered) add(id, slug, false)
   }
 
@@ -344,6 +353,7 @@ function auditSplitSessions(folded: Folded[]): Section {
     const homes = list.filter((f) => f.registered).map((f) => f.slug)
     const leaked = list.filter((f) => !f.registered).map((f) => f.slug)
     const shape = homes.length > 1 ? 'torn' : 'leaked'
+    const live = list.some((f) => f.open)
     let hint: string
     if (homes.length > 1) {
       hint = `registered in ${homes.join(', ')} — its writes were split across ${homes.length} records`
@@ -352,9 +362,12 @@ function auditSplitSessions(folded: Folded[]): Section {
     } else {
       hint = `registered nowhere; events landed in ${leaked.join(', ')} — no log claims this session`
     }
+    hint += live
+      ? ' — this session is still OPEN: end it before more events tear'
+      : ' — settled history (all sessions ended); the write pin prevents new splits'
     findings.push({
-      level: 'fail',
-      text: `session ${id} spans ${list.length} initiatives (${shape}): ${list.map((f) => f.slug).join(', ')}`,
+      level: live ? 'fail' : 'warn',
+      text: `session ${id} spans ${list.length} initiatives (${shape}${live ? ', live' : ', history'}): ${list.map((f) => f.slug).join(', ')}`,
       hint,
     })
   }

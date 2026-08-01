@@ -162,6 +162,20 @@ task_status_changed events that were skipped at replay AND whose task id
 is absent from the FINAL plan — replay-time skips later legitimized by a
 task_added/plan_updated (clock-skew ordering, D-sync-1 rider b) are NOT
 orphans. Additive; InitiativeState itself is unchanged.
+Git state (record-integrity 4.1) is DERIVED at render time and never
+recorded: core/git.ts readGitState(rootDir) resolves branch, local tip
+(refs/heads/<branch>), and origin tip (refs/remotes/origin/<branch>) from
+loose refs then packed-refs, yielding {branch, head, upstream, synced}.
+Commits and pushes leave no trace in the record by design (record-hygiene
+D1 exempts git from PostToolUse), which is precisely why a session could
+not tell whether work was pushed; git is an authoritative self-describing
+ledger, so it is READ rather than copied. Refs only — no subprocess and no
+commit-graph walk, because this runs inside the 100ms shim budget (speed
+T2) — so the answer is "same or different", not an ahead/behind count. In
+a shared checkout every session sees one .git, so a push by any of them
+updates the origin ref for all of them at once. Best-effort: null renders
+nothing. The status block carries it as one `Git:` line above Goal, and the
+UserPromptSubmit parallel-wrap line reuses it.
 FoldResult also carries unregistered_sessions (record-integrity 2.1): every
 session id appearing on an event in THIS log that no session_started here
 ever registered, sorted, never including "cli". The fold attaches activity
@@ -398,7 +412,14 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   events postdate the last write-back the block renders ONE budgeted line
   `⚠ next action may be stale: N events since write-back (breakdown)`
   under the next action (absent on a fresh record); a stale phase renders
-  as `[<status> — all tasks done; mark phase done?]` on its phase line; a
+  as `[<status> — all tasks done; mark phase done?]` on its phase line. The
+  derived resume line names ONE unwritten session (the best resume point);
+  every OTHER session that did mechanical work without writing back renders
+  as one budgeted `⚠ N other session(s) did work without writing back` line
+  listing up to 5 ids (record-integrity 4.3). The derived line stops at the
+  newest written-back session by design, which is right for resuming and
+  wrong for accounting: with parallel sessions a single write-back used to
+  hide every other session's unwritten work from the block entirely. A
   last-session summary cut by its budget carries `(clipped — full text in
   sessions/<id>.md)` INSIDE the budget. Un-absorbed notes (notes-in-digest
   2.1) render as a budgeted section under the staleness line — see §MCP
@@ -433,6 +454,17 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   summary/next_action overwritten, freshness reset, Stop passes once any
   exists). Best-effort (BD22): every failure path is silence, never a
   blocked prompt.
+  The same shim also emits the PARALLEL-WRAP line (record-integrity 4.2),
+  independently of the drift nudge — both may appear, newest first. It fires
+  when another session in this initiative ENDED with a real write-back
+  (summary present, so a mechanical session_closed does not qualify) at or
+  after this session started, and carries that session's id, summary, next
+  action, and the derived push state from §Git state — clipped to 420 chars.
+  This is the answer to the cross-session blind spot the initiative opened
+  on: before it, a sibling could commit and push and no other live session
+  had any way to learn it, so a human had to announce it in every window.
+  Stateless and re-firing like the nudge — there is no "already told you"
+  bit, and repeating a true fact costs less than storing one.
 - PostToolUse shim (matcher: Edit|Write|MultiEdit|Bash) → appends
   file_touched / command_run from stdin JSON (tool_name, tool_input),
   preceded by a session_started for an unregistered session (lazy
@@ -519,14 +551,18 @@ Shims contain no logic — they invoke the sofar CLI.
   per distinct orphan id, skew-ordered events later legitimized by task_added/
   plan_updated excluded);
   (3) session routing — no session id spans more than one initiative
-  (record-integrity 2.2). Reports at FAIL, not WARN: a split session's work is
-  torn across records and no single fold can show it whole. Two shapes, both
-  from the pre-pin misroute — TORN (registered by session_started in ≥2
-  initiatives, so MCP writes and hook writes went to different logs) and
-  LEAKED (events in an initiative that never registered the session, counted
-  by that initiative's freshness and files_touched while attributable to no
-  session). Derived from FoldResult.unregistered_sessions plus each state's
-  registered ids; deterministic, sessions sorted by id and footprints by slug;
+  (record-integrity 2.2). Two shapes, both from the pre-pin misroute — TORN
+  (registered by session_started in ≥2 initiatives, so MCP writes and hook
+  writes went to different logs) and LEAKED (events in an initiative that
+  never registered the session, counted by that initiative's freshness and
+  files_touched while attributable to no session). Severity grades by
+  LIVENESS, not shape (D3): a split with a session still OPEN reports FAIL
+  (a pre-fix session actively tearing), one where every session has ENDED
+  reports WARN — settled history, unrepairable by construction since no event
+  carries a self-evident misplacement marker, and a permanently failing audit
+  trains people to ignore it. Derived from FoldResult.unregistered_sessions
+  plus each state's registered ids; deterministic, sessions sorted by id and
+  footprints by slug;
   (4) concurrency — no file under concurrent edit by ≥2 OPEN sessions (a live
   clobber risk); (5) scanner hazards (Tailwind v4 entry stylesheet lacking a
   `@source not` exclusion for `.sofar`). Record-health and concurrency findings
