@@ -6,12 +6,12 @@
 - Tool: claude-code
 - Model: claude-opus-5[1m]
 - Started: 2026-08-01T17:44:04.152Z
-- Ended: 2026-08-01T17:54:09.321Z
+- Ended: 2026-08-02T04:14:23.267Z
 
 ## Summary
 
-Initiative complete, all 4 phases. Writes pin to the session home (hooks + start_session), doctor detects splits graded by liveness, and Phase 4 closes the original ask: git state read from refs (no subprocess, inside the 100ms shim budget), a parallel-wrap line telling a live session when a sibling wrapped and whether it is pushed, and all unwritten sessions reported instead of just the newest. Repair scoped to closing one abandoned session; reattribution rejected as unsound. 780 tests pass, doctor exits 0.
+record-integrity complete across all 4 phases and pushed to origin/main. Writes pin to the session home, doctor grades splits by liveness, git state is derived from refs, and siblings' write-backs surface on UserPromptSubmit. 780 tests pass, doctor exits 0.
 
 ## Next action
 
-Push origin main; Phase 4 is unverified against a real second live session.
+Verify the Phase 4 parallel-wrap line against a real second live session — it is fixture-tested only.

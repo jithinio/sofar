@@ -29,4 +29,4 @@ Progress: 11/11 tasks done (100%)
 - [x] 4.2 UserPromptSubmit parallel-wrap line: a sibling's write-back plus push state, derived, stateless
 - [x] 4.3 Report every unwritten session, not just the newest
 
-Next action: Push origin main; Phase 4 is unverified against a real second live session.
+Next action: Verify the Phase 4 parallel-wrap line against a real second live session — it is fixture-tested only.
