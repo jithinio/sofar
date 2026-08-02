@@ -478,10 +478,20 @@ function clipTo(text: string, max: number): string {
  *
  * Selection is deliberately narrow to stay quiet: only sessions that ENDED
  * with a real write-back (summary present, so a mechanical session_closed
- * does not qualify) at or after this session started. Stateless and
+ * does not qualify) inside THIS session's live span. Stateless and
  * re-firing, like the drift nudge it sits beside — there is no "already
  * told you" bit to keep, and repeating a true fact is cheaper than storing
  * one.
+ *
+ * "Live span" is load-bearing (0.12.1). The first release checked only
+ * `s.ended >= me.started`, which has no upper bound — so a session that had
+ * ALREADY ENDED kept reporting siblings that wrapped long after it closed,
+ * on every prompt. An ended session is not working, so it is told nothing.
+ *
+ * Budget order is also deliberate: next_action and push state are composed
+ * FIRST and the summary absorbs whatever room is left. The summary is the
+ * least actionable part of the line, and rendering it first meant a long one
+ * ate the next action entirely (0.12.0 clipped mid-word at "it is f…").
  */
 function parallelWrapLine(
   state: InitiativeState,
@@ -489,7 +499,9 @@ function parallelWrapLine(
   git: ReturnType<typeof readGitState>,
 ): string | null {
   const me = state.sessions.find((s) => s.id === sessionId)
-  if (me === undefined) return null
+  // Not registered, or already wrapped — either way this session is not
+  // "working" and has no window for a sibling to have wrapped inside.
+  if (me === undefined || me.ended !== undefined) return null
 
   const others = state.sessions
     .filter(
@@ -511,10 +523,13 @@ function parallelWrapLine(
           ? ` Git: ${git.branch} @ ${git.head}, pushed (in sync with origin/${git.branch}).`
           : ` Git: ${git.branch} @ ${git.head}, NOT pushed (origin/${git.branch} at ${git.upstream}).`
 
-  return clipTo(
-    `sofar: session ${newest.id} wrapped while you worked${more} — "${newest.summary}"${next}.${push}`,
-    PARALLEL_WRAP_BUDGET,
-  )
+  // Reserve room for the actionable tail, then give the summary the rest.
+  const head = `sofar: session ${newest.id} wrapped while you worked${more} — `
+  const tail = `${next}.${push}`
+  const room = PARALLEL_WRAP_BUDGET - head.length - tail.length - 2 // 2 = the quotes
+  const summary = room > 0 ? clipTo(newest.summary, room) : ''
+  const body = summary.length > 0 ? `"${summary}"` : ''
+  return clipTo(`${head}${body}${tail}`, PARALLEL_WRAP_BUDGET)
 }
 
 export function handleUserPrompt(rootDir: string, input: string): HookResult {

@@ -11,6 +11,7 @@ import {
   handleSessionStart,
   handleStop,
   handleUserPrompt,
+  PARALLEL_WRAP_BUDGET,
 } from '../src/cli/event'
 import { runDoctor } from '../src/cli/doctor'
 import { readGitState } from '../src/core/git'
@@ -448,6 +449,45 @@ describe('cross-session awareness (Phase 4)', () => {
 
     const out = handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout
     expect(out).toContain('NOT pushed (origin/main at aaaaaaa)')
+  })
+
+  it('says nothing once THIS session has ended (0.12.1 — no unbounded window)', () => {
+    const f = fx({ slug: 'alpha' })
+    writeRefs(f.root, sha('a'), sha('a'))
+    register(f.root, 'alpha', 'mine')
+    endSession(f.root, 'alpha', 'mine') // I wrapped first...
+    register(f.root, 'alpha', 'sibling')
+    endSession(f.root, 'alpha', 'sibling') // ...then a sibling wrapped later
+
+    // 0.12.0 reported the sibling forever, on every prompt, to a dead session.
+    expect(handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout).toBe('')
+  })
+
+  it('keeps next_action and push state when the summary is long (0.12.1 budget order)', () => {
+    const f = fx({ slug: 'alpha' })
+    writeRefs(f.root, sha('a'), sha('a'))
+    register(f.root, 'alpha', 'mine')
+    register(f.root, 'alpha', 'sibling')
+    appendEvent(
+      f.eventsPath,
+      makeEvent({
+        initiative: 'alpha',
+        session: 'sibling',
+        source: 'claude-code',
+        actor: 'agent',
+        type: 'session_ended',
+        payload: {
+          session_id: 'sibling',
+          summary: 'x'.repeat(2000), // swamps the budget on its own
+          next_action: 'run the migration',
+        },
+      }),
+    )
+
+    const out = handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout
+    expect(out.length).toBeLessThanOrEqual(PARALLEL_WRAP_BUDGET)
+    expect(out).toContain('next: run the migration') // survived, un-clipped
+    expect(out).toContain('pushed (in sync with origin/main)')
   })
 
   it('stays silent when no sibling wrapped, and ignores mechanical closes (4.2)', () => {

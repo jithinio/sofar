@@ -457,9 +457,15 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   The same shim also emits the PARALLEL-WRAP line (record-integrity 4.2),
   independently of the drift nudge — both may appear, newest first. It fires
   when another session in this initiative ENDED with a real write-back
-  (summary present, so a mechanical session_closed does not qualify) at or
-  after this session started, and carries that session's id, summary, next
+  (summary present, so a mechanical session_closed does not qualify) inside
+  THIS session's live span, and carries that session's id, summary, next
   action, and the derived push state from §Git state — clipped to 420 chars.
+  A session that has itself ENDED is told nothing (0.12.1): the original
+  rule bounded the window only below (s.ended >= me.started), so a closed
+  session kept reporting later wrap-ups on every prompt forever. Budget
+  order is next_action and push state FIRST, summary absorbing the
+  remainder — the summary is the least actionable part, and rendering it
+  first let a long one clip the next action away entirely.
   This is the answer to the cross-session blind spot the initiative opened
   on: before it, a sibling could commit and push and no other live session
   had any way to learn it, so a human had to announce it in every window.
