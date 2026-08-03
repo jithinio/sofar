@@ -4,14 +4,14 @@
 
 Goal: One mechanical, read-side adjacency derivation over the existing event logs, repo-wide — subsuming the bespoke per-edge reducers (task_files, activity), unlocking cross-initiative provenance the per-initiative fold drops, and deriving repo-general decisions from citation behaviour instead of a declared scope. Zero new event types, zero new capture, zero model calls, retroactive over every existing record; never in the hot path.
 
-Progress: 0/15 tasks done (0%)
+Progress: 4/15 tasks done (26%)
 
-## Primitive [pending] — 0/4 done
+## Primitive [done] — 4/4 done
 
-- [ ] 1.1 SPEC: node/edge vocabulary as a typed contract — nodes (initiative, phase, task, session, file, command, decision, note) and edges derived ONLY from existing envelopes + payloads, INCLUDING decision --cites--> decision by stable handle; state the zero-new-event-types and retroactive-over-every-record guarantees
-- [ ] 1.2 core/graph.ts buildGraph(rootDir): repo-wide adjacency across every .sofar/initiatives/*/events.jsonl, fold-tolerant (corrupt/unknown line → skip + warn, never fatal, never rewritten)
-- [ ] 1.3 Citation-handle extraction: closed lexical grammar over decision text — D<n>, BD<n>, <slug> D<n>, speed T<n>. Literal match only, no semantic inference (D3). Measured today: 150 citations across 12 initiatives; BD22/BD16 7x, BD9 4x, D3 3x
-- [ ] 1.4 Tests: determinism (identical records → identical graph), tolerance (corrupt lines skipped), cross-initiative edge presence, and citation-extraction precision (false-positive guard: a handle-shaped token in unrelated prose)
+- [x] 1.1 SPEC: node/edge vocabulary as a typed contract — nodes (initiative, phase, task, session, file, command, decision, note) and edges derived ONLY from existing envelopes + payloads, INCLUDING decision --cites--> decision by stable handle; state the zero-new-event-types and retroactive-over-every-record guarantees
+- [x] 1.2 core/graph.ts buildGraph(rootDir): repo-wide adjacency across every .sofar/initiatives/*/events.jsonl, fold-tolerant (corrupt/unknown line → skip + warn, never fatal, never rewritten)
+- [x] 1.3 Citation-handle extraction: closed lexical grammar over decision text — D<n>, BD<n>, <slug> D<n>, speed T<n>. Literal match only, no semantic inference (D3). Measured today: 150 citations across 12 initiatives; BD22/BD16 7x, BD9 4x, D3 3x
+- [x] 1.4 Tests: determinism (identical records → identical graph), tolerance (corrupt lines skipped), cross-initiative edge presence, and citation-extraction precision (false-positive guard: a handle-shaped token in unrelated prose)
 
 ## Queries [pending] — 0/4 done
 
@@ -33,4 +33,4 @@ Progress: 0/15 tasks done (0%)
 - [ ] 4.2 Re-express activity over the graph primitive, byte-identical output
 - [ ] 4.3 Decide whether unregistered_sessions and overlappingWritebacks follow, or stay in fold because they are single-log by nature
 
-Next action: Do not start record-graph yet — finish speed-2 first; then begin at 1.1 (SPEC node/edge vocabulary incl. the cites edge).
+Next action: Begin 2.1 — whyFile(graph, path) over the primitive.

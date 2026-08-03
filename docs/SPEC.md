@@ -191,6 +191,129 @@ DESCENDING (record recency), never-logged initiatives last by slug asc;
 tolerant like the fold (unreadable log or corrupt bindings.json → warning
 + thinner entry, never fatal); zero new event types.
 
+## Record graph (repo-wide adjacency derivation — record-graph 1.1)
+`buildGraph(rootDir)` (core/graph.ts) is ONE mechanical, read-side adjacency
+derivation over every `.sofar/initiatives/*/events.jsonl` in the repo. It
+subsumes the bespoke per-edge reducers (task_files, activity) and recovers
+the cross-initiative provenance the per-initiative fold structurally drops —
+a session, a file path, and a cited decision all outlive the log they were
+written to, and the fold sees one log at a time.
+
+**Guarantees (each one load-bearing, not aspirational):**
+- **Zero new event types, zero new capture.** Every node and edge is derived
+  from envelopes and payloads already present. The write path is untouched;
+  nothing is added to any hook or tool.
+- **Retroactive over every existing record.** Coverage is whatever logs
+  exist, pre-rename history included — no backfill, no migration, no schema
+  change. (Contrast the rejected declared-`scope` field, which would have
+  been the first non-retroactive derivation in this engine.)
+- **Zero model API calls** (§Architectural invariants, felt-cost D3).
+  Citation extraction is a CLOSED LEXICAL GRAMMAR with literal matching
+  only — no inference, no embeddings, no entity resolution.
+- **Deterministic.** Replay order is ulid order, as in the fold (D-sync-1);
+  node and edge order is a pure function of the event set. The same records
+  build a deep-equal graph with identical warnings.
+- **Tolerant.** Corrupt or unknown lines skip with a warning, never fatal,
+  never rewritten; an unreadable log degrades to a warning and a thinner
+  graph (the listInitiatives precedent).
+- **Never in the hot path.** buildGraph reads N logs where the fold reads
+  one, so it cannot fit the 100ms shim budget (speed T2). Its ONLY consumers
+  are explicit CLI surfaces (`sofar why`, `sofar related`) and doctor;
+  no hook, statusline, or shim path may import it (pinned by test, 3.4).
+
+**Nodes** — id is stable and unique repo-wide; `kind` discriminates:
+```
+initiative:<slug>            slug, goal
+phase:<slug>#<name>          initiative, name, status
+task:<slug>#<task id>        initiative, task_id, title, status
+session:<session id>         tool?, model?, started?, ended?
+file:<repo-relative path>    path
+command:<event ulid>         initiative, session, ts, cmd
+decision:<event ulid>        initiative, session, ts, ordinal, chose/over/because, dangling[]
+note:<event ulid>            initiative, session, ts, text
+```
+Three families, and the difference is the point. STRUCTURAL nodes
+(initiative, phase, task) come from each initiative's FINAL folded state, so
+a plan_updated that drops a task drops its node — they describe the plan as
+it now stands. OCCURRENCE nodes (command, decision, note) are one per
+sourcing event, keyed by its ulid: an occurrence has no identity apart from
+the event that recorded it. JOIN nodes (session, file) are deliberately NOT
+slug-scoped — the session id and the repo-relative path are the same
+identity in every log that mentions them, and that shared identity is the
+entire cross-initiative edge. Task ids are NOT repo-unique (`1.1` exists in
+most initiatives), so every structural id carries its slug.
+
+**Edges** — `{kind, from, to, initiative, event_id?, ts?, attrs?}`:
+```
+structural (final folded plan; no event_id)
+  has_phase   initiative -> phase
+  has_task    phase      -> task
+occurrence (exactly ONE edge per sourcing event; carries event_id + ts)
+  touched     session    -> file       file_touched            attrs.op
+  ran         session    -> command    command_run
+  changed     session    -> task       task_status_changed     attrs.status
+  decided     session    -> decision   decision_logged
+  noted       session    -> note       note_added
+  worked      task       -> file       file_touched x every task ACTIVE then
+derived from decision prose (closed lexical grammar; no event_id)
+  cites       decision   -> decision | task
+```
+Occurrence edges are multi-edges by design: they are NOT deduped into
+pairs. Losing the per-event grain would make the consolidation in Phase 4
+impossible — activity's `task_changes` renders every status change in log
+order, including repeats on one task, and its `files` list is
+first-touch-ordered. Deduping is a READ-side choice each query makes.
+`edge.initiative` is the envelope.initiative of the sourcing event (the home
+slug for structural edges), which is what makes cross-initiative provenance
+a filter rather than a join.
+
+Session-anchored edges form only for events whose `envelope.session` is a
+real session id: `cli` is not a session identity and gets no node (the
+activity rule, BD44). A cli-sourced file_touched still mints its file node
+and still forms `worked` edges — task_files and freshness both count cli
+events, and this derivation subsumes task_files, so it must match. The
+`worked` edge is exactly the task_files rule generalized repo-wide: a
+file_touched attributes to EVERY task active at that point in ulid order.
+
+**Citation grammar (the `cites` edge, record-graph 1.3).** Matched over the
+concatenated decision text (chose + over + because):
+- QUALIFIED `<slug> <handle>` — `<slug>` must be an initiative directory
+  that EXISTS; `<handle>` is `D<n>`, `T<n>`, or `<n>.<n>`.
+- UNQUALIFIED `D<n>` or `T<n>` alone — resolved against the CITING
+  decision's own initiative.
+- Bare `<n>.<n>` is NOT a handle. Measured on the live record it matches
+  version strings (`0.1`, `0.7`, `0.8`) and an IP octet (`127.0`) — 20 false
+  positives, zero true ones. A dotted task id needs its slug.
+- `BD<n>` and `D-<label>` (`D-P11`, `D-sync-1`) are NOT handles: they name
+  the archived pre-migration prose record and hand-coined labels, neither of
+  which has a node here. They are recorded, never resolved.
+
+Resolution is literal and refuses to guess:
+- `D<n>` → the nth decision_logged in that initiative's log in ulid order,
+  1-based (`decision.ordinal`). This numbering is not invented for the
+  graph — it is the convention the record already uses, and it round-trips:
+  felt-cost D3 resolves to the zero-model-API-calls decision that
+  §Architectural invariants cites by that handle.
+- `T<n>` / `<n>.<n>` → the task with that EXACT id in that initiative's
+  final plan.
+- A decision target resolves only when its event id sorts BEFORE the citing
+  decision's: a decision cannot cite the future.
+- A decision naming its OWN ordinal is a self-label, not a citation, and is
+  dropped (no self-edges).
+- Anything else is DANGLING: carried on the citing decision node as
+  `dangling[]`, never silently discarded. Dangling citations are a finding,
+  not noise — `record-integrity 4.4` and `4.5` dangle because that
+  initiative's plan never held tasks by those ids.
+
+Measured over the live record (2026-08-03; 140 decisions, 15 logged
+initiatives): 62 handle tokens → 22 decision edges, 11 task edges, 5
+self-labels, 5 future refs, 19 dangling; 8 of the 33 resolved edges cross an
+initiative boundary. That cross-boundary set is the whole basis of
+`repoGeneral` (2.3): repo-generality is OBSERVED from citation behaviour
+rather than declared at log time, and its top result on this repo is
+felt-cost D3 — cited from record-graph and sync-client — the decision
+CLAUDE.md and §Architectural invariants already treat as repo-wide law.
+
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
 events not already present (dedupe by id — idempotent). Per-initiative
@@ -1131,3 +1254,28 @@ stay the underlying derivation's, and exit codes are styling-independent.
   bounds the parallel-wrap line alone, not the combined hook payload; a
   sibling that wrapped before this session's last write-back still yields no
   wrap line while the push-state line renders regardless.
+- **Record graph (record-graph):** buildGraph over a repo of several
+  initiatives is deterministic (same records → deep-equal graph and
+  identical warnings, from shuffled file orders) and tolerant (an injected
+  corrupt line and an unreadable log each yield a warning and a thinner
+  graph, never a throw). A session that wrote to two initiatives yields one
+  session node with edges into both — the cross-initiative fact no
+  single-log fold can produce. A file path touched from two initiatives is
+  ONE file node. Citation extraction resolves `D<n>` to that initiative's
+  nth decision in ulid order and `<slug> <task id>` to that task, refuses
+  bare `<n>.<n>` (a record carrying `0.14.0` and `127.0.0.1` in decision
+  prose yields zero citations from them), drops self-labels and
+  future-sorting targets, and records every unresolved handle in
+  `dangling[]` rather than discarding it. `sofar why <path>` names every
+  task, decision and session that ever touched the path across ALL
+  initiatives, newest-first; `sofar related <task-id>` ranks co-touched-file
+  neighbours by shared-path count; `repoGeneral` ranks decisions by DISTINCT
+  citing initiatives other than their own, and doctor WARNs (exit 0) when a
+  repo-general decision is absent from `.sofar/repo.md` — detection only,
+  repo.md is never generated. No hook shim, statusline, or UserPromptSubmit
+  path imports core/graph.ts (locked statically by test, the cli-ui
+  import-lock precedent), and the speed T2 shim-latency pin still passes.
+  Consolidation is GO/NO-GO: task_files and activity re-expressed over the
+  graph produce BYTE-IDENTICAL render output (the byte-stability pin passes
+  unmodified); if they cannot, the consolidation is abandoned rather than
+  shipped as an additive second derivation.

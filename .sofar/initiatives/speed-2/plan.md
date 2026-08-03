@@ -25,4 +25,4 @@ Progress: 7/7 tasks done (100%)
 - [x] T6 Protocol-block refresh: byte-match against shipped predecessors, refresh only those, never touch a customized block; doctor reports the state; upgrade points at sofar init
 - [x] T7 Fix the client-doorbell flake: wait on the pulled lines, not the log file; assert the total, not the batch split
 
-Next action: User runs `npm publish` for 0.14.0, then `sofar upgrade` + restart the MCP server so 4.5's routing fix goes live.
+Next action: Nothing open on speed-2. record-graph proceeds in session d97acb91, starting at 1.1.

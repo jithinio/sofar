@@ -221,7 +221,7 @@ function emptyFreshness(): FreshnessState {
   }
 }
 
-interface ParsedLine {
+export interface ParsedLine {
   lineNo: number
   event: EventEnvelope
 }
@@ -231,11 +231,28 @@ export function foldLog(logPath: string): FoldResult {
   return foldLines(readFileSync(logPath, 'utf8').split('\n'))
 }
 
-export function foldLines(lines: readonly string[]): FoldResult {
+/**
+ * Pass 1 in isolation (record-graph 1.2): tolerant decode + correction
+ * voiding + the convergent ulid sort, with no state replay. Extracted so the
+ * repo-wide graph derivation reuses ONE tolerant decoder instead of forking
+ * its own — the graph replays adjacency where the fold replays state, but
+ * both must skip the same corrupt lines and honor the same corrections.
+ * Voided events are returned (not filtered): the fold still advances its
+ * cursor over them, since sync moves events by envelope.
+ */
+export interface DecodedLog {
+  /** Envelope-valid events in ulid order (stable — a duplicated id keeps file order). */
+  parsed: ParsedLine[]
+  /** Event ids voided by a `correction` (BD8). */
+  voided: Set<string>
+  /** Decode warnings, in file order (they describe lines, not events). */
+  warnings: string[]
+}
+
+export function decodeLines(lines: readonly string[]): DecodedLog {
   const warnings: string[] = []
   const parsed: ParsedLine[] = []
 
-  // Pass 1 — decode lines tolerantly, collect corrected (voided) event ids.
   lines.forEach((raw, index) => {
     const lineNo = index + 1
     const line = raw.trim()
@@ -273,6 +290,12 @@ export function foldLines(lines: readonly string[]): FoldResult {
   // states. Stable sort: a duplicated id keeps file order. Pass-1 decode
   // warnings stay in file order (they describe lines, not events).
   parsed.sort((a, b) => (a.event.id < b.event.id ? -1 : a.event.id > b.event.id ? 1 : 0))
+
+  return { parsed, voided, warnings }
+}
+
+export function foldLines(lines: readonly string[]): FoldResult {
+  const { parsed, voided, warnings } = decodeLines(lines)
 
   // Pass 2 — replay in id order.
   const state = emptyState()
