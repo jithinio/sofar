@@ -29,4 +29,4 @@ Progress: 11/11 tasks done (100%)
 - [x] 4.2 UserPromptSubmit parallel-wrap line: a sibling's write-back plus push state, derived, stateless
 - [x] 4.3 Report every unwritten session, not just the newest
 
-Next action: Publish 0.13.0 (npm publish + sofar upgrade) — the fix is inert until then.
+Next action: Nothing pending — record-integrity is shipped at 0.13.0 and pushed.
