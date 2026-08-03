@@ -6,12 +6,12 @@
 - Tool: claude-code
 - Model: claude-opus-5[1m]
 - Started: 2026-08-03T08:59:43.171Z
-- Ended: (in progress)
+- Ended: 2026-08-03T09:44:02.680Z
 
 ## Summary
 
-(none recorded — session did not write back)
+0.13.0 staged: start_session adopts ended sessions (one identity per agent), and the parallel-wrap window anchors on the last write-back — correcting 0.12.1, which suppressed the line for any ended session and silently dropped a real sibling wrap-up. Also unpinned a brittle packaging assertion. Committed session 3c1146f3's README rewrite after verifying all 20 documented commands resolve. 784 tests pass.
 
 ## Next action
 
-(none recorded)
+Publish 0.13.0 (npm publish + sofar upgrade) — the fix is inert until then.
