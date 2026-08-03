@@ -6,12 +6,12 @@
 - Tool: claude-code
 - Model: claude-opus-5[1m]
 - Started: 2026-08-02T06:43:52.901Z
-- Ended: (in progress)
+- Ended: 2026-08-03T08:55:40.665Z
 
 ## Summary
 
-(none recorded — session did not write back)
+0.12.0 then 0.12.1 published and upgraded. 0.12.0's first live firing exposed two parallel-wrap defects; both patched and 0.12.1 verified live — the spurious line no longer fires for an ended session, only the drift nudge remains. Defect 2 (a write-back mid-conversation mints a second identity with no lineage to the first) is still open, options A/B/C recorded, A recommended.
 
 ## Next action
 
-(none recorded)
+Pick an option for defect 2 — A (let an ended session be re-adopted) is recommended.
