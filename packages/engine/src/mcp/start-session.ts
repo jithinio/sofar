@@ -1,6 +1,6 @@
 import { ulid } from 'ulid'
 import type { StartSessionArgs } from '@sofar/schema/tool-inputs'
-import { homeInitiative, ToolError, toSource, type ToolContext } from './context'
+import { homeInitiative, toSource, type ToolContext } from './context'
 
 /**
  * sofar_start_session — adopt-by-id (task 7.1, BD43, replacing BD20's
@@ -9,10 +9,8 @@ import { homeInitiative, ToolError, toSource, type ToolContext } from './context
  * the log AND injects it into the context block ("Session: <id> — …"); the
  * agent passes that id back here as `session_id`:
  *
- *  - session_id names an OPEN session (session_started, not ended/closed) →
- *    adopt exactly it: no duplicate append, set the active box, return it.
- *  - session_id names an ENDED session → typed invalid_input ("session
- *    already ended") — a finished identity is never resumed silently.
+ *  - session_id names a KNOWN session, open or ended → adopt exactly it: no
+ *    duplicate append, set the active box, return it.
  *  - session_id is unknown → append session_started WITH that id as
  *    envelope.session (registers it — MCP-only setups have no hook to do it).
  *  - session_id omitted → mint a fresh ulid and register it. NEVER adopts:
@@ -40,12 +38,21 @@ export function startSession(ctx: ToolContext, args: StartSessionArgs): { sessio
   if (args.session_id !== undefined) {
     const existing = ctx.foldState(slug).sessions.find((s) => s.id === args.session_id)
     if (existing !== undefined) {
-      if (existing.ended !== undefined) {
-        throw new ToolError(
-          'invalid_input',
-          `session "${args.session_id}" already ended — omit session_id to start a fresh session`,
-        )
-      }
+      // An ENDED session is adopted too (record-integrity 5.1). Refusing it
+      // was meant to stop a finished identity being resumed silently, but
+      // adopt-by-id already requires naming the exact id — which the harness
+      // injects for the caller's OWN session — so the guard mostly fired on
+      // the legitimate case: write back mid-conversation, keep working, call
+      // start_session again. That minted a SECOND identity for one agent with
+      // no lineage to the first, and the fold has no way to tell the two
+      // apart from a genuinely parallel session.
+      //
+      // Adoption is deliberately pin-only: no append, and `ended`/`summary`
+      // stay as they are. Reopening at fold level would have to clear the
+      // summary to re-arm the Stop gate, which erases the prior write-back
+      // from sessions/<id>.md even though its event is still in the log.
+      // Events after a session_ended are already routine (hooks emit them),
+      // and a repeat session_ended is legal and last-wins.
       ctx.session.set({ id: existing.id, tool: args.tool, initiative: slug })
       return { session_id: existing.id } // adopted — already registered, no append
     }

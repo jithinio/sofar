@@ -85,18 +85,19 @@ function register(root: string, slug: string, session: string, ts?: string): voi
 }
 
 /** Close `session` in `slug` with a write-back, so the split reads as history. */
-function endSession(root: string, slug: string, session: string): void {
-  appendEvent(
-    join(root, '.sofar', 'initiatives', slug, 'events.jsonl'),
-    makeEvent({
-      initiative: slug,
-      session,
-      source: 'claude-code',
-      actor: 'agent',
-      type: 'session_ended',
-      payload: { session_id: session, summary: 'done', next_action: 'none' },
-    }),
-  )
+function endSession(root: string, slug: string, session: string, ts?: string): void {
+  const event = makeEvent({
+    initiative: slug,
+    session,
+    source: 'claude-code',
+    actor: 'agent',
+    type: 'session_ended',
+    payload: { session_id: session, summary: 'done', next_action: 'none' },
+  })
+  appendEvent(join(root, '.sofar', 'initiatives', slug, 'events.jsonl'), {
+    ...event,
+    ...(ts !== undefined ? { ts } : {}),
+  })
 }
 
 function logEvents(path: string): EventEnvelope[] {
@@ -451,15 +452,29 @@ describe('cross-session awareness (Phase 4)', () => {
     expect(out).toContain('NOT pushed (origin/main at aaaaaaa)')
   })
 
-  it('says nothing once THIS session has ended (0.12.1 — no unbounded window)', () => {
+  it('still reports a sibling that wrapped AFTER my own write-back (0.13.0)', () => {
     const f = fx({ slug: 'alpha' })
     writeRefs(f.root, sha('a'), sha('a'))
-    register(f.root, 'alpha', 'mine')
-    endSession(f.root, 'alpha', 'mine') // I wrapped first...
-    register(f.root, 'alpha', 'sibling')
-    endSession(f.root, 'alpha', 'sibling') // ...then a sibling wrapped later
+    register(f.root, 'alpha', 'mine', '2026-08-01T10:00:00.000Z')
+    endSession(f.root, 'alpha', 'mine', '2026-08-01T10:01:00.000Z') // wrote back mid-flight...
+    register(f.root, 'alpha', 'sibling', '2026-08-01T10:02:00.000Z')
+    endSession(f.root, 'alpha', 'sibling', '2026-08-01T10:03:00.000Z') // ...sibling wraps after
 
-    // 0.12.0 reported the sibling forever, on every prompt, to a dead session.
+    // 0.12.1 went silent here, which lost a real parallel wrap-up: writing
+    // back does not mean the session stopped working.
+    const out = handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout
+    expect(out).toContain('session sibling wrapped while you worked')
+  })
+
+  it('does not re-report a sibling that wrapped BEFORE my last write-back (0.13.0)', () => {
+    const f = fx({ slug: 'alpha' })
+    writeRefs(f.root, sha('a'), sha('a'))
+    register(f.root, 'alpha', 'mine', '2026-08-01T10:00:00.000Z')
+    register(f.root, 'alpha', 'sibling', '2026-08-01T10:01:00.000Z')
+    endSession(f.root, 'alpha', 'sibling', '2026-08-01T10:02:00.000Z') // wraps first...
+    endSession(f.root, 'alpha', 'mine', '2026-08-01T10:03:00.000Z') // ...I absorb it
+
+    // 0.12.0 kept announcing it for the rest of the session's life.
     expect(handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout).toBe('')
   })
 
@@ -524,6 +539,48 @@ describe('cross-session awareness (Phase 4)', () => {
     const out = handleSessionStart(f.root, JSON.stringify({ session_id: 's2', cwd: '/tmp' })).stdout
     expect(out).toContain('1 other session(s) did work without writing back')
     expect(out).toContain('s1')
+  })
+})
+
+describe('one identity per agent across a mid-conversation write-back (5.1)', () => {
+  /**
+   * The 0.12.0 defect, end to end: an agent writes back, keeps working, and
+   * calls start_session again. Before 5.1 that errored, the agent minted a
+   * fresh id, and the record held TWO identities for one agent — which the
+   * parallel-wrap line then reported as a sibling that "wrapped while you
+   * worked".
+   */
+  it('adopting after a write-back keeps one identity and reports no phantom sibling', async () => {
+    const f = fx({ slug: 'alpha' })
+    mkdirSync(join(f.root, '.git', 'refs', 'heads'), { recursive: true })
+    writeFileSync(join(f.root, '.git', 'refs', 'heads', 'main'), `${'a'.repeat(40)}\n`)
+    handlePostTool(f.root, bashStdin('agent-1', 'npm test')) // hook registers it
+
+    const { client, handle } = await connectServer(f.root)
+    try {
+      await callTool(client, 'sofar_end_session', {
+        session_id: 'agent-1',
+        summary: 'batch one done',
+        next_action: 'start batch two',
+      })
+      // ...work continues, and the agent re-orients.
+      const again = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
+        tool: 'claude-code',
+        session_id: 'agent-1',
+      })
+      expect(again.isError).toBe(false)
+      expect(again.body.session_id).toBe('agent-1')
+    } finally {
+      await client.close()
+      await handle.server.close()
+    }
+
+    // Exactly one identity in the record — no replacement id was minted.
+    expect(foldLog(f.eventsPath).state.sessions.map((s) => s.id)).toEqual(['agent-1'])
+    // And therefore nothing that looks like a parallel session wrapping.
+    expect(
+      handleUserPrompt(f.root, JSON.stringify({ session_id: 'agent-1', cwd: '/tmp' })).stdout,
+    ).not.toContain('wrapped while you worked')
   })
 })
 

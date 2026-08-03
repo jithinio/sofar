@@ -483,10 +483,23 @@ function clipTo(text: string, max: number): string {
  * told you" bit to keep, and repeating a true fact is cheaper than storing
  * one.
  *
- * "Live span" is load-bearing (0.12.1). The first release checked only
- * `s.ended >= me.started`, which has no upper bound — so a session that had
- * ALREADY ENDED kept reporting siblings that wrapped long after it closed,
- * on every prompt. An ended session is not working, so it is told nothing.
+ * The window opens at THIS session's last write-back, falling back to its
+ * start (0.13.0). Two earlier rules were wrong:
+ *  - 0.12.0 used `s.ended >= me.started`, which never closes — a sibling
+ *    wrap-up kept being announced for the rest of the session's life.
+ *  - 0.12.1 suppressed the line whenever `me.ended` was set, on the theory
+ *    that an ended session is not working. That silenced a REAL parallel
+ *    wrap-up in this repo (session 3c1146f3 wrapped while another session
+ *    was live and nothing was reported), because a session that writes back
+ *    mid-conversation and keeps working still has `ended` set. The hook
+ *    firing at all is proof the session is alive.
+ * Anchoring on the last write-back closes the window the moment you write
+ * back and re-opens it for genuinely new sibling activity — the same
+ * "since the last write-back" frame the drift counter already uses.
+ *
+ * That earlier phantom was really the identity split (5.1): the agent's own
+ * replacement session id read as a sibling. With one identity per agent
+ * there is nothing spurious left to report.
  *
  * Budget order is also deliberate: next_action and push state are composed
  * FIRST and the summary absorbs whatever room is left. The summary is the
@@ -499,14 +512,16 @@ function parallelWrapLine(
   git: ReturnType<typeof readGitState>,
 ): string | null {
   const me = state.sessions.find((s) => s.id === sessionId)
-  // Not registered, or already wrapped — either way this session is not
-  // "working" and has no window for a sibling to have wrapped inside.
-  if (me === undefined || me.ended !== undefined) return null
+  if (me === undefined) return null
+  // Since my last write-back, else since I started. A write-back is the point
+  // at which I have absorbed what the record holds, so it is the honest
+  // boundary for "what changed that I have not accounted for".
+  const since = me.ended ?? me.started
 
   const others = state.sessions
     .filter(
       (s): s is typeof s & { ended: string; summary: string } =>
-        s.id !== sessionId && s.ended !== undefined && s.summary !== undefined && s.ended >= me.started,
+        s.id !== sessionId && s.ended !== undefined && s.summary !== undefined && s.ended >= since,
     )
     .sort((a, b) => (a.ended < b.ended ? 1 : -1))
   if (others.length === 0) return null

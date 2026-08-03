@@ -207,18 +207,20 @@ describe('acceptance 1+2+4 — two interleaved sessions on ONE initiative', () =
     expect(started.body.session_id).not.toBe(A) // BD20's cross-adoption is gone
     expect(started.body.session_id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/)
 
-    // and adopting an already-ended id fails typed instead of hijacking
+    // and adopting an already-ended id returns THAT id rather than minting a
+    // replacement (record-integrity 5.1) — cross-adoption is still gone,
+    // because adopt-by-id requires naming the exact session.
     await callTool(server.client, 'sofar_end_session', {
       session_id: started.body.session_id,
       summary: 'done',
       next_action: 'none',
     })
-    const retry = await callTool<{ code: string }>(server.client, 'sofar_start_session', {
+    const retry = await callTool<{ session_id: string }>(server.client, 'sofar_start_session', {
       tool: 'claude-code',
       session_id: started.body.session_id,
     })
-    expect(retry.isError).toBe(true)
-    expect(retry.body.code).toBe('invalid_input')
+    expect(retry.isError).toBe(false)
+    expect(retry.body.session_id).toBe(started.body.session_id)
     await server.client.close()
   })
 })

@@ -222,7 +222,10 @@ describe('MCP tools round-trip (2.2)', () => {
     await client.close()
   })
 
-  it('start_session with an ENDED session_id fails typed (invalid_input), appends nothing', async () => {
+  // record-integrity 5.1 (0.13.0): an ENDED session is adopted, not refused.
+  // Refusing it minted a second identity for one agent every time a session
+  // wrote back mid-conversation and kept working.
+  it('start_session with an ENDED session_id adopts it, appends nothing', async () => {
     const fixture = makeRepoFixture()
     const { client, handle } = await connectServer(fixture.root)
 
@@ -238,15 +241,21 @@ describe('MCP tools round-trip (2.2)', () => {
     })
 
     const linesBefore = readFileSync(fixture.eventsPath, 'utf8').trim().split('\n').length
-    const retry = await callTool<{ code: string; message: string }>(client, 'sofar_start_session', {
+    const retry = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
       tool: 'claude-code',
       session_id: 'done-sess',
     })
-    expect(retry.isError).toBe(true)
-    expect(retry.body.code).toBe('invalid_input')
-    expect(retry.body.message).toContain('already ended')
+    expect(retry.isError).toBe(false)
+    expect(retry.body.session_id).toBe('done-sess') // same identity, not a new one
+    // Pin-only: no session_started, and no second session in the fold.
     expect(readFileSync(fixture.eventsPath, 'utf8').trim().split('\n')).toHaveLength(linesBefore)
-    expect(handle.getActiveSession()).toBeNull() // failed adopt never becomes active
+    expect(foldLog(fixture.eventsPath).state.sessions.map((s) => s.id)).toEqual(['done-sess'])
+    expect(handle.getActiveSession()?.id).toBe('done-sess')
+
+    // The prior write-back survives adoption — it is history, not cleared.
+    const adopted = foldLog(fixture.eventsPath).state.sessions[0]!
+    expect(adopted.summary).toBe('finished')
+    expect(adopted.ended).toBeDefined()
     await client.close()
   })
 

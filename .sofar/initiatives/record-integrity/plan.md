@@ -29,4 +29,4 @@ Progress: 11/11 tasks done (100%)
 - [x] 4.2 UserPromptSubmit parallel-wrap line: a sibling's write-back plus push state, derived, stateless
 - [x] 4.3 Report every unwritten session, not just the newest
 
-Next action: Pick an option for defect 2 — A (let an ended session be re-adopted) is recommended.
+Next action: Review the new README wording, then commit (it ships to npm via prepack copy).

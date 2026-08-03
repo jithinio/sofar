@@ -99,9 +99,12 @@ const tarball = join(packDest, tarballBase)
     const pkgDir = join(prefix, 'lib', 'node_modules', 'sofar.sh')
     expect(existsSync(join(pkgDir, 'dist', 'cli.js'))).toBe(true)
     expect(existsSync(join(prefix, 'bin', 'sofar'))).toBe(true)
-    // npm auto-includes README.md (prepack copies the repo-root one in)
-    expect(readFileSync(join(pkgDir, 'README.md'), 'utf8')).toContain(
-      'Event-sourced initiative memory for coding agents',
+    // npm auto-includes README.md (prepack copies the repo-root one in).
+    // Assert the COPY, not its wording: pinning a sentence made this test
+    // fail the moment the README was legitimately rewritten, which says
+    // nothing about packaging.
+    expect(readFileSync(join(pkgDir, 'README.md'), 'utf8')).toBe(
+      readFileSync(join(engineDir, '..', '..', 'README.md'), 'utf8'),
     )
 
     // zero runtime deps landed — the bundled-CLI contract

@@ -335,9 +335,21 @@ also collides with a sofar-cloud-internal package).
   unbound branch, which is exactly when a session needs it.
 - sofar_start_session({initiative?, tool, model?, session_id?}) →
   {session_id} — session_id (from the SessionStart context "Session:" line)
-  adopts exactly that OPEN session; an ended id is a typed invalid_input
-  error; an unknown id is registered via session_started; omitted → mint a
-  fresh ulid. No open-session heuristic (adopt-by-id, Phase 7, BD43).
+  adopts exactly that session, OPEN OR ENDED; an unknown id is registered
+  via session_started; omitted → mint a fresh ulid. No open-session
+  heuristic (adopt-by-id, Phase 7, BD43).
+  Adopting an ended id is pin-only (record-integrity 5.1): no append, and
+  `ended`/`summary` are left standing as history. It used to be a typed
+  invalid_input on the principle that a finished identity is never resumed
+  silently — but adopt-by-id already requires naming the exact session, so
+  the guard mostly fired on the legitimate path (write back mid-conversation,
+  keep working, re-orient), where it forced ONE agent to mint a SECOND
+  identity that the fold cannot distinguish from a genuinely parallel
+  session. Reopening at fold level was rejected: clearing `summary` to
+  re-arm the Stop gate would erase the prior write-back from
+  sessions/<id>.md while its event still stands in the log. Events after a
+  session_ended are already routine (hooks emit them) and a repeat
+  session_ended is legal and last-wins.
 - sofar_end_session({session_id, summary, next_action}) → ok
 - sofar_update_task({initiative?, task_id, status, note?}) → ok
 - sofar_log_decision({initiative?, chose, over, because}) → ok
@@ -460,9 +472,16 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   (summary present, so a mechanical session_closed does not qualify) inside
   THIS session's live span, and carries that session's id, summary, next
   action, and the derived push state from §Git state — clipped to 420 chars.
-  A session that has itself ENDED is told nothing (0.12.1): the original
-  rule bounded the window only below (s.ended >= me.started), so a closed
-  session kept reporting later wrap-ups on every prompt forever. Budget
+  The window opens at THIS session's last write-back, falling back to its
+  start (0.13.0). Anchoring on `started` alone never closes, so one sibling
+  wrap-up was announced for the rest of the session's life; suppressing the
+  line whenever `me.ended` was set (0.12.1) went too far the other way and
+  silenced a REAL parallel wrap-up, because a session that writes back and
+  keeps working still has `ended` set — the hook firing at all is proof it
+  is alive. The write-back anchor closes the window when the session
+  absorbs the record and re-opens it for new sibling activity, matching the
+  frame the drift counter already uses. The phantom sibling that motivated
+  0.12.1 was really the identity split (5.1). Budget
   order is next_action and push state FIRST, summary absorbing the
   remainder — the summary is the least actionable part, and rendering it
   first let a long one clip the next action away entirely.
