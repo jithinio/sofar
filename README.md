@@ -1,302 +1,216 @@
 # sofar
 
-Event-sourced initiative memory for coding agents.
+Memory for AI coding assistants, kept inside your project.
 
-Truth lives in one append-only event log per initiative
-(`.sofar/initiatives/<slug>/events.jsonl`). Everything a session reads —
-`plan.md`, `decisions.md`, per-session summaries, the status block injected
-at session start — is a generated projection of that log, regenerated on
-every append and never hand-edited. A session orients from the record, logs
-decisions and task changes as events while it works, and writes back a
-summary + next action before it finishes — so the next session (any tool,
-any model, zero context) resumes without asking.
+Works with Claude Code, the Claude desktop app, Codex, Cursor, OpenCode, and
+any other tool that reads `AGENTS.md` or speaks MCP.
+
+## The problem
+
+Every new chat starts from nothing. You explain the project again. You explain
+what you already tried and why it did not work. Sooner or later the assistant
+suggests the exact approach you ruled out last week, and you spend another
+afternoon finding out again that it does not work.
+
+## What sofar does
+
+sofar keeps a written record of the work in your project folder. Your assistant
+reads it when a session starts, adds to it while it works, and leaves a
+handover note before it stops. The next session picks up where the last one
+left off, even in a different tool, on a different machine, weeks later.
+
+The record holds four things:
+
+* **The goal.** What this piece of work is for.
+* **The plan.** Tasks grouped into phases, with what is done and what is not.
+* **The decisions.** What was chosen, what it was chosen over, and why.
+* **The sessions.** What each one did, and the single next action.
+
+The decisions matter most. Knowing that an idea was already tried and rejected
+is what stops the same dead end being walked twice.
+
+Everything is plain text that lives in your repo. There is no account and no
+server to run. sofar never calls an AI model itself, so it adds nothing to your
+bill and sends nothing anywhere.
 
 ## Install
 
 ```
-npm install -g sofar.sh    # installs the `sofar` command
+npm install -g sofar.sh
 ```
 
-Or one-off: `npx sofar.sh <command>`. Requires Node ≥ 18. The
-package installs with zero runtime dependencies — `dist/cli.js` is fully
-bundled.
+Needs Node 18 or newer. To try it without installing, use
+`npx sofar.sh status`. Update later with `sofar upgrade`.
 
-Update an existing install with `sofar upgrade` (`--check` to preview,
-`--dry-run` to print the exact command). It resolves the real install prefix
-from the running binary, so it updates the copy actually on your `PATH` —
-even a custom prefix that a plain `npm install -g` would miss.
-
-From a checkout instead:
+To build from a clone of this repo instead:
 
 ```
 npm install
 npm run build
-cd packages/engine
-npm pack
-npm install -g ./alignlabs-sofar-<version>.tgz
+npm install -g ./packages/engine
 ```
 
-## Quickstart
+## Get started
 
 ```
-cd your-repo
-sofar init                          # scaffold .sofar/, install hooks + registrations
-sofar new my-feature --goal "..."   # create an initiative, bind it to the current branch
-sofar status                        # fold the log: goal, progress, phase tree, next action
+cd your-project
+sofar init
+sofar new password-reset --goal "Let users reset a forgotten password"
+sofar status
 ```
 
-The work loop, per session:
+`sofar init` sets up the record and connects your tools. It is safe to run
+twice and only adds what is missing.
 
-1. Session starts → orient from the injected status context (or `sofar status`).
-2. During work → append events: task status changes, decisions, notes;
-   file/command events land mechanically via hooks.
-3. Before finishing → write back `session_ended` (summary + next action).
-   Under Claude Code the Stop hook blocks a session that skips this.
+After that, work as usual. In Claude Code the assistant keeps the record
+current on its own. Other tools follow a short instruction block that `init`
+writes into `AGENTS.md`.
 
-## Team
+## You can just ask
+
+Once the project is set up you rarely type these commands yourself. Ask your
+assistant in ordinary words:
+
+* "Start a new initiative for the password reset work."
+* "Where did we get to on this?"
+* "Mark the login task done."
+* "Record that we went with Postgres over SQLite, and why."
+* "Write up this session before you stop."
+
+It runs the right commands and keeps the record in order. The CLI is there for
+when you want to look for yourself.
+
+## How a session runs
+
+1. **Start.** The assistant receives the goal, the progress, recent decisions
+   and the next action before you type anything.
+2. **During.** Decisions and finished tasks get written down as they happen.
+3. **End.** The assistant writes a summary and the next action. In Claude Code
+   a hook holds the session open until it does.
+
+## Sharing with your team
+
+The record is files in git, so it travels with the code.
 
 ```
-# one person, once:
+# one person, once
 sofar init
 git add .sofar .gitattributes .claude .mcp.json CLAUDE.md AGENTS.md
 git commit -m "adopt sofar"
 
-# every dev:
+# everyone else
 npm install -g sofar.sh
 git pull
-sofar status        # the shared record, folded locally
+sofar status
 ```
 
-No service, no server: the record is files in git, and every clone folds
-the same log to the same state.
+Two branches working on the same initiative will not fight over the record.
+Entries are only ever added to the end, never edited, so git keeps both sides
+and the result still reads correctly.
 
-- **Merges cannot conflict on truth.** `init` marks event logs
-  `merge=union` in `.gitattributes`, so branches that both appended to an
-  initiative merge cleanly. Union merge (keep both sides' lines, order
-  arbitrary) is safe precisely because the log is append-only and the
-  fold replays events in ulid id order — line order in the file carries
-  no meaning, so any merge of the same events folds to the same state.
-  Generated projections may still conflict textually; take either side —
-  they are rebuilt from the log on the next append.
-- **Events carry their author.** Each event is stamped with `user` from
-  `git config user.email` at append time, so attribution survives merges
-  and imports; a machine without a configured email just omits the field.
+## What it plugs into
 
-## Sync (sofar-cloud)
+* **Claude Code**, in the terminal, in the Claude desktop app on Mac and
+  Windows, or in the VS Code and JetBrains extensions. `init` wires up the MCP
+  server and the hooks. Nothing else to do.
+* **Codex, Cursor, OpenCode**, and anything else that reads `AGENTS.md`.
+  `init` writes an instruction block there, and those tools follow the same
+  loop using the `sofar` command. No extra setup.
+* **Any other MCP client.** Point it at `sofar mcp` in its own config to get
+  the same seven tools over stdio.
 
-Optional, off until you opt in: push/pull the record through
-[api.sofar.sh](https://sofar.sh) instead of (or alongside) git.
+## Commands
 
-```
-sofar login                 # device flow: code + browser approval
-sofar link --org <org>      # bind this repo; writes .sofar/remote.json — commit it
-sofar push [--all]          # send events (ulid order, idempotent by id)
-sofar pull [--all|--watch]  # fetch events; --watch keeps pulling on the doorbell
-```
+| Command | What it does |
+| --- | --- |
+| `sofar init` | Set up the record here and connect your tools |
+| `sofar new <name>` | Start a piece of work and tie it to the current branch |
+| `sofar switch <name>` | Point the current branch at a different initiative |
+| `sofar status` | Goal, progress, phases, next action (`--watch` for live) |
+| `sofar list` | One line per initiative |
+| `sofar next` | The next action for every initiative |
+| `sofar doctor` | Check the setup and the record for problems |
+| `sofar upgrade` | Update sofar itself |
 
-Local work never blocks on sync: with the API unreachable, `push` fails
-politely and the un-acked tail of the log simply waits — the next push
-drains it with zero loss and no duplicates (events dedupe by id on both
-sides). `.sofar/remote.json` is the only sync file that belongs in git;
-credentials live in `~/.config/sofar/credentials.json` (0600) and
-per-clone cursors under `~/.local/state/sofar/`. `sofar login --scopes
-read` mints a read-only token for consumers that should never write.
-`SOFAR_API_URL` overrides the endpoint (self-hosted / local dev).
+Less often needed:
 
-## Integration surfaces
+| Command | What it does |
+| --- | --- |
+| `sofar export` / `sofar import` | Move events between copies of a record |
+| `sofar login`, `link`, `push`, `pull` | Cloud sync, if you turn it on |
+| `sofar serve` | Local server with the record as JSON |
+| `sofar mcp` | The MCP server, which `init` already registers |
+| `sofar statusline` | The status bar line for Claude Code |
+| `sofar event append` | Write one entry by hand |
+| `sofar adopt <file>` | Bring an older, hand written project log into sofar |
+| `sofar uninit` | Undo `init` |
 
-`sofar init` wires all three; a tool uses whichever it can.
+## How it works
 
-**MCP server** (Claude Code, any MCP client). Registered in `.mcp.json` as
-`sofar mcp` (stdio). Tools: `sofar_get_state`, `sofar_start_session`,
-`sofar_end_session`, `sofar_update_task`, `sofar_log_decision`,
-`sofar_update_plan`, `sofar_add_note`. Every tool is
-validate payload → append event → regenerate projections; nothing mutates
-state except through an event.
-
-Prefer connecting to a running daemon instead of spawning a server per
-session? `sofar serve` also exposes the same seven tools over streamable
-HTTP at `/mcp` (localhost only). Opt in by replacing the stdio entry in
-`.mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "sofar": { "type": "http", "url": "http://127.0.0.1:4173/mcp" }
-  }
-}
-```
-
-stdio stays the default — `sofar init` always registers it, and the two
-transports return identical results. If the daemon is not running, the
-HTTP connection is refused immediately (never a hang): start `sofar serve`
-(e.g. under your process manager) or switch back to the stdio entry.
-
-**Hook shims** (Claude Code). Standalone scripts installed to
-`.claude/hooks/` and registered in `.claude/settings.json`; they contain no
-logic — each invokes the CLI.
-
-- `SessionStart` — registers the session in the log and prints the status
-  projection as injected context (hard limit 10,000 chars), including a
-  budgeted "Repo memory" section from `.sofar/repo.md` when it has content.
-  On `--resume` of a cold session (record idle past the longest cache TTL,
-  transcript worth re-warming), one advisory line precedes the block naming
-  the estimated re-warm cost and the cheaper fresh-start alternative.
-- `UserPromptSubmit` — the batch-complete nudge: once ≥5 record events
-  accumulate after the last write-back, each new prompt carries one context
-  line suggesting `sofar_end_session` while context is warm, so the Stop
-  gate becomes a fallback instead of a forced extra turn.
-- `PostToolUse` — appends mechanical `file_touched` / `command_run` events
-  for Edit/Write/MultiEdit/Bash calls.
-- `Stop` — the write-back gate: if the session has not appended
-  `session_ended`, exits 2 and blocks finishing until it does
-  (loop-guarded via `stop_hook_active`).
-- `SessionEnd` — mechanical close marker, fallback only.
-
-**AGENTS.md dialect** (tools without MCP or hooks — OpenCode, Codex, plain
-shells). `init` installs a protocol block into `AGENTS.md` that drives the
-same loop through the CLI alone: orient with `sofar status`, then one
-`sofar event append --type <event_type> --payload '<json>'` per write —
-session start, task changes, decisions, and the mandatory `session_ended`
-write-back. No hook can block these tools, so the convention states
-write-back as mandatory.
-
-**Library** (services and tooling built on the format). Typed ESM subpath
-exports on the same package — importing them runs no CLI code:
-
-```ts
-import { validateEnvelope, type EventEnvelope } from 'sofar.sh/schema'
-import { foldLines, exportNDJSON } from 'sofar.sh/engine'
-import { pushStream, pullStream, runDoorbell } from 'sofar.sh/client'
-```
-
-`/schema` is the format layer: the v1 envelope type, the tolerant
-`validateEnvelope` guard (validates — never throws or repairs), `makeEvent`,
-and every event payload type + validator. `/engine` is the state layer: the
-deterministic ulid-ordered fold (exactly what the CLI uses — a consumer's
-state always matches `sofar status` over the same log), `InitiativeState`
-and its derivations, and the cursor primitive (`exportNDJSON` /
-`importNDJSON` — the sync interface). `/client` is the sofar-cloud sync
-client the CLI itself runs — device-flow login, link, push/pull, doorbell —
-for shells and apps that sync programmatically. Types are self-contained;
-use bundler-style module resolution.
-
-## Record layout
+One file per initiative holds the truth:
+`.sofar/initiatives/<slug>/events.jsonl`. Every change is a single line added
+to the end of it. Nothing is edited, nothing is deleted. The readable files
+beside it are rebuilt from that log whenever it changes, so they cannot drift
+out of step with what actually happened.
 
 ```
 .sofar/
-  repo.md                      # repo-scoped memory (hand-written, NOT generated)
-  bindings.json                # { "<git-branch-or-worktree>": "<slug>" }
+  repo.md                      notes true across all work (you write this one)
+  bindings.json                which branch maps to which initiative
   initiatives/<slug>/
-    events.jsonl               # TRUTH — append-only
-    plan.md                    # generated projection
-    decisions.md               # generated projection
-    sessions/<session-id>.md   # generated per-session summaries
+    events.jsonl               the log, and the only source of truth
+    plan.md                    generated
+    decisions.md               generated
+    sessions/<id>.md           generated
 ```
 
-Events are immutable single-line JSON with a stable envelope (ulid ids,
-atomic O_APPEND writes); corrections are new events referencing the target
-id, never rewrites. Projections are written atomically (temp file + rename),
-so readers never see a half-written file.
+A correction is a new line pointing at the old one. History is never rewritten.
 
-## CLI
+What the assistant reads at the start of a session is a short summary, not the
+whole history, so a long running project does not crowd out the actual work.
+The full detail stays on disk for when it is needed. Decisions and the
+approaches they ruled out are the one thing never cut.
 
+## Optional extras
+
+**Status line.** `sofar init --statusline` puts progress, session cost and
+cache health in Claude Code's status bar. An existing status line is left
+alone.
+
+**Cloud sync.** Off unless you switch it on. `sofar login`, then
+`sofar link --org <org>`, then `sofar push` and `sofar pull` to sync through
+[api.sofar.sh](https://sofar.sh) instead of, or alongside, git. Work never
+waits on the network: if the service is unreachable, unsent entries wait and go
+out with the next push, with nothing lost or duplicated.
+
+**Reading the record from your own code.** The package ships typed imports, so
+a script or service can read a record without running the CLI:
+
+```ts
+import { validateEnvelope } from 'sofar.sh/schema'
+import { foldLines } from 'sofar.sh/engine'
+import { pushStream, pullStream } from 'sofar.sh/client'
 ```
-sofar init [--statusline]      make a repo sofar-ready (idempotent); --statusline wires the rent-meter
-sofar new <slug> [--goal]      create an initiative, bind the current branch
-sofar switch <slug>            rebind the current branch
-sofar status [slug]            fold and print the full initiative tree
-sofar export [slug] [--since]  event log as NDJSON (sync cursor primitive)
-sofar import <file|-> [slug]   append missing events, dedupe by id
-sofar login [--scopes read]    sign in to api.sofar.sh (device flow), store a machine token
-sofar link --org <org>         bind repo to a cloud org/repo (.sofar/remote.json, committable)
-sofar push [slug|--all]        push events to the linked repo (idempotent, offline-safe)
-sofar pull [slug|--all]        pull events since cursor; --watch follows the doorbell
-sofar event append ...         validated single-event append (the dialect surface)
-sofar statusline               rent-meter for Claude Code's statusLine (stdin JSON → one line)
-sofar serve [--port]           localhost JSON state + SSE on change + MCP at /mcp (127.0.0.1 only)
-sofar mcp [--root]             stdio MCP server (default registration; /mcp on serve is the opt-in)
-sofar upgrade [version]        self-update the global install (--check, --dry-run)
-```
 
-## Contracts
-
-Authoritative contracts — envelope, event types, state shape, tool
-signatures, hook behavior, acceptance criteria — live in
-[docs/SPEC.md](docs/SPEC.md). The on-disk record format — what a conforming
-third-party reader or writer of `.sofar/` must implement, engine not
-required — is specified in [docs/FORMAT.md](docs/FORMAT.md). This repo
-tracks its own development with the same protocol — self-hosted in its own
-`.sofar/` record.
-
-## Token economics
-
-Two different problems govern what a record costs an agent, and sofar treats
-them as two levers:
-
-**Lever A — price and latency: prompt caching.** Caching is the agent
-harness's job, but sofar is built to sit well in a cached prefix. The status
-block is injected once at session start, and the seven MCP tool definitions
-total ~1k tokens — both land in the prefix and stop costing after the first
-request. To keep it that way: orient once from the digest, and when you need
-history mid-session, read the generated projections (`plan.md`,
-`decisions.md`, `sessions/<id>.md`) from disk instead of re-pulling state
-dumps into the conversation.
-
-**Lever B — context-window occupancy.** Caching does not reduce the tokens a
-model must attend to, so every sofar read surface is budgeted:
-
-- `sofar_get_state` defaults to a summary-dense digest (~1–2k tokens);
-  the complete folded state (often 10× that on a mature record) stays
-  available via `view: "full"`.
-- The injected status block carries a hard 10,000-char cap with per-section
-  budgets and count caps; done phases collapse to a single summary line.
-- Detail is never deleted, only relocated — the full record survives in the
-  event log and its projections.
-
-One thing is deliberately never trimmed: **rationale**. The digest keeps
-recent decisions with their chose/over/because, plus a rejected-approaches
-ledger listing every decision's rejected alternative. Resume-ablation
-testing showed that dropping rejected alternatives is precisely what makes a
-fresh agent confidently re-propose a dead end the record had already ruled
-out — the cheapest tokens in the block are the ones that stop repeated work.
-
-**Making cost felt.** Two surfaces turn invisible harness costs into visible
-moments, both read-side and both computed without a single model call (a
-named invariant — sofar holds no API keys and sends nothing anywhere):
-
-- *Cold-resume advisory* (automatic): resuming a session whose record has
-  been idle past the longest cache TTL re-warms the whole transcript at full
-  input price. The SessionStart injection says so — one line with the
-  estimated token cost and the fresh-start alternative — and stays silent on
-  warm or small resumes.
-- *Rent-meter* (opt-in): `sofar statusline` renders model + ▸ dir ⎇ branch
-  (the segments Claude Code's default status line showed — a custom
-  statusLine replaces the default, so sofar carries them forward), record
-  progress, session cost, and the cache-read share of input tokens — a
-  healthy stable-prefix session runs 50–80% (green `✓`); under 30% (red
-  `⚠`) means something is churning your prompt prefix; context % warms
-  through yellow (≥70%) to red (≥90%) as compaction nears. Styled for the
-  status bar by default; `--no-color` gives the plain line. Wire it with
-  `sofar init --statusline` (merged only when `.claude/settings.json` has no
-  statusLine — an existing one, e.g. your personal `~/.claude` statusline
-  shining through, is never touched), or by hand:
-
-  ```json
-  { "statusLine": { "type": "command", "command": "sofar statusline" } }
-  ```
-
-## Build-tool hygiene
-
-The record (`.sofar/`) is prose committed into your repo — plans, decisions,
-notes. Tools that scan your whole tree for content can ingest it. Known case:
-**Tailwind v4** auto-scans every non-gitignored file for class candidates and
-can mint invalid CSS from code-like prose in projections. Exclude the record
-in your `globals.css`:
+**Tailwind v4.** Tailwind scans every file in a project for class names and can
+produce broken CSS from the writing in the record. Add one line to your
+`globals.css`:
 
 ```css
 @source not "../.sofar";
 ```
 
-The same principle applies to any scanner with tree-wide globs: point it away
-from `.sofar/`.
+`sofar doctor --fix` will add it for you. The same goes for any tool that
+scans your whole tree: point it away from `.sofar/`.
+
+## Docs
+
+* [docs/SPEC.md](docs/SPEC.md) is the full specification: events, tools, hooks,
+  state, and what counts as done.
+* [docs/FORMAT.md](docs/FORMAT.md) describes the file format on disk, for
+  anyone writing a tool that reads or writes a record without this engine.
+
+sofar tracks its own development with sofar, in the `.sofar/` folder of this
+repo.
+
+MIT licensed.
