@@ -20,10 +20,9 @@ Progress: 7/7 tasks done (100%)
 - [x] T4 Daemon + curl unix-socket shim — REJECTED: marginal gain fell to ~21ms after T1, and 4.7 of the 6.9ms target is curl's own spawn
 - [x] T5 T5a shipped (drop get_state at session start); T5b rejected (start_session must stay)
 
-## Phase 4 — Delivery [active] — 2/2 done
+## Phase 4 — Delivery [done] — 2/2 done
 
 - [x] T6 Protocol-block refresh: byte-match against shipped predecessors, refresh only those, never touch a customized block; doctor reports the state; upgrade points at sofar init
 - [x] T7 Fix the client-doorbell flake: wait on the pulled lines, not the log file; assert the total, not the batch split
 
-Active phase: Phase 4 — Delivery
-Next action: Await go-ahead on the protocol-block refresh (hash-match, never clobber) and the doorbell test fix.
+Next action: User runs `npm publish` for 0.14.0, then `sofar upgrade` + restart the MCP server so 4.5's routing fix goes live.
