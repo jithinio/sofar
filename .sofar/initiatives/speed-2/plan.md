@@ -4,7 +4,7 @@
 
 Goal: Cut in-tool and hook-path latency. Measured: storage is already free (append 17us, fold 1.64ms) — the cost is process spawns, O(sessions) projection write amplification, and model round trips.
 
-Progress: 3/5 tasks done (60%)
+Progress: 4/5 tasks done (80%)
 
 ## Phase 1 — Spawn cost [active] — 2/2 done
 
@@ -15,10 +15,10 @@ Progress: 3/5 tasks done (60%)
 
 - [x] T3 regenerateProjections rewrites plan.md + decisions.md + EVERY session .md on every append (27 files in token-optimization) — make it O(1) in touched sessions
 
-## Phase 3 — Round trips (needs decisions) [pending] — 0/2 done
+## Phase 3 — Round trips (needs decisions) [pending] — 1/2 done
 
 - [ ] T4 Daemon + non-node hook shim: curl to a unix socket measured 6.9ms vs 64.5ms spawn; needs CLI fallback so correctness never depends on the daemon
-- [ ] T5 Collapse the start-of-session round trip: SessionStart already injects the digest, so the agent's get_state/start_session call costs a model turn for data it has
+- [x] T5 Collapse the start-of-session round trip: SessionStart already injects the digest, so the agent's get_state/start_session call costs a model turn for data it has
 
 Active phase: Phase 1 — Spawn cost
-Next action: Resume speed-2: finish the hot-path bundle split, get typecheck green, then push and publish 0.14.0.
+Next action: Decide on a protocol-block refresh path — init never rewrites an installed block, so T5a reaches no existing repo.

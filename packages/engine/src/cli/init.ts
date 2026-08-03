@@ -48,12 +48,18 @@ This repo's work memory lives in sofar records under \`.sofar/\`.
    serves — the current git branch selects the initiative.
 
 Session loop:
-- START: orient from the record — call \`sofar_get_state\` (MCP) or run
-  \`sofar status\`. Do not ask for context the record already answers.
-  Then call \`sofar_start_session\` passing the \`session_id\` from the
-  injected context line ("Session: <id> — …") so your events attach to
-  YOUR session — never omit it when that line is present (omitting mints
-  a separate session id and orphans the hook-registered one).
+- START: the SessionStart hook has ALREADY injected the record above —
+  goal, progress, next action, decisions, rejected approaches. Do not
+  call \`sofar_get_state\` to re-read it: that digest is the same
+  projection rendered with fewer fields, so it can only tell you less.
+  Reach for it only when the injected block is missing or truncated, or
+  to read a DIFFERENT initiative.
+  Do still call \`sofar_start_session\`, passing the \`session_id\` from the
+  injected context line ("Session: <id> — …"). It is not bookkeeping: it
+  pins which record your writes land in — without it they follow the
+  branch binding, which moves mid-session — and attaches them to YOUR
+  session rather than minting a separate id that orphans the
+  hook-registered one.
 - DURING: log decisions (\`sofar_log_decision\`) and task status changes
   (\`sofar_update_task\`) as they happen.
 - BEFORE FINISHING: write back with \`sofar_end_session\` (summary +

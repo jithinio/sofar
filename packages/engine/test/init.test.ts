@@ -137,6 +137,15 @@ describe('sofar init on a fresh repo', () => {
     expect(claudeMd).toContain('sofar_get_state') // read-orient
     expect(claudeMd).toContain('sofar_end_session') // write-back
 
+    // speed-2 T5a: the MCP dialect must NOT send agents to get_state at
+    // start — the SessionStart hook already injected renderStatus with MORE
+    // options, so the call costs a model round trip to learn strictly less.
+    expect(claudeMd).toMatch(/Do not\s+call `sofar_get_state`/)
+    // …but start_session is NOT optional: it sets the server's active
+    // session, and without it writes follow the branch binding and appends
+    // stamp session "cli" (the record-integrity misroute class).
+    expect(claudeMd).toContain('Do still call `sofar_start_session`')
+
     // AGENTS.md convention dialect: same markers, same three BD19 clauses,
     // but a CLI-only loop (no MCP assumptions — task 5.1, BD31)
     const agentsMd = readFileSync(join(root, 'AGENTS.md'), 'utf8')
@@ -145,6 +154,9 @@ describe('sofar init on a fresh repo', () => {
     expect(agentsMd).toContain(PROTOCOL_END)
     expect(agentsMd).toMatch(/never in tool memory/i) // (a) total jurisdiction
     expect(agentsMd).toContain('sofar new') // (b) create before unmatched work
+    // speed-2 T5a does NOT reach this dialect: MCP-less tools get no hook
+    // injection, so their orient-first step has nothing to be redundant with.
+    expect(agentsMd).toContain('run `sofar status` and orient from it')
     expect(agentsMd).toContain('bindings.json') // (c) bindings resolve the record
     expect(agentsMd).toContain('sofar status') // read-orient (CLI, not MCP)
     expect(agentsMd).toContain('--type session_started') // start via event append

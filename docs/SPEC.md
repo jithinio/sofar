@@ -333,6 +333,16 @@ also collides with a sofar-cloud-internal package).
   list)" overflow line — and is the ONLY view that skips initiative
   resolution entirely (`initiative` ignored): it must work from an
   unbound branch, which is exactly when a session needs it.
+  NOT called at session start (speed-2 T5a): the digest is
+  renderStatus(state) and the SessionStart block is renderStatus(state,
+  {repoMemory, sessionId, git}) — the same projection with strictly more, so
+  re-reading it after injection can only return less, at the cost of a full
+  model round trip. The MCP protocol block directs agents to skip it and
+  reach for it only when the injected block is missing or truncated (both
+  share STATUS_CHAR_LIMIT) or when reading a DIFFERENT initiative. This does
+  NOT extend to sofar_start_session, which must still be called — see its
+  entry below. The AGENTS.md dialect keeps its orient-first step: MCP-less
+  tools have no hook injection for it to be redundant with.
 - sofar_start_session({initiative?, tool, model?, session_id?}) →
   {session_id} — session_id (from the SessionStart context "Session:" line)
   adopts exactly that session, OPEN OR ENDED; an unknown id is registered
@@ -350,6 +360,14 @@ also collides with a sofar-cloud-internal package).
   sessions/<id>.md while its event still stands in the log. Events after a
   session_ended are already routine (hooks emit them) and a repeat
   session_ended is legal and last-wins.
+  ALWAYS called, even though get_state at start is not (speed-2 T5a): the
+  call's load-bearing effect is ctx.session.set(), not the event. Without an
+  active session, resolveWriteInitiative falls back to the branch binding —
+  which moves mid-session — so writes land wherever the branch now points,
+  and appendAndProject stamps envelope.session "cli", detaching decisions and
+  task changes from the session (sessions/<id>.md loses them; the Stop
+  write-back linkage breaks). That is the record-integrity misroute class,
+  and the side-index workaround for it is already rejected.
 - sofar_end_session({session_id, summary, next_action}) → ok
 - sofar_update_task({initiative?, task_id, status, note?}) → ok
 - sofar_log_decision({initiative?, chose, over, because}) → ok
