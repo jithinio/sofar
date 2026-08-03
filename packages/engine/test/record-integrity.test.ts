@@ -474,8 +474,11 @@ describe('cross-session awareness (Phase 4)', () => {
     endSession(f.root, 'alpha', 'sibling', '2026-08-01T10:02:00.000Z') // wraps first...
     endSession(f.root, 'alpha', 'mine', '2026-08-01T10:03:00.000Z') // ...I absorb it
 
-    // 0.12.0 kept announcing it for the rest of the session's life.
-    expect(handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout).toBe('')
+    // 0.12.0 kept announcing it for the rest of the session's life. The git
+    // line still renders (4.4) — it is unconditional; the sibling report is
+    // what must fall silent.
+    const out = handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout
+    expect(out).not.toContain('wrapped while you worked')
   })
 
   it('keeps next_action and push state when the summary is long (0.12.1 budget order)', () => {
@@ -500,8 +503,11 @@ describe('cross-session awareness (Phase 4)', () => {
     )
 
     const out = handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout
-    expect(out.length).toBeLessThanOrEqual(PARALLEL_WRAP_BUDGET)
-    expect(out).toContain('next: run the migration') // survived, un-clipped
+    // The budget bounds the wrap LINE, not the whole hook payload — the git
+    // line is a separate, independently bounded line (4.4).
+    const wrap = out.split('\n').find((l) => l.includes('wrapped while you worked'))!
+    expect(wrap.length).toBeLessThanOrEqual(PARALLEL_WRAP_BUDGET)
+    expect(wrap).toContain('next: run the migration') // survived, un-clipped
     expect(out).toContain('pushed (in sync with origin/main)')
   })
 
@@ -513,7 +519,42 @@ describe('cross-session awareness (Phase 4)', () => {
     // A bare session_closed is not a write-back — nothing to report.
     handleSessionEnd(f.root, JSON.stringify({ session_id: 'sibling', reason: 'clear' }))
 
-    expect(handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout).toBe('')
+    const out = handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout
+    expect(out).not.toContain('wrapped while you worked')
+  })
+
+  it('reports push state on EVERY prompt, with no sibling wrap-up to ride on (4.4)', () => {
+    const f = fx({ slug: 'alpha' })
+    writeRefs(f.root, sha('b'), sha('a'))
+    register(f.root, 'alpha', 'mine')
+    // No sibling exists at all — under 4.2 this session learned nothing about
+    // push state after SessionStart, which is the defect 4.4 closes.
+    const out = handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout
+    expect(out).toContain('sofar: main @ bbbbbbb, NOT pushed (origin/main at aaaaaaa)')
+    expect(out).not.toContain('wrapped while you worked')
+  })
+
+  it('flips to pushed when a SIBLING pushes my commit mid-session (4.4)', () => {
+    const f = fx({ slug: 'alpha' })
+    writeRefs(f.root, sha('b'), sha('a')) // I committed; nobody has pushed
+    register(f.root, 'alpha', 'mine')
+    const before = handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout
+    expect(before).toContain('NOT pushed')
+
+    // A parallel window pushes, carrying my commit along. It writes nothing to
+    // the record — git commands are exempt (D1) — so refs are the only trace.
+    writeRefs(f.root, sha('b'), sha('b'))
+
+    const after = handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout
+    expect(after).toContain('pushed (in sync with origin/main)')
+  })
+
+  it('says never pushed when there is no upstream ref at all (4.4)', () => {
+    const f = fx({ slug: 'alpha' })
+    writeRefs(f.root, sha('b')) // no origin/main ref written at all
+    register(f.root, 'alpha', 'mine')
+    const out = handleUserPrompt(f.root, JSON.stringify({ session_id: 'mine', cwd: '/tmp' })).stdout
+    expect(out).toContain('sofar: main @ bbbbbbb, never pushed.')
   })
 
   it('reports EVERY unwritten session, not just the newest (4.3)', () => {

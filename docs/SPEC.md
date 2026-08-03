@@ -175,7 +175,7 @@ T2) — so the answer is "same or different", not an ahead/behind count. In
 a shared checkout every session sees one .git, so a push by any of them
 updates the origin ref for all of them at once. Best-effort: null renders
 nothing. The status block carries it as one `Git:` line above Goal, and the
-UserPromptSubmit parallel-wrap line reuses it.
+UserPromptSubmit shim emits it as its own unconditional line (4.4).
 FoldResult also carries unregistered_sessions (record-integrity 2.1): every
 session id appearing on an event in THIS log that no session_started here
 ever registered, sorted, never including "cli". The fold attaches activity
@@ -470,8 +470,8 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   independently of the drift nudge — both may appear, newest first. It fires
   when another session in this initiative ENDED with a real write-back
   (summary present, so a mechanical session_closed does not qualify) inside
-  THIS session's live span, and carries that session's id, summary, next
-  action, and the derived push state from §Git state — clipped to 420 chars.
+  THIS session's live span, and carries that session's id, summary and next
+  action — clipped to 420 chars.
   The window opens at THIS session's last write-back, falling back to its
   start (0.13.0). Anchoring on `started` alone never closes, so one sibling
   wrap-up was announced for the rest of the session's life; suppressing the
@@ -482,7 +482,7 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   absorbs the record and re-opens it for new sibling activity, matching the
   frame the drift counter already uses. The phantom sibling that motivated
   0.12.1 was really the identity split (5.1). Budget
-  order is next_action and push state FIRST, summary absorbing the
+  order is next_action FIRST, summary absorbing the
   remainder — the summary is the least actionable part, and rendering it
   first let a long one clip the next action away entirely.
   This is the answer to the cross-session blind spot the initiative opened
@@ -490,6 +490,24 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   had any way to learn it, so a human had to announce it in every window.
   Stateless and re-firing like the nudge — there is no "already told you"
   bit, and repeating a true fact costs less than storing one.
+  The same shim emits the PUSH-STATE line (record-integrity 4.4)
+  UNCONDITIONALLY — whenever §Git state is readable, regardless of any
+  sibling activity: `sofar: <branch> @ <head>, ` then `pushed (in sync with
+  origin/<branch>).` | `NOT pushed (origin/<branch> at <tip>).` | `never
+  pushed.` Ordering is news, then state, then nudge: parallel-wrap, push
+  state, drift. 4.2 carried push state inside the wrap line, which meant a
+  session learned it ONLY when a sibling happened to write back in the
+  window — so a long-lived session saw push state once at SessionStart and
+  thereafter by luck. That coupling lost the initiative's own motivating
+  case a second time: a window committed a README rewrite, a sibling pushed
+  that commit with the 0.13.0 release, and the window had to reconstruct the
+  answer from git log. Unbinding costs nothing — refs-only state, a line
+  bounded by construction, and the same stateless re-fire as the nudge, so
+  the 420-char wrap budget bounds the WRAP line only, never the whole
+  payload. Repo-level by design: it reports HEAD against origin, never "your
+  commits" — per-session commit attribution needs the commit-graph walk
+  §Git state rules out, and time-window attribution misreads interleaved
+  parallel sessions.
 - PostToolUse shim (matcher: Edit|Write|MultiEdit|Bash) → appends
   file_touched / command_run from stdin JSON (tool_name, tool_input),
   preceded by a session_started for an unregistered session (lazy
@@ -1064,3 +1082,14 @@ stay the underlying derivation's, and exit codes are styling-independent.
   InitiativeListEntry (same records → deep-equal listing, listing
   renders byte-identical); an uninitialized repo prints the empty
   listing with the `sofar new` hint.
+- **Push awareness (record-integrity 4.4):** a registered session in a repo
+  with readable refs and NO sibling session at all still gets the push-state
+  line on every UserPromptSubmit — `NOT pushed (origin/<branch> at <tip>)`
+  when the local tip is ahead, `pushed (in sync with origin/<branch>)` when
+  the refs match, `never pushed.` when no origin ref exists. When a parallel
+  window pushes mid-session (refs move, record untouched — git is exempt
+  under record-hygiene D1), the session's very next prompt flips from NOT
+  pushed to pushed with no sibling write-back involved. The 420-char budget
+  bounds the parallel-wrap line alone, not the combined hook payload; a
+  sibling that wrapped before this session's last write-back still yields no
+  wrap line while the push-state line renders regardless.

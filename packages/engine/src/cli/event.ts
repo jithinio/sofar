@@ -467,14 +467,52 @@ function clipTo(text: string, max: number): string {
 }
 
 /**
+ * Push state (record-integrity 4.4) — one derived line on EVERY prompt.
+ *
+ * 4.1 established the principle: read git rather than log it, because
+ * record-hygiene D1 exempts git commands from PostToolUse and a logged push
+ * would make the record un-settleable. 4.2 then hung the answer off the
+ * parallel-wrap line, and that coupling was the residual defect — a session
+ * learned whether its work was pushed ONLY when a sibling happened to end
+ * with a write-back inside the window. A long-lived window therefore saw
+ * push state once at SessionStart and thereafter by luck.
+ *
+ * The incident that exposed it: a window had committed a README rewrite, a
+ * sibling pushed that commit as part of the 0.13.0 release, and the window
+ * had no way to learn it — it had to reconstruct the answer from git log,
+ * which is exactly the hand-reasoning 4.2 set out to abolish.
+ *
+ * Unbinding it is nearly free. The state is refs-only (no subprocess, no
+ * commit-graph walk), the line is bounded by construction, and it re-fires
+ * statelessly like the drift nudge beside it — repeating a true fact stays
+ * cheaper than storing one, and D5 already rejected an "already told you"
+ * marker for this family of lines.
+ *
+ * Repo-level by design: it reports HEAD against origin, never "your
+ * commits". Attributing commits to sessions needs the graph walk core/git.ts
+ * deliberately avoids, and time-window attribution misreads interleaved
+ * parallel sessions. "Is the tip I can see on origin" is the question refs
+ * answer honestly, and it is the one that unblocks a session deciding
+ * whether to push.
+ */
+function gitStateLine(git: ReturnType<typeof readGitState>): string | null {
+  if (git === null) return null
+  if (git.upstream === null) return `sofar: ${git.branch} @ ${git.head}, never pushed.`
+  return git.synced
+    ? `sofar: ${git.branch} @ ${git.head}, pushed (in sync with origin/${git.branch}).`
+    : `sofar: ${git.branch} @ ${git.head}, NOT pushed (origin/${git.branch} at ${git.upstream}).`
+}
+
+/**
  * Parallel wrap-ups (record-integrity 4.2) — what OTHER sessions finished
- * while this one was working, plus whether the result is pushed.
+ * while this one was working.
  *
  * This is the line that answers the complaint this initiative started from:
- * a session had no way to learn that a sibling had committed and pushed, so
- * a human had to say it out loud in every other window. Everything here is
- * derived — sibling write-backs come from the fold, push state comes from
- * git refs — so it costs no new events and no new stored state.
+ * a session had no way to learn that a sibling had wrapped up, so a human had
+ * to say it out loud in every other window. Everything here is derived —
+ * sibling write-backs come from the fold — so it costs no new events and no
+ * new stored state. Push state used to ride along on this line; 4.4 moved it
+ * to gitStateLine above, which renders unconditionally.
  *
  * Selection is deliberately narrow to stay quiet: only sessions that ENDED
  * with a real write-back (summary present, so a mechanical session_closed
@@ -501,16 +539,14 @@ function clipTo(text: string, max: number): string {
  * replacement session id read as a sibling. With one identity per agent
  * there is nothing spurious left to report.
  *
- * Budget order is also deliberate: next_action and push state are composed
- * FIRST and the summary absorbs whatever room is left. The summary is the
- * least actionable part of the line, and rendering it first meant a long one
- * ate the next action entirely (0.12.0 clipped mid-word at "it is f…").
+ * Budget order is also deliberate: next_action is composed FIRST and the
+ * summary absorbs whatever room is left. The summary is the least actionable
+ * part of the line, and rendering it first meant a long one ate the next
+ * action entirely (0.12.0 clipped mid-word at "it is f…"). D5 set that order
+ * with push state in the reserved tail too; 4.4 moved push state onto its own
+ * unconditional line, which only widens the room the summary inherits.
  */
-function parallelWrapLine(
-  state: InitiativeState,
-  sessionId: string,
-  git: ReturnType<typeof readGitState>,
-): string | null {
+function parallelWrapLine(state: InitiativeState, sessionId: string): string | null {
   const me = state.sessions.find((s) => s.id === sessionId)
   if (me === undefined) return null
   // Since my last write-back, else since I started. A write-back is the point
@@ -529,18 +565,10 @@ function parallelWrapLine(
   const newest = others[0]!
   const more = others.length > 1 ? ` (+${others.length - 1} more)` : ''
   const next = newest.next_action !== undefined ? ` — next: ${newest.next_action}` : ''
-  const push =
-    git === null
-      ? ''
-      : git.upstream === null
-        ? ` Git: ${git.branch} @ ${git.head}, never pushed.`
-        : git.synced
-          ? ` Git: ${git.branch} @ ${git.head}, pushed (in sync with origin/${git.branch}).`
-          : ` Git: ${git.branch} @ ${git.head}, NOT pushed (origin/${git.branch} at ${git.upstream}).`
 
   // Reserve room for the actionable tail, then give the summary the rest.
   const head = `sofar: session ${newest.id} wrapped while you worked${more} — `
-  const tail = `${next}.${push}`
+  const tail = `${next}.`
   const room = PARALLEL_WRAP_BUDGET - head.length - tail.length - 2 // 2 = the quotes
   const summary = room > 0 ? clipTo(newest.summary, room) : ''
   const body = summary.length > 0 ? `"${summary}"` : ''
@@ -559,9 +587,14 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     const state = ctx.foldState(slug)
     if (!state.sessions.some((s) => s.id === sessionId)) return { ...OK } // not ours to nudge
 
+    // News first (what a sibling did), then state (where the repo stands),
+    // then the nudge (what to do about it).
     const lines: string[] = []
-    const wrap = parallelWrapLine(state, sessionId, readGitState(rootDir))
+    const wrap = parallelWrapLine(state, sessionId)
     if (wrap !== null) lines.push(wrap)
+
+    const gitLine = gitStateLine(readGitState(rootDir))
+    if (gitLine !== null) lines.push(gitLine)
 
     const drift = freshnessTotal(state.freshness)
     if (drift >= NUDGE_DRIFT_MIN) {
