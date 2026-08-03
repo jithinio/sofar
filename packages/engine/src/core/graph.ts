@@ -625,3 +625,371 @@ function resolveCitation(
   if (tasks === undefined || !tasks.has(citation.handle)) return undefined
   return taskNodeId(citation.slug, citation.handle)
 }
+
+// ---------------------------------------------------------------------------
+// Queries (record-graph 2.1-2.4) — read-only over a built graph, the way
+// fold.ts keeps its companion derivations beside the fold.
+//
+// Ordering and dedupe follow the task_files precedent: dedupe most-recent
+// first, newest-first out. Overflow past GRAPH_RESULT_CAP is reported as a
+// NUMERIC `omitted` count, never as a "+N more" element inside a typed list —
+// the in-band sentinel in activity.files is why openSessionFileConflicts has
+// to defend with `startsWith('+')`, and query results feed doctor as well as
+// renderers. The "+N more" text is a render-time concern (3.1/3.2).
+// ---------------------------------------------------------------------------
+
+/** Per-list cap on query results — the task_files/activity number. */
+export const GRAPH_RESULT_CAP = 20
+
+/** A session that touched the path, in any initiative. */
+export interface FileToucher {
+  /** session node id */
+  id: string
+  session_id: string
+  /** Initiatives this session touched the path FROM, sorted — often more than one. */
+  initiatives: string[]
+  /** ts of its most recent touch. */
+  ts: string
+  touches: number
+}
+
+/** A task that was ACTIVE while the path was touched (the `worked` edge). */
+export interface FileWorker {
+  /** task node id */
+  id: string
+  initiative: string
+  task_id: string
+  title: string
+  ts: string
+  touches: number
+}
+
+/**
+ * A decision reached by a session that also touched the path. This is a
+ * documented TWO-HOP join (decision <- session -> file), and weaker than the
+ * direct edges above: the record knows which session logged a decision and
+ * which files that session touched, never that the decision was ABOUT the
+ * file. Surfaces must not present it as a direct claim.
+ */
+export interface FileDecision {
+  /** decision node id */
+  id: string
+  initiative: string
+  ts: string
+  chose: string
+  /** The session that both logged it and touched the path — the hop. */
+  via_session: string
+}
+
+export interface FileProvenance {
+  /** The path as asked for. */
+  path: string
+  /** False when no event in any log ever touched this path. */
+  found: boolean
+  /** The recorded paths this query resolved to — more than one after a repo rename or in worktrees. */
+  matched_paths: string[]
+  sessions: FileToucher[]
+  tasks: FileWorker[]
+  decisions: FileDecision[]
+  omitted: { sessions: number; tasks: number; decisions: number }
+}
+
+/**
+ * Resolve a queried path to the file nodes that denote it.
+ *
+ * file_touched records the path the agent actually edited, which is an
+ * ABSOLUTE path — so one logical file accumulates several node identities
+ * over a record's life. Measured here: `packages/engine/src/cli/doctor.ts`
+ * exists under three, one per checkout it was edited from —
+ * /Users/jins/IO/harness/... (the pre-rename root), /Users/jins/IO/sofar/...,
+ * and .claude/worktrees/cli-ui/... — and 21 paths are split this way.
+ *
+ * Recorded paths are never rewritten (append-only), and no prefix rule can
+ * recover a directory rename anyway. So identity stays verbatim and the join
+ * happens HERE: an exact hit wins outright, otherwise every recorded path
+ * ending at a segment boundary with the query matches. Literal, no
+ * inference, and the caller controls specificity — a bare `fold.ts` matches
+ * broadly by construction, which is why callers show `matched_paths`.
+ */
+export function resolveFileNodes(graph: RecordGraph, path: string): string[] {
+  const query = path.replace(/^\.\//, '')
+  const exact = fileNodeId(query)
+  if (graph.nodes.has(exact)) return [exact]
+  const suffix = `/${query}`
+  const matches: string[] = []
+  for (const node of graph.nodes.values()) {
+    if (node.kind !== 'file') continue
+    if (node.path === query || node.path.endsWith(suffix)) matches.push(node.path)
+  }
+  return matches.sort().map(fileNodeId)
+}
+
+/**
+ * whyFile (2.1): every task, decision and session that ever touched a path,
+ * across ALL initiatives, newest-first.
+ *
+ * The cross-initiative part is the point. `files_touched` and `task_files`
+ * both stop at the log they were folded from, so a path edited under three
+ * initiatives has three unrelated partial answers and no whole one; the file
+ * node here is a single identity every log joins on.
+ */
+export function whyFile(graph: RecordGraph, path: string): FileProvenance {
+  const nodeIds = resolveFileNodes(graph, path)
+  const provenance: FileProvenance = {
+    path,
+    found: nodeIds.length > 0,
+    matched_paths: nodeIds.map((id) => pathOf(graph, id)),
+    sessions: [],
+    tasks: [],
+    decisions: [],
+    omitted: { sessions: 0, tasks: 0, decisions: 0 },
+  }
+  if (!provenance.found) return provenance
+
+  const incoming = nodeIds.flatMap((id) => graph.incoming.get(id) ?? [])
+
+  const sessions = new Map<string, FileToucher & { slugs: Set<string> }>()
+  const tasks = new Map<string, FileWorker>()
+  for (const edge of incoming) {
+    const ts = edge.ts ?? ''
+    if (edge.kind === 'touched') {
+      const existing = sessions.get(edge.from)
+      if (existing === undefined) {
+        const node = graph.nodes.get(edge.from)
+        sessions.set(edge.from, {
+          id: edge.from,
+          session_id: node !== undefined && node.kind === 'session' ? node.session_id : edge.from,
+          initiatives: [],
+          slugs: new Set([edge.initiative]),
+          ts,
+          touches: 1,
+        })
+      } else {
+        existing.slugs.add(edge.initiative)
+        existing.touches += 1
+        if (ts > existing.ts) existing.ts = ts
+      }
+    } else if (edge.kind === 'worked') {
+      const existing = tasks.get(edge.from)
+      if (existing === undefined) {
+        const node = graph.nodes.get(edge.from)
+        tasks.set(edge.from, {
+          id: edge.from,
+          initiative: edge.initiative,
+          task_id: node !== undefined && node.kind === 'task' ? node.task_id : edge.from,
+          title: node !== undefined && node.kind === 'task' ? node.title : '',
+          ts,
+          touches: 1,
+        })
+      } else {
+        existing.touches += 1
+        if (ts > existing.ts) existing.ts = ts
+      }
+    }
+  }
+
+  // Two-hop: decisions reached by any session that touched this path.
+  const decisions = new Map<string, FileDecision>()
+  for (const toucher of sessions.values()) {
+    for (const edge of graph.outgoing.get(toucher.id) ?? []) {
+      if (edge.kind !== 'decided') continue
+      const node = graph.nodes.get(edge.to)
+      if (node === undefined || node.kind !== 'decision') continue
+      if (decisions.has(node.id)) continue
+      decisions.set(node.id, {
+        id: node.id,
+        initiative: node.initiative,
+        ts: node.ts,
+        chose: node.chose,
+        via_session: toucher.session_id,
+      })
+    }
+  }
+
+  const touchers = [...sessions.values()].map(({ slugs, ...rest }) => ({
+    ...rest,
+    initiatives: [...slugs].sort(),
+  }))
+  provenance.sessions = capList(touchers.sort(byTsDescThenId), provenance.omitted, 'sessions')
+  provenance.tasks = capList([...tasks.values()].sort(byTsDescThenId), provenance.omitted, 'tasks')
+  provenance.decisions = capList(
+    [...decisions.values()].sort(byTsDescThenId),
+    provenance.omitted,
+    'decisions',
+  )
+  return provenance
+}
+
+/** A task that worked on at least one of the same files. */
+export interface RelatedTask {
+  /** task node id */
+  id: string
+  initiative: string
+  task_id: string
+  title: string
+  status: TaskStatus
+  /** Shared paths, newest-shared-touch first, capped at GRAPH_RESULT_CAP. */
+  shared: string[]
+  /** Total shared paths before the cap — the ranking key. */
+  shared_count: number
+  /** ts of the most recent shared touch. */
+  ts: string
+}
+
+export interface RelatedTasks {
+  /** task node id the query was anchored on */
+  id: string
+  found: boolean
+  neighbours: RelatedTask[]
+  omitted: number
+}
+
+/**
+ * relatedTasks (2.2): co-touched-file neighbours, ranked by shared-path
+ * count. Neighbours in OTHER initiatives are included and are usually the
+ * interesting ones — "who else has been in this code" is a question the
+ * per-initiative fold cannot answer at all.
+ *
+ * The join is on file-node identity, i.e. the path as recorded — unlike
+ * whyFile, which resolves a user-supplied path across checkouts. Two tasks
+ * that edited the same file from different roots (pre-rename, or a worktree)
+ * therefore do NOT count as sharing it. Widening this would mean picking a
+ * canonical suffix length for every path in the repo, which is a guess;
+ * under-reporting a neighbour is the safer error.
+ */
+export function relatedTasks(graph: RecordGraph, taskNode: string): RelatedTasks {
+  const result: RelatedTasks = {
+    id: taskNode,
+    found: graph.nodes.has(taskNode),
+    neighbours: [],
+    omitted: 0,
+  }
+  if (!result.found) return result
+
+  // Paths this task worked on → most recent touch of each.
+  const mine = new Map<string, string>()
+  for (const edge of graph.outgoing.get(taskNode) ?? []) {
+    if (edge.kind !== 'worked') continue
+    const ts = edge.ts ?? ''
+    const prior = mine.get(edge.to)
+    if (prior === undefined || ts > prior) mine.set(edge.to, ts)
+  }
+
+  const shared = new Map<string, { paths: Map<string, string> }>()
+  for (const fileNode of mine.keys()) {
+    for (const edge of graph.incoming.get(fileNode) ?? []) {
+      if (edge.kind !== 'worked' || edge.from === taskNode) continue
+      let entry = shared.get(edge.from)
+      if (entry === undefined) {
+        entry = { paths: new Map() }
+        shared.set(edge.from, entry)
+      }
+      const ts = edge.ts ?? ''
+      const prior = entry.paths.get(fileNode)
+      if (prior === undefined || ts > prior) entry.paths.set(fileNode, ts)
+    }
+  }
+
+  const neighbours: RelatedTask[] = []
+  for (const [id, entry] of shared) {
+    const node = graph.nodes.get(id)
+    if (node === undefined || node.kind !== 'task') continue
+    const paths = [...entry.paths.entries()].sort((a, b) => (a[1] < b[1] ? 1 : a[1] > b[1] ? -1 : 0))
+    neighbours.push({
+      id,
+      initiative: node.initiative,
+      task_id: node.task_id,
+      title: node.title,
+      status: node.status,
+      shared: paths.slice(0, GRAPH_RESULT_CAP).map(([fileNode]) => pathOf(graph, fileNode)),
+      shared_count: paths.length,
+      ts: paths[0]?.[1] ?? '',
+    })
+  }
+
+  neighbours.sort(
+    (a, b) =>
+      b.shared_count - a.shared_count ||
+      (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0) ||
+      a.id.localeCompare(b.id),
+  )
+  result.omitted = Math.max(0, neighbours.length - GRAPH_RESULT_CAP)
+  result.neighbours = neighbours.slice(0, GRAPH_RESULT_CAP)
+  return result
+}
+
+/** A decision other initiatives reached for — repo-general by behaviour. */
+export interface RepoGeneralDecision {
+  /** decision node id */
+  id: string
+  initiative: string
+  /** Its `D<n>` handle within its own initiative. */
+  ordinal: number
+  ts: string
+  chose: string
+  /** Initiatives OTHER than its own that cite it, sorted — the ranking key. */
+  cited_by: string[]
+  /** Cross-initiative citation edges (a decision may cite it more than once). */
+  citations: number
+}
+
+/**
+ * repoGeneral (2.3): decisions cited FROM initiatives other than their own.
+ *
+ * Repo-generality is OBSERVED rather than declared. The rejected alternative
+ * was a `scope: repo|initiative` field on decision_logged, which would have
+ * required a judgment unavailable at log time (decisions BECOME general
+ * later) and would have been blind to every decision already in the record.
+ * This reads the citation behaviour that is already there.
+ *
+ * Uncapped at derivation (the overlappingWritebacks precedent) — the
+ * population is small and doctor (3.3) wants all of it; render surfaces cap.
+ */
+export function repoGeneral(graph: RecordGraph): RepoGeneralDecision[] {
+  const rows: RepoGeneralDecision[] = []
+  for (const node of graph.nodes.values()) {
+    if (node.kind !== 'decision') continue
+    const external = (graph.incoming.get(node.id) ?? []).filter(
+      (e) => e.kind === 'cites' && e.initiative !== node.initiative,
+    )
+    if (external.length === 0) continue
+    rows.push({
+      id: node.id,
+      initiative: node.initiative,
+      ordinal: node.ordinal,
+      ts: node.ts,
+      chose: node.chose,
+      cited_by: [...new Set(external.map((e) => e.initiative))].sort(),
+      citations: external.length,
+    })
+  }
+  // Breadth first (how many OTHER initiatives reached for it), then volume,
+  // then oldest — an older decision that stayed general outranks a new one.
+  rows.sort(
+    (a, b) =>
+      b.cited_by.length - a.cited_by.length ||
+      b.citations - a.citations ||
+      (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0) ||
+      a.id.localeCompare(b.id),
+  )
+  return rows
+}
+
+function pathOf(graph: RecordGraph, fileNode: string): string {
+  const node = graph.nodes.get(fileNode)
+  return node !== undefined && node.kind === 'file' ? node.path : fileNode
+}
+
+function byTsDescThenId<T extends { ts: string; id: string }>(a: T, b: T): number {
+  if (a.ts !== b.ts) return a.ts < b.ts ? 1 : -1
+  return a.id.localeCompare(b.id)
+}
+
+function capList<T, K extends string>(
+  items: T[],
+  omitted: Record<K, number>,
+  key: K,
+): T[] {
+  if (items.length > GRAPH_RESULT_CAP) omitted[key] = items.length - GRAPH_RESULT_CAP
+  return items.slice(0, GRAPH_RESULT_CAP)
+}

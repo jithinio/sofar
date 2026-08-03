@@ -4,7 +4,7 @@
 
 Goal: One mechanical, read-side adjacency derivation over the existing event logs, repo-wide — subsuming the bespoke per-edge reducers (task_files, activity), unlocking cross-initiative provenance the per-initiative fold drops, and deriving repo-general decisions from citation behaviour instead of a declared scope. Zero new event types, zero new capture, zero model calls, retroactive over every existing record; never in the hot path.
 
-Progress: 4/15 tasks done (26%)
+Progress: 8/15 tasks done (53%)
 
 ## Primitive [done] — 4/4 done
 
@@ -13,12 +13,12 @@ Progress: 4/15 tasks done (26%)
 - [x] 1.3 Citation-handle extraction: closed lexical grammar over decision text — D<n>, BD<n>, <slug> D<n>, speed T<n>. Literal match only, no semantic inference (D3). Measured today: 150 citations across 12 initiatives; BD22/BD16 7x, BD9 4x, D3 3x
 - [x] 1.4 Tests: determinism (identical records → identical graph), tolerance (corrupt lines skipped), cross-initiative edge presence, and citation-extraction precision (false-positive guard: a handle-shaped token in unrelated prose)
 
-## Queries [pending] — 0/4 done
+## Queries [done] — 4/4 done
 
-- [ ] 2.1 whyFile(graph, path): every task, decision and session that ever touched a path, across ALL initiatives, newest-first
-- [ ] 2.2 relatedTasks(graph, taskId): co-touched-file neighbours, ranked by shared-path count
-- [ ] 2.3 repoGeneral(graph): decisions cited FROM initiatives other than their own — repo-generality observed from behaviour, not declared at log time; ranked by distinct citing initiatives
-- [ ] 2.4 Ordering + cap rules mirroring task_files precedent (dedupe most-recent-first, per-node cap, +N more sentinel)
+- [x] 2.1 whyFile(graph, path): every task, decision and session that ever touched a path, across ALL initiatives, newest-first
+- [x] 2.2 relatedTasks(graph, taskId): co-touched-file neighbours, ranked by shared-path count
+- [x] 2.3 repoGeneral(graph): decisions cited FROM initiatives other than their own — repo-generality observed from behaviour, not declared at log time; ranked by distinct citing initiatives
+- [x] 2.4 Ordering + cap rules mirroring task_files precedent (dedupe most-recent-first, per-node cap, +N more sentinel)
 
 ## Surface [pending] — 0/4 done
 
@@ -33,4 +33,4 @@ Progress: 4/15 tasks done (26%)
 - [ ] 4.2 Re-express activity over the graph primitive, byte-identical output
 - [ ] 4.3 Decide whether unregistered_sessions and overlappingWritebacks follow, or stay in fold because they are single-log by nature
 
-Next action: Begin 2.1 — whyFile(graph, path) over the primitive.
+Next action: Begin Phase 3 — 3.1 `sofar why &lt;path&gt;`.

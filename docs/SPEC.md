@@ -314,6 +314,40 @@ rather than declared at log time, and its top result on this repo is
 felt-cost D3 — cited from record-graph and sync-client — the decision
 CLAUDE.md and §Architectural invariants already treat as repo-wide law.
 
+**Queries (record-graph 2.1-2.4)** — read-only over a built graph:
+- `whyFile(graph, path)` → every session, task and decision behind a path,
+  across ALL initiatives, newest-first. Sessions (`touched`) and tasks
+  (`worked`) are DIRECT edges. Decisions are a documented TWO-HOP join
+  (decision ← session → file) and a weaker claim: the record knows which
+  session logged a decision and which files that session touched, never that
+  the decision was ABOUT the file — surfaces must not present it as direct.
+- `relatedTasks(graph, taskNodeId)` → co-touched-file neighbours ranked by
+  shared-path count, cross-initiative included. Joins on file-node identity
+  as recorded.
+- `repoGeneral(graph)` → decisions cited from initiatives other than their
+  own, ranked by DISTINCT citing initiatives, then citation volume, then
+  oldest. Uncapped at derivation (the overlappingWritebacks precedent) — it
+  feeds doctor (3.3) as well as renders.
+
+Ordering and dedupe follow the task_files precedent: dedupe most-recent
+first, newest-first out. Lists cap at GRAPH_RESULT_CAP (20) and report
+overflow as a NUMERIC `omitted` count — never as a `+N more` element inside
+a typed list, because query results feed doctor as well as renderers and the
+in-band sentinel in `activity.files` is already why openSessionFileConflicts
+must defend with `startsWith('+')`. Rendering `+N more` is a surface concern.
+
+**Path identity.** file_touched records the path the agent actually edited —
+an ABSOLUTE path — so one logical file accumulates a node per checkout it
+was ever edited from. Measured here: 229 file nodes, 89 outside the current
+root, 38 under `.claude/worktrees/`, and 21 paths split across checkouts;
+`packages/engine/src/cli/doctor.ts` exists under four, including
+`/Users/jins/IO/harness/...`, this repo's PRE-RENAME root. Recorded paths
+are never rewritten and no prefix rule recovers a directory rename, so node
+identity stays verbatim and `resolveFileNodes` joins at READ time: an exact
+hit wins outright, otherwise every recorded path ending at a segment
+boundary with the query matches, and callers report `matched_paths`. Literal
+matching, no inference; the caller controls specificity.
+
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
 events not already present (dedupe by id — idempotent). Per-initiative
