@@ -56,7 +56,7 @@ export const CTX_ERROR_FROM = 90
 /** The command's caps: the status bar renders ANSI + emoji, piped or not. */
 export const STATUSLINE_FORCED_CAPS: Caps = { color: true, unicode: true, animate: false }
 
-const PLAIN_CAPS: Caps = { color: false, unicode: false, animate: false }
+export const PLAIN_CAPS: Caps = { color: false, unicode: false, animate: false }
 
 type Obj = Record<string, unknown>
 

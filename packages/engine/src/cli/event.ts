@@ -689,7 +689,7 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
 // Commander wiring — thin: read stdin, run handler, mirror its result.
 // ---------------------------------------------------------------------------
 
-async function readStdin(): Promise<string> {
+export async function readStdin(): Promise<string> {
   if (process.stdin.isTTY) return '' // run by hand without piped input
   const chunks: Buffer[] = []
   for await (const chunk of process.stdin) {
@@ -698,7 +698,13 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString('utf8')
 }
 
-const SUBCOMMANDS: ReadonlyArray<{
+/**
+ * The hook name → handler map, exported so the hot-path entry (cli/fast.ts)
+ * can dispatch a shim WITHOUT constructing the commander program. One source
+ * of truth: registerEventCommand builds its subcommands from this same list,
+ * so a hook can never exist on one path and not the other.
+ */
+export const SUBCOMMANDS: ReadonlyArray<{
   name: string
   description: string
   handler: (rootDir: string, input: string) => HookResult
@@ -735,7 +741,7 @@ const SUBCOMMANDS: ReadonlyArray<{
 ]
 
 /** Mirror a handler result onto the process (stdout/stderr/exit code). */
-function mirror(result: HookResult): void {
+export function mirror(result: HookResult): void {
   if (result.stdout.length > 0) process.stdout.write(result.stdout)
   if (result.stderr.length > 0) {
     process.stderr.write(result.stderr.endsWith('\n') ? result.stderr : `${result.stderr}\n`)

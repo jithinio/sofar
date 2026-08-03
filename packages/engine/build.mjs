@@ -10,17 +10,46 @@ const requireShim = [
   'const require = __createRequire(import.meta.url);',
 ].join('\n')
 
-await build({
-  entryPoints: ['src/cli/index.ts'],
+// ---------------------------------------------------------------------------
+// CLI: three bundles, not one (speed-2 T1). The hook shims and the statusline
+// fire on every tool use / status-bar render; bundling them with the MCP SDK,
+// chokidar, commander, serve, cloud, doctor and upgrade meant ~35 ms of dead
+// V8 compile per invocation. dist/cli.js is now a stub that routes to the
+// small dist/fast.js for those commands and to dist/full.js for everything
+// else. `external` keeps the stub's dynamic imports as runtime imports —
+// without it esbuild inlines both bundles back into the stub.
+// ---------------------------------------------------------------------------
+
+const cliShared = {
   bundle: true,
   platform: 'node',
   format: 'esm',
   target: 'node18',
-  outfile: 'dist/cli.js',
-  banner: { js: `#!/usr/bin/env node\n${requireShim}` },
   // Hook shim sources ship INSIDE the bundle as text — only dist/ is
   // published, so `sofar init` can never read src/hooks/ at runtime.
   loader: { '.sh': 'text' },
+}
+
+await build({
+  ...cliShared,
+  entryPoints: ['src/cli/boot.ts'],
+  outfile: 'dist/cli.js',
+  external: ['./fast.js', './full.js'],
+  banner: { js: `#!/usr/bin/env node\n${requireShim}` },
+})
+
+await build({
+  ...cliShared,
+  entryPoints: ['src/cli/fast.ts'],
+  outfile: 'dist/fast.js',
+  banner: { js: requireShim },
+})
+
+await build({
+  ...cliShared,
+  entryPoints: ['src/cli/index.ts'],
+  outfile: 'dist/full.js',
+  banner: { js: requireShim },
 })
 
 chmodSync('dist/cli.js', 0o755)
