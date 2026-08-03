@@ -4,16 +4,16 @@
 
 Goal: Cut in-tool and hook-path latency. Measured: storage is already free (append 17us, fold 1.64ms) — the cost is process spawns, O(sessions) projection write amplification, and model round trips.
 
-Progress: 2/5 tasks done (40%)
+Progress: 3/5 tasks done (60%)
 
 ## Phase 1 — Spawn cost [active] — 2/2 done
 
 - [x] T1 Hot-path bundle split: dist/cli.js stub routes event|statusline to a small fast.js, everything else to full.js
 - [x] T2 Compile cache via the stub (module.enableCompileCache before the heavy import)
 
-## Phase 2 — Write amplification [pending] — 0/1 done
+## Phase 2 — Write amplification [pending] — 1/1 done
 
-- [ ] T3 regenerateProjections rewrites plan.md + decisions.md + EVERY session .md on every append (27 files in token-optimization) — make it O(1) in touched sessions
+- [x] T3 regenerateProjections rewrites plan.md + decisions.md + EVERY session .md on every append (27 files in token-optimization) — make it O(1) in touched sessions
 
 ## Phase 3 — Round trips (needs decisions) [pending] — 0/2 done
 

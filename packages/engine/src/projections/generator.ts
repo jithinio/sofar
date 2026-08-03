@@ -1,4 +1,4 @@
-import { mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
 import { basename, dirname, join } from 'node:path'
 import type { InitiativeState } from '../core/fold'
@@ -46,16 +46,44 @@ function writeFileAtomic(path: string, content: string): void {
   }
 }
 
+/**
+ * Atomic replace, skipped when the bytes on disk already match (speed-2 T3).
+ *
+ * Every append regenerates EVERY projection, so an initiative with 25 sessions
+ * rewrote 27 files to record one file_touched — the cost grew with the length
+ * of the record, which is exactly backwards. Measured on a 25-session
+ * initiative: rendering all of them costs 0.03 ms, writing all of them costs
+ * 3.2 ms. The render is not worth caching; the writes are.
+ *
+ * The result is byte-identical to writing unconditionally — the file ends up
+ * holding `content` either way — so this is invisible to every reader. A
+ * missing or unreadable file simply falls through to the write. The compare is
+ * not a lock: if a concurrent regeneration wrote the same bytes first, skipping
+ * is correct, and if it wrote different bytes it folded a state at least as new
+ * as ours. Truth is events.jsonl regardless (BD5).
+ */
+function writeFileAtomicIfChanged(path: string, content: string): void {
+  try {
+    if (readFileSync(path, 'utf8') === content) return
+  } catch {
+    // Missing, unreadable, or not valid utf8 — write it.
+  }
+  writeFileAtomic(path, content)
+}
+
 export function regenerateProjections(initiativeDir: string, state: InitiativeState): void {
   mkdirSync(initiativeDir, { recursive: true })
-  writeFileAtomic(join(initiativeDir, 'plan.md'), renderPlan(state))
-  writeFileAtomic(join(initiativeDir, 'decisions.md'), renderDecisions(state))
+  writeFileAtomicIfChanged(join(initiativeDir, 'plan.md'), renderPlan(state))
+  writeFileAtomicIfChanged(join(initiativeDir, 'decisions.md'), renderDecisions(state))
 
   if (state.sessions.length > 0) {
     const sessionsDir = join(initiativeDir, 'sessions')
     mkdirSync(sessionsDir, { recursive: true })
     for (const session of state.sessions) {
-      writeFileAtomic(join(sessionsDir, sessionFileName(session.id)), renderSession(state, session))
+      writeFileAtomicIfChanged(
+        join(sessionsDir, sessionFileName(session.id)),
+        renderSession(state, session),
+      )
     }
   }
 }
