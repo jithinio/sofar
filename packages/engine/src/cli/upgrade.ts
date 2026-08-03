@@ -238,7 +238,11 @@ export async function runUpgrade(
     spinner?.succeed()
     return ok(
       `\nsofar upgraded (${decision.target}). ` +
-        `Reconnect the sofar MCP server (/mcp) or restart your agent to load it.\n`,
+        `Reconnect the sofar MCP server (/mcp) or restart your agent to load it.\n` +
+        // Upgrading replaces the binary, not repo wiring — hook shims and the
+        // protocol block are files in the repo. Without this line an upgraded
+        // sofar keeps running an old protocol block indefinitely (speed-2 T6).
+        `Run \`sofar init\` in each repo to refresh its wiring (protocol block, hook shims).\n`,
     )
   }
   spinner?.fail()

@@ -32,6 +32,58 @@ export const PROTOCOL_START = '<!-- sofar:protocol -->'
 export const PROTOCOL_END = '<!-- /sofar:protocol -->'
 
 /**
+ * Every CLAUDE.md protocol block sofar has ever SHIPPED, current one excluded
+ * (speed-2 T6).
+ *
+ * The block is sofar's only lever on agent behaviour, and init used to never
+ * touch it once installed — so no protocol change could reach a repo that had
+ * already run init, and the product could not evolve its own core mechanism in
+ * the field. Refreshing blindly is the opposite failure: a block the user has
+ * edited is theirs, and this very repo's carries a local ORDER MATTERS clause.
+ *
+ * A byte-match against this ledger proves a previous sofar wrote the block and
+ * nobody has touched it since, which is exactly when replacing it is safe.
+ * Anything else is customized and is reported, never rewritten.
+ *
+ * APPEND, never edit: every entry must stay byte-exact forever, or the repos
+ * still carrying it stop matching and silently fall back to "customized". When
+ * changing PROTOCOL_BLOCK, move the OLD text here first.
+ */
+export const PROTOCOL_BLOCK_V1 = `${PROTOCOL_START}
+## Sofar protocol (jurisdiction is total)
+
+This repo's work memory lives in sofar records under \`.sofar/\`.
+1. ALL work state lives in sofar records — never in tool memory, scratch
+   files, or ad-hoc notes. If it is worth keeping, it goes in the record.
+2. Work that matches no existing initiative requires creating one first:
+   run \`sofar new <slug>\` before proceeding.
+3. Bindings (\`.sofar/bindings.json\`) resolve which record a session
+   serves — the current git branch selects the initiative.
+
+Session loop:
+- START: orient from the record — call \`sofar_get_state\` (MCP) or run
+  \`sofar status\`. Do not ask for context the record already answers.
+  Then call \`sofar_start_session\` passing the \`session_id\` from the
+  injected context line ("Session: <id> — …") so your events attach to
+  YOUR session — never omit it when that line is present (omitting mints
+  a separate session id and orphans the hook-registered one).
+- DURING: log decisions (\`sofar_log_decision\`) and task status changes
+  (\`sofar_update_task\`) as they happen.
+- BEFORE FINISHING: write back with \`sofar_end_session\` (summary +
+  next action). The Stop hook blocks sessions that skip this.
+${PROTOCOL_END}
+`
+
+/** Superseded CLAUDE.md blocks, oldest first. */
+export const SHIPPED_PROTOCOL_BLOCKS: readonly string[] = [PROTOCOL_BLOCK_V1]
+
+/**
+ * Superseded AGENTS.md blocks. Empty: the CLI dialect has not changed since it
+ * shipped, so every installed copy already byte-matches the current template.
+ */
+export const SHIPPED_AGENTS_PROTOCOL_BLOCKS: readonly string[] = []
+
+/**
  * The BD19 total-jurisdiction protocol block. Clauses (a)–(c) are contract
  * (SPEC §CLI): record-only state, `sofar new` before unmatched work,
  * bindings resolve the record — plus the read-orient/write-back loop.
@@ -368,12 +420,71 @@ function mergeMcpJson(rootDir: string, report: string[]): void {
 }
 
 /**
+ * The marker-delimited span of a protocol block, trailing newline EXCLUDED so
+ * comparisons never turn on whether a file ends in one. Null when the markers
+ * are absent or unterminated — an unterminated block is left strictly alone,
+ * since its real extent is unknown and guessing could eat user prose.
+ */
+function protocolSpan(text: string): { start: number; end: number } | null {
+  const start = text.indexOf(PROTOCOL_START)
+  if (start === -1) return null
+  const endAt = text.indexOf(PROTOCOL_END, start)
+  if (endAt === -1) return null
+  return { start, end: endAt + PROTOCOL_END.length }
+}
+
+/**
+ * What state is the block in this file? (speed-2 T6)
+ *
+ * - absent      no markers at all — nothing installed
+ * - unterminated  opened but never closed; extent unknown, so hands off
+ * - current     byte-matches the template
+ * - stale       byte-matches a block sofar previously shipped → safe to refresh
+ * - customized  matches nothing sofar ever wrote → the user's, leave it
+ *
+ * Shared by init (which acts on it) and doctor (which reports it) so the two
+ * can never disagree about whether a repo's protocol is up to date.
+ */
+export type ProtocolBlockState = 'absent' | 'unterminated' | 'current' | 'stale' | 'customized'
+
+export function classifyProtocolBlock(
+  text: string,
+  template: string,
+  shipped: readonly string[],
+): ProtocolBlockState {
+  if (!text.includes(PROTOCOL_START)) return 'absent'
+  const span = protocolSpan(text)
+  if (span === null) return 'unterminated'
+  const templateSpan = protocolSpan(template)
+  if (templateSpan === null) return 'customized' // unreachable; the safe read
+  const installed = text.slice(span.start, span.end)
+  if (installed === template.slice(templateSpan.start, templateSpan.end)) return 'current'
+  const known = shipped.some((old) => {
+    const oldSpan = protocolSpan(old)
+    return oldSpan !== null && old.slice(oldSpan.start, oldSpan.end) === installed
+  })
+  return known ? 'stale' : 'customized'
+}
+
+/**
  * Install a marker-delimited protocol block into a repo-root file — one
  * discipline for CLAUDE.md and AGENTS.md: create the file if missing, append
- * the block if the markers are absent, and never touch the file again once
- * the markers exist (hand edits inside them survive).
+ * the block if the markers are absent, and refresh an installed block ONLY
+ * when it byte-matches something sofar itself shipped (speed-2 T6).
+ *
+ * That match is the whole safety argument: it proves a previous sofar wrote
+ * those bytes and nobody edited them, so replacing loses nothing. A block that
+ * matches neither the current template nor any shipped predecessor has been
+ * customized — it is reported and left exactly as it is. Text outside the
+ * markers is never touched in any branch.
  */
-function appendProtocolBlock(rootDir: string, file: string, block: string, report: string[]): void {
+function appendProtocolBlock(
+  rootDir: string,
+  file: string,
+  block: string,
+  shipped: readonly string[],
+  report: string[],
+): void {
   const path = join(rootDir, file)
   if (!existsSync(path)) {
     writeFileSync(path, block, 'utf8')
@@ -381,9 +492,25 @@ function appendProtocolBlock(rootDir: string, file: string, block: string, repor
     return
   }
   const current = readFileSync(path, 'utf8')
-  if (current.includes(PROTOCOL_START)) {
-    report.push(`unchanged ${file} (protocol block present)`) // never touched once installed
+  const state = classifyProtocolBlock(current, block, shipped)
+  if (state === 'current') {
+    report.push(`unchanged ${file} (protocol block current)`)
     return
+  }
+  if (state === 'customized' || state === 'unterminated') {
+    report.push(`unchanged ${file} (protocol block customized — refresh it by hand)`)
+    return
+  }
+  if (state === 'stale') {
+    const span = protocolSpan(current)
+    const templateSpan = protocolSpan(block)
+    // Both are non-null whenever the state is 'stale' — it is derived from them.
+    if (span !== null && templateSpan !== null) {
+      const wanted = block.slice(templateSpan.start, templateSpan.end)
+      writeFileSync(path, current.slice(0, span.start) + wanted + current.slice(span.end), 'utf8')
+      report.push(`updated ${file} (protocol block refreshed)`)
+      return
+    }
   }
   const separator = current.length === 0 ? '' : current.endsWith('\n') ? '\n' : '\n\n'
   writeFileSync(path, `${current}${separator}${block}`, 'utf8')
@@ -432,8 +559,14 @@ export function runInit(
     installShims(rootDir, report)
     statuslineAbsent = mergeSettings(rootDir, statusline, report).statuslineAbsent
     mergeMcpJson(rootDir, report)
-    appendProtocolBlock(rootDir, 'CLAUDE.md', PROTOCOL_BLOCK, report)
-    appendProtocolBlock(rootDir, 'AGENTS.md', AGENTS_PROTOCOL_BLOCK, report)
+    appendProtocolBlock(rootDir, 'CLAUDE.md', PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS, report)
+    appendProtocolBlock(
+      rootDir,
+      'AGENTS.md',
+      AGENTS_PROTOCOL_BLOCK,
+      SHIPPED_AGENTS_PROTOCOL_BLOCKS,
+      report,
+    )
   } catch (err) {
     if (err instanceof InitAbort) return fail(renderFailure(`sofar init: ${err.message}`, errCaps))
     throw err

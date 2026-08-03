@@ -7,7 +7,15 @@ import {
   type InitiativeState,
   type OrphanTaskEvent,
 } from '../core/fold'
-import { hookCommand, PROTOCOL_START, SHIMS } from './init'
+import {
+  AGENTS_PROTOCOL_BLOCK,
+  classifyProtocolBlock,
+  hookCommand,
+  PROTOCOL_BLOCK,
+  SHIMS,
+  SHIPPED_AGENTS_PROTOCOL_BLOCKS,
+  SHIPPED_PROTOCOL_BLOCKS,
+} from './init'
 import {
   cssExcludesSofar,
   detectTailwindV4,
@@ -152,12 +160,39 @@ function auditWiring(rootDir: string): Section {
       : { level: 'fail', text: '.mcp.json sofar server not registered', hint: repair },
   )
 
-  for (const file of ['CLAUDE.md', 'AGENTS.md']) {
-    findings.push(
-      fileHas(join(rootDir, file), PROTOCOL_START)
-        ? { level: 'ok', text: `${file} protocol block present` }
-        : { level: 'fail', text: `${file} protocol block missing`, hint: repair },
-    )
+  // Presence is not enough (speed-2 T6): a block installed by an older sofar
+  // keeps directing agents by the old protocol forever, and nothing else in the
+  // repo reveals it — `sofar upgrade` replaces the binary, not repo wiring.
+  for (const { file, template, shipped } of [
+    { file: 'CLAUDE.md', template: PROTOCOL_BLOCK, shipped: SHIPPED_PROTOCOL_BLOCKS },
+    { file: 'AGENTS.md', template: AGENTS_PROTOCOL_BLOCK, shipped: SHIPPED_AGENTS_PROTOCOL_BLOCKS },
+  ]) {
+    const path = join(rootDir, file)
+    const text = existsSync(path) ? readFileSync(path, 'utf8') : ''
+    switch (classifyProtocolBlock(text, template, shipped)) {
+      case 'current':
+        findings.push({ level: 'ok', text: `${file} protocol block current` })
+        break
+      case 'stale':
+        findings.push({
+          level: 'warn',
+          text: `${file} protocol block is from an older sofar`,
+          hint: 'run `sofar init` to refresh it',
+        })
+        break
+      case 'customized':
+      case 'unterminated':
+        // Not a fault — an edited block is the user's. Say so, so a repo that
+        // silently misses protocol updates is at least visible.
+        findings.push({
+          level: 'warn',
+          text: `${file} protocol block is customized — sofar will not refresh it`,
+          hint: 'compare it against a fresh `sofar init` in a scratch repo',
+        })
+        break
+      default:
+        findings.push({ level: 'fail', text: `${file} protocol block missing`, hint: repair })
+    }
   }
 
   return { title: 'Wiring integrity', findings }

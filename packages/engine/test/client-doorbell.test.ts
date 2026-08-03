@@ -165,6 +165,14 @@ describe('runDoorbell', () => {
   })
 })
 
+/** Events reported pulled across every "pulled <slug>: N new" line so far. */
+function pulledCount(lines: readonly string[]): number {
+  return lines.reduce((total, line) => {
+    const match = /pulled \S+: (\d+) new/.exec(line)
+    return match === null ? total : total + Number(match[1])
+  }, 0)
+}
+
 describe('sofar pull --watch', () => {
   it('does the catch-up pull on connect, then pulls on every ring', async () => {
     const repoId = `repo_watch_${++n}`
@@ -199,9 +207,13 @@ describe('sofar pull --watch', () => {
         env: watcher.env,
         sleep: noSleep,
         signal: controller.signal,
+        // Wait on the LINES, not the log file. A pull writes its events and
+        // only then emits its summary line, so resolving on log length let the
+        // assertions run inside that window — the events were there but the
+        // line was not yet, which is what made this test flaky under load.
         onLine: (line) => {
           lines.push(line)
-          if (readEvents(watcherLog).events.length >= 2) gotLive.resolve()
+          if (pulledCount(lines) >= 2) gotLive.resolve()
         },
         onWarnLine: () => {},
       },
@@ -220,7 +232,10 @@ describe('sofar pull --watch', () => {
 
     const pulled = readEvents(watcherLog).events.map((e) => (e.payload as { text: string }).text)
     expect(pulled).toEqual(['before-watch', 'while-watching'])
-    expect(lines.some((l) => l.includes('pulled main: 1 new'))).toBe(true)
+    // Both events were REPORTED as pulled. Asserted as a total rather than as
+    // a "pulled main: 1 new" line, because how the catch-up and the ring split
+    // the two events across pulls is a timing detail, not a contract.
+    expect(pulledCount(lines)).toBe(2)
 
     controller.abort()
     expect(await withTimeout(watch)).toBeUndefined()

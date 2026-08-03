@@ -2,23 +2,28 @@
 
 # Plan: speed-2
 
-Goal: Cut in-tool and hook-path latency. Measured: storage is already free (append 17us, fold 1.64ms) — the cost is process spawns, O(sessions) projection write amplification, and model round trips.
+Goal: Cut in-tool and hook-path latency, and make protocol changes actually reach installed repos. Measured: storage is already free (append 17us, fold 1.64ms) — the cost is process spawns, projection write amplification, and model round trips.
 
-Progress: 4/5 tasks done (80%)
+Progress: 7/7 tasks done (100%)
 
-## Phase 1 — Spawn cost [active] — 2/2 done
+## Phase 1 — Spawn cost [done] — 2/2 done
 
-- [x] T1 Hot-path bundle split: dist/cli.js stub routes event|statusline to a small fast.js, everything else to full.js
+- [x] T1 Hot-path bundle split: 545B stub routes event|statusline to 76KB fast.js, else full.js
 - [x] T2 Compile cache via the stub (module.enableCompileCache before the heavy import)
 
-## Phase 2 — Write amplification [pending] — 1/1 done
+## Phase 2 — Write amplification [done] — 1/1 done
 
-- [x] T3 regenerateProjections rewrites plan.md + decisions.md + EVERY session .md on every append (27 files in token-optimization) — make it O(1) in touched sessions
+- [x] T3 Skip projection writes whose bytes already match disk — 3.24ms to 0.35ms at 25 sessions
 
-## Phase 3 — Round trips (needs decisions) [pending] — 1/2 done
+## Phase 3 — Round trips [done] — 2/2 done
 
-- [ ] T4 Daemon + non-node hook shim: curl to a unix socket measured 6.9ms vs 64.5ms spawn; needs CLI fallback so correctness never depends on the daemon
-- [x] T5 Collapse the start-of-session round trip: SessionStart already injects the digest, so the agent's get_state/start_session call costs a model turn for data it has
+- [x] T4 Daemon + curl unix-socket shim — REJECTED: marginal gain fell to ~21ms after T1, and 4.7 of the 6.9ms target is curl's own spawn
+- [x] T5 T5a shipped (drop get_state at session start); T5b rejected (start_session must stay)
 
-Active phase: Phase 1 — Spawn cost
-Next action: Decide on a protocol-block refresh path — init never rewrites an installed block, so T5a reaches no existing repo.
+## Phase 4 — Delivery [active] — 2/2 done
+
+- [x] T6 Protocol-block refresh: byte-match against shipped predecessors, refresh only those, never touch a customized block; doctor reports the state; upgrade points at sofar init
+- [x] T7 Fix the client-doorbell flake: wait on the pulled lines, not the log file; assert the total, not the batch split
+
+Active phase: Phase 4 — Delivery
+Next action: Await go-ahead on the protocol-block refresh (hash-match, never clobber) and the doorbell test fix.

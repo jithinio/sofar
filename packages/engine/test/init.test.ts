@@ -14,13 +14,16 @@ import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 import {
   AGENTS_PROTOCOL_BLOCK,
+  classifyProtocolBlock,
   GITATTRIBUTES_LINE,
   hookCommand,
   PROTOCOL_BLOCK,
+  PROTOCOL_BLOCK_V1,
   PROTOCOL_START,
   PROTOCOL_END,
   REPO_MD_STUB,
   runInit,
+  SHIPPED_PROTOCOL_BLOCKS,
   SHIMS,
   STATUSLINE_HINT,
   STATUSLINE_SETTINGS_ENTRY,
@@ -445,5 +448,72 @@ describe('confirmation styling (cli-ui 2.5)', () => {
     expect(result.exitCode).toBe(1)
     expect(result.stderr.startsWith('\x1b[31m✗\x1b[39m sofar init:')).toBe(true)
     expect(runInit(root, {}, styled, piped).stderr.startsWith('sofar init:')).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// speed-2 T6 — the protocol block is sofar's only lever on agent behaviour,
+// and init used to never touch it once installed, so no protocol change could
+// reach a repo that had already run init. Refresh is allowed EXACTLY when the
+// installed bytes are ones sofar itself shipped.
+// ---------------------------------------------------------------------------
+
+describe('protocol block refresh (speed-2 T6)', () => {
+  const withBlock = (root: string, block: string, extra = ''): void => {
+    writeFileSync(join(root, 'CLAUDE.md'), `# My repo\n\nMy own notes.\n\n${block}${extra}`, 'utf8')
+  }
+
+  it('classifies installed blocks against what sofar has shipped', () => {
+    expect(classifyProtocolBlock('', PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS)).toBe('absent')
+    expect(classifyProtocolBlock(PROTOCOL_BLOCK, PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS)).toBe(
+      'current',
+    )
+    expect(classifyProtocolBlock(PROTOCOL_BLOCK_V1, PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS)).toBe(
+      'stale',
+    )
+    // An edited block matches nothing sofar wrote.
+    const edited = PROTOCOL_BLOCK.replace(PROTOCOL_END, `- MY RULE: no Friday deploys.\n${PROTOCOL_END}`)
+    expect(classifyProtocolBlock(edited, PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS)).toBe('customized')
+    // Opened but never closed: extent unknown, so never rewritten.
+    expect(
+      classifyProtocolBlock(`${PROTOCOL_START}\nhalf a block`, PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS),
+    ).toBe('unterminated')
+  })
+
+  it('refreshes a block a previous sofar wrote, leaving surrounding prose alone', () => {
+    const root = freshRepo()
+    withBlock(root, PROTOCOL_BLOCK_V1)
+    const result = runInit(root)
+    expect(result.stdout).toContain('updated CLAUDE.md (protocol block refreshed)')
+
+    const after = readFileSync(join(root, 'CLAUDE.md'), 'utf8')
+    expect(after.startsWith('# My repo\n\nMy own notes.\n\n')).toBe(true)
+    expect(after).toContain('Do not\n  call `sofar_get_state`') // now on the current protocol
+    expect(after).not.toContain('START: orient from the record') // …and off the old one
+    // Exactly one block, and it is the current template.
+    expect(after.split(PROTOCOL_START).length - 1).toBe(1)
+  })
+
+  it('never rewrites a block the user has edited', () => {
+    const root = freshRepo()
+    const mine = '- MY RULE: no Friday deploys.\n'
+    withBlock(root, PROTOCOL_BLOCK_V1.replace(PROTOCOL_END, `${mine}${PROTOCOL_END}`))
+    const result = runInit(root)
+    expect(result.stdout).toContain('unchanged CLAUDE.md (protocol block customized')
+
+    const after = readFileSync(join(root, 'CLAUDE.md'), 'utf8')
+    expect(after).toContain(mine) // the user's line survives
+    expect(after).toContain('START: orient from the record') // still on their old protocol
+  })
+
+  it('is idempotent once current', () => {
+    const root = freshRepo()
+    withBlock(root, PROTOCOL_BLOCK_V1)
+    runInit(root) // refreshes
+    const once = readFileSync(join(root, 'CLAUDE.md'), 'utf8')
+    expect(runInit(root).stdout).toContain(
+      'unchanged CLAUDE.md (protocol block current)',
+    )
+    expect(readFileSync(join(root, 'CLAUDE.md'), 'utf8')).toBe(once)
   })
 })
