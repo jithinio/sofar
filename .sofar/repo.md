@@ -39,3 +39,21 @@
   new binary takes effect on the next session (or /mcp reconnect).
 - Commit messages: NO "Co-Authored-By" trailers — user ruling
   2026-07-11; end the message after the descriptive body.
+- Zero model API calls (felt-cost D3): sofar itself never calls a model — no
+  API keys, no inference costs, no user content sent anywhere. Write-backs
+  cost nothing extra because they are the agent's own tool-call args.
+  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new
+  Decision citing that one. Binds every surface, including the statusline.
+- CLI output law (cli-ui D1): styled static output + stderr spinners at the
+  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,
+  cyan=identifiers, dim=secondary) — no hex for text, no background
+  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;
+  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus
+  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every
+  new CLI surface inherits this; no TUI framework, no truecolor themes.
+- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`
+  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the
+  code already describe it, and the parts that generalize are covered by
+  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the
+  session). Named here so doctor's repo-memory axis reads as judged rather
+  than unnoticed (2026-08-03).

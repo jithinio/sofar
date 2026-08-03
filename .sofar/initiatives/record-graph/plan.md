@@ -33,4 +33,4 @@ Progress: 15/15 tasks done (100%)
 - [x] 4.2 Re-express activity over the graph primitive, byte-identical output
 - [x] 4.3 Decide whether unregistered_sessions and overlappingWritebacks follow, or stay in fold because they are single-log by nature
 
-Next action: Release 0.15.0 — why/related/doctor axis are unshipped.
+Next action: User: npm publish -w sofar.sh (OTP), then sofar upgrade; afterwards commit "record: 0.15.0 published" and close record-graph.
