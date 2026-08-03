@@ -7,6 +7,8 @@ import {
   type InitiativeState,
   type OrphanTaskEvent,
 } from '../core/fold'
+import { buildGraph, extractCitations, repoGeneral } from '../core/graph'
+import { clip } from '../projections/templates/shared'
 import {
   AGENTS_PROTOCOL_BLOCK,
   classifyProtocolBlock,
@@ -47,7 +49,10 @@ import {
  *      changes — work missing from the plan, 11.3)
  *   3. concurrency        — no file under concurrent edit by ≥2 OPEN sessions
  *      (live clobber risk, 11.2)
- *   4. scanner hazards    — will a tree-wide class scanner (Tailwind v4)
+ *   4. repo memory        — is every decision the record TREATS as repo-wide
+ *      (cited from other initiatives, record-graph 2.3/3.3) named in the
+ *      hand-written .sofar/repo.md? Detection only: repo.md is never written.
+ *   5. scanner hazards    — will a tree-wide class scanner (Tailwind v4)
  *      ingest .sofar/ because the entry stylesheet lacks a `@source not`
  *      exclusion?
  *
@@ -434,7 +439,72 @@ function auditConcurrency(folded: Folded[]): Section {
 }
 
 // ---------------------------------------------------------------------------
-// 3. Scanner hazards (+ --fix).
+// 3. Repo memory — repo-general decisions absent from .sofar/repo.md.
+// ---------------------------------------------------------------------------
+
+/**
+ * Repo-generality is OBSERVED, not declared (record-graph 2.3): a decision
+ * cited FROM initiatives other than its own is repo-general by behaviour.
+ * Such a decision is repo-wide law that a new session only meets if the
+ * hand-written repo.md — the one file every SessionStart injects — names it.
+ *
+ * DETECTION ONLY. repo.md is hand-written per SPEC §Record layout and sofar
+ * never generates or rewrites it; both the curation and the SessionStart
+ * token budget are the author's. So this reports and stops at WARN.
+ *
+ * "Names it" is literal, and deliberately the record's OWN citation grammar:
+ * a QUALIFIED handle, `<slug> D<n>`. Prose matching would be inference (D3)
+ * and would go stale the moment either text is reworded; the qualified handle
+ * is stable, greppable, and the same form the decisions cite each other by.
+ * Unqualified `D<n>` cannot count — repo.md has no home initiative, so the
+ * handle would be ambiguous across every log in the repo.
+ */
+function auditRepoMemory(rootDir: string): Section {
+  const findings: Finding[] = []
+  const graph = buildGraph(rootDir)
+  const general = repoGeneral(graph)
+  if (general.length === 0) {
+    findings.push({
+      level: 'ok',
+      text: 'no decision is cited from outside its own initiative yet (nothing observed as repo-general)',
+    })
+    return { title: 'Repo memory', findings }
+  }
+
+  const repoMd = join(rootDir, '.sofar', 'repo.md')
+  let prose = ''
+  try {
+    prose = readFileSync(repoMd, 'utf8')
+  } catch {
+    // Missing or unreadable repo.md names nothing — every finding below fires,
+    // which is the honest answer (init writes the stub; a deleted one is a gap).
+  }
+  const named = new Set(
+    extractCitations(prose, '', listInitiatives(rootDir))
+      .filter((c) => c.qualified)
+      .map((c) => `${c.slug} ${c.handle}`),
+  )
+
+  for (const decision of general) {
+    const handle = `${decision.initiative} D${decision.ordinal}`
+    if (named.has(handle)) continue
+    findings.push({
+      level: 'warn',
+      text: `${handle} is repo-general — cited from ${decision.cited_by.join(', ')} — but .sofar/repo.md never names it`,
+      hint: `chose: ${clip(decision.chose, 120)} — write it into repo.md by hand, citing \`${handle}\` (sofar never generates repo.md)`,
+    })
+  }
+  if (findings.length === 0) {
+    findings.push({
+      level: 'ok',
+      text: `all ${general.length} repo-general decision${general.length === 1 ? '' : 's'} named in .sofar/repo.md`,
+    })
+  }
+  return { title: 'Repo memory', findings }
+}
+
+// ---------------------------------------------------------------------------
+// 4. Scanner hazards (+ --fix).
 // ---------------------------------------------------------------------------
 
 interface ScanProgress {
@@ -623,6 +693,7 @@ export function runDoctor(
     auditRecords(folded),
     auditSplitSessions(folded),
     auditConcurrency(folded),
+    auditRepoMemory(rootDir),
     auditScanners(rootDir, fix, { caps: progress.caps ?? stderrCaps(), stream: progress.stream }),
   ]
 

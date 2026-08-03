@@ -4,7 +4,7 @@
 
 Goal: One mechanical, read-side adjacency derivation over the existing event logs, repo-wide — subsuming the bespoke per-edge reducers (task_files, activity), unlocking cross-initiative provenance the per-initiative fold drops, and deriving repo-general decisions from citation behaviour instead of a declared scope. Zero new event types, zero new capture, zero model calls, retroactive over every existing record; never in the hot path.
 
-Progress: 8/15 tasks done (53%)
+Progress: 12/15 tasks done (80%)
 
 ## Primitive [done] — 4/4 done
 
@@ -20,12 +20,12 @@ Progress: 8/15 tasks done (53%)
 - [x] 2.3 repoGeneral(graph): decisions cited FROM initiatives other than their own — repo-generality observed from behaviour, not declared at log time; ranked by distinct citing initiatives
 - [x] 2.4 Ordering + cap rules mirroring task_files precedent (dedupe most-recent-first, per-node cap, +N more sentinel)
 
-## Surface [pending] — 0/4 done
+## Surface [done] — 4/4 done
 
-- [ ] 3.1 `sofar why <path>` CLI command
-- [ ] 3.2 `sofar related <task-id>` CLI command
-- [ ] 3.3 doctor finding: repo-general decisions (per 2.3) absent from .sofar/repo.md — DETECTION only, never generation; repo.md stays hand-written per SPEC:58 so its curation and the SessionStart token budget survive
-- [ ] 3.4 Hot-path exclusion test: assert no hook / statusline / UserPromptSubmit shim path imports core/graph.ts (guards the 100ms budget from speed T2)
+- [x] 3.1 `sofar why <path>` CLI command
+- [x] 3.2 `sofar related <task-id>` CLI command
+- [x] 3.3 doctor finding: repo-general decisions (per 2.3) absent from .sofar/repo.md — DETECTION only, never generation; repo.md stays hand-written per SPEC:58 so its curation and the SessionStart token budget survive
+- [x] 3.4 Hot-path exclusion test: assert no hook / statusline / UserPromptSubmit shim path imports core/graph.ts (guards the 100ms budget from speed T2)
 
 ## Consolidation [pending] — 0/3 done
 
@@ -33,4 +33,4 @@ Progress: 8/15 tasks done (53%)
 - [ ] 4.2 Re-express activity over the graph primitive, byte-identical output
 - [ ] 4.3 Decide whether unregistered_sessions and overlappingWritebacks follow, or stay in fold because they are single-log by nature
 
-Next action: Begin Phase 3 — 3.1 `sofar why &lt;path&gt;`.
+Next action: Let 77a4f272 finish Phase 3 and write back; its next action supersedes this one.

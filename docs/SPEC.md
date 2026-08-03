@@ -348,6 +348,28 @@ hit wins outright, otherwise every recorded path ending at a segment
 boundary with the query matches, and callers report `matched_paths`. Literal
 matching, no inference; the caller controls specificity.
 
+**Surfaces (record-graph 3.1-3.4).** buildGraph has exactly THREE consumers —
+`sofar why <path>`, `sofar related <task-id>` (both in §CLI) and doctor's
+repo-memory axis — and the exclusion is as normative as the derivation. The
+shims fire on the user's critical path against a 100ms end-to-end budget
+(speed T2) and the CLI is built as separate bundles for exactly that reason
+(`dist/fast.js` for the shims and statusline, `dist/full.js` for everything
+else), so a graph import inside the hot path would be paid on every tool use.
+Two static locks hold it: no module under `mcp/` or `projections/`, and
+neither `cli/fast.ts`, `cli/boot.ts`, `cli/event.ts` nor `cli/statusline.ts`,
+may reach `core/graph.ts` by any import chain; and the rebuilt hot-path bundle
+must not contain a byte of graph code (which also catches a dynamic import or
+a barrel re-export the walk would miss). The `mcp/`+`projections/` half of
+that set doubles as the pin on a rejected approach — feeding graph results
+into the SessionStart block or the `sofar_get_state` digest, which would put
+an N-log read behind every session start and spend the digest budget on
+adjacency.
+
+Rendering follows the §CLI UI ladder: capability-gated styling over a shared
+section model, so the styled path paints the plain one rather than re-deriving
+it. Plain output is WIDTH-INDEPENDENT — prose clipped at a fixed budget, never
+wrapped to `$COLUMNS` — so piped output is byte-stable across terminals.
+
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
 events not already present (dedupe by id — idempotent). Per-initiative
@@ -769,7 +791,7 @@ Shims contain no logic — they invoke the sofar CLI.
   the scanner would ingest committed `.sofar/` records; the hint points at
   `sofar doctor --fix` (added Phase 10, D-P10). The statusline hint, when
   both fire, prints before it — the scanner hint keeps the final slot.
-- `sofar doctor [--fix]` — audit a host repo across five axes: (1) wiring
+- `sofar doctor [--fix]` — audit a host repo across six axes: (1) wiring
   integrity (init's shims/settings/.mcp.json/protocol blocks intact); (2)
   record health — initiative logs fold without stub sessions or corrupt lines,
   no STALE PHASE (all tasks done but the phase still active/pending, missing a
@@ -794,8 +816,19 @@ Shims contain no logic — they invoke the sofar CLI.
   plus each state's registered ids; deterministic, sessions sorted by id and
   footprints by slug;
   (4) concurrency — no file under concurrent edit by ≥2 OPEN sessions (a live
-  clobber risk); (5) scanner hazards (Tailwind v4 entry stylesheet lacking a
-  `@source not` exclusion for `.sofar`). Record-health and concurrency findings
+  clobber risk); (5) repo memory — every decision the record TREATS as
+  repo-wide (§Record graph `repoGeneral`: cited FROM another initiative) is
+  named in the hand-written `.sofar/repo.md`, the one file every SessionStart
+  injects. Presence is literal and uses the record's own citation grammar: the
+  QUALIFIED handle `<slug> D<n>`. Unqualified `D<n>` cannot count — repo.md has
+  no home initiative, so the handle would be ambiguous repo-wide; prose
+  matching would be inference (felt-cost D3) and would rot on either side's
+  rewording. DETECTION ONLY, always WARN: repo.md is hand-written per §Record
+  layout and sofar never generates or rewrites it, so both the curation and the
+  SessionStart token budget stay the author's (record-graph 3.3);
+  (6) scanner hazards (Tailwind v4 entry stylesheet lacking a
+  `@source not` exclusion for `.sofar`). Record-health, concurrency and
+  repo-memory findings
   are WARN (surfaced, non-fatal); exit 1 only when a FAIL-level finding remains,
   0 on a clean repo. `--fix` performs the one deterministic, safe repair:
   inserting `@source not "<path-relative-to-stylesheet>/.sofar";` after the
@@ -852,6 +885,26 @@ Shims contain no logic — they invoke the sofar CLI.
   each initiative stays one line; derivation warnings to stderr without
   failing — an uninitialized repo prints the empty listing with a
   `sofar new` hint (next-command 1.1).
+- `sofar why <path>` — every task, session and decision behind a path,
+  across ALL initiatives, newest-first (§Record graph `whyFile`). Prints the
+  recorded paths the query resolved to (§Path identity) VERBATIM — those are
+  the node ids the answer joined on — then three sections, each headed with
+  its TRUE total and listing at most GRAPH_RESULT_CAP entries followed by a
+  `+N more` line. The `+N more` string exists only here: the query reports a
+  numeric `omitted` (record-graph 2.4). The decisions section carries the
+  two-hop caveat inline — logged by a session that also touched this path, not
+  necessarily about it — because the record cannot know the stronger claim. An
+  untouched path is an empty answer, not an error (exit 0, with the hint that
+  paths are recorded per checkout and a shorter query matches more broadly);
+  fold warnings go to stderr without failing (record-graph 3.1).
+- `sofar related <task-id> [--initiative <slug>]` — tasks that worked on the
+  same recorded files, ranked by shared-path count, cross-initiative
+  neighbours included (§Record graph `relatedTasks`). Task ids are not
+  repo-unique, so the id needs a slug from somewhere: `<slug>#<task-id>`,
+  `"<slug> <task-id>"` (the record's own citation form), the `task:` node id,
+  `--initiative`, else the branch binding — four literal shapes, never a
+  search. A task the plan never held is exit 1 naming the id and initiative
+  looked for; a task with no neighbours is exit 0 saying so (record-graph 3.2).
 - `sofar export [slug] [--since <id>]` / `sofar import <file|-> [slug]`
   — per-initiative NDJSON over the §Cursor primitive; slug resolves like
   status (explicit wins, else branch binding) (extended Phase 4, BD28)

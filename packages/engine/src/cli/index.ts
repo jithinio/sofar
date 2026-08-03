@@ -12,6 +12,7 @@ import { runNew, runSwitch } from './new'
 import { runStatus, runStatusWatch } from './status'
 import { runList } from './list'
 import { runNext } from './next'
+import { runRelated, runWhy } from './graph'
 import { registerStatuslineCommand } from './statusline'
 import { startServer, renderServeBanner, DEFAULT_PORT } from './serve'
 import { runExport, runImport } from './transfer'
@@ -134,6 +135,27 @@ program
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((opts: { root?: string }) => {
     emit(runNext(rootOf(opts)))
+  })
+
+program
+  .command('why <path>')
+  .description(
+    'every task, session and decision behind a path, across ALL initiatives, newest-first — the cross-initiative provenance a single-log fold cannot see',
+  )
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action((path: string, opts: { root?: string }) => {
+    emit(runWhy(rootOf(opts), path))
+  })
+
+program
+  .command('related <task-id>')
+  .description(
+    'tasks that worked on the same files as this one, ranked by shared paths — cross-initiative neighbours included; accepts <task-id>, <slug>#<task-id>, or "<slug> <task-id>"',
+  )
+  .option('--initiative <slug>', 'initiative the task id belongs to (default: the branch-bound one)')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action((taskId: string, opts: { initiative?: string; root?: string }) => {
+    emit(runRelated(rootOf(opts), taskId, opts.initiative !== undefined ? { initiative: opts.initiative } : {}))
   })
 
 program
