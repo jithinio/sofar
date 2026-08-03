@@ -557,6 +557,69 @@ describe('cross-session awareness (Phase 4)', () => {
     expect(out).toContain('sofar: main @ bbbbbbb, never pushed.')
   })
 
+  /**
+   * The live misroute (4.5). A parallel session ran `sofar new`, which
+   * rebound the branch mid-flight; this session's SECOND write-back followed
+   * the binding into the sibling's brand-new initiative, and its own record
+   * showed no wrap-up at all.
+   */
+  it('keeps a SECOND write-back in the session home after a mid-session rebind (4.5)', async () => {
+    const f = fx({ slug: 'alpha' })
+    addInitiative(f.root, 'beta')
+    const { client, handle } = await connectServer(f.root)
+
+    const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
+      tool: 'claude-code',
+    })
+    const sid = started.body.session_id
+
+    // Write back once mid-conversation, then keep working (0.13.0's flow).
+    await callTool(client, 'sofar_end_session', {
+      session_id: sid,
+      summary: 'first wrap',
+      next_action: 'keep going',
+    })
+    // The pin must survive it — clearing here is what opened the hole.
+    expect(handle.getActiveSession()!.id).toBe(sid)
+
+    // A sibling runs `sofar new beta`: the branch now points somewhere else.
+    rebind(f.root, 'main', 'beta')
+
+    await callTool(client, 'sofar_end_session', {
+      session_id: sid,
+      summary: 'second wrap',
+      next_action: 'done',
+    })
+
+    // The write-back belongs to alpha — the session's home — not to beta.
+    const alpha = logEvents(f.eventsPath).filter((e) => e.type === 'session_ended')
+    expect(alpha.map((e) => (e.payload as { summary: string }).summary)).toEqual([
+      'first wrap',
+      'second wrap',
+    ])
+    expect(logEvents(join(f.root, '.sofar', 'initiatives', 'beta', 'events.jsonl'))).toEqual([])
+    await client.close()
+  })
+
+  it('routes a write-back by session home when the pin is gone (restarted server, 4.5)', async () => {
+    const f = fx({ slug: 'alpha' })
+    addInitiative(f.root, 'beta')
+    register(f.root, 'alpha', 'orphan') // registered in alpha…
+    rebind(f.root, 'main', 'beta') // …while the branch names beta
+
+    // A fresh server holds no pin — exactly the state after an MCP restart.
+    const { client } = await connectServer(f.root)
+    await callTool(client, 'sofar_end_session', {
+      session_id: 'orphan',
+      summary: 'wrapped',
+      next_action: 'none',
+    })
+
+    expect(logEvents(f.eventsPath).some((e) => e.type === 'session_ended')).toBe(true)
+    expect(logEvents(join(f.root, '.sofar', 'initiatives', 'beta', 'events.jsonl'))).toEqual([])
+    await client.close()
+  })
+
   it('reports EVERY unwritten session, not just the newest (4.3)', () => {
     const f = fx({ slug: 'alpha' })
     // Three sessions with real activity; none writes back.

@@ -86,7 +86,7 @@ describe('MCP tools round-trip (2.2)', () => {
     })
     expect(ended.isError).toBe(false)
     expect(ended.body.ok).toBe(true)
-    expect(handle.getActiveSession()).toBeNull()
+    expect(handle.getActiveSession()).toMatchObject({ id: sessionId }) // pin survives (4.5)
 
     // the log is the truth: six events, all in one session envelope
     const { state, warnings } = foldLog(fixture.eventsPath)

@@ -97,7 +97,9 @@ describe('each tool appends exactly its event and projections regenerate', () =>
       session: body.session_id,
       source: 'opencode',
     })
-    expect(handle.getActiveSession()).toBeNull()
+    // The pin SURVIVES the write-back (4.5) — it is a routing key, not a
+    // liveness flag, and a session that writes back may keep working.
+    expect(handle.getActiveSession()).toMatchObject({ id: body.session_id, initiative: 'demo' })
 
     const { state } = foldLog(fixture.eventsPath)
     expect(state.sessions[0]).toMatchObject({ summary: 'wrapped up', ended: events[1]!.ts })

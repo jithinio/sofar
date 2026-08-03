@@ -163,8 +163,9 @@ describe('acceptance 1+2+4 — two interleaved sessions on ONE initiative', () =
     const blockedB = handleStop(fixture.root, stopStdin(B))
     expect(blockedB.exitCode).toBe(2)
     expect(blockedB.stderr).toBe(STOP_BLOCK_MESSAGE)
-    // ending A cleared only A's box — B's server still holds B
-    expect(serverA.handle.getActiveSession()).toBeNull()
+    // Each server still holds its OWN session and only its own — the write-back
+    // no longer clears A's box (4.5), and it never reached across to B's.
+    expect(serverA.handle.getActiveSession()!.id).toBe(A)
     expect(serverB.handle.getActiveSession()!.id).toBe(B)
 
     // …then B ends via ITS server → B passes too.

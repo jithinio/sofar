@@ -394,8 +394,20 @@ one exists (task 12.1, BD58) — the pin is set by start_session, so a
 concurrent branch switch on the shared checkout cannot misroute an
 already-started session's writes (the Phase 11 incident's root cause);
 branch → bindings resolution is the fallback when no session is active,
-and an explicit `initiative` always wins. end_session already resolves via
-the active session (BD15). get_state keeps branch resolution — it is a read
+and an explicit `initiative` always wins. end_session resolves via the
+active session (BD15), and the pin SURVIVES the write-back
+(record-integrity 4.5): clearing it made every LATER write — a second
+write-back, a decision, a task update — fall through to branch resolution,
+so a parallel `sofar new` rebinding the branch mid-flight sent a write-back
+into a sibling's brand-new initiative while the session's own record showed
+no wrap-up at all. A pin is a routing key, not a liveness flag, and a
+session's home does not stop being its home when it summarises — the same
+premise 0.13.0 settled when start_session learned to adopt an ENDED session
+and the parallel-wrap window began handling a session that writes back and
+keeps working. A write-back naming a session that is NOT the active one
+(no pin, e.g. a restarted server) resolves home → branch, the order
+resolveBound has used since 1.2, so it lands in the session's own log
+rather than wherever HEAD points. get_state keeps branch resolution — it is a read
 (explicit `initiative` scopes cross-initiative reads). start_session
 resolves by branch ONLY when `initiative` is named or the session has no
 home yet (record-integrity 1.4): lazy registration (D2) means the
@@ -1100,6 +1112,14 @@ stay the underlying derivation's, and exit codes are styling-independent.
   InitiativeListEntry (same records → deep-equal listing, listing
   renders byte-identical); an uninitialized repo prints the empty
   listing with the `sofar new` hint.
+- **Write-back routing (record-integrity 4.5):** a session started under
+  initiative A writes back, keeps working, and a parallel `sofar new`
+  rebinds the branch to B; the session's SECOND write-back still lands in
+  A's log and B's log stays empty. The pin is still held after the first
+  write-back (getActiveSession() is non-null), so later decisions and task
+  updates route to A as well. With no pin at all — a restarted server
+  ending a session registered in A while the branch names B — the write-back
+  still lands in A. Both cases fail against the pre-4.5 code.
 - **Push awareness (record-integrity 4.4):** a registered session in a repo
   with readable refs and NO sibling session at all still gets the push-state
   line on every UserPromptSubmit — `NOT pushed (origin/<branch> at <tip>)`

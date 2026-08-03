@@ -29,4 +29,4 @@ Progress: 11/11 tasks done (100%)
 - [x] 4.2 UserPromptSubmit parallel-wrap line: a sibling's write-back plus push state, derived, stateless
 - [x] 4.3 Report every unwritten session, not just the newest
 
-Next action: Fix end-session.ts to fall back to homeInitiative before the branch, as resolveBound already does.
+Next action: Publish 0.14.0 (npm publish), then sofar upgrade and restart the MCP server so the fix is live.
