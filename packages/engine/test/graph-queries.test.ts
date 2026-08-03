@@ -33,13 +33,23 @@ function makeRoot(): string {
   return root
 }
 
+/**
+ * Explicit chronology: makeEvent's `ts` is wall-clock at millisecond
+ * resolution, so a fixture built in one loop can tie — and the newest-first
+ * assertions below would then be decided by the id tiebreak, i.e. by machine
+ * speed. Creation order is the intended order; stamp it.
+ */
+let clock = 0
+
 function ev(
   initiative: string,
   type: string,
   payload: Record<string, unknown>,
   session = 'sess-1',
 ): EventEnvelope {
-  return makeEvent({ initiative, session, source: 'claude-code', actor: 'agent', type, payload })
+  const event = makeEvent({ initiative, session, source: 'claude-code', actor: 'agent', type, payload })
+  clock += 1
+  return { ...event, ts: new Date(Date.UTC(2026, 0, 1) + clock * 1000).toISOString() }
 }
 
 function writeLog(root: string, slug: string, events: readonly EventEnvelope[]): void {

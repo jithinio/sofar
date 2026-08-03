@@ -370,6 +370,42 @@ section model, so the styled path paints the plain one rather than re-deriving
 it. Plain output is WIDTH-INDEPENDENT — prose clipped at a fixed budget, never
 wrapped to `$COLUMNS` — so piped output is byte-stable across terminals.
 
+**Consolidation (record-graph 4.1-4.3) — where the ONE rule lives.** The
+adjacency vocabulary and the single emission rule live in `core/adjacency.ts`,
+BELOW both the fold and the graph:
+```
+core/adjacency.ts   node ids, edge vocabulary, edgesForEvent(),
+                    taskFilesFromEdges(), activityFromEdges()
+core/fold.ts        state replay — EMITS this log's edges as it goes,
+                    derives task_files + each session's activity from them
+core/graph.ts       repo-wide union of those per-log edge lists,
+                    + occurrence-node minting, citations, queries
+```
+That direction is forced, not stylistic: `graph.ts` imports `fold.ts`, so
+`fold → graph` would be a cycle, and it would hand the hot path the N-log read
+this section forbids. Below-both gives one rule with neither problem — the
+fold already tracks the live plan, so "which tasks were active when this file
+was touched" (speed T4) is decided exactly once, and `FoldResult.edges` is
+slug-qualified and directly unionable.
+
+The gate was byte-identity and it was MEASURED, pre- vs post-consolidation
+over the live record: the whole repo-wide graph (3205 nodes, 4300 edges, in
+order) plus every initiative's `task_files`, per-session `activity`,
+`files_touched`, `freshness`, `phases`, warnings, orphans and unregistered
+sessions came out identical. Cost: `foldLines` on the largest log 0.90ms →
+1.04ms against speed T2's 100ms shim budget (pin still green); `buildGraph`
+stays ~17ms and off the hot path. Deleted by it: the graph's own plan tracker
+and event switch, the fold's `recordTaskFiles` and `recordActivity`.
+
+`unregistered_sessions`, `overlappingWritebacks` and
+`openSessionFileConflicts` deliberately STAY in the fold. They are read-only
+queries over the folded session table rather than per-edge reducers, and each
+needs a fact the graph deliberately drops: `unregistered_sessions` is PER-LOG
+registration (the misroute signature) where the graph makes a session id one
+identity across every log — the very property the cross-initiative join rests
+on — and `overlappingWritebacks` needs write-back prose for a `next_action`
+that is per-initiative by construction (BD9).
+
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
 events not already present (dedupe by id — idempotent). Per-initiative
@@ -1362,7 +1398,16 @@ stay the underlying derivation's, and exit codes are styling-independent.
   repo.md is never generated. No hook shim, statusline, or UserPromptSubmit
   path imports core/graph.ts (locked statically by test, the cli-ui
   import-lock precedent), and the speed T2 shim-latency pin still passes.
-  Consolidation is GO/NO-GO: task_files and activity re-expressed over the
-  graph produce BYTE-IDENTICAL render output (the byte-stability pin passes
-  unmodified); if they cannot, the consolidation is abandoned rather than
-  shipped as an additive second derivation.
+  Consolidation was GO/NO-GO and resolved GO: task_files and activity are
+  re-expressed as pure functions of one emitted edge list (core/adjacency.ts,
+  §Record graph Consolidation), and the graph unions those per-log lists
+  instead of walking events itself. BYTE-IDENTICAL was the gate and was
+  measured against the pre-consolidation engine over the live record — whole
+  graph in order, plus every fold — with the byte-stability and shim-latency
+  pins passing unmodified. A golden fixture pins the RULE independently of
+  either implementation: two tasks active at once fan one file_touched out to
+  both; a re-touch moves the path to the FRONT of task_files while activity
+  keeps FIRST-touch order; a cli-sourced touch counts for task_files and never
+  for activity; a status change for an id the plan never held is still real
+  activity and mints an orphan node; an unregistered session attaches to
+  nobody; a voided event contributes nothing.

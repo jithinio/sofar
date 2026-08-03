@@ -39,13 +39,24 @@ function makeRoot(): string {
   return root
 }
 
+/**
+ * makeEvent stamps `ts` from the wall clock at millisecond resolution, so a
+ * fixture built in one tight loop can hand several events the SAME ts — and
+ * every newest-first assertion here would then fall through to the id
+ * tiebreak and pass or fail by machine speed. Creation order is the intended
+ * chronology, so stamp it explicitly (ulids stay monotonic on their own).
+ */
+let clock = 0
+
 function ev(
   initiative: string,
   type: string,
   payload: Record<string, unknown>,
   session = 'sess-1',
 ): EventEnvelope {
-  return makeEvent({ initiative, session, source: 'claude-code', actor: 'agent', type, payload })
+  const event = makeEvent({ initiative, session, source: 'claude-code', actor: 'agent', type, payload })
+  clock += 1
+  return { ...event, ts: new Date(Date.UTC(2026, 0, 1) + clock * 1000).toISOString() }
 }
 
 function writeLog(root: string, slug: string, events: readonly EventEnvelope[]): void {

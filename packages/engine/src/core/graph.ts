@@ -2,16 +2,23 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   validatePayload,
-  type CommandRunPayload,
-  type DecisionLoggedPayload,
   type FileTouchedPayload,
-  type NoteAddedPayload,
   type PhaseStatus,
-  type PlanUpdatedPayload,
-  type TaskAddedPayload,
   type TaskStatus,
   type TaskStatusChangedPayload,
 } from '@sofar/schema'
+import {
+  commandTextOf,
+  decisionOf,
+  fileNodeId,
+  initiativeNodeId,
+  noteTextOf,
+  phaseNodeId,
+  sessionNodeId,
+  taskIdOf,
+  taskNodeId,
+  type GraphEdge,
+} from './adjacency'
 import { decodeLines, foldLines, type InitiativeState } from './fold'
 
 /**
@@ -139,41 +146,20 @@ export type GraphNode =
   | DecisionNode
   | NoteNode
 
-export const initiativeNodeId = (slug: string): string => `initiative:${slug}`
-export const phaseNodeId = (slug: string, name: string): string => `phase:${slug}#${name}`
-export const taskNodeId = (slug: string, taskId: string): string => `task:${slug}#${taskId}`
-export const sessionNodeId = (sessionId: string): string => `session:${sessionId}`
-export const fileNodeId = (path: string): string => `file:${path}`
-
-// ---------------------------------------------------------------------------
-// Edge vocabulary.
-// ---------------------------------------------------------------------------
-
-export type GraphEdgeKind =
-  | 'has_phase'
-  | 'has_task'
-  | 'touched'
-  | 'ran'
-  | 'changed'
-  | 'decided'
-  | 'noted'
-  | 'worked'
-  | 'cites'
-
-export interface GraphEdge {
-  kind: GraphEdgeKind
-  from: string
-  to: string
-  /**
-   * envelope.initiative of the sourcing event (the home slug for structural
-   * edges) — what makes cross-initiative provenance a filter, not a join.
-   */
-  initiative: string
-  /** Present on occurrence edges: the ulid of the event that produced this edge. */
-  event_id?: string
-  ts?: string
-  attrs?: { op?: string; status?: TaskStatus }
-}
+/**
+ * The node-id and edge vocabulary lives in core/adjacency.ts, below both this
+ * module and the fold (record-graph 4.1/4.2) — re-exported here because the
+ * graph is where readers look for it.
+ */
+export {
+  fileNodeId,
+  initiativeNodeId,
+  phaseNodeId,
+  sessionNodeId,
+  taskNodeId,
+  type GraphEdge,
+  type GraphEdgeKind,
+} from './adjacency'
 
 export interface RecordGraph {
   nodes: Map<string, GraphNode>
@@ -255,12 +241,6 @@ function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-/** Live plan structure during the adjacency replay — mirrors the fold's plan handling. */
-interface LiveTask {
-  id: string
-  status: TaskStatus
-}
-
 interface PerInitiative {
   slug: string
   state: InitiativeState
@@ -308,7 +288,12 @@ export function buildGraph(rootDir: string): RecordGraph {
     }
 
     const lines = raw.split('\n')
-    const { state, warnings: foldWarnings } = foldLines(lines)
+    // ONE replay produces both the state and this log's adjacency (4.1/4.2):
+    // the fold already tracks the live plan, so "which tasks were active when
+    // this file was touched" is decided once, there. What remains here is
+    // node minting — the fold keeps state, not prose-carrying nodes — and the
+    // repo-wide union those per-log edges make possible.
+    const { state, edges: logEdges, warnings: foldWarnings } = foldLines(lines, slug)
     warnings.push(...foldWarnings.map((w) => `${slug}: ${w}`))
     const { parsed, voided } = decodeLines(lines)
 
@@ -356,91 +341,40 @@ export function buildGraph(rootDir: string): RecordGraph {
       nodes.set(id, node)
     }
 
-    // --- Occurrence walk, in ulid order (the fold's normative order).
+    // --- Occurrence NODES, in ulid order (the fold's normative order).
+    // The fold emits this log's edges; what it does not keep is the prose an
+    // occurrence node carries (a command's text, a decision's chose/over/
+    // because, a note's body), so those are minted here from the same events
+    // under the same skip rules — voided, unknown and payload-invalid events
+    // contribute neither node nor edge.
     const decisionIds: string[] = []
-    const livePhases: { name: string; tasks: LiveTask[] }[] = []
 
     for (const { event } of parsed) {
       if (voided.has(event.id)) continue
       if (!validatePayload(event.type, event.payload).ok) continue
 
-      // Track plan structure so `worked` can attribute to the tasks that were
-      // ACTIVE at this point — the task_files rule (speed T4) generalized.
-      switch (event.type) {
-        case 'plan_updated': {
-          const p = event.payload as unknown as PlanUpdatedPayload
-          livePhases.length = 0
-          for (const phase of p.plan.phases) {
-            livePhases.push({
-              name: phase.name,
-              tasks: phase.tasks.map((t) => ({ id: t.id, status: t.status ?? 'pending' })),
-            })
-          }
-          break
-        }
-        case 'task_added': {
-          const p = event.payload as unknown as TaskAddedPayload
-          if (findLiveTask(livePhases, p.id) === undefined) {
-            let phase = livePhases.find((ph) => ph.name === p.phase)
-            if (phase === undefined) {
-              phase = { name: p.phase, tasks: [] }
-              livePhases.push(phase)
-            }
-            phase.tasks.push({ id: p.id, status: p.status ?? 'pending' })
-          }
-          break
-        }
-        case 'task_status_changed': {
-          const p = event.payload as unknown as TaskStatusChangedPayload
-          const live = findLiveTask(livePhases, p.id)
-          if (live !== undefined) live.status = p.status
-          break
-        }
-      }
-
-      const sessionId = event.session === 'cli' ? undefined : sessionNodeId(event.session)
       // `cli` is not a session identity (BD44) and gets no node; a session id
       // seen only on non-lifecycle events is still a real session living in
       // another log, so mint a bare node rather than dropping its edges.
-      if (sessionId !== undefined && !nodes.has(sessionId)) {
-        nodes.set(sessionId, { kind: 'session', id: sessionId, session_id: event.session })
+      if (event.session !== 'cli') {
+        const sessionId = sessionNodeId(event.session)
+        if (!nodes.has(sessionId)) {
+          nodes.set(sessionId, { kind: 'session', id: sessionId, session_id: event.session })
+        }
       }
 
       switch (event.type) {
         case 'file_touched': {
-          const p = event.payload as unknown as FileTouchedPayload
-          const fileId = fileNodeId(p.path)
+          const path = (event.payload as unknown as FileTouchedPayload).path
+          const fileId = fileNodeId(path)
           // Minted for ANY source including cli — task_files and freshness
           // both count cli events, and this derivation subsumes task_files.
-          if (!nodes.has(fileId)) nodes.set(fileId, { kind: 'file', id: fileId, path: p.path })
-          if (sessionId !== undefined) {
-            edges.push({
-              kind: 'touched',
-              from: sessionId,
-              to: fileId,
-              initiative: event.initiative,
-              event_id: event.id,
-              ts: event.ts,
-              attrs: { op: p.op },
-            })
-          }
-          for (const phase of livePhases) {
-            for (const task of phase.tasks) {
-              if (task.status !== 'active') continue
-              edges.push({
-                kind: 'worked',
-                from: taskNodeId(slug, task.id),
-                to: fileId,
-                initiative: event.initiative,
-                event_id: event.id,
-                ts: event.ts,
-              })
-            }
-          }
+          // A cli-sourced touch with no active task emits no edge at all, so
+          // the node cannot be recovered from the edge list alone.
+          if (!nodes.has(fileId)) nodes.set(fileId, { kind: 'file', id: fileId, path })
           break
         }
         case 'command_run': {
-          const p = event.payload as unknown as CommandRunPayload
           const id = `command:${event.id}`
           nodes.set(id, {
             kind: 'command',
@@ -448,52 +382,13 @@ export function buildGraph(rootDir: string): RecordGraph {
             initiative: event.initiative,
             session: event.session,
             ts: event.ts,
-            cmd: p.cmd,
+            cmd: commandTextOf(event),
           })
-          if (sessionId !== undefined) {
-            edges.push({
-              kind: 'ran',
-              from: sessionId,
-              to: id,
-              initiative: event.initiative,
-              event_id: event.id,
-              ts: event.ts,
-            })
-          }
-          break
-        }
-        case 'task_status_changed': {
-          const p = event.payload as unknown as TaskStatusChangedPayload
-          const target = taskNodeId(slug, p.id)
-          // The plan never held this id → orphan node, so the edge still
-          // resolves and activity's task_changes stays reproducible (4.2).
-          if (!nodes.has(target)) {
-            nodes.set(target, {
-              kind: 'task',
-              id: target,
-              initiative: slug,
-              task_id: p.id,
-              title: '',
-              status: p.status,
-              orphan: true,
-            })
-          }
-          if (sessionId !== undefined) {
-            edges.push({
-              kind: 'changed',
-              from: sessionId,
-              to: target,
-              initiative: event.initiative,
-              event_id: event.id,
-              ts: event.ts,
-              attrs: { status: p.status },
-            })
-          }
           break
         }
         case 'decision_logged': {
-          const p = event.payload as unknown as DecisionLoggedPayload
           const id = `decision:${event.id}`
+          const p = decisionOf(event)
           decisionIds.push(id)
           nodes.set(id, {
             kind: 'decision',
@@ -507,20 +402,9 @@ export function buildGraph(rootDir: string): RecordGraph {
             because: p.because,
             dangling: [],
           })
-          if (sessionId !== undefined) {
-            edges.push({
-              kind: 'decided',
-              from: sessionId,
-              to: id,
-              initiative: event.initiative,
-              event_id: event.id,
-              ts: event.ts,
-            })
-          }
           break
         }
         case 'note_added': {
-          const p = event.payload as unknown as NoteAddedPayload
           const id = `note:${event.id}`
           nodes.set(id, {
             kind: 'note',
@@ -528,21 +412,31 @@ export function buildGraph(rootDir: string): RecordGraph {
             initiative: event.initiative,
             session: event.session,
             ts: event.ts,
-            text: p.text,
+            text: noteTextOf(event),
           })
-          if (sessionId !== undefined) {
-            edges.push({
-              kind: 'noted',
-              from: sessionId,
-              to: id,
-              initiative: event.initiative,
-              event_id: event.id,
-              ts: event.ts,
-            })
-          }
           break
         }
       }
+    }
+
+    // --- Occurrence EDGES: the fold's, verbatim and in replay order.
+    // A `changed` edge may point at a task the FINAL plan does not hold —
+    // dropped by a later plan_updated, or never absorbed at all (the misroute
+    // symptom, BD58). Mint the orphan so every edge endpoint resolves and the
+    // orphan stays visible instead of vanishing with its edge.
+    for (const edge of logEdges) {
+      if (edge.kind === 'changed' && !nodes.has(edge.to)) {
+        nodes.set(edge.to, {
+          kind: 'task',
+          id: edge.to,
+          initiative: slug,
+          task_id: taskIdOf(edge.to),
+          title: '',
+          status: edge.attrs?.status ?? 'pending',
+          orphan: true,
+        })
+      }
+      edges.push(edge)
     }
 
     perInitiative.push({ slug, state, decisionIds })
@@ -588,17 +482,6 @@ export function buildGraph(rootDir: string): RecordGraph {
   }
 
   return { nodes, edges, outgoing, incoming, warnings }
-}
-
-function findLiveTask(
-  phases: { name: string; tasks: LiveTask[] }[],
-  id: string,
-): LiveTask | undefined {
-  for (const phase of phases) {
-    const task = phase.tasks.find((t) => t.id === id)
-    if (task !== undefined) return task
-  }
-  return undefined
 }
 
 /**

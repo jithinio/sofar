@@ -1,5 +1,13 @@
 import { readFileSync } from 'node:fs'
+import { basename, dirname } from 'node:path'
 import { validateEnvelope, type EventEnvelope } from './envelope'
+import {
+  activityFromEdges,
+  edgesForEvent,
+  taskFilesFromEdges,
+  type GraphEdge,
+  type SessionActivity,
+} from './adjacency'
 import {
   isKnownEventType,
   validatePayload,
@@ -52,24 +60,18 @@ export interface DecisionState {
   because: string
 }
 
-/** List cap for derived activity arrays (BD44) — overflow becomes a "+N more" sentinel. */
-export const ACTIVITY_LIST_CAP = 20
-
 /**
- * Derived per-session activity (task 7.2, BD44): the resume fallback for
- * sessions that never wrote back. Aggregated from mechanical events
- * attributed by envelope.session — file_touched, command_run,
- * task_status_changed. Events on session "cli" are never aggregated (cli is
- * not a session). Deterministic: log order in, capped lists out.
+ * The derived-view vocabulary now lives in core/adjacency.ts, below both this
+ * fold and the repo-wide graph (record-graph 4.1/4.2) — one emission rule, two
+ * consumers. Re-exported here because this module is where the record's
+ * readers have always found them.
  */
-export interface SessionActivity {
-  /** Deduped file_touched paths in first-touch order (capped + sentinel). */
-  files: string[]
-  /** Count of command_run events. */
-  commands: number
-  /** task_status_changed as "<id> → <status>" in log order (capped + sentinel). */
-  task_changes: string[]
-}
+export {
+  ACTIVITY_LIST_CAP,
+  TASK_FILES_CAP,
+  type GraphEdge,
+  type SessionActivity,
+} from './adjacency'
 
 export interface SessionState {
   id: string
@@ -132,13 +134,6 @@ export function freshnessTotal(freshness: FreshnessState): number {
   return c.files + c.commands + c.tasks + c.notes + c.decisions
 }
 
-/**
- * Per-task file cap (speed T4): task_files lists hold the most recent
- * touches only — render surfaces show fewer still, so the fold stays
- * bounded without a sentinel.
- */
-export const TASK_FILES_CAP = 20
-
 export interface InitiativeState {
   slug: string
   goal: string
@@ -185,6 +180,15 @@ export interface FoldResult {
   warnings: string[]
   orphan_task_events: OrphanTaskEvent[]
   /**
+   * Per-log adjacency (record-graph 4.1/4.2): every edge this log's events
+   * contribute, in replay order, slug-qualified and directly unionable into
+   * the repo-wide graph. Emitted by the SAME replay that builds the state —
+   * `task_files` and each session's `activity` are pure functions of it — so
+   * buildGraph joins logs instead of re-walking events, and the
+   * "which tasks were active" rule exists once.
+   */
+  edges: GraphEdge[]
+  /**
    * Session ids that appear on events in THIS log but were never registered
    * here by a session_started (record-integrity 2.1). The fold deliberately
    * attaches activity to registered sessions only (BD21/BD44), so before this
@@ -226,9 +230,17 @@ export interface ParsedLine {
   event: EventEnvelope
 }
 
-/** Fold a log file. The file must exist; foldLines is the pure core. */
+/**
+ * Fold a log file. The file must exist; foldLines is the pure core.
+ *
+ * The initiative slug comes from the record layout
+ * (.sofar/initiatives/<slug>/events.jsonl) rather than from the log's
+ * contents: it scopes the emitted adjacency's task node ids, and the
+ * directory is what buildGraph unions by — the same identity a
+ * misrouted envelope.initiative would disagree with.
+ */
 export function foldLog(logPath: string): FoldResult {
-  return foldLines(readFileSync(logPath, 'utf8').split('\n'))
+  return foldLines(readFileSync(logPath, 'utf8').split('\n'), basename(dirname(logPath)))
 }
 
 /**
@@ -294,13 +306,13 @@ export function decodeLines(lines: readonly string[]): DecodedLog {
   return { parsed, voided, warnings }
 }
 
-export function foldLines(lines: readonly string[]): FoldResult {
+export function foldLines(lines: readonly string[], slug = ''): FoldResult {
   const { parsed, voided, warnings } = decodeLines(lines)
 
   // Pass 2 — replay in id order.
   const state = emptyState()
   const blockNotes = new Map<string, string>() // task id → note from its blocking event
-  const activity = new Map<string, ActivityAcc>() // envelope.session → derived activity (BD44)
+  const edges: GraphEdge[] = [] // per-log adjacency, emitted as this replay goes (4.1/4.2)
   const seenSessions = new Set<string>() // every session id on any event (record-integrity 2.1)
   const orphanCandidates: OrphanTaskEvent[] = [] // task 12.2: replay-time skips, filtered against the final plan below
 
@@ -324,9 +336,12 @@ export function foldLines(lines: readonly string[]): FoldResult {
 
     if (event.session !== 'cli') seenSessions.add(event.session)
     applyEvent(state, event, blockNotes, warnings, lineNo)
-    recordActivity(activity, event)
+    // Adjacency is emitted AFTER applyEvent, against the plan as it now
+    // stands: a task_status_changed that activates a task takes effect for
+    // the file_touched events that follow it, exactly as the pre-consolidation
+    // recordTaskFiles did (it read the same mutated state.phases).
+    edges.push(...edgesForEvent(event, slug, activeTaskIds(state)))
     recordFreshness(state, event)
-    recordTaskFiles(state, event)
 
     // Orphan candidate (task 12.2): a task_status_changed that applyEvent
     // just skipped — the id is not (yet) in the plan.
@@ -344,83 +359,38 @@ export function foldLines(lines: readonly string[]): FoldResult {
     }
   }
 
-  attachActivity(state, activity)
+  state.task_files = taskFilesFromEdges(edges)
+  attachActivity(state, activityFromEdges(edges))
   deriveCurrent(state, blockNotes)
   // Keep only ids the FINAL plan never absorbed (a later task_added /
   // plan_updated clears the candidate — that skip was ordering, not misroute).
   const orphans = orphanCandidates.filter((c) => findTask(state, c.task_id) === undefined)
   const registered = new Set(state.sessions.map((s) => s.id))
   const unregistered = [...seenSessions].filter((id) => !registered.has(id)).sort()
-  return { state, warnings, orphan_task_events: orphans, unregistered_sessions: unregistered }
+  return { state, warnings, orphan_task_events: orphans, edges, unregistered_sessions: unregistered }
 }
 
-// ---------------------------------------------------------------------------
-// Derived per-session activity (task 7.2, BD44).
-// ---------------------------------------------------------------------------
-
-interface ActivityAcc {
-  files: string[]
-  fileSet: Set<string>
-  filesOverflow: number
-  commands: number
-  taskChanges: string[]
-  taskChangesOverflow: number
+/** Task ids ACTIVE right now — the attribution window `worked` edges use. */
+function activeTaskIds(state: InitiativeState): string[] {
+  const ids: string[] = []
+  for (const phase of state.phases) {
+    for (const task of phase.tasks) if (task.status === 'active') ids.push(task.id)
+  }
+  return ids
 }
 
 /**
- * Aggregate mechanical events by envelope.session. Runs on payload-valid,
- * unvoided events only (called after applyEvent), so corrections void
- * activity the same way they void state. Session "cli" is excluded — cli is
- * not a session and its events belong to no resume point.
+ * Attach derived activity to REGISTERED sessions only — events carrying a
+ * session id with no session_started here stay unattached (the same no-stub
+ * rule as session_closed, BD21). Registration is a PER-LOG fact and this is
+ * the only place it applies: the repo-wide graph deliberately treats a
+ * session id as one identity across every log, which is what makes the
+ * cross-initiative join possible in the first place.
  */
-function recordActivity(acc: Map<string, ActivityAcc>, event: EventEnvelope): void {
-  if (event.session === 'cli') return
-  if (event.type !== 'file_touched' && event.type !== 'command_run' && event.type !== 'task_status_changed') {
-    return
-  }
-  let a = acc.get(event.session)
-  if (a === undefined) {
-    a = { files: [], fileSet: new Set(), filesOverflow: 0, commands: 0, taskChanges: [], taskChangesOverflow: 0 }
-    acc.set(event.session, a)
-  }
-  switch (event.type) {
-    case 'file_touched': {
-      const p = event.payload as unknown as FileTouchedPayload
-      if (a.fileSet.has(p.path)) break // dedupe — first touch wins the slot
-      a.fileSet.add(p.path)
-      if (a.files.length < ACTIVITY_LIST_CAP) a.files.push(p.path)
-      else a.filesOverflow += 1
-      break
-    }
-    case 'command_run': {
-      a.commands += 1
-      break
-    }
-    case 'task_status_changed': {
-      const p = event.payload as unknown as TaskStatusChangedPayload
-      if (a.taskChanges.length < ACTIVITY_LIST_CAP) a.taskChanges.push(`${p.id} → ${p.status}`)
-      else a.taskChangesOverflow += 1
-      break
-    }
-  }
-}
-
-/**
- * Attach accumulated activity to REGISTERED sessions only — events carrying
- * a session id with no session_started stay unattached (same no-stub rule as
- * session_closed, BD21). Capped lists carry a "+N more" sentinel so the
- * fold stays deterministic and bounded.
- */
-function attachActivity(state: InitiativeState, acc: Map<string, ActivityAcc>): void {
+function attachActivity(state: InitiativeState, derived: Map<string, SessionActivity>): void {
   for (const session of state.sessions) {
-    const a = acc.get(session.id)
-    if (a === undefined) continue
-    session.activity = {
-      files: a.filesOverflow > 0 ? [...a.files, `+${a.filesOverflow} more`] : a.files,
-      commands: a.commands,
-      task_changes:
-        a.taskChangesOverflow > 0 ? [...a.taskChanges, `+${a.taskChangesOverflow} more`] : a.taskChanges,
-    }
+    const activity = derived.get(session.id)
+    if (activity !== undefined) session.activity = activity
   }
 }
 
@@ -461,36 +431,6 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
     case 'decision_logged':
       counts.decisions += 1
       break
-  }
-}
-
-// ---------------------------------------------------------------------------
-// File-locality hints (speed T4).
-// ---------------------------------------------------------------------------
-
-/**
- * Attribute a file_touched to every task ACTIVE at this point in the replay
- * (task activity windows are what the record actually knows — envelope
- * events carry sessions, not tasks). Runs on payload-valid, unvoided events
- * only, any session/source including "cli" (the freshness precedent). Lists
- * are deduped most-recent-first: a re-touch moves the path to the front;
- * beyond TASK_FILES_CAP the oldest entry drops. Derived only from record
- * events → identical record folds to identical task_files (byte-stability
- * safe by construction).
- */
-function recordTaskFiles(state: InitiativeState, event: EventEnvelope): void {
-  if (event.type !== 'file_touched') return
-  const path = (event.payload as unknown as FileTouchedPayload).path
-  for (const phase of state.phases) {
-    for (const task of phase.tasks) {
-      if (task.status !== 'active') continue
-      const files = state.task_files[task.id] ?? []
-      const existing = files.indexOf(path)
-      if (existing !== -1) files.splice(existing, 1)
-      files.unshift(path)
-      if (files.length > TASK_FILES_CAP) files.pop()
-      state.task_files[task.id] = files
-    }
   }
 }
 

@@ -4,7 +4,7 @@
 
 Goal: One mechanical, read-side adjacency derivation over the existing event logs, repo-wide — subsuming the bespoke per-edge reducers (task_files, activity), unlocking cross-initiative provenance the per-initiative fold drops, and deriving repo-general decisions from citation behaviour instead of a declared scope. Zero new event types, zero new capture, zero model calls, retroactive over every existing record; never in the hot path.
 
-Progress: 12/15 tasks done (80%)
+Progress: 15/15 tasks done (100%)
 
 ## Primitive [done] — 4/4 done
 
@@ -27,10 +27,10 @@ Progress: 12/15 tasks done (80%)
 - [x] 3.3 doctor finding: repo-general decisions (per 2.3) absent from .sofar/repo.md — DETECTION only, never generation; repo.md stays hand-written per SPEC:58 so its curation and the SessionStart token budget survive
 - [x] 3.4 Hot-path exclusion test: assert no hook / statusline / UserPromptSubmit shim path imports core/graph.ts (guards the 100ms budget from speed T2)
 
-## Consolidation [pending] — 0/3 done
+## Consolidation [done] — 3/3 done
 
-- [ ] 4.1 Re-express task_files over the graph primitive — byte-identical output required (injection byte-stability). GO/NO-GO for the whole initiative: if 4.1 and 4.2 cannot be byte-identical, this is additive rather than subtractive and the consolidation argument collapses
-- [ ] 4.2 Re-express activity over the graph primitive, byte-identical output
-- [ ] 4.3 Decide whether unregistered_sessions and overlappingWritebacks follow, or stay in fold because they are single-log by nature
+- [x] 4.1 Re-express task_files over the graph primitive — byte-identical output required (injection byte-stability). GO/NO-GO for the whole initiative: if 4.1 and 4.2 cannot be byte-identical, this is additive rather than subtractive and the consolidation argument collapses
+- [x] 4.2 Re-express activity over the graph primitive, byte-identical output
+- [x] 4.3 Decide whether unregistered_sessions and overlappingWritebacks follow, or stay in fold because they are single-log by nature
 
-Next action: Let 77a4f272 finish Phase 3 and write back; its next action supersedes this one.
+Next action: Release 0.15.0 — why/related/doctor axis are unshipped.
