@@ -235,6 +235,52 @@ describe('sofar related <task-id> (3.2)', () => {
     expect(result.stdout).toBe('')
   })
 
+  it('exits 1 for an orphan-only id — stray status events do not make the plan vouch for it', () => {
+    const root = makeRoot()
+    writeLog(root, 'alpha', [
+      ...planned('alpha', [{ id: '1.1', title: 'alpha task one' }]),
+      ev('alpha', 'session_started', { tool: 'claude-code' }, 's-a'),
+      // The plan never held 9.9, but the record saw it flipped — the shape
+      // that used to answer exit 0 with a status the plan cannot vouch for.
+      ev('alpha', 'task_status_changed', { id: '9.9', status: 'active' }, 's-a'),
+    ])
+    const result = runRelated(root, 'alpha#9.9', {}, PLAIN)
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('never held task "9.9"')
+    expect(result.stderr).toContain('"alpha"')
+    expect(result.stdout).toBe('')
+  })
+
+  it('labels a plan-dropped neighbour [orphan] rather than a status the plan cannot vouch for', () => {
+    const root = makeRoot()
+    writeLog(root, 'alpha', [
+      ...planned('alpha', [{ id: '1.1', title: 'alpha task one' }]),
+      ev('alpha', 'session_started', { tool: 'claude-code' }, 's-a'),
+      ev('alpha', 'task_status_changed', { id: '1.1', status: 'active' }, 's-a'),
+      ev('alpha', 'file_touched', { path: 'src/shared.ts', op: 'edit' }, 's-a'),
+    ])
+    writeLog(root, 'beta', [
+      ev('beta', 'initiative_created', { slug: 'beta', goal: 'goal of beta' }),
+      ev('beta', 'plan_updated', {
+        plan: {
+          phases: [
+            { name: 'Phase 1', status: 'active', tasks: [{ id: '7.7', title: 'doomed', status: 'active' }] },
+          ],
+        },
+      }),
+      ev('beta', 'session_started', { tool: 'claude-code' }, 's-b'),
+      ev('beta', 'file_touched', { path: 'src/shared.ts', op: 'edit' }, 's-b'),
+      // A later plan drops 7.7 — its worked edge must survive as an orphan.
+      ev('beta', 'plan_updated', {
+        plan: { phases: [{ name: 'Phase 1', status: 'active', tasks: [{ id: '8.8', title: 'kept' }] }] },
+      }),
+    ])
+    const result = runRelated(root, 'alpha#1.1', {}, PLAIN)
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('beta 7.7')
+    expect(result.stdout).toContain('[orphan]')
+  })
+
   it('styled output states the same neighbours as plain', () => {
     const root = sharedFileRepo()
     const plain = runRelated(root, 'alpha#1.1', {}, PLAIN).stdout

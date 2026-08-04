@@ -278,7 +278,14 @@ file_touched attributes to EVERY task active at that point in ulid order.
 **Citation grammar (the `cites` edge, record-graph 1.3).** Matched over the
 concatenated decision text (chose + over + because):
 - QUALIFIED `<slug> <handle>` — `<slug>` must be an initiative directory
-  that EXISTS; `<handle>` is `D<n>`, `T<n>`, or `<n>.<n>`.
+  that EXISTS; `<handle>` is `D<n>`, `T<n>`, or `<n>.<n>`. Binding is
+  case-insensitive: slugs are lowercase by construction (`sofar new`
+  validates `[a-z0-9-]+`), so `Felt-cost D3` at a sentence start is
+  orthography, not a different name — and an exact-match rule would not
+  leave it unbound, it would silently degrade the handle to an UNQUALIFIED
+  one bound to the WRONG (home) initiative. A word that case-folds to no
+  known slug qualifies nothing; the handle stays home-bound, since every
+  unqualified citation follows some prose word.
 - UNQUALIFIED `D<n>` or `T<n>` alone — resolved against the CITING
   decision's own initiative.
 - Bare `<n>.<n>` is NOT a handle. Measured on the live record it matches
@@ -286,7 +293,11 @@ concatenated decision text (chose + over + because):
   positives, zero true ones. A dotted task id needs its slug.
 - `BD<n>` and `D-<label>` (`D-P11`, `D-sync-1`) are NOT handles: they name
   the archived pre-migration prose record and hand-coined labels, neither of
-  which has a node here. They are recorded, never resolved.
+  which has a node here. They are outside the grammar entirely — never
+  matched, so they neither resolve nor land in `dangling[]`. The archived
+  record is cited pervasively (BD22/BD16 7x each on the live record);
+  recording those tokens would flood `dangling[]`, which is reserved for
+  grammar-matched handles precisely so it stays a finding, not noise.
 
 Resolution is literal and refuses to guess:
 - `D<n>` → the nth decision_logged in that initiative's log in ulid order,
@@ -940,7 +951,10 @@ Shims contain no logic — they invoke the sofar CLI.
   `"<slug> <task-id>"` (the record's own citation form), the `task:` node id,
   `--initiative`, else the branch binding — four literal shapes, never a
   search. A task the plan never held is exit 1 naming the id and initiative
-  looked for; a task with no neighbours is exit 0 saying so (record-graph 3.2).
+  looked for — including an id only stray status events name: the orphan
+  node keeps such edges visible in the graph, but the CLI refuses to anchor
+  on a status the plan cannot vouch for. A task with no neighbours is exit 0
+  saying so (record-graph 3.2).
 - `sofar export [slug] [--since <id>]` / `sofar import <file|-> [slug]`
   — per-initiative NDJSON over the §Cursor primitive; slug resolves like
   status (explicit wins, else branch binding) (extended Phase 4, BD28)
@@ -1387,12 +1401,18 @@ stay the underlying derivation's, and exit codes are styling-independent.
   ONE file node. Citation extraction resolves `D<n>` to that initiative's
   nth decision in ulid order and `<slug> <task id>` to that task, refuses
   bare `<n>.<n>` (a record carrying `0.14.0` and `127.0.0.1` in decision
-  prose yields zero citations from them), drops self-labels and
-  future-sorting targets, and records every unresolved handle in
-  `dangling[]` rather than discarding it. `sofar why <path>` names every
-  task, decision and session that ever touched the path across ALL
+  prose yields zero citations from them), binds a miscased qualifier
+  (`Felt-cost D3`) to its slug rather than degrading the handle to a
+  home-bound one, drops self-labels and future-sorting targets, and records
+  every unresolved grammar-matched handle in `dangling[]` rather than
+  discarding it. A task the final plan dropped keeps orphan endpoints for
+  its `worked` edges as well as its `changed` ones — no edge dangles — and
+  an orphan's status follows the log's last word. `sofar why <path>` names
+  every task, decision and session that ever touched the path across ALL
   initiatives, newest-first; `sofar related <task-id>` ranks co-touched-file
-  neighbours by shared-path count; `repoGeneral` ranks decisions by DISTINCT
+  neighbours by shared-path count and exits 1 for an orphan-only anchor
+  exactly as for an id the record never saw; `repoGeneral` ranks decisions
+  by DISTINCT
   citing initiatives other than their own, and doctor WARNs (exit 0) when a
   repo-general decision is absent from `.sofar/repo.md` — detection only,
   repo.md is never generated. No hook shim, statusline, or UserPromptSubmit

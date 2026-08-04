@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -132,6 +132,23 @@ describe('buildGraph — tolerance', () => {
     expect(graph.warnings.every((w) => w.startsWith('alpha: '))).toBe(true)
     expect(graph.nodes.has('initiative:alpha')).toBe(true)
     expect(edgesOfKind(graph, 'ran')).toHaveLength(1)
+  })
+
+  it('degrades an unreadable log to a warning and a thinner graph, never a throw', () => {
+    if (process.getuid?.() === 0) return // root reads through 0o000 — the fixture cannot exist
+    const root = makeRoot()
+    writeLog(root, 'alpha', [...planned('alpha'), ev('alpha', 'command_run', { cmd: 'ls' })])
+    writeLog(root, 'beta', [...planned('beta')])
+    const sealed = join(root, '.sofar', 'initiatives', 'alpha', 'events.jsonl')
+    chmodSync(sealed, 0o000)
+    try {
+      const graph = buildGraph(root)
+      expect(graph.warnings.some((w) => w.startsWith('alpha: cannot read'))).toBe(true)
+      expect(graph.nodes.has('initiative:alpha')).toBe(false) // omitted — thinner, not fatal
+      expect(graph.nodes.has('initiative:beta')).toBe(true) // the rest still builds
+    } finally {
+      chmodSync(sealed, 0o644)
+    }
   })
 
   it('returns an empty graph for a repo that is not sofar-initialized', () => {
@@ -277,6 +294,26 @@ describe('citation extraction — precision (record-graph 1.3)', () => {
       { raw: 'D1', slug: 'felt-cost', handle: 'D1', qualified: false },
     ])
   })
+
+  it('binds a miscased qualifier to its slug — never degrading to a home-bound handle (5.1)', () => {
+    expect(extractCitations('Felt-cost D3 forbids model calls', 'record-graph', slugs)).toEqual([
+      { raw: 'Felt-cost D3', slug: 'felt-cost', handle: 'D3', qualified: true },
+    ])
+    // An unknown word before a handle is prose, not a failed qualifier — the
+    // unqualified reading stands, because every citation follows SOME word.
+    expect(extractCitations('per D3 as ever', 'speed', slugs)).toEqual([
+      { raw: 'D3', slug: 'speed', handle: 'D3', qualified: false },
+    ])
+    // The handle itself stays case-sensitive: `d3` is not in the grammar.
+    expect(extractCitations('d3 stands, per d4', 'speed', slugs)).toEqual([])
+  })
+
+  it('does not consume a handle-shaped word as a failed qualifier — `D3 D4` is two citations', () => {
+    expect(extractCitations('D3 D4', 'speed', slugs)).toEqual([
+      { raw: 'D3', slug: 'speed', handle: 'D3', qualified: false },
+      { raw: 'D4', slug: 'speed', handle: 'D4', qualified: false },
+    ])
+  })
 })
 
 describe('citation resolution — the cites edge', () => {
@@ -350,5 +387,100 @@ describe('citation resolution — the cites edge', () => {
     expect(cites).toHaveLength(1)
     expect(cites[0]?.to).toBe(`decision:${cited.id}`)
     expect(cites[0]?.initiative).toBe('record-graph') // the CITING side — what repoGeneral filters on
+  })
+
+  it('resolves a qualified task handle to that task node, and dangles one the plan never held', () => {
+    const root = makeRoot()
+    const citing = ev('alpha', 'decision_logged', {
+      chose: 'follow beta 1.1 verbatim',
+      over: 'beta 9.9 as sketched',
+      because: 'precedent',
+    })
+    writeLog(root, 'alpha', [
+      ...planned('alpha'),
+      ev('alpha', 'session_started', { tool: 'claude-code' }),
+      citing,
+    ])
+    writeLog(root, 'beta', [...planned('beta')])
+
+    const graph = buildGraph(root)
+    expect(edgesOfKind(graph, 'cites')).toEqual([
+      { kind: 'cites', from: `decision:${citing.id}`, to: taskNodeId('beta', '1.1'), initiative: 'alpha' },
+    ])
+    expect((graph.nodes.get(`decision:${citing.id}`) as DecisionNode).dangling).toEqual(['beta 9.9'])
+  })
+
+  it('a miscased qualifier crosses to its initiative instead of minting a home-bound edge', () => {
+    const root = makeRoot()
+    const cited = ev('felt-cost', 'decision_logged', { chose: 'law', over: 'alt', because: 'why' })
+    writeLog(root, 'felt-cost', [
+      ...planned('felt-cost'),
+      ev('felt-cost', 'session_started', { tool: 'claude-code' }, 's-a'),
+      cited,
+    ])
+    // The home log has a D1 of its own — exactly what the pre-5.1 grammar
+    // wrongly bound `Felt-cost D1` to when the exact-case match failed.
+    const decoy = ev('record-graph', 'decision_logged', { chose: 'unrelated', over: 'o', because: 'b' }, 's-b')
+    const citing = ev(
+      'record-graph',
+      'decision_logged',
+      { chose: 'stay mechanical', over: 'inference', because: 'Felt-cost D1 is repo law' },
+      's-b',
+    )
+    writeLog(root, 'record-graph', [
+      ...planned('record-graph'),
+      ev('record-graph', 'session_started', { tool: 'claude-code' }, 's-b'),
+      decoy,
+      citing,
+    ])
+
+    const cites = edgesOfKind(buildGraph(root), 'cites')
+    expect(cites).toHaveLength(1)
+    expect(cites[0]?.from).toBe(`decision:${citing.id}`)
+    expect(cites[0]?.to).toBe(`decision:${cited.id}`) // felt-cost D1, not the home decoy
+  })
+})
+
+describe('orphan task nodes — every edge endpoint resolves', () => {
+  it('keeps a worked edge resolvable when a later plan drops the task', () => {
+    const root = makeRoot()
+    writeLog(root, 'alpha', [
+      ev('alpha', 'initiative_created', { slug: 'alpha', goal: 'g' }),
+      // Active straight from the plan payload: no task_status_changed, so no
+      // `changed` edge ever exists to mint the orphan from.
+      ev('alpha', 'plan_updated', {
+        plan: {
+          phases: [
+            { name: 'P', status: 'active', tasks: [{ id: '3.3', title: 'doomed', status: 'active' }] },
+          ],
+        },
+      }),
+      ev('alpha', 'session_started', { tool: 'claude-code' }),
+      ev('alpha', 'file_touched', { path: 'src/doomed.ts', op: 'edit' }),
+      ev('alpha', 'plan_updated', {
+        plan: { phases: [{ name: 'P', status: 'active', tasks: [{ id: '1.1', title: 'kept' }] }] },
+      }),
+    ])
+
+    const graph = buildGraph(root)
+    const worked = edgesOfKind(graph, 'worked')
+    expect(worked.map((e) => e.from)).toEqual([taskNodeId('alpha', '3.3')])
+    const node = graph.nodes.get(taskNodeId('alpha', '3.3'))
+    expect(node?.kind === 'task' && node.orphan).toBe(true)
+  })
+
+  it("takes an orphan's status from the log's LAST word, like task status everywhere else", () => {
+    const root = makeRoot()
+    writeLog(root, 'alpha', [
+      ...planned('alpha'),
+      ev('alpha', 'session_started', { tool: 'claude-code' }),
+      ev('alpha', 'task_status_changed', { id: '9.9', status: 'active' }),
+      ev('alpha', 'task_status_changed', { id: '9.9', status: 'done' }),
+    ])
+    const node = buildGraph(root).nodes.get(taskNodeId('alpha', '9.9'))
+    expect(node?.kind === 'task' ? { orphan: node.orphan, status: node.status } : undefined).toEqual({
+      orphan: true,
+      status: 'done',
+    })
   })
 })

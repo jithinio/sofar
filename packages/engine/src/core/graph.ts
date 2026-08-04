@@ -186,10 +186,6 @@ export interface Citation {
   qualified: boolean
 }
 
-function escapeRegExp(literal: string): string {
-  return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
 /**
  * Extract citation handles from decision prose.
  *
@@ -201,6 +197,15 @@ function escapeRegExp(literal: string): string {
  * pre-migration prose record and hand-coined labels, which have no nodes
  * here; resolving them would require inference (D3).
  *
+ * Qualifier binding is CASE-INSENSITIVE (5.1). Slugs are lowercase by
+ * construction (`sofar new` validates `[a-z0-9-]+`), so `Felt-cost D3` at a
+ * sentence start is orthography, not a different name — and an exact-match
+ * rule would not leave it unbound: the handle would silently degrade to an
+ * UNQUALIFIED `D3` and bind to the citing decision's own initiative, a
+ * manufactured edge. A word that case-folds to no known slug qualifies
+ * nothing and the handle stays home-bound, because every unqualified
+ * citation follows some prose word (`per D3`, `a D4 amendment`).
+ *
  * Only a space or tab may separate qualifier from handle, so a slug ending
  * one field cannot bind to a handle opening the next.
  */
@@ -211,23 +216,21 @@ export function extractCitations(
 ): Citation[] {
   const citations: Citation[] = []
   if (knownSlugs.length === 0) return citations
-  // Longest slug first so `speed-2` wins over `speed`.
-  const alternation = [...knownSlugs]
-    .sort((a, b) => b.length - a.length || a.localeCompare(b))
-    .map(escapeRegExp)
-    .join('|')
-  const re = new RegExp(`(?:\\b(${alternation})[ \\t]+)?\\b(D\\d+|T\\d+|\\d+\\.\\d+)\\b`, 'g')
-  for (const match of text.matchAll(re)) {
-    const qualifier = match[1]
-    const handle = match[2]
-    if (handle === undefined) continue
+  const canonical = new Map(knownSlugs.map((slug) => [slug.toLowerCase(), slug]))
+  for (const match of text.matchAll(/\b(D\d+|T\d+|\d+\.\d+)\b/g)) {
+    const handle = match[1]!
+    // The word directly before the handle is a qualifier ATTEMPT; matching it
+    // separately from the handle keeps a handle-shaped word (`D3 D4`) from
+    // being consumed as a failed qualifier and lost as a citation.
+    const attempt = /([A-Za-z0-9-]+)([ \t]+)$/.exec(text.slice(0, match.index ?? 0))
+    const slug = attempt === null ? undefined : canonical.get(attempt[1]!.toLowerCase())
     // A dotted task id without its slug is not a handle.
-    if (qualifier === undefined && handle.includes('.')) continue
+    if (slug === undefined && handle.includes('.')) continue
     citations.push({
-      raw: match[0],
-      slug: qualifier ?? homeSlug,
+      raw: slug === undefined ? handle : `${attempt![1]!}${attempt![2]!}${handle}`,
+      slug: slug ?? homeSlug,
       handle,
-      qualified: qualifier !== undefined,
+      qualified: slug !== undefined,
     })
   }
   return citations
@@ -420,21 +423,31 @@ export function buildGraph(rootDir: string): RecordGraph {
     }
 
     // --- Occurrence EDGES: the fold's, verbatim and in replay order.
-    // A `changed` edge may point at a task the FINAL plan does not hold —
-    // dropped by a later plan_updated, or never absorbed at all (the misroute
-    // symptom, BD58). Mint the orphan so every edge endpoint resolves and the
-    // orphan stays visible instead of vanishing with its edge.
+    // A `changed` or `worked` edge may name a task the FINAL plan does not
+    // hold — dropped by a later plan_updated, or never absorbed at all (the
+    // misroute symptom, BD58). `changed` carries the task as `to`, `worked`
+    // as `from`; mint the orphan for BOTH so every edge endpoint resolves
+    // and the orphan stays visible instead of vanishing with its edge. Its
+    // status follows the log's LAST `changed` word (5.2) — task status is
+    // last-wins everywhere else in the system.
     for (const edge of logEdges) {
-      if (edge.kind === 'changed' && !nodes.has(edge.to)) {
-        nodes.set(edge.to, {
-          kind: 'task',
-          id: edge.to,
-          initiative: slug,
-          task_id: taskIdOf(edge.to),
-          title: '',
-          status: edge.attrs?.status ?? 'pending',
-          orphan: true,
-        })
+      const taskEnd =
+        edge.kind === 'changed' ? edge.to : edge.kind === 'worked' ? edge.from : undefined
+      if (taskEnd !== undefined) {
+        const existing = nodes.get(taskEnd)
+        if (existing === undefined) {
+          nodes.set(taskEnd, {
+            kind: 'task',
+            id: taskEnd,
+            initiative: slug,
+            task_id: taskIdOf(taskEnd),
+            title: '',
+            status: edge.attrs?.status ?? 'pending',
+            orphan: true,
+          })
+        } else if (existing.kind === 'task' && existing.orphan === true && edge.attrs?.status !== undefined) {
+          existing.status = edge.attrs.status
+        }
       }
       edges.push(edge)
     }
@@ -711,6 +724,8 @@ export interface RelatedTask {
   task_id: string
   title: string
   status: TaskStatus
+  /** The plan never held this id — only stray events name it (see TaskNode.orphan). */
+  orphan?: true
   /** Shared paths, newest-shared-touch first, capped at GRAPH_RESULT_CAP. */
   shared: string[]
   /** Total shared paths before the cap — the ranking key. */
@@ -778,7 +793,7 @@ export function relatedTasks(graph: RecordGraph, taskNode: string): RelatedTasks
     const node = graph.nodes.get(id)
     if (node === undefined || node.kind !== 'task') continue
     const paths = [...entry.paths.entries()].sort((a, b) => (a[1] < b[1] ? 1 : a[1] > b[1] ? -1 : 0))
-    neighbours.push({
+    const neighbour: RelatedTask = {
       id,
       initiative: node.initiative,
       task_id: node.task_id,
@@ -787,7 +802,9 @@ export function relatedTasks(graph: RecordGraph, taskNode: string): RelatedTasks
       shared: paths.slice(0, GRAPH_RESULT_CAP).map(([fileNode]) => pathOf(graph, fileNode)),
       shared_count: paths.length,
       ts: paths[0]?.[1] ?? '',
-    })
+    }
+    if (node.orphan === true) neighbour.orphan = true
+    neighbours.push(neighbour)
   }
 
   neighbours.sort(

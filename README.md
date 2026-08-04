@@ -129,6 +129,8 @@ and the result still reads correctly.
 | `sofar status` | Goal, progress, phases, next action (`--watch` for live) |
 | `sofar list` | One line per initiative |
 | `sofar next` | The next action for every initiative |
+| `sofar why <path>` | Every task, session and decision behind a file, across all initiatives |
+| `sofar related <task-id>` | Tasks that worked on the same files, ranked by shared paths |
 | `sofar doctor` | Check the setup and the record for problems |
 | `sofar upgrade` | Update sofar itself |
 

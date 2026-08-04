@@ -4,7 +4,7 @@
 
 Goal: One mechanical, read-side adjacency derivation over the existing event logs, repo-wide — subsuming the bespoke per-edge reducers (task_files, activity), unlocking cross-initiative provenance the per-initiative fold drops, and deriving repo-general decisions from citation behaviour instead of a declared scope. Zero new event types, zero new capture, zero model calls, retroactive over every existing record; never in the hot path.
 
-Progress: 15/15 tasks done (100%)
+Progress: 19/19 tasks done (100%)
 
 ## Primitive [done] — 4/4 done
 
@@ -33,4 +33,12 @@ Progress: 15/15 tasks done (100%)
 - [x] 4.2 Re-express activity over the graph primitive, byte-identical output
 - [x] 4.3 Decide whether unregistered_sessions and overlappingWritebacks follow, or stay in fold because they are single-log by nature
 
+## Review fixes [active] — 4/4 done
+
+- [x] 5.1 Citation qualifier mis-binding: a miscased/unknown word before an unqualified handle must not manufacture a home-bound cites edge — case-insensitive binding for KNOWN slugs, unknown words stay prose (pre-publish review major 1)
+- [x] 5.2 Orphan coverage: mint orphan task nodes for dangling worked edges too, last-wins orphan status, `sofar related` exits 1 on an orphan-only anchor per SPEC:942/D9 (review majors 2+3)
+- [x] 5.3 Lock + doc gaps: assert boot.ts present in hot-path walk, README rows for why/related, SPEC BD<n> wording aligned to shipped behaviour (amends D5)
+- [x] 5.4 Missing acceptance tests: unreadable log tolerance, cites→task resolution + task-handle dangling, miscased-qualifier + worked-orphan + related-orphan-exit-1 regression tests
+
+Active phase: Review fixes
 Next action: User: npm publish -w sofar.sh (OTP), then sofar upgrade; afterwards commit "record: 0.15.0 published" and close record-graph.

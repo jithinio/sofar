@@ -261,21 +261,27 @@ export function runRelated(
   const graph = buildGraph(rootDir)
   const result = relatedTasks(graph, nodeId)
   const stderr = graph.warnings.map((w) => `warning: ${w}`).join('\n')
-  if (!result.found) {
+  // An orphan node exists so its EDGES stay visible in the graph, but the
+  // plan never held the id — and the contract (SPEC §CLI, 3.2) is exit 1
+  // naming both id and initiative, not a plausible answer with a status the
+  // plan cannot vouch for.
+  const anchorNode = graph.nodes.get(nodeId)
+  const orphanAnchor = anchorNode?.kind === 'task' && anchorNode.orphan === true
+  if (!result.found || orphanAnchor) {
     const [slug = '', taskId = ''] = nodeId.replace(/^task:/, '').split('#')
+    const reason = orphanAnchor
+      ? `the plan of "${slug}" never held task "${taskId}" — only stray status events name it (\`sofar doctor\` reports orphans)`
+      : `no task "${taskId}" in initiative "${slug}" — check \`sofar status ${slug}\``
     return {
       exitCode: 1,
       stdout: '',
-      stderr: [
-        `sofar related: no task "${taskId}" in initiative "${slug}" — check \`sofar status ${slug}\` (${RELATED_USAGE})`,
-        stderr,
-      ]
+      stderr: [`sofar related: ${reason} (${RELATED_USAGE})`, stderr]
         .filter((part) => part !== '')
         .join('\n'),
     }
   }
 
-  const anchor = graph.nodes.get(nodeId)
+  const anchor = anchorNode
   const title = anchor !== undefined && anchor.kind === 'task' ? anchor.title : ''
   const status = anchor !== undefined && anchor.kind === 'task' ? anchor.status : 'pending'
   const stdout = caps.color
@@ -296,8 +302,10 @@ function neighbourEntries(rootDir: string, result: RelatedTasks): Entry[] {
     const shared = hidden > 0 ? [...shown, `+ ${hidden} more`] : shown
     const detail = [`shared: ${shared.join(', ')}`]
     if (n.title !== '') detail.unshift(clip(n.title, PROSE))
+    // An orphan neighbour has no plan status to vouch for — say what it is.
+    const marker = n.orphan === true ? 'orphan' : n.status
     return {
-      head: `${n.initiative} ${n.task_id}  [${n.status}]  ${plural(n.shared_count, 'shared path')}  ${day(n.ts)}`,
+      head: `${n.initiative} ${n.task_id}  [${marker}]  ${plural(n.shared_count, 'shared path')}  ${day(n.ts)}`,
       detail,
     }
   })

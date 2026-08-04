@@ -117,8 +117,13 @@ describe('record graph stays out of the hot path', () => {
 
   it('walker + resolver sanity: the guard is not vacuous', () => {
     expect(existsSync(GRAPH)).toBe(true)
+    // boot.ts matters most here: it is the dist/cli.js router entry
+    // (build.mjs) and the BFS is its ONLY lock — the bundle guard below
+    // rebuilds index.ts and fast.ts, not boot.ts. A rename that silently
+    // dropped it from protectedRoots would unguard it with all tests green.
     for (const expected of [
       join(SRC_DIR, 'cli', 'fast.ts'),
+      join(SRC_DIR, 'cli', 'boot.ts'),
       join(SRC_DIR, 'cli', 'event.ts'),
       join(SRC_DIR, 'cli', 'statusline.ts'),
       join(SRC_DIR, 'mcp', 'get-state.ts'),
