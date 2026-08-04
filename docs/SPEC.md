@@ -61,6 +61,8 @@ engine-only scope law still applies during the Fable window.
     events.jsonl               # TRUTH — append-only
     plan.md                    # generated projection
     decisions.md               # generated projection
+    memory.md                  # generated projection — only once something
+                               #   is promoted; staging list for repo.md
     sessions/<session-id>.md   # generated per-session summaries
 ```
 
@@ -109,11 +111,14 @@ pending|active|done|blocked) · decision_logged (chose, over, because) ·
 session_started (tool, model?) · session_ended (summary, next_action) ·
 session_closed (reason — mechanical close from the SessionEnd hook; never
 carries summary/next_action, added Phase 3, BD21) ·
-file_touched (path, op) · command_run (cmd) · note_added · correction (ref)
+file_touched (path, op) · command_run (cmd) · note_added ·
+memory_promoted (text — a fact its author declares repo memory, addressable
+as `<slug> M<n>`; repo-memory-capture D1) · correction (ref)
 
 ## State (result of fold)
 InitiativeState = { slug, goal, phases[ {name, status, tasks[ {id, title,
-status} ]} ], decisions[], sessions[ {id, tool, model?, started, ended?,
+status} ]} ], decisions[], memories[ {id, ts, text} ],
+sessions[ {id, tool, model?, started, ended?,
 summary?, next_action?, closed_reason?, activity?} ],
 files_touched[], task_files, current: {active_phase, next_action,
 blocked_on?}, freshness, cursor: <last event id> }
@@ -298,6 +303,13 @@ concatenated decision text (chose + over + because):
   record is cited pervasively (BD22/BD16 7x each on the live record);
   recording those tokens would flood `dangling[]`, which is reserved for
   grammar-matched handles precisely so it stays a finding, not noise.
+- `M<n>` (a promoted memory, repo-memory-capture D2) is OPT-IN and matched
+  only by the `.sofar/repo.md` scan, which reads qualified handles and never
+  resolves. It is absent from the decision-prose grammar because promoted
+  memories have no nodes to resolve against, so matching it there would send
+  every legitimate mention to `dangling[]` — the same flooding the BD<n>
+  exclusion exists to prevent. Minting memory nodes would lift the
+  restriction; until then M<n> resolves nowhere.
 
 Resolution is literal and refuses to guess:
 - `D<n>` → the nth decision_logged in that initiative's log in ulid order,
@@ -599,11 +611,18 @@ also collides with a sofar-cloud-internal package).
 - sofar_log_decision({initiative?, chose, over, because}) → ok
 - sofar_update_plan({initiative?, plan}) → ok   # full-structure replace
 - sofar_add_note({initiative?, text}) → ok
+- sofar_remember({initiative?, text}) → ok   # promote a fact to repo memory
+  (repo-memory-capture D1): operational knowledge that is NOT a decision — a
+  release command, a failure mode — whose repo-wide scope is known when it is
+  learned and which no citation behaviour can surface, because nothing derives
+  a fact that was never written down. Appends memory_promoted, addressable as
+  `<slug> M<n>`; the destination .sofar/repo.md stays hand-written, and doctor
+  reports the promotion until repo.md names that handle.
 Every tool = validate payload → append event → regenerate projections →
 return. No tool mutates state except via an event.
 Transports (speed T3): stdio (`sofar mcp`) is the DEFAULT and the only
 transport `sofar init` registers — zero-config users lose nothing. The
-SAME frozen 7-tool surface is additionally served over streamable HTTP at
+SAME frozen 8-tool surface is additionally served over streamable HTTP at
 `/mcp` on the `sofar serve` daemon (127.0.0.1 only), opt-in via a
 documented .mcp.json entry `{"type": "http", "url":
 "http://127.0.0.1:4173/mcp"}` — sessions connect to the running daemon
@@ -870,12 +889,16 @@ Shims contain no logic — they invoke the sofar CLI.
   plus each state's registered ids; deterministic, sessions sorted by id and
   footprints by slug;
   (4) concurrency — no file under concurrent edit by ≥2 OPEN sessions (a live
-  clobber risk); (5) repo memory — every decision the record TREATS as
-  repo-wide (§Record graph `repoGeneral`: cited FROM another initiative) is
-  named in the hand-written `.sofar/repo.md`, the one file every SessionStart
-  injects. Presence is literal and uses the record's own citation grammar: the
-  QUALIFIED handle `<slug> D<n>`. Unqualified `D<n>` cannot count — repo.md has
-  no home initiative, so the handle would be ambiguous repo-wide; prose
+  clobber risk); (5) repo memory — two halves, both checked against the
+  hand-written `.sofar/repo.md`, the one file every SessionStart injects.
+  OBSERVED: every decision the record TREATS as repo-wide (§Record graph
+  `repoGeneral`: cited FROM another initiative). DECLARED: every fact promoted
+  with `sofar_remember` / `sofar remember` (repo-memory-capture D1), which is
+  the only way knowledge that is not a decision reaches this axis — a fact
+  never written down produces no citation behaviour to observe. Presence is
+  literal and uses the record's own citation grammar: the QUALIFIED handle
+  `<slug> D<n>` or `<slug> M<n>`. Unqualified handles cannot count — repo.md has
+  no home initiative, so a bare handle would be ambiguous repo-wide; prose
   matching would be inference (felt-cost D3) and would rot on either side's
   rewording. DETECTION ONLY, always WARN: repo.md is hand-written per §Record
   layout and sofar never generates or rewrites it, so both the curation and the
@@ -1203,6 +1226,14 @@ stay the underlying derivation's, and exit codes are styling-independent.
   an unregistered session before its first real event (lazy registration,
   record-hygiene D2 — SessionStart alone leaves the log untouched, so a
   session that did nothing leaves no trace).
+- **Repo memory capture:** `sofar remember <text>` and `sofar_remember`
+  append memory_promoted and report the `<slug> M<n>` handle; ordinals follow
+  log order; `memory.md` appears only once something is promoted; empty text
+  is refused and an unknown initiative creates no log. doctor WARNs (exit 0)
+  per promoted memory absent from `.sofar/repo.md`, clears on the QUALIFIED
+  handle, ignores an unqualified `M<n>`, and never writes repo.md. `M<n>`
+  stays out of the decision-prose grammar, so decision text mentioning it
+  produces no dangling entry (repo-memory-capture D2).
 - **Phase 4:** `sofar init` on a fresh repo yields a working end-to-end
   loop (start session → tool events → end session → status shows it);
   init is idempotent (second run changes nothing); serve pushes an SSE on

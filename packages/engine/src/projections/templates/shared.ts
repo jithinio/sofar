@@ -38,13 +38,15 @@ export function describeActivity(activity: SessionActivity): string {
  * staleness section) so both surfaces state the same drift.
  */
 export function describeFreshness(counts: FreshnessState['events_since_writeback']): string {
-  const n = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`
+  const n = (count: number, noun: string, plural = `${noun}s`) =>
+    `${count} ${count === 1 ? noun : plural}`
   const parts: string[] = []
   if (counts.files > 0) parts.push(n(counts.files, 'file'))
   if (counts.commands > 0) parts.push(n(counts.commands, 'command'))
   if (counts.tasks > 0) parts.push(n(counts.tasks, 'task change'))
   if (counts.notes > 0) parts.push(n(counts.notes, 'note'))
   if (counts.decisions > 0) parts.push(n(counts.decisions, 'decision'))
+  if (counts.memories > 0) parts.push(n(counts.memories, 'promoted memory', 'promoted memories'))
   return parts.join(', ')
 }
 

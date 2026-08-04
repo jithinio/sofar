@@ -22,7 +22,7 @@
   scorecard. Do not go looking for them; do not block on them.
 - Push policy: push origin main at each verified wrap-up (user-established
   Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Release command: `npm publish -w sofar.sh` from the repo root (or bare
+- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare
   `npm publish` from inside packages/engine) — always run by the USER (OTP
   + permission classifier), agent stages everything up to it. Bare
   `npm publish` at the root targets the PRIVATE monorepo package and would

@@ -23,6 +23,7 @@ import { updateTask } from './update-task'
 import { logDecision } from './log-decision'
 import { updatePlan } from './update-plan'
 import { addNote } from './add-note'
+import { remember } from './remember'
 
 /**
  * Sofar MCP server (SPEC §MCP tools) — low-level SDK API on purpose (BD12):
@@ -50,6 +51,7 @@ const handlers: { [K in ToolName]: (ctx: ToolContext, args: ToolArgs[K]) => unkn
   sofar_log_decision: logDecision,
   sofar_update_plan: updatePlan,
   sofar_add_note: addNote,
+  sofar_remember: remember,
 }
 
 function okResult(value: unknown): CallToolResult {

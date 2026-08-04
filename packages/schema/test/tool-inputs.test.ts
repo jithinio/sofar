@@ -9,7 +9,7 @@ import {
 } from '../src/tool-inputs'
 
 describe('tool contract surface', () => {
-  it('declares exactly the seven SPEC §MCP tools', () => {
+  it('declares exactly the eight SPEC §MCP tools', () => {
     expect([...TOOL_NAMES]).toEqual([
       'sofar_get_state',
       'sofar_start_session',
@@ -18,6 +18,7 @@ describe('tool contract surface', () => {
       'sofar_log_decision',
       'sofar_update_plan',
       'sofar_add_note',
+      'sofar_remember',
     ])
     expect(TOOL_DEFS.map((t) => t.name)).toEqual([...TOOL_NAMES])
   })
@@ -57,6 +58,7 @@ describe('validateToolInput', () => {
       },
     },
     sofar_add_note: { text: 'hello' },
+    sofar_remember: { text: 'release: npm publish -w sofar.sh from the root' },
   }
 
   it('accepts a valid argument object for every tool', () => {

@@ -2,8 +2,30 @@
 
 # Plan: repo-memory-capture
 
-Goal: Close the repo-memory gap: the doctor's repo-memory axis observes repo-generality only from decisions cited across initiatives, so operational knowledge that is not a decision — the npm publish command and its failure modes, found missing 2026-08-04 — has no capture path and no detector. Nothing complains when such knowledge lives only in an agent's private memory. Decide a mechanism that stays inside the observed-not-declared premise of record-graph and does not revive the rejected scope:repo|initiative field.
+Goal: Give operational knowledge a capture path and a detector: a memory_promoted event addressable as `<slug> M<n>`, captured by `sofar remember` / sofar_remember, with doctor warning when a promoted memory is absent from the hand-written repo.md — so a fact learned mid-session cannot end up only in an agent's private memory.
 
-Progress: 0/0 tasks done (0%)
+Progress: 9/10 tasks done (90%)
 
-(no plan recorded yet — call sofar_update_plan)
+## Event + fold [done] — 3/3 done
+
+- [x] 1.1 memory_promoted payload {text} + validator in packages/schema/src/events.ts, added to KnownEventPayloads and EVENT_TYPES
+- [x] 1.2 Fold: assign M<n> ordinals per initiative and expose promoted memories in state
+- [x] 1.3 Projection: memory.md, written only once something is promoted
+
+## Capture surfaces [done] — 3/3 done
+
+- [x] 2.1 CLI `sofar remember <text>`
+- [x] 2.2 MCP tool sofar_remember — the point of capture for agents
+- [x] 2.3 Protocol block refresh (both dialects) so a session knows operational facts go here, not into tool memory; old text preserved in the shipped ledger
+
+## Detection [done] — 3/3 done
+
+- [x] 3.1 M<n> in the citation grammar, opt-in for the repo.md scan only
+- [x] 3.2 doctor repo-memory axis: warn per promoted memory absent from repo.md, alongside repo-general decisions
+- [x] 3.3 SPEC: event type, state, record layout, tool surface, citation grammar, doctor axis, acceptance criteria
+
+## Memory nodes (deferred) [pending] — 0/1 done
+
+- [ ] 4.1 Mint memory nodes in buildGraph so decisions can cite `<slug> M<n>` and resolve it — lifts the D2 opt-in restriction and lets `sofar why`/`related` reach promotions
+
+Next action: Publish so hooks pick up both fixes, then upgrade the global install.

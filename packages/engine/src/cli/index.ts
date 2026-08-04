@@ -13,6 +13,7 @@ import { runStatus, runStatusWatch } from './status'
 import { runList } from './list'
 import { runNext } from './next'
 import { runRelated, runWhy } from './graph'
+import { runRemember } from './remember'
 import { registerStatuslineCommand } from './statusline'
 import { startServer, renderServeBanner, DEFAULT_PORT } from './serve'
 import { runExport, runImport } from './transfer'
@@ -156,6 +157,17 @@ program
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((taskId: string, opts: { initiative?: string; root?: string }) => {
     emit(runRelated(rootOf(opts), taskId, opts.initiative !== undefined ? { initiative: opts.initiative } : {}))
+  })
+
+program
+  .command('remember <text>')
+  .description(
+    'promote an operational fact to repo memory — a release command, a failure mode, a convention future sessions must know; recorded as <slug> M<n> for .sofar/repo.md to name',
+  )
+  .option('--initiative <slug>', 'initiative to record it under (default: the branch-bound one)')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action((text: string, opts: { initiative?: string; root?: string }) => {
+    emit(runRemember(rootOf(opts), text, opts.initiative !== undefined ? { initiative: opts.initiative } : {}))
   })
 
 program

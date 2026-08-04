@@ -45,6 +45,13 @@ export interface SessionClosedPayload { reason: string }
 export interface FileTouchedPayload { path: string; op: string }
 export interface CommandRunPayload { cmd: string }
 export interface NoteAddedPayload { text: string }
+/**
+ * A fact its author declares repo memory — operational knowledge that is not a
+ * decision (a release command, a failure mode) and so can never be observed as
+ * repo-general from citation behaviour, because nothing derives a fact that was
+ * never written down (repo-memory-capture D1).
+ */
+export interface MemoryPromotedPayload { text: string }
 export interface CorrectionPayload { ref: string; reason?: string }
 
 export interface KnownEventPayloads {
@@ -60,6 +67,7 @@ export interface KnownEventPayloads {
   file_touched: FileTouchedPayload
   command_run: CommandRunPayload
   note_added: NoteAddedPayload
+  memory_promoted: MemoryPromotedPayload
   correction: CorrectionPayload
 }
 
@@ -78,6 +86,7 @@ export const EVENT_TYPES = [
   'file_touched',
   'command_run',
   'note_added',
+  'memory_promoted',
   'correction',
 ] as const satisfies readonly KnownEventType[]
 
@@ -193,6 +202,9 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (!str(p.cmd)) e.push('cmd: must be a non-empty string')
   },
   note_added(p, e) {
+    if (!str(p.text)) e.push('text: must be a non-empty string')
+  },
+  memory_promoted(p, e) {
     if (!str(p.text)) e.push('text: must be a non-empty string')
   },
   correction(p, e) {

@@ -4,6 +4,7 @@ import { basename, dirname, join } from 'node:path'
 import type { InitiativeState } from '../core/fold'
 import { renderPlan } from './templates/plan'
 import { renderDecisions } from './templates/decisions'
+import { renderMemory } from './templates/memory'
 import { renderSession } from './templates/session'
 
 /**
@@ -75,6 +76,11 @@ export function regenerateProjections(initiativeDir: string, state: InitiativeSt
   mkdirSync(initiativeDir, { recursive: true })
   writeFileAtomicIfChanged(join(initiativeDir, 'plan.md'), renderPlan(state))
   writeFileAtomicIfChanged(join(initiativeDir, 'decisions.md'), renderDecisions(state))
+  // Only once something is promoted — an initiative that never promotes
+  // anything should not carry an empty file (the sessions-dir precedent).
+  if (state.memories.length > 0) {
+    writeFileAtomicIfChanged(join(initiativeDir, 'memory.md'), renderMemory(state))
+  }
 
   if (state.sessions.length > 0) {
     const sessionsDir = join(initiativeDir, 'sessions')

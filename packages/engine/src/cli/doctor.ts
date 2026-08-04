@@ -51,7 +51,9 @@ import {
  *      (live clobber risk, 11.2)
  *   4. repo memory        — is every decision the record TREATS as repo-wide
  *      (cited from other initiatives, record-graph 2.3/3.3) named in the
- *      hand-written .sofar/repo.md? Detection only: repo.md is never written.
+ *      hand-written .sofar/repo.md? Both halves: decisions OBSERVED repo-general
+ *      by cross-initiative citation, and facts DECLARED so by `sofar remember`
+ *      (repo-memory-capture D1). Detection only: repo.md is never written.
  *   5. scanner hazards    — will a tree-wide class scanner (Tailwind v4)
  *      ingest .sofar/ because the entry stylesheet lacks a `@source not`
  *      exclusion?
@@ -459,14 +461,26 @@ function auditConcurrency(folded: Folded[]): Section {
  * Unqualified `D<n>` cannot count — repo.md has no home initiative, so the
  * handle would be ambiguous across every log in the repo.
  */
-function auditRepoMemory(rootDir: string): Section {
+function auditRepoMemory(rootDir: string, folded: Folded[]): Section {
   const findings: Finding[] = []
   const graph = buildGraph(rootDir)
   const general = repoGeneral(graph)
-  if (general.length === 0) {
+  // The DECLARED half (repo-memory-capture D1): operational knowledge whose
+  // repo-wide scope its author knew at capture time. Observation cannot reach
+  // it — a fact that was never written down produces no citation behaviour to
+  // read — so promotion is what puts it in front of this axis at all.
+  const promoted = folded.flatMap(({ slug, state }) =>
+    (state?.memories ?? []).map((memory, index) => ({
+      slug,
+      ordinal: index + 1,
+      text: memory.text,
+    })),
+  )
+
+  if (general.length === 0 && promoted.length === 0) {
     findings.push({
       level: 'ok',
-      text: 'no decision is cited from outside its own initiative yet (nothing observed as repo-general)',
+      text: 'nothing observed as repo-general and nothing promoted (no decision cited from outside its own initiative, no memory_promoted events)',
     })
     return { title: 'Repo memory', findings }
   }
@@ -480,7 +494,7 @@ function auditRepoMemory(rootDir: string): Section {
     // which is the honest answer (init writes the stub; a deleted one is a gap).
   }
   const named = new Set(
-    extractCitations(prose, '', listInitiatives(rootDir))
+    extractCitations(prose, '', listInitiatives(rootDir), { memories: true })
       .filter((c) => c.qualified)
       .map((c) => `${c.slug} ${c.handle}`),
   )
@@ -494,11 +508,24 @@ function auditRepoMemory(rootDir: string): Section {
       hint: `chose: ${clip(decision.chose, 120)} — write it into repo.md by hand, citing \`${handle}\` (sofar never generates repo.md)`,
     })
   }
-  if (findings.length === 0) {
+  for (const memory of promoted) {
+    const handle = `${memory.slug} M${memory.ordinal}`
+    if (named.has(handle)) continue
     findings.push({
-      level: 'ok',
-      text: `all ${general.length} repo-general decision${general.length === 1 ? '' : 's'} named in .sofar/repo.md`,
+      level: 'warn',
+      text: `${handle} was promoted to repo memory but .sofar/repo.md never names it`,
+      hint: `${clip(memory.text, 120)} — write it into repo.md by hand, citing \`${handle}\` (sofar never generates repo.md)`,
     })
+  }
+  if (findings.length === 0) {
+    const parts: string[] = []
+    if (general.length > 0) {
+      parts.push(`${general.length} repo-general decision${general.length === 1 ? '' : 's'}`)
+    }
+    if (promoted.length > 0) {
+      parts.push(`${promoted.length} promoted ${promoted.length === 1 ? 'memory' : 'memories'}`)
+    }
+    findings.push({ level: 'ok', text: `all ${parts.join(' and ')} named in .sofar/repo.md` })
   }
   return { title: 'Repo memory', findings }
 }
@@ -693,7 +720,7 @@ export function runDoctor(
     auditRecords(folded),
     auditSplitSessions(folded),
     auditConcurrency(folded),
-    auditRepoMemory(rootDir),
+    auditRepoMemory(rootDir, folded),
     auditScanners(rootDir, fix, { caps: progress.caps ?? stderrCaps(), stream: progress.stream }),
   ]
 

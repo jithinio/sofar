@@ -26,6 +26,7 @@ const validPayloads: Record<string, Record<string, unknown>> = {
   file_touched: { path: 'src/core/log.ts', op: 'edit' },
   command_run: { cmd: 'npm test' },
   note_added: { text: 'esbuild banner needed for CJS interop' },
+  memory_promoted: { text: 'Release: `npm publish -w sofar.sh` from the root, run by the user' },
   correction: { ref: '01JZ8B3V0N5B4W8XK2M9QF7TSD' },
 }
 

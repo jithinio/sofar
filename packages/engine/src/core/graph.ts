@@ -208,16 +208,27 @@ export interface Citation {
  *
  * Only a space or tab may separate qualifier from handle, so a slug ending
  * one field cannot bind to a handle opening the next.
+ *
+ * `M<n>` (a promoted memory) is OFF by default and enabled only for the
+ * repo.md scan (repo-memory-capture D2). Decision prose is the other caller,
+ * and there M<n> has nothing to resolve against — promoted memories are not
+ * graph nodes yet — so matching it there would turn every legitimate mention
+ * into a dangling entry. The repo.md scan reads qualified handles only and
+ * never resolves, so it wants the wider grammar.
  */
 export function extractCitations(
   text: string,
   homeSlug: string,
   knownSlugs: readonly string[],
+  options: { memories?: boolean } = {},
 ): Citation[] {
   const citations: Citation[] = []
   if (knownSlugs.length === 0) return citations
   const canonical = new Map(knownSlugs.map((slug) => [slug.toLowerCase(), slug]))
-  for (const match of text.matchAll(/\b(D\d+|T\d+|\d+\.\d+)\b/g)) {
+  const pattern = options.memories === true
+    ? /\b(D\d+|T\d+|M\d+|\d+\.\d+)\b/g
+    : /\b(D\d+|T\d+|\d+\.\d+)\b/g
+  for (const match of text.matchAll(pattern)) {
     const handle = match[1]!
     // The word directly before the handle is a qualifier ATTEMPT; matching it
     // separately from the handle keeps a handle-shaped word (`D3 D4`) from

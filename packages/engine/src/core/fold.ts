@@ -13,6 +13,7 @@ import {
   validatePayload,
   type CorrectionPayload,
   type DecisionLoggedPayload,
+  type MemoryPromotedPayload,
   type FileTouchedPayload,
   type InitiativeCreatedPayload,
   type NoteAddedPayload,
@@ -58,6 +59,13 @@ export interface DecisionState {
   chose: string
   over: string
   because: string
+}
+
+/** A fact promoted to repo memory — addressable as `<slug> M<n>`. */
+export interface MemoryState {
+  id: string
+  ts: string
+  text: string
 }
 
 /**
@@ -121,6 +129,8 @@ export interface FreshnessState {
     notes: number
     /** decision_logged */
     decisions: number
+    /** memory_promoted */
+    memories: number
   }
   /** Notes in the window, {ts, text} in log order — notes.length === counts.notes. */
   notes: NoteEntry[]
@@ -131,7 +141,7 @@ export interface FreshnessState {
 /** Total drift since the last write-back — the "N events" of the staleness line. */
 export function freshnessTotal(freshness: FreshnessState): number {
   const c = freshness.events_since_writeback
-  return c.files + c.commands + c.tasks + c.notes + c.decisions
+  return c.files + c.commands + c.tasks + c.notes + c.decisions + c.memories
 }
 
 export interface InitiativeState {
@@ -139,6 +149,12 @@ export interface InitiativeState {
   goal: string
   phases: PhaseState[]
   decisions: DecisionState[]
+  /**
+   * Facts promoted to repo memory, log order — `M<n>` is index + 1, the same
+   * way `D<n>` indexes decisions. Uncapped here (promotions are hand-written
+   * and rare); render surfaces cap.
+   */
+  memories: MemoryState[]
   sessions: SessionState[]
   files_touched: string[]
   /**
@@ -208,6 +224,7 @@ export function emptyState(): InitiativeState {
     goal: '',
     phases: [],
     decisions: [],
+    memories: [],
     sessions: [],
     files_touched: [],
     task_files: {},
@@ -219,7 +236,7 @@ export function emptyState(): InitiativeState {
 
 function emptyFreshness(): FreshnessState {
   return {
-    events_since_writeback: { files: 0, commands: 0, tasks: 0, notes: 0, decisions: 0 },
+    events_since_writeback: { files: 0, commands: 0, tasks: 0, notes: 0, decisions: 0, memories: 0 },
     notes: [],
     last_writeback_ts: null,
   }
@@ -431,6 +448,9 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
     case 'decision_logged':
       counts.decisions += 1
       break
+    case 'memory_promoted':
+      counts.memories += 1
+      break
   }
 }
 
@@ -633,6 +653,11 @@ function applyEvent(
         over: p.over,
         because: p.because,
       })
+      break
+    }
+    case 'memory_promoted': {
+      const p = event.payload as unknown as MemoryPromotedPayload
+      state.memories.push({ id: event.id, ts: event.ts, text: p.text })
       break
     }
     case 'session_started': {

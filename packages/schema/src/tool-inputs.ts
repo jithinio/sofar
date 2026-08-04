@@ -50,6 +50,7 @@ export const TOOL_NAMES = [
   'sofar_log_decision',
   'sofar_update_plan',
   'sofar_add_note',
+  'sofar_remember',
 ] as const
 export type ToolName = (typeof TOOL_NAMES)[number]
 
@@ -110,6 +111,10 @@ export interface AddNoteArgs {
   initiative?: string
   text: string
 }
+export interface RememberArgs {
+  initiative?: string
+  text: string
+}
 
 export interface ToolArgs {
   sofar_get_state: GetStateArgs
@@ -119,6 +124,7 @@ export interface ToolArgs {
   sofar_log_decision: LogDecisionArgs
   sofar_update_plan: UpdatePlanArgs
   sofar_add_note: AddNoteArgs
+  sofar_remember: RememberArgs
 }
 
 /** Result shape for the write tools (SPEC "→ ok"); event_id aids testing/audit. */
@@ -270,6 +276,15 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
     required: ['text'],
     additionalProperties: false,
   },
+  sofar_remember: {
+    type: 'object',
+    properties: {
+      initiative: initiativeProp,
+      text: { type: 'string', minLength: 1 },
+    },
+    required: ['text'],
+    additionalProperties: false,
+  },
 }
 
 export const TOOL_DEFS: readonly ToolDef[] = [
@@ -312,6 +327,12 @@ export const TOOL_DEFS: readonly ToolDef[] = [
     name: 'sofar_add_note',
     description: 'Append a free-form note to the initiative record.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_add_note,
+  },
+  {
+    name: 'sofar_remember',
+    description:
+      'Promote an operational fact to repo memory — a release command, a failure mode and how it is diagnosed, a convention every future session must know. Use this the moment you learn such a fact, for knowledge that is NOT a design decision (use sofar_log_decision for those) and would otherwise live only in your own context, where the next session cannot reach it. Recorded as `<slug> M<n>`; `sofar doctor` then reports it until the hand-written .sofar/repo.md names that handle.',
+    inputSchema: TOOL_INPUT_SCHEMAS.sofar_remember,
   },
 ]
 
@@ -377,6 +398,10 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
     if (!check.ok) e.push(...check.errors)
   },
   sofar_add_note(a, e) {
+    if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
+    if (!str(a.text)) e.push('text: must be a non-empty string')
+  },
+  sofar_remember(a, e) {
     if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
     if (!str(a.text)) e.push('text: must be a non-empty string')
   },
