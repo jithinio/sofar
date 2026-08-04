@@ -59,7 +59,11 @@ Session loop:
   session rather than minting a separate id that orphans the
   hook-registered one.
 - DURING: log decisions (`sofar_log_decision`) and task status changes
-  (`sofar_update_task`) as they happen.
+  (`sofar_update_task`) as they happen. An operational fact you learn is
+  NOT a decision — a release command, a failure mode and how it is
+  diagnosed, a convention every later session needs. Promote it with
+  `sofar_remember` the moment you learn it, or it lives only in your own
+  context and dies with the session.
 - BEFORE FINISHING: write back with `sofar_end_session` (summary +
   next action). The Stop hook blocks sessions that skip this.
 - ORDER MATTERS: write back BEFORE the final commit, then commit code and

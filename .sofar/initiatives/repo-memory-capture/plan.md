@@ -28,4 +28,4 @@ Progress: 9/10 tasks done (90%)
 
 - [ ] 4.1 Mint memory nodes in buildGraph so decisions can cite `<slug> M<n>` and resolve it — lifts the D2 opt-in restriction and lets `sofar why`/`related` reach promotions
 
-Next action: Publish so hooks pick up both fixes, then upgrade the global install.
+Next action: User runs `! npm publish -w sofar.sh`, then npm install -g --prefix ~/.local sofar.sh@latest.

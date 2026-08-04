@@ -117,7 +117,7 @@ and the result still reads correctly.
   `init` writes an instruction block there, and those tools follow the same
   loop using the `sofar` command. No extra setup.
 * **Any other MCP client.** Point it at `sofar mcp` in its own config to get
-  the same seven tools over stdio.
+  the same eight tools over stdio.
 
 ## Commands
 
@@ -131,6 +131,7 @@ and the result still reads correctly.
 | `sofar next` | The next action for every initiative |
 | `sofar why <path>` | Every task, session and decision behind a file, across all initiatives |
 | `sofar related <task-id>` | Tasks that worked on the same files, ranked by shared paths |
+| `sofar remember <text>` | Keep an operational fact — a release command, a failure mode — where later sessions will find it |
 | `sofar doctor` | Check the setup and the record for problems |
 | `sofar upgrade` | Update sofar itself |
 

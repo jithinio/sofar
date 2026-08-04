@@ -20,7 +20,7 @@ import { type Caps, createStyle, stderrCaps } from './ui'
  *   /events        → SSE: `event: state` + {slug, state} JSON pushed when a
  *                    chokidar watch sees an events.jsonl append (≤500ms,
  *                    SPEC §Acceptance Phase 4); `: heartbeat` every 15s.
- *   /mcp           → the frozen 7-tool MCP surface over streamable HTTP
+ *   /mcp           → the frozen 8-tool MCP surface over streamable HTTP
  *                    (speed T3): POST for JSON-RPC, GET for the notification
  *                    stream, DELETE for session termination. One FRESH
  *                    SofarServerHandle per MCP session — its own ToolContext
