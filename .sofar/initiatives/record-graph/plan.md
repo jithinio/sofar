@@ -41,4 +41,4 @@ Progress: 19/19 tasks done (100%)
 - [x] 5.4 Missing acceptance tests: unreadable log tolerance, cites→task resolution + task-handle dangling, miscased-qualifier + worked-orphan + related-orphan-exit-1 regression tests
 
 Active phase: Review fixes
-Next action: User: npm publish -w sofar.sh (OTP), then sofar upgrade; afterwards commit "record: 0.15.0 published" and close record-graph.
+Next action: record-graph is closed (0.15.0 live). No successor initiative planned — user picks the next piece of work.

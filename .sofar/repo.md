@@ -22,6 +22,15 @@
   scorecard. Do not go looking for them; do not block on them.
 - Push policy: push origin main at each verified wrap-up (user-established
   Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Release command: `npm publish -w sofar.sh` from the repo root (or bare
+  `npm publish` from inside packages/engine) — always run by the USER (OTP
+  + permission classifier), agent stages everything up to it. Bare
+  `npm publish` at the root targets the PRIVATE monorepo package and would
+  tarball the entire repo including .sofar/ records; the root
+  package.json's `"private": true` is the guard that blocks it (EPRIVATE,
+  hit 2026-08-04) — never remove that field. An expired npm token surfaces
+  as E404 on the publish PUT (npm masks auth errors); `npm whoami`
+  returning E401 confirms it, `npm login` fixes it.
 - Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own
   installed sofar record (.sofar/initiatives/harness-build/, migrated
   2026-07-07, BD47; initiative slug keeps the original name as history).
