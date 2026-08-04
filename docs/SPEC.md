@@ -776,9 +776,16 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   a Bash call, so it would append an event about committing the record and
   the tree would be dirty the instant it is clean. The tree can only reach
   clean if some record-committing action appends zero events. Nothing is
-  lost: the fold counts command_run and never reads `cmd`. Segment split is
-  quote-unaware and every ambiguity resolves toward LOGGING, so the
-  exemption can never swallow real work (`cd x && git push` is logged).
+  lost: the fold counts command_run and never reads `cmd`. Segments split at
+  `&&`, `||`, `;`, `|`, `&` and newline only OUTSIDE quotes
+  (record-hygiene-quotes D1): a separator inside a commit message body is not
+  a separator, or this repo's own multi-line messages would defeat the
+  exemption and the tree could never settle. A command that cannot be scanned
+  confidently is LOGGED — unbalanced quotes, or a `$(…)`/backtick
+  substitution whose nested command the scan never descends into. Every
+  ambiguity resolves toward LOGGING, so the exemption can never swallow real
+  work (`cd x && git push`, `git log | head`, `git push & npm test` and
+  `git log $(rm -rf x)` are all logged).
 - Stop shim → reads stdin JSON; if stop_hook_active is true → exit 0
   (loop guard). Else if no session_ended event exists for this session_id
   AND gate-relevant drift is nonzero → exit 2 with stderr: "Write back to
@@ -1191,7 +1198,8 @@ stay the underlying derivation's, and exit codes are styling-independent.
   gate-relevant drift is nonzero (speed T1) and passes one that has written
   back; stop_hook_active loop guard verified; PostToolUse produces
   file_touched for an Edit and command_run for a Bash call, appends nothing
-  for a self-recording command (git/sofar, record-hygiene D1), and registers
+  for a self-recording command (git/sofar, record-hygiene D1) including one
+  whose quoted commit message carries separators and newlines, and registers
   an unregistered session before its first real event (lazy registration,
   record-hygiene D2 — SessionStart alone leaves the log untouched, so a
   session that did nothing leaves no trace).

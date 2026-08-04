@@ -71,16 +71,82 @@ function leadingToken(segment: string): string | null {
 }
 
 /**
+ * Split a command at its shell separators — `&&`, `||`, `;`, `|`, `&`, newline
+ * — counting only those that appear OUTSIDE quotes.
+ *
+ * Returns null when the command cannot be scanned confidently, which the
+ * caller resolves toward logging. Two cases: unbalanced quotes (the text does
+ * not parse, so no claim about its segments is safe), and command
+ * substitution — `$(…)` or backticks run a nested command this scanner does
+ * not descend into, so `git log $(rm -rf x)` must not ride the leading `git`
+ * to an exemption.
+ *
+ * Quote rules follow sh: single quotes are literal; inside double quotes a
+ * backslash escapes the next character, and `$(`/backtick still substitute.
+ */
+function shellSegments(cmd: string): string[] | null {
+  const segments: string[] = []
+  let start = 0
+  let quote: '"' | "'" | null = null
+
+  for (let i = 0; i < cmd.length; i++) {
+    const ch = cmd[i]
+    const next = cmd[i + 1]
+
+    if (quote === "'") {
+      if (ch === "'") quote = null
+      continue
+    }
+    // Backslash escapes the next character, unquoted and inside double quotes
+    // alike — this is what makes the repo's own `\`npm publish\`` commit body
+    // literal text rather than a substitution.
+    if (ch === '\\') {
+      i++
+      continue
+    }
+    if (ch === '`' || (ch === '$' && next === '(')) return null
+    if (quote === '"') {
+      if (ch === '"') quote = null
+      continue
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch
+      continue
+    }
+
+    let width = 0
+    if ((ch === '&' && next === '&') || (ch === '|' && next === '|')) width = 2
+    else if (ch === ';' || ch === '|' || ch === '\n') width = 1
+    // A lone `&` backgrounds the segment before it and starts a new one, but
+    // the `&` of a `2>&1`-style redirect belongs to the word it sits in.
+    else if (ch === '&' && cmd[i - 1] !== '>' && cmd[i - 1] !== '<') width = 1
+    if (width === 0) continue
+
+    segments.push(cmd.slice(start, i))
+    i += width - 1
+    start = i + 1
+  }
+
+  if (quote !== null) return null
+  segments.push(cmd.slice(start))
+  return segments
+}
+
+/**
  * True when EVERY segment of a (possibly compound) command is self-recording
  * — `git add .sofar && git commit -m …` is exempt, `cd x && git push` is not.
  *
- * Deliberately conservative: this splits on shell operators without honouring
- * quotes, so a quoted `&&` yields a fragment whose leading token is not
- * git/sofar and the command is logged. Every ambiguity resolves toward
- * logging, so the exemption can never swallow real work.
+ * Conservative by construction: a command that cannot be scanned, or that has
+ * one non-exempt segment, is logged. Every ambiguity resolves toward logging,
+ * so the exemption can never swallow real work — but a separator that is only
+ * a separator OUTSIDE quotes must not be read as one inside them, or the
+ * repo's own multi-line commit messages defeat the exemption and the record
+ * never settles (record-hygiene-quotes D1).
  */
 export function isSelfRecordingCommand(cmd: string): boolean {
-  const segments = cmd.split(/&&|\|\||;|\||\n/).filter((s) => s.trim().length > 0)
+  const scanned = shellSegments(cmd)
+  if (scanned === null) return false
+  const segments = scanned.filter((s) => s.trim().length > 0)
   if (segments.length === 0) return false
   return segments.every((segment) => {
     const token = leadingToken(segment)

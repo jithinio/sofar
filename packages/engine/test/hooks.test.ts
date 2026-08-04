@@ -416,6 +416,10 @@ describe('sofar event post-tool — mechanical file/command events (3.3)', () =>
       '/usr/bin/git diff',
       'sofar status',
       'sofar event append --type note_added --payload {}',
+      // separators inside quotes are not separators (record-hygiene-quotes D1)
+      'git commit -m "fix: a && b"',
+      'git commit -m "a; b | c"',
+      'git push origin main 2>&1',
     ]
     for (const cmd of exempt) {
       expect(handlePostTool(fixture.root, postToolStdin('Bash', { command: cmd })).exitCode).toBe(0)
@@ -425,12 +429,43 @@ describe('sofar event post-tool — mechanical file/command events (3.3)', () =>
     expect(logEvents(fixture.eventsPath).map((e) => e.type)).toEqual(['session_started'])
     expect(freshnessTotal(foldLog(fixture.eventsPath).state.freshness)).toBe(0)
 
-    // conservative: any non-exempt segment logs the whole command
-    const logged = ['cd /repo && git push', 'npm test', 'git log | head', 'gitleaks detect']
+    // conservative: any non-exempt segment logs the whole command, and a
+    // command that cannot be scanned confidently is logged rather than guessed
+    const logged = [
+      'cd /repo && git push',
+      'npm test',
+      'git log | head',
+      'gitleaks detect',
+      'git log $(rm -rf /tmp/x)', // substitution runs work this scan never sees
+      'git log `rm -rf /tmp/x`',
+      'git push & npm test', // lone & backgrounds and starts a new segment
+      'git commit -m "oops', // unbalanced quote → no safe claim about segments
+    ]
     for (const cmd of logged) handlePostTool(fixture.root, postToolStdin('Bash', { command: cmd }))
     expect(logEvents(fixture.eventsPath).filter((e) => e.type === 'command_run')).toHaveLength(
       logged.length,
     )
+  })
+
+  it('a multi-line commit message does not defeat the exemption — record-hygiene-quotes D1', () => {
+    const fixture = fx()
+    registerSession(fixture)
+    // Verbatim the command that dirtied the tree right after it was committed
+    // clean (event 01KZ60MS2M…): the message body's newlines were read as
+    // separators, so fragments like "Published by the user…" led with a
+    // non-exempt token and the whole commit was logged.
+    const cmd = [
+      'git add -A && git commit -m "record: 0.15.0 published — record-graph closed',
+      '',
+      'Published by the user after two instructive failures now written into',
+      'repo.md: bare \\`npm publish\\` at the root targets the private monorepo',
+      'package (EPRIVATE is the guard for the whole-repo tarball, .sofar/',
+      'included) and an expired token surfaces as E404 on the PUT."',
+    ].join('\n')
+
+    expect(handlePostTool(fixture.root, postToolStdin('Bash', { command: cmd })).exitCode).toBe(0)
+    expect(logEvents(fixture.eventsPath).map((e) => e.type)).toEqual(['session_started'])
+    expect(freshnessTotal(foldLog(fixture.eventsPath).state.freshness)).toBe(0)
   })
 
   it('unknown tool_name → exit 0, zero appends', () => {
