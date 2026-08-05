@@ -28,5 +28,5 @@ Progress: 9/10 tasks done (90%)
 
 - [ ] 4.1 Mint memory nodes in buildGraph so decisions can cite `<slug> M<n>` and resolve it — lifts the D2 opt-in restriction and lets `sofar why`/`related` reach promotions (blocked)
 
-Next action: Initiative closed; revisit 4.1 only if a decision needs to cite a memory.
+Next action: Still closed. The dirty tree and orphan-session banner are a18d80d0's, not this initiative's.
 Blocked on: task 4.1: Deferred indefinitely, not queued — see D3. Blocked on two things: no caller (no decision has ever cited a memory), and a grammar precondition (bare M&lt;n&gt; collides with milestone prose already in token-optimization and felt-cost, so memory handles likely need to be qualified-only before nodes can be minted).

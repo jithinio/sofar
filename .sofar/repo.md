@@ -40,6 +40,18 @@
   hit 2026-08-04) — never remove that field. An expired npm token surfaces
   as E404 on the publish PUT (npm masks auth errors); `npm whoami`
   returning E401 confirms it, `npm login` fixes it.
+- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in
+  this repo fires the hooks on EVERY tool call, and with no explicit pin the
+  branch binding decides where they land. A session working on a DIFFERENT
+  initiative here must call sofar_start_session with an explicit `initiative`
+  as its first act. Doctor cannot catch the failure: its Session routing axis
+  only detects sessions SPANNING 2+ initiatives; events landing uniformly in
+  one WRONG initiative are byte-identical to correct work and it reports "no
+  problems found". Symptom: a closed initiative's tree goes dirty seconds
+  after a clean commit, its banner shows "N other session(s) did work without
+  writing back", and its next action reads stale — all from a concurrent
+  session unrelated to it. Observed 2026-08-05 (session a18d80d0's
+  session-strategy-bench harvest filed under repo-memory-capture).
 - Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own
   installed sofar record (.sofar/initiatives/harness-build/, migrated
   2026-07-07, BD47; initiative slug keeps the original name as history).
