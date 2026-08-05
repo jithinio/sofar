@@ -61,6 +61,11 @@ function sofar(args: string[], opts: { cwd?: string; input?: string } = {}): Spa
     ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
     ...(opts.input !== undefined ? { input: opts.input } : {}),
     encoding: 'utf8',
+    // This prefix IS a real global-npm layout, so the update check would fire
+    // for real — a live `npm view` and a write to the developer's own
+    // ~/.local/state from a unit test. shouldRefresh also refuses under a test
+    // runner, but stating it here keeps the guarantee out of env inheritance.
+    env: { ...process.env, SOFAR_NO_UPDATE_CHECK: '1' },
     timeout: 30_000,
   })
 }

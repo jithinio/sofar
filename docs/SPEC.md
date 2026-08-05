@@ -1003,7 +1003,14 @@ Shims contain no logic — they invoke the sofar CLI.
   D7/D8) — the rent-meter, wired as Claude Code's statusLine command. Reads
   statusline JSON from stdin, prints ONE line: `<model> · <dir> ·
   <branch> · <pie> <slug> <done>/<total> · ctx <used%> ·
-  cache <warm%>[⚠|✓]`. Icons are house-vocabulary text
+  cache <warm%>[⚠|✓][ · ↑<version>]`. The trailing update segment
+  (auto-update 2.1) appears ONLY when the cached check knows of a newer
+  release: `↑<version>` normally, `↻<version>` when a background
+  auto-install already applied it and the running process is still the old
+  binary; `update <version>` / `restart for <version>` without glyphs. It
+  is cyan — the info tone, since an available release is information, not a
+  warning about the user's state — and it is a CACHE READ, never a network
+  call (§Update check). Icons are house-vocabulary text
   GLYPHS, never emoji (D8); D12 dropped the decorative ▸ dir and ⎇ branch
   markers, making dir and branch ordinary top-level segments carried by the
   same separator as the rest, so the kernel progress pie (○◔◕●) is the only
@@ -1097,7 +1104,80 @@ Shims contain no logic — they invoke the sofar CLI.
   instead of a naive `npm i -g` installing to the wrong root. --check reports
   installed-vs-latest and the resolved prefix; --dry-run prints the exact npm
   command; --force reinstalls at the target. Non-global installs (local dep,
-  npx cache) print manual guidance and never run npm.
+  npx cache) print manual guidance and never run npm. `--auto <on|off>`
+  writes the opt-in auto-install preference and exits (§Update check); a
+  successful upgrade pitches `--auto on` in its success message, but only
+  while the preference is off — the moment the user just paid the chore is
+  the only place that offer is information rather than nagging
+  (auto-update 3.3).
+- `sofar update-check [--refresh]` — inspect the cached update check
+  (installed, latest, when it last ran, whether auto-install is on, the
+  cache path, the notice that would render); `--refresh` performs the check
+  itself and is the detached child's entry point (§Update check).
+
+## Update check (auto-update D1)
+
+Telling the user sofar is out of date, without ever installing unasked.
+`sofar upgrade` already solves installing correctly; the gap it cannot
+close is that nobody runs it, because nobody knows there is anything to
+run it for.
+
+Read/refresh split — the property everything else rests on:
+- **Foreground surfaces only READ.** `~/.local/state/sofar/update.json`
+  (XDG_STATE_HOME honored) holds `{version:1, latest, checked_at,
+  installed?}`. Reading it is one small JSON parse. No command — least of
+  all `sofar statusline`, which renders on every prompt — ever waits on the
+  network.
+- **A detached child does the work.** When the cache is older than 24h the
+  foreground process CLAIMS the slot (stamps `checked_at` before spawning)
+  and then spawns `cli.js update-check --refresh` detached, unref'd, stdio
+  ignored. The claim is what stops a per-prompt caller from starting a
+  thundering herd of `npm view` children before the first one finishes.
+- The spawn target is always the sibling **`cli.js`**, never the running
+  bundle: the statusline executes inside `dist/fast.js` (§CLI, speed-2 T1),
+  which has no top-level entry and would exit silently.
+- Missing, corrupt, or shape-wrong cache reads as "no notice" and never
+  throws. A cache that cannot be written costs a redundant check, never a
+  failed command.
+
+The check does not run at all unless someone can act on the answer:
+`SOFAR_NO_UPDATE_CHECK` (any non-empty value) is off; `CI`, `VITEST`, and
+`NODE_ENV=test` are off — a test run spends a real network call and a write
+to the developer's HOME to learn something no one will read; and
+`planUpgrade()` must resolve `global-npm` — a source checkout, a local
+dependency, and an npx run either cannot self-upgrade or are already latest.
+
+Notice comparison is against the RUNNING version, so the cache is
+self-healing: after an upgrade `latest === current` and the notice
+disappears with no write. Comparison is STRICTLY newer (dependency-free
+semver, prerelease below its release), so a locally-built version ahead of
+the registry never nags.
+
+Surfaces:
+- `sofar status`, `sofar init`, `sofar doctor` — one trailing line on
+  **stderr**. Two invariants: stdout stays byte-identical, so piping gains
+  nothing it did not have; and the exit code is untouched, which is why
+  this is a trailing line and NOT a doctor axis — doctor's exit code is its
+  verdict on the record, and a new release must never be able to change it.
+- `sofar statusline` — the `↑<version>` segment (§CLI).
+
+Auto-install is opt-in and lives in `~/.config/sofar/config.json`
+(`{version:1, auto_upgrade}`, XDG_CONFIG_HOME honored) — a separate FILE
+from the sync client's credentials.json so a credential rewrite can never
+lose a preference. Default false; an unreadable config is not consent. When
+on, the refresh child performs the install itself and records
+`installed: {version, at}`, which turns the notice into "auto-upgraded to
+X — restart your agent, and run `sofar init` in each repo to refresh its
+wiring". That marker is dropped once the running binary catches up, so the
+reminder cannot outlive its cause. Installing stays a thing the user chose
+because an upgrade replaces the binary AND leaves repo wiring stale (hook
+shims and the protocol block are files in the repo, speed-2 T6).
+
+Egress: the refresh child runs `npm view sofar.sh version` against the
+user's configured registry. This is the same query `sofar upgrade --check`
+has always made and carries no record content — the §Architectural
+invariants ban on model calls and the "nothing else ever leaves the
+machine" rule are about USER CONTENT, and a dist-tag lookup sends none.
 
 ## CLI UI (terminal rendering — human surfaces only)
 Rendering kernel: src/cli/ui/ — caps, style, symbols, text, frames,
@@ -1526,3 +1606,26 @@ stay the underlying derivation's, and exit codes are styling-independent.
   for activity; a status change for an id the plan never held is still real
   activity and mints an orphan node; an unregistered session attaches to
   nobody; a voided event contributes nothing.
+- **Auto-update:** the cache round-trips through XDG_STATE_HOME and reads
+  missing/corrupt/shape-wrong as null without throwing; an unwritable state
+  dir does not throw. `isNewer` is strictly newer, sorts a prerelease below
+  its release, and refuses to guess at an unparseable version. `shouldRefresh`
+  is off under `SOFAR_NO_UPDATE_CHECK`, `CI`, `VITEST`, `NODE_ENV=test`, and
+  for any plan that is not `global-npm`; it treats an unparseable or FUTURE
+  `checked_at` as stale so a bad clock cannot pin the check off forever.
+  `updateNotice` claims the slot BEFORE spawning — a second call in the same
+  millisecond spawns nothing — and preserves the known `latest` while
+  claiming, so the hint does not blink off during a refresh. The refresh
+  re-launches `cli.js`, never `fast.js`. `withUpdateNotice` leaves stdout and
+  the exit code byte-identical and appends only to stderr — a failing doctor
+  stays failing, a passing one passing. The statusline segment renders
+  `↑<v>` / `↻<v>` with glyphs and `update <v>` / `restart for <v>` without,
+  is absent when up to date, and is absent by DEFAULT so existing callers
+  stay hermetic. `runRefresh` persists the resolved latest, keeps the last
+  known one when the registry is unreachable, installs only when
+  `auto_upgrade` is on AND the plan is global-npm, records nothing installed
+  when npm fails, and drops a spent install marker once the running binary
+  has caught up. The `--auto on` pitch appears after a successful upgrade
+  only while the preference is off. sofar's own packaging test — which
+  installs the tarball into a temp prefix, a true global-npm layout — makes
+  no network call and writes nothing outside its fixture.

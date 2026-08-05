@@ -71,7 +71,15 @@ export async function runFast(argv: readonly string[]): Promise<boolean> {
     // styled caps; --no-color / NO_COLOR opt back into plain (D7). Mirrors
     // registerStatuslineCommand exactly.
     const plain = parsed.extra.includes('--no-color') || process.env.NO_COLOR !== undefined
-    const line = runStatusline(parsed.root, await readAllStdin(), plain ? PLAIN_CAPS : STATUSLINE_FORCED_CAPS)
+    // The update segment belongs on the hot path or nowhere: this IS the
+    // statusline's real entry (boot.ts routes `statusline` here), and the
+    // check it performs is a cache read plus, once a day, a detached spawn.
+    const line = runStatusline(
+      parsed.root,
+      await readAllStdin(),
+      plain ? PLAIN_CAPS : STATUSLINE_FORCED_CAPS,
+      {},
+    )
     if (line.length > 0) process.stdout.write(`${line}\n`)
     return true
   }

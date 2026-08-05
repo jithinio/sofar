@@ -10,6 +10,7 @@ import {
 } from './init'
 import { emit, errMessage, fail, ok, readAllStdin, type CmdResult } from './shared'
 import { createStyle, pieFor, stdoutCaps, symbolsFor, type Caps, type Style } from './ui'
+import { updateNotice, type UpdateCheckDeps, type UpdateNotice } from './update-check'
 
 /**
  * `sofar statusline` (felt-cost 3.1/3.2 D4; identity segments D6; styling
@@ -228,7 +229,29 @@ function rentSegment(hook: Obj): { pct: number; marker: '✓' | '⚠' | null; to
   return { pct, marker: null, tone: null }
 }
 
-export function runStatusline(rootDir: string, input: string, caps: Caps = PLAIN_CAPS): string {
+/**
+ * The update segment (auto-update 2.1): `↑0.17.3`, or `update 0.17.3` without
+ * glyphs. Cyan per the color law — an available release is info, not a warning.
+ *
+ * Costs one small JSON read: `updateNotice` never blocks on the network, it
+ * only reads the cache a detached child refreshes. That matters here more than
+ * anywhere else, because this line renders on every prompt.
+ */
+function updateSegment(notice: UpdateNotice, icons: boolean, style: Style): string {
+  if (notice.installed) return style.info(icons ? `↻${notice.latest}` : `restart for ${notice.latest}`)
+  return style.info(icons ? `↑${notice.latest}` : `update ${notice.latest}`)
+}
+
+export function runStatusline(
+  rootDir: string,
+  input: string,
+  caps: Caps = PLAIN_CAPS,
+  // Opt-IN, not opt-out: the default skips the check so every existing caller
+  // and test stays hermetic and byte-identical. Only the real command passes
+  // deps — a segment that appeared because the DEVELOPER happened to have a
+  // stale cache file is the non-hermeticity felt-cost D15 already paid for.
+  updateDeps: UpdateCheckDeps | null = null,
+): string {
   const hook = parseJson(input)
   const style = createStyle(caps.color)
   const icons = caps.unicode
@@ -300,6 +323,16 @@ export function runStatusline(rootDir: string, input: string, caps: Caps = PLAIN
     // than any rewarm glyph; the ✓/⚠ band marks stay.
     const text = `cache ${rent.pct}%${rent.marker === null ? '' : ` ${rent.marker}`}`
     segments.push(rent.tone === null ? text : style[rent.tone](text))
+  }
+
+  if (updateDeps !== null) {
+    let notice: UpdateNotice | null = null
+    try {
+      notice = updateNotice(updateDeps)
+    } catch {
+      notice = null // a status line that throws is worse than one without a segment
+    }
+    if (notice !== null) segments.push(updateSegment(notice, icons, style))
   }
 
   return segments.join(caps.color ? ` ${style.dim('·')} ` : ' · ')
@@ -389,7 +422,7 @@ export function registerStatuslineCommand(
       // force styled caps; --no-color / NO_COLOR opt back into plain (D7).
       const plain = process.argv.includes('--no-color') || process.env.NO_COLOR !== undefined
       const caps = plain ? PLAIN_CAPS : STATUSLINE_FORCED_CAPS
-      const line = runStatusline(rootOf(opts), await readAllStdin(), caps)
+      const line = runStatusline(rootOf(opts), await readAllStdin(), caps, {})
       if (line.length > 0) process.stdout.write(`${line}\n`)
     })
 }

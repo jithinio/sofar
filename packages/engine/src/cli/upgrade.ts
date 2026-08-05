@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { version as CURRENT_VERSION } from '../../package.json'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 import { type Caps, createSpinner, stderrCaps, type SpinnerStream } from './ui'
+import { readAutoUpgrade } from './user-config'
 
 /**
  * `sofar upgrade [version]` — self-update the globally-installed sofar.
@@ -195,6 +196,8 @@ export interface UpgradeDeps {
   spawnInstall?: (prefix: string, target: string) => Promise<number>
   /** Override the spinner's output stream (tests). */
   spinnerStream?: SpinnerStream
+  /** Override the auto-upgrade preference read (tests). */
+  readAuto?: () => boolean
 }
 
 export async function runUpgrade(
@@ -242,7 +245,14 @@ export async function runUpgrade(
         // Upgrading replaces the binary, not repo wiring — hook shims and the
         // protocol block are files in the repo. Without this line an upgraded
         // sofar keeps running an old protocol block indefinitely (speed-2 T6).
-        `Run \`sofar init\` in each repo to refresh its wiring (protocol block, hook shims).\n`,
+        `Run \`sofar init\` in each repo to refresh its wiring (protocol block, hook shims).\n` +
+        // The opt-in pitch (auto-update 3.3) lands HERE and nowhere else: the
+        // moment the user just paid the chore is the only one where the offer
+        // is information rather than nagging. Suppressed once it is taken, so
+        // the line can never claim a setting the user already has.
+        ((deps.readAuto ?? readAutoUpgrade)()
+          ? ''
+          : `\nTired of running this? \`sofar upgrade --auto on\` lets the daily check install it for you.\n`),
     )
   }
   spinner?.fail()

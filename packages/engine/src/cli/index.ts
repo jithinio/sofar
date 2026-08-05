@@ -19,7 +19,9 @@ import { startServer, renderServeBanner, DEFAULT_PORT } from './serve'
 import { runExport, runImport } from './transfer'
 import { runLogin, runLink, runPush, runPull, runPullWatch } from './cloud'
 import { runUpgrade } from './upgrade'
-import { emit, readAllStdin } from './shared'
+import { runCheckStatus, runRefresh, withUpdateNotice } from './update-check'
+import { writeAutoUpgrade } from './user-config'
+import { emit, fail, ok, readAllStdin } from './shared'
 
 const program = new Command()
 
@@ -52,7 +54,7 @@ program
   )
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((opts: { statusline?: boolean; root?: string }) => {
-    emit(runInit(rootOf(opts), { statusline: opts.statusline === true }))
+    emit(withUpdateNotice(runInit(rootOf(opts), { statusline: opts.statusline === true })))
   })
 
 program
@@ -74,7 +76,9 @@ program
   .option('--fix', 'apply the safe scanner fix (insert `@source not "…/.sofar"` after the tailwindcss import)')
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((opts: { fix?: boolean; root?: string }) => {
-    emit(runDoctor(rootOf(opts), { fix: opts.fix === true }))
+    // withUpdateNotice touches stderr only — doctor's exit code is its verdict
+    // on the RECORD, and a new release must never be able to change it (D1).
+    emit(withUpdateNotice(runDoctor(rootOf(opts), { fix: opts.fix === true })))
   })
 
 program
@@ -117,7 +121,7 @@ program
       if (result !== undefined) emit(result) // non-TTY fallback / resolution failure
       return // live path: watcher + timer hold the process until ^C
     }
-    emit(runStatus(rootOf(opts), slug))
+    emit(withUpdateNotice(runStatus(rootOf(opts), slug)))
   })
 
 program
@@ -307,15 +311,51 @@ program
   .option('--check', 'report installed-vs-latest and the resolved install; change nothing')
   .option('--dry-run', 'print the exact npm command that would run; change nothing')
   .option('--force', 'reinstall even when already at the target version')
-  .action(async (version: string | undefined, opts: { check?: boolean; dryRun?: boolean; force?: boolean }) => {
-    emit(
-      await runUpgrade({
-        ...(version !== undefined ? { version } : {}),
-        check: opts.check === true,
-        dryRun: opts.dryRun === true,
-        force: opts.force === true,
-      }),
-    )
+  .option(
+    '--auto <on|off>',
+    'turn background auto-install on or off and exit — when on, the daily check installs the update itself instead of only telling you about it',
+  )
+  .action(
+    async (
+      version: string | undefined,
+      opts: { check?: boolean; dryRun?: boolean; force?: boolean; auto?: string },
+    ) => {
+      if (opts.auto !== undefined) {
+        const value = opts.auto.trim().toLowerCase()
+        if (value !== 'on' && value !== 'off') {
+          emit(fail(`sofar upgrade: --auto takes "on" or "off" (got "${opts.auto}")`))
+          return
+        }
+        writeAutoUpgrade(value === 'on')
+        emit(
+          ok(
+            value === 'on'
+              ? 'auto-upgrade on — the daily check will install updates in the background.\n' +
+                  'Each install still asks you to run `sofar init` per repo to refresh its wiring.\n'
+              : 'auto-upgrade off — sofar will tell you about updates and let you install them.\n',
+          ),
+        )
+        return
+      }
+      emit(
+        await runUpgrade({
+          ...(version !== undefined ? { version } : {}),
+          check: opts.check === true,
+          dryRun: opts.dryRun === true,
+          force: opts.force === true,
+        }),
+      )
+    },
+  )
+
+program
+  .command('update-check')
+  .description(
+    'inspect the cached update check (installed vs latest, when it last ran, whether auto-install is on); --refresh performs the check that the background child normally does',
+  )
+  .option('--refresh', 'query the registry now and rewrite the cache — the detached child\'s own entry point')
+  .action((opts: { refresh?: boolean }) => {
+    emit(opts.refresh === true ? runRefresh() : runCheckStatus())
   })
 
 registerEventCommand(program)

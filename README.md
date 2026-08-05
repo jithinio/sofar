@@ -134,12 +134,13 @@ and the result still reads correctly.
 | `sofar remember <text>` | Keep an operational fact — a release command, a failure mode — where later sessions will find it |
 | `sofar statusline --install` | Put the status line in Claude Code's status bar — this repo, or `--user` for every project (`--uninstall` takes it back off) |
 | `sofar doctor` | Check the setup and the record for problems |
-| `sofar upgrade` | Update sofar itself |
+| `sofar upgrade` | Update sofar itself — sofar tells you when there is something to update to |
 
 Less often needed:
 
 | Command | What it does |
 | --- | --- |
+| `sofar update-check` | Inspect the update check — what it knows, when it last ran, whether auto-install is on |
 | `sofar export` / `sofar import` | Move events between copies of a record |
 | `sofar login`, `link`, `push`, `pull` | Cloud sync, if you turn it on |
 | `sofar serve` | Local server with the record as JSON |
@@ -189,6 +190,16 @@ line is always left alone.
 `sofar statusline --uninstall` takes it back off and Claude Code's own line
 returns; `--user` removes the personal one. A status line that is not
 sofar's is never removed, so this can only undo what sofar did.
+
+**Staying current.** sofar tells you when a new release exists — a line
+after `sofar status`, `init` or `doctor`, and an `↑0.18.0` on the status
+bar — and leaves installing it to you, since an upgrade also wants a
+`sofar init` in each repo to refresh its wiring. It never blocks: the
+version lookup happens once a day in a background process, and every
+command only reads the cached answer. If you would rather it just did the
+upgrade, `sofar upgrade --auto on`. If you would rather it did nothing at
+all, set `SOFAR_NO_UPDATE_CHECK=1` — and it never checks in CI or from a
+non-global install. `sofar update-check` shows what it knows.
 
 **Cloud sync.** Off unless you switch it on. `sofar login`, then
 `sofar link --org <org>`, then `sofar push` and `sofar pull` to sync through
