@@ -32,4 +32,4 @@ Progress: 11/11 tasks done (100%)
 - [x] 5.1 docs/SPEC.md is authoritative: status enum, the three-term progress semantics, the D2 plan_updated tolerance rule, and §Acceptance criteria for `dropped`. No task here is done until its criteria pass.
 - [x] 5.2 Dogfood on the case that prompted this: drop repo-memory-capture 4.1 and its "Memory nodes (deferred)" phase, then confirm the record reads as decided rather than queued and doctor goes quiet on it. This initiative is its own first test case.
 
-Next action: Ship it: bump version, publish, then upgrade the global install.
+Next action: Nothing pending — task-drop-state is complete and shipped.
