@@ -132,6 +132,7 @@ and the result still reads correctly.
 | `sofar why <path>` | Every task, session and decision behind a file, across all initiatives |
 | `sofar related <task-id>` | Tasks that worked on the same files, ranked by shared paths |
 | `sofar remember <text>` | Keep an operational fact — a release command, a failure mode — where later sessions will find it |
+| `sofar statusline --install` | Put the status line in Claude Code's status bar — this repo, or `--user` for every project (`--uninstall` takes it back off) |
 | `sofar doctor` | Check the setup and the record for problems |
 | `sofar upgrade` | Update sofar itself |
 
@@ -143,7 +144,7 @@ Less often needed:
 | `sofar login`, `link`, `push`, `pull` | Cloud sync, if you turn it on |
 | `sofar serve` | Local server with the record as JSON |
 | `sofar mcp` | The MCP server, which `init` already registers |
-| `sofar statusline` | The status bar line for Claude Code (`--install` / `--uninstall`, `--user` for every project) |
+| `sofar statusline` | Renders the line itself — Claude Code calls this, you don't |
 | `sofar event append` | Write one entry by hand |
 | `sofar adopt <file>` | Bring an older, hand written project log into sofar |
 | `sofar uninit` | Undo `init` |
