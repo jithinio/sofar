@@ -8,6 +8,11 @@ import {
   type StatuslineInstall,
   type StatuslineUninstall,
 } from './init'
+import {
+  phaseFraction,
+  taskProgress,
+  type TaskProgress,
+} from '../projections/templates/shared'
 import { emit, errMessage, fail, ok, readAllStdin, type CmdResult } from './shared'
 import { createStyle, pieFor, stdoutCaps, symbolsFor, type Caps, type Style } from './ui'
 import { updateNotice, type UpdateCheckDeps, type UpdateNotice } from './update-check'
@@ -163,11 +168,15 @@ function dirSegment(hook: Obj): { name: string; branch: string | null } | null {
   return { name: basename(dir), branch: gitBranch(dir) }
 }
 
-/** Bound record → slug + task progress; null when no candidate root resolves. */
-function recordSegment(
-  rootDir: string,
-  hook: Obj,
-): { slug: string; done: number; total: number } | null {
+/**
+ * Bound record → slug + task progress; null when no candidate root resolves.
+ *
+ * Progress comes from the shared taskProgress chokepoint, NOT a local loop:
+ * this surface once counted `done` against a total that included drops, so a
+ * fully-resolved record glanced as untouched work — the exact false signal
+ * task-drop-state exists to remove, on the surface that gets read most.
+ */
+function recordSegment(rootDir: string, hook: Obj): { slug: string; progress: TaskProgress } | null {
   const workspace = isObj(hook.workspace) ? hook.workspace : {}
   const candidates = [rootDir, strField(workspace.current_dir), strField(hook.cwd)]
   for (const root of candidates) {
@@ -175,16 +184,7 @@ function recordSegment(
     try {
       const ctx = createToolContext(root)
       const slug = ctx.resolveInitiative()
-      const state = ctx.foldState(slug)
-      let done = 0
-      let total = 0
-      for (const phase of state.phases) {
-        for (const task of phase.tasks) {
-          total++
-          if (task.status === 'done') done++
-        }
-      }
-      return { slug, done, total }
+      return { slug, progress: taskProgress(ctx.foldState(slug).phases) }
     } catch {
       // unbound / no .sofar here — try the next candidate
     }
@@ -284,20 +284,22 @@ export function runStatusline(
   const record = recordSegment(rootDir, hook)
   if (record !== null) {
     const slug = style.accent(record.slug)
+    const { done, dropped, total } = record.progress
+    // The pie gauges what is RESOLVED, so a record with nothing outstanding
+    // reads full whether or not every task was built.
+    const resolved = done + dropped
     // Task-progress pie (D9), colored by the next.ts convention: done →
     // success, in progress → warn, untouched → dim. Glyph mode only.
-    const pie = icons ? pieFor(record.done, record.total, sym) : ''
+    const pie = icons ? pieFor(resolved, total, sym) : ''
     const pieCell =
       pie === ''
         ? ''
         : `${
-            record.done === record.total
-              ? style.success(pie)
-              : record.done > 0
-                ? style.warn(pie)
-                : style.dim(pie)
+            resolved === total ? style.success(pie) : resolved > 0 ? style.warn(pie) : style.dim(pie)
           } `
-    segments.push(record.total > 0 ? `${pieCell}${slug} ${record.done}/${record.total}` : slug)
+    // phaseFraction keeps the bare `9/10` when nothing was dropped, so the
+    // common statusline stays exactly as wide as it always was.
+    segments.push(total > 0 ? `${pieCell}${slug} ${phaseFraction(record.progress)}` : slug)
   }
 
   const ctxPct = isObj(hook.context_window) ? numField(hook.context_window.used_percentage) : null

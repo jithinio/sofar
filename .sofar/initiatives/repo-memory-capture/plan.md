@@ -4,7 +4,7 @@
 
 Goal: Give operational knowledge a capture path and a detector: a memory_promoted event addressable as `<slug> M<n>`, captured by `sofar remember` / sofar_remember, with doctor warning when a promoted memory is absent from the hand-written repo.md — so a fact learned mid-session cannot end up only in an agent's private memory.
 
-Progress: 9/10 tasks done (90%)
+Progress: 9 done, 1 dropped, 0 remaining
 
 ## Event + fold [done] — 3/3 done
 
@@ -24,9 +24,8 @@ Progress: 9/10 tasks done (90%)
 - [x] 3.2 doctor repo-memory axis: warn per promoted memory absent from repo.md, alongside repo-general decisions
 - [x] 3.3 SPEC: event type, state, record layout, tool surface, citation grammar, doctor axis, acceptance criteria
 
-## Memory nodes (deferred) [pending] — 0/1 done
+## Memory nodes (deferred) [dropped] — 0/1 (1 dropped) done
 
-- [ ] 4.1 Mint memory nodes in buildGraph so decisions can cite `<slug> M<n>` and resolve it — lifts the D2 opt-in restriction and lets `sofar why`/`related` reach promotions (blocked)
+- [-] 4.1 Mint memory nodes in buildGraph so decisions can cite `<slug> M<n>` and resolve it — lifts the D2 opt-in restriction and lets `sofar why`/`related` reach promotions (dropped)
 
 Next action: Nothing pending — statusline work is complete and published.
-Blocked on: task 4.1: Deferred indefinitely, not queued — see D3. Blocked on two things: no caller (no decision has ever cited a memory), and a grammar precondition (bare M&lt;n&gt; collides with milestone prose already in token-optimization and felt-cost, so memory handles likely need to be qualified-only before nodes can be minted).

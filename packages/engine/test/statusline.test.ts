@@ -294,6 +294,60 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
     expect(line).toContain(`\x1b[32m●\x1b[39m \x1b[35m${fixture.slug}\x1b[39m 2/2`)
   })
 
+  /**
+   * task-drop-state: this segment used to inline its own done/total loop, so
+   * a fully-resolved record glanced as untouched work — the false "queued"
+   * signal that initiative removed, on the surface read most often.
+   */
+  function droppedFixture(): Fixture {
+    const fixture = fx()
+    appendEvents(fixture.eventsPath, [
+      makeEvent({
+        initiative: fixture.slug,
+        session: 'cli',
+        source: 'cli',
+        actor: 'agent',
+        type: 'plan_updated',
+        payload: {
+          plan: {
+            phases: [
+              {
+                name: 'Build',
+                status: 'active',
+                tasks: [
+                  { id: '1.1', title: 'a', status: 'done' },
+                  { id: '1.2', title: 'b', status: 'dropped' },
+                  { id: '1.3', title: 'c', status: 'done' },
+                ],
+              },
+            ],
+          },
+        },
+      }),
+    ])
+    return fixture
+  }
+
+  it('names the drop count instead of silently shrinking the fraction', () => {
+    const fixture = droppedFixture()
+    expect(runStatusline(fixture.root, statusJson())).toContain(`${fixture.slug} 2/3 (1 dropped)`)
+  })
+
+  it('styled: a record with nothing outstanding reads full, drops included', () => {
+    const fixture = droppedFixture()
+    const line = runStatusline(fixture.root, statusJson(), STATUSLINE_FORCED_CAPS)
+    // Resolved === total, so the pie is full and success-green even though
+    // one task was never built.
+    expect(line).toContain(`\x1b[32m●\x1b[39m \x1b[35m${fixture.slug}\x1b[39m 2/3 (1 dropped)`)
+  })
+
+  it('leaves a drop-free record byte-identical', () => {
+    const fixture = planned()
+    expect(runStatusline(fixture.root, statusJson())).toBe(
+      `${fixture.slug} 1/3 · ctx 41% · cache 72% ✓`,
+    )
+  })
+
   it('styled: cold cache goes red, near-compaction context goes warn/error', () => {
     const fixture = fx({ bind: false })
     const line = runStatusline(

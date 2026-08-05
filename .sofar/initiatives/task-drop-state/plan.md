@@ -4,7 +4,7 @@
 
 Goal: Give the record a terminal 'won't do' outcome: a `dropped` status for tasks and phases that is recorded with a mandatory reason but stops counting as remaining work — so a task nobody will ever build reads as decided rather than queued, and progress reflects what is actually outstanding instead of sitting at 90% forever.
 
-Progress: 11/11 tasks done (100%)
+Progress: 12/12 tasks done (100%)
 
 ## Phase 1 — Settle fold compatibility (blocks everything else) [done] — 2/2 done
 
@@ -17,10 +17,11 @@ Progress: 11/11 tasks done (100%)
 - [x] 2.2 Fold: `dropped` is terminal. Verify replay ordering, that the drop's note survives into InitiativeState, and that orphan_task_events / misroute auditing still behave. Tests per repo convention.
 - [x] 2.3 D2 companion fix — retire the plan_updated cliff found in 1.1: an unknown TASK status inside plan_updated must no longer reject the whole event (today one bad task silently reverts the goal, done statuses, and every newly added task and phase). Keep the rest of the plan, warn, coerce the offending task. This is a GENERAL forward-compat fix — it pays off for every future enum addition, not just `dropped`.
 
-## Phase 3 — Progress + render [done] — 2/2 done
+## Phase 3 — Progress + render [done] — 3/3 done
 
 - [x] 3.1 taskProgress (projections/templates/shared.ts:101) returns drops as a third term instead of [done, total]. Single chokepoint, 9 call sites. Render `N done, M dropped, K remaining` only when M > 0; leave `N/T tasks done (P%)` byte-identical otherwise — the digest's token budget depends on the common case not growing.
 - [x] 3.2 Render dropped in every surface: plan.ts checkbox (line 23) and phase header, status.ts digest + injected block, cli/ui/layout.ts. Agent-facing surfaces stay byte-plain per the CLI output law (cli-ui D1).
+- [x] 3.3 Missed call site of 3.1: cli/statusline.ts recordSegment inlined its own done/total loop instead of taskProgress, so it never got the drops fix — a fully-resolved record glanced as untouched work (`demo 0/3`, dim pie) on the surface read most often. Route it through taskProgress + phaseFraction; pie gauges resolved.
 
 ## Phase 4 — Detection [done] — 2/2 done
 
@@ -32,4 +33,4 @@ Progress: 11/11 tasks done (100%)
 - [x] 5.1 docs/SPEC.md is authoritative: status enum, the three-term progress semantics, the D2 plan_updated tolerance rule, and §Acceptance criteria for `dropped`. No task here is done until its criteria pass.
 - [x] 5.2 Dogfood on the case that prompted this: drop repo-memory-capture 4.1 and its "Memory nodes (deferred)" phase, then confirm the record reads as decided rather than queued and doctor goes quiet on it. This initiative is its own first test case.
 
-Next action: Nothing pending — task-drop-state is complete and shipped.
+Next action: Ship 0.18.1 with the statusline fix. Open question for the user: initiatives have no terminal state.
