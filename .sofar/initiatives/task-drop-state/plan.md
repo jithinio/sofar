@@ -31,4 +31,4 @@ Progress: 0/10 tasks done (0%)
 - [ ] 5.1 docs/SPEC.md is authoritative: status enum, the three-term progress semantics, and §Acceptance criteria for `dropped`. No task here is done until its criteria pass.
 - [ ] 5.2 Dogfood on the case that prompted this: drop repo-memory-capture 4.1 and its "Memory nodes (deferred)" phase, then confirm the record reads as decided rather than queued and doctor goes quiet on it. This initiative is its own first test case.
 
-Next action: Start 1.1: check what a published older engine does folding an unknown task status.
+Next action: Nothing pending for task-drop-state.
