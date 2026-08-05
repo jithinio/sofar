@@ -51,6 +51,7 @@ export const TOOL_NAMES = [
   'sofar_update_plan',
   'sofar_add_note',
   'sofar_remember',
+  'sofar_close_initiative',
 ] as const
 export type ToolName = (typeof TOOL_NAMES)[number]
 
@@ -115,6 +116,12 @@ export interface RememberArgs {
   initiative?: string
   text: string
 }
+export interface CloseInitiativeArgs {
+  initiative?: string
+  /** Terminal status only — reopening is a binding act (`sofar switch`). */
+  status: 'done' | 'dropped'
+  note?: string
+}
 
 export interface ToolArgs {
   sofar_get_state: GetStateArgs
@@ -125,6 +132,7 @@ export interface ToolArgs {
   sofar_update_plan: UpdatePlanArgs
   sofar_add_note: AddNoteArgs
   sofar_remember: RememberArgs
+  sofar_close_initiative: CloseInitiativeArgs
 }
 
 /** Result shape for the write tools (SPEC "→ ok"); event_id aids testing/audit. */
@@ -296,6 +304,24 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
     required: ['text'],
     additionalProperties: false,
   },
+  sofar_close_initiative: {
+    type: 'object',
+    properties: {
+      initiative: initiativeProp,
+      status: {
+        type: 'string',
+        enum: ['done', 'dropped'],
+        description:
+          '`done` = the goal was met. `dropped` = abandoned; requires `note`. Reopen by working on it again (`sofar switch <slug>`).',
+      },
+      note: {
+        type: 'string',
+        description: 'Why. REQUIRED for `dropped` — an initiative abandoned with no reason reads as forgotten.',
+      },
+    },
+    required: ['status'],
+    additionalProperties: false,
+  },
 }
 
 export const TOOL_DEFS: readonly ToolDef[] = [
@@ -344,6 +370,12 @@ export const TOOL_DEFS: readonly ToolDef[] = [
     description:
       'Promote an operational fact to repo memory — a release command, a failure mode and how it is diagnosed, a convention every future session must know. Use this the moment you learn such a fact, for knowledge that is NOT a design decision (use sofar_log_decision for those) and would otherwise live only in your own context, where the next session cannot reach it. Recorded as `<slug> M<n>`; `sofar doctor` then reports it until the hand-written .sofar/repo.md names that handle.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_remember,
+  },
+  {
+    name: 'sofar_close_initiative',
+    description:
+      'Close an initiative: record that it is finished (`done`) or abandoned (`dropped`, which requires a reason), and unbind every branch pointing at it. This session keeps working in it until it ends; a NEW session on the unbound branch is told to start or switch instead of landing on finished work. Reopening happens by working on it again — `sofar switch <slug>`.',
+    inputSchema: TOOL_INPUT_SCHEMAS.sofar_close_initiative,
   },
 ]
 
@@ -399,6 +431,18 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
     // downstream will ever nag anyone into supplying the reason later.
     if (a.status === 'dropped' && !str(a.note)) {
       e.push('note: required when status is "dropped" — say why, and cite the deciding entry (e.g. "D3")')
+    }
+  },
+  sofar_close_initiative(a, e) {
+    if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
+    if (a.status !== 'done' && a.status !== 'dropped') {
+      e.push('status: must be one of done|dropped')
+    }
+    if (!optStr(a.note)) e.push('note: must be a string')
+    // Same rule as a dropped task (task-drop-state D3), one level up: nothing
+    // else in the record explains why a whole initiative was abandoned.
+    if (a.status === 'dropped' && !str(a.note)) {
+      e.push('note: required when status is "dropped" — say why it was abandoned')
     }
   },
   sofar_log_decision(a, e) {

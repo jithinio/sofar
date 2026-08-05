@@ -4,7 +4,7 @@
 
 Goal: Let an initiative be closed. Closing records a terminal status (done or dropped, with a reason) and unbinds every branch pointing at it — and session-first resolution across the statusline and hooks is what makes that safe: the session that closed it keeps its record until it ends, while a new session on the unbound branch is told to start or switch instead of landing on finished work.
 
-Progress: 5/15 tasks done (33%)
+Progress: 7/15 tasks done (46%)
 
 ## Phase 1 — Settle the resolution mechanism (blocks everything else) [active] — 3/3 done
 
@@ -12,12 +12,12 @@ Progress: 5/15 tasks done (33%)
 - [x] 1.2 DECIDE the cross-process session→initiative mechanism, the crux of the whole initiative. The pin is in-memory per MCP server process (context.ts:51), so a statusline or hook process cannot read it. Options: scan each initiative log with the existing registeredAt(), or persist the pin (e.g. .sofar/sessions/) for a single cheap read. Weigh statusline cost — it re-renders constantly and `speed` is a standing concern — against stale-pin cleanup. Log a Decision.
 - [x] 1.3 Decide what a hook does when NEITHER a session pin nor a branch binding resolves. Today it exits 0 and silently drops the event (verified). Silence respects BD22 (never break the session) but loses telemetry invisibly; lazily binding would recreate misrouting. Pick, and make the choice observable.
 
-## Phase 2 — Initiative terminal state [pending] — 2/4 done
+## Phase 2 — Initiative terminal state [pending] — 4/4 done
 
 - [x] 2.1 INITIATIVE_STATUSES = active|done|dropped and an `initiative_status_changed` event (payload {status, note?}) — schema lives ONLY in packages/schema/src/. Two terminal states, mirroring tasks and phases: `done` = finished, `dropped` = abandoned. No near-synonyms (task-drop-state D1's lesson). `dropped` requires a reason, per task-drop-state D3.
 - [x] 2.2 Fold: InitiativeState gains status (default `active` — a log with no such event is unchanged), plus when it closed and the reason. Terminal statuses are resolved; reopening is just another status event, so history stays append-only.
-- [ ] 2.3 `sofar close [slug]` CLI + MCP tool: append the status event, then remove EVERY bindings.json entry pointing at that slug (not just the current branch — a closed record should have no branch aimed at it). Atomic and idempotent; bindings.json is committed and shared, so a torn write is not acceptable.
-- [ ] 2.4 Define reopening: what `sofar switch <closed-slug>` does — silently reopen, refuse, or require `--reopen`. The user's rule is that working on it again is what revives it, so the default must not be a dead end; decide and log it.
+- [x] 2.3 `sofar close [slug]` CLI + MCP tool: append the status event, then remove EVERY bindings.json entry pointing at that slug (not just the current branch — a closed record should have no branch aimed at it). Atomic and idempotent; bindings.json is committed and shared, so a torn write is not acceptable.
+- [x] 2.4 Define reopening: what `sofar switch <closed-slug>` does — silently reopen, refuse, or require `--reopen`. The user's rule is that working on it again is what revives it, so the default must not be a dead end; decide and log it.
 
 ## Phase 3 — Session-first resolution (what makes unbinding safe) [pending] — 0/3 done
 

@@ -1,6 +1,6 @@
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import { randomBytes } from 'node:crypto'
-import { basename, dirname, join } from 'node:path'
+import { mkdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { writeFileAtomic } from '../core/atomic'
 import type { InitiativeState } from '../core/fold'
 import { renderPlan } from './templates/plan'
 import { renderDecisions } from './templates/decisions'
@@ -25,26 +25,6 @@ import { renderSession } from './templates/session'
 /** Session ids come from outside (Claude Code) — never let one shape a path. */
 function sessionFileName(id: string): string {
   return `${id.replace(/[^A-Za-z0-9._-]/g, '_')}.md`
-}
-
-/**
- * Atomic replace: write a uniquely-named temp file beside the target, then
- * renameSync over it. The temp name carries pid + random bytes so concurrent
- * regenerations never collide; any failure removes the temp file so no
- * *.tmp ever lingers in the record.
- */
-function writeFileAtomic(path: string, content: string): void {
-  const tmp = join(
-    dirname(path),
-    `.${basename(path)}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`,
-  )
-  try {
-    writeFileSync(tmp, content, 'utf8')
-    renameSync(tmp, path)
-  } catch (err) {
-    rmSync(tmp, { force: true })
-    throw err
-  }
 }
 
 /**

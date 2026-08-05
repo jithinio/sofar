@@ -24,6 +24,7 @@ import { logDecision } from './log-decision'
 import { updatePlan } from './update-plan'
 import { addNote } from './add-note'
 import { remember } from './remember'
+import { closeInitiative } from './close-initiative'
 
 /**
  * Sofar MCP server (SPEC §MCP tools) — low-level SDK API on purpose (BD12):
@@ -52,6 +53,7 @@ const handlers: { [K in ToolName]: (ctx: ToolContext, args: ToolArgs[K]) => unkn
   sofar_update_plan: updatePlan,
   sofar_add_note: addNote,
   sofar_remember: remember,
+  sofar_close_initiative: closeInitiative,
 }
 
 function okResult(value: unknown): CallToolResult {

@@ -9,6 +9,7 @@ import { runInit } from './init'
 import { runDoctor } from './doctor'
 import { runUninit } from './uninit'
 import { runNew, runSwitch } from './new'
+import { runClose } from './close'
 import { runStatus, runStatusWatch } from './status'
 import { runList } from './list'
 import { runNext } from './next'
@@ -97,6 +98,23 @@ program
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((slug: string, opts: { root?: string }) => {
     emit(runSwitch(rootOf(opts), slug))
+  })
+
+program
+  .command('close [slug]')
+  .description(
+    'close an initiative: record it done (or --drop it, with a reason) and unbind every branch pointing at it',
+  )
+  .option('--drop', 'close as `dropped` (abandoned) rather than `done` — requires --reason')
+  .option('--reason <text>', 'why it closed; REQUIRED for --drop')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action((slug: string | undefined, opts: { drop?: boolean; reason?: string; root?: string }) => {
+    emit(
+      runClose(rootOf(opts), slug, {
+        drop: opts.drop === true,
+        ...(opts.reason !== undefined ? { reason: opts.reason } : {}),
+      }),
+    )
   })
 
 program

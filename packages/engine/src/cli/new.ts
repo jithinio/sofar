@@ -1,5 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
 import { createToolContext, currentBranch, ToolError } from '../mcp/context'
+import { BindingsAbort, writeBinding } from '../core/bindings'
+import { isClosedInitiativeStatus } from '@sofar/schema'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui'
 
@@ -27,37 +29,6 @@ export interface NewOptions {
   goal?: string
   /** commander --no-bind → bind: false; default true. */
   bind?: boolean
-}
-
-// ---------------------------------------------------------------------------
-// bindings.json read-modify-write (merge — other branches' bindings survive).
-// ---------------------------------------------------------------------------
-
-class BindingsAbort extends Error {}
-
-function readBindingsFile(path: string): Record<string, unknown> {
-  if (!existsSync(path)) return {}
-  let decoded: unknown
-  try {
-    decoded = JSON.parse(readFileSync(path, 'utf8'))
-  } catch (err) {
-    throw new BindingsAbort(
-      `.sofar/bindings.json is not valid JSON — refusing to modify it (${errMessage(err)})`,
-    )
-  }
-  if (typeof decoded !== 'object' || decoded === null || Array.isArray(decoded)) {
-    throw new BindingsAbort('.sofar/bindings.json must be a JSON object of branch → slug')
-  }
-  return decoded as Record<string, unknown>
-}
-
-/** Bind branch → slug; returns false when the binding was already in place. */
-function writeBinding(path: string, branch: string, slug: string): boolean {
-  const bindings = readBindingsFile(path)
-  if (bindings[branch] === slug) return false
-  bindings[branch] = slug
-  writeFileSync(path, `${JSON.stringify(bindings, null, 2)}\n`, 'utf8')
-  return true
 }
 
 // ---------------------------------------------------------------------------
@@ -182,14 +153,34 @@ export function runSwitch(
 
   try {
     mkdirSync(ctx.sofarDir, { recursive: true })
+    const report: string[] = []
+
+    // Reopen-on-switch (D3): switching a branch onto a record IS the act of
+    // working on it again, which is what revives it — so a closed slug is
+    // never a dead end here. Never silent, though: the revival is announced
+    // and appended, so the log shows closed-then-reopened rather than an
+    // unexplained return to active. Appended BEFORE the bind, so a failure
+    // cannot leave a branch pointing at a record still marked closed.
+    const state = ctx.foldState(slug)
+    if (isClosedInitiativeStatus(state.status)) {
+      ctx.appendAndProject(slug, 'initiative_status_changed', { status: 'active' }, {
+        session: 'cli',
+        source: 'cli',
+        actor: 'human',
+      })
+      report.push(`reopened ${slug} (was ${state.status}) — working on it again is what revives it`)
+    }
+
     const changed = writeBinding(ctx.bindingsPath, branch, slug)
-    const line = changed
-      ? `bound branch "${branch}" → ${slug}`
-      : `branch "${branch}" already bound to ${slug} — nothing to do`
-    return ok(`${renderConfirmation([line], caps)}\n`)
+    report.push(
+      changed
+        ? `bound branch "${branch}" → ${slug}`
+        : `branch "${branch}" already bound to ${slug} — nothing to do`,
+    )
+    return ok(`${renderConfirmation(report, caps)}\n`)
   } catch (err) {
-    if (err instanceof BindingsAbort) {
-      return fail(renderFailure(`sofar switch: ${err.message}`, errCaps))
+    if (err instanceof BindingsAbort || err instanceof ToolError) {
+      return fail(renderFailure(`sofar switch: ${errMessage(err)}`, errCaps))
     }
     throw err
   }

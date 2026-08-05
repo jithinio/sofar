@@ -9,7 +9,7 @@ import {
 } from '../src/tool-inputs'
 
 describe('tool contract surface', () => {
-  it('declares exactly the eight SPEC §MCP tools', () => {
+  it('declares exactly the nine SPEC §MCP tools', () => {
     expect([...TOOL_NAMES]).toEqual([
       'sofar_get_state',
       'sofar_start_session',
@@ -19,6 +19,7 @@ describe('tool contract surface', () => {
       'sofar_update_plan',
       'sofar_add_note',
       'sofar_remember',
+      'sofar_close_initiative',
     ])
     expect(TOOL_DEFS.map((t) => t.name)).toEqual([...TOOL_NAMES])
   })
@@ -49,6 +50,7 @@ describe('validateToolInput', () => {
     sofar_end_session: { session_id: 's1', summary: 'did things', next_action: 'do more' },
     sofar_update_task: { task_id: '2.1', status: 'done', note: 'green' },
     sofar_log_decision: { chose: 'a', over: 'b', because: 'c' },
+    sofar_close_initiative: { status: 'done', note: 'goal met' },
     sofar_update_plan: {
       plan: {
         goal: 'ship',
