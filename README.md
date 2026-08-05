@@ -176,9 +176,9 @@ approaches they ruled out are the one thing never cut.
 
 ## Optional extras
 
-**Status line.** `sofar init --statusline` puts progress, session cost and
-cache health in Claude Code's status bar. An existing status line is left
-alone.
+**Status line.** `sofar init --statusline` puts task progress, context fill
+and cache health in Claude Code's status bar. An existing status line is
+left alone.
 
 **Cloud sync.** Off unless you switch it on. `sofar login`, then
 `sofar link --org <org>`, then `sofar push` and `sofar pull` to sync through
