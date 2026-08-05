@@ -362,15 +362,42 @@ describe('pieFor (4.2)', () => {
     const u = symbolsFor(true)
     expect(pieFor(0, 8, u)).toBe('○')
     expect(pieFor(1, 8, u)).toBe('◔')
-    expect(pieFor(4, 8, u)).toBe('◑')
-    expect(pieFor(6, 8, u)).toBe('◕')
+    expect(pieFor(4, 8, u)).toBe('◔') // exactly half: ties round down (D13)
+    expect(pieFor(5, 8, u)).toBe('◕')
     expect(pieFor(7, 8, u)).toBe('◕') // not ● until truly done
     expect(pieFor(8, 8, u)).toBe('●')
+  })
+
+  it('the ramp excludes ◑ — the glyph that font-fell-back wide (D13)', async () => {
+    const { symbolsFor, pieFor } = await import('../src/cli/ui/symbols')
+    const u = symbolsFor(true)
+    expect(u.pie).toEqual(['○', '◔', '◕', '●'])
+    for (let done = 0; done <= 20; done++) expect(pieFor(done, 20, u)).not.toBe('◑')
+  })
+
+  it('bands are derived from ramp length, not hardcoded', async () => {
+    const { pieFor, symbolsFor } = await import('../src/cli/ui/symbols')
+    const five = { ...symbolsFor(true), pie: ['a', 'b', 'c', 'd', 'e'] as readonly string[] }
+    expect(pieFor(0, 9, five)).toBe('a')
+    expect(pieFor(3, 9, five)).toBe('b')
+    expect(pieFor(6, 9, five)).toBe('c')
+    expect(pieFor(8, 9, five)).toBe('d')
+    expect(pieFor(9, 9, five)).toBe('e')
   })
 
   it('ASCII set and zero-total render no pie', async () => {
     const { pieFor, symbolsFor } = await import('../src/cli/ui/symbols')
     expect(pieFor(3, 8, symbolsFor(false))).toBe('')
     expect(pieFor(0, 0, symbolsFor(true))).toBe('')
+  })
+})
+
+describe('pie glyph widths (felt-cost D13)', () => {
+  it('every ramp member is a single code point — no surrogate pairs, no ZWJ', async () => {
+    const { symbolsFor } = await import('../src/cli/ui/symbols')
+    for (const glyph of symbolsFor(true).pie) {
+      expect([...glyph]).toHaveLength(1)
+      expect(glyph.codePointAt(0)!).toBeLessThan(0x10000)
+    }
   })
 })

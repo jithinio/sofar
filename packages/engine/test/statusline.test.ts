@@ -78,10 +78,15 @@ function statusJson(fields: Record<string, unknown> = {}): string {
 }
 
 describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
-  it('bound record + full JSON → all four segments, in order', () => {
+  it('bound record + full JSON → every segment, in order (D13: no cost, ctx before cache)', () => {
     const fixture = planned()
     const line = runStatusline(fixture.root, statusJson())
-    expect(line).toBe(`${fixture.slug} 1/3 · $1.23 · cache 72% ✓ · ctx 41%`)
+    expect(line).toBe(`${fixture.slug} 1/3 · ctx 41% · cache 72% ✓`)
+  })
+
+  it('D13: the cost segment is gone even when stdin carries total_cost_usd', () => {
+    const fixture = planned()
+    expect(runStatusline(fixture.root, statusJson())).not.toContain('$')
   })
 
   it('is read-side only: rendering appends nothing to the record', () => {
@@ -94,7 +99,7 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
   it('unbound repo → record segment omitted, the rest still renders', () => {
     const fixture = fx({ bind: false })
     const line = runStatusline(fixture.root, statusJson({ workspace: {}, cwd: undefined }))
-    expect(line).toBe('$1.23 · cache 72% ✓ · ctx 41%')
+    expect(line).toBe('ctx 41% · cache 72% ✓')
   })
 
   it('falls back to workspace.current_dir when the invocation root has no record', () => {
@@ -103,7 +108,7 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
     expect(line).toContain(`${fixture.slug} 1/3`)
   })
 
-  it('harness-identity segments (D6): model · dir:branch lead the line, all six in order', () => {
+  it('harness-identity segments (D6): model · dir:branch lead the line, all five in order', () => {
     const fixture = planned()
     const line = runStatusline(
       fixture.root,
@@ -113,7 +118,7 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
       }),
     )
     expect(line).toBe(
-      `Fable 5 · ${basename(fixture.root)}:main · ${fixture.slug} 1/3 · $1.23 · cache 72% ✓ · ctx 41%`,
+      `Fable 5 · ${basename(fixture.root)}:main · ${fixture.slug} 1/3 · ctx 41% · cache 72% ✓`,
     )
   })
 
@@ -133,7 +138,7 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
   it('model only (no workspace/cwd) → model leads, dir omitted', () => {
     const fixture = fx({ bind: false })
     const line = runStatusline('/nonexistent', statusJson({ model: { display_name: 'Fable 5' } }))
-    expect(line).toBe('Fable 5 · $1.23 · cache 72% ✓ · ctx 41%')
+    expect(line).toBe('Fable 5 · ctx 41% · cache 72% ✓')
   })
 
   it('garbage or empty stdin → empty line, no throw', () => {
@@ -185,14 +190,15 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
       fixture.root,
       statusJson({
         context_window: {
+          used_percentage: 41.2,
           current_usage: { input_tokens: 0, cache_read_input_tokens: 0 },
         },
       }),
     )
-    expect(line).toBe('$1.23')
+    expect(line).toBe('ctx 41%')
   })
 
-  it('styled (D7/D8): toned model, ▸/⎇ glyphs, accent slug, banded cache, green ctx label + separators', () => {
+  it('styled (D7/D8/D12/D13): toned model, glyph-free dir + green branch, task pie, dim ctx label + toned value, banded cache, separators', () => {
     const fixture = planned()
     const line = runStatusline(
       fixture.root,
@@ -203,11 +209,11 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
     expect(line).toBe(
       [
         '\x1b[1m\x1b[35mFable 5\x1b[39m\x1b[22m', // Fable family: bold accent (D11)
-        `▸ ${basename(fixture.root)} ⎇ \x1b[32mmain\x1b[39m`,
+        basename(fixture.root), // D12: no ▸, and the branch is its own segment
+        '\x1b[32mmain\x1b[39m',
         `\x1b[33m◔\x1b[39m \x1b[35m${fixture.slug}\x1b[39m 1/3`, // task pie: in progress → warn (D9)
-        '$1.23',
+        '\x1b[2mctx\x1b[22m \x1b[32m41%\x1b[39m', // D13: constant label dim, value toned
         '\x1b[32mcache 72% ✓\x1b[39m',
-        '\x1b[32mctx 41%\x1b[39m', // healthy band: word over glyph, success tone (D11)
       ].join(sep),
     )
   })
@@ -235,7 +241,7 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
       statusJson({ context_window: { used_percentage: 75 } }),
       STATUSLINE_FORCED_CAPS,
     )
-    expect(line).toContain('\x1b[33mctx 75%\x1b[39m')
+    expect(line).toContain('\x1b[2mctx\x1b[22m \x1b[33m75%\x1b[39m')
   })
 
   it('styled: completed record → success-green full pie (D9)', () => {
@@ -280,13 +286,13 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
       STATUSLINE_FORCED_CAPS,
     )
     expect(line).toContain('\x1b[31mcache 20% ⚠\x1b[39m')
-    expect(line).toContain('\x1b[31mctx 91%\x1b[39m')
+    expect(line).toContain('\x1b[2mctx\x1b[22m \x1b[31m91%\x1b[39m')
   })
 
   it('styled: default lib caps stay plain — the command opts into styling, not the library', () => {
     const fixture = fx({ bind: false })
     const line = runStatusline(fixture.root, statusJson({ model: { display_name: 'Fable 5' } }))
-    expect(line).toBe('Fable 5 · $1.23 · cache 72% ✓ · ctx 41%')
+    expect(line).toBe('Fable 5 · ctx 41% · cache 72% ✓')
     expect(line).not.toContain('\x1b')
   })
 

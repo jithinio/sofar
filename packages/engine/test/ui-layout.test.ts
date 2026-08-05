@@ -76,7 +76,7 @@ describe('full zoom — plain content', () => {
   const text = lines.join('\n')
 
   it('bold-header slot carries slug, progress fraction/percent, phase count', () => {
-    expect(lines[0]).toBe('◑ cli-ui  2/5 tasks (40%) · 2 phases')
+    expect(lines[0]).toBe('◔ cli-ui  2/5 tasks (40%) · 2 phases')
   })
 
   it('goal renders on its own muted line', () => {
@@ -243,7 +243,7 @@ describe('portfolio zoom', () => {
   it('full block: header + next-action detail + blocked + staleness (4 lines)', () => {
     const lines = renderInitiative(richState(), plain('portfolio'))
     expect(lines).toEqual([
-      '◑ cli-ui  2/5 tasks (40%)  ● Phase 2 — surfaces',
+      '◔ cli-ui  2/5 tasks (40%)  ● Phase 2 — surfaces',
       '  └ next: Apply the grammar to sofar status',
       '  ✗ blocked: task 2.3: waiting on initiative-list',
       '  ⚠ next action may be stale: 4 events since write-back',
@@ -308,18 +308,18 @@ describe('portfolio zoom — truncation', () => {
 
   it('the variable tail truncates with an ellipsis; structure survives', () => {
     const lines = renderInitiative(richState(), plain('portfolio', 40))
-    expect(lines[0]).toBe('◑ cli-ui  2/5 tasks (40%)  ● Phase 2 — …')
+    expect(lines[0]).toBe('◔ cli-ui  2/5 tasks (40%)  ● Phase 2 — …')
     expect(lines[1]).toBe('  └ next: Apply the grammar to sofar st…')
   })
 
   it('active phase drops entirely when no width remains for it', () => {
     const lines = renderInitiative(richState(), plain('portfolio', 25))
-    expect(lines[0]).toBe('◑ cli-ui  2/5 tasks (40%)')
+    expect(lines[0]).toBe('◔ cli-ui  2/5 tasks (40%)')
   })
 
   it('degenerate width truncates the header itself', () => {
     const lines = renderInitiative(richState(), plain('portfolio', 10))
-    expect(lines[0]).toBe('◑ cli-ui …')
+    expect(lines[0]).toBe('◔ cli-ui …')
     expect(visibleWidth(lines[0]!)).toBe(10)
   })
 

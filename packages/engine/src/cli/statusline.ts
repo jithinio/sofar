@@ -10,15 +10,20 @@ import { createStyle, pieFor, symbolsFor, type Caps, type Style } from './ui'
  * D7/D8) — the rent-meter. Wired as Claude Code's statusLine command, it
  * reads the statusline JSON from stdin and prints ONE line:
  *
- *   <model> · ▸ <dir> ⎇ <branch> · <pie> <slug> <done>/<total>
- *     · $<session cost> · cache <warm%>[⚠|✓] · ctx <used%>
+ *   <model> · <dir> · <branch> · <pie> <slug> <done>/<total>
+ *     · ctx <used%> · cache <warm%>[⚠|✓]
  *
  * Icons are text glyphs in the house vocabulary (cli-ui 1.3), never emoji
- * (D8): ▸ dir, ⎇ branch, and the kernel's progress pie (○◔◑◕●) as the
- * task-progress gauge (D9). Both meters keep their text labels in every
- * mode (D10, extended to ctx by D11): `cache` and `ctx` — word over glyph.
- * The model name is toned by family and the ctx percentage by fill band
- * (D11), both within the color law's semantic palette (D1).
+ * (D8). D12 retired the two decorative ones — ▸ dir and ⎇ branch — leaving
+ * the kernel's progress pie as the sole glyph, where it does real work as
+ * the task-progress gauge (D9). D13 narrowed that pie to ○◔◕●, dropping ◑
+ * because common coding fonts lack it and the fallback draws it wider than
+ * its neighbours — a gauge that changes width shifts every segment after
+ * it. Both meters keep their text labels in every mode (D10, extended to
+ * ctx by D11): `cache` and `ctx` — word over glyph.
+ * The model name is toned by family (D11) and the ctx percentage by fill
+ * band, both within the color law's semantic palette (D1); D13 dims the
+ * constant `ctx` label so the tone falls on the number that changes.
  *
  * The model and dir/branch segments restore what Claude Code's own default
  * status line shows — a custom statusLine command REPLACES the default
@@ -28,16 +33,18 @@ import { createStyle, pieFor, symbolsFor, type Caps, type Style } from './ui'
  * Styling (D7): the consumer is Claude Code's status bar, which renders
  * ANSI + emoji even though stdout is piped — so the command wiring forces
  * styled caps instead of TTY detection (the one case where detection gives
- * the wrong answer). `--no-color` or NO_COLOR falls back to the plain
- * line, byte-identical to the 0.8.0 format (`dir:branch`, `cache`/`ctx`
- * labels, no ANSI). runStatusline's own default is the plain line — the
- * forced caps are the command's choice, not the library's.
+ * the wrong answer). `--no-color` or NO_COLOR falls back to a plain line
+ * (`dir:branch`, no glyphs, no ANSI). runStatusline's own default is the
+ * plain line — the forced caps are the command's choice, not the library's.
+ * D13 retired the old promise that the plain line stays byte-identical to
+ * 0.8.0: dropping the cost segment and putting ctx before cache are
+ * content changes, and they apply in both modes.
  *
  * Every segment is independent and omitted when its inputs are missing —
  * the line degrades, never errors (hooks' best-effort philosophy, BD22).
  * Read-side only: nothing is appended to the record, no model is called
- * (SPEC §Architectural invariants) — the statusline stdin already carries
- * cost.total_cost_usd and per-call cache token counts at zero API cost.
+ * (SPEC §Architectural invariants) — the per-call cache token counts the
+ * meter needs already ride in on stdin at zero API cost.
  *
  * The cache segment is the self-diagnostic: healthy stable-prefix workloads
  * run 50–80% cache-read (✓ at ≥50%); below 30% signals prefix
@@ -221,11 +228,11 @@ export function runStatusline(rootDir: string, input: string, caps: Caps = PLAIN
   const dir = dirSegment(hook)
   if (dir !== null) {
     if (icons) {
-      segments.push(
-        dir.branch === null
-          ? `${sym.pointer} ${dir.name}`
-          : `${sym.pointer} ${dir.name} ⎇ ${style.success(dir.branch)}`,
-      )
+      // Glyph-free (D12): dir and branch are top-level segments carried by
+      // the same dim · as every other one. Green alone marks the branch —
+      // the ▸/⎇ glyphs decorated a boundary the separator already draws.
+      segments.push(dir.name)
+      if (dir.branch !== null) segments.push(style.success(dir.branch))
     } else {
       segments.push(dir.branch === null ? dir.name : `${dir.name}:${dir.branch}`)
     }
@@ -250,8 +257,22 @@ export function runStatusline(rootDir: string, input: string, caps: Caps = PLAIN
     segments.push(record.total > 0 ? `${pieCell}${slug} ${record.done}/${record.total}` : slug)
   }
 
-  const cost = isObj(hook.cost) ? numField(hook.cost.total_cost_usd) : null
-  if (cost !== null) segments.push(`$${cost.toFixed(2)}`)
+  const ctxPct = isObj(hook.context_window) ? numField(hook.context_window.used_percentage) : null
+  if (ctxPct !== null) {
+    // Label dim, value toned (D13): `ctx` never changes, so it recedes to
+    // gray and the eye lands on the number, which does. The healthy band
+    // stays success-green — the gauge is reassurance until it is a warning.
+    const value = `${Math.round(ctxPct)}%`
+    segments.push(
+      `${style.dim('ctx')} ${
+        ctxPct >= CTX_ERROR_FROM
+          ? style.error(value)
+          : ctxPct >= CTX_WARN_FROM
+            ? style.warn(value)
+            : style.success(value)
+      }`,
+    )
+  }
 
   const rent = rentSegment(hook)
   if (rent !== null) {
@@ -259,21 +280,6 @@ export function runStatusline(rootDir: string, input: string, caps: Caps = PLAIN
     // than any rewarm glyph; the ✓/⚠ band marks stay.
     const text = `cache ${rent.pct}%${rent.marker === null ? '' : ` ${rent.marker}`}`
     segments.push(rent.tone === null ? text : style[rent.tone](text))
-  }
-
-  const ctxPct = isObj(hook.context_window) ? numField(hook.context_window.used_percentage) : null
-  if (ctxPct !== null) {
-    // Text label in every mode (D10's word-over-glyph, extended by D11) —
-    // and the healthy band is success-green, not dim: the gauge is a
-    // reassurance until it becomes a warning.
-    const text = `ctx ${Math.round(ctxPct)}%`
-    segments.push(
-      ctxPct >= CTX_ERROR_FROM
-        ? style.error(text)
-        : ctxPct >= CTX_WARN_FROM
-          ? style.warn(text)
-          : style.success(text),
-    )
   }
 
   return segments.join(caps.color ? ` ${style.dim('·')} ` : ' · ')

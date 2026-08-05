@@ -184,7 +184,7 @@ describe('rebalanced layout (4.1/4.2)', () => {
   it('header carries the pie and task fraction', () => {
     const root = seededRepo()
     const flat = stripAnsi(runNext(root, STYLED, 80).stdout)
-    expect(flat).toMatch(/◑ fresh \[unbound\]  1\/2/)
+    expect(flat).toMatch(/◔ fresh \[unbound\]  1\/2/)
     // no-tasks entry renders no pie and no fraction
     expect(flat).toMatch(/ {2}drifted \[unbound\]$/m)
   })

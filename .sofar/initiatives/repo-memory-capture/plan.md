@@ -28,4 +28,4 @@ Progress: 9/10 tasks done (90%)
 
 - [ ] 4.1 Mint memory nodes in buildGraph so decisions can cite `<slug> M<n>` and resolve it — lifts the D2 opt-in restriction and lets `sofar why`/`related` reach promotions
 
-Next action: Nothing pending. Task 4.1 (memory graph nodes) stays deferred by D2 until something needs to cite a promotion.
+Next action: Commit the statusline changes if the user is done adjusting the line.

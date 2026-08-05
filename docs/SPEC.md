@@ -1001,14 +1001,19 @@ Shims contain no logic — they invoke the sofar CLI.
   resolves like status).
 - `sofar statusline` (felt-cost 3.1/3.2, D4; identity segments D6; styling
   D7/D8) — the rent-meter, wired as Claude Code's statusLine command. Reads
-  statusline JSON from stdin, prints ONE line: `<model> · ▸ <dir> ⎇
-  <branch> · <pie> <slug> <done>/<total> · $<total_cost_usd> ·
-  cache <warm%>[⚠|✓] · <pie> <used%>`. Icons are house-vocabulary text
-  GLYPHS, never emoji (D8): ▸ dir, ⎇ branch, kernel progress pie (○◔◑◕●)
-  as BOTH gauges — task progress on the record segment (D9, next.ts
-  coloring: success done / warn in-progress / dim untouched) and context
-  fill. The cache segment keeps its TEXT label in every mode (D10) — the
-  word carries the meaning; only the ✓/⚠ band marks accompany it. The leading model (model.display_name) and dir/branch
+  statusline JSON from stdin, prints ONE line: `<model> · <dir> ·
+  <branch> · <pie> <slug> <done>/<total> · ctx <used%> ·
+  cache <warm%>[⚠|✓]`. Icons are house-vocabulary text
+  GLYPHS, never emoji (D8); D12 dropped the decorative ▸ dir and ⎇ branch
+  markers, making dir and branch ordinary top-level segments carried by the
+  same separator as the rest, so the kernel progress pie (○◔◕●) is the only
+  glyph left — task progress on the record segment (D9, next.ts
+  coloring: success done / warn in-progress / dim untouched). D13 removed
+  the $<total_cost_usd> segment entirely and put ctx ahead of cache.
+  Both meters keep their TEXT label in every mode (D10, extended to ctx by
+  D11) — the word carries the meaning; only the ✓/⚠ band marks accompany
+  cache, and D13 dims the constant `ctx` label so the band tone falls on
+  the number. The leading model (model.display_name) and dir/branch
   segments restore what Claude Code's default status line shows — a custom
   statusLine REPLACES the default, and the rent-meter must not cost the
   user the line they had (D6). Branch comes from .git/HEAD via bounded
@@ -1017,11 +1022,13 @@ Shims contain no logic — they invoke the sofar CLI.
   DEFAULT (D7): the consumer renders ANSI even though stdout is
   piped, so the command forces styled caps (bold model, success-green
   branch, accent slug, band-colored cache — success/error by band, dim
-  unjudged — and ctx dim/<70, warn/≥70, error/≥90, dim separators); TTY
+  unjudged — and ctx success/<70, warn/≥70, error/≥90, dim separators); TTY
   detection is deliberately bypassed. `--no-color` or NO_COLOR falls back
-  to the plain line, byte-identical to the 0.8.0 format (`dir:branch`,
-  `cache`/`ctx` labels, no ANSI, no glyph icons); runStatusline's library
-  default is the plain line. Warm share = cache_read /
+  to the plain line (`dir:branch`, `cache`/`ctx` labels, no ANSI, no glyph
+  icons); runStatusline's library default is the plain line. D13 retired
+  the guarantee that the plain line stays byte-identical to 0.8.0 —
+  dropping cost and reordering ctx/cache are content changes and apply in
+  both modes. Warm share = cache_read /
   (cache_read + cache_creation + input) from the first usage object found
   (top-level current_usage, context_window.current_usage, or
   cost.current_usage). Health judged only after ≥10k tokens: <30% → ⚠
@@ -1111,11 +1118,17 @@ Flag/env contract:
 argv directly, so registration is acceptance-only.
 
 Progress pies (4.2): initiative headers on the styled status/list/next
-surfaces carry a pie glyph quantized from tasks done/total — ○ ◔ ◑ ◕ ●
-with honest endpoints (● only at 100%, ○ only at 0) — colored on the
-checkbox ramp (green complete, yellow in progress, dim untouched). The
-ASCII set renders no pie: the numeric fraction already carries the value.
-Zero-total initiatives render no pie and no fraction.
+surfaces carry a pie glyph quantized from tasks done/total — ○ ◔ ◕ ●
+with honest endpoints (● only at 100%, ○ only at 0) and ties rounding DOWN
+(exactly half → ◔) — colored on the checkbox ramp (green complete, yellow
+in progress, dim untouched). The ramp EXCLUDES ◑ (U+25D1) by felt-cost
+D13: common coding fonts lack it, so terminals fall back to a symbol font
+that draws it wider than ○◔◕●, and a gauge whose width changes with its
+value shifts every character after it. Any future ramp member must be
+verified present in ordinary coding fonts. Banding derives from ramp
+length, not hardcoded thresholds. The ASCII set renders no pie: the
+numeric fraction already carries the value. Zero-total initiatives render
+no pie and no fraction.
 
 Color law (semantic ANSI-16, cli-ui D1): green=success/done ·
 red=error/blocked · yellow=warn/active · cyan=info/identifiers ·
