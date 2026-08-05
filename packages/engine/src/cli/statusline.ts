@@ -2,8 +2,9 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import type { Command } from 'commander'
 import { createToolContext } from '../mcp/context'
-import { readAllStdin } from './shared'
-import { createStyle, pieFor, symbolsFor, type Caps, type Style } from './ui'
+import { installStatusline, type StatuslineInstall } from './init'
+import { emit, errMessage, fail, ok, readAllStdin, type CmdResult } from './shared'
+import { createStyle, pieFor, stdoutCaps, symbolsFor, type Caps, type Style } from './ui'
 
 /**
  * `sofar statusline` (felt-cost 3.1/3.2 D4; identity segments D6; styling
@@ -122,9 +123,16 @@ function gitBranch(startDir: string): string | null {
   }
 }
 
-/** Model display name — the segment the default status line led with. */
+/**
+ * Model display name — the segment the default status line led with.
+ *
+ * `context` is dropped from a parenthesised window size (D14): Claude Code
+ * ships "Opus 5 (1M context)", but on a line that already reports ctx fill
+ * the word is the one part nobody has to read — "Opus 5 (1M)" says it.
+ */
 function modelSegment(hook: Obj): string | null {
-  return isObj(hook.model) ? strField(hook.model.display_name) : null
+  const name = isObj(hook.model) ? strField(hook.model.display_name) : null
+  return name === null ? null : (strField(name.replace(/\s+context(?=\s*\))/gi, '')) ?? name)
 }
 
 /**
@@ -229,10 +237,17 @@ export function runStatusline(rootDir: string, input: string, caps: Caps = PLAIN
   if (dir !== null) {
     if (icons) {
       // Glyph-free (D12): dir and branch are top-level segments carried by
-      // the same dim · as every other one. Green alone marks the branch —
-      // the ▸/⎇ glyphs decorated a boundary the separator already draws.
-      segments.push(dir.name)
-      if (dir.branch !== null) segments.push(style.success(dir.branch))
+      // the same dim · as every other one — the ▸/⎇ glyphs decorated a
+      // boundary the separator already draws.
+      //
+      // Their COLORS quote Claude Code's default line (D14): dir yellow,
+      // branch blue. These are not semantic tones — yellow here does not
+      // mean "warn" — because D6 restored this pair as a reproduction of
+      // the line a custom statusLine replaces, and a reproduction that
+      // recolors its source is not one. sofar's OWN segments below (record,
+      // ctx, cache) still obey the D1 semantic law.
+      segments.push(style.warn(dir.name))
+      if (dir.branch !== null) segments.push(style.blue(dir.branch))
     } else {
       segments.push(dir.branch === null ? dir.name : `${dir.name}:${dir.branch}`)
     }
@@ -285,6 +300,26 @@ export function runStatusline(rootDir: string, input: string, caps: Caps = PLAIN
   return segments.join(caps.color ? ` ${style.dim('·')} ` : ' · ')
 }
 
+/** Human report for `--install`, styled on the caps of the real stdout. */
+export function renderInstall(result: StatuslineInstall, caps: Caps): CmdResult {
+  const s = createStyle(caps.color)
+  const sym = symbolsFor(caps.unicode)
+  switch (result.status) {
+    case 'wired':
+      return ok(
+        `${s.success(sym.ok)} statusLine wired in ${result.path}\n` +
+          `  ${s.dim('Open a new Claude Code session to see it.')}\n`,
+      )
+    case 'already':
+      return ok(`${s.success(sym.ok)} statusLine already wired in ${result.path}\n`)
+    case 'kept':
+      return ok(
+        `${s.warn(sym.warn)} ${result.path} already has a statusLine — left untouched.\n` +
+          `  ${s.dim('Replace its "command" with `sofar statusline` by hand to switch.')}\n`,
+      )
+  }
+}
+
 export function registerStatuslineCommand(
   program: Command,
   rootOf: (opts: { root?: string }) => string,
@@ -292,10 +327,22 @@ export function registerStatuslineCommand(
   program
     .command('statusline')
     .description(
-      'Claude Code statusLine command: statusline JSON on stdin → one line (model · dir/branch · record progress · session cost · cache rent-meter · context %); styled for the status bar, --no-color for plain',
+      'Claude Code statusLine command: statusline JSON on stdin → one line (model · dir · branch · record progress · context % · cache rent-meter); styled for the status bar, --no-color for plain. `--install` wires it into this repo instead of printing a line',
     )
     .option('--root <dir>', 'repo root (default: current directory)')
-    .action(async (opts: { root?: string }) => {
+    .option(
+      '--install',
+      'wire `sofar statusline` into .claude/settings.json for this repo and exit — statusLine only, no hooks and no .sofar/ (an existing statusLine is never touched)',
+    )
+    .action(async (opts: { root?: string; install?: boolean }) => {
+      if (opts.install === true) {
+        try {
+          emit(renderInstall(installStatusline(rootOf(opts)), stdoutCaps()))
+        } catch (err) {
+          emit(fail(`sofar statusline --install: ${errMessage(err)}`))
+        }
+        return
+      }
       // The status bar renders ANSI + emoji even though stdout is piped —
       // force styled caps; --no-color / NO_COLOR opt back into plain (D7).
       const plain = process.argv.includes('--no-color') || process.env.NO_COLOR !== undefined

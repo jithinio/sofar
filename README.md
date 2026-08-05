@@ -143,7 +143,7 @@ Less often needed:
 | `sofar login`, `link`, `push`, `pull` | Cloud sync, if you turn it on |
 | `sofar serve` | Local server with the record as JSON |
 | `sofar mcp` | The MCP server, which `init` already registers |
-| `sofar statusline` | The status bar line for Claude Code |
+| `sofar statusline` | The status bar line for Claude Code (`--install` wires it into this repo) |
 | `sofar event append` | Write one entry by hand |
 | `sofar adopt <file>` | Bring an older, hand written project log into sofar |
 | `sofar uninit` | Undo `init` |
@@ -176,9 +176,13 @@ approaches they ruled out are the one thing never cut.
 
 ## Optional extras
 
-**Status line.** `sofar init --statusline` puts task progress, context fill
-and cache health in Claude Code's status bar. An existing status line is
-left alone.
+**Status line.** `sofar statusline --install` puts task progress, context
+fill and cache health in Claude Code's status bar, in one command and in
+any repo — the line alone, no hooks and no `.sofar/`. (`sofar init
+--statusline` wires the same thing as part of a full init.) It restores
+what Claude Code's own status line shows, so nothing is lost by switching:
+same model, directory and branch, in the same colors. An existing status
+line is always left alone.
 
 **Cloud sync.** Off unless you switch it on. `sofar login`, then
 `sofar link --org <org>`, then `sofar push` and `sofar pull` to sync through

@@ -1023,7 +1023,25 @@ Shims contain no logic — they invoke the sofar CLI.
   piped, so the command forces styled caps (bold model, success-green
   branch, accent slug, band-colored cache — success/error by band, dim
   unjudged — and ctx success/<70, warn/≥70, error/≥90, dim separators); TTY
-  detection is deliberately bypassed. `--no-color` or NO_COLOR falls back
+  detection is deliberately bypassed. The IDENTITY segments are the one
+  exception to the semantic color law (D14): dir renders YELLOW and branch
+  BLUE because those are Claude Code's own default status-line colors, and
+  D6 restored that line as a reproduction — a reproduction that recolors
+  its source is not one. These are quotations, not meanings; sofar's own
+  segments (record, ctx, cache) still obey D1. `Style.blue` exists solely
+  for this and must never be used to express state. The model label also
+  drops the word `context` from a parenthesised window size (D14) —
+  "Opus 5 (1M context)" renders as "Opus 5 (1M)", since a line that already
+  reports ctx fill does not need the noun spelled out.
+- `sofar statusline --install` (felt-cost D14) — wire `sofar statusline`
+  into <root>/.claude/settings.json and exit, touching NOTHING else: no
+  hooks, no .sofar/, no CLAUDE.md block. The statusline is read-side and
+  degrades to model/dir/branch/ctx/cache with no record present, so wanting
+  the line is not wanting the tracking. Same merge law as
+  `init --statusline` (init-statusline D1): an existing statusLine — ours,
+  customized, or a third party's — is the user's and is never rewritten;
+  reports wired / already / kept. Unparseable settings.json aborts with
+  exit 1 and changes nothing. `--no-color` or NO_COLOR falls back
   to the plain line (`dir:branch`, `cache`/`ctx` labels, no ANSI, no glyph
   icons); runStatusline's library default is the plain line. D13 retired
   the guarantee that the plain line stays byte-identical to 0.8.0 —
@@ -1133,7 +1151,12 @@ no pie and no fraction.
 Color law (semantic ANSI-16, cli-ui D1): green=success/done ·
 red=error/blocked · yellow=warn/active · cyan=info/identifiers ·
 magenta=sofar brand accent · dim=secondary/metadata (muted) ·
-bold=headers/emphasis. ANSI-16 SGR ONLY — never hex/256-color/truecolor
+bold=headers/emphasis. One deliberate non-semantic member exists:
+`Style.blue` (felt-cost D14) is a QUOTATION color, reserved for the
+statusline identity segments that reproduce Claude Code's own default
+line. It carries no meaning and must not be used to express state — a
+meaning wearing a non-semantic color is what this law forbids.
+ANSI-16 SGR ONLY — never hex/256-color/truecolor
 for text, never black/white foregrounds, no background detection: the
 user's terminal theme supplies the palette. Mechanics: a nested style
 re-opens its outer style after the inner close (the picocolors fix);

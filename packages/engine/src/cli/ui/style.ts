@@ -25,6 +25,16 @@ export interface Style {
   warn: Format
   info: Format
   accent: Format
+  /**
+   * QUOTATION color, outside the semantic law (felt-cost D14). The law maps
+   * color to meaning; this maps color to a source. Claude Code's default
+   * status line paints the git branch blue, and `sofar statusline` restores
+   * that line rather than replacing its look — so its identity segments
+   * quote Claude's palette instead of assigning meaning. Do not reach for
+   * this to express state: the semantic tones above cover that, and a
+   * meaning wearing a non-semantic color is exactly what D1 forbids.
+   */
+  blue: Format
 }
 
 function replaceClose(
@@ -65,6 +75,7 @@ const PLAIN: Style = {
   warn: identity,
   info: identity,
   accent: identity,
+  blue: identity,
 }
 
 export function createStyle(enabled: boolean): Style {
@@ -80,5 +91,6 @@ export function createStyle(enabled: boolean): Style {
     warn: formatter('\x1b[33m', '\x1b[39m'),
     info: formatter('\x1b[36m', '\x1b[39m'),
     accent: formatter('\x1b[35m', '\x1b[39m'),
+    blue: formatter('\x1b[34m', '\x1b[39m'),
   }
 }

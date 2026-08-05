@@ -290,6 +290,44 @@ export interface InitOptions {
   statusline?: boolean
 }
 
+export type StatuslineInstall =
+  /** The key was absent and now holds sofar's entry. */
+  | { status: 'wired'; path: string }
+  /** Already exactly sofar's entry — nothing to do. */
+  | { status: 'already'; path: string }
+  /** Some OTHER statusLine is configured; it was left alone. */
+  | { status: 'kept'; path: string; existing: unknown }
+
+/**
+ * Install ONLY the statusLine entry into <root>/.claude/settings.json
+ * (felt-cost D14) — no hooks, no .sofar/, no CLAUDE.md block.
+ *
+ * `sofar init --statusline` wires the same key, but init is the whole
+ * ceremony: it makes a repo sofar-TRACKED. The statusline is read-side and
+ * degrades to model/dir/branch/ctx/cache in a repo with no record at all,
+ * so wanting the line is not wanting the tracking, and a user who only
+ * wants the line should not have to accept five hooks to get it.
+ *
+ * Same merge law as init (init-statusline D1): an existing statusLine —
+ * ours, customized, or someone else's entirely — is the user's and wins.
+ * Only the settings file is touched; .claude/ is created if missing.
+ */
+export function installStatusline(rootDir: string): StatuslineInstall {
+  const path = join(rootDir, '.claude', 'settings.json')
+  const settings = readJSONObject(path, '.claude/settings.json')
+
+  if (settings.statusLine !== undefined) {
+    return isSofarStatusline(settings.statusLine)
+      ? { status: 'already', path }
+      : { status: 'kept', path, existing: settings.statusLine }
+  }
+
+  settings.statusLine = STATUSLINE_SETTINGS_ENTRY
+  mkdirSync(join(rootDir, '.claude'), { recursive: true })
+  writeFileSync(path, stableJSON(settings))
+  return { status: 'wired', path }
+}
+
 interface ShimSpec {
   file: string
   event: 'SessionStart' | 'UserPromptSubmit' | 'PostToolUse' | 'Stop' | 'SessionEnd'
@@ -684,9 +722,10 @@ export function runInit(
  */
 export const STATUSLINE_HINT = [
   'note: Claude Code statusline not wired. `sofar statusline` renders the',
-  '  rent-meter (model, dir/branch, record progress, session cost, cache',
-  '  health, context %) in the status bar. Opt in with:',
-  '    sofar init --statusline',
+  '  rent-meter (model, dir, branch, record progress, context %, cache',
+  '  health) in the status bar. Opt in with either:',
+  '    sofar init --statusline      (with the rest of init)',
+  '    sofar statusline --install   (the line alone, any repo)',
   '  (a project statusLine shadows a personal ~/.claude/settings.json one —',
   '  skip this if you prefer yours)',
 ].join('\n')

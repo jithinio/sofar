@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { basename } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { basename, join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { rmSync } from 'node:fs'
 import { makeEvent } from '../src/core/envelope'
@@ -9,6 +9,7 @@ import {
   runStatusline,
   STATUSLINE_FORCED_CAPS,
 } from '../src/cli/statusline'
+import { installStatusline, STATUSLINE_SETTINGS_ENTRY } from '../src/cli/init'
 import { makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
 
 /**
@@ -141,6 +142,19 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
     expect(line).toBe('Fable 5 · ctx 41% · cache 72% ✓')
   })
 
+  it.each([
+    ['Opus 5 (1M context)', 'Opus 5 (1M)'],
+    ['Opus 5 (1M  context)', 'Opus 5 (1M)'], // collapses the run of spaces
+    ['Sonnet 5 (200K context)', 'Sonnet 5 (200K)'],
+    ['Opus 5', 'Opus 5'], // nothing parenthesised to trim
+    ['Contextual 5', 'Contextual 5'], // only the standalone word, at the paren
+    ['context', 'context'], // never trims the name down to nothing
+  ])('D14: drops "context" from the model label: %s', (given, expected) => {
+    const fixture = fx({ bind: false })
+    const line = runStatusline(fixture.root, statusJson({ model: { display_name: given } }))
+    expect(line.startsWith(`${expected} · `)).toBe(true)
+  })
+
   it('garbage or empty stdin → empty line, no throw', () => {
     const fixture = fx({ bind: false })
     expect(runStatusline(fixture.root, 'not json{{{')).toBe('')
@@ -198,7 +212,7 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
     expect(line).toBe('ctx 41%')
   })
 
-  it('styled (D7/D8/D12/D13): toned model, glyph-free dir + green branch, task pie, dim ctx label + toned value, banded cache, separators', () => {
+  it('styled (D7/D8/D12/D13/D14): toned model, Claude-palette dir/branch, task pie, dim ctx label + toned value, banded cache, separators', () => {
     const fixture = planned()
     const line = runStatusline(
       fixture.root,
@@ -209,8 +223,10 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
     expect(line).toBe(
       [
         '\x1b[1m\x1b[35mFable 5\x1b[39m\x1b[22m', // Fable family: bold accent (D11)
-        basename(fixture.root), // D12: no ▸, and the branch is its own segment
-        '\x1b[32mmain\x1b[39m',
+        // D12: no ▸, branch is its own segment. D14: both quote Claude
+        // Code's default palette — dir yellow, branch blue, NOT semantic.
+        `\x1b[33m${basename(fixture.root)}\x1b[39m`,
+        '\x1b[34mmain\x1b[39m',
         `\x1b[33m◔\x1b[39m \x1b[35m${fixture.slug}\x1b[39m 1/3`, // task pie: in progress → warn (D9)
         '\x1b[2mctx\x1b[22m \x1b[32m41%\x1b[39m', // D13: constant label dim, value toned
         '\x1b[32mcache 72% ✓\x1b[39m',
@@ -306,5 +322,66 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
       }),
     )
     expect(line).toContain('cache 75% ✓')
+  })
+})
+
+describe('sofar statusline --install (felt-cost D14)', () => {
+  const settingsOf = (root: string) => join(root, '.claude', 'settings.json')
+  const readSettings = (root: string) =>
+    JSON.parse(readFileSync(settingsOf(root), 'utf8')) as Record<string, unknown>
+
+  it('wires the statusLine into a repo with no .claude/settings.json', () => {
+    const fixture = fx({ bind: false })
+    rmSync(join(fixture.root, '.claude'), { recursive: true, force: true })
+    const result = installStatusline(fixture.root)
+    expect(result.status).toBe('wired')
+    expect(readSettings(fixture.root).statusLine).toEqual(STATUSLINE_SETTINGS_ENTRY)
+  })
+
+  it('installs the LINE only — no hooks, no .sofar/, nothing else in settings', () => {
+    const fixture = fx({ bind: false })
+    rmSync(join(fixture.root, '.claude'), { recursive: true, force: true })
+    rmSync(join(fixture.root, '.sofar'), { recursive: true, force: true })
+    installStatusline(fixture.root)
+    expect(Object.keys(readSettings(fixture.root))).toEqual(['statusLine'])
+    expect(existsSync(join(fixture.root, '.claude', 'hooks'))).toBe(false)
+    expect(existsSync(join(fixture.root, '.sofar'))).toBe(false)
+  })
+
+  it('is idempotent: a second run reports already-wired and rewrites nothing', () => {
+    const fixture = fx({ bind: false })
+    rmSync(join(fixture.root, '.claude'), { recursive: true, force: true })
+    installStatusline(fixture.root)
+    const after = readFileSync(settingsOf(fixture.root), 'utf8')
+    expect(installStatusline(fixture.root).status).toBe('already')
+    expect(readFileSync(settingsOf(fixture.root), 'utf8')).toBe(after)
+  })
+
+  it("never overwrites someone else's statusLine", () => {
+    const fixture = fx({ bind: false })
+    const custom = { type: 'command', command: 'bash ~/.claude/mine.sh' }
+    mkdirSync(join(fixture.root, '.claude'), { recursive: true })
+    writeFileSync(settingsOf(fixture.root), `${JSON.stringify({ statusLine: custom }, null, 2)}\n`)
+    const result = installStatusline(fixture.root)
+    expect(result.status).toBe('kept')
+    expect(readSettings(fixture.root).statusLine).toEqual(custom)
+  })
+
+  it('preserves unrelated keys already in settings.json', () => {
+    const fixture = fx({ bind: false })
+    mkdirSync(join(fixture.root, '.claude'), { recursive: true })
+    writeFileSync(settingsOf(fixture.root), `${JSON.stringify({ model: 'opus' }, null, 2)}\n`)
+    installStatusline(fixture.root)
+    const settings = readSettings(fixture.root)
+    expect(settings.model).toBe('opus')
+    expect(settings.statusLine).toEqual(STATUSLINE_SETTINGS_ENTRY)
+  })
+
+  it('refuses to touch unparseable settings.json rather than clobbering it', () => {
+    const fixture = fx({ bind: false })
+    mkdirSync(join(fixture.root, '.claude'), { recursive: true })
+    writeFileSync(settingsOf(fixture.root), '{ not json')
+    expect(() => installStatusline(fixture.root)).toThrow(/not valid JSON/)
+    expect(readFileSync(settingsOf(fixture.root), 'utf8')).toBe('{ not json')
   })
 })
