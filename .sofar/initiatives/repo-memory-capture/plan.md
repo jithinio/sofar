@@ -28,4 +28,4 @@ Progress: 9/10 tasks done (90%)
 
 - [ ] 4.1 Mint memory nodes in buildGraph so decisions can cite `<slug> M<n>` and resolve it — lifts the D2 opt-in restriction and lets `sofar why`/`related` reach promotions
 
-Next action: Commit the statusline changes if the user is done adjusting the line.
+Next action: Nothing pending — statusline work is committed and pushed.
