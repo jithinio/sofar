@@ -18,11 +18,36 @@ export type TaskStatus = (typeof TASK_STATUSES)[number]
 export const PHASE_STATUSES = ['pending', 'active', 'done', 'blocked', 'dropped'] as const
 export type PhaseStatus = (typeof PHASE_STATUSES)[number]
 
+/**
+ * Initiative-level status. The same two terminal words as tasks and phases,
+ * for the same reason (task-drop-state D1): `done` = finished, `dropped` =
+ * abandoned, and neither is a near-synonym of the other. `blocked` is
+ * deliberately absent — a blocked initiative is still active work, which is
+ * what its blocked TASKS already say; adding it here would invent a third
+ * reading of the same fact.
+ *
+ * `active` is the default for every log that carries no status event, so an
+ * initiative written before this existed folds exactly as it always did.
+ */
+export const INITIATIVE_STATUSES = ['active', 'done', 'dropped'] as const
+export type InitiativeStatus = (typeof INITIATIVE_STATUSES)[number]
+
 /** Terminal statuses: no work remains, whether or not anything was built. */
 export const RESOLVED_TASK_STATUSES: readonly TaskStatus[] = ['done', 'dropped']
 
 export function isResolvedTaskStatus(s: string): boolean {
   return (RESOLVED_TASK_STATUSES as readonly string[]).includes(s)
+}
+
+/**
+ * Terminal initiative statuses. "Closed" is the initiative-level word for what
+ * tasks call "resolved" — it matches the command that gets there (`sofar
+ * close`), so the vocabulary the user types is the vocabulary the code uses.
+ */
+export const CLOSED_INITIATIVE_STATUSES: readonly InitiativeStatus[] = ['done', 'dropped']
+
+export function isClosedInitiativeStatus(s: string): boolean {
+  return (CLOSED_INITIATIVE_STATUSES as readonly string[]).includes(s)
 }
 
 export interface PlanTaskInput {
@@ -44,6 +69,16 @@ export interface PlanStructure {
 }
 
 export interface InitiativeCreatedPayload { slug: string; goal: string }
+/**
+ * The initiative's own status changed. `note` is the reason, and it is
+ * REQUIRED for `dropped` (task-drop-state D3): a whole initiative abandoned
+ * with nothing said reads as forgotten rather than decided, and unlike a
+ * dropped task there is no surviving sibling work to infer the reason from.
+ *
+ * Reopening is just another event with status `active` — history stays
+ * append-only, so a closed initiative is never a dead end in the log.
+ */
+export interface InitiativeStatusChangedPayload { status: InitiativeStatus; note?: string }
 export interface PlanUpdatedPayload { plan: PlanStructure }
 export interface PhaseStatusChangedPayload { phase: string; status: PhaseStatus }
 export interface TaskAddedPayload { phase: string; id: string; title: string; status?: TaskStatus }
@@ -71,6 +106,7 @@ export interface CorrectionPayload { ref: string; reason?: string }
 
 export interface KnownEventPayloads {
   initiative_created: InitiativeCreatedPayload
+  initiative_status_changed: InitiativeStatusChangedPayload
   plan_updated: PlanUpdatedPayload
   phase_status_changed: PhaseStatusChangedPayload
   task_added: TaskAddedPayload
@@ -90,6 +126,7 @@ export type KnownEventType = keyof KnownEventPayloads
 
 export const EVENT_TYPES = [
   'initiative_created',
+  'initiative_status_changed',
   'plan_updated',
   'phase_status_changed',
   'task_added',
@@ -130,6 +167,9 @@ function optTaskStatus(v: unknown): boolean {
 }
 function phaseStatus(v: unknown): v is PhaseStatus {
   return typeof v === 'string' && (PHASE_STATUSES as readonly string[]).includes(v)
+}
+function initiativeStatus(v: unknown): v is InitiativeStatus {
+  return typeof v === 'string' && (INITIATIVE_STATUSES as readonly string[]).includes(v)
 }
 
 function validatePlan(plan: unknown, errors: string[]): void {
@@ -226,6 +266,14 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
   initiative_created(p, e) {
     if (!str(p.slug)) e.push('slug: must be a non-empty string')
     if (!str(p.goal)) e.push('goal: must be a non-empty string')
+  },
+  initiative_status_changed(p, e) {
+    if (!initiativeStatus(p.status)) e.push(`status: must be one of ${INITIATIVE_STATUSES.join('|')}`)
+    if (!optStr(p.note)) e.push('note: must be a string')
+    // task-drop-state D3: a drop with no stated reason reads as forgotten.
+    if (p.status === 'dropped' && !str(p.note)) {
+      e.push('note: required when status is "dropped" — say why it was abandoned')
+    }
   },
   plan_updated(p, e) {
     validatePlan(p.plan, e)

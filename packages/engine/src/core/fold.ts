@@ -18,6 +18,8 @@ import {
   type MemoryPromotedPayload,
   type FileTouchedPayload,
   type InitiativeCreatedPayload,
+  type InitiativeStatus,
+  type InitiativeStatusChangedPayload,
   type NoteAddedPayload,
   type PhaseStatus,
   type PhaseStatusChangedPayload,
@@ -149,6 +151,24 @@ export function freshnessTotal(freshness: FreshnessState): number {
 export interface InitiativeState {
   slug: string
   goal: string
+  /**
+   * The initiative's own status. `active` unless an initiative_status_changed
+   * event says otherwise, so a log written before that event existed folds
+   * exactly as it always did — the default is what makes this additive.
+   *
+   * Closed-ness is DERIVED (isClosedInitiativeStatus), never stored as a
+   * second flag that could disagree with the status it summarises.
+   */
+  status: InitiativeStatus
+  /** ts of the event that set the CURRENT status; null while never set. */
+  status_ts: string | null
+  /**
+   * Reason given with the current status — required for `dropped`, optional
+   * for the rest. Reopening (status back to `active`) overwrites both this and
+   * status_ts, so they always describe the status actually in force rather
+   * than accumulating a closure the record has since undone.
+   */
+  status_note: string | null
   phases: PhaseState[]
   decisions: DecisionState[]
   /**
@@ -231,6 +251,9 @@ export function emptyState(): InitiativeState {
   return {
     slug: '',
     goal: '',
+    status: 'active',
+    status_ts: null,
+    status_note: null,
     phases: [],
     decisions: [],
     memories: [],
@@ -624,6 +647,13 @@ function applyEvent(
       const p = event.payload as unknown as InitiativeCreatedPayload
       state.slug = p.slug
       state.goal = p.goal
+      break
+    }
+    case 'initiative_status_changed': {
+      const p = event.payload as unknown as InitiativeStatusChangedPayload
+      state.status = p.status
+      state.status_ts = event.ts
+      state.status_note = p.note ?? null
       break
     }
     case 'plan_updated': {
