@@ -8,7 +8,7 @@ Progress: 0/10 tasks done (0%)
 
 ## Phase 1 — Settle fold compatibility (blocks everything else) [pending] — 0/2 done
 
-- [ ] 1.1 Determine what a PUBLISHED older engine does when it folds a `dropped` task_status_changed — read the unknown-status path in core/fold.ts and verify against an actually-installed older sofar, not by assumption. Expected: skipped with a warning per the never-fatal error law, leaving the task at its prior status (degrading back into the wrong-info state this initiative fixes). Confirm or refute.
+- [ ] 1.1 Determine what a PUBLISHED older engine does when it folds a `dropped` task_status_changed — read the unknown-status path in core/fold.ts and verify against an actually-installed older sofar, not by assumption. Expected: skipped with a warning per the never-fatal error law, leaving the task at its prior status (degrading back into the wrong-info state this initiative fixes). Confirm or refute. (active)
 - [ ] 1.2 Decide from 1.1's finding: graceful degrade vs. a version gate (e.g. minimum engine version recorded, or doctor warning when a log contains statuses the running engine does not know). Log a Decision either way — this is the one open design question.
 
 ## Phase 2 — Schema + fold [pending] — 0/2 done

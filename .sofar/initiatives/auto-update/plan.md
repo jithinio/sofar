@@ -30,4 +30,4 @@ Progress: 11/11 tasks done (100%)
 - [x] 4.1 docs/SPEC.md: the update-check command, the two new user-level homes, the statusline segment table, and the acceptance criteria for all of the above
 
 Active phase: Check core
-Next action: Bump the version and publish, then verify the notice fires live from the published build.
+Next action: User runs `npm publish -w sofar.sh`, then upgrade the global install and confirm the notice appears.
