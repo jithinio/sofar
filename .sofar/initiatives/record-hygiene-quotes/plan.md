@@ -14,4 +14,4 @@ Progress: 4/4 tasks done (100%)
 - [x] 1.4 SPEC §PostToolUse (lines 772-781) reworded off 'quote-unaware', plus the Decision entry the deviation requires
 
 Active phase: Quote-aware exemption
-Next action: Pick a mechanism for repo-memory-capture; note the quote fix reaches hooks only after publish + global upgrade.
+Next action: record-hygiene-quotes is complete — no further work planned.

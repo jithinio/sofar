@@ -38,6 +38,10 @@ Session loop (every write is one `sofar event append` call):
   task status:  `--type task_status_changed --payload '{"id":"<task-id>","status":"pending|active|done|blocked"}'`
   decisions:    `--type decision_logged --payload '{"chose":"...","over":"...","because":"..."}'`
   notes:        `--type note_added --payload '{"text":"..."}'`
+- DURING, for operational facts: a release command, a failure mode and how
+  it is diagnosed, a convention every later session needs is NOT a decision.
+  Promote it the moment you learn it with `sofar remember "<fact>"`, or it
+  lives only in your own context and dies with the session.
 - BEFORE FINISHING (MANDATORY): write back —
   `sofar event append --type session_ended --session <session-id> --source <tool> --payload '{"summary":"<what happened>","next_action":"<single next step>"}'`
   A session that skips this abandons its state and the next session starts blind.

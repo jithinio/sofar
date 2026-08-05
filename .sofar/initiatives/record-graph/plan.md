@@ -41,4 +41,4 @@ Progress: 19/19 tasks done (100%)
 - [x] 5.4 Missing acceptance tests: unreadable log tolerance, cites→task resolution + task-handle dangling, miscased-qualifier + worked-orphan + related-orphan-exit-1 regression tests
 
 Active phase: Review fixes
-Next action: User picks: new initiative for the quote-aware fix, and whether to settle the pending event with a single-line git commit.
+Next action: record-graph is complete — no further work planned.
