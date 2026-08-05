@@ -7,6 +7,11 @@ import { makeEvent, type EventEnvelope, type MakeEventInput } from '../src/core/
 import { foldLines, foldLog, type InitiativeState } from '../src/core/fold'
 import { serializeEvent } from '../src/core/log'
 import { runClose } from '../src/cli/close'
+import { runDoctor } from '../src/cli/doctor'
+import { closedBanner, handleSessionStart } from '../src/cli/event'
+import { runList } from '../src/cli/list'
+import { runNext } from '../src/cli/next'
+import { renderFullStatus } from '../src/projections/templates/status'
 import { runInit } from '../src/cli/init'
 import { runNew, runSwitch } from '../src/cli/new'
 import { runStatusline } from '../src/cli/statusline'
@@ -264,6 +269,98 @@ describe('sofar close (2.3)', () => {
     expect(res.exitCode).toBe(1)
     expect(res.stderr).toMatch(/no initiative bound to branch "main"/)
     expect(stateOf(root, 'demo').status).toBe('active')
+  })
+})
+
+describe('orienting surfaces (4.1/4.2/4.3)', () => {
+  it('SessionStart names the two moves when nothing resolves', () => {
+    const root = repoWith('demo')
+    writeFileSync(join(root, '.sofar', 'bindings.json'), '{}\n')
+    const out = handleSessionStart(root, JSON.stringify({ session_id: 'fresh', cwd: root }))
+    expect(out.exitCode).toBe(0)
+    expect(out.stdout).toMatch(/this branch is not bound to an initiative/)
+    expect(out.stdout).toMatch(/sofar switch <slug>/)
+    expect(out.stdout).toMatch(/sofar new <slug>/)
+    expect(out.stdout).toContain('demo') // the existing record is named
+    expect(out.stdout.length).toBeLessThanOrEqual(10_000)
+  })
+
+  it('a repo sofar never touched still injects nothing', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sofar-plain-'))
+    roots.push(root)
+    expect(handleSessionStart(root, JSON.stringify({ session_id: 's', cwd: root })).stdout).toBe('')
+  })
+
+  it('a session on a closed record gets the record WITH a closed banner', () => {
+    const root = repoWith('demo')
+    runClose(root, 'demo', { drop: true, reason: 'subsumed' }, PLAIN, PLAIN)
+    const banner = closedBanner(stateOf(root, 'demo'))
+    expect(banner).not.toBeNull()
+    expect(banner).toMatch(/demo is CLOSED \(dropped/)
+    expect(banner).toMatch(/subsumed/)
+    expect(banner).toMatch(/sofar switch demo/)
+    // An open record gets no banner at all.
+    runSwitch(root, 'demo', PLAIN, PLAIN)
+    expect(closedBanner(stateOf(root, 'demo'))).toBeNull()
+  })
+
+  it('list marks closed records and sorts them below open ones; next omits them', () => {
+    const root = repoWith('alpha')
+    runNew(root, 'beta', { bind: false }, PLAIN, PLAIN)
+    runNew(root, 'gamma', { bind: false }, PLAIN, PLAIN)
+    runClose(root, 'gamma', { drop: true, reason: 'subsumed by alpha' }, PLAIN, PLAIN)
+    runClose(root, 'beta', {}, PLAIN, PLAIN)
+
+    const listed = runList(root, PLAIN).stdout
+    const order = ['alpha', 'gamma', 'beta'].map((s) => listed.indexOf(s))
+    expect(order[0]).toBeLessThan(order[1]!) // open first, closed below
+    expect(order[0]).toBeLessThan(order[2]!)
+    expect(listed).toMatch(/gamma \[dropped\].*why: subsumed by alpha/)
+    expect(listed).toMatch(/beta \[done\]/)
+
+    const next = runNext(root, PLAIN).stdout
+    expect(next).toContain('alpha')
+    expect(next).not.toContain('beta')
+    expect(next).not.toContain('gamma')
+    expect(next).toMatch(/\(1\)/) // the count agrees with what is listed
+  })
+
+  it('status shows a closed record’s status, when, and why — open records unchanged', () => {
+    const root = repoWith('demo')
+    const open = renderFullStatus(stateOf(root, 'demo'))
+    expect(open).not.toMatch(/^Status:/m)
+
+    runClose(root, 'demo', { drop: true, reason: 'wrong shape' }, PLAIN, PLAIN)
+    const closed = renderFullStatus(stateOf(root, 'demo'))
+    expect(closed).toMatch(/^Status: dropped .* — wrong shape$/m)
+  })
+
+  it('doctor flags a closed record that is still bound, and a finished one left open', () => {
+    const root = repoWith('demo')
+    runClose(root, 'demo', {}, PLAIN, PLAIN)
+    writeFileSync(
+      join(root, '.sofar', 'bindings.json'),
+      `${JSON.stringify({ 'feat/z': 'demo' }, null, 2)}\n`,
+    )
+    expect(runDoctor(root, {}, PLAIN).stdout).toMatch(
+      /demo: closed \(done\) but still bound to "feat\/z"/,
+    )
+
+    const open = repoWith('live')
+    execFileSync(
+      process.execPath,
+      [
+        BUNDLE, 'event', 'append', 'live',
+        '--type', 'plan_updated',
+        '--payload',
+        '{"plan":{"phases":[{"name":"P1","status":"done","tasks":[{"id":"1.1","title":"t","status":"done"}]}]}}',
+        '--root', open,
+      ],
+      { stdio: 'ignore' },
+    )
+    expect(runDoctor(open, {}, PLAIN).stdout).toMatch(
+      /live: all 1 phase\(s\) resolved but the initiative is still active/,
+    )
   })
 })
 

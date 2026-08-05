@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { isClosedInitiativeStatus, type InitiativeStatus } from '@sofar/schema'
 import { foldLog, freshnessTotal } from './fold'
 
 /**
@@ -36,6 +37,12 @@ export interface InitiativeListEntry {
   drift_events: number
   /** ulid of the last envelope-valid event (state.cursor) — the recency key. */
   last_event_id: string | null
+  /** Initiative-level status; `active` for every record that never closed. */
+  status: InitiativeStatus
+  /** Reason given with the current status, when there was one. */
+  status_note: string | null
+  /** ts the current status was set; null while never set. */
+  status_ts: string | null
 }
 
 export interface InitiativeListing {
@@ -108,6 +115,9 @@ export function listInitiatives(rootDir: string): InitiativeListing {
       next_action: null,
       drift_events: 0,
       last_event_id: null,
+      status: 'active',
+      status_note: null,
+      status_ts: null,
     }
     const logPath = join(initiativesDir, slug, 'events.jsonl')
     if (existsSync(logPath)) {
@@ -127,6 +137,9 @@ export function listInitiatives(rootDir: string): InitiativeListing {
           entry.drift_events = freshnessTotal(state.freshness)
         }
         entry.last_event_id = state.cursor
+        entry.status = state.status
+        entry.status_note = state.status_note
+        entry.status_ts = state.status_ts
       } catch (err) {
         warnings.push(`${slug}: failed to read events.jsonl — listed without detail (${errMessage(err)})`)
       }
@@ -135,6 +148,12 @@ export function listInitiatives(rootDir: string): InitiativeListing {
   }
 
   entries.sort((a, b) => {
+    // Closed records sink below every open one (initiative-lifecycle 4.2).
+    // Recency is the resume-relevant order among LIVE work; a finished record
+    // that was touched an hour ago is still not what the next session resumes.
+    const aClosed = isClosedInitiativeStatus(a.status)
+    const bClosed = isClosedInitiativeStatus(b.status)
+    if (aClosed !== bClosed) return aClosed ? 1 : -1
     if (a.last_event_id !== null && b.last_event_id !== null && a.last_event_id !== b.last_event_id) {
       return a.last_event_id > b.last_event_id ? -1 : 1 // ulid desc — most recent record first
     }

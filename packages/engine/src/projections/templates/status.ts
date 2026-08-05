@@ -1,3 +1,4 @@
+import { isClosedInitiativeStatus } from '@sofar/schema'
 import {
   freshnessTotal,
   openSessionFileConflicts,
@@ -152,6 +153,14 @@ function hasRealAlternative(over: string | undefined): boolean {
 export function renderFullStatus(state: InitiativeState): string {
   const lines: string[] = []
   lines.push(`# ${state.slug || '(unnamed initiative)'}`, '')
+  // A closed record says so before anything else (initiative-lifecycle 4.2):
+  // when, and why. Omitted entirely while active, so every open record renders
+  // byte-identically to how it always has.
+  if (isClosedInitiativeStatus(state.status)) {
+    const when = state.status_ts === null ? '' : ` ${state.status_ts}`
+    const why = state.status_note === null ? '' : ` — ${state.status_note}`
+    lines.push(`Status: ${state.status}${when}${why}`)
+  }
   lines.push(`Goal: ${state.goal || '(none recorded)'}`)
 
   lines.push(

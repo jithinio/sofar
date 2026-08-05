@@ -1,4 +1,5 @@
 import type { InitiativeListEntry, InitiativeListing } from '../../core/listing'
+import { isClosedInitiativeStatus } from '@sofar/schema'
 import { clip, pct } from './shared'
 
 /**
@@ -21,13 +22,26 @@ const LIST_LINE_BUDGET = 220
 export const EMPTY_LISTING = '(no initiatives — create one with `sofar new <slug>`)'
 
 function entryLine(entry: InitiativeListEntry): string {
-  const branch = entry.branches.length > 0 ? entry.branches.join(', ') : 'unbound'
+  const closed = isClosedInitiativeStatus(entry.status)
+  // A closed record's branch tag would read `[unbound]`, which says the wrong
+  // thing: it is not waiting to be bound, it is finished. The status replaces
+  // the tag rather than joining it (initiative-lifecycle 4.2).
+  const tag = closed
+    ? entry.status
+    : entry.branches.length > 0
+      ? entry.branches.join(', ')
+      : 'unbound'
   const parts = [
-    `${entry.slug} [${branch}]`,
+    `${entry.slug} [${tag}]`,
     `${entry.tasks_done}/${entry.tasks_total} tasks (${pct(entry.tasks_done, entry.tasks_total)})`,
   ]
-  if (entry.active_phase !== null) parts.push(`active: ${entry.active_phase}`)
-  if (entry.next_action !== null) parts.push(`next: ${entry.next_action}`)
+  if (entry.active_phase !== null && !closed) parts.push(`active: ${entry.active_phase}`)
+  // A closed record has no next action; its reason is what a reader wants.
+  if (closed) {
+    if (entry.status_note !== null) parts.push(`why: ${entry.status_note}`)
+  } else if (entry.next_action !== null) {
+    parts.push(`next: ${entry.next_action}`)
+  }
   return `- ${parts.join(' — ')}`
 }
 

@@ -50,7 +50,7 @@ function planned(slug: string, extra: EventEnvelope[] = []): EventEnvelope[] {
         phases: [
           {
             name: 'Phase 1',
-            status: 'active',
+            status: 'active' as const,
             tasks: [
               { id: '1.1', title: 'first', status: 'done' },
               { id: '1.2', title: 'second' },
@@ -196,6 +196,9 @@ describe('listing renders', () => {
       next_action: null,
       drift_events: 0,
       last_event_id: null,
+      status: 'active' as const,
+      status_note: null,
+      status_ts: null,
       ...overrides,
     }
   }

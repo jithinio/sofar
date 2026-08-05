@@ -1,3 +1,4 @@
+import { isClosedInitiativeStatus } from '@sofar/schema'
 import { listInitiatives, type InitiativeListing } from '../core/listing'
 import { currentBranch } from '../mcp/context'
 import { renderNextActions } from '../projections/templates/next'
@@ -35,7 +36,15 @@ export function runNext(
   caps: Caps = stdoutCaps(),
   columns: number = columnsOf(process.stdout),
 ): CmdResult {
-  const listing = listInitiatives(rootDir)
+  const full = listInitiatives(rootDir)
+  // Closed records are omitted entirely (initiative-lifecycle 4.2): a finished
+  // record HAS no next action, and listing one is an invitation to resume work
+  // that was decided to be over. Filtered before render so the styled and
+  // plain paths — and the header count — agree.
+  const listing: InitiativeListing = {
+    entries: full.entries.filter((e) => !isClosedInitiativeStatus(e.status)),
+    warnings: full.warnings,
+  }
   const stdout = caps.color
     ? renderStyledNext(rootDir, listing, caps, columns)
     : renderNextActions(listing)

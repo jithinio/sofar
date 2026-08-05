@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { isClosedInitiativeStatus, isResolvedTaskStatus } from '@sofar/schema'
 import { join, relative } from 'node:path'
 import {
   foldLog,
@@ -7,6 +8,7 @@ import {
   type InitiativeState,
   type OrphanTaskEvent,
 } from '../core/fold'
+import { readBindingsFile } from '../core/bindings'
 import { buildGraph, extractCitations, repoGeneral } from '../core/graph'
 import { clip } from '../projections/templates/shared'
 import {
@@ -395,6 +397,65 @@ interface Footprint {
  * and reports at FAIL. Deterministic: sessions sorted by id, footprints by
  * slug.
  */
+/**
+ * Initiative lifecycle (initiative-lifecycle 4.3) — the two ways a record's
+ * status and its surroundings fall out of step.
+ *
+ * Both are the initiative-level mirror of checks that already exist one level
+ * down: a stale ACTIVE phase whose tasks are all resolved, and a drop with no
+ * stated reason. The same false signal reads worse up here — a whole record
+ * that looks like live work when it is finished is what every orienting
+ * surface then repeats.
+ */
+function auditLifecycle(rootDir: string, folded: Folded[]): Section {
+  const findings: Finding[] = []
+
+  let bindings: Record<string, unknown> = {}
+  try {
+    bindings = readBindingsFile(join(rootDir, '.sofar', 'bindings.json'))
+  } catch {
+    bindings = {} // malformed — auditWiring owns that finding, not this one
+  }
+
+  for (const { slug, state } of folded) {
+    if (state === undefined) continue
+
+    // Closing unbinds every branch, so a bound branch on a closed record means
+    // something put it back: a hand-edit, or a merge that resurrected the
+    // entry. Re-running close is the repair — it is idempotent by design.
+    if (isClosedInitiativeStatus(state.status)) {
+      const bound = Object.keys(bindings)
+        .filter((branch) => bindings[branch] === slug)
+        .sort()
+      if (bound.length > 0) {
+        findings.push({
+          level: 'warn',
+          text: `${slug}: closed (${state.status}) but still bound to ${bound.map((b) => `"${b}"`).join(', ')}`,
+          hint: `a new session on that branch would land on finished work — re-run \`sofar close ${slug}\` (idempotent) or \`sofar switch ${slug}\` to reopen it`,
+        })
+      }
+      continue
+    }
+
+    // Every phase resolved but the initiative never closed — the mirror of the
+    // stale-phase axis, one level up. Nothing remains to do, yet the record
+    // still counts as live everywhere: `sofar next` lists it, the statusline
+    // shows it, and a fresh session resumes work that is over.
+    if (state.phases.length > 0 && state.phases.every((p) => isResolvedTaskStatus(p.status))) {
+      findings.push({
+        level: 'warn',
+        text: `${slug}: all ${state.phases.length} phase(s) resolved but the initiative is still active`,
+        hint: `nothing remains, yet it still reads as live work everywhere — close it with \`sofar close ${slug}\``,
+      })
+    }
+  }
+
+  if (findings.length === 0) {
+    findings.push({ level: 'ok', text: 'no closed initiative still bound, no finished record left open' })
+  }
+  return { title: 'Initiative lifecycle', findings }
+}
+
 function auditSplitSessions(folded: Folded[]): Section {
   const footprints = new Map<string, Footprint[]>()
   const add = (id: string, slug: string, registered: boolean, open = false): void => {
@@ -743,6 +804,7 @@ export function runDoctor(
   const sections = [
     auditWiring(rootDir),
     auditRecords(folded),
+    auditLifecycle(rootDir, folded),
     auditSplitSessions(folded),
     auditConcurrency(folded),
     auditRepoMemory(rootDir, folded),

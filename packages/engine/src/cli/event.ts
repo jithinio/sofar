@@ -1,12 +1,14 @@
 import { readFileSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { Command } from 'commander'
+import { isClosedInitiativeStatus } from '@sofar/schema'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
 import { freshnessTotal, type InitiativeState } from '../core/fold'
 import { readGitState } from '../core/git'
 import {
   createToolContext,
   homeInitiative,
+  initiativeSlugs,
   resolveSessionFirst,
   ToolError,
   type ToolContext,
@@ -324,12 +326,70 @@ function coldResumeAdvisory(hook: Obj, eventsPath: string): string | null {
  * substantial transcript → one line naming the re-warm cost and the fresh
  * start alternative. Best-effort; total output stays ≤10,000 chars.
  */
+/**
+ * What a session gets when NOTHING resolves — no registered home, no branch
+ * binding (initiative-lifecycle 4.1, D4).
+ *
+ * This used to inject nothing, which is indistinguishable from a healthy
+ * repo while every hook event is silently discarded. The drop stays (D4 —
+ * lazily binding here would recreate the misrouting record-integrity fixed),
+ * but the CONDITION is now named once, where the agent actually reads, along
+ * with the two moves that fix it.
+ *
+ * Scoped to repos that carry a record: one sofar has never touched injects
+ * nothing, exactly as before. Slugs come from the directory listing — no
+ * folds, because this runs inside the shim's 100ms budget and `sofar list` is
+ * the surface that ranks and marks them.
+ */
+export function unboundNotice(rootDir: string): string {
+  try {
+    const slugs = initiativeSlugs(join(rootDir, '.sofar'))
+    if (slugs.length === 0) return ''
+    const MAX_LISTED = 10
+    const listed = slugs.slice(0, MAX_LISTED).join(', ')
+    const more = slugs.length > MAX_LISTED ? `, …+${slugs.length - MAX_LISTED} more` : ''
+    return enforceStatusLimit(
+      [
+        '# Sofar: this branch is not bound to an initiative',
+        '',
+        'No record resolves for this session, so nothing you do here is being',
+        'recorded — hook events are discarded, not queued. Fix it before working:',
+        '',
+        `  sofar switch <slug>   work on an existing record (${listed}${more})`,
+        '  sofar new <slug>      start a new one (work that matches no existing record)',
+        '',
+        'Then call sofar_start_session. `sofar list` shows progress and marks closed records.',
+      ].join('\n'),
+    )
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * The banner a session pinned to a CLOSED record gets above its status block
+ * (4.1). The record still injects in full — the session that closed it is
+ * usually the one reading this, and its history is exactly what it needs —
+ * but queueing new work into a finished record is the mistake worth naming.
+ */
+export function closedBanner(state: InitiativeState): string | null {
+  if (!isClosedInitiativeStatus(state.status)) return null
+  const when = state.status_ts === null ? '' : ` on ${state.status_ts.slice(0, 10)}`
+  const why = state.status_note === null ? '' : ` — ${state.status_note}`
+  return [
+    `⚠ ${state.slug} is CLOSED (${state.status}${when})${why}`,
+    'No branch is bound to it. Do not queue new work here: close-out notes and',
+    `write-back still belong in this record, but new work needs \`sofar new <slug>\`,`,
+    `and resuming this one needs \`sofar switch ${state.slug}\` (which reopens it).`,
+  ].join('\n')
+}
+
 export function handleSessionStart(rootDir: string, input: string): HookResult {
   try {
     const hook = parseHook(input)
     const sessionId = strField(hook, 'session_id')
     const bound = resolveBound(rootDir, sessionId)
-    if (bound === null) return { ...OK }
+    if (bound === null) return { ...OK, stdout: unboundNotice(rootDir) }
     const { ctx, slug } = bound
 
     // The gap is measured to the prior session's last event; with lazy
@@ -352,9 +412,14 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
       ...(sessionId !== null ? { sessionId } : {}),
       ...(git !== null ? { git } : {}),
     })
+    // Both the closed banner and the cold-resume advisory compose AROUND the
+    // status block, never inside it — the block's byte-stability is pinned
+    // (felt-cost 1.2), and the composed output is re-capped so the injection
+    // contract stays ≤10,000 chars.
+    const preface = [closedBanner(state), advisory].filter((p) => p !== null).join('\n\n')
     return {
       ...OK,
-      stdout: advisory === null ? status : enforceStatusLimit(`${advisory}\n\n${status}`),
+      stdout: preface.length === 0 ? status : enforceStatusLimit(`${preface}\n\n${status}`),
     }
   } catch {
     return { ...OK }

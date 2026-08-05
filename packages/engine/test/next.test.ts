@@ -54,6 +54,9 @@ describe('renderNextActions', () => {
       next_action: null,
       drift_events: 0,
       last_event_id: null,
+      status: 'active' as const,
+      status_note: null,
+      status_ts: null,
       ...overrides,
     }
   }

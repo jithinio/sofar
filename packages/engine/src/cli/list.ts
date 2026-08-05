@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { isClosedInitiativeStatus } from '@sofar/schema'
 import { join } from 'node:path'
 import { emptyState, foldLog, type InitiativeState } from '../core/fold'
 import {
@@ -115,7 +116,12 @@ function stateOf(rootDir: string, entry: InitiativeListEntry): InitiativeState {
  * decoration, the plain render stays the branch surface of record.
  */
 function decorateHead(head: string, entry: InitiativeListEntry, inner: number, s: Style): string {
-  const tag = `[${entry.branches.length > 0 ? entry.branches.join(', ') : 'unbound'}]`
+  // A closed record's tag is its status, not its branch: `[unbound]` would
+  // read as "waiting to be bound" when it is finished (4.2). Same rule as the
+  // plain render, so the two surfaces agree on what a closed record says.
+  const tag = isClosedInitiativeStatus(entry.status)
+    ? `[${entry.status}]`
+    : `[${entry.branches.length > 0 ? entry.branches.join(', ') : 'unbound'}]`
   if (visibleWidth(head) + 2 + tag.length > inner) return head
   return padEndVisible(head, inner - tag.length) + s.dim(tag)
 }

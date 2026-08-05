@@ -4,7 +4,7 @@
 
 Goal: Let an initiative be closed. Closing records a terminal status (done or dropped, with a reason) and unbinds every branch pointing at it — and session-first resolution across the statusline and hooks is what makes that safe: the session that closed it keeps its record until it ends, while a new session on the unbound branch is told to start or switch instead of landing on finished work.
 
-Progress: 10/15 tasks done (66%)
+Progress: 13/15 tasks done (86%)
 
 ## Phase 1 — Settle the resolution mechanism (blocks everything else) [active] — 3/3 done
 
@@ -25,11 +25,11 @@ Progress: 10/15 tasks done (66%)
 - [x] 3.2 Statusline: resolve session-first, branch second; render a closed record distinctly from a live one; render nothing when neither resolves. A drop-free, close-free line must stay byte-identical — the statusline re-renders constantly and its width is the felt surface.
 - [x] 3.3 Hooks (PostToolUse, UserPromptSubmit, Stop, SessionEnd) resolve session-first, so closing mid-session stops silently dropping the rest of the session's telemetry. This is a bug fix independent of closing: an unbound branch loses events today with no signal at all.
 
-## Phase 4 — Orienting surfaces [pending] — 0/3 done
+## Phase 4 — Orienting surfaces [pending] — 3/3 done
 
-- [ ] 4.1 SessionStart injection: an unbound branch must say so and name the next move (`sofar new` / `sofar switch`) instead of erroring or injecting nothing; a session pinned to a closed record gets it WITH a closed banner, so the agent knows not to queue new work there. Stays inside the ≤10,000-char guarantee.
-- [ ] 4.2 `sofar next` omits closed initiatives — a closed record has no next action, and today it would still be listed. `sofar list` marks them and sorts them below open ones. `sofar status <slug>` shows the closed status with when and why.
-- [ ] 4.3 doctor: a closed initiative that still has a branch bound (hand-edits and merges happen), and the mirror of the stale-phase axis — every phase resolved but the initiative never closed. The second is the initiative-level version of the exact false signal task-drop-state fixed one level down.
+- [x] 4.1 SessionStart injection: an unbound branch must say so and name the next move (`sofar new` / `sofar switch`) instead of erroring or injecting nothing; a session pinned to a closed record gets it WITH a closed banner, so the agent knows not to queue new work there. Stays inside the ≤10,000-char guarantee.
+- [x] 4.2 `sofar next` omits closed initiatives — a closed record has no next action, and today it would still be listed. `sofar list` marks them and sorts them below open ones. `sofar status <slug>` shows the closed status with when and why.
+- [x] 4.3 doctor: a closed initiative that still has a branch bound (hand-edits and merges happen), and the mirror of the stale-phase axis — every phase resolved but the initiative never closed. The second is the initiative-level version of the exact false signal task-drop-state fixed one level down.
 
 ## Phase 5 — Contracts + dogfood [pending] — 0/2 done
 
