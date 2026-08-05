@@ -22,6 +22,15 @@
   scorecard. Do not go looking for them; do not block on them.
 - Push policy: push origin main at each verified wrap-up (user-established
   Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Committing the record needs a BARE git call (repo-memory-capture M2): the
+  D1 exemption (cli/event.ts shellSegments) splits on every shell separator
+  INCLUDING newlines and exempts only if EVERY segment leads with git or
+  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc
+  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as
+  segments leading with prose. Mixing in echo/printf defeats it identically.
+  Symptom: write back, commit, and the tree is dirty again with command_run
+  events about the commit itself. Put the message in a file, use
+  `git commit -F <path>`, and keep status/diff checks bare.
 - Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare
   `npm publish` from inside packages/engine) — always run by the USER (OTP
   + permission classifier), agent stages everything up to it. Bare
