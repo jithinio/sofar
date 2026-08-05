@@ -4,7 +4,13 @@ import type { Command } from 'commander'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
 import { freshnessTotal, type InitiativeState } from '../core/fold'
 import { readGitState } from '../core/git'
-import { createToolContext, homeInitiative, ToolError, type ToolContext } from '../mcp/context'
+import {
+  createToolContext,
+  homeInitiative,
+  resolveSessionFirst,
+  ToolError,
+  type ToolContext,
+} from '../mcp/context'
 import { enforceStatusLimit, renderStatus } from '../projections/templates/status'
 import { REPO_MD_STUB } from './shared'
 
@@ -191,12 +197,9 @@ function strField(hook: Obj, key: string): string | null {
  * file_touched/command_run to whatever branch HEAD happened to name while the
  * same session's decisions and write-back went to its real initiative.
  *
- * Order: branch → bindings.json is computed first but NOT trusted blindly —
- * it is passed as the preferred candidate, so the common case (branch and
- * registration agree) settles in one file read. An unbound branch is a miss
- * rather than an error here: a registered session still resolves through its
- * home, which also stops the silent event drop that unbound branches caused.
- * A session registered nowhere falls back to the branch and registers there.
+ * The precedence itself now lives in resolveSessionFirst (initiative-lifecycle
+ * 3.1) so the statusline shares it exactly — one definition of
+ * session-before-branch, not one per surface.
  */
 function resolveBound(
   rootDir: string,
@@ -204,18 +207,9 @@ function resolveBound(
 ): { ctx: ToolContext; slug: string } | null {
   try {
     const ctx = createToolContext(rootDir)
-    let branchSlug: string | null = null
-    try {
-      branchSlug = ctx.resolveInitiative()
-    } catch {
-      branchSlug = null // unbound/detached — a pinned home may still answer
-    }
-    if (sessionId != null) {
-      const home = homeInitiative(ctx.sofarDir, sessionId, branchSlug)
-      if (home !== null) return { ctx, slug: home }
-    }
-    if (branchSlug === null) return null
-    return { ctx, slug: branchSlug }
+    const resolved = resolveSessionFirst(ctx, sessionId)
+    if (resolved === null) return null
+    return { ctx, slug: resolved.slug }
   } catch {
     return null
   }

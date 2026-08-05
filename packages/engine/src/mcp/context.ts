@@ -75,7 +75,7 @@ export function toSource(tool: string | undefined): Source {
 // ---------------------------------------------------------------------------
 
 /** Initiative slugs present under .sofar/initiatives/, sorted; [] on any failure. */
-function initiativeSlugs(sofarDir: string): string[] {
+export function initiativeSlugs(sofarDir: string): string[] {
   try {
     return readdirSync(join(sofarDir, 'initiatives'), { withFileTypes: true })
       .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
@@ -162,6 +162,53 @@ export function homeInitiative(
     }
   }
   return home
+}
+
+/** How a resolution was reached — the surfaces render the two differently. */
+export type ResolvedVia = 'session' | 'branch'
+
+export interface ResolvedInitiative {
+  slug: string
+  via: ResolvedVia
+}
+
+/**
+ * Session-before-branch resolution, for ANY process (initiative-lifecycle 1.2).
+ *
+ * The single shared precedence: compute branch → bindings.json first, but do
+ * NOT trust it blindly — pass it as the PREFERRED candidate so the common case
+ * (branch and registration agree) settles in one file read, while a registered
+ * session whose branch no longer points at its initiative still resolves
+ * through its home. An unbound branch is a miss here rather than an error: a
+ * registered session resolves anyway, which is exactly what makes closing —
+ * and the unbinding it does — safe mid-session.
+ *
+ * Cross-process by construction: the home is DERIVED from the truth logs
+ * (homeInitiative), never from an in-memory pin a hook or statusline process
+ * could not see, and never from a second store that could desync from the log
+ * it summarises (record-integrity D1). Measured on a 22-initiative, 2.8 MB
+ * record: 0.07 ms when the branch agrees, 2.9 ms for the full scan on a miss,
+ * against a ~55 ms statusline.
+ *
+ * Returns null only when NEITHER answers — no pin and no binding — which is
+ * the one case the hooks drop silently and the orienting surfaces name (D4).
+ */
+export function resolveSessionFirst(
+  ctx: ToolContext,
+  sessionId?: string | null,
+): ResolvedInitiative | null {
+  let branchSlug: string | null = null
+  try {
+    branchSlug = ctx.resolveInitiative()
+  } catch {
+    branchSlug = null // unbound/detached — a registered session may still answer
+  }
+  if (sessionId != null && sessionId.length > 0) {
+    const home = homeInitiative(ctx.sofarDir, sessionId, branchSlug)
+    if (home !== null) return { slug: home, via: home === branchSlug ? 'branch' : 'session' }
+  }
+  if (branchSlug === null) return null
+  return { slug: branchSlug, via: 'branch' }
 }
 
 /**

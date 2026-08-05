@@ -1,7 +1,7 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync, type SpawnSyncReturns } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { makeEvent, type EventEnvelope, type MakeEventInput } from '../src/core/envelope'
 import { foldLines, foldLog, type InitiativeState } from '../src/core/fold'
@@ -9,6 +9,7 @@ import { serializeEvent } from '../src/core/log'
 import { runClose } from '../src/cli/close'
 import { runInit } from '../src/cli/init'
 import { runNew, runSwitch } from '../src/cli/new'
+import { runStatusline } from '../src/cli/statusline'
 import type { Caps } from '../src/cli/ui'
 import {
   INITIATIVE_STATUSES,
@@ -50,6 +51,7 @@ const created = (): EventEnvelope[] => [ev('initiative_created', { slug: 'demo',
 // Repo fixtures for the close/switch commands, which touch bindings.json.
 // ---------------------------------------------------------------------------
 
+const BUNDLE = join(__dirname, '..', 'dist', 'cli.js')
 const PLAIN: Caps = { color: false, unicode: true, animate: false }
 const roots: string[] = []
 afterAll(() => {
@@ -262,6 +264,132 @@ describe('sofar close (2.3)', () => {
     expect(res.exitCode).toBe(1)
     expect(res.stderr).toMatch(/no initiative bound to branch "main"/)
     expect(stateOf(root, 'demo').status).toBe('active')
+  })
+})
+
+describe('hooks: closing does not silence the closing session (3.3)', () => {
+  /** Register `sessionId` in `slug`'s log, the way start_session does. */
+  function registerSession(root: string, slug: string, sessionId: string): void {
+    const path = join(root, '.sofar', 'initiatives', slug, 'events.jsonl')
+    const event = makeEvent({
+      initiative: slug,
+      session: sessionId,
+      source: 'claude-code',
+      actor: 'agent',
+      type: 'session_started',
+      payload: { tool: 'claude-code' },
+    })
+    writeFileSync(path, `${readFileSync(path, 'utf8')}${serializeEvent(event)}\n`)
+  }
+
+  const hook = (root: string, args: string[], input: string): SpawnSyncReturns<string> =>
+    spawnSync(process.execPath, [BUNDLE, ...args, '--root', root], { input, encoding: 'utf8' })
+
+  const eventCount = (root: string, slug: string): number =>
+    readFileSync(join(root, '.sofar', 'initiatives', slug, 'events.jsonl'), 'utf8')
+      .trim()
+      .split('\n').length
+
+  it('a registered session keeps routing after its branch is unbound', () => {
+    const root = repoWith('demo')
+    registerSession(root, 'demo', 'live-1')
+    runClose(root, 'demo', {}, PLAIN, PLAIN)
+    expect(bindingsOf(root)).toEqual({}) // no branch resolves any more
+
+    const before = eventCount(root, 'demo')
+    const res = hook(
+      root,
+      ['event', 'post-tool'],
+      JSON.stringify({
+        session_id: 'live-1',
+        cwd: root,
+        tool_name: 'Write',
+        tool_input: { file_path: join(root, 'README.md') },
+      }),
+    )
+    expect(res.status).toBe(0)
+    expect(eventCount(root, 'demo')).toBe(before + 1)
+  })
+
+  it('an unregistered session on an unbound branch still drops silently (D4)', () => {
+    const root = repoWith('demo')
+    runClose(root, 'demo', {}, PLAIN, PLAIN)
+
+    const before = eventCount(root, 'demo')
+    const res = hook(
+      root,
+      ['event', 'post-tool'],
+      JSON.stringify({
+        session_id: 'never-registered',
+        cwd: root,
+        tool_name: 'Write',
+        tool_input: { file_path: join(root, 'README.md') },
+      }),
+    )
+    expect(res.status).toBe(0) // never breaks the session (BD22)
+    expect(eventCount(root, 'demo')).toBe(before)
+  })
+})
+
+describe('statusline: session-first + closed record (3.1/3.2)', () => {
+  const line = (root: string, sessionId?: string): string =>
+    runStatusline(
+      root,
+      JSON.stringify({
+        ...(sessionId !== undefined ? { session_id: sessionId } : {}),
+        workspace: { current_dir: root },
+      }),
+    )
+
+  /** Register `sessionId` in `slug`'s log, the way start_session does. */
+  function register(root: string, slug: string, sessionId: string): void {
+    const path = join(root, '.sofar', 'initiatives', slug, 'events.jsonl')
+    const event = makeEvent({
+      initiative: slug,
+      session: sessionId,
+      source: 'claude-code',
+      actor: 'agent',
+      type: 'session_started',
+      payload: { tool: 'claude-code' },
+    })
+    writeFileSync(path, `${readFileSync(path, 'utf8')}${serializeEvent(event)}\n`)
+  }
+
+  it('an open record renders exactly as it always did — no close, no change', () => {
+    const root = repoWith('demo')
+    // basename of a mkdtemp root varies, so compare the record segment only.
+    expect(line(root).split(' · ').pop()).toBe('demo')
+  })
+
+  it('a closed record is rendered distinctly from a live one', () => {
+    const root = repoWith('demo')
+    const open = line(root, 'sess-1').split(' · ').pop()
+    register(root, 'demo', 'sess-1')
+    runClose(root, 'demo', {}, PLAIN, PLAIN)
+
+    const closed = line(root, 'sess-1').split(' · ').pop()
+    expect(closed).not.toBe(open)
+    expect(closed).toBe('demo done')
+  })
+
+  it('the session that closed it keeps its record, though no branch is bound', () => {
+    const root = repoWith('demo')
+    register(root, 'demo', 'sess-1')
+    runClose(root, 'demo', {}, PLAIN, PLAIN)
+    expect(bindingsOf(root)).toEqual({})
+
+    // Session-first: the registered session still resolves ...
+    expect(line(root, 'sess-1').split(' · ').pop()).toBe('demo done')
+    // ... while a session registered nowhere is told the branch is unbound.
+    expect(line(root, 'sess-new').split(' · ').pop()).toBe('unbound')
+  })
+
+  it('a repo with no record at all gets no marker — most repos are unchanged', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sofar-norecord-'))
+    roots.push(root)
+    // The dir segment still renders; the record segment must stay absent,
+    // so `unbound` never appears in a repo sofar has never touched.
+    expect(line(root, 'sess-1')).toBe(basename(root))
   })
 })
 

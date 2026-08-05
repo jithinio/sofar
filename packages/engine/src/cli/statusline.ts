@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import type { Command } from 'commander'
-import { createToolContext } from '../mcp/context'
+import { isClosedInitiativeStatus, type InitiativeStatus } from '@sofar/schema'
+import { createToolContext, initiativeSlugs, resolveSessionFirst } from '../mcp/context'
 import {
   installStatusline,
   uninstallStatusline,
@@ -169,27 +170,55 @@ function dirSegment(hook: Obj): { name: string; branch: string | null } | null {
 }
 
 /**
- * Bound record → slug + task progress; null when no candidate root resolves.
+ * What the record segment should say.
+ *
+ * `record` — an initiative resolved. `unbound` — this repo HAS a record but
+ * nothing resolves for this session, so events are being dropped silently and
+ * the line must say so (D4). null — no record here at all, which is most
+ * repos: they render exactly as they always have, with no segment.
+ */
+type RecordSegment =
+  | { kind: 'record'; slug: string; progress: TaskProgress; status: InitiativeStatus }
+  | { kind: 'unbound' }
+  | null
+
+/**
+ * Session-first record resolution (3.1/3.2): the session's registered home
+ * wins over the branch, so closing an initiative — which unbinds every branch
+ * pointing at it — leaves THIS session's line intact until it ends.
  *
  * Progress comes from the shared taskProgress chokepoint, NOT a local loop:
  * this surface once counted `done` against a total that included drops, so a
  * fully-resolved record glanced as untouched work — the exact false signal
  * task-drop-state exists to remove, on the surface that gets read most.
  */
-function recordSegment(rootDir: string, hook: Obj): { slug: string; progress: TaskProgress } | null {
+function recordSegment(rootDir: string, hook: Obj): RecordSegment {
   const workspace = isObj(hook.workspace) ? hook.workspace : {}
+  const sessionId = strField(hook.session_id)
   const candidates = [rootDir, strField(workspace.current_dir), strField(hook.cwd)]
+  let sawRecord = false
   for (const root of candidates) {
     if (root === null) continue
     try {
       const ctx = createToolContext(root)
-      const slug = ctx.resolveInitiative()
-      return { slug, progress: taskProgress(ctx.foldState(slug).phases) }
+      const resolved = resolveSessionFirst(ctx, sessionId)
+      if (resolved !== null) {
+        const state = ctx.foldState(resolved.slug)
+        return {
+          kind: 'record',
+          slug: resolved.slug,
+          progress: taskProgress(state.phases),
+          status: state.status,
+        }
+      }
+      // Nothing resolved HERE — but if the repo carries initiatives, this is
+      // the silent-drop case rather than a repo sofar has never touched.
+      if (!sawRecord && initiativeSlugs(ctx.sofarDir).length > 0) sawRecord = true
     } catch {
-      // unbound / no .sofar here — try the next candidate
+      // no .sofar here, or an unreadable one — try the next candidate
     }
   }
-  return null
+  return sawRecord ? { kind: 'unbound' } : null
 }
 
 /** First object in the known statusline shapes that carries usage counters. */
@@ -282,8 +311,18 @@ export function runStatusline(
   }
 
   const record = recordSegment(rootDir, hook)
-  if (record !== null) {
-    const slug = style.accent(record.slug)
+  if (record !== null && record.kind === 'unbound') {
+    // The silent drop, made visible (D4). This session is registered nowhere
+    // and the branch is bound to nothing, so every hook event is being
+    // discarded — indistinguishable from a healthy repo until now. Dim and
+    // one word: the fix is named at SessionStart, not here.
+    segments.push(style.dim('unbound'))
+  } else if (record !== null) {
+    const closed = isClosedInitiativeStatus(record.status)
+    // A closed record reads as not-live: the slug drops from accent to dim
+    // and carries its terminal word. Nothing else changes, so an OPEN record
+    // — every record before this existed — renders byte-identically.
+    const slug = closed ? style.dim(record.slug) : style.accent(record.slug)
     const { done, dropped, total } = record.progress
     // The pie gauges what is RESOLVED, so a record with nothing outstanding
     // reads full whether or not every task was built.
@@ -299,7 +338,8 @@ export function runStatusline(
           } `
     // phaseFraction keeps the bare `9/10` when nothing was dropped, so the
     // common statusline stays exactly as wide as it always was.
-    segments.push(total > 0 ? `${pieCell}${slug} ${phaseFraction(record.progress)}` : slug)
+    const body = total > 0 ? `${pieCell}${slug} ${phaseFraction(record.progress)}` : slug
+    segments.push(closed ? `${body} ${style.dim(record.status)}` : body)
   }
 
   const ctxPct = isObj(hook.context_window) ? numField(hook.context_window.used_percentage) : null

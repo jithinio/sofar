@@ -4,7 +4,7 @@
 
 Goal: Let an initiative be closed. Closing records a terminal status (done or dropped, with a reason) and unbinds every branch pointing at it — and session-first resolution across the statusline and hooks is what makes that safe: the session that closed it keeps its record until it ends, while a new session on the unbound branch is told to start or switch instead of landing on finished work.
 
-Progress: 7/15 tasks done (46%)
+Progress: 10/15 tasks done (66%)
 
 ## Phase 1 — Settle the resolution mechanism (blocks everything else) [active] — 3/3 done
 
@@ -19,11 +19,11 @@ Progress: 7/15 tasks done (46%)
 - [x] 2.3 `sofar close [slug]` CLI + MCP tool: append the status event, then remove EVERY bindings.json entry pointing at that slug (not just the current branch — a closed record should have no branch aimed at it). Atomic and idempotent; bindings.json is committed and shared, so a torn write is not acceptable.
 - [x] 2.4 Define reopening: what `sofar switch <closed-slug>` does — silently reopen, refuse, or require `--reopen`. The user's rule is that working on it again is what revives it, so the default must not be a dead end; decide and log it.
 
-## Phase 3 — Session-first resolution (what makes unbinding safe) [pending] — 0/3 done
+## Phase 3 — Session-first resolution (what makes unbinding safe) [pending] — 3/3 done
 
-- [ ] 3.1 Implement 1.2's mechanism so ANY process can answer "which initiative is session X registered in", and make session-before-branch the shared precedence — the read path currently has no pin at all (resolveInitiative), while the write path already does (resolveWriteInitiative, context.ts:285).
-- [ ] 3.2 Statusline: resolve session-first, branch second; render a closed record distinctly from a live one; render nothing when neither resolves. A drop-free, close-free line must stay byte-identical — the statusline re-renders constantly and its width is the felt surface.
-- [ ] 3.3 Hooks (PostToolUse, UserPromptSubmit, Stop, SessionEnd) resolve session-first, so closing mid-session stops silently dropping the rest of the session's telemetry. This is a bug fix independent of closing: an unbound branch loses events today with no signal at all.
+- [x] 3.1 Implement 1.2's mechanism so ANY process can answer "which initiative is session X registered in", and make session-before-branch the shared precedence — the read path currently has no pin at all (resolveInitiative), while the write path already does (resolveWriteInitiative, context.ts:285).
+- [x] 3.2 Statusline: resolve session-first, branch second; render a closed record distinctly from a live one; render nothing when neither resolves. A drop-free, close-free line must stay byte-identical — the statusline re-renders constantly and its width is the felt surface.
+- [x] 3.3 Hooks (PostToolUse, UserPromptSubmit, Stop, SessionEnd) resolve session-first, so closing mid-session stops silently dropping the rest of the session's telemetry. This is a bug fix independent of closing: an unbound branch loses events today with no signal at all.
 
 ## Phase 4 — Orienting surfaces [pending] — 0/3 done
 

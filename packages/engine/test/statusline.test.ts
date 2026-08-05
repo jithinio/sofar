@@ -102,10 +102,13 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
     expect(readFileSync(fixture.eventsPath, 'utf8')).toBe(before)
   })
 
-  it('unbound repo → record segment omitted, the rest still renders', () => {
+  // initiative-lifecycle D4: a repo that HAS a record but resolves nothing is
+  // dropping every hook event, and used to look identical to a healthy one.
+  // The marker is the one place that condition is continuously visible.
+  it('unbound repo with a record → `unbound`, the rest still renders', () => {
     const fixture = fx({ bind: false })
     const line = runStatusline(fixture.root, statusJson({ workspace: {}, cwd: undefined }))
-    expect(line).toBe('ctx 41% · cache 72% ✓')
+    expect(line).toBe('unbound · ctx 41% · cache 72% ✓')
   })
 
   it('falls back to workspace.current_dir when the invocation root has no record', () => {
@@ -160,10 +163,12 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
     expect(line.startsWith(`${expected} · `)).toBe(true)
   })
 
-  it('garbage or empty stdin → empty line, no throw', () => {
+  it('garbage or empty stdin → no throw, nothing but what still resolves', () => {
     const fixture = fx({ bind: false })
-    expect(runStatusline(fixture.root, 'not json{{{')).toBe('')
-    expect(runStatusline(fixture.root, '')).toBe('')
+    // Every hook-derived segment is gone; the record segment still reports the
+    // repo's real state, which is what the marker is for.
+    expect(runStatusline(fixture.root, 'not json{{{')).toBe('unbound')
+    expect(runStatusline(fixture.root, '')).toBe('unbound')
   })
 
   it.each([
@@ -214,7 +219,7 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
         },
       }),
     )
-    expect(line).toBe('ctx 41%')
+    expect(line).toBe('unbound · ctx 41%')
   })
 
   it('styled (D7/D8/D12/D13/D14): toned model, Claude-palette dir/branch, task pie, dim ctx label + toned value, banded cache, separators', () => {
@@ -367,7 +372,7 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
   it('styled: default lib caps stay plain — the command opts into styling, not the library', () => {
     const fixture = fx({ bind: false })
     const line = runStatusline(fixture.root, statusJson({ model: { display_name: 'Fable 5' } }))
-    expect(line).toBe('Fable 5 · ctx 41% · cache 72% ✓')
+    expect(line).toBe('Fable 5 · unbound · ctx 41% · cache 72% ✓')
     expect(line).not.toContain('\x1b')
   })
 
