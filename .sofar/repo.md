@@ -67,6 +67,10 @@
   three days; injected status was missing the rejected-approaches ledger).
   A running Claude Code session keeps its already-launched MCP server;
   new binary takes effect on the next session (or /mcp reconnect).
+  Corollary: to WRITE events using a feature not yet in the global install
+  (a new status, a new event type), the in-session MCP tools will reject it
+  — go through the freshly built local engine instead:
+  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.
 - Commit messages: NO "Co-Authored-By" trailers — user ruling
   2026-07-11; end the message after the descriptive body.
 - Zero model API calls (felt-cost D3): sofar itself never calls a model — no

@@ -1,5 +1,5 @@
 import type { InitiativeState } from '../../core/fold'
-import { GENERATED_HEADER, doc, pct, taskProgress } from './shared'
+import { GENERATED_HEADER, doc, phaseFraction, progressText, taskProgress } from './shared'
 
 /**
  * plan.md template (task 3.6, extends the BD14 v0 seam in place): goal,
@@ -10,18 +10,21 @@ export function renderPlan(state: InitiativeState): string {
   lines.push(`# Plan: ${state.slug || '(unnamed initiative)'}`, '')
   lines.push(`Goal: ${state.goal || '(none recorded)'}`, '')
 
-  const [done, total] = taskProgress(state.phases)
-  lines.push(`Progress: ${done}/${total} tasks done (${pct(done, total)})`, '')
+  lines.push(`Progress: ${progressText(taskProgress(state.phases))}`, '')
 
   if (state.phases.length === 0) {
     lines.push('(no plan recorded yet — call sofar_update_plan)', '')
   }
   for (const phase of state.phases) {
-    const [phaseDone, phaseTotal] = taskProgress([phase])
-    lines.push(`## ${phase.name} [${phase.status}] — ${phaseDone}/${phaseTotal} done`, '')
+    lines.push(`## ${phase.name} [${phase.status}] — ${phaseFraction(taskProgress([phase]))} done`, '')
     for (const task of phase.tasks) {
-      const box = task.status === 'done' ? 'x' : ' '
-      const suffix = task.status === 'active' || task.status === 'blocked' ? ` (${task.status})` : ''
+      // A dropped task is resolved but was never built, so it gets neither
+      // the done checkmark nor an empty box that would read as still queued.
+      const box = task.status === 'done' ? 'x' : task.status === 'dropped' ? '-' : ' '
+      const suffix =
+        task.status === 'active' || task.status === 'blocked' || task.status === 'dropped'
+          ? ` (${task.status})`
+          : ''
       lines.push(`- [${box}] ${task.id} ${task.title}${suffix}`)
     }
     lines.push('')

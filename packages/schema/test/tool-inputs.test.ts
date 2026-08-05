@@ -107,7 +107,8 @@ describe('validateToolInput', () => {
   it('rejects a bad task status with the allowed set in the message', () => {
     const res = validateToolInput('sofar_update_task', { task_id: '1', status: 'finished' })
     expect(res.ok).toBe(false)
-    if (!res.ok) expect(res.errors).toEqual(['status: must be one of pending|active|done|blocked'])
+    if (!res.ok)
+      expect(res.errors).toEqual(['status: must be one of pending|active|done|blocked|dropped'])
   })
 
   it('update_plan reuses the PlanStructure validator (field paths preserved)', () => {

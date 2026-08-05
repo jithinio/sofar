@@ -23,6 +23,10 @@ export interface Symbols {
   boxDone: string
   boxActive: string
   boxPending: string
+  /** [–] — dropped: terminal, never built (task-drop-state D1). */
+  boxDropped: string
+  /** – — dropped phase glyph; struck rather than hollow, to part it from pending. */
+  dash: string
   /** └ — detail/child line rail ("  └ hint"). */
   elbow: string
   /** │ — continuation rail for quoted/multiline blocks. */
@@ -47,6 +51,8 @@ const UNICODE: Symbols = {
   boxDone: '[✓]',
   boxActive: '[•]',
   boxPending: '[ ]',
+  boxDropped: '[–]',
+  dash: '–',
   elbow: '└',
   pipe: '│',
   vellipsis: '⋮',
@@ -66,6 +72,8 @@ const ASCII: Symbols = {
   boxDone: '[x]',
   boxActive: '[*]',
   boxPending: '[ ]',
+  boxDropped: '[-]',
+  dash: '-',
   elbow: '`-',
   pipe: '|',
   vellipsis: ':',

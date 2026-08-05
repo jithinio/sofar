@@ -267,6 +267,9 @@ function auditRecords(folded: Folded[]): Section {
     findings.push({ level: 'ok', text: 'no initiative logs yet — nothing to fold' })
     return { title: 'Record health', findings }
   }
+  // Citation resolution needs the sibling slugs, so a cross-initiative
+  // reference in a drop reason ("felt-cost D3") counts as cited.
+  const knownSlugs = folded.map((f) => f.slug)
 
   for (const { slug, state, warnings, orphans, error } of folded) {
     if (error !== undefined || state === undefined) {
@@ -299,6 +302,28 @@ function auditRecords(folded: Folded[]): Section {
         text: `${slug}: phase "${stale.name}" — all ${stale.tasks_done} tasks done but phase still ${stale.status}`,
         hint: 'emit phase_status_changed to mark it done, else it keeps showing as the active phase',
       })
+    }
+
+    // Unexplained drop (task-drop-state 4.1): `dropped` closes a task without
+    // delivering it, so the reason is the only record that a decision was made
+    // at all. The tool refuses an empty note, but a log can predate that rule
+    // or be written by hand — and a reason citing no decision leaves the
+    // "why" wherever the author's context went. Cite-checked, not just present.
+    for (const [taskId, note] of Object.entries(state.drop_notes)) {
+      const cited = extractCitations(note, slug, knownSlugs).length > 0
+      if (note.trim() === '') {
+        findings.push({
+          level: 'warn',
+          text: `${slug}: task "${taskId}" dropped with no reason`,
+          hint: 'a drop with no stated reason reads as forgotten rather than decided — re-emit task_status_changed with a note',
+        })
+      } else if (!cited) {
+        findings.push({
+          level: 'warn',
+          text: `${slug}: task "${taskId}" dropped citing no decision`,
+          hint: `reason recorded ("${note.slice(0, 60)}${note.length > 60 ? '…' : ''}") but it points at no D<n> — log the decision and cite it, so the drop survives the author's context`,
+        })
+      }
     }
 
     // Untracked work (task 11.3): a wrapped session that did real file work but

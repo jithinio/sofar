@@ -13,7 +13,8 @@ import {
   clipDetect,
   describeActivity,
   describeFreshness,
-  pct,
+  phaseFraction,
+  progressText,
   taskProgress,
 } from './shared'
 
@@ -153,8 +154,9 @@ export function renderFullStatus(state: InitiativeState): string {
   lines.push(`# ${state.slug || '(unnamed initiative)'}`, '')
   lines.push(`Goal: ${state.goal || '(none recorded)'}`)
 
-  const [done, total] = taskProgress(state.phases)
-  lines.push(`Progress: ${done}/${total} tasks done (${pct(done, total)}) across ${state.phases.length} phase(s)`)
+  lines.push(
+    `Progress: ${progressText(taskProgress(state.phases))} across ${state.phases.length} phase(s)`,
+  )
   lines.push('')
 
   const stalePhases = staleActivePhases(state)
@@ -163,8 +165,9 @@ export function renderFullStatus(state: InitiativeState): string {
   if (state.phases.length > 0) {
     lines.push('Phases:')
     for (const phase of state.phases) {
-      const [phaseDone, phaseTotal] = taskProgress([phase])
-      lines.push(`- ${phase.name} ${phaseMark(phase, staleNames)} ${phaseDone}/${phaseTotal}`)
+      lines.push(
+        `- ${phase.name} ${phaseMark(phase, staleNames)} ${phaseFraction(taskProgress([phase]))}`,
+      )
       for (const task of phase.tasks) {
         lines.push(`  - ${TASK_MARKS[task.status] ?? '[ ]'} ${task.id} ${task.title}`)
       }
@@ -259,6 +262,7 @@ const TASK_MARKS: Record<string, string> = {
   active: '[~]',
   blocked: '[!]',
   pending: '[ ]',
+  dropped: '[-]',
 }
 
 /**
@@ -325,13 +329,15 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   lines.push(`Goal: ${state.goal ? clip(state.goal, GOAL_BUDGET) : '(none recorded)'}`, '')
 
   // Progress + active phase.
-  const [done, total] = taskProgress(state.phases)
-  lines.push(`Progress: ${done}/${total} tasks done (${pct(done, total)}) across ${state.phases.length} phase(s)`)
+  lines.push(
+    `Progress: ${progressText(taskProgress(state.phases))} across ${state.phases.length} phase(s)`,
+  )
 
   const active = state.phases.find((p) => p.name === state.current.active_phase)
   if (active !== undefined) {
-    const [phaseDone, phaseTotal] = taskProgress([active])
-    lines.push(`Active phase: ${clip(active.name, PHASE_LINE_BUDGET)} — ${phaseDone}/${phaseTotal} tasks done`)
+    lines.push(
+      `Active phase: ${clip(active.name, PHASE_LINE_BUDGET)} — ${phaseFraction(taskProgress([active]))} tasks done`,
+    )
     const current = active.tasks.find((t) => t.status === 'active')
     const next = active.tasks.find((t) => t.status === 'pending')
     if (current !== undefined) {
@@ -435,23 +441,33 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   // phases fit under the cap. Names keep only their leading "Phase N"
   // segment (text before " — "); names without that convention pass whole.
   if (state.phases.length > 0) {
-    const open = state.phases.filter((p) => p.status !== 'done')
+    // A dropped phase is resolved, not open — leaving it in the itemized
+    // list is the exact false "queued work" signal this initiative exists
+    // to kill, and it would burn a capped slot to do it.
+    const open = state.phases.filter((p) => p.status !== 'done' && p.status !== 'dropped')
     const donePhases = state.phases.filter((p) => p.status === 'done')
+    const droppedPhases = state.phases.filter((p) => p.status === 'dropped')
     // Stale-phase marker (staleness-detection 2.2): stale phases are never
     // 'done', so every one of them lives in the itemized open list.
     const staleNames = new Set(staleActivePhases(state).map((p) => p.name))
     lines.push('Phases:')
     for (const phase of open.slice(0, MAX_PHASE_LINES)) {
-      const [phaseDone, phaseTotal] = taskProgress([phase])
-      lines.push(`- ${clip(phase.name, PHASE_LINE_BUDGET)} ${phaseMark(phase, staleNames)} ${phaseDone}/${phaseTotal}`)
+      lines.push(
+        `- ${clip(phase.name, PHASE_LINE_BUDGET)} ${phaseMark(phase, staleNames)} ${phaseFraction(taskProgress([phase]))}`,
+      )
     }
     if (open.length > MAX_PHASE_LINES) {
       lines.push(`- …and ${open.length - MAX_PHASE_LINES} more phases (see plan.md)`)
     }
     if (donePhases.length > 0) {
-      const [doneDone, doneTotal] = taskProgress(donePhases)
-      const names = donePhases.map((p) => p.name.split(' — ')[0]!).join(', ')
-      lines.push(clip(`- done: ${names} (${doneDone}/${doneTotal} tasks)`, DONE_PHASES_LINE_BUDGET))
+      const p = taskProgress(donePhases)
+      const names = donePhases.map((ph) => ph.name.split(' — ')[0]!).join(', ')
+      lines.push(clip(`- done: ${names} (${p.done}/${p.total} tasks)`, DONE_PHASES_LINE_BUDGET))
+    }
+    if (droppedPhases.length > 0) {
+      const p = taskProgress(droppedPhases)
+      const names = droppedPhases.map((ph) => ph.name.split(' — ')[0]!).join(', ')
+      lines.push(clip(`- dropped: ${names} (${p.total} tasks)`, DONE_PHASES_LINE_BUDGET))
     }
     lines.push('')
   }

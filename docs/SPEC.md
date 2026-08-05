@@ -107,7 +107,8 @@ minting-machine truth.
 ## Event types (payload schemas in packages/schema/ — the swappable part)
 initiative_created · plan_updated (full plan structure) ·
 phase_status_changed · task_added · task_status_changed (id, status:
-pending|active|done|blocked) · decision_logged (chose, over, because) ·
+pending|active|done|blocked|dropped, note?) · decision_logged (chose, over,
+because) ·
 session_started (tool, model?) · session_ended (summary, next_action) ·
 session_closed (reason — mechanical close from the SessionEnd hook; never
 carries summary/next_action, added Phase 3, BD21) ·
@@ -120,8 +121,47 @@ InitiativeState = { slug, goal, phases[ {name, status, tasks[ {id, title,
 status} ]} ], decisions[], memories[ {id, ts, text} ],
 sessions[ {id, tool, model?, started, ended?,
 summary?, next_action?, closed_reason?, activity?} ],
-files_touched[], task_files, current: {active_phase, next_action,
+files_touched[], task_files, drop_notes, current: {active_phase, next_action,
 blocked_on?}, freshness, cursor: <last event id> }
+
+### Task statuses (task-drop-state D1)
+`blocked` and `dropped` are NOT synonyms. `blocked` means "wants to happen,
+cannot yet" — it stays outstanding and keeps nagging. `dropped` is terminal:
+decided not to happen. `done` and `dropped` are both RESOLVED (no work
+remains) but only `done` means delivered.
+
+Progress therefore carries THREE terms, never two: drops are folded into
+neither the numerator nor the denominator. Counting a drop as `done` would
+claim delivery for work nobody built; subtracting it from the total would let
+an initiative reach 100% by dropping its hard half, with the lost scope
+leaving no trace. So `total` holds every task ever planned, and surfaces
+render the drop count beside it:
+- no drops: `9/10 tasks done (90%)` — byte-identical to pre-0.18 output, on
+  which the injected digest's token budget depends
+- with drops: `9 done, 1 dropped, 0 remaining` — "0 remaining" is the
+  completion signal that `N/T done` can no longer give honestly
+- percentages count drops as resolved, so a record with nothing outstanding
+  reaches 100%; `pct` still never claims 100% while work remains
+
+A phase is stale-active when every task is RESOLVED (done or dropped) and the
+phase itself is neither done nor dropped. A dropped phase is not open work and
+is excluded from the digest's itemized phase list.
+
+`drop_notes` (task id → reason) retains the justification; reviving a dropped
+task discards it. `sofar_update_task` REJECTS a drop with no note (D3), and
+doctor warns when a drop's reason cites no decision.
+
+### Forward compatibility of plan_updated (task-drop-state D2)
+plan_updated is a FULL REPLACE, so rejecting one whole event for a single
+unreadable status silently reverts the reader to the previous plan — losing
+the goal, done statuses, and every task and phase added in that same event.
+A task or phase status this build does not recognise is therefore coerced to
+`pending` and warned about, keeping the rest of the plan. `pending` is the
+conservative target: a stale reader over-reports remaining work rather than
+quietly claiming something was resolved. Structural corruption (missing id,
+malformed shape) is still skipped whole — the tolerance covers statuses only.
+Engines predating 0.18 skip `dropped` events entirely; no data is lost (the
+log is intact, only their render is wrong) and it self-heals on upgrade.
 task_files (speed T4) = derived file-locality map, task id → file paths
 touched while that task was ACTIVE at replay time: existing file_touched
 events only (payload-valid, unvoided, any session/source incl. cli — the
@@ -1370,6 +1410,21 @@ stay the underlying derivation's, and exit codes are styling-independent.
   handle, ignores an unqualified `M<n>`, and never writes repo.md. `M<n>`
   stays out of the decision-prose grammar, so decision text mentioning it
   produces no dangling entry (repo-memory-capture D2).
+- **Dropped tasks:** a record with no drops renders byte-identically to
+  pre-0.18 on every surface (digest, plan.md, CLI zooms) — the guarantee the
+  token budget rests on. With drops: progress reports `N done, M dropped, K
+  remaining`; the done count never includes a drop and `total` never shrinks;
+  an initiative whose only outstanding tasks were dropped reaches 100% while
+  one with real work outstanding still cannot. A dropped task renders as
+  neither done nor pending, a dropped phase leaves the digest's open list, and
+  a phase whose tasks are all resolved (done or dropped) is stale-active until
+  closed. `sofar_update_task` refuses a drop with no note; doctor WARNs (exit
+  0) on a drop with no reason and on one citing no decision; reviving a
+  dropped task discards its reason. A plan_updated carrying a status this
+  build does not know keeps every readable part of the plan — goal, done
+  statuses, added tasks and phases — coerces only the unreadable status to
+  `pending`, and warns naming the path, the subject, and the upgrade; a
+  structurally malformed plan is still skipped whole.
 - **Phase 4:** `sofar init` on a fresh repo yields a working end-to-end
   loop (start session → tool events → end session → status shows it);
   init is idempotent (second run changes nothing); serve pushes an SSE on

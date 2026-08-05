@@ -4,31 +4,32 @@
 
 Goal: Give the record a terminal 'won't do' outcome: a `dropped` status for tasks and phases that is recorded with a mandatory reason but stops counting as remaining work — so a task nobody will ever build reads as decided rather than queued, and progress reflects what is actually outstanding instead of sitting at 90% forever.
 
-Progress: 0/10 tasks done (0%)
+Progress: 11/11 tasks done (100%)
 
-## Phase 1 — Settle fold compatibility (blocks everything else) [pending] — 0/2 done
+## Phase 1 — Settle fold compatibility (blocks everything else) [done] — 2/2 done
 
-- [ ] 1.1 Determine what a PUBLISHED older engine does when it folds a `dropped` task_status_changed — read the unknown-status path in core/fold.ts and verify against an actually-installed older sofar, not by assumption. Expected: skipped with a warning per the never-fatal error law, leaving the task at its prior status (degrading back into the wrong-info state this initiative fixes). Confirm or refute. (active)
-- [ ] 1.2 Decide from 1.1's finding: graceful degrade vs. a version gate (e.g. minimum engine version recorded, or doctor warning when a log contains statuses the running engine does not know). Log a Decision either way — this is the one open design question.
+- [x] 1.1 Determine what a PUBLISHED older engine does when it folds a `dropped` task_status_changed — read the unknown-status path in core/fold.ts and verify against an actually-installed older sofar, not by assumption. Expected: skipped with a warning per the never-fatal error law, leaving the task at its prior status (degrading back into the wrong-info state this initiative fixes). Confirm or refute.
+- [x] 1.2 Decide from 1.1's finding: graceful degrade vs. a version gate (e.g. minimum engine version recorded, or doctor warning when a log contains statuses the running engine does not know). Log a Decision either way — this is the one open design question.
 
-## Phase 2 — Schema + fold [pending] — 0/2 done
+## Phase 2 — Schema + fold [done] — 3/3 done
 
-- [ ] 2.1 Add `dropped` to TASK_STATUSES and PHASE_STATUSES (packages/schema/src/events.ts:7,10). Schema changes live ONLY here per the guard-rail. Update the sofar_update_task / sofar_update_plan enums and their descriptions in tool-inputs.ts so both the value and its meaning reach agents.
-- [ ] 2.2 Fold: `dropped` is terminal. Verify replay ordering, that the drop's note survives into InitiativeState, and that orphan_task_events / misroute auditing still behave. Tests per repo convention.
+- [x] 2.1 Add `dropped` to TASK_STATUSES and PHASE_STATUSES (packages/schema/src/events.ts:7,10). Schema changes live ONLY here per the guard-rail. Update the sofar_update_task / sofar_update_plan enums and their descriptions in tool-inputs.ts so both the value and its meaning reach agents.
+- [x] 2.2 Fold: `dropped` is terminal. Verify replay ordering, that the drop's note survives into InitiativeState, and that orphan_task_events / misroute auditing still behave. Tests per repo convention.
+- [x] 2.3 D2 companion fix — retire the plan_updated cliff found in 1.1: an unknown TASK status inside plan_updated must no longer reject the whole event (today one bad task silently reverts the goal, done statuses, and every newly added task and phase). Keep the rest of the plan, warn, coerce the offending task. This is a GENERAL forward-compat fix — it pays off for every future enum addition, not just `dropped`.
 
-## Phase 3 — Progress + render [pending] — 0/2 done
+## Phase 3 — Progress + render [done] — 2/2 done
 
-- [ ] 3.1 taskProgress (projections/templates/shared.ts:101) returns drops as a third term instead of [done, total]. Single chokepoint, 9 call sites. Render `N done, M dropped, K remaining` only when M > 0; leave `N/T tasks done (P%)` byte-identical otherwise — the digest's token budget depends on the common case not growing.
-- [ ] 3.2 Render dropped in every surface: plan.ts checkbox (line 23) and phase header, status.ts digest + injected block, cli/ui/layout.ts. Agent-facing surfaces stay byte-plain per the CLI output law (cli-ui D1).
+- [x] 3.1 taskProgress (projections/templates/shared.ts:101) returns drops as a third term instead of [done, total]. Single chokepoint, 9 call sites. Render `N done, M dropped, K remaining` only when M > 0; leave `N/T tasks done (P%)` byte-identical otherwise — the digest's token budget depends on the common case not growing.
+- [x] 3.2 Render dropped in every surface: plan.ts checkbox (line 23) and phase header, status.ts digest + injected block, cli/ui/layout.ts. Agent-facing surfaces stay byte-plain per the CLI output law (cli-ui D1).
 
-## Phase 4 — Detection [pending] — 0/2 done
+## Phase 4 — Detection [done] — 2/2 done
 
-- [ ] 4.1 A drop without a stated reason reads as forgotten rather than decided — require the note. Decide reject-vs-warn, and add a doctor check for a drop whose note cites no decision, reusing the existing citation extraction.
-- [ ] 4.2 Doctor's phase rule becomes `all tasks RESOLVED (done|dropped)` rather than `all tasks done` — otherwise a fully-dropped phase reproduces the exact stale-phase warning this initiative exists to kill.
+- [x] 4.1 A drop without a stated reason reads as forgotten rather than decided — require the note. Decide reject-vs-warn, and add a doctor check for a drop whose note cites no decision, reusing the existing citation extraction.
+- [x] 4.2 Doctor's phase rule becomes `all tasks RESOLVED (done|dropped)` rather than `all tasks done` — otherwise a fully-dropped phase reproduces the exact stale-phase warning this initiative exists to kill.
 
-## Phase 5 — Contracts + dogfood [pending] — 0/2 done
+## Phase 5 — Contracts + dogfood [done] — 2/2 done
 
-- [ ] 5.1 docs/SPEC.md is authoritative: status enum, the three-term progress semantics, and §Acceptance criteria for `dropped`. No task here is done until its criteria pass.
-- [ ] 5.2 Dogfood on the case that prompted this: drop repo-memory-capture 4.1 and its "Memory nodes (deferred)" phase, then confirm the record reads as decided rather than queued and doctor goes quiet on it. This initiative is its own first test case.
+- [x] 5.1 docs/SPEC.md is authoritative: status enum, the three-term progress semantics, the D2 plan_updated tolerance rule, and §Acceptance criteria for `dropped`. No task here is done until its criteria pass.
+- [x] 5.2 Dogfood on the case that prompted this: drop repo-memory-capture 4.1 and its "Memory nodes (deferred)" phase, then confirm the record reads as decided rather than queued and doctor goes quiet on it. This initiative is its own first test case.
 
-Next action: Nothing pending for task-drop-state.
+Next action: Ship it: bump version, publish, then upgrade the global install.

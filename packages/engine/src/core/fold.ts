@@ -9,7 +9,9 @@ import {
   type SessionActivity,
 } from './adjacency'
 import {
+  coerceUnknownPlanStatuses,
   isKnownEventType,
+  isResolvedTaskStatus,
   validatePayload,
   type CorrectionPayload,
   type DecisionLoggedPayload,
@@ -165,6 +167,13 @@ export interface InitiativeState {
    * file_touched attributes to EVERY task active at that point in the log.
    */
   task_files: Record<string, string[]>
+  /**
+   * Task id → the reason given when it was dropped (task-drop-state D3).
+   * A drop is the one way a task closes without being delivered, so the
+   * reason is the whole record of it — kept addressable so surfaces can
+   * show it and doctor can audit that one was given at all.
+   */
+  drop_notes: Record<string, string>
   current: {
     active_phase: string | null
     next_action: string | null
@@ -228,6 +237,7 @@ export function emptyState(): InitiativeState {
     sessions: [],
     files_touched: [],
     task_files: {},
+    drop_notes: {},
     current: { active_phase: null, next_action: null },
     freshness: emptyFreshness(),
     cursor: null,
@@ -343,6 +353,18 @@ export function foldLines(lines: readonly string[], slug = ''): FoldResult {
     if (!isKnownEventType(event.type)) {
       warnings.push(`line ${lineNo}: unknown event type "${event.type}" — skipped`)
       continue
+    }
+
+    // Forward compat (D2): a plan_updated from a newer engine may carry a
+    // status this build cannot read. Coerce those tasks rather than let one
+    // of them reject the whole plan — see coerceUnknownPlanStatuses.
+    if (event.type === 'plan_updated') {
+      for (const c of coerceUnknownPlanStatuses(event.payload)) {
+        warnings.push(
+          `line ${lineNo}: ${c.path} ("${c.subject}") has status "${c.status}", which this ` +
+            `build does not know — counted as pending; upgrade sofar to read it correctly`,
+        )
+      }
     }
 
     const payloadCheck = validatePayload(event.type, event.payload)
@@ -476,17 +498,22 @@ export interface StalePhase {
 
 /**
  * Stale-active-phase detection (staleness-detection 1.2): every task in the
- * phase is done but the phase itself was never marked done — the missing
+ * phase is RESOLVED but the phase itself was never closed — the missing
  * phase_status_changed keeps it presenting as live work. Extracted from
  * doctor's inline D-P11 check so ONE detector feeds both surfaces (doctor
  * WARN + status renders). Empty phases are never stale (nothing was
  * completed); order follows the plan's phase order — deterministic.
+ *
+ * Resolved means done OR dropped (task-drop-state D1). A phase whose tasks
+ * were all dropped is finished with, and an all-dropped phase left pending
+ * would otherwise reproduce exactly the false "queued work" signal this
+ * whole initiative exists to remove.
  */
 export function staleActivePhases(state: InitiativeState): StalePhase[] {
   const stale: StalePhase[] = []
   for (const phase of state.phases) {
-    if (phase.status === 'done' || phase.tasks.length === 0) continue
-    if (phase.tasks.every((t) => t.status === 'done')) {
+    if (phase.status === 'done' || phase.status === 'dropped' || phase.tasks.length === 0) continue
+    if (phase.tasks.every((t) => isResolvedTaskStatus(t.status))) {
       stale.push({ name: phase.name, status: phase.status, tasks_done: phase.tasks.length })
     }
   }
@@ -641,6 +668,13 @@ function applyEvent(
         blockNotes.set(p.id, p.note)
       } else if (p.status !== 'blocked') {
         blockNotes.delete(p.id)
+      }
+      // A drop's reason is retained; un-dropping the task discards it, so a
+      // task that gets revived does not carry a stale justification.
+      if (p.status === 'dropped') {
+        state.drop_notes[p.id] = p.note ?? ''
+      } else {
+        delete state.drop_notes[p.id]
       }
       break
     }

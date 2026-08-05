@@ -4,11 +4,26 @@
  * envelope (src/core/envelope.ts) is stable and lives outside it.
  */
 
-export const TASK_STATUSES = ['pending', 'active', 'done', 'blocked'] as const
+/**
+ * `blocked` and `dropped` are NOT synonyms (task-drop-state D1). `blocked`
+ * means "wants to happen, cannot yet" — it stays outstanding and keeps
+ * nagging. `dropped` is terminal: decided not to happen. Both `done` and
+ * `dropped` are RESOLVED — nothing remains — but only `done` means
+ * delivered, so drops are counted and rendered as their own third term
+ * rather than folded into either the numerator or the denominator.
+ */
+export const TASK_STATUSES = ['pending', 'active', 'done', 'blocked', 'dropped'] as const
 export type TaskStatus = (typeof TASK_STATUSES)[number]
 
-export const PHASE_STATUSES = ['pending', 'active', 'done', 'blocked'] as const
+export const PHASE_STATUSES = ['pending', 'active', 'done', 'blocked', 'dropped'] as const
 export type PhaseStatus = (typeof PHASE_STATUSES)[number]
+
+/** Terminal statuses: no work remains, whether or not anything was built. */
+export const RESOLVED_TASK_STATUSES: readonly TaskStatus[] = ['done', 'dropped']
+
+export function isResolvedTaskStatus(s: string): boolean {
+  return (RESOLVED_TASK_STATUSES as readonly string[]).includes(s)
+}
 
 export interface PlanTaskInput {
   id: string
@@ -152,6 +167,59 @@ function validatePlan(plan: unknown, errors: string[]): void {
       }
     })
   })
+}
+
+/** One status this build did not recognise, rewritten so the plan survives. */
+export interface CoercedStatus {
+  /** Human path into the plan, e.g. `phases[0].tasks[1]`. */
+  path: string
+  /** Task id, or phase name for a phase-level coercion. */
+  subject: string
+  /** The unrecognised value as written. */
+  status: string
+}
+
+/**
+ * Forward compatibility for plan_updated (task-drop-state D2).
+ *
+ * plan_updated is a FULL REPLACE, so rejecting one for a single unreadable
+ * task status throws away the entire plan — a log written by a NEWER engine
+ * would silently revert this reader's goal, done statuses, and every task and
+ * phase added in that same event. That cliff is what made `dropped` expensive
+ * to add; retiring it here means the NEXT status added is cheap.
+ *
+ * Statuses this build does not know are rewritten IN PLACE to `pending` and
+ * reported. `pending` is the conservative target: an unreadable status counts
+ * as outstanding, so a stale reader over-reports remaining work rather than
+ * quietly claiming something was resolved. Callers are expected to warn — the
+ * fix for a coercion is always to upgrade, never to edit the log.
+ */
+export function coerceUnknownPlanStatuses(payload: unknown): CoercedStatus[] {
+  const coerced: CoercedStatus[] = []
+  if (!isObj(payload) || !isObj(payload.plan) || !Array.isArray(payload.plan.phases)) return coerced
+
+  payload.plan.phases.forEach((phase, pi) => {
+    if (!isObj(phase)) return
+    if (phase.status !== undefined && !phaseStatus(phase.status)) {
+      coerced.push({
+        path: `phases[${pi}]`,
+        subject: str(phase.name) ? phase.name : `#${pi}`,
+        status: String(phase.status),
+      })
+      phase.status = 'pending'
+    }
+    if (!Array.isArray(phase.tasks)) return
+    phase.tasks.forEach((task, ti) => {
+      if (!isObj(task) || optTaskStatus(task.status)) return
+      coerced.push({
+        path: `phases[${pi}].tasks[${ti}]`,
+        subject: str(task.id) ? task.id : `#${ti}`,
+        status: String(task.status),
+      })
+      task.status = 'pending'
+    })
+  })
+  return coerced
 }
 
 const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {

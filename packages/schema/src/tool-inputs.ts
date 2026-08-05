@@ -244,8 +244,19 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
     properties: {
       initiative: initiativeProp,
       task_id: { type: 'string', minLength: 1 },
-      status: { enum: [...TASK_STATUSES] },
-      note: { type: 'string', description: 'Optional context, e.g. why the task is blocked.' },
+      status: {
+        enum: [...TASK_STATUSES],
+        description:
+          '`blocked` = wants to happen, cannot yet — stays outstanding and keeps nagging. ' +
+          '`dropped` = decided not to happen, terminal — recorded but no longer counted as ' +
+          'remaining work. Do not use `done` for work that was never built.',
+      },
+      note: {
+        type: 'string',
+        description:
+          'Why. REQUIRED for `blocked` and `dropped` — a drop with no stated reason reads as ' +
+          'forgotten rather than decided. Cite the deciding entry where there is one (e.g. "D3").',
+      },
     },
     required: ['task_id', 'status'],
     additionalProperties: false,
@@ -382,6 +393,13 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
       e.push(`status: must be one of ${TASK_STATUSES.join('|')}`)
     }
     if (!optStr(a.note)) e.push('note: must be a string')
+    // A drop is the one status that closes a task without delivering it
+    // (task-drop-state D3). Unexplained, it is indistinguishable from work
+    // that was quietly forgotten — and unlike a wrong `pending`, nothing
+    // downstream will ever nag anyone into supplying the reason later.
+    if (a.status === 'dropped' && !str(a.note)) {
+      e.push('note: required when status is "dropped" — say why, and cite the deciding entry (e.g. "D3")')
+    }
   },
   sofar_log_decision(a, e) {
     if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')

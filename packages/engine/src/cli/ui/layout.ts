@@ -7,7 +7,13 @@ import {
   type SessionState,
   type TaskState,
 } from '../../core/fold'
-import { clipDetect, describeFreshness, pct, taskProgress } from '../../projections/templates/shared'
+import {
+  clipDetect,
+  describeFreshness,
+  phaseFraction,
+  progressCompact,
+  taskProgress,
+} from '../../projections/templates/shared'
 import type { Style } from './style'
 import { pieFor, type Symbols } from './symbols'
 import { sanitizeProse, truncatePlain, visibleWidth } from './text'
@@ -63,10 +69,10 @@ const SESSION_SUMMARY_BUDGET = 1_200
 function fullZoom(state: InitiativeState, options: LayoutOptions): string[] {
   const { style: s, symbols: sym } = options
   const lines: string[] = []
-  const [done, total] = taskProgress(state.phases)
+  const p = taskProgress(state.phases)
   const phaseCount = state.phases.length
   lines.push(
-    `${pieCell(done, total, s, sym)}${s.bold(oneLine(state.slug) || '(unnamed initiative)')}  ${done}/${total} tasks (${pct(done, total)})` +
+    `${pieCell(p.done + p.dropped, p.total, s, sym)}${s.bold(oneLine(state.slug) || '(unnamed initiative)')}  ${progressCompact(p)}` +
       s.dim(` · ${phaseCount} phase${phaseCount === 1 ? '' : 's'}`),
   )
   lines.push(s.muted(oneLine(state.goal) || '(none recorded)'))
@@ -140,11 +146,11 @@ function phaseLine(
   s: Style,
   sym: Symbols,
 ): string {
-  const [done, total] = taskProgress([phase])
+  const fraction = phaseFraction(taskProgress([phase]))
   const name = oneLine(phase.name) // stale-set lookup stays on the raw name
   if (staleNames.has(phase.name)) {
-    // Stale (1.2 detector): all tasks done, phase not — carry the nudge.
-    return `${s.warn(sym.warn)} ${name} ${s.dim(`${done}/${total}`)}${s.dim(' — all tasks done; mark phase done?')}`
+    // Stale (1.2 detector): all tasks resolved, phase not — carry the nudge.
+    return `${s.warn(sym.warn)} ${name} ${s.dim(fraction)}${s.dim(' — all tasks done; mark phase done?')}`
   }
   const glyph =
     phase.status === 'done'
@@ -153,8 +159,11 @@ function phaseLine(
         ? s.warn(sym.bullet)
         : phase.status === 'blocked'
           ? s.error(sym.fail)
-          : s.dim(sym.circle)
-  return `${glyph} ${name} ${s.dim(`${done}/${total}`)}`
+          : phase.status === 'dropped'
+            ? s.dim(sym.dash)
+            : s.dim(sym.circle)
+  const label = phase.status === 'dropped' ? s.dim(name) : name
+  return `${glyph} ${label} ${s.dim(fraction)}`
 }
 
 /**
@@ -171,6 +180,9 @@ function taskLine(task: TaskState, s: Style, sym: Symbols, pulse = false): strin
       return `  ${pulse ? s.dim(sym.boxActive) : s.warn(sym.boxActive)} ${label}`
     case 'blocked':
       return `  ${s.error(`[${sym.fail}] ${label}`)}`
+    case 'dropped':
+      // Resolved, so it recedes like done — but never wears the checkmark.
+      return `  ${s.dim(`${sym.boxDropped} ${label}`)}`
     case 'pending':
       return `  ${s.dim(sym.boxPending)} ${label}`
   }
@@ -208,10 +220,10 @@ function portfolioZoom(
   { style: s, symbols: sym, columns }: LayoutOptions,
 ): string[] {
   const lines: string[] = []
-  const [done, total] = taskProgress(state.phases)
+  const p = taskProgress(state.phases)
   const slug = oneLine(state.slug) || '(unnamed initiative)'
-  const progress = `${done}/${total} tasks (${pct(done, total)})`
-  const pie = pieCell(done, total, s, sym)
+  const progress = progressCompact(p)
+  const pie = pieCell(p.done + p.dropped, p.total, s, sym)
   const pieWidth = visibleWidth(pie)
 
   const head = `${slug}  ${progress}`

@@ -97,22 +97,77 @@ export function clipBlockDetect(text: string, budget: number, marker: string): C
   }
 }
 
-/** Task-level progress across phases: [done, total]. */
-export function taskProgress(phases: ReadonlyArray<{ tasks: ReadonlyArray<{ status: string }> }>): [number, number] {
+/**
+ * Task-level progress across phases (task-drop-state D1).
+ *
+ * `dropped` is its own term, folded into neither side: counting drops as
+ * `done` would inflate the numerator and claim delivery for work nobody
+ * built, while quietly subtracting them from `total` would let an
+ * initiative reach 100% by dropping its hard half, with the lost scope
+ * leaving no trace. So the denominator holds every task ever planned and
+ * callers surface the drop count next to it.
+ */
+export interface TaskProgress {
+  done: number
+  dropped: number
+  /** Every task, drops included — this never shrinks silently. */
+  total: number
+  /** Genuinely outstanding: total − done − dropped. */
+  remaining: number
+}
+
+export function taskProgress(
+  phases: ReadonlyArray<{ tasks: ReadonlyArray<{ status: string }> }>,
+): TaskProgress {
   let done = 0
+  let dropped = 0
   let total = 0
   for (const phase of phases) {
     for (const task of phase.tasks) {
       total += 1
       if (task.status === 'done') done += 1
+      else if (task.status === 'dropped') dropped += 1
     }
   }
-  return [done, total]
+  return { done, dropped, total, remaining: total - done - dropped }
 }
 
-/** Percentage string that never claims 100% while work remains. */
-export function pct(done: number, total: number): string {
+/**
+ * The headline progress sentence. Without drops this is byte-identical to
+ * what it has always been — the injected digest's token budget depends on
+ * the common case not growing. With drops it switches to the three-term
+ * form, where "0 remaining" is the completion signal that `N/T done` can
+ * no longer give honestly.
+ */
+export function progressText(p: TaskProgress): string {
+  if (p.dropped === 0) return `${p.done}/${p.total} tasks done (${pct(p.done, p.total)})`
+  return `${p.done} done, ${p.dropped} dropped, ${p.remaining} remaining`
+}
+
+/**
+ * Compact headline for the width-constrained CLI zooms: `9/10 tasks (90%)`,
+ * or `9/10 tasks, 1 dropped (100%)`. The percentage counts drops as
+ * resolved, so it agrees with the pie beside it.
+ */
+export function progressCompact(p: TaskProgress): string {
+  const drops = p.dropped === 0 ? '' : `, ${p.dropped} dropped`
+  return `${p.done}/${p.total} tasks${drops} (${pct(p.done, p.total, p.dropped)})`
+}
+
+/** Compact per-phase fraction: `1/2`, or `1/3 (1 dropped)` when any was. */
+export function phaseFraction(p: TaskProgress): string {
+  const base = `${p.done}/${p.total}`
+  return p.dropped === 0 ? base : `${base} (${p.dropped} dropped)`
+}
+
+/**
+ * Percentage string that never claims 100% while work remains. Drops count
+ * as resolved here — with nothing outstanding the number must be able to
+ * reach 100%, which is the whole complaint that motivated this initiative.
+ */
+export function pct(done: number, total: number, dropped = 0): string {
   if (total === 0) return '0%'
-  const raw = Math.floor((done / total) * 100)
-  return `${done === total ? 100 : Math.min(raw, 99)}%`
+  const resolved = done + dropped
+  const raw = Math.floor((resolved / total) * 100)
+  return `${resolved === total ? 100 : Math.min(raw, 99)}%`
 }
