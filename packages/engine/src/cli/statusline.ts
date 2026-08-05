@@ -2,7 +2,12 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import type { Command } from 'commander'
 import { createToolContext } from '../mcp/context'
-import { installStatusline, type StatuslineInstall } from './init'
+import {
+  installStatusline,
+  uninstallStatusline,
+  type StatuslineInstall,
+  type StatuslineUninstall,
+} from './init'
 import { emit, errMessage, fail, ok, readAllStdin, type CmdResult } from './shared'
 import { createStyle, pieFor, stdoutCaps, symbolsFor, type Caps, type Style } from './ui'
 
@@ -320,6 +325,26 @@ export function renderInstall(result: StatuslineInstall, caps: Caps): CmdResult 
   }
 }
 
+/** Human report for `--uninstall`. */
+export function renderUninstall(result: StatuslineUninstall, caps: Caps): CmdResult {
+  const s = createStyle(caps.color)
+  const sym = symbolsFor(caps.unicode)
+  switch (result.status) {
+    case 'removed':
+      return ok(
+        `${s.success(sym.ok)} statusLine removed from ${result.path}\n` +
+          `  ${s.dim("Claude Code's own status line returns in the next session.")}\n`,
+      )
+    case 'absent':
+      return ok(`${s.success(sym.ok)} no statusLine in ${result.path} — nothing to remove\n`)
+    case 'foreign':
+      return ok(
+        `${s.warn(sym.warn)} the statusLine in ${result.path} is not sofar's — left untouched.\n` +
+          `  ${s.dim('Remove the "statusLine" key by hand if you want it gone.')}\n`,
+      )
+  }
+}
+
 export function registerStatuslineCommand(
   program: Command,
   rootOf: (opts: { root?: string }) => string,
@@ -332,14 +357,31 @@ export function registerStatuslineCommand(
     .option('--root <dir>', 'repo root (default: current directory)')
     .option(
       '--install',
-      'wire `sofar statusline` into .claude/settings.json for this repo and exit — statusLine only, no hooks and no .sofar/ (an existing statusLine is never touched)',
+      'wire `sofar statusline` into .claude/settings.json and exit — statusLine only, no hooks and no .sofar/ (an existing statusLine is never touched)',
     )
-    .action(async (opts: { root?: string; install?: boolean }) => {
-      if (opts.install === true) {
+    .option(
+      '--uninstall',
+      "remove sofar's statusLine and exit, restoring the host tool's own status line (a statusLine that is not sofar's is never removed)",
+    )
+    .option(
+      '--user',
+      'target ~/.claude/settings.json (every project) instead of this repo — use with --install or --uninstall',
+    )
+    .action(async (opts: { root?: string; install?: boolean; uninstall?: boolean; user?: boolean }) => {
+      if (opts.install === true && opts.uninstall === true) {
+        emit(fail('sofar statusline: --install and --uninstall are mutually exclusive'))
+        return
+      }
+      if (opts.install === true || opts.uninstall === true) {
+        const scope = { user: opts.user === true }
         try {
-          emit(renderInstall(installStatusline(rootOf(opts)), stdoutCaps()))
+          emit(
+            opts.uninstall === true
+              ? renderUninstall(uninstallStatusline(rootOf(opts), scope), stdoutCaps())
+              : renderInstall(installStatusline(rootOf(opts), scope), stdoutCaps()),
+          )
         } catch (err) {
-          emit(fail(`sofar statusline --install: ${errMessage(err)}`))
+          emit(fail(`sofar statusline: ${errMessage(err)}`))
         }
         return
       }

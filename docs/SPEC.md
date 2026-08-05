@@ -1041,7 +1041,27 @@ Shims contain no logic — they invoke the sofar CLI.
   `init --statusline` (init-statusline D1): an existing statusLine — ours,
   customized, or a third party's — is the user's and is never rewritten;
   reports wired / already / kept. Unparseable settings.json aborts with
-  exit 1 and changes nothing. `--no-color` or NO_COLOR falls back
+  exit 1 and changes nothing.
+- `sofar statusline --uninstall` (felt-cost D15) — the inverse: delete the
+  statusLine key so the host tool's own status line returns, reporting
+  removed / absent / foreign. The theirs-wins law holds from this side too:
+  an entry that is not BYTE-FOR-BYTE sofar's is never deleted, so the
+  command can only undo what sofar did. The settings file survives even
+  when the removal empties it to `{}` — dropping a line is not a reason to
+  delete a user's config. `--install` and `--uninstall` together are an
+  error, not a precedence rule.
+- `--user` (felt-cost D15) — retarget either verb at
+  ~/.claude/settings.json, which Claude Code applies to EVERY project,
+  instead of the repo's. Same merge and removal laws at both scopes. A
+  project statusLine shadows the personal one, so `--install` at the repo
+  scope still overrides a personal line.
+- The statusline HINT printed by `sofar init` (init-statusline D1) is
+  suppressed when the personal ~/.claude/settings.json already wires
+  sofar's line (D15): the project having no statusLine of its own does not
+  mean none renders, and a hint that says "not wired" must not fire when
+  the line is, in fact, wired. That probe is read-only and best-effort — a
+  missing, unreadable or unparseable personal file answers "not wired"
+  rather than aborting an unrelated init. `--no-color` or NO_COLOR falls back
   to the plain line (`dir:branch`, `cache`/`ctx` labels, no ANSI, no glyph
   icons); runStatusline's library default is the plain line. D13 retired
   the guarantee that the plain line stays byte-identical to 0.8.0 —

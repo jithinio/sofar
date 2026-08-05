@@ -1,5 +1,6 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { homedir } from 'node:os'
+import { dirname, join } from 'node:path'
 import { mcpRegistration } from '../mcp/register'
 import { detectTailwindV4 } from './scanners'
 import { fail, ok, REPO_MD_STUB, type CmdResult } from './shared'
@@ -288,6 +289,13 @@ export function isSofarStatusline(v: unknown): boolean {
 export interface InitOptions {
   /** Wire `sofar statusline` as the project statusLine (merged only when absent). */
   statusline?: boolean
+  /**
+   * Home directory override for the personal-settings check behind the
+   * statusline hint. Tests only — production always reads os.homedir().
+   * Without it the hint's suppression would depend on the machine running
+   * the suite, which is exactly the non-hermeticity it exists to avoid.
+   */
+  home?: string
 }
 
 export type StatuslineInstall =
@@ -297,6 +305,51 @@ export type StatuslineInstall =
   | { status: 'already'; path: string }
   /** Some OTHER statusLine is configured; it was left alone. */
   | { status: 'kept'; path: string; existing: unknown }
+
+export type StatuslineUninstall =
+  /** sofar's entry was there and is now gone — the host's default returns. */
+  | { status: 'removed'; path: string }
+  /** No statusLine at all at this scope. */
+  | { status: 'absent'; path: string }
+  /** Someone else's statusLine — left alone, as always. */
+  | { status: 'foreign'; path: string; existing: unknown }
+
+/** Scope for the statusLine install/uninstall pair. */
+export interface StatuslineScope {
+  /** Target ~/.claude/settings.json (all repos) instead of the project's. */
+  user?: boolean
+  /** Home directory override — tests only; defaults to os.homedir(). */
+  home?: string
+}
+
+/** The personal settings file Claude Code reads for every project. */
+export function userSettingsPath(home: string = homedir()): string {
+  return join(home, '.claude', 'settings.json')
+}
+
+function statuslineTarget(rootDir: string, scope: StatuslineScope): string {
+  return scope.user === true
+    ? userSettingsPath(scope.home)
+    : join(rootDir, '.claude', 'settings.json')
+}
+
+/**
+ * Is sofar's statusLine already wired at the USER scope? Read-only and
+ * best-effort — a missing, unreadable or unparseable personal settings file
+ * answers false rather than throwing. init calls this to decide whether the
+ * "not wired" hint is true, and a broken personal file must never abort an
+ * unrelated `sofar init`.
+ */
+export function userStatuslineWired(home?: string): boolean {
+  try {
+    const path = userSettingsPath(home)
+    if (!existsSync(path)) return false
+    const decoded: unknown = JSON.parse(readFileSync(path, 'utf8'))
+    return isObj(decoded) && isSofarStatusline(decoded.statusLine)
+  } catch {
+    return false
+  }
+}
 
 /**
  * Install ONLY the statusLine entry into <root>/.claude/settings.json
@@ -312,9 +365,12 @@ export type StatuslineInstall =
  * ours, customized, or someone else's entirely — is the user's and wins.
  * Only the settings file is touched; .claude/ is created if missing.
  */
-export function installStatusline(rootDir: string): StatuslineInstall {
-  const path = join(rootDir, '.claude', 'settings.json')
-  const settings = readJSONObject(path, '.claude/settings.json')
+export function installStatusline(
+  rootDir: string,
+  scope: StatuslineScope = {},
+): StatuslineInstall {
+  const path = statuslineTarget(rootDir, scope)
+  const settings = readJSONObject(path, path)
 
   if (settings.statusLine !== undefined) {
     return isSofarStatusline(settings.statusLine)
@@ -323,9 +379,37 @@ export function installStatusline(rootDir: string): StatuslineInstall {
   }
 
   settings.statusLine = STATUSLINE_SETTINGS_ENTRY
-  mkdirSync(join(rootDir, '.claude'), { recursive: true })
+  mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, stableJSON(settings))
   return { status: 'wired', path }
+}
+
+/**
+ * Remove sofar's statusLine, restoring whatever the host tool renders on
+ * its own (felt-cost D15). The exact inverse of installStatusline, and it
+ * honours the same theirs-wins law from the other side: an entry that is
+ * not byte-for-byte ours is someone else's and is never deleted.
+ *
+ * Only the statusLine key is touched — every other setting, and the file
+ * itself, survives even if this empties it to `{}`. Removing a line is not
+ * a reason to delete a user's config file.
+ */
+export function uninstallStatusline(
+  rootDir: string,
+  scope: StatuslineScope = {},
+): StatuslineUninstall {
+  const path = statuslineTarget(rootDir, scope)
+  if (!existsSync(path)) return { status: 'absent', path }
+  const settings = readJSONObject(path, path)
+
+  if (settings.statusLine === undefined) return { status: 'absent', path }
+  if (!isSofarStatusline(settings.statusLine)) {
+    return { status: 'foreign', path, existing: settings.statusLine }
+  }
+
+  delete settings.statusLine
+  writeFileSync(path, stableJSON(settings))
+  return { status: 'removed', path }
 }
 
 interface ShimSpec {
@@ -704,7 +788,13 @@ export function runInit(
   // statusLine and the flag was not passed, point at it. Unstyled, like the
   // scanner hint — and always BEFORE it: the scanner hint keeps the final
   // slot (SPEC §CLI).
-  if (!statusline && statuslineAbsent) lines.push('', STATUSLINE_HINT)
+  // The hint claims the statusline is "not wired", so it must not fire when
+  // the personal ~/.claude/settings.json already wires it (D15): that file
+  // applies to every project, so a project with no statusLine of its own is
+  // already showing sofar's line and there is nothing to opt into.
+  if (!statusline && statuslineAbsent && !userStatuslineWired(options.home)) {
+    lines.push('', STATUSLINE_HINT)
+  }
   // Scanner defense (task 10.1, D-P10): if a tree-wide class scanner will
   // ingest .sofar/, raise the exclusion hint as the FINAL output. init only
   // flags it; `sofar doctor --fix` does the precise, path-aware insert.

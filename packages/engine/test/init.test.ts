@@ -51,6 +51,17 @@ function freshRepo(): string {
   return root
 }
 
+/**
+ * Pin the statusline hint's personal-settings probe at an empty home (D15).
+ * Without this the hint's behaviour would depend on whether the DEVELOPER
+ * running the suite has wired `sofar statusline` in their own
+ * ~/.claude/settings.json — a real non-hermeticity, caught the first time
+ * someone did.
+ */
+function noPersonalStatusline(root: string): { home: string } {
+  return { home: join(root, 'no-such-home') }
+}
+
 /** relpath → { sha256, mode } for every file under dir (idempotency probe). */
 function hashTree(dir: string): Map<string, { sha: string; mode: number }> {
   const out = new Map<string, { sha: string; mode: number }>()
@@ -375,14 +386,27 @@ describe('sofar init --statusline (opt-in rent-meter wiring, D4 informed re-test
 
   it('plain init hints at the flag while unwired, and stops once wired', () => {
     const root = freshRepo()
-    const unwired = runInit(root)
+    const unwired = runInit(root, noPersonalStatusline(root))
     expect(unwired.stdout).toContain(STATUSLINE_HINT)
     expect(unwired.stdout).toContain('sofar init --statusline')
     expect(unwired.stdout).toContain('shadows a personal') // the D4 trade, named
 
     runInit(root, { statusline: true })
-    const wired = runInit(root)
+    const wired = runInit(root, noPersonalStatusline(root))
     expect(wired.stdout).not.toContain('sofar init --statusline')
+  })
+
+  it('a personal ~/.claude statusLine silences the hint too (D15)', () => {
+    const root = freshRepo()
+    const home = join(root, 'home')
+    mkdirSync(join(home, '.claude'), { recursive: true })
+    writeFileSync(
+      join(home, '.claude', 'settings.json'),
+      JSON.stringify({ statusLine: STATUSLINE_SETTINGS_ENTRY }, null, 2),
+    )
+    // The project has no statusLine of its own, so the personal one is what
+    // renders — claiming "not wired" here would be false.
+    expect(runInit(root, { home }).stdout).not.toContain('sofar init --statusline')
   })
 
   it('a custom statusLine also silences the hint — the user already chose', () => {
@@ -392,7 +416,9 @@ describe('sofar init --statusline (opt-in rent-meter wiring, D4 informed re-test
       join(root, '.claude', 'settings.json'),
       JSON.stringify({ statusLine: { type: 'command', command: 'my-own.sh' } }, null, 2),
     )
-    expect(runInit(root).stdout).not.toContain('sofar init --statusline')
+    expect(runInit(root, noPersonalStatusline(root)).stdout).not.toContain(
+      'sofar init --statusline',
+    )
   })
 })
 
@@ -402,7 +428,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
 
   it('renders dim └ rails on detail lines and a green ✓ on the result line', () => {
     const root = freshRepo()
-    const result = runInit(root, {}, styled)
+    const result = runInit(root, noPersonalStatusline(root), styled)
     expect(result.exitCode).toBe(0)
     // The report block ends at the blank line before the (unstyled) hint.
     const lines = (result.stdout.split('\n\n')[0] ?? '').split('\n')
@@ -416,7 +442,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
 
   it('piped output is byte-identical to the historical plain report + opt-in hint', () => {
     const root = freshRepo()
-    expect(runInit(root, {}, piped).stdout).toBe(
+    expect(runInit(root, noPersonalStatusline(root), piped).stdout).toBe(
       [
         'created .sofar/repo.md',
         'created .sofar/bindings.json',

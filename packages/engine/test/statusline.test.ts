@@ -9,7 +9,12 @@ import {
   runStatusline,
   STATUSLINE_FORCED_CAPS,
 } from '../src/cli/statusline'
-import { installStatusline, STATUSLINE_SETTINGS_ENTRY } from '../src/cli/init'
+import {
+  installStatusline,
+  uninstallStatusline,
+  userStatuslineWired,
+  STATUSLINE_SETTINGS_ENTRY,
+} from '../src/cli/init'
 import { makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
 
 /**
@@ -383,5 +388,94 @@ describe('sofar statusline --install (felt-cost D14)', () => {
     writeFileSync(settingsOf(fixture.root), '{ not json')
     expect(() => installStatusline(fixture.root)).toThrow(/not valid JSON/)
     expect(readFileSync(settingsOf(fixture.root), 'utf8')).toBe('{ not json')
+  })
+
+  it('--user targets ~/.claude/settings.json, not the repo', () => {
+    const fixture = fx({ bind: false })
+    const home = join(fixture.root, 'home')
+    const result = installStatusline(fixture.root, { user: true, home })
+    expect(result.path).toBe(join(home, '.claude', 'settings.json'))
+    expect(userStatuslineWired(home)).toBe(true)
+  })
+})
+
+describe('sofar statusline --uninstall (felt-cost D15)', () => {
+  const settingsOf = (root: string) => join(root, '.claude', 'settings.json')
+  const readSettings = (root: string) =>
+    JSON.parse(readFileSync(settingsOf(root), 'utf8')) as Record<string, unknown>
+
+  it('round-trips: install then uninstall leaves the file without a statusLine', () => {
+    const fixture = fx({ bind: false })
+    rmSync(join(fixture.root, '.claude'), { recursive: true, force: true })
+    installStatusline(fixture.root)
+    expect(uninstallStatusline(fixture.root).status).toBe('removed')
+    expect(readSettings(fixture.root).statusLine).toBeUndefined()
+  })
+
+  it('keeps the settings file even when removing empties it', () => {
+    const fixture = fx({ bind: false })
+    rmSync(join(fixture.root, '.claude'), { recursive: true, force: true })
+    installStatusline(fixture.root)
+    uninstallStatusline(fixture.root)
+    expect(existsSync(settingsOf(fixture.root))).toBe(true)
+    expect(readSettings(fixture.root)).toEqual({})
+  })
+
+  it('preserves unrelated keys', () => {
+    const fixture = fx({ bind: false })
+    mkdirSync(join(fixture.root, '.claude'), { recursive: true })
+    writeFileSync(settingsOf(fixture.root), `${JSON.stringify({ model: 'opus' }, null, 2)}\n`)
+    installStatusline(fixture.root)
+    uninstallStatusline(fixture.root)
+    expect(readSettings(fixture.root)).toEqual({ model: 'opus' })
+  })
+
+  it("never removes a statusLine that is not sofar's", () => {
+    const fixture = fx({ bind: false })
+    const custom = { type: 'command', command: 'bash ~/.claude/mine.sh' }
+    mkdirSync(join(fixture.root, '.claude'), { recursive: true })
+    writeFileSync(settingsOf(fixture.root), `${JSON.stringify({ statusLine: custom }, null, 2)}\n`)
+    expect(uninstallStatusline(fixture.root).status).toBe('foreign')
+    expect(readSettings(fixture.root).statusLine).toEqual(custom)
+  })
+
+  it('reports absent for a missing file or a file with no statusLine', () => {
+    const fixture = fx({ bind: false })
+    rmSync(join(fixture.root, '.claude'), { recursive: true, force: true })
+    expect(uninstallStatusline(fixture.root).status).toBe('absent')
+    mkdirSync(join(fixture.root, '.claude'), { recursive: true })
+    writeFileSync(settingsOf(fixture.root), '{}\n')
+    expect(uninstallStatusline(fixture.root).status).toBe('absent')
+  })
+
+  it('--user round-trips against ~/.claude/settings.json', () => {
+    const fixture = fx({ bind: false })
+    const home = join(fixture.root, 'home')
+    installStatusline(fixture.root, { user: true, home })
+    expect(userStatuslineWired(home)).toBe(true)
+    expect(uninstallStatusline(fixture.root, { user: true, home }).status).toBe('removed')
+    expect(userStatuslineWired(home)).toBe(false)
+  })
+})
+
+describe('userStatuslineWired (felt-cost D15)', () => {
+  it('is false — never throws — for a missing or broken personal settings file', () => {
+    const fixture = fx({ bind: false })
+    const home = join(fixture.root, 'home')
+    expect(userStatuslineWired(home)).toBe(false) // missing
+    mkdirSync(join(home, '.claude'), { recursive: true })
+    writeFileSync(join(home, '.claude', 'settings.json'), '{ not json')
+    expect(userStatuslineWired(home)).toBe(false) // unparseable, no throw
+  })
+
+  it("is false when the personal statusLine is someone else's", () => {
+    const fixture = fx({ bind: false })
+    const home = join(fixture.root, 'home')
+    mkdirSync(join(home, '.claude'), { recursive: true })
+    writeFileSync(
+      join(home, '.claude', 'settings.json'),
+      JSON.stringify({ statusLine: { type: 'command', command: 'bash mine.sh' } }),
+    )
+    expect(userStatuslineWired(home)).toBe(false)
   })
 })
