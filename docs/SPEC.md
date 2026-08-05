@@ -105,7 +105,9 @@ imported events keep their original `user` (or its absence) — authorship is
 minting-machine truth.
 
 ## Event types (payload schemas in packages/schema/ — the swappable part)
-initiative_created · plan_updated (full plan structure) ·
+initiative_created · initiative_status_changed (status:
+active|done|dropped, note? — note REQUIRED for `dropped`;
+initiative-lifecycle 2.1) · plan_updated (full plan structure) ·
 phase_status_changed · task_added · task_status_changed (id, status:
 pending|active|done|blocked|dropped, note?) · decision_logged (chose, over,
 because) ·
@@ -117,7 +119,8 @@ memory_promoted (text — a fact its author declares repo memory, addressable
 as `<slug> M<n>`; repo-memory-capture D1) · correction (ref)
 
 ## State (result of fold)
-InitiativeState = { slug, goal, phases[ {name, status, tasks[ {id, title,
+InitiativeState = { slug, goal, status: active|done|dropped, status_ts,
+status_note, phases[ {name, status, tasks[ {id, title,
 status} ]} ], decisions[], memories[ {id, ts, text} ],
 sessions[ {id, tool, model?, started, ended?,
 summary?, next_action?, closed_reason?, activity?} ],
@@ -150,6 +153,37 @@ is excluded from the digest's itemized phase list.
 `drop_notes` (task id → reason) retains the justification; reviving a dropped
 task discards it. `sofar_update_task` REJECTS a drop with no note (D3), and
 doctor warns when a drop's reason cites no decision.
+
+### Initiative statuses (initiative-lifecycle 2.1, D1, D3)
+An initiative carries the same two terminal words as tasks and phases:
+`active` (the default — a log with no initiative_status_changed event folds
+exactly as it always did), `done` (finished) and `dropped` (abandoned, and a
+note is REQUIRED — unlike a dropped task there is no sibling work left to
+infer the reason from). `blocked` is deliberately absent: a blocked
+initiative is still active work, which its blocked TASKS already say.
+
+Closed-ness is DERIVED (`isClosedInitiativeStatus`), never stored as a second
+flag that could disagree with the status it summarises. `status_ts` and
+`status_note` describe the status IN FORCE, so reopening overwrites both
+rather than accumulating a closure the record has since undone.
+
+**Closing unbinds (D1).** `sofar close [slug]` / `sofar_close_initiative`
+appends the status event and then removes EVERY bindings.json entry pointing
+at that slug — not just the current branch. Order is load-bearing: the log is
+truth, so a crash between the steps leaves a record correctly marked closed
+with a stale binding, which doctor reports and re-running close repairs; the
+reverse order would unbind branches from a record that never closed —
+invisible, and repetition would not fix it. Idempotent by the same rule:
+already at this status appends nothing and still unbinds.
+
+**Reopening (D3)** happens by working on it again: `sofar switch <closed-slug>`
+appends status `active` and binds, with no flag — switching a branch onto a
+record IS that act — but never silently: it is announced and recorded, so the
+log shows closed-then-reopened rather than an unexplained return to active.
+
+Closed records are omitted from `sofar next` (a finished record has no next
+action), sorted below open ones in `sofar list` and tagged with their status
+in place of the branch tag, and carry a `Status:` line in `sofar status`.
 
 ### Forward compatibility of plan_updated (task-drop-state D2)
 plan_updated is a FULL REPLACE, so rejecting one whole event for a single
@@ -658,11 +692,18 @@ also collides with a sofar-cloud-internal package).
   a fact that was never written down. Appends memory_promoted, addressable as
   `<slug> M<n>`; the destination .sofar/repo.md stays hand-written, and doctor
   reports the promotion until repo.md names that handle.
+- sofar_close_initiative({initiative?, status, note?}) → {ok, event_id,
+  unbound[]}  # close an initiative (§Initiative statuses): status is
+  `done`|`dropped` only — reopening is a binding act (`sofar switch`) — and
+  `dropped` REQUIRES a note. Appends initiative_status_changed, then removes
+  every branch binding pointing at the slug; `event_id` is null when it was
+  already at that status (idempotent, no second event). Resolves to the
+  ACTIVE session's pinned initiative like every other write tool.
 Every tool = validate payload → append event → regenerate projections →
 return. No tool mutates state except via an event.
 Transports (speed T3): stdio (`sofar mcp`) is the DEFAULT and the only
 transport `sofar init` registers — zero-config users lose nothing. The
-SAME frozen 8-tool surface is additionally served over streamable HTTP at
+SAME frozen 9-tool surface is additionally served over streamable HTTP at
 `/mcp` on the `sofar serve` daemon (127.0.0.1 only), opt-in via a
 documented .mcp.json entry `{"type": "http", "url":
 "http://127.0.0.1:4173/mcp"}` — sessions connect to the running daemon
@@ -717,6 +758,23 @@ re-home beats a stale registration. A session registered nowhere falls back
 to the branch and registers there (lazy registration, D2 — unchanged). An
 UNBOUND branch is a miss rather than an error for a registered session,
 which also ends the silent event drop unbound branches used to cause.
+SESSION-BEFORE-BRANCH IS ONE SHARED PRECEDENCE (initiative-lifecycle 1.2,
+3.1): `resolveSessionFirst` is its single definition, and the statusline
+uses it too — it read the branch alone before, so closing an initiative,
+which unbinds every branch pointing at it, blanked the line of the very
+session that closed it. Measured on a 22-initiative, 2.8 MB record: 0.07 ms
+when branch and registration agree, 2.9 ms for the full scan on a miss,
+against a ~55 ms statusline — which is why the mechanism stays a derivation
+over the truth logs rather than a persisted pin that could desync (D1) and
+would need stale-pin cleanup.
+When NEITHER a session pin nor a branch binding resolves (initiative-lifecycle
+D4), hooks still drop the event silently and exit 0 — lazily binding would
+recreate the misrouting record-integrity 1.2 fixed, and would let a hook
+silently undo a close. The drop is per-event but the CONDITION is
+per-session, so it is named ONCE where the agent reads: SessionStart injects
+an unbound notice naming `sofar switch` / `sofar new`, and the statusline
+renders `unbound`. Both are scoped to repos that carry a record — a repo
+sofar has never touched is unchanged.
 unknown_initiative errors — from any tool or CLI command that resolves a
 slug (explicit or branch-bound) — carry a count-capped (10) `available
 initiatives:` suffix, or a `sofar new` hint when none exist
@@ -964,7 +1022,14 @@ Shims contain no logic — they invoke the sofar CLI.
   unless --purge deletes it (--purge alone may also delete files the run
   emptied — the byte-clean round-trip). Idempotent (added Phase 8, BD45).
 - `sofar new <slug> [--goal]` / `sofar switch <slug>` — create/select
-  initiative; bind current branch in bindings.json.
+  initiative; bind current branch in bindings.json. `switch` onto a CLOSED
+  slug reopens it (§Initiative statuses, D3): appends status `active`,
+  announces the revival, then binds.
+- `sofar close [slug] [--drop] [--reason <text>]` — record the initiative
+  terminal (`done`, or `dropped` which REQUIRES `--reason`) and remove every
+  bindings.json entry pointing at it (§Initiative statuses, D1). Slug
+  resolves from the branch when omitted. Idempotent: already at that status
+  appends nothing and still unbinds, so re-running repairs a stale binding.
 - `sofar adopt <legacy-file> [slug] [--mark]` — guided migration for
   pre-sofar prose records: validates env (legacy file, .sofar/, target
   initiative — positional wins, else branch binding), prints a self-contained
@@ -1684,3 +1749,29 @@ stay the underlying derivation's, and exit codes are styling-independent.
   only while the preference is off. sofar's own packaging test — which
   installs the tarball into a temp prefix, a true global-npm layout — makes
   no network call and writes nothing outside its fixture.
+- **Initiative lifecycle (initiative-lifecycle):** a log with NO
+  initiative_status_changed folds to `active` with null status_ts/status_note,
+  so an un-closed record is unchanged; the payload validator refuses a
+  `dropped` with no note (D3) and a status outside active|done|dropped; an
+  invalid status event is skipped with a warning, leaving the record active.
+  `sofar close` appends the event and removes EVERY bindings.json entry
+  pointing at the slug while leaving other initiatives' bindings intact;
+  running it twice appends exactly one event and still leaves no binding (so
+  re-running is the repair for a stale binding); `--drop` with no `--reason`
+  is refused and changes nothing — no event, no unbind. `sofar switch` on a
+  closed slug appends status `active`, announces the reopen and binds, while
+  switching to an OPEN initiative stays byte-identical. A REGISTERED session
+  keeps routing after its branch is unbound — the closing session's hooks
+  still append and its statusline still shows the record, rendered distinctly
+  from a live one — while an unregistered session on the unbound branch drops
+  silently at exit 0 and is told, once, by SessionStart and the statusline
+  `unbound` marker; a repo with no record at all gains neither. `sofar next`
+  omits closed initiatives and its header count agrees; `sofar list` sorts
+  them below open ones and tags them with their status; `sofar status` shows
+  the status with when and why, and an open record renders byte-identically.
+  doctor flags a closed initiative still bound to a branch, and one whose
+  phases are all resolved but was never closed. Verified against the PUBLISHED
+  previous minor (1.1): an unknown initiative_status_changed event is skipped
+  with a warning, replay continues past it, the line is never rewritten, and a
+  removed binding degrades rather than corrupting — no old-engine path
+  re-creates a binding, so a close cannot be silently undone.

@@ -117,7 +117,7 @@ and the result still reads correctly.
   `init` writes an instruction block there, and those tools follow the same
   loop using the `sofar` command. No extra setup.
 * **Any other MCP client.** Point it at `sofar mcp` in its own config to get
-  the same eight tools over stdio.
+  the same nine tools over stdio.
 
 ## Commands
 
@@ -125,7 +125,8 @@ and the result still reads correctly.
 | --- | --- |
 | `sofar init` | Set up the record here and connect your tools |
 | `sofar new <name>` | Start a piece of work and tie it to the current branch |
-| `sofar switch <name>` | Point the current branch at a different initiative |
+| `sofar switch <name>` | Point the current branch at a different initiative (reopens it if it was closed) |
+| `sofar close [name]` | Mark work finished — or `--drop --reason <why>` if it was abandoned — and take every branch off it |
 | `sofar status` | Goal, progress, phases, next action (`--watch` for live) |
 | `sofar list` | One line per initiative |
 | `sofar next` | The next action for every initiative |

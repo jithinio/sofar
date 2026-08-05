@@ -4,7 +4,7 @@
 
 Goal: Let an initiative be closed. Closing records a terminal status (done or dropped, with a reason) and unbinds every branch pointing at it — and session-first resolution across the statusline and hooks is what makes that safe: the session that closed it keeps its record until it ends, while a new session on the unbound branch is told to start or switch instead of landing on finished work.
 
-Progress: 13/15 tasks done (86%)
+Progress: 14/15 tasks done (93%)
 
 ## Phase 1 — Settle the resolution mechanism (blocks everything else) [active] — 3/3 done
 
@@ -31,9 +31,9 @@ Progress: 13/15 tasks done (86%)
 - [x] 4.2 `sofar next` omits closed initiatives — a closed record has no next action, and today it would still be listed. `sofar list` marks them and sorts them below open ones. `sofar status <slug>` shows the closed status with when and why.
 - [x] 4.3 doctor: a closed initiative that still has a branch bound (hand-edits and merges happen), and the mirror of the stale-phase axis — every phase resolved but the initiative never closed. The second is the initiative-level version of the exact false signal task-drop-state fixed one level down.
 
-## Phase 5 — Contracts + dogfood [pending] — 0/2 done
+## Phase 5 — Contracts + dogfood [pending] — 1/2 done
 
-- [ ] 5.1 docs/SPEC.md is authoritative: the new event type, the status set, the InitiativeState fields, the session-before-branch resolution precedence, unbind-on-close semantics, and §Acceptance criteria. No task is done until its criteria pass.
+- [x] 5.1 docs/SPEC.md is authoritative: the new event type, the status set, the InitiativeState fields, the session-before-branch resolution precedence, unbind-on-close semantics, and §Acceptance criteria. No task is done until its criteria pass.
 - [ ] 5.2 Dogfood the exact case that prompted this: close repo-memory-capture and task-drop-state, then confirm THIS session's statusline still shows its record while a genuinely fresh session on the unbound branch is told to start or switch. Also confirm closing does not silence the closing session's own hooks.
 
 Active phase: Phase 1 — Settle the resolution mechanism (blocks everything else)
