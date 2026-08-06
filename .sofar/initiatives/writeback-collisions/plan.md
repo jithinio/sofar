@@ -4,7 +4,7 @@
 
 Goal: Make parallel-session collisions visible to the agent that can still act on them — at write time for diverging next actions, and in flight for files two live sessions both hold. Reported, never prevented: no locks, no leases.
 
-Progress: 5/6 tasks done (83%)
+Progress: 6/6 tasks done (100%)
 
 ## Phase 1 — Report write-back collisions to the writer [done] — 4/4 done
 
@@ -17,9 +17,9 @@ Progress: 5/6 tasks done (83%)
 
 - [x] 2.1 openSessionFileConflicts re-admits the caller past its own mid-flight write-back; UserPromptSubmit leads with the conflict line; SPEC + acceptance
 
-## Phase 3 — Release [pending] — 0/1 done
+## Phase 3 — Release [pending] — 1/1 done
 
-- [ ] 3.1 Bump sofar.sh, publish, upgrade — carries the pending 0.19.0 redaction fix live too (active)
+- [x] 3.1 Bump sofar.sh, publish, upgrade — carries the pending 0.19.0 redaction fix live too
 
 Active phase: Phase 2 — Warn on live file conflicts
-Next action: User runs `npm publish -w sofar.sh` then `sofar upgrade` — this repo dogfoods the global binary, so both features stay inert until then.
+Next action: Nothing open. Optionally close the initiative, and decide whether repo.md should absorb or ignore the redundant M1.
