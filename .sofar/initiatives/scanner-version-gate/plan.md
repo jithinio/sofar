@@ -22,6 +22,6 @@ Progress: 8/9 tasks done (88%)
 
 ## Phase 3 — Release [pending] — 0/1 done
 
-- [ ] 3.1 Bump sofar.sh, publish, and verify the gate against the published binary on a 4.0.x fixture
+- [ ] 3.1 Bump sofar.sh, publish, and verify the gate against the published binary on a 4.0.x fixture (active)
 
 Next action: Bump sofar.sh, publish (user runs npm publish), then verify the gate against the published binary on a 4.0.x fixture.

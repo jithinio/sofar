@@ -22,4 +22,4 @@ Progress: 6/6 tasks done (100%)
 - [x] 3.1 Bump sofar.sh, publish, upgrade — carries the pending 0.19.0 redaction fix live too
 
 Active phase: Phase 2 — Warn on live file conflicts
-Next action: Review the drift-signal diff, then decide whether to release it (version already at 0.20.1, unpublished).
+Next action: User runs `npm publish -w sofar.sh`, then upgrade the global install and verify the scanner gate on a 4.0.x fixture.
