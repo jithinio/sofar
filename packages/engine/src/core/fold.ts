@@ -584,29 +584,52 @@ export interface ParallelWriteback {
  * concurrent same-initiative sessions each write back, the losers' next
  * actions vanish from every resume surface. This surfaces exactly those:
  * ended sessions with a next_action whose [started, ended] interval
- * OVERLAPS the winner's — parallel threads of work, not superseded history
- * (a session that ended before the winner started is sequential; its next
- * action lost on purpose). Winner = max (ended, array order) among
- * next_action-bearing sessions. Duplicates of the winner's text are noise,
- * not collisions, and are dropped. Deterministic: newest-ended first.
+ * OVERLAPS the reference session's — parallel threads of work, not
+ * superseded history (a session that ended before the reference started is
+ * sequential; its next action lost on purpose). Duplicates of the
+ * reference's text are agreement, not a collision, and are dropped.
+ * Deterministic: newest-ended first.
+ *
+ * The reference defaults to the WINNER — max (ended, array order) among
+ * next_action-bearing sessions — which is what the read surfaces want: the
+ * scalar a resuming agent is about to trust, plus what it swallowed.
+ *
+ * `referenceSessionId` pins a different session instead, for the write-time
+ * surface (writeback-collisions 1.2): sofar_end_session answers "what
+ * differs from what I JUST wrote", and the caller is not reliably the
+ * winner — same-millisecond `ended` timestamps are common (one process, one
+ * clock tick), and ties are broken by state.sessions order, which follows
+ * session_started, not who appended last. Asking the fold who won would
+ * make the answer depend on that unrelated ordering. An id that names no
+ * next_action-bearing session falls back to the winner.
  */
-export function overlappingWritebacks(state: InitiativeState): ParallelWriteback[] {
+export function overlappingWritebacks(
+  state: InitiativeState,
+  referenceSessionId?: string,
+): ParallelWriteback[] {
   const wrapped = state.sessions.filter(
     (s): s is SessionState & { ended: string; next_action: string } =>
       s.ended !== undefined && s.next_action !== undefined,
   )
   if (wrapped.length < 2) return []
-  let winner = wrapped[0]!
-  for (const s of wrapped) {
-    if (s.ended >= winner.ended) winner = s
+  let reference =
+    referenceSessionId === undefined
+      ? undefined
+      : wrapped.find((s) => s.id === referenceSessionId)
+  if (reference === undefined) {
+    reference = wrapped[0]!
+    for (const s of wrapped) {
+      if (s.ended >= reference.ended) reference = s
+    }
   }
+  const ref = reference
   return wrapped
     .filter(
       (s) =>
-        s !== winner &&
-        s.next_action !== winner.next_action &&
-        s.started <= winner.ended &&
-        s.ended >= winner.started,
+        s !== ref &&
+        s.next_action !== ref.next_action &&
+        s.started <= ref.ended &&
+        s.ended >= ref.started,
     )
     .sort((a, b) => (a.ended < b.ended ? 1 : a.ended > b.ended ? -1 : 0))
     .map((s) => ({ session_id: s.id, tool: s.tool, ended: s.ended, next_action: s.next_action }))

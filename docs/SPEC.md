@@ -242,14 +242,22 @@ event types — the derivation is read-side and retroactively covers every
 existing record. Companion derivation staleActivePhases(state) (the D-P11
 stale-phase check extracted from doctor — one detector, two surfaces) lists
 phases whose tasks are all done but whose status was never set to done.
-Companion derivation overlappingWritebacks(state) (task 12.4, BD58 family):
-current.next_action is last-writer-wins (BD9), so when concurrent sessions
-each write back, the losers' next actions vanish from the scalar — this
-lists ended, next_action-bearing sessions whose [started, ended] interval
-overlaps the winner's (winner = max ended, tie → later session order),
-excluding duplicates of the winner's text; newest-ended first. Rendered in
+Companion derivation overlappingWritebacks(state, referenceSessionId?)
+(task 12.4, BD58 family): current.next_action is last-writer-wins (BD9), so
+when concurrent sessions each write back, the losers' next actions vanish
+from the scalar — this lists ended, next_action-bearing sessions whose
+[started, ended] interval overlaps the reference session's, excluding
+duplicates of the reference's text; newest-ended first. The reference
+defaults to the winner (max ended, tie → later session order). Rendered in
 renderStatus (SessionStart block + get_state digest, ≤3 lines, 260-char
 clip) and `sofar status` (uncapped), directly under the next action.
+`referenceSessionId` pins a named session as the reference instead
+(writeback-collisions 1.2) — an id naming no next_action-bearing session
+falls back to the winner. The write-time surface needs this because the
+caller is NOT reliably the winner: same-millisecond `ended` timestamps are
+routine, and ties resolve by session_started order rather than by who
+appended last, so "did I win" is the wrong question for a writer to ask.
+"What differs from what I just wrote" is well-defined either way.
 FoldResult additionally carries orphan_task_events (task 12.2, BD58):
 task_status_changed events that were skipped at replay AND whose task id
 is absent from the FINAL plan — replay-time skips later legitimized by a
@@ -699,7 +707,19 @@ also collides with a sofar-cloud-internal package).
   task changes from the session (sessions/<id>.md loses them; the Stop
   write-back linkage breaks). That is the record-integrity misroute class,
   and the side-index workaround for it is already rejected.
-- sofar_end_session({session_id, summary, next_action}) → ok
+- sofar_end_session({session_id, summary, next_action}) → {ok, event_id,
+  parallel_writebacks?}  # the write-back. `parallel_writebacks` carries
+  overlappingWritebacks(state, session_id) computed AFTER the append — the
+  concurrent sessions whose next action differs from the one just written —
+  and is OMITTED when there is none, so the ordinary case is byte-identical
+  to the bare `{ok, event_id}` it returned before (writeback-collisions
+  1.2). The same collision already reaches the next SessionStart, but that
+  is a fresh agent inheriting two next actions with no context for how they
+  relate; the writer still has it, so the write-time surface is the only
+  one where reconciling is cheap. Reported, never prevented: the append is
+  a single O_APPEND write with no in-flight window to wait on, and a lease
+  held by a killed agent would deadlock against the Stop gate that blocks
+  exit on a missing write-back.
 - sofar_update_task({initiative?, task_id, status, note?}) → ok
 - sofar_log_decision({initiative?, chose, over, because}) → ok
 - sofar_update_plan({initiative?, plan}) → ok   # full-structure replace
@@ -1817,3 +1837,19 @@ stay the underlying derivation's, and exit codes are styling-independent.
   with a warning, replay continues past it, the line is never rewritten, and a
   removed binding degrades rather than corrupting — no old-engine path
   re-creates a binding, so a close cannot be silently undone.
+- **Write-time collision report (writeback-collisions 1.2):** two overlapping
+  sessions on one initiative each call sofar_end_session with a DIFFERENT
+  next action; the FIRST caller gets a bare `{ok, event_id}` (nothing to
+  collide with yet — the sibling has not written back), and the SECOND gets
+  `parallel_writebacks` naming the first, with its session_id, tool, ended
+  and next_action. Agreement is not a collision: identical next actions
+  yield no field on either call. Sequential sessions are not a collision:
+  a session that ended before the caller started is superseded history and
+  yields no field. A caller whose own `ended` ties the sibling's to the
+  millisecond STILL gets the field, in both call orders — the reference is
+  the caller, so the report never depends on which session state.sessions
+  happens to order later. The field is omitted, not `[]`, when empty, so a
+  no-collision result is byte-identical to the pre-1.2 shape; the log is
+  identical either way (the report is read-side — no new event type, and
+  the same collision still renders in both status surfaces). Parity-locked
+  stdio vs HTTP like every other tool result.

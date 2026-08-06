@@ -1,5 +1,19 @@
 import type { EndSessionArgs, ToolOkResult } from '@sofar/schema/tool-inputs'
+import { overlappingWritebacks, type ParallelWriteback } from '../core/fold'
 import { homeInitiative, type ToolContext } from './context'
+
+/**
+ * The write-back result (writeback-collisions 1.2). `parallel_writebacks` is
+ * OMITTED when there is no collision, never `[]`: the field's presence is the
+ * signal, and the no-collision case — every session, almost always — stays
+ * byte-identical to what this tool returned before, so nothing about the
+ * common path shifts. Shape follows the close_initiative precedent, where a
+ * write tool already returns more than `{ok, event_id}`.
+ */
+export interface EndSessionResult extends ToolOkResult {
+  /** Overlapping sessions whose next_action differs from the one just written. */
+  parallel_writebacks?: ParallelWriteback[]
+}
 
 /**
  * Where a write-back for a NON-active session belongs (record-integrity 4.5).
@@ -51,7 +65,7 @@ function resolveWriteBackHome(ctx: ToolContext, sessionId: string): string {
  * the misroute this whole initiative exists to close, reintroduced through the
  * one path that had opted out of the pin.
  */
-export function endSession(ctx: ToolContext, args: EndSessionArgs): ToolOkResult {
+export function endSession(ctx: ToolContext, args: EndSessionArgs): EndSessionResult {
   const active = ctx.session.get()
   const endsActive = active !== null && active.id === args.session_id
   const slug = endsActive ? active.initiative : resolveWriteBackHome(ctx, args.session_id)
@@ -61,5 +75,19 @@ export function endSession(ctx: ToolContext, args: EndSessionArgs): ToolOkResult
     summary: args.summary,
     next_action: args.next_action,
   })
-  return { ok: true, event_id: event.id }
+
+  // Tell the WRITER, at write time (writeback-collisions 1.2). The same
+  // collision already reaches the next SessionStart, but that is a fresh
+  // agent with no context, inheriting two next actions and no way to tell
+  // how they relate. Here the caller is still alive and still holds the
+  // reasoning behind its own next_action, so it can reconcile — append a
+  // note, or write back again with a next action that covers both.
+  //
+  // Costs one extra fold, on a path that runs once per session and already
+  // folds to regenerate projections. A collision reported after the append
+  // is the only honest ordering: the log is truth, and until this event is
+  // in it there is nothing to compare against.
+  const parallel = overlappingWritebacks(ctx.foldState(slug), args.session_id)
+  if (parallel.length === 0) return { ok: true, event_id: event.id }
+  return { ok: true, event_id: event.id, parallel_writebacks: parallel }
 }

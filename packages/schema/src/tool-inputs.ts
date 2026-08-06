@@ -357,7 +357,7 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_end_session',
     description:
-      'End a session with a summary and the single next action — the write-back that lets the next session resume without context.',
+      'End a session with a summary and the single next action — the write-back that lets the next session resume without context. A returned `parallel_writebacks` means a concurrent session recorded a DIFFERENT next action — reconcile before finishing.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_end_session,
   },
   {
