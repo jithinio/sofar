@@ -5,6 +5,7 @@ import { isClosedInitiativeStatus } from '@sofar/schema'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
 import { freshnessTotal, type InitiativeState } from '../core/fold'
 import { readGitState } from '../core/git'
+import { redactCommand } from '../core/redact'
 import {
   createToolContext,
   homeInitiative,
@@ -461,7 +462,12 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
       if (cmd === null) return { ...OK }
       if (isSelfRecordingCommand(cmd)) return { ...OK }
       type = 'command_run'
-      payload = { cmd }
+      // Redact BEFORE the append, because there is no after: the log is
+      // append-only and committed, so a credential that lands here is a
+      // credential in everyone's clone forever (security-hardening 3.1).
+      // The exemption scan above still reads the raw text — redaction must
+      // not change which commands are considered self-recording.
+      payload = { cmd: redactCommand(cmd) }
     } else {
       return { ...OK }
     }
