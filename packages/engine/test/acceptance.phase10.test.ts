@@ -66,6 +66,16 @@ describe('sofar init: scanner hint fires only on Tailwind v4', () => {
     pkg(root, { react: '^19' })
     expect(runInit(root).stdout).not.toContain('Tailwind v4')
   })
+
+  it('never hands a pre-4.1 repo the `@source not` line it cannot parse (scanner-version-gate D1)', () => {
+    const root = tmpRepo()
+    pkg(root, { tailwindcss: '^4.0.17' })
+    const out = runInit(root).stdout
+    expect(out).toContain('Tailwind v4 detected')
+    expect(out).toContain('needs Tailwind >= 4.1')
+    expect(out).toContain('@import "tailwindcss" source("<your-template-dir>");')
+    expect(out).not.toContain('@source not "<relative-path>/.sofar";')
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -165,5 +175,76 @@ describe('sofar doctor --fix: insert the .sofar exclusion', () => {
     expect(second.exitCode).toBe(0)
     expect(second.stdout).not.toContain('fix applied')
     expect(readFileSync(app, 'utf8')).toBe(afterFirst) // byte-identical
+  })
+})
+
+// ---------------------------------------------------------------------------
+// scanner-version-gate D1 — `@source not` is version-gated: it landed in Tailwind 4.1, and on
+// 4.0.x it parses as an unquoted path, breaking the build --fix set out to
+// protect. Regression: --fix must report, not write.
+// ---------------------------------------------------------------------------
+
+describe('sofar doctor --fix: the 4.1 gate on `@source not`', () => {
+  function install(root: string, version: string): void {
+    const dir = join(root, 'node_modules', 'tailwindcss')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'tailwindcss', version }))
+  }
+
+  it('withholds the write on an installed 4.0.x and names the pre-4.1 remedy', () => {
+    const root = tmpRepo()
+    runInit(root)
+    pkg(root, { tailwindcss: '^4.0.17' })
+    install(root, '4.0.17')
+    const source = '@import "tailwindcss";\n\nbody { color: red; }\n'
+    const app = css(root, 'src/app.css', source)
+
+    const result = runDoctor(root, { fix: true })
+    expect(readFileSync(app, 'utf8')).toBe(source) // byte-identical — nothing written
+    expect(result.stdout).not.toContain('fix applied')
+    expect(result.exitCode).toBe(1) // the hazard is real and still reported
+    expect(result.stdout).toContain('tailwindcss 4.0.17 installed')
+    expect(result.stdout).toContain('needs >= 4.1')
+    // The suggested base is stylesheet-relative: for src/app.css that is `./`
+    // (= src/). Suggesting a literal "./src" here would resolve to src/src.
+    expect(result.stdout).toContain('@import "tailwindcss" source("./");')
+  })
+
+  it('withholds the write when the range floor is below 4.1 and deps are absent', () => {
+    const root = tmpRepo()
+    runInit(root)
+    pkg(root, { tailwindcss: '^4' }) // admits 4.1, guarantees 4.0
+    const source = '@import "tailwindcss";\n'
+    const app = css(root, 'src/app.css', source)
+
+    const result = runDoctor(root, { fix: true })
+    expect(readFileSync(app, 'utf8')).toBe(source)
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain('resolved version unknown')
+  })
+
+  it('still fixes when node_modules proves >= 4.1 under an open range', () => {
+    const root = tmpRepo()
+    runInit(root)
+    pkg(root, { tailwindcss: '^4' })
+    install(root, '4.1.13')
+    const app = css(root, 'src/app.css', '@import "tailwindcss";\n')
+
+    const result = runDoctor(root, { fix: true })
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('1 fix applied')
+    expect(readFileSync(app, 'utf8')).toContain('@source not "../.sofar";')
+  })
+
+  it('passes a 4.0 repo that narrowed the import scan base instead', () => {
+    const root = tmpRepo()
+    runInit(root)
+    pkg(root, { tailwindcss: '^4.0.17' })
+    install(root, '4.0.17')
+    css(root, 'src/app.css', '@import "tailwindcss" source("./");\nbody{}\n')
+
+    const result = runDoctor(root)
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('excludes .sofar from Tailwind scanning')
   })
 })

@@ -22,4 +22,4 @@ Progress: 6/6 tasks done (100%)
 - [x] 3.1 Bump sofar.sh, publish, upgrade — carries the pending 0.19.0 redaction fix live too
 
 Active phase: Phase 2 — Warn on live file conflicts
-Next action: Nothing open. Optionally close the initiative, and decide whether repo.md should absorb or ignore the redundant M1.
+Next action: Await user go-ahead to open drift-signal: drop commands from freshnessTotal, keep logging them.

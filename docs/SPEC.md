@@ -1080,7 +1080,17 @@ Shims contain no logic — they invoke the sofar CLI.
   inserting `@source not "<path-relative-to-stylesheet>/.sofar";` after the
   `@import "tailwindcss"` line in each unprotected entry (idempotent); it never
   touches wiring (re-run init) or record prose (added Phase 10, D-P10; deepened
-  Phase 11, D-P11). The concurrent-edit signal also surfaces in the SessionStart
+  Phase 11, D-P11). The repair is VERSION-GATED (scanner-version-gate D1):
+  `@source not` landed in Tailwind 4.1 and parses as an unquoted path before it
+  ("Error: `@source` paths must be quoted"), so `--fix` writes only when the
+  version that will build is KNOWN to be >= 4.1 — the version installed under
+  `node_modules/tailwindcss` when present, else the declared range's LOWER
+  BOUND. Otherwise the hazard is still reported (FAIL, unchanged) with the
+  pre-4.1 remedy named — narrowing the import's scan base, `@import
+  "tailwindcss" source("<dir>")`, which exists in 4.0 — and nothing is written.
+  Both mechanisms count as protection when auditing: an `@source not` resolving
+  to `.sofar` or an ancestor, and a `source(...)` base that excludes it (or
+  `source(none)`). The concurrent-edit signal also surfaces in the SessionStart
   context and `sofar status` (rendered only when open sessions overlap, D-P11).
 - `sofar uninit [--purge]` — exact inverse of init, surgical: remove the
   five hook shims, our settings.json hook entries (matched on the shim path),
@@ -1587,6 +1597,13 @@ stay the underlying derivation's, and exit codes are styling-independent.
   (exit 0); `sofar doctor --fix` inserts the correct stylesheet-relative
   `@source not` path after the import and is idempotent (a second run changes
   no bytes).
+- **Version gate (scanner-version-gate):** on a host whose Tailwind predates
+  4.1, `--fix` leaves every stylesheet byte-identical, still exits 1, and its
+  hint names both the installed version and a scan-base directive that is
+  correct FOR THAT stylesheet (paths are stylesheet-relative, so an entry at
+  `src/app.css` gets `source("./")`, never `source("./src")`); with
+  `node_modules` proving >= 4.1 under an open range the fix still applies; a
+  repo protected by `source(...)` instead of `@source not` passes clean.
 - **Phase 11:** `sofar doctor` flags a phase whose tasks are all done but is
   still active (stale-phase) and does not flag one marked done; flags a wrapped
   session with ≥3 files touched and zero task changes (untracked work) and not

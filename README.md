@@ -219,14 +219,23 @@ import { pushStream, pullStream } from 'sofar.sh/client'
 
 **Tailwind v4.** Tailwind scans every file in a project for class names and can
 produce broken CSS from the writing in the record. Add one line to your
-`globals.css`:
+`globals.css` (the path is relative to the stylesheet, not the repo root):
 
 ```css
 @source not "../.sofar";
 ```
 
-`sofar doctor --fix` will add it for you. The same goes for any tool that
-scans your whole tree: point it away from `.sofar/`.
+`sofar doctor --fix` will add it for you. That directive needs **Tailwind
+4.1+** — before it, `not` parses as a path and breaks the build, so on 4.0.x
+doctor reports the hazard and leaves your CSS alone. Either upgrade, or narrow
+what Tailwind scans in the first place:
+
+```css
+@import "tailwindcss" source("./");
+```
+
+The same goes for any tool that scans your whole tree: point it away from
+`.sofar/`.
 
 ## Docs
 

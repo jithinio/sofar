@@ -9,6 +9,8 @@ import {
   insertSofarExclusion,
   sofarExclusionDirective,
   sofarRelativePath,
+  sofarScanBaseDirective,
+  supportsSourceNot,
   tailwindRangeIsV4Plus,
 } from '../src/cli/scanners'
 
@@ -51,21 +53,69 @@ describe('detectTailwindV4', () => {
   it('reads tailwindcss from any dependency field', () => {
     const root = tmp()
     writeFileSync(join(root, 'package.json'), JSON.stringify({ devDependencies: { tailwindcss: '^4.1.0' } }))
-    expect(detectTailwindV4(root)).toEqual({ v4: true, range: '^4.1.0' })
+    expect(detectTailwindV4(root)).toEqual({ v4: true, range: '^4.1.0', sourceNot: true })
   })
   it('reports v3 as not-v4 but keeps the range', () => {
     const root = tmp()
     writeFileSync(join(root, 'package.json'), JSON.stringify({ dependencies: { tailwindcss: '^3.4.0' } }))
-    expect(detectTailwindV4(root)).toEqual({ v4: false, range: '^3.4.0' })
+    expect(detectTailwindV4(root)).toEqual({ v4: false, range: '^3.4.0', sourceNot: false })
   })
   it('returns v4:false for a missing, unparseable, or tailwind-less package.json', () => {
-    expect(detectTailwindV4(tmp())).toEqual({ v4: false }) // no package.json
+    expect(detectTailwindV4(tmp())).toEqual({ v4: false, sourceNot: false }) // no package.json
     const bad = tmp()
     writeFileSync(join(bad, 'package.json'), '{ not json')
-    expect(detectTailwindV4(bad)).toEqual({ v4: false })
+    expect(detectTailwindV4(bad)).toEqual({ v4: false, sourceNot: false })
     const none = tmp()
     writeFileSync(join(none, 'package.json'), JSON.stringify({ dependencies: { react: '^19' } }))
-    expect(detectTailwindV4(none)).toEqual({ v4: false })
+    expect(detectTailwindV4(none)).toEqual({ v4: false, sourceNot: false })
+  })
+})
+
+describe('supportsSourceNot (the 4.1 gate)', () => {
+  it('is true only from 4.1 up', () => {
+    for (const v of ['4.1.0', '^4.1', '4.1.7', '~4.2', '5.0.0', '>=4.1.0']) {
+      expect(supportsSourceNot(v), v).toBe(true)
+    }
+  })
+  it('is false below 4.1 and for ranges whose floor is 4.0', () => {
+    // `^4` ADMITS 4.1 but does not guarantee it — the floor decides, since a
+    // wrong guess writes a directive that breaks the host build.
+    for (const v of ['4.0.17', '^4.0.17', '^4', '4', '4.x', '3.4.1', 'latest']) {
+      expect(supportsSourceNot(v), v).toBe(false)
+    }
+  })
+})
+
+describe('detectTailwindV4: the installed version decides', () => {
+  function install(root: string, version: string): void {
+    const dir = join(root, 'node_modules', 'tailwindcss')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'tailwindcss', version }))
+  }
+
+  it('trusts node_modules over an open range (^4 resolved to 4.1.13 → fix is safe)', () => {
+    const root = tmp()
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ dependencies: { tailwindcss: '^4' } }))
+    expect(detectTailwindV4(root).sourceNot).toBe(false) // floor 4.0, nothing installed
+    install(root, '4.1.13')
+    expect(detectTailwindV4(root)).toEqual({
+      v4: true,
+      range: '^4',
+      installed: '4.1.13',
+      sourceNot: true,
+    })
+  })
+
+  it('trusts node_modules over a permissive range that resolved BELOW 4.1', () => {
+    const root = tmp()
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ dependencies: { tailwindcss: '^4.1.0' } }))
+    install(root, '4.0.17') // a stale lockfile / hoisted older copy
+    expect(detectTailwindV4(root)).toEqual({
+      v4: true,
+      range: '^4.1.0',
+      installed: '4.0.17',
+      sourceNot: false,
+    })
   })
 })
 
@@ -97,6 +147,33 @@ describe('the .sofar exclusion directive', () => {
     expect(cssExcludesSofar('@source not "..";', css, root)).toBe(true) // repo root covers .sofar
     expect(cssExcludesSofar('@source not "../public";', css, root)).toBe(false)
     expect(cssExcludesSofar('body{}', css, root)).toBe(false)
+  })
+
+  it('cssExcludesSofar honours a narrowed import scan base (the pre-4.1 remedy)', () => {
+    const root = tmp()
+    const css = join(root, 'src', 'app.css')
+    // source(<dir>) sets the detection base: .sofar sits outside src → covered.
+    expect(cssExcludesSofar('@import "tailwindcss" source("./");', css, root)).toBe(true)
+    expect(cssExcludesSofar("@import 'tailwindcss' source('../src');", css, root)).toBe(true)
+    expect(cssExcludesSofar('@import "tailwindcss" source(none);', css, root)).toBe(true)
+    // …but a base at the repo root still swallows .sofar.
+    expect(cssExcludesSofar('@import "tailwindcss" source("../");', css, root)).toBe(false)
+    expect(cssExcludesSofar('@import "tailwindcss";', css, root)).toBe(false)
+  })
+
+  it('suggests a scan base that is correct FOR THAT stylesheet', () => {
+    const root = tmp()
+    // Entry below the root: `./` is its own dir, which cannot contain .sofar.
+    expect(sofarScanBaseDirective(join(root, 'src', 'app.css'), root)).toBe(
+      '@import "tailwindcss" source("./");',
+    )
+    // Entry AT the root: `./` would still swallow .sofar → placeholder, not a lie.
+    expect(sofarScanBaseDirective(join(root, 'app.css'), root)).toBe(
+      '@import "tailwindcss" source("<your-template-dir>");',
+    )
+    // Whatever is suggested must satisfy the check that flagged the file.
+    const css = join(root, 'src', 'app.css')
+    expect(cssExcludesSofar(sofarScanBaseDirective(css, root), css, root)).toBe(true)
   })
 })
 

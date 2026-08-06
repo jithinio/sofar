@@ -2,7 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { mcpRegistration } from '../mcp/register'
-import { detectTailwindV4 } from './scanners'
+import { detectTailwindV4, SOURCE_NOT_SINCE } from './scanners'
 import { fail, ok, REPO_MD_STUB, type CmdResult } from './shared'
 import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui'
 import sessionStartShim from '../hooks/session-start.sh'
@@ -829,10 +829,25 @@ export const STATUSLINE_HINT = [
 function scannerHint(rootDir: string): string | null {
   const tw = detectTailwindV4(rootDir)
   if (!tw.v4) return null
-  return [
-    `note: Tailwind v4 detected (tailwindcss ${tw.range}). Its content scanner`,
+  const head = [
+    `note: Tailwind v4 detected (tailwindcss ${tw.installed ?? tw.range}). Its content scanner`,
     '  ingests every non-gitignored file — including .sofar/ records — which can',
     '  bloat or break your CSS build. Exclude the record from scanning:',
+  ]
+  // `@source not` needs >= 4.1; naming it here on 4.0.x would hand the user a
+  // build break, so pre-4.1 repos get the scan-base form instead (scanner-version-gate D1).
+  if (!tw.sourceNot) {
+    return [
+      ...head,
+      `    \`@source not\` needs Tailwind >= ${SOURCE_NOT_SINCE}${tw.installed === undefined ? ' (install deps to confirm yours)' : ''} — either`,
+      '    upgrade and run `sofar doctor --fix`, or narrow the scan base on the',
+      '    import so .sofar/ falls outside it (path relative to the stylesheet,',
+      '    and anything outside it stops being scanned):',
+      '    @import "tailwindcss" source("<your-template-dir>");',
+    ].join('\n')
+  }
+  return [
+    ...head,
     '    run `sofar doctor --fix`   (inserts `@source not` into your Tailwind entry)',
     '  or add this by hand after `@import "tailwindcss";`:',
     '    @source not "<relative-path>/.sofar";',

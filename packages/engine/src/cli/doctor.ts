@@ -26,6 +26,9 @@ import {
   findTailwindCssEntries,
   insertSofarExclusion,
   sofarExclusionDirective,
+  sofarScanBaseDirective,
+  SOURCE_NOT_SINCE,
+  type TailwindV4Detection,
 } from './scanners'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 import {
@@ -63,7 +66,10 @@ import {
  * --fix is scoped to the ONE deterministic, safe repair (D-P10): inserting the
  * `@source not` exclusion after the `@import "tailwindcss"` line in each
  * unprotected entry stylesheet. Wiring gaps are reported, never auto-repaired
- * (re-run `sofar init` for those); the fix never touches record prose.
+ * (re-run `sofar init` for those); the fix never touches record prose. It is
+ * additionally version-gated (scanner-version-gate D1): `@source not` needs Tailwind >= 4.1, so
+ * on 4.0.x — or when the resolved version cannot be established — the hazard is
+ * reported with the pre-4.1 remedy and nothing is written.
  *
  * Exit code: 1 when any FAIL-level finding remains after fixes (so CI can gate
  * on it); 0 on a clean repo. WARN findings surface without failing.
@@ -653,6 +659,24 @@ function scanEntries(rootDir: string, progress: ScanProgress): string[] {
   return entries
 }
 
+/**
+ * Why `--fix` is withheld, and what to do instead. `@source not` landed in
+ * Tailwind 4.1; on 4.0.x it parses as an unquoted path and breaks the build,
+ * so the hazard is still reported but the write never happens (scanner-version-gate D1). The
+ * escape hatch we name works on 4.0: narrowing the import's scan base.
+ */
+function sourceNotUnavailableHint(
+  tw: TailwindV4Detection,
+  cssFile: string,
+  rootDir: string,
+): string {
+  const found =
+    tw.installed !== undefined
+      ? `tailwindcss ${tw.installed} installed`
+      : `tailwindcss ${tw.range} declared, not installed — resolved version unknown`
+  return `${found}; \`@source not\` needs >= ${SOURCE_NOT_SINCE}, so --fix would break your build — upgrade tailwindcss and rerun, or narrow the scan base by hand: \`${sofarScanBaseDirective(cssFile, rootDir)}\` (relative to this stylesheet; templates outside it stop being scanned)`
+}
+
 function auditScanners(rootDir: string, fix: boolean, progress: ScanProgress): Section {
   const findings: Finding[] = []
   const tw = detectTailwindV4(rootDir)
@@ -684,7 +708,7 @@ function auditScanners(rootDir: string, fix: boolean, progress: ScanProgress): S
       findings.push({ level: 'ok', text: `${rel}: excludes .sofar from Tailwind scanning` })
       continue
     }
-    if (fix) {
+    if (fix && tw.sourceNot) {
       const { content: next, changed } = insertSofarExclusion(content, entry, rootDir)
       if (changed) {
         try {
@@ -703,9 +727,11 @@ function auditScanners(rootDir: string, fix: boolean, progress: ScanProgress): S
     findings.push({
       level: 'fail',
       text: `${rel}: Tailwind v4 will scan .sofar/ — no \`@source not\` exclusion`,
-      hint: fix
-        ? 'could not place the exclusion (no `@import "tailwindcss"` line to anchor on)'
-        : `fix: sofar doctor --fix   (or add \`${sofarExclusionDirective(entry, rootDir)}\` after the import)`,
+      hint: !tw.sourceNot
+        ? sourceNotUnavailableHint(tw, entry, rootDir)
+        : fix
+          ? 'could not place the exclusion (no `@import "tailwindcss"` line to anchor on)'
+          : `fix: sofar doctor --fix   (or add \`${sofarExclusionDirective(entry, rootDir)}\` after the import)`,
     })
   }
   return { title: 'Scanner hazards', findings }
