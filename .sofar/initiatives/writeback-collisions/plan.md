@@ -19,7 +19,7 @@ Progress: 5/6 tasks done (83%)
 
 ## Phase 3 — Release [pending] — 0/1 done
 
-- [ ] 3.1 Bump sofar.sh, publish, upgrade — carries the pending 0.19.0 redaction fix live too
+- [ ] 3.1 Bump sofar.sh, publish, upgrade — carries the pending 0.19.0 redaction fix live too (active)
 
 Active phase: Phase 2 — Warn on live file conflicts
-Next action: Bump sofar.sh version and publish — carries 1.2, 2.1 and the pending 0.19.0 redaction fix live.
+Next action: User runs `npm publish -w sofar.sh` then `sofar upgrade` — this repo dogfoods the global binary, so both features stay inert until then.
