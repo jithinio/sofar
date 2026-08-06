@@ -2,20 +2,24 @@
 
 # Plan: writeback-collisions
 
-Goal: sofar_end_session tells the WRITER about colliding parallel write-backs, at write time, while the agent still holds the context to reconcile. Reported, never prevented — the append is a single O_APPEND write with no in-flight window to wait on.
+Goal: Make parallel-session collisions visible to the agent that can still act on them — at write time for diverging next actions, and in flight for files two live sessions both hold. Reported, never prevented: no locks, no leases.
 
-Progress: 4/5 tasks done (80%)
+Progress: 5/6 tasks done (83%)
 
-## Phase 1 — Report collisions to the writer [active] — 4/4 done
+## Phase 1 — Report write-back collisions to the writer [done] — 4/4 done
 
 - [x] 1.1 overlappingWritebacks takes an optional reference session; default stays the max(ended) winner so read surfaces are unchanged
 - [x] 1.2 end_session returns parallel_writebacks (omitted when empty) computed against the caller, after the append
 - [x] 1.3 Tool description tells the agent to reconcile rather than report
 - [x] 1.4 SPEC: derivation contract, tool signature, acceptance criterion
 
-## Phase 2 — Release [pending] — 0/1 done
+## Phase 2 — Warn on live file conflicts [active] — 1/1 done
 
-- [ ] 2.1 Bump sofar.sh, publish, upgrade — carries the pending 0.19.0 redaction fix live too
+- [x] 2.1 openSessionFileConflicts re-admits the caller past its own mid-flight write-back; UserPromptSubmit leads with the conflict line; SPEC + acceptance
 
-Active phase: Phase 1 — Report collisions to the writer
-Next action: Bump sofar.sh version and publish — carries this plus the pending 0.19.0 redaction fix live.
+## Phase 3 — Release [pending] — 0/1 done
+
+- [ ] 3.1 Bump sofar.sh, publish, upgrade — carries the pending 0.19.0 redaction fix live too
+
+Active phase: Phase 2 — Warn on live file conflicts
+Next action: Bump sofar.sh version and publish — carries 1.2, 2.1 and the pending 0.19.0 redaction fix live.

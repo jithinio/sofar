@@ -920,6 +920,28 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   commits" — per-session commit attribution needs the commit-graph walk
   §Git state rules out, and time-window attribution misreads interleaved
   parallel sessions.
+  The same shim emits the LIVE FILE-CONFLICT line (writeback-collisions
+  2.1) FIRST, ahead of parallel-wrap: `sofar: N file(s) you touched are
+  ALSO open in another live session — <path> (session <id>); …`, at most 3
+  paths named with a `(+N more)` tail, clipped to 300 chars. Source is
+  openSessionFileConflicts(state, sessionId) filtered to conflicts this
+  session is party to. It leads because it is the only line about work
+  still IN MOTION — the others report settled facts, and a hazard you can
+  still scope around outranks news you can only absorb.
+  The optional second argument counts the CALLER as open even though
+  `ended` is set. A session that writes back mid-flight and keeps working
+  has `ended` — the drift nudge asks for exactly that — so the bare rule
+  drops it and the line would go silent for the rest of a session, the
+  0.12.1 failure the parallel-wrap line already paid for. Only the caller
+  is re-admitted, never siblings: the hook firing is proof the caller is
+  alive, whereas a sibling with no session_closed may be a CRASHED process
+  that would linger as a false conflict forever. `sofar doctor` passes no
+  id and is unchanged.
+  Reports a hazard, never a verdict — two sessions in one file is routine
+  when they hold different regions, and nothing in the record says which.
+  Self-closing with no "already told you" state (D5): the sibling leaving
+  the open set ends the line. Until then it re-fires statelessly, the same
+  bargain the drift nudge and push-state line make.
 - PostToolUse shim (matcher: Edit|Write|MultiEdit|Bash) → appends
   file_touched / command_run from stdin JSON (tool_name, tool_input),
   preceded by a session_started for an unregistered session (lazy
@@ -1853,3 +1875,14 @@ stay the underlying derivation's, and exit codes are styling-independent.
   identical either way (the report is read-side — no new event type, and
   the same collision still renders in both status surfaces). Parity-locked
   stdio vs HTTP like every other tool result.
+- **Live file-conflict warning (writeback-collisions 2.1):** two open
+  sessions that have both touched one path put the line on each one's next
+  UserPromptSubmit, naming the path and the OTHER session; two open sessions
+  in different files put out nothing. The line survives the caller's own
+  mid-flight write-back — the case the bare open-session rule drops — and
+  falls silent the moment the SIBLING wraps, with no stored "already told
+  you" bit either way. It renders FIRST when a parallel-wrap line is also
+  due. With many colliding paths it names at most 3, carries a `(+N more)`
+  tail, reports the true total, and stays inside 300 chars. Passing no
+  session id re-admits nobody, so `sofar doctor`'s concurrency audit is
+  byte-identical; passing a DIFFERENT session's id re-admits only that one.

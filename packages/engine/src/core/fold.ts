@@ -550,11 +550,27 @@ export function staleActivePhases(state: InitiativeState): StalePhase[] {
  * window — the "another agent is in this file right now" signal. Deterministic
  * (sorted by path); the "+N more" activity sentinel is not a real file and is
  * skipped.
+ *
+ * `alsoLiveSessionId` counts one named session as open even though `ended` is
+ * set (writeback-collisions 2.1). A session that writes back mid-flight and
+ * keeps working has `ended` — the drift nudge actively asks for exactly that
+ * — so the plain rule drops it, and the hook surface would go silent for the
+ * rest of a session precisely when the agent is most likely to be deep in a
+ * file. Only the CALLER may be re-admitted this way, never siblings: the hook
+ * firing is proof the caller is alive (the 0.12.1 lesson from
+ * parallelWrapLine), whereas a sibling with no session_closed might be a
+ * crashed process that would linger as a false conflict forever. Doctor,
+ * which asks the same question about sessions it is not, passes nothing and
+ * is unaffected.
  */
-export function openSessionFileConflicts(state: InitiativeState): FileConflict[] {
+export function openSessionFileConflicts(
+  state: InitiativeState,
+  alsoLiveSessionId?: string,
+): FileConflict[] {
   const byFile = new Map<string, string[]>()
   for (const session of state.sessions) {
-    if (session.ended !== undefined || session.activity === undefined) continue
+    const live = session.ended === undefined || session.id === alsoLiveSessionId
+    if (!live || session.activity === undefined) continue
     for (const file of session.activity.files) {
       if (file.startsWith('+')) continue // the "+N more" overflow sentinel
       const owners = byFile.get(file) ?? []

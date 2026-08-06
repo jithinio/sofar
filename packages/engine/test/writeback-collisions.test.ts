@@ -2,9 +2,15 @@ import { readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { makeEvent, type EventEnvelope, type MakeEventInput } from '../src/core/envelope'
-import { foldLines, overlappingWritebacks, type InitiativeState } from '../src/core/fold'
+import {
+  foldLines,
+  openSessionFileConflicts,
+  overlappingWritebacks,
+  type InitiativeState,
+  type ParallelWriteback,
+} from '../src/core/fold'
 import { appendEvent, serializeEvent } from '../src/core/log'
-import type { ParallelWriteback } from '../src/core/fold'
+import { FILE_CONFLICT_BUDGET, handleUserPrompt } from '../src/cli/event'
 import { callTool, connectServer, makeRepoFixture, type Fixture } from './helpers/mcp'
 
 /**
@@ -254,5 +260,146 @@ describe('1.2 reference session pins the comparison', () => {
     expect(overlappingWritebacks(state)).toEqual(overlappingWritebacks(state, undefined))
     expect(overlappingWritebacks(state)).toHaveLength(1)
     expect(overlappingWritebacks(state)[0]!.session_id).toBe('A')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 2.1 — the live file-conflict line on UserPromptSubmit.
+// ---------------------------------------------------------------------------
+
+function touch(root: string, session: string, path: string, ts: string): void {
+  seed(root, session, 'file_touched', { path, op: 'edit' }, ts)
+}
+
+function prompt(root: string, session: string): string {
+  return handleUserPrompt(root, JSON.stringify({ session_id: session, cwd: '/tmp' })).stdout
+}
+
+describe('2.1 live file-conflict warning', () => {
+  it('names the file and the sibling holding it', () => {
+    const f = fx()
+    seed(f.root, 'A', 'session_started', { tool: 'claude-code' }, SEED_A_START)
+    seed(f.root, 'B', 'session_started', { tool: 'opencode' }, SEED_B_START)
+    touch(f.root, 'A', 'src/core/fold.ts', '2026-01-02T10:01:00.000Z')
+    touch(f.root, 'B', 'src/core/fold.ts', '2026-01-02T10:02:00.000Z')
+
+    const out = prompt(f.root, 'A')
+    expect(out).toContain('ALSO open in another live session')
+    expect(out).toContain('src/core/fold.ts')
+    expect(out).toContain('session B')
+    // Symmetric — B is warned about A on its own next prompt.
+    expect(prompt(f.root, 'B')).toContain('session A')
+  })
+
+  it('is silent when two live sessions are in different files', () => {
+    const f = fx()
+    seed(f.root, 'A', 'session_started', { tool: 'claude-code' }, SEED_A_START)
+    seed(f.root, 'B', 'session_started', { tool: 'opencode' }, SEED_B_START)
+    touch(f.root, 'A', 'src/core/fold.ts', '2026-01-02T10:01:00.000Z')
+    touch(f.root, 'B', 'src/cli/serve.ts', '2026-01-02T10:02:00.000Z')
+
+    expect(prompt(f.root, 'A')).not.toContain('ALSO open in another live session')
+  })
+
+  it('still fires after MY OWN mid-flight write-back (the 0.12.1 lesson)', () => {
+    const f = fx()
+    seed(f.root, 'A', 'session_started', { tool: 'claude-code' }, SEED_A_START)
+    seed(f.root, 'B', 'session_started', { tool: 'opencode' }, SEED_B_START)
+    touch(f.root, 'A', 'src/core/fold.ts', '2026-01-02T10:01:00.000Z')
+    touch(f.root, 'B', 'src/core/fold.ts', '2026-01-02T10:02:00.000Z')
+    // The drift nudge asks for exactly this, and a session that writes back
+    // and keeps working still has `ended` set. Dropping out here would go
+    // silent precisely when the agent is deepest in the file.
+    seed(
+      f.root,
+      'A',
+      'session_ended',
+      { session_id: 'A', summary: 'sa', next_action: 'keep going' },
+      '2026-01-02T10:03:00.000Z',
+    )
+
+    expect(prompt(f.root, 'A')).toContain('src/core/fold.ts')
+  })
+
+  it('falls silent once the SIBLING wraps — self-closing, no stored state', () => {
+    const f = fx()
+    seed(f.root, 'A', 'session_started', { tool: 'claude-code' }, SEED_A_START)
+    seed(f.root, 'B', 'session_started', { tool: 'opencode' }, SEED_B_START)
+    touch(f.root, 'A', 'src/core/fold.ts', '2026-01-02T10:01:00.000Z')
+    touch(f.root, 'B', 'src/core/fold.ts', '2026-01-02T10:02:00.000Z')
+    expect(prompt(f.root, 'A')).toContain('ALSO open in another live session')
+
+    seed(
+      f.root,
+      'B',
+      'session_ended',
+      { session_id: 'B', summary: 'sb', next_action: 'done here' },
+      '2026-01-02T10:03:00.000Z',
+    )
+    expect(prompt(f.root, 'A')).not.toContain('ALSO open in another live session')
+  })
+
+  it('leads the payload, ahead of the wrap line', () => {
+    const f = fx()
+    seed(f.root, 'A', 'session_started', { tool: 'claude-code' }, SEED_A_START)
+    seed(f.root, 'B', 'session_started', { tool: 'opencode' }, SEED_B_START)
+    seed(f.root, 'C', 'session_started', { tool: 'opencode' }, SEED_B_START)
+    touch(f.root, 'A', 'src/core/fold.ts', '2026-01-02T10:01:00.000Z')
+    touch(f.root, 'B', 'src/core/fold.ts', '2026-01-02T10:02:00.000Z')
+    // C wraps, so the wrap line renders too — the hazard must come first.
+    seed(
+      f.root,
+      'C',
+      'session_ended',
+      { session_id: 'C', summary: 'sc', next_action: 'ship' },
+      '2026-01-02T10:03:00.000Z',
+    )
+
+    const lines = prompt(f.root, 'A').split('\n')
+    expect(lines[0]).toContain('ALSO open in another live session')
+    expect(lines.some((l) => l.includes('wrapped while you worked'))).toBe(true)
+  })
+
+  it('stays inside its budget when many files collide', () => {
+    const f = fx()
+    seed(f.root, 'A', 'session_started', { tool: 'claude-code' }, SEED_A_START)
+    seed(f.root, 'B', 'session_started', { tool: 'opencode' }, SEED_B_START)
+    for (let i = 0; i < 12; i++) {
+      const path = `src/very/deeply/nested/module/directory/file-with-a-long-name-${i}.ts`
+      touch(f.root, 'A', path, `2026-01-02T10:0${i % 10}:00.000Z`)
+      touch(f.root, 'B', path, `2026-01-02T10:1${i % 10}:00.000Z`)
+    }
+
+    const line = prompt(f.root, 'A').split('\n')[0]!
+    expect(line.length).toBeLessThanOrEqual(FILE_CONFLICT_BUDGET)
+    expect(line).toContain('12 file(s)')
+  })
+
+  it('doctor is unaffected — no reference id means no re-admission', () => {
+    const f = fx()
+    seed(f.root, 'A', 'session_started', { tool: 'claude-code' }, SEED_A_START)
+    seed(f.root, 'B', 'session_started', { tool: 'opencode' }, SEED_B_START)
+    touch(f.root, 'A', 'src/core/fold.ts', '2026-01-02T10:01:00.000Z')
+    touch(f.root, 'B', 'src/core/fold.ts', '2026-01-02T10:02:00.000Z')
+    seed(
+      f.root,
+      'A',
+      'session_ended',
+      { session_id: 'A', summary: 'sa', next_action: 'keep going' },
+      '2026-01-02T10:03:00.000Z',
+    )
+    const state = foldLines(
+      readFileSync(join(f.root, '.sofar', 'initiatives', 'demo', 'events.jsonl'), 'utf8')
+        .split('\n')
+        .filter((l) => l.trim().length > 0),
+    ).state
+
+    // A has ended, so the bare call sees only B in the file — no conflict.
+    expect(openSessionFileConflicts(state)).toEqual([])
+    // A asking about itself is re-admitted, and only A.
+    expect(openSessionFileConflicts(state, 'A')).toEqual([
+      { path: 'src/core/fold.ts', sessions: ['A', 'B'] },
+    ])
+    expect(openSessionFileConflicts(state, 'B')).toEqual([])
   })
 })

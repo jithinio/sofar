@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path'
 import type { Command } from 'commander'
 import { isClosedInitiativeStatus } from '@sofar/schema'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
-import { freshnessTotal, type InitiativeState } from '../core/fold'
+import { freshnessTotal, openSessionFileConflicts, type InitiativeState } from '../core/fold'
 import { readGitState } from '../core/git'
 import { redactCommand } from '../core/redact'
 import {
@@ -593,6 +593,12 @@ export const NUDGE_DRIFT_MIN = 5
 /** Character budget for the parallel-wrap line (record-integrity 4.2). */
 export const PARALLEL_WRAP_BUDGET = 420
 
+/** Character budget for the live file-conflict line (writeback-collisions 2.1). */
+export const FILE_CONFLICT_BUDGET = 300
+
+/** Files named in full on the conflict line before it falls back to a count. */
+export const FILE_CONFLICT_MAX_PATHS = 3
+
 function clipTo(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, Math.max(0, max - 1))}…`
 }
@@ -706,6 +712,44 @@ function parallelWrapLine(state: InitiativeState, sessionId: string): string | n
   return clipTo(`${head}${body}${tail}`, PARALLEL_WRAP_BUDGET)
 }
 
+/**
+ * Live file conflicts (writeback-collisions 2.1) — the file THIS session is
+ * in is also being edited by another live session, right now.
+ *
+ * The companion to the write-time collision report on sofar_end_session:
+ * that one tells you at the end that two threads of work diverged, this one
+ * tells you while both are still moving, when scoping away is still cheap.
+ * The derivation already existed and fed `sofar doctor` alone, which means
+ * it only ever answered for someone who thought to run an audit — never for
+ * the agent standing in the file.
+ *
+ * Narrow on purpose, like the wrap line beside it: only files THIS session
+ * has actually touched, and only against siblings the fold still counts as
+ * open. It reports a hazard, never a verdict — two sessions in one file is
+ * routine when they are editing different regions, and this cannot know
+ * which. What it buys is that the second one finds out before the clobber
+ * instead of after.
+ *
+ * Self-closing without any "already told you" state (D5): the sibling
+ * leaving the open set — a write-back, or the SessionEnd close — ends the
+ * line on its own. Until then it re-fires statelessly, the same bargain the
+ * drift nudge and push-state line already make.
+ */
+function fileConflictLine(state: InitiativeState, sessionId: string): string | null {
+  const mine = openSessionFileConflicts(state, sessionId).filter((c) =>
+    c.sessions.includes(sessionId),
+  )
+  if (mine.length === 0) return null
+
+  const named = mine.slice(0, FILE_CONFLICT_MAX_PATHS).map((c) => {
+    const others = c.sessions.filter((id) => id !== sessionId)
+    return `${c.path} (session ${others.join(', ')})`
+  })
+  const more = mine.length > named.length ? ` (+${mine.length - named.length} more)` : ''
+  const head = `sofar: ${mine.length} file(s) you touched are ALSO open in another live session — `
+  return clipTo(`${head}${named.join('; ')}${more}.`, FILE_CONFLICT_BUDGET)
+}
+
 export function handleUserPrompt(rootDir: string, input: string): HookResult {
   try {
     const sessionId = strField(parseHook(input), 'session_id')
@@ -718,9 +762,14 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     const state = ctx.foldState(slug)
     if (!state.sessions.some((s) => s.id === sessionId)) return { ...OK } // not ours to nudge
 
-    // News first (what a sibling did), then state (where the repo stands),
-    // then the nudge (what to do about it).
+    // Live hazard first (a sibling is IN this file now), then news (what a
+    // sibling finished), then state (where the repo stands), then the nudge
+    // (what to do about it). The conflict line leads because it is the only
+    // one about work still in motion — the rest report settled facts.
     const lines: string[] = []
+    const conflict = fileConflictLine(state, sessionId)
+    if (conflict !== null) lines.push(conflict)
+
     const wrap = parallelWrapLine(state, sessionId)
     if (wrap !== null) lines.push(wrap)
 
