@@ -4,7 +4,7 @@
 
 Goal: Gate sofar's Tailwind scanner fix on what the host's installed Tailwind can actually parse: `@source not` landed in 4.1, so emitting it on 4.0.x breaks the build `doctor --fix` set out to protect (reported from the field on a repo pinned to tailwindcss 4.0.17).
 
-Progress: 8/9 tasks done (88%)
+Progress: 9/9 tasks done (100%)
 
 ## Phase 1 — Version-gate the repair [done] — 5/5 done
 
@@ -20,8 +20,8 @@ Progress: 8/9 tasks done (88%)
 - [x] 2.2 Live-fire both paths: on real 4.0.17 the old line fails with "Error: `@source` paths must be quoted", --fix now leaves the stylesheet byte-identical, and the hint's directive pasted verbatim builds clean; with 4.3.3 installed under `^4` the fix still applies and classes still emit
 - [x] 2.3 Acceptance tests (withheld write, unknown-version withhold, node_modules proves >= 4.1, source(...) repo passes) + unit tests for the gate and the scan-base suggestion; SPEC §CLI doctor + §Acceptance updated
 
-## Phase 3 — Release [pending] — 0/1 done
+## Phase 3 — Release [done] — 1/1 done
 
-- [ ] 3.1 Bump sofar.sh, publish, and verify the gate against the published binary on a 4.0.x fixture (active)
+- [x] 3.1 Bump sofar.sh, publish, and verify the gate against the published binary on a 4.0.x fixture
 
-Next action: Bump sofar.sh, publish (user runs npm publish), then verify the gate against the published binary on a 4.0.x fixture.
+Next action: Nothing open — close the initiative. Optionally decide whether repo.md should absorb scanner-version-gate M1, and whether a deliberate session re-home should stop tripping doctor’s torn-session FAIL (see note).

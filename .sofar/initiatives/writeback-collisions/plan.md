@@ -22,4 +22,4 @@ Progress: 6/6 tasks done (100%)
 - [x] 3.1 Bump sofar.sh, publish, upgrade — carries the pending 0.19.0 redaction fix live too
 
 Active phase: Phase 2 — Warn on live file conflicts
-Next action: User runs `npm publish -w sofar.sh`, then upgrade the global install and verify the scanner gate on a 4.0.x fixture.
+Next action: Verify the scanner version gate against the published 0.21.0 binary on a tailwindcss 4.0.x fixture — the one release check the drift-signal run did not cover.
