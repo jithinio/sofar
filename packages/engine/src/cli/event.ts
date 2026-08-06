@@ -3,7 +3,12 @@ import { join, resolve } from 'node:path'
 import type { Command } from 'commander'
 import { isClosedInitiativeStatus } from '@sofar/schema'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
-import { freshnessTotal, openSessionFileConflicts, type InitiativeState } from '../core/fold'
+import {
+  openSessionFileConflicts,
+  sessionDebt,
+  type InitiativeState,
+  type SessionState,
+} from '../core/fold'
 import { readGitState } from '../core/git'
 import { redactCommand } from '../core/redact'
 import {
@@ -501,20 +506,24 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
  * Write-back check is fold-based: only session_ended sets session.summary,
  * so a voided (corrected) session_ended does not count (BD23).
  *
- * Gate-relevant drift (speed T1 decision, Option B) = the staleness/nudge
- * counter total — mutation-class events only (files, commands, tasks,
- * notes, decisions) since the last write-back, initiative-scoped — OR'd
- * with the stopping session's own derived activity (BD44): a concurrent
- * session's write-back resets the shared counter, and that must never
- * exempt an unwritten session that did real work (Phase 7 independent
- * gates). The gate runs LAST, so it only ever converts an exit-2 into an
+ * Gate-relevant drift is the STOPPING SESSION'S OWN unwritten debt
+ * (drift-signal 1.2) — mutation-class events carrying its id since its own
+ * last write-back. Speed T1 used the initiative-wide counter OR'd with
+ * derived activity, which mis-answered in both directions: a session that
+ * only ran greps carried `activity` and got blocked with nothing to say,
+ * while the OR existed solely to stop a sibling's write-back from exempting
+ * a session that did owe one (the Phase 7 independent-gates law). Per-session
+ * accounting makes that law structural — one session's write-back cannot
+ * touch another's counter — and drops the read-only false positive with it.
+ *
+ * The gate still runs LAST and still only ever converts an exit-2 into an
  * exit-0. Fail closed: an error inside the drift computation enforces the
  * block — `computeDrift` is injectable for exactly that test seam.
  */
 export function handleStop(
   rootDir: string,
   input: string,
-  computeDrift: (state: InitiativeState) => number = (state) => freshnessTotal(state.freshness),
+  computeDrift: (state: InitiativeState, session: SessionState) => number = sessionDebt,
 ): HookResult {
   try {
     const hook = parseHook(input)
@@ -532,12 +541,12 @@ export function handleStop(
     if (session === undefined) return { ...OK } // never registered — not ours to block
     if (session.summary !== undefined) return { ...OK } // write-back done
 
-    // Drift gate (speed T1): silent exit only when the initiative-wide
-    // counter is zero AND this session contributed no mechanical activity.
-    // NaN or a throw is NOT zero — both enforce (fail closed, never a
-    // silent skip of the gate).
+    // Drift gate (drift-signal 1.2): silent exit when THIS session owes
+    // nothing — it wrote back, or it never mutated the record. NaN or a
+    // throw is NOT zero — both enforce (fail closed, never a silent skip
+    // of the gate).
     try {
-      if (computeDrift(state) === 0 && session.activity === undefined) return { ...OK }
+      if (computeDrift(state, session) === 0) return { ...OK }
     } catch {
       // fall through to the block below
     }
@@ -760,7 +769,8 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     const { ctx, slug } = bound
 
     const state = ctx.foldState(slug)
-    if (!state.sessions.some((s) => s.id === sessionId)) return { ...OK } // not ours to nudge
+    const me = state.sessions.find((s) => s.id === sessionId)
+    if (me === undefined) return { ...OK } // not ours to nudge
 
     // Live hazard first (a sibling is IN this file now), then news (what a
     // sibling finished), then state (where the repo stands), then the nudge
@@ -776,10 +786,15 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     const gitLine = gitStateLine(readGitState(rootDir))
     if (gitLine !== null) lines.push(gitLine)
 
-    const drift = freshnessTotal(state.freshness)
-    if (drift >= NUDGE_DRIFT_MIN) {
+    // YOUR debt, not the record's (drift-signal 1.2) — the same number the
+    // Stop gate will enforce, so the warning and the block always agree. The
+    // line asks THIS session to act, and the initiative-wide total nagged a
+    // session that had just written back, for a sibling's edits it could not
+    // speak to.
+    const debt = sessionDebt(state, me)
+    if (debt >= NUDGE_DRIFT_MIN) {
       lines.push(
-        `sofar: ${drift} record events since the last write-back — if the current batch of work ` +
+        `sofar: ${debt} unwritten events in THIS session — if the current batch of work ` +
           `is complete, write back now with sofar_end_session (summary + next action) while context ` +
           `is warm; an unwritten session gets force-blocked at Stop.`,
       )

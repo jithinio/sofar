@@ -70,7 +70,15 @@ describe('each tool appends exactly its event and projections regenerate', () =>
     const { state } = foldLog(fixture.eventsPath)
     expect(state.sessions).toEqual([
       // model retained since Phase 3 (session projections need it — BD24)
-      { id: body.session_id, tool: 'claude-code', model: 'fable-5', started: events[0]!.ts },
+      // unwritten starts at 0 — a fresh session owes the record nothing
+      // until it mutates it (drift-signal 1.1)
+      {
+        id: body.session_id,
+        tool: 'claude-code',
+        model: 'fable-5',
+        started: events[0]!.ts,
+        unwritten: 0,
+      },
     ])
     expect(existsSync(join(fixture.initiativeDir, 'plan.md'))).toBe(true)
     expect(existsSync(join(fixture.initiativeDir, 'decisions.md'))).toBe(true)

@@ -84,10 +84,14 @@ describe('fold freshness (1.1)', () => {
     const state = foldOf(events)
     expect(state.freshness).toEqual({
       events_since_writeback: { files: 1, commands: 2, tasks: 1, notes: 1, decisions: 1, memories: 0 },
+      // the sess-2 file touch and the cli task change: mutations this log
+      // registered no session for, so no session's own gate would catch them
+      unattributed_mutations: 2,
       notes: [{ ts: events.find((e) => e.type === 'note_added')!.ts, text: 'n' }],
       last_writeback_ts: writeback.ts,
     })
-    expect(freshnessTotal(state.freshness)).toBe(6)
+    // commands are counted above but excluded from the total (drift-signal D1)
+    expect(freshnessTotal(state.freshness)).toBe(4)
   })
 
   it('resets on a new write-back and stamps its ts', () => {
@@ -96,6 +100,7 @@ describe('fold freshness (1.1)', () => {
     const state = foldOf([...events, second])
     expect(state.freshness).toEqual({
       events_since_writeback: { files: 0, commands: 0, tasks: 0, notes: 0, decisions: 0, memories: 0 },
+      unattributed_mutations: 0,
       notes: [],
       last_writeback_ts: second.ts,
     })
@@ -114,6 +119,7 @@ describe('fold freshness (1.1)', () => {
   it('empty state carries zeroed freshness (shape is always present)', () => {
     expect(emptyState().freshness).toEqual({
       events_since_writeback: { files: 0, commands: 0, tasks: 0, notes: 0, decisions: 0, memories: 0 },
+      unattributed_mutations: 0,
       notes: [],
       last_writeback_ts: null,
     })
@@ -189,7 +195,7 @@ describe('staleness line in renderStatus (2.1)', () => {
   it('renders on a stale log with the by-kind breakdown', () => {
     const status = renderStatus(foldOf(staleStoryline().events))
     expect(status).toContain(
-      '⚠ next action may be stale: 6 events since write-back (1 file, 2 commands, 1 task change, 1 note, 1 decision)',
+      '⚠ next action may be stale: 4 events since write-back (1 file, 1 task change, 1 note, 1 decision)',
     )
   })
 
@@ -276,11 +282,13 @@ describe('renderFullStatus staleness section (2.3)', () => {
       ...events,
       ev('session_started', { tool: 'claude-code' }, { session: 'sess-2' }),
       longSummary,
-      ev('command_run', { cmd: 'npm test' }), // drift after the long write-back
+      // drift after the long write-back — a file edit, since a command_run
+      // would be logged and still leave the drift total at zero (D1)
+      ev('file_touched', { path: 'src/after.ts', op: 'edit' }),
     ]
     const full = renderFullStatus(foldOf(all))
     expect(full).toContain('⚠ Staleness:')
-    expect(full).toContain(`- next action may be stale: 1 event since the last write-back (${longSummary.ts}) — 1 command`)
+    expect(full).toContain(`- next action may be stale: 1 event since the last write-back (${longSummary.ts}) — 1 file`)
     expect(full).toContain('- phase "PA": all 1 tasks done but still active — emit phase_status_changed to mark it done')
     expect(full).toContain(
       '- last write-back summary exceeds the SessionStart budget (1200 chars) and is clipped there — full text in sessions/sess-2.md',
@@ -303,7 +311,7 @@ describe('clipped-summary pointer in renderStatus (2.4)', () => {
     const state = emptyState()
     state.slug = 'demo'
     state.sessions = [
-      { id: 'sess-9', tool: 'claude-code', started: '2026-07-11T00:00:00.000Z', ended: '2026-07-11T01:00:00.000Z', summary, next_action: 'n' },
+      { id: 'sess-9', tool: 'claude-code', unwritten: 0, started: '2026-07-11T00:00:00.000Z', ended: '2026-07-11T01:00:00.000Z', summary, next_action: 'n' },
     ]
     return state
   }
@@ -345,13 +353,14 @@ describe('10k cap with every section at worst case (4.2)', () => {
     // write-back (clip pointer) + an unwritten session with activity.
     const sharedFiles = Array.from({ length: 20 }, (_, i) => `src/f${i}-${'p'.repeat(200)}.ts`)
     state.sessions = [
-      { id: 'wrote-back', tool: 'claude-code', started: 't', ended: 't', summary: 's'.repeat(4_000), next_action: 'x'.repeat(3_000) },
-      { id: `open-a-${'a'.repeat(300)}`, tool: 'claude-code', started: 't', activity: { files: sharedFiles, commands: 9_999, task_changes: [] } },
-      { id: `open-b-${'b'.repeat(300)}`, tool: 'opencode', started: 't', activity: { files: sharedFiles, commands: 9_999, task_changes: ['1.1 → done'] } },
+      { id: 'wrote-back', tool: 'claude-code', unwritten: 0, started: 't', ended: 't', summary: 's'.repeat(4_000), next_action: 'x'.repeat(3_000) },
+      { id: `open-a-${'a'.repeat(300)}`, tool: 'claude-code', unwritten: 0, started: 't', activity: { files: sharedFiles, commands: 9_999, task_changes: [] } },
+      { id: `open-b-${'b'.repeat(300)}`, tool: 'opencode', unwritten: 0, started: 't', activity: { files: sharedFiles, commands: 9_999, task_changes: ['1.1 → done'] } },
     ]
     state.current = { active_phase: phases[3]!.name, next_action: 'z'.repeat(3_000), blocked_on: 'w'.repeat(2_000) }
     state.freshness = {
       events_since_writeback: { files: 99_999, commands: 99_999, tasks: 99_999, notes: 99_999, decisions: 99_999, memories: 0 },
+      unattributed_mutations: 0,
       notes: Array.from({ length: 200 }, (_, i) => ({
         ts: '2026-07-11T00:00:00.000Z',
         text: `note ${i} ${'n'.repeat(500)}`,

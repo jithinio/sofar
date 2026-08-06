@@ -130,7 +130,9 @@ describe('sofar next', () => {
     const lines = result.stdout.split('\n').filter((l) => l.startsWith('- '))
     expect(lines).toEqual([
       '- unwrapped [unbound] — (no next action recorded)',
-      '- drifted [unbound] — do next thing ⚠ may be stale (2 events since write-back)',
+      // one event, not two: the command_run in the fixture is logged but
+      // never counted as drift (drift-signal D1)
+      '- drifted [unbound] — do next thing ⚠ may be stale (1 event since write-back)',
       '- fresh [unbound] — do next thing',
     ])
   })

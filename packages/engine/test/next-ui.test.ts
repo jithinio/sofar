@@ -65,7 +65,8 @@ function seededRepo(): string {
     ev('drifted', 'initiative_created', { slug: 'drifted', goal: 'g' }),
     ev('drifted', 'session_started', { tool: 'claude-code' }),
     ev('drifted', 'session_ended', { summary: 's', next_action: 'old plan' }),
-    ev('drifted', 'command_run', { cmd: 'echo drift' }),
+    // a mutation, not a command — commands are logged but never drift (D1)
+    ev('drifted', 'file_touched', { path: 'src/drift.ts', op: 'edit' }),
   ])
   return root
 }

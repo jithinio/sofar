@@ -230,7 +230,10 @@ MECHANICAL signals only — content-semantic staleness inference is banned
 (D3/D12): { events_since_writeback: {files, commands, tasks, notes,
 decisions} counting payload-valid, unvoided file_touched / command_run /
 task_status_changed / note_added / decision_logged events appended after
-the last session_ended (ANY session/source incl. cli), notes: [{ts, text}]
+the last session_ended (ANY session/source incl. cli), unattributed_
+mutations: how many of those COUNTED mutations carry no registered session
+(envelope session "cli", or an id this log never registered) — a cross-cut
+of the same events, never a seventh kind, notes: [{ts, text}]
 — the CONTENT of the counted note_added events (notes-in-digest 1.2: the
 counters say THAT the record drifted, the notes say WHAT), log order,
 uncapped at fold, notes.length === counts.notes by construction; when
@@ -239,7 +242,24 @@ un-absorbed, last_writeback_ts: ts of that session_ended, or null when
 nothing ever wrote back }.
 session_ended is the ONLY reset (session_closed resets nothing); zero new
 event types — the derivation is read-side and retroactively covers every
-existing record. Companion derivation staleActivePhases(state) (the D-P11
+existing record.
+freshnessTotal(freshness) = files + tasks + notes + decisions + memories.
+`commands` is counted in the struct and deliberately EXCLUDED from the
+total (drift-signal D1): drift asks whether the recorded next_action is
+now wrong, and a command cannot make it wrong. Speed T1 counted it on the
+premise "pure reads emit no events", which an agent reading through Bash
+disproves continuously — command_run was 57% of every event in this repo's
+own records. Commands are still logged, still carried per session by
+describeActivity, and still feed `sofar graph` command nodes.
+SessionState.unwritten (drift-signal 1.1) = the same window and the same
+kinds asked of ONE session: mutation-class events carrying its id since
+its OWN last session_ended (resolved as applyEvent resolves it — payload
+session_id ?? envelope session). Companion sessionDebt(state, session) =
+session.unwritten + freshness.unattributed_mutations — what that session
+owes the record, and the single definition the Stop gate and the
+UserPromptSubmit nudge share. A sibling's ATTRIBUTED work is absent by
+construction: it is owed to that sibling's own gate, which is what makes
+concurrent gates independent (the Phase 7 law) without an OR. Companion derivation staleActivePhases(state) (the D-P11
 stale-phase check extracted from doctor — one detector, two surfaces) lists
 phases whose tasks are all done but whose status was never set to done.
 Companion derivation overlappingWritebacks(state, referenceSessionId?)
@@ -867,13 +887,18 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   HARD LIMIT:
   output ≤10,000 chars — projection generator must guarantee this.
 - UserPromptSubmit shim (felt-cost 4.1/4.2, D5) → the batch-complete nudge:
-  when the prompt's session_id is registered AND initiative drift since the
-  last write-back is ≥5 mechanical events, stdout (exit 0 =
+  when the prompt's session_id is registered AND sessionDebt(state, me) —
+  THIS session's own unwritten mutations plus unattributed drift, the same
+  number the Stop gate enforces — is ≥5, stdout (exit 0 =
   additionalContext for this hook; lands after the cached prefix, so it is
   cache-safe) carries ONE line nudging an in-flow sofar_end_session — a
   write-back while context is warm makes the Stop gate a fallback instead
-  of a forced extra turn. Stateless: re-fires on every prompt until a
-  write-back resets drift (staleness-line precedent). Repeat session_ended
+  of a forced extra turn. Session-scoped, not initiative-scoped
+  (drift-signal 1.2): the line asks THIS session to act, and the
+  initiative-wide total nagged sessions that had already written back, for
+  sibling edits they could not speak to. Stateless: re-fires on every
+  prompt until this session's own write-back clears its debt
+  (staleness-line precedent). Repeat session_ended
   events for one session are LEGAL and last-wins in the fold (ended/
   summary/next_action overwritten, freshness reset, Stop passes once any
   exists). Best-effort (BD22): every failure path is silence, never a
@@ -979,19 +1004,23 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   AND gate-relevant drift is nonzero → exit 2 with stderr: "Write back to
   the sofar record before finishing: call sofar_end_session (or append
   session_ended via `sofar event append`)." Else exit 0.
-  Gate-relevant drift (drift-gated Stop, speed T1): nonzero when EITHER
-  the staleness/nudge counter total — freshness.events_since_writeback
-  (file_touched + command_run + task_status_changed + note_added +
-  decision_logged), initiative-scoped, any session/source — is nonzero,
-  OR the stopping session itself carries derived mechanical activity
-  (BD44 session.activity): its own un-written-back work keeps concurrent
-  gates independent — another session's write-back resetting the shared
-  counter never exempts this one (the Phase 7 independent-gates law).
-  Read-side, zero new event types. Mutation-class only: pure reads emit
-  no events and never gate; session lifecycle and plan-structure events
-  are uncounted (matching the staleness line — speed T1 decision). Zero
-  on both → exit 0 silently even without a write-back (nothing moved,
-  nothing to write back). ANY error in the drift computation enforces
+  Gate-relevant drift (drift-signal 1.2, superseding speed T1) =
+  sessionDebt(state, session): the stopping session's OWN unwritten
+  mutations plus freshness.unattributed_mutations. Read-side, zero new
+  event types, and the same number the UserPromptSubmit nudge states, so
+  the warning and the block can never disagree.
+  Two scopes, deliberately: a session is answerable for what it did, and
+  for drift no session owns (cli-appended work has no other candidate
+  writer), never for a sibling's attributed edits — those are owed to that
+  sibling's own gate, which is what keeps concurrent gates independent
+  (the Phase 7 law) by construction rather than by the OR speed T1 needed.
+  Mutation-class only: command_run is logged but never gates (D1 — T1's
+  "pure reads emit no events" was false for an agent that reads through
+  Bash, and a session that only ran greps was being blocked with nothing
+  to write back); session lifecycle and plan-structure events stay
+  uncounted, matching the staleness line. Zero → exit 0 silently even
+  without a write-back (nothing owed, nothing to write back). ANY error
+  in the drift computation enforces
   the block (fail closed — never a silent skip); every other resolution
   failure keeps exiting 0 (BD22). The gate only ever converts an exit-2
   into an exit-0 — no today-exit-0 path becomes blocking.
@@ -1553,8 +1582,8 @@ stay the underlying derivation's, and exit codes are styling-independent.
   initiative from branch binding.
 - **Phase 3:** SessionStart output verified ≤10k chars on a large synthetic
   initiative; Stop shim blocks a session lacking session_ended when
-  gate-relevant drift is nonzero (speed T1) and passes one that has written
-  back; stop_hook_active loop guard verified; PostToolUse produces
+  gate-relevant drift is nonzero (drift-signal 1.2) and passes one that has
+  written back; stop_hook_active loop guard verified; PostToolUse produces
   file_touched for an Edit and command_run for a Bash call, appends nothing
   for a self-recording command (git/sofar, record-hygiene D1) including one
   whose quoted commit message carries separators and newlines, and registers
@@ -1722,7 +1751,17 @@ stay the underlying derivation's, and exit codes are styling-independent.
   followed by a further eventless turn ends silently; a concurrent
   unwritten session with its own mechanical activity stays gated after
   another session's write-back resets the shared counter (Phase 7
-  independent gates). The loop guard and every BD22 exit-0 path are
+  independent gates).
+- **Drift signal (drift-signal 1.1/1.2, superseding the T1 scope above):**
+  a session that ran only Bash commands owes nothing — the command_run
+  events ARE in the log, freshnessTotal is 0, no nudge fires and Stop
+  passes; a session that wrote back is neither nudged nor blocked by a
+  sibling's subsequent edits and commands, while that sibling stays gated
+  for them; a sibling's write-back resets the initiative counter without
+  clearing this session's debt (nudge still fires, Stop still gates) and
+  this session's OWN write-back clears it; an unattributed (session "cli")
+  mutation gates the registered session, since no other session's gate
+  would catch it. The loop guard and every BD22 exit-0 path are
   byte-identical to Phase 3 behavior.
 - **Speed (speed T2 — shim-latency budget):** every hook shim (SessionStart,
   PostToolUse, UserPromptSubmit nudge, Stop, SessionEnd) completes in

@@ -33,16 +33,21 @@ export function describeActivity(activity: SessionActivity): string {
 
 /**
  * One-line breakdown of the freshness counters (staleness-detection 2.1):
- * "3 files, 2 commands, 1 task change" — zero-count kinds are omitted.
- * Shared by renderStatus (budgeted line) and renderFullStatus (uncapped
- * staleness section) so both surfaces state the same drift.
+ * "3 files, 1 task change" — zero-count kinds are omitted. Shared by
+ * renderStatus (budgeted line) and renderFullStatus (uncapped staleness
+ * section) so both surfaces state the same drift.
+ *
+ * `commands` is omitted because freshnessTotal no longer sums it
+ * (drift-signal D1): a breakdown that itemizes a kind the headline number
+ * excludes reads as an arithmetic bug — "1 event since write-back (1 file,
+ * 11 commands)". Per-session command counts live on describeActivity above,
+ * where they answer what a session DID rather than what it owes.
  */
 export function describeFreshness(counts: FreshnessState['events_since_writeback']): string {
   const n = (count: number, noun: string, plural = `${noun}s`) =>
     `${count} ${count === 1 ? noun : plural}`
   const parts: string[] = []
   if (counts.files > 0) parts.push(n(counts.files, 'file'))
-  if (counts.commands > 0) parts.push(n(counts.commands, 'command'))
   if (counts.tasks > 0) parts.push(n(counts.tasks, 'task change'))
   if (counts.notes > 0) parts.push(n(counts.notes, 'note'))
   if (counts.decisions > 0) parts.push(n(counts.decisions, 'decision'))

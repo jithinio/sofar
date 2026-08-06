@@ -285,14 +285,22 @@ describe('cold-resume advisory (felt-cost 2.1/2.2) — resume-only, read-side, b
 })
 
 describe('sofar event user-prompt — batch-complete nudge (felt-cost 4.1/4.2, D5)', () => {
-  /** Registered session + n mechanical drift events since the last write-back. */
+  /**
+   * Registered session + n mechanical drift events since the last write-back.
+   * Edits, not commands: command_run is logged but never counts as drift
+   * (drift-signal D1), so a fixture built from Bash calls would nudge at zero.
+   */
   function drifted(n: number): Fixture {
     const fixture = fx()
     registerSession(fixture)
     for (let i = 0; i < n; i++) {
       handlePostTool(
         fixture.root,
-        hookStdin({ hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: `cmd ${i}` } }),
+        hookStdin({
+          hook_event_name: 'PostToolUse',
+          tool_name: 'Edit',
+          tool_input: { file_path: `src/drift-${i}.ts`, old_string: 'a', new_string: 'b' },
+        }),
       )
     }
     return fixture
@@ -303,8 +311,8 @@ describe('sofar event user-prompt — batch-complete nudge (felt-cost 4.1/4.2, D
     const before = readFileSync(fixture.eventsPath, 'utf8')
     const result = handleUserPrompt(fixture.root, hookStdin({}))
     expect(result.exitCode).toBe(0)
-    // session_started + N drift events all count toward the total
-    expect(result.stdout).toContain('record events since the last write-back')
+    // the line states THIS session's debt (drift-signal 1.2), not the record's
+    expect(result.stdout).toContain(`${NUDGE_DRIFT_MIN} unwritten events in THIS session`)
     expect(result.stdout).toContain('sofar_end_session')
     expect(result.stdout.includes('\n')).toBe(false) // one line
     // read-side: the nudge itself appends nothing
@@ -720,13 +728,15 @@ describe('sofar event stop — drift gate (speed T1)', () => {
   it('in-flow write-back at drift ≥5 then an eventless turn ends silently (acceptance)', () => {
     const fixture = fx()
     registerSession(fixture)
+    // Commands are logged and deliberately contribute NOTHING to the drift
+    // that arms the nudge (drift-signal D1) — the five edits below do it all.
     for (const cmd of ['npm test', 'npm run build', 'make lint']) {
       handlePostTool(
         fixture.root,
         hookStdin({ hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: cmd } }),
       )
     }
-    for (const file of ['src/a.ts', 'src/b.ts']) {
+    for (const file of ['src/a.ts', 'src/b.ts', 'src/c.ts', 'src/d.ts', 'src/e.ts']) {
       handlePostTool(
         fixture.root,
         hookStdin({
@@ -795,6 +805,142 @@ describe('sofar event stop — drift gate (speed T1)', () => {
       stdout: '',
       stderr: '',
     })
+  })
+})
+
+/**
+ * drift-signal: what a session owes is its own unwritten mutations plus the
+ * drift no session owns. The reported failure was a written-back session being
+ * nagged for a sibling's greps; the failure underneath it was `command_run`
+ * counting as drift at all, on speed T1's premise that "pure reads emit no
+ * events" — which an agent that reads through Bash disproves continuously.
+ */
+describe('drift is per-session and command-free (drift-signal 1.1/1.2)', () => {
+  const stopStdin = (fields: Record<string, unknown> = {}): string =>
+    hookStdin({ hook_event_name: 'Stop', stop_hook_active: false, ...fields })
+
+  const bash = (fixture: Fixture, session: string, command: string): void => {
+    handlePostTool(
+      fixture.root,
+      hookStdin({
+        session_id: session,
+        hook_event_name: 'PostToolUse',
+        tool_name: 'Bash',
+        tool_input: { command },
+      }),
+    )
+  }
+
+  const edit = (fixture: Fixture, session: string, file: string): void => {
+    handlePostTool(
+      fixture.root,
+      hookStdin({
+        session_id: session,
+        hook_event_name: 'PostToolUse',
+        tool_name: 'Edit',
+        tool_input: { file_path: file, old_string: 'a', new_string: 'b' },
+      }),
+    )
+  }
+
+  const writeBack = (fixture: Fixture, session: string): void => {
+    appendEvent(
+      fixture.eventsPath,
+      makeEvent({
+        initiative: fixture.slug,
+        session,
+        source: 'claude-code',
+        actor: 'agent',
+        type: 'session_ended',
+        payload: { summary: 'done', next_action: 'next' },
+      }),
+    )
+  }
+
+  it('a session that only ran commands owes nothing: no nudge, no Stop block', () => {
+    const fixture = fx()
+    registerSession(fixture)
+    for (let i = 0; i < 12; i++) bash(fixture, 'claude-sess-1', `rg -n pattern-${i} src/`)
+
+    // the commands ARE logged — this is not a capture regression
+    expect(logEvents(fixture.eventsPath).filter((e) => e.type === 'command_run')).toHaveLength(12)
+    // ...they are simply not staleness
+    expect(freshnessTotal(foldLog(fixture.eventsPath).state.freshness)).toBe(0)
+    expect(handleUserPrompt(fixture.root, hookStdin({})).stdout).toBe('')
+    expect(handleStop(fixture.root, stopStdin())).toEqual({ exitCode: 0, stdout: '', stderr: '' })
+  })
+
+  it('a sibling’s work never nudges a session that already wrote back (the reported bug)', () => {
+    const fixture = fx()
+    const ME = 'claude-sess-1'
+    const SIBLING = 'sibling-sess'
+    registerSession(fixture, ME)
+    registerSession(fixture, SIBLING)
+    writeBack(fixture, ME)
+
+    // the sibling then does a full batch of real work in the same record
+    for (let i = 0; i < 9; i++) edit(fixture, SIBLING, `src/sibling-${i}.ts`)
+    for (let i = 0; i < 9; i++) bash(fixture, SIBLING, `npm test -- suite-${i}`)
+
+    // I have written back and touched nothing since: silence, and no block
+    expect(handleUserPrompt(fixture.root, hookStdin({ session_id: ME })).stdout).toBe('')
+    expect(handleStop(fixture.root, stopStdin({ session_id: ME }))).toEqual({
+      exitCode: 0,
+      stdout: '',
+      stderr: '',
+    })
+    // the sibling, meanwhile, owes every one of those edits
+    const gated = handleStop(fixture.root, stopStdin({ session_id: SIBLING }))
+    expect(gated.exitCode).toBe(2)
+    expect(gated.stderr).toBe(STOP_BLOCK_MESSAGE)
+  })
+
+  it('my own write-back clears my debt; a sibling’s does not', () => {
+    const fixture = fx()
+    const ME = 'claude-sess-1'
+    const SIBLING = 'sibling-sess'
+    registerSession(fixture, ME)
+    registerSession(fixture, SIBLING)
+    for (let i = 0; i < NUDGE_DRIFT_MIN; i++) edit(fixture, ME, `src/mine-${i}.ts`)
+
+    // the sibling wrapping up resets the INITIATIVE counter but not my debt
+    writeBack(fixture, SIBLING)
+    expect(freshnessTotal(foldLog(fixture.eventsPath).state.freshness)).toBe(0)
+    expect(handleUserPrompt(fixture.root, hookStdin({ session_id: ME })).stdout).toContain(
+      `${NUDGE_DRIFT_MIN} unwritten events in THIS session`,
+    )
+    expect(handleStop(fixture.root, stopStdin({ session_id: ME })).exitCode).toBe(2)
+
+    // my own write-back does. Asserted on the nudge alone: the parallel-wrap
+    // line beside it reports the sibling's write-back and is a separate signal.
+    writeBack(fixture, ME)
+    expect(handleUserPrompt(fixture.root, hookStdin({ session_id: ME })).stdout).not.toContain(
+      'unwritten events in THIS session',
+    )
+    expect(handleStop(fixture.root, stopStdin({ session_id: ME })).exitCode).toBe(0)
+  })
+
+  it('unattributed mutations still gate — cli-appended work has no other writer', () => {
+    const fixture = fx()
+    registerSession(fixture)
+    // `sofar update-task` from a shell: the CLI cannot know the session id, so
+    // the event lands on "cli" and belongs to no session's own counter
+    appendEvent(
+      fixture.eventsPath,
+      makeEvent({
+        initiative: fixture.slug,
+        session: 'cli',
+        source: 'cli',
+        actor: 'agent',
+        type: 'note_added',
+        payload: { text: 'recorded from the shell' },
+      }),
+    )
+
+    expect(foldLog(fixture.eventsPath).state.freshness.unattributed_mutations).toBe(1)
+    const gated = handleStop(fixture.root, stopStdin())
+    expect(gated.exitCode).toBe(2)
+    expect(gated.stderr).toBe(STOP_BLOCK_MESSAGE)
   })
 })
 

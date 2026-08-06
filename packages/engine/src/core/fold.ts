@@ -97,6 +97,26 @@ export interface SessionState {
   closed_reason?: string
   /** Present only when ≥1 mechanical event is attributed to this session (BD44). */
   activity?: SessionActivity
+  /**
+   * Drift THIS session owes (drift-signal 1.1): mutation-class events carrying
+   * its id, appended after its OWN last write-back. Same window and same kinds
+   * as `freshness` — asked of one session instead of the initiative.
+   *
+   * The distinction the initiative-wide counter cannot make. "Has the record
+   * moved since the next_action was minted" is a question for a READER, and
+   * initiative scope answers it correctly. "Do you owe a write-back" is a
+   * question for the ACTOR, and initiative scope answers it wrongly in both
+   * directions: a sibling's edits nag a session that has nothing to say, and
+   * a sibling's write-back used to exempt one that does (speed T1 patched the
+   * second direction by OR-ing in `activity` and left the first open).
+   * Per-session accounting closes both at once, and the Phase 7
+   * independent-gates law then holds by construction rather than by patch.
+   *
+   * `activity` is the neighbouring derivation and deliberately NOT this: it is
+   * cumulative over the whole session and counts commands, so it answers "what
+   * did this session do", never "what has it not written down".
+   */
+  unwritten: number
 }
 
 /** One un-absorbed note: appended after the last write-back (notes-in-digest 1.2). */
@@ -136,16 +156,58 @@ export interface FreshnessState {
     /** memory_promoted */
     memories: number
   }
+  /**
+   * How many of the counted mutations belong to NO registered session
+   * (drift-signal 1.2) — envelope session "cli", or an id this log never
+   * registered. A cross-cut of the same events, not a seventh kind, so it is
+   * never summed into freshnessTotal.
+   *
+   * This is the drift that has no other candidate writer. A sibling's edits
+   * carry its id and are gated on its own Stop; unattributed work — an agent
+   * running `sofar update-task` through the shell, where the CLI cannot know
+   * the session id — is owed by whoever is still here. Session-scoped gating
+   * alone would let it out of the building unwritten.
+   */
+  unattributed_mutations: number
   /** Notes in the window, {ts, text} in log order — notes.length === counts.notes. */
   notes: NoteEntry[]
   /** ts of the last session_ended, or null when nothing ever wrote back. */
   last_writeback_ts: string | null
 }
 
-/** Total drift since the last write-back — the "N events" of the staleness line. */
+/**
+ * Total drift since the last write-back — the "N events" of the staleness line.
+ *
+ * `commands` is counted in the struct above but deliberately NOT summed here
+ * (drift-signal D1). Speed T1 included command_run on a premise its own record
+ * disproves — "pure reads emit no events so they naturally never gate" — when
+ * an agent reads through Bash constantly: command_run is 57% of every event in
+ * this repo's records, and re-running one test suite eight times registered
+ * eight drift. Drift asks whether the recorded next_action is now wrong.
+ * Editing a file can make it wrong; `rg`, `sed -n` and `npm test` cannot, so
+ * counting them made the warning track how chatty the agent was. The count
+ * stays in the struct — the log is still the forensic record of what ran, and
+ * describeActivity still reports it per session — it just stops being
+ * staleness.
+ */
 export function freshnessTotal(freshness: FreshnessState): number {
   const c = freshness.events_since_writeback
-  return c.files + c.commands + c.tasks + c.notes + c.decisions + c.memories
+  return c.files + c.tasks + c.notes + c.decisions + c.memories
+}
+
+/**
+ * What ONE session owes the record (drift-signal 1.2): its own unwritten
+ * mutations, plus the drift no session owns. The single definition the Stop
+ * gate and the write-back nudge share, so the thing that blocks you and the
+ * thing that warned you can never disagree — the property speed T1 valued in
+ * reusing freshnessTotal, kept while fixing what freshnessTotal was measuring.
+ *
+ * Note what is absent: a sibling's attributed work. That session carries its
+ * own debt to its own Stop gate, which is what makes concurrent gates
+ * independent (the Phase 7 law) without the OR speed T1 needed.
+ */
+export function sessionDebt(state: InitiativeState, session: SessionState): number {
+  return session.unwritten + state.freshness.unattributed_mutations
 }
 
 export interface InitiativeState {
@@ -270,6 +332,7 @@ export function emptyState(): InitiativeState {
 function emptyFreshness(): FreshnessState {
   return {
     events_since_writeback: { files: 0, commands: 0, tasks: 0, notes: 0, decisions: 0, memories: 0 },
+    unattributed_mutations: 0,
     notes: [],
     last_writeback_ts: null,
   }
@@ -467,34 +530,57 @@ function attachActivity(state: InitiativeState, derived: Map<string, SessionActi
  * next_action exactly as an agent edit does. session_ended is the ONLY
  * reset: it is the write-back that mints a new next_action; a mechanical
  * session_closed carries no summary and resets nothing.
+ *
+ * The SAME pass keeps each session's own `unwritten` debt (drift-signal 1.1),
+ * so the two counters can never disagree about what a mutation is or when the
+ * window opens — one rule, two scopes. Runs after applyEvent, so a session is
+ * already registered (or stubbed) by the time its events reach here; events
+ * from a session this log never registered stay unattributed, the same no-stub
+ * rule attachActivity follows.
  */
 function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
   const counts = state.freshness.events_since_writeback
+  const own = state.sessions.find((s) => s.id === event.session)
+  /** Count one mutation for the initiative and for whoever must write it back. */
+  const mutation = (bump: () => void): void => {
+    bump()
+    if (own !== undefined) own.unwritten += 1
+    else state.freshness.unattributed_mutations += 1
+  }
+
   switch (event.type) {
-    case 'session_ended':
+    case 'session_ended': {
       state.freshness = { ...emptyFreshness(), last_writeback_ts: event.ts }
+      // A write-back may name a session other than the envelope's (the MCP
+      // tool takes session_id explicitly), and it is the NAMED session whose
+      // debt it settles — resolved exactly as applyEvent resolves it.
+      const p = event.payload as unknown as SessionEndedPayload
+      const ended = state.sessions.find((s) => s.id === (p.session_id ?? event.session))
+      if (ended !== undefined) ended.unwritten = 0
       break
+    }
     case 'file_touched':
-      counts.files += 1
+      mutation(() => (counts.files += 1))
       break
     case 'command_run':
+      // Counted for the record, never for drift — see freshnessTotal (D1).
       counts.commands += 1
       break
     case 'task_status_changed':
-      counts.tasks += 1
+      mutation(() => (counts.tasks += 1))
       break
     case 'note_added':
-      counts.notes += 1
+      mutation(() => (counts.notes += 1))
       state.freshness.notes.push({
         ts: event.ts,
         text: (event.payload as unknown as NoteAddedPayload).text,
       })
       break
     case 'decision_logged':
-      counts.decisions += 1
+      mutation(() => (counts.decisions += 1))
       break
     case 'memory_promoted':
-      counts.memories += 1
+      mutation(() => (counts.memories += 1))
       break
   }
 }
@@ -769,7 +855,12 @@ function applyEvent(
         warnings.push(`line ${lineNo}: session "${event.session}" already started — skipped`)
         break
       }
-      const session: SessionState = { id: event.session, tool: p.tool, started: event.ts }
+      const session: SessionState = {
+        id: event.session,
+        tool: p.tool,
+        started: event.ts,
+        unwritten: 0,
+      }
       if (p.model !== undefined) session.model = p.model
       state.sessions.push(session)
       break
@@ -780,7 +871,7 @@ function applyEvent(
       let session = state.sessions.find((s) => s.id === sid)
       if (!session) {
         warnings.push(`line ${lineNo}: session "${sid}" ended without session_started — stub created`)
-        session = { id: sid, tool: 'unknown', started: event.ts }
+        session = { id: sid, tool: 'unknown', started: event.ts, unwritten: 0 }
         state.sessions.push(session)
       }
       session.ended = event.ts

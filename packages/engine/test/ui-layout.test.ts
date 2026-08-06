@@ -54,6 +54,7 @@ function richState(): InitiativeState {
   state.current.blocked_on = 'task 2.3: waiting on initiative-list'
   state.freshness = {
     events_since_writeback: { files: 2, commands: 1, tasks: 0, notes: 1, decisions: 0, memories: 0 },
+    unattributed_mutations: 0,
     notes: [{ ts: '2026-07-11T10:00:00.000Z', text: 'grammar  needs\nwhitespace collapse' }],
     last_writeback_ts: '2026-07-10T09:00:00.000Z',
   }
@@ -61,6 +62,7 @@ function richState(): InitiativeState {
     {
       id: 'sess-1',
       tool: 'claude-code',
+      unwritten: 0,
       started: '2026-07-09T08:00:00.000Z',
       ended: '2026-07-10T09:00:00.000Z',
       summary: 'Built the UI kernel',
@@ -103,7 +105,7 @@ describe('full zoom — plain content', () => {
   it('staleness warning states drift total, write-back ts, and breakdown', () => {
     expect(text).toContain('⚠ Staleness')
     expect(text).toContain(
-      '  └ next action may be stale: 4 events since the last write-back (2026-07-10T09:00:00.000Z) — 2 files, 1 command, 1 note',
+      '  └ next action may be stale: 3 events since the last write-back (2026-07-10T09:00:00.000Z) — 2 files, 1 note',
     )
   })
 
@@ -166,6 +168,7 @@ describe('full zoom — branch coverage', () => {
     const state = richState()
     state.freshness = {
       events_since_writeback: { files: 0, commands: 0, tasks: 0, notes: 0, decisions: 0, memories: 0 },
+      unattributed_mutations: 0,
       notes: [],
       last_writeback_ts: '2026-07-10T09:00:00.000Z',
     }
@@ -211,12 +214,14 @@ describe('full zoom — branch coverage', () => {
       {
         id: 'open-a',
         tool: 'claude-code',
+        unwritten: 0,
         started: '2026-07-11T10:00:00.000Z',
         activity: { files: ['src/x.ts'], commands: 0, task_changes: [] },
       },
       {
         id: 'open-b',
         tool: 'codex',
+        unwritten: 0,
         started: '2026-07-11T10:05:00.000Z',
         activity: { files: ['src/x.ts'], commands: 1, task_changes: [] },
       },
@@ -246,7 +251,7 @@ describe('portfolio zoom', () => {
       '◔ cli-ui  2/5 tasks (40%)  ● Phase 2 — surfaces',
       '  └ next: Apply the grammar to sofar status',
       '  ✗ blocked: task 2.3: waiting on initiative-list',
-      '  ⚠ next action may be stale: 4 events since write-back',
+      '  ⚠ next action may be stale: 3 events since write-back',
     ])
   })
 

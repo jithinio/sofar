@@ -73,6 +73,7 @@ function largeState(): InitiativeState {
   state.sessions = Array.from({ length: 30 }, (_, i) => ({
     id: `sess-${i}`,
     tool: 'claude-code',
+    unwritten: 0,
     started: '2026-07-03T00:00:00.000Z',
     ended: '2026-07-03T01:00:00.000Z',
     summary: `summary ${i} ${'s'.repeat(4_000)}`,
@@ -130,7 +131,7 @@ describe('projection templates (v0 seam — BD14)', () => {
     const dir = join(scratch, 'initiatives', 'atomic')
     const state = populatedState()
     state.sessions = [
-      { id: 'sess-atomic', tool: 'claude-code', started: '2026-07-07T00:00:00.000Z' },
+      { id: 'sess-atomic', tool: 'claude-code', unwritten: 0, started: '2026-07-07T00:00:00.000Z' },
     ]
     regenerateProjections(dir, state)
     regenerateProjections(dir, state) // second pass renames over existing targets
@@ -152,8 +153,8 @@ describe('projection templates (v0 seam — BD14)', () => {
     const dir = join(scratch, 'initiatives', 'skip-unchanged')
     const state = populatedState()
     state.sessions = [
-      { id: 'sess-a', tool: 'claude-code', started: '2026-07-07T00:00:00.000Z' },
-      { id: 'sess-b', tool: 'claude-code', started: '2026-07-07T01:00:00.000Z' },
+      { id: 'sess-a', tool: 'claude-code', unwritten: 0, started: '2026-07-07T00:00:00.000Z' },
+      { id: 'sess-b', tool: 'claude-code', unwritten: 0, started: '2026-07-07T01:00:00.000Z' },
     ]
     regenerateProjections(dir, state)
 
@@ -199,6 +200,7 @@ describe('full projections (3.6)', () => {
       id: 'sess-9',
       tool: 'claude-code',
       model: 'claude-fable-5',
+      unwritten: 0,
       started: '2026-07-06T01:00:00.000Z',
       ended: '2026-07-06T02:00:00.000Z',
       summary: 'built the hooks',
@@ -219,6 +221,7 @@ describe('full projections (3.6)', () => {
     const md = renderSession(populatedState(), {
       id: 'sess-open',
       tool: 'claude-code',
+      unwritten: 0,
       started: '2026-07-06T01:00:00.000Z',
     })
     expect(md).toContain('- Ended: (in progress)')
@@ -230,6 +233,7 @@ describe('full projections (3.6)', () => {
     const md = renderSession(populatedState(), {
       id: 'sess-crash',
       tool: 'claude-code',
+      unwritten: 0,
       started: '2026-07-07T01:00:00.000Z',
       ended: '2026-07-07T02:00:00.000Z',
       closed_reason: 'crash',
@@ -252,6 +256,7 @@ describe('full projections (3.6)', () => {
     const md = renderSession(populatedState(), {
       id: 'sess-full',
       tool: 'claude-code',
+      unwritten: 0,
       started: '2026-07-07T01:00:00.000Z',
       ended: '2026-07-07T02:00:00.000Z',
       summary: 'did the work',
@@ -267,8 +272,8 @@ describe('full projections (3.6)', () => {
     const dir = join(scratch, 'initiatives', 'with-sessions')
     const state = populatedState()
     state.sessions = [
-      { id: 'sess-ok', tool: 'claude-code', started: '2026-07-06T01:00:00.000Z' },
-      { id: '../evil/name', tool: 'claude-code', started: '2026-07-06T01:00:00.000Z' },
+      { id: 'sess-ok', tool: 'claude-code', unwritten: 0, started: '2026-07-06T01:00:00.000Z' },
+      { id: '../evil/name', tool: 'claude-code', unwritten: 0, started: '2026-07-06T01:00:00.000Z' },
     ]
     regenerateProjections(dir, state)
     expect(readFileSync(join(dir, 'sessions', 'sess-ok.md'), 'utf8')).toContain('# Session sess-ok')
@@ -285,6 +290,7 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
       {
         id: 'sess-1',
         tool: 'claude-code',
+        unwritten: 0,
         started: '2026-07-05T00:00:00.000Z',
         ended: '2026-07-05T01:00:00.000Z',
         summary: 'wired the log core',
@@ -411,6 +417,7 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
       {
         id: 'sess-crash',
         tool: 'claude-code',
+        unwritten: 0,
         started: '2026-07-07T01:00:00.000Z',
         ended: '2026-07-07T02:00:00.000Z',
         closed_reason: 'crash',
@@ -429,12 +436,14 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     const crashed = {
       id: 'sess-crash',
       tool: 'claude-code',
+      unwritten: 0,
       started: '2026-07-07T01:00:00.000Z',
       activity: { files: ['src/a.ts'], commands: 0, task_changes: [] },
     }
     const written = {
       id: 'sess-written',
       tool: 'claude-code',
+      unwritten: 0,
       started: '2026-07-07T03:00:00.000Z',
       ended: '2026-07-07T04:00:00.000Z',
       summary: 'the real write-back',
@@ -450,7 +459,7 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
 
     // crash AFTER the written session → both render (summary first, derived after)
     const newer = populatedState()
-    newer.sessions = [written, { ...crashed, started: '2026-07-07T05:00:00.000Z' }]
+    newer.sessions = [written, { ...crashed, unwritten: 0, started: '2026-07-07T05:00:00.000Z' }]
     const newerStatus = renderStatus(newer)
     expect(newerStatus).toContain('the real write-back')
     expect(newerStatus).toContain('open, no write-back yet — derived: 1 file (src/a.ts)')
@@ -460,8 +469,8 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     const fresh = populatedState()
     fresh.sessions = [
       written,
-      { ...crashed, started: '2026-07-07T05:00:00.000Z' },
-      { id: 'sess-now', tool: 'claude-code', started: '2026-07-07T06:00:00.000Z' },
+      { ...crashed, unwritten: 0, started: '2026-07-07T05:00:00.000Z' },
+      { id: 'sess-now', tool: 'claude-code', unwritten: 0, started: '2026-07-07T06:00:00.000Z' },
     ]
     expect(renderStatus(fresh)).toContain('derived: 1 file (src/a.ts)')
   })

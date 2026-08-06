@@ -164,7 +164,9 @@ describe('listInitiatives', () => {
     const { entries } = listInitiatives(fixture.root)
     const bySlug = new Map(entries.map((e) => [e.slug, e]))
     expect(bySlug.get('fresh')!.drift_events).toBe(0)
-    expect(bySlug.get('drifted')!.drift_events).toBe(2)
+    // the file edit only: the command_run beside it is logged but never
+    // counted as drift (drift-signal D1)
+    expect(bySlug.get('drifted')!.drift_events).toBe(1)
     expect(bySlug.get('unwrapped')!.drift_events).toBe(0)
   })
 

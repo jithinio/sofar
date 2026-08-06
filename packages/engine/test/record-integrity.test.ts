@@ -117,6 +117,15 @@ const bashStdin = (session: string, command: string): string =>
     tool_input: { command },
   })
 
+/** A mutation — commands are logged but no longer count as drift (drift-signal D1). */
+const editStdin = (session: string, file: string): string =>
+  JSON.stringify({
+    session_id: session,
+    cwd: '/tmp',
+    tool_name: 'Edit',
+    tool_input: { file_path: file, old_string: 'a', new_string: 'b' },
+  })
+
 describe('homeInitiative (1.1)', () => {
   it('prefers the branch-bound initiative when it registered the session', () => {
     const f = fx({ slug: 'alpha' })
@@ -220,7 +229,7 @@ describe('hook routing follows the session home (1.2)', () => {
     const betaLog = addInitiative(f.root, 'beta')
     register(f.root, 'alpha', 'sess-1')
     // Real mechanical work on the home initiative, so the drift gate engages.
-    handlePostTool(f.root, bashStdin('sess-1', 'npm test'))
+    handlePostTool(f.root, editStdin('sess-1', 'src/a.ts'))
     rebind(f.root, 'main', 'beta')
 
     // Stop must find the session in alpha (where it lives) and block it.
