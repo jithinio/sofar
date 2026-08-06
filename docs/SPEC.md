@@ -66,6 +66,20 @@ engine-only scope law still applies during the Fable window.
     sessions/<session-id>.md   # generated per-session summaries
 ```
 
+A slug MUST match `[a-z0-9-]+` (security-hardening 1.1). This is not a
+cosmetic rule: the engine resolves an initiative by joining the slug under
+`.sofar/initiatives/`, so a slug containing `..` or a separator walks out of
+the record and writes events.jsonl and every projection into whatever
+directory it lands in. The shape is enforced in TWO places, because they
+close different doors: `@sofar/schema` rejects a non-slug `initiative`
+argument at the MCP tool boundary, and `resolveInitiative` asserts the
+RESOLVED path is still contained under `.sofar/initiatives/<slug>` — which
+also covers the routes the schema never sees, namely a hand-edited or merged
+`bindings.json` (a committed, team-shared file) and CLI `--initiative` flags.
+Session ids are NOT slugs — they come from the agent tool in whatever shape
+it uses — so they are sanitized into a filename instead (`[^A-Za-z0-9._-]`
+→ `_`) and never constrained.
+
 ## Event envelope (v1 — stable; payloads evolve, envelope does not)
 One JSON object per line in events.jsonl:
 ```json
@@ -524,7 +538,12 @@ authoritative for the wire; the client implements it exactly and stays
 useful with the API completely gone — local work is NEVER blocked by sync.
 
 Base URL resolution: `--api` flag > `SOFAR_API_URL` env > `.sofar/
-remote.json` api_url > `https://api.sofar.sh`. Errors on /v1 are
+remote.json` api_url > `https://api.sofar.sh`. The resolved api_url MUST be
+https, or http with a loopback host (localhost/127.0.0.1/::1) — the documented
+dev-server case; anything else is refused before a request is made
+(security-hardening 2.2). remote.json is committed, so "which URL" is not
+purely the local user's choice: without this rule a merged change could move
+every teammate's bearer token onto the wire in clear. Errors on /v1 are
 `{"error":{"code":"snake_case","message":"…"}}`; the device endpoints
 speak OAuth flat-string errors (`{"error":"code"}`) — the client
 normalizes both. Cross-org/unknown resources return 404, never 403;
@@ -893,7 +912,17 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   a Bash call, so it would append an event about committing the record and
   the tree would be dirty the instant it is clean. The tree can only reach
   clean if some record-committing action appends zero events. Nothing is
-  lost: the fold counts command_run and never reads `cmd`. Segments split at
+  lost: the fold counts command_run and never reads `cmd`.
+  SECRETS ARE REDACTED FROM `cmd` BEFORE THE APPEND (security-hardening 3.1):
+  credential-shaped material — `NAME=value` where NAME contains
+  TOKEN/SECRET/PASSWORD/API_KEY/…, `--flag value` of the same names,
+  Authorization headers, `user:pw@host` in a URL, and recognizable standalone
+  token shapes — becomes `[redacted]`, keeping the surrounding structure so
+  the command still reads. The log is append-only and committed, and pushed
+  once the repo is linked, so a credential that reaches it cannot be edited
+  out — only rewritten out of history by everyone who ever cloned. The
+  self-recording exemption scan runs on the RAW text, so redaction can never
+  change which commands are exempt. Segments split at
   `&&`, `||`, `;`, `|`, `&` and newline only OUTSIDE quotes
   (record-hygiene-quotes D1): a separator inside a commit message body is not
   a separator, or this repo's own multi-line messages would defeat the
@@ -1199,6 +1228,19 @@ Shims contain no logic — they invoke the sofar CLI.
   plus the opt-in MCP endpoint at /mcp (streamable HTTP, POST/GET/DELETE,
   one isolated server handle per MCP session — §MCP tools transports,
   speed T3). Still 127.0.0.1 only, JSON only.
+  EVERY request must carry a loopback `Host` naming the listening port, and
+  an `Origin` that is either absent (not a browser) or itself loopback;
+  anything else gets 403 before routing (security-hardening 1.2). Binding to
+  127.0.0.1 keeps other machines out but NOT the browser on this machine: a
+  page can point a hostname it controls at 127.0.0.1 (DNS rebinding) and then
+  it is same-origin with this server, free to read the whole record from
+  /state and drive every write tool on /mcp — which is unauthenticated
+  precisely because "localhost" was assumed to be doing the authenticating.
+  A rebound request still carries the attacker's hostname in Host, which is
+  what makes the check work. The MCP transport sets the SDK's
+  enableDnsRebindingProtection/allowedHosts as a second lock;
+  allowedOrigins is deliberately left unset there because the SDK treats a
+  MISSING Origin as failure, which would lock out every non-browser client.
 - `sofar mcp [--root <dir>]` — start the stdio MCP server (server name:
   sofar) exposing §MCP tools; --root overrides the repo root (default:
   cwd). Added in Phase 2 (BD13); `sofar init` registers it in .mcp.json.

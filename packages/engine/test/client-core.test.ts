@@ -57,12 +57,27 @@ describe('api_url resolution', () => {
     expect(resolveApiUrl({ remote, env: {} })).toBe('https://remote.example')
     expect(resolveApiUrl({ remote, env: { SOFAR_API_URL: 'http://localhost:8787' } })).toBe('http://localhost:8787')
     expect(
-      resolveApiUrl({ flag: 'http://flag.example/', remote, env: { SOFAR_API_URL: 'http://localhost:8787' } }),
-    ).toBe('http://flag.example')
+      resolveApiUrl({ flag: 'https://flag.example/', remote, env: { SOFAR_API_URL: 'http://localhost:8787' } }),
+    ).toBe('https://flag.example')
   })
 
   it('ignores an empty env override', () => {
     expect(resolveApiUrl({ env: { SOFAR_API_URL: '  ' } })).toBe(DEFAULT_API_URL)
+  })
+
+  // remote.json is committed and team-shared, so "which URL" is not purely the
+  // local user's choice — a downgrade to plain http would put the bearer token
+  // on the wire in clear for everyone who pulled the change.
+  it('refuses a non-loopback http api_url from any source', () => {
+    const remote = { ...REMOTE, api_url: 'http://evil.example' }
+    expect(() => resolveApiUrl({ remote, env: {} })).toThrow(/https/)
+    expect(() => resolveApiUrl({ flag: 'http://evil.example', env: {} })).toThrow(/https/)
+    expect(() => resolveApiUrl({ env: { SOFAR_API_URL: 'http://evil.example' } })).toThrow(/https/)
+  })
+
+  it('still allows plain http for the localhost dev server', () => {
+    expect(resolveApiUrl({ env: { SOFAR_API_URL: 'http://localhost:8787' } })).toBe('http://localhost:8787')
+    expect(resolveApiUrl({ env: { SOFAR_API_URL: 'http://127.0.0.1:8787' } })).toBe('http://127.0.0.1:8787')
   })
 })
 
