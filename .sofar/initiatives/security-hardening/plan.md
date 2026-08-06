@@ -22,4 +22,4 @@ Progress: 6/6 tasks done (100%)
 - [x] 3.1 Redact secrets from command_run cmd text before it reaches the log
 
 Active phase: Phase 1 — Confirmed remote-reachable holes
-Next action: Release: bump sofar.sh, then user runs `npm publish -w sofar.sh` and `sofar upgrade`.
+Next action: Bump sofar.sh version, then user runs `npm publish -w sofar.sh` and `sofar upgrade` to make redaction live.
