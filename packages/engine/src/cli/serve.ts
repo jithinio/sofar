@@ -40,6 +40,48 @@ export const RECONCILE_MS = 250
 
 const SLUG_PATH_RE = /^[a-z0-9-]+$/ // slugs only — a path segment never walks the fs
 
+/**
+ * Binding to 127.0.0.1 keeps other machines out. It does NOT keep out the
+ * browser on THIS machine: a page the user visits can point a hostname it
+ * controls at 127.0.0.1 (DNS rebinding), at which point the page's own origin
+ * IS this server and the same-origin policy stops protecting anything. The
+ * page could then read the entire record from /state and drive every write
+ * tool on /mcp, which is unauthenticated by design because "localhost" was
+ * doing the authenticating.
+ *
+ * The Host header is what closes it: a rebound request still carries the
+ * attacker's hostname, because that is the URL the browser fetched. So only a
+ * literal loopback authority is served. Origin is checked too — absent means a
+ * non-browser client (curl, an MCP client, the tests), present means a browser,
+ * and then it must itself be loopback.
+ */
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '::1'])
+
+/** Host must name loopback AND the port we are actually listening on. */
+export function hostAllowed(host: string | undefined, port: number): boolean {
+  if (host === undefined) return false // HTTP/1.1 requires it; a browser always sends it
+  const lower = host.toLowerCase()
+  const idx = lower.lastIndexOf(':')
+  // An IPv6 literal keeps its brackets; the port is only after the LAST colon
+  // when that colon falls outside them.
+  const hasPort = idx > lower.lastIndexOf(']')
+  const name = hasPort ? lower.slice(0, idx) : lower
+  const stated = hasPort ? lower.slice(idx + 1) : null
+  if (!LOOPBACK_HOSTS.has(name)) return false
+  return stated === null || stated === String(port)
+}
+
+/** Absent Origin = not a browser. Present = must be a loopback page. */
+export function originAllowed(origin: string | undefined): boolean {
+  if (origin === undefined) return true
+  if (origin === 'null') return false // sandboxed/opaque origin — never ours
+  try {
+    return LOOPBACK_HOSTS.has(new URL(origin).hostname.toLowerCase())
+  } catch {
+    return false
+  }
+}
+
 export interface ServeOptions {
   root: string
   /** 0 = ephemeral (tests). Default 4173. */
@@ -223,6 +265,12 @@ export async function startServer(options: ServeOptions): Promise<ServeHandle> {
         if (sessionId === undefined && isInitializeRequest(body)) {
           const transport = new StreamableHTTPServerTransport({
             sessionIdGenerator: () => randomUUID(),
+            // Second lock on the same door (the handler already checked Host).
+            // allowedOrigins is deliberately NOT set: the SDK treats a missing
+            // Origin as a failure, which would lock out every non-browser
+            // client — originAllowed above draws that line correctly instead.
+            enableDnsRebindingProtection: true,
+            allowedHosts: [`127.0.0.1:${listeningPort}`, `localhost:${listeningPort}`],
             onsessioninitialized: (sid) => {
               mcpTransports.set(sid, transport)
             },
@@ -266,7 +314,17 @@ export async function startServer(options: ServeOptions): Promise<ServeHandle> {
   }
 
   // --- http ------------------------------------------------------------------
+  // Known only after listen() when the port is ephemeral (0, in tests), and
+  // every request is served after that — so the guard reads it, never captures it.
+  let listeningPort = options.port ?? DEFAULT_PORT
+
   const server: Server = createServer((req, res) => {
+    // Before routing, before reading a body: a rebound or cross-origin request
+    // gets nothing, not even a 404's worth of information about what exists.
+    if (!hostAllowed(req.headers.host, listeningPort) || !originAllowed(req.headers.origin)) {
+      json(res, 403, { error: 'forbidden: sofar serve answers loopback requests only' })
+      return
+    }
     const url = new URL(req.url ?? '/', 'http://127.0.0.1')
     if (url.pathname === '/mcp') {
       void handleMcp(req, res)
@@ -313,6 +371,7 @@ export async function startServer(options: ServeOptions): Promise<ServeHandle> {
 
   const address = server.address()
   const port = typeof address === 'object' && address !== null ? address.port : (options.port ?? DEFAULT_PORT)
+  listeningPort = port // ephemeral ports resolve here — the guard must know the real one
 
   return {
     port,
