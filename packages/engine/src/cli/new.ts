@@ -2,6 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { createToolContext, currentBranch, ToolError } from '../mcp/context'
 import { BindingsAbort, writeBinding } from '../core/bindings'
 import { isClosedInitiativeStatus } from '@sofar/schema'
+import { SLUG_RE } from '@sofar/schema/tool-inputs'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui'
 
@@ -17,7 +18,10 @@ import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui
  * slugs are validated, and switch refuses unknown slugs.
  */
 
-export const SLUG_RE = /^[a-z0-9-]+$/
+// One home for the slug shape (packages/schema/src): it is a validation rule,
+// and it is now load-bearing for path safety, so it must not be able to drift
+// between the CLI that creates slugs and the tool layer that accepts them.
+export { SLUG_RE }
 
 /** Non-empty goal required by the initiative_created schema when --goal is omitted. */
 export const DEFAULT_GOAL = '(goal not recorded yet — set one with sofar_update_plan)'

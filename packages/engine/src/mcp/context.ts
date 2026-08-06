@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { validatePayload, isKnownEventType } from '@sofar/schema'
 import type { ToolErrorCode, ToolErrorShape } from '@sofar/schema/tool-inputs'
 import { makeEvent, SOURCES, type Actor, type EventEnvelope, type Source } from '../core/envelope'
@@ -299,6 +299,29 @@ export function createToolContext(rootDir: string): ToolContext {
     return bindings
   }
 
+  /**
+   * A slug becomes a path, so it must never be able to name one.
+   *
+   * The tool layer validates `initiative` against SLUG_RE, but that is not the
+   * only way a slug reaches here: bindings.json is a COMMITTED, team-shared
+   * file, and `--initiative` flags reach the CLI directly. Both bypass the
+   * schema. So the containment check lives at the single choke point every
+   * resolution passes through, and is stated in terms of the resolved path
+   * rather than the string — `..`, an absolute path, a symlinked slug
+   * directory, and a unicode separator all fail the same way.
+   */
+  const initiativesRoot = join(sofarDir, 'initiatives')
+  function assertContained(slug: string): void {
+    const dir = resolve(initiativeDir(slug))
+    const root = resolve(initiativesRoot)
+    if (dir !== join(root, slug) || !dir.startsWith(root + sep)) {
+      throw new ToolError(
+        'unknown_initiative',
+        `invalid initiative "${slug}" — slugs are lowercase letters, digits, and hyphens ([a-z0-9-]+), never a path`,
+      )
+    }
+  }
+
   function resolveInitiative(explicit?: string): string {
     let slug: string
     if (explicit !== undefined) {
@@ -320,6 +343,7 @@ export function createToolContext(rootDir: string): ToolContext {
       }
       slug = bound
     }
+    assertContained(slug)
     if (!existsSync(initiativeDir(slug))) {
       throw new ToolError(
         'unknown_initiative',

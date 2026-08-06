@@ -21,6 +21,22 @@ import {
 // Typed tool errors — the single home for the error-code union.
 // ---------------------------------------------------------------------------
 
+/**
+ * The one shape an initiative slug may take, and the ONLY guard between a tool
+ * argument and a filesystem path: the engine resolves `initiative` by joining
+ * it under .sofar/initiatives/, so a slug carrying `..` walks out of the record
+ * and writes the log and every projection into whatever directory it lands in.
+ * Lowercase letters, digits, hyphens — no separators, no dots, no traversal.
+ * `sofar new` has always enforced this at creation; enforcing it at the tool
+ * boundary too is what closes the write path (see engine mcp/context.ts, which
+ * asserts containment as well — belt and braces, since this regex is the belt).
+ */
+export const SLUG_RE = /^[a-z0-9-]+$/
+
+/** Shared message so every tool rejects a bad slug in the same words. */
+export const SLUG_ERROR =
+  'initiative: must be a slug of lowercase letters, digits, and hyphens ([a-z0-9-]+)'
+
 export const TOOL_ERROR_CODES = [
   'invalid_input',
   'unknown_initiative',
@@ -165,7 +181,8 @@ export interface ToolDef {
 const initiativeProp = {
   type: 'string',
   minLength: 1,
-  description: 'Initiative slug; omit to resolve from the current git branch.',
+  pattern: SLUG_RE.source,
+  description: 'Initiative slug ([a-z0-9-]+); omit to resolve from the current git branch.',
 }
 
 const planTaskSchema = {
@@ -396,22 +413,26 @@ function str(v: unknown): v is string {
 function optStr(v: unknown): boolean {
   return v === undefined || typeof v === 'string'
 }
-function optSlug(v: unknown): boolean {
+/** Non-empty string with no shape constraint — session ids come from the agent tool. */
+function optId(v: unknown): boolean {
   return v === undefined || str(v)
+}
+function optSlug(v: unknown): boolean {
+  return v === undefined || (str(v) && SLUG_RE.test(v))
 }
 
 const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
   sofar_get_state(a, e) {
-    if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
+    if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
     if (a.view !== undefined && !(GET_STATE_VIEWS as readonly string[]).includes(a.view as string)) {
       e.push(`view: must be one of ${GET_STATE_VIEWS.join('|')}`)
     }
   },
   sofar_start_session(a, e) {
-    if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
+    if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
     if (!str(a.tool)) e.push('tool: must be a non-empty string')
     if (!optStr(a.model)) e.push('model: must be a string')
-    if (!optSlug(a.session_id)) e.push('session_id: must be a non-empty string')
+    if (!optId(a.session_id)) e.push('session_id: must be a non-empty string')
   },
   sofar_end_session(a, e) {
     if (!str(a.session_id)) e.push('session_id: must be a non-empty string')
@@ -419,7 +440,7 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
     if (!str(a.next_action)) e.push('next_action: must be a non-empty string')
   },
   sofar_update_task(a, e) {
-    if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
+    if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
     if (!str(a.task_id)) e.push('task_id: must be a non-empty string')
     if (typeof a.status !== 'string' || !(TASK_STATUSES as readonly string[]).includes(a.status)) {
       e.push(`status: must be one of ${TASK_STATUSES.join('|')}`)
@@ -434,7 +455,7 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
     }
   },
   sofar_close_initiative(a, e) {
-    if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
+    if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
     if (a.status !== 'done' && a.status !== 'dropped') {
       e.push('status: must be one of done|dropped')
     }
@@ -446,13 +467,13 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
     }
   },
   sofar_log_decision(a, e) {
-    if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
+    if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
     if (!str(a.chose)) e.push('chose: must be a non-empty string')
     if (!str(a.over)) e.push('over: must be a non-empty string')
     if (!str(a.because)) e.push('because: must be a non-empty string')
   },
   sofar_update_plan(a, e) {
-    if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
+    if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
     // The plan must satisfy the existing PlanStructure validator — reuse the
     // plan_updated payload validator so tool input and event payload can
     // never drift apart.
@@ -460,11 +481,11 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
     if (!check.ok) e.push(...check.errors)
   },
   sofar_add_note(a, e) {
-    if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
+    if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
     if (!str(a.text)) e.push('text: must be a non-empty string')
   },
   sofar_remember(a, e) {
-    if (!optSlug(a.initiative)) e.push('initiative: must be a non-empty string')
+    if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
     if (!str(a.text)) e.push('text: must be a non-empty string')
   },
 }
