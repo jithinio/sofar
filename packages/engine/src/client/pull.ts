@@ -1,5 +1,5 @@
 import { importNDJSON } from '../core/cursor'
-import { apiRequest, toApiError, withRetries, type FetchLike, type RetryPolicy } from './http'
+import { apiRequest, readTextCapped, toApiError, withRetries, type FetchLike, type RetryPolicy } from './http'
 import { eventsPathFor } from './push'
 
 /**
@@ -77,7 +77,7 @@ export async function pullStream(opts: PullStreamOptions): Promise<PullReport> {
         ...(opts.fetchImpl !== undefined ? { fetchImpl: opts.fetchImpl } : {}),
       })
       if (!res.ok) throw await toApiError(res)
-      return { body: await res.text(), cursor: res.headers.get(CURSOR_HEADER) }
+      return { body: await readTextCapped(res), cursor: res.headers.get(CURSOR_HEADER) }
     }, {
       ...opts.retry,
       onRetry: (err, attempt, delayMs) => {

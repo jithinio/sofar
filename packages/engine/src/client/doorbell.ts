@@ -10,6 +10,13 @@ import { ApiError, defaultSleep, toApiError, type FetchLike, type Sleep } from '
  * sync-client D3): data/comment lines are all this endpoint speaks.
  */
 
+/**
+ * Largest partial frame the reader will hold before giving up on it. A ring is
+ * two short fields and a heartbeat is one comment, so a megabyte of unbroken
+ * bytes is not a frame arriving slowly — it is a stream that will never end.
+ */
+export const MAX_SSE_FRAME_CHARS = 1024 * 1024
+
 export interface DoorbellRing {
   stream: string
   head: string
@@ -91,6 +98,15 @@ export async function runDoorbell(opts: DoorbellOptions): Promise<void> {
       for await (const chunk of res.body as AsyncIterable<Uint8Array>) {
         kick()
         buffer += decoder.decode(chunk, { stream: true })
+        // A stream that never sends a newline would grow this forever. An SSE
+        // frame is a line; anything past the cap is not one, so drop what we
+        // hold and let the reconnect ladder resynchronize.
+        if (buffer.length > MAX_SSE_FRAME_CHARS) {
+          opts.onWarn?.('doorbell: oversized frame from server — resynchronizing')
+          buffer = ''
+          dataLines = []
+          break
+        }
         let newline: number
         while ((newline = buffer.indexOf('\n')) >= 0) {
           const line = buffer.slice(0, newline).replace(/\r$/, '')

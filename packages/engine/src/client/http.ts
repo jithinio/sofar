@@ -60,7 +60,7 @@ export function errorParts(body: unknown): { code?: string; message?: string } {
 export async function toApiError(res: Response): Promise<ApiError> {
   let body: unknown
   try {
-    body = await res.json()
+    body = await readJsonCapped(res) // an error body is still a body a server controls
   } catch {
     body = undefined
   }
@@ -115,11 +115,56 @@ export async function apiRequest(opts: RequestOptions): Promise<Response> {
   })
 }
 
+/**
+ * Ceiling on any single response this client will buffer.
+ *
+ * `res.json()`/`res.text()` read until the server stops sending, so a server
+ * that never stops is a memory-exhaustion primitive aimed at the CLI. 32 MB is
+ * far above a real page — the server caps a push batch at 5 MB and a pull page
+ * at 5000 events — and far below anything that hurts.
+ */
+export const MAX_RESPONSE_BYTES = 32 * 1024 * 1024
+
+/** Body as text, aborting the moment it grows past `maxBytes`. */
+export async function readTextCapped(res: Response, maxBytes = MAX_RESPONSE_BYTES): Promise<string> {
+  const body = res.body as ReadableStream<Uint8Array> | null
+  if (body === null) return ''
+  const reader = body.getReader()
+  const chunks: Buffer[] = []
+  let total = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value === undefined) continue
+      total += value.byteLength
+      if (total > maxBytes) {
+        throw new ApiError(res.status, 'response_too_large', `response exceeded ${maxBytes} bytes`)
+      }
+      chunks.push(Buffer.from(value))
+    }
+  } finally {
+    await reader.cancel().catch(() => {})
+  }
+  return Buffer.concat(chunks).toString('utf8')
+}
+
+/** Capped JSON read; undefined when the body is absent or not JSON. */
+export async function readJsonCapped(res: Response, maxBytes = MAX_RESPONSE_BYTES): Promise<unknown> {
+  const text = await readTextCapped(res, maxBytes)
+  if (text.trim().length === 0) return undefined
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
 /** JSON request that throws a typed ApiError on any non-2xx status. */
 export async function apiJson<T>(opts: RequestOptions): Promise<T> {
   const res = await apiRequest(opts)
   if (!res.ok) throw await toApiError(res)
-  return (await res.json()) as T
+  return (await readJsonCapped(res)) as T
 }
 
 // ---------------------------------------------------------------------------
