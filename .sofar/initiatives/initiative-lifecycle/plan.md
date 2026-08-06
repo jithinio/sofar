@@ -37,4 +37,4 @@ Progress: 15/15 tasks done (100%)
 - [x] 5.2 Dogfood the exact case that prompted this: close repo-memory-capture and task-drop-state, then confirm THIS session's statusline still shows its record while a genuinely fresh session on the unbound branch is told to start or switch. Also confirm closing does not silence the closing session's own hooks.
 
 Active phase: Phase 1 — Settle the resolution mechanism (blocks everything else)
-Next action: User runs `npm publish -w sofar.sh`, then `sofar upgrade`; then decide on the 12 finished-but-open initiatives.
+Next action: User decides whether to open a security-hardening initiative; fix order is traversal, then serve origin checks.
