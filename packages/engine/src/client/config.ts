@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { assertSafeWebUrl } from './url'
 
 /**
  * Sync-client configuration + stores (sync-client 1.1, SPEC §Sync client).
@@ -98,7 +99,13 @@ export function resolveApiUrl(opts: {
   const env = opts.env ?? process.env
   const chosen =
     nonEmpty(opts.flag) ?? nonEmpty(env[API_URL_ENV]) ?? opts.remote?.api_url ?? DEFAULT_API_URL
-  return normalizeApiUrl(chosen)
+  const url = normalizeApiUrl(chosen)
+  // Every credential this client holds is a bearer token, and remote.json is a
+  // committed file — so a PR that flips api_url to http:// would silently move
+  // `sofar push` onto the wire in clear. Refuse rather than downgrade; the
+  // localhost exception keeps the documented dev server working.
+  assertSafeWebUrl(url, 'api_url')
+  return url
 }
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,5 @@
-import { apiJson, apiRequest, errorParts, defaultSleep, type FetchLike, type Sleep } from './http'
+import { apiJson, apiRequest, errorParts, defaultSleep, readJsonCapped, type FetchLike, type Sleep } from './http'
+import { isSafeWebUrl } from './url'
 
 /**
  * `sofar login` core — RFC-8628 device authorization against api.sofar.sh's
@@ -52,16 +53,25 @@ export async function requestDeviceCode(opts: DeviceFlowOptions): Promise<Device
   ) {
     throw new DeviceFlowError('bad_response', `${opts.apiUrl} returned no device/user code — is this a sofar API?`)
   }
+  // These two go to the OS URL opener, so the server does not get to say what
+  // they are. Anything that is not an https web page (or a localhost dev one)
+  // is dropped here rather than spawned later — see client/url.ts.
+  const safeUri = (value: unknown): string =>
+    typeof value === 'string' && isSafeWebUrl(value) ? value : ''
+  const verificationUri = safeUri(raw.verification_uri)
+  const verificationUriComplete = safeUri(raw.verification_uri_complete)
+  if (verificationUri.length === 0 && verificationUriComplete.length === 0) {
+    throw new DeviceFlowError(
+      'bad_response',
+      `${opts.apiUrl} returned no usable verification URL (an https URL is required) — is this a sofar API?`,
+    )
+  }
   return {
     device_code: raw.device_code,
     user_code: raw.user_code,
-    verification_uri: typeof raw.verification_uri === 'string' ? raw.verification_uri : '',
+    verification_uri: verificationUri,
     verification_uri_complete:
-      typeof raw.verification_uri_complete === 'string' && raw.verification_uri_complete.length > 0
-        ? raw.verification_uri_complete
-        : typeof raw.verification_uri === 'string'
-          ? raw.verification_uri
-          : '',
+      verificationUriComplete.length > 0 ? verificationUriComplete : verificationUri,
     expires_in: typeof raw.expires_in === 'number' && raw.expires_in > 0 ? raw.expires_in : 1800,
     interval: typeof raw.interval === 'number' && raw.interval > 0 ? raw.interval : 5,
   }
@@ -99,7 +109,7 @@ export async function pollDeviceToken(opts: PollOptions): Promise<string> {
     })
     let body: unknown
     try {
-      body = await res.json()
+      body = await readJsonCapped(res)
     } catch {
       body = undefined
     }

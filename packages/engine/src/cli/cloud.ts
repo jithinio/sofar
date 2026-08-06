@@ -20,6 +20,7 @@ import {
 import { deviceLogin, DeviceFlowError, type DeviceCodeResponse } from '../client/device'
 import { runDoorbell } from '../client/doorbell'
 import { ApiError, type FetchLike, type Sleep } from '../client/http'
+import { isSafeWebUrl } from '../client/url'
 import { pullStream, type PullReport } from '../client/pull'
 import { pushStream, type PushReport } from '../client/push'
 import { createRepo } from '../client/repos'
@@ -56,13 +57,24 @@ function netDeps(deps: CloudDeps): { fetchImpl?: FetchLike } {
   return deps.fetchImpl !== undefined ? { fetchImpl: deps.fetchImpl } : {}
 }
 
-/** Best-effort platform browser open — failure is fine, the URL is printed. */
+/**
+ * Best-effort platform browser open — failure is fine, the URL is printed.
+ *
+ * The URL comes from the auth server, so it is checked again here even though
+ * device.ts already dropped unsafe ones: this function hands a string to the
+ * operating system, and that is not a place to rely on a caller having been
+ * careful. On Windows the opener is `rundll32 url.dll,FileProtocolHandler`
+ * rather than `cmd /c start`, because arguments passed through cmd.exe are
+ * re-parsed by cmd.exe's own rules — which Node's argument escaping does not
+ * cover — making `&` in a hostile URL a command separator.
+ */
 function defaultOpenBrowser(url: string): void {
+  if (!isSafeWebUrl(url)) return // printed above; never spawned
   const [cmd, args] =
     process.platform === 'darwin'
       ? ['open', [url]]
       : process.platform === 'win32'
-        ? ['cmd', ['/c', 'start', '', url]]
+        ? ['rundll32', ['url.dll,FileProtocolHandler', url]]
         : ['xdg-open', [url]]
   try {
     const child = spawn(cmd, args as string[], { stdio: 'ignore', detached: true })
@@ -92,12 +104,13 @@ export async function runLogin(
 ): Promise<CmdResult> {
   const env = deps.env ?? process.env
   let remote: RemoteConfig | null
+  let apiUrl: string
   try {
     remote = readRemote(rootDir)
+    apiUrl = resolveApiUrl({ flag: options.api, remote, env }) // rejects a non-https target
   } catch (err) {
     return fail(renderFailure(`sofar login: ${errMessage(err)}`, errCaps))
   }
-  const apiUrl = resolveApiUrl({ flag: options.api, remote, env })
   const scopes = (options.scopes ?? 'sync')
     .split(',')
     .map((s) => s.trim())
@@ -199,12 +212,13 @@ export async function runLink(
 ): Promise<CmdResult> {
   const env = deps.env ?? process.env
   let remote: RemoteConfig | null
+  let apiUrl: string
   try {
     remote = readRemote(rootDir)
+    apiUrl = resolveApiUrl({ flag: options.api, remote, env }) // rejects a non-https target
   } catch (err) {
     return fail(renderFailure(`sofar link: ${errMessage(err)}`, errCaps))
   }
-  const apiUrl = resolveApiUrl({ flag: options.api, remote, env })
   let credential: StoredCredential | null
   try {
     credential = readCredential(apiUrl, env)
