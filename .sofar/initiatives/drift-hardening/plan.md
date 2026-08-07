@@ -31,4 +31,4 @@ Progress: 7/10 tasks done (70%)
 - [ ] 5.2 Doctor + Stop-gate check session events against guards; violation names the decision
 - [ ] 5.3 Tests: guard match/no-match, doctor axis, gate surface
 
-Next action: Phase 5.1: design the guard predicate (glob/grep over touched files + commands, warn-don't-block, no new deps) and log the decision before building doctor/Stop-gate checks.
+Next action: User runs `npm publish -w sofar.sh`, then `npm install -g --prefix ~/.local sofar.sh@latest`; then Phase 5.1 guard-predicate design in a fresh session.
