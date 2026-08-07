@@ -215,6 +215,23 @@ export function sessionDebt(state: InitiativeState, session: SessionState): numb
   return session.unwritten + state.freshness.unattributed_mutations
 }
 
+/**
+ * Standing constraints (drift-hardening D1): every decision carrying a
+ * `rule`, with its 1-based ordinal in log order — the D<n> handle the
+ * citation grammar resolves. The single selector behind the digest section,
+ * the full-status section, and the update_task point-of-use reminder, so no
+ * surface can disagree with another about what the law says.
+ */
+export function standingRules(
+  decisions: readonly DecisionState[],
+): Array<{ ordinal: number; rule: string }> {
+  const rules: Array<{ ordinal: number; rule: string }> = []
+  decisions.forEach((d, i) => {
+    if (d.rule !== undefined) rules.push({ ordinal: i + 1, rule: d.rule })
+  })
+  return rules
+}
+
 export interface InitiativeState {
   slug: string
   goal: string

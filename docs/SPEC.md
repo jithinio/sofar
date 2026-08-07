@@ -743,6 +743,8 @@ also collides with a sofar-cloud-internal package).
   held by a killed agent would deadlock against the Stop gate that blocks
   exit on a missing write-back.
 - sofar_update_task({initiative?, task_id, status, note?}) → ok
+  # status=active also returns standing_constraints (drift-hardening 4.1):
+  # the [D<n>]-tagged rules, resurfaced at the point of use
 - sofar_log_decision({initiative?, chose, over, because, rule?}) → ok
   # rule (drift-hardening D1): standing-constraint clause, rendered verbatim
   # on every surface — never clipped, never aged out of the digest

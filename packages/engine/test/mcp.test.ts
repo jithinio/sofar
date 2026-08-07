@@ -135,6 +135,39 @@ describe('MCP tools round-trip (2.2)', () => {
     await client.close()
   })
 
+  it('update_task → active resurfaces standing constraints at the point of use (drift-hardening 4.1)', async () => {
+    const fixture = makeRepoFixture()
+    const { client } = await connectServer(fixture.root)
+    await callTool(client, 'sofar_start_session', { tool: 'claude-code' })
+    await callTool(client, 'sofar_update_plan', {
+      plan: { goal: 'g', phases: [{ name: 'Phase 1', tasks: [{ id: '1.1', title: 't' }] }] },
+    })
+    await callTool(client, 'sofar_log_decision', {
+      chose: 'a',
+      over: 'b',
+      because: 'c',
+      rule: 'Never do the thing.',
+    })
+
+    const active = await callTool<{ ok: boolean; standing_constraints?: string[] }>(
+      client,
+      'sofar_update_task',
+      { task_id: '1.1', status: 'active' },
+    )
+    expect(active.isError).toBe(false)
+    expect(active.body.standing_constraints).toEqual(['[D1] Never do the thing.'])
+
+    // only the point of USE gets the reminder — a completion does not
+    const done = await callTool<{ ok: boolean; standing_constraints?: string[] }>(
+      client,
+      'sofar_update_task',
+      { task_id: '1.1', status: 'done' },
+    )
+    expect(done.isError).toBe(false)
+    expect(done.body.standing_constraints).toBeUndefined()
+    await client.close()
+  })
+
   it('appends outside a session fall back to session "cli" and source "cli"', async () => {
     const fixture = makeRepoFixture()
     const { client } = await connectServer(fixture.root)

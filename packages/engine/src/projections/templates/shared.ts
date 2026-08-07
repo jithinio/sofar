@@ -1,4 +1,4 @@
-import type { DecisionState, FreshnessState, SessionActivity } from '../../core/fold'
+import { standingRules, type DecisionState, type FreshnessState, type SessionActivity } from '../../core/fold'
 
 /**
  * Shared template pieces. Projections are generated files — the header
@@ -73,10 +73,7 @@ export function standingConstraintLines(
   decisions: readonly DecisionState[],
   budget?: number,
 ): string[] {
-  const standing: Array<{ ordinal: number; rule: string }> = []
-  decisions.forEach((d, i) => {
-    if (d.rule !== undefined) standing.push({ ordinal: i + 1, rule: d.rule })
-  })
+  const standing = standingRules(decisions)
   if (standing.length === 0) return []
   const lines = [`Standing constraints — obey verbatim (${standing.length}):`]
   let used = 0

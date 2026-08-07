@@ -159,6 +159,15 @@ export interface ToolOkResult {
   event_id: string
 }
 
+/**
+ * update_task result (drift-hardening 4.1): when a task goes `active`, the
+ * standing constraints ride along — a reminder at the point of use, where
+ * salience is highest, instead of only at session start where it decays.
+ */
+export interface UpdateTaskResult extends ToolOkResult {
+  standing_constraints?: string[]
+}
+
 // ---------------------------------------------------------------------------
 // JSON Schemas — plain objects, declared per MCP Tool.inputSchema.
 // ---------------------------------------------------------------------------
