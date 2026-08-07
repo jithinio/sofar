@@ -9,6 +9,7 @@ import { renderDecisions } from '../src/projections/templates/decisions'
 import { renderSession } from '../src/projections/templates/session'
 import {
   enforceStatusLimit,
+  renderFullStatus,
   renderStatus,
   REPO_MEMORY_CHAR_BUDGET,
   REPO_MEMORY_TRUNCATION_MARKER,
@@ -498,5 +499,93 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     expect(capped).toContain(STATUS_TRUNCATION_MARKER)
     // under-limit text passes through untouched
     expect(enforceStatusLimit('fine')).toBe('fine')
+  })
+})
+
+describe('standing constraints — verbatim render contract (drift-hardening 2.1/2.2)', () => {
+  const LONG_RULE = `Never emit \`@source not\` when the installed tailwindcss is below 4.1 — ${'r'.repeat(400)} end.`
+
+  function decision(
+    i: number,
+    rule?: string,
+  ): InitiativeState['decisions'][number] {
+    return {
+      id: `01ARZ3NDEKTSV4RRFFQ69G5${String(i).padStart(3, '0')}`,
+      ts: '2026-08-01T00:00:00.000Z',
+      chose: `choice ${i}`,
+      over: `alternative ${i}`,
+      because: `reason ${i}`,
+      ...(rule !== undefined ? { rule } : {}),
+    }
+  }
+
+  it('renders a rule verbatim under the goal, un-clipped and immune to the last-5 window', () => {
+    const state = populatedState()
+    // Rule on the FIRST decision, then six rule-less ones: the last-5 recent
+    // window drops D1 entirely — the standing section must not.
+    state.decisions = [decision(1, LONG_RULE), ...[2, 3, 4, 5, 6, 7].map((i) => decision(i))]
+    const status = renderStatus(state)
+
+    expect(status).toContain('Standing constraints — obey verbatim (1):')
+    expect(status).toContain(`- [D1] ${LONG_RULE}`)
+    // placement: the normative frame sits between Goal and Progress
+    expect(status.indexOf('Standing constraints')).toBeGreaterThan(status.indexOf('Goal:'))
+    expect(status.indexOf('Standing constraints')).toBeLessThan(status.indexOf('Progress:'))
+    // the recent window did age D1 out — the premise of the immunity claim
+    expect(status).toContain('Recent decisions (last 5 of 7):')
+    expect(status).not.toContain('chose choice 1')
+  })
+
+  it('omits the section entirely when no decision carries a rule', () => {
+    expect(renderStatus(populatedState())).not.toContain('Standing constraints')
+    expect(renderFullStatus(populatedState())).not.toContain('Standing constraints')
+  })
+
+  it('budget pressure drops whole entries with a pointer, never clips inside a rule', () => {
+    const state = populatedState()
+    state.decisions = Array.from({ length: 40 }, (_, i) =>
+      decision(i + 1, `Rule ${i + 1} — ${'x'.repeat(120)} end.`),
+    )
+    const status = renderStatus(state)
+    expect(status).toContain('Standing constraints — obey verbatim (40):')
+    expect(status).toMatch(/…and \d+ more \(see decisions\.md\)/)
+    const ruleLines = status.split('\n').filter((l) => l.startsWith('- [D'))
+    expect(ruleLines.length).toBeGreaterThan(0)
+    expect(ruleLines.length).toBeLessThan(40)
+    // every rendered entry is whole — a clipped one would end with the ellipsis
+    for (const line of ruleLines) expect(line.endsWith(' end.')).toBe(true)
+  })
+
+  it('a single rule larger than the whole budget still renders whole', () => {
+    const state = populatedState()
+    state.decisions = [decision(1, `Giant — ${'g'.repeat(3_000)} end.`)]
+    const status = renderStatus(state)
+    expect(status).toContain(`Giant — ${'g'.repeat(3_000)} end.`)
+    expect(status.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
+  })
+
+  it('renderFullStatus carries every rule uncapped', () => {
+    const state = populatedState()
+    state.decisions = Array.from({ length: 40 }, (_, i) =>
+      decision(i + 1, `Rule ${i + 1} — ${'x'.repeat(120)} end.`),
+    )
+    const full = renderFullStatus(state)
+    expect(full).toContain('Standing constraints — obey verbatim (40):')
+    expect(full).toContain(`- [D40] Rule 40 —`)
+    expect(full).not.toContain('more (see decisions.md)')
+  })
+
+  it('decisions.md leads a ruled decision with its rule (2.2)', () => {
+    const state = populatedState()
+    state.decisions = [decision(1, 'Never do the thing.')]
+    const md = renderDecisions(state)
+    expect(md).toContain(
+      '- 2026-08-01T00:00:00.000Z — rule: **Never do the thing.** — chose **choice 1** over alternative 1 because reason 1',
+    )
+    // rule-less decisions keep their historical byte shape
+    state.decisions = [decision(2)]
+    expect(renderDecisions(state)).toContain(
+      '- 2026-08-01T00:00:00.000Z — chose **choice 2** over alternative 2 because reason 2',
+    )
   })
 })

@@ -16,6 +16,7 @@ import {
   describeFreshness,
   phaseFraction,
   progressText,
+  standingConstraintLines,
   taskProgress,
 } from './shared'
 
@@ -59,6 +60,11 @@ const MAX_DECISIONS = 5
 // clipped, so it stays compact even as decisions accumulate.
 const REJECTED_OVER_LINE_BUDGET = 90
 const REJECTED_LEDGER_BUDGET = 2_800
+// Standing-constraints ledger (drift-hardening 2.1): rules render VERBATIM —
+// budget pressure drops whole entries with a pointer, never clips inside a
+// rule. Section renders near the top, so the enforceStatusLimit tail cut can
+// never take it before the clippable sections below.
+const STANDING_LEDGER_BUDGET = 2_000
 // Concurrent-edit surfacing (task 11.4, D-P11) — rendered only when open
 // sessions share files, so it costs nothing in the common single-session case.
 const CONFLICT_LINE_BUDGET = 200
@@ -162,6 +168,13 @@ export function renderFullStatus(state: InitiativeState): string {
     lines.push(`Status: ${state.status}${when}${why}`)
   }
   lines.push(`Goal: ${state.goal || '(none recorded)'}`)
+
+  // Standing constraints (drift-hardening 2.1) — terminal surface, uncapped.
+  const standing = standingConstraintLines(state.decisions)
+  if (standing.length > 0) {
+    lines.push('')
+    lines.push(...standing)
+  }
 
   lines.push(
     `Progress: ${progressText(taskProgress(state.phases))} across ${state.phases.length} phase(s)`,
@@ -336,6 +349,14 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   }
 
   lines.push(`Goal: ${state.goal ? clip(state.goal, GOAL_BUDGET) : '(none recorded)'}`, '')
+
+  // Standing constraints (drift-hardening 2.1): the normative frame, directly
+  // under the goal — what every session must obey before it reads any detail.
+  // Absent when no decision carries a rule, so old records render unchanged.
+  const standing = standingConstraintLines(state.decisions, STANDING_LEDGER_BUDGET)
+  if (standing.length > 0) {
+    lines.push(...standing, '')
+  }
 
   // Progress + active phase.
   lines.push(

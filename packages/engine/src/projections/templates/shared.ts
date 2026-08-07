@@ -1,4 +1,4 @@
-import type { FreshnessState, SessionActivity } from '../../core/fold'
+import type { DecisionState, FreshnessState, SessionActivity } from '../../core/fold'
 
 /**
  * Shared template pieces. Projections are generated files — the header
@@ -53,6 +53,45 @@ export function describeFreshness(counts: FreshnessState['events_since_writeback
   if (counts.decisions > 0) parts.push(n(counts.decisions, 'decision'))
   if (counts.memories > 0) parts.push(n(counts.memories, 'promoted memory', 'promoted memories'))
   return parts.join(', ')
+}
+
+/**
+ * Standing-constraints section (drift-hardening 2.1): every decision carrying
+ * a `rule`, rendered VERBATIM — a rule is never clipped and never ages out of
+ * the last-5 recent-decisions window. [D<n>] is the decision's 1-based ordinal
+ * in log order, the handle the citation grammar already resolves, so a session
+ * can cite the law it is obeying. Shared by renderStatus (budgeted) and
+ * renderFullStatus (uncapped) so the two surfaces cannot disagree on what the
+ * constraints say — the describeFreshness pattern.
+ *
+ * Budget semantics: whole entries drop with a count pointer; the first entry
+ * always renders whole (a budget that could silence every rule would be a
+ * clip by other means). Whitespace is collapsed to keep the list shape — that
+ * is normalization, not clipping.
+ */
+export function standingConstraintLines(
+  decisions: readonly DecisionState[],
+  budget?: number,
+): string[] {
+  const standing: Array<{ ordinal: number; rule: string }> = []
+  decisions.forEach((d, i) => {
+    if (d.rule !== undefined) standing.push({ ordinal: i + 1, rule: d.rule })
+  })
+  if (standing.length === 0) return []
+  const lines = [`Standing constraints — obey verbatim (${standing.length}):`]
+  let used = 0
+  let shown = 0
+  for (const d of standing) {
+    const line = `- [D${d.ordinal}] ${d.rule.replace(/\s+/g, ' ').trim()}`
+    if (budget !== undefined && shown > 0 && used + line.length + 1 > budget) break
+    lines.push(line)
+    used += line.length + 1
+    shown++
+  }
+  if (shown < standing.length) {
+    lines.push(`- …and ${standing.length - shown} more (see decisions.md)`)
+  }
+  return lines
 }
 
 /** Join non-empty template sections into a document with a trailing newline. */
