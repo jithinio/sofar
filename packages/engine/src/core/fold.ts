@@ -10,10 +10,15 @@ import {
 } from './adjacency'
 import {
   coerceUnknownPlanStatuses,
+  guardMatches,
   isKnownEventType,
   isResolvedTaskStatus,
+  parseGuard,
   validatePayload,
+  type CommandRunPayload,
+  type CompiledGuard,
   type CorrectionPayload,
+  type GuardDomain,
   type DecisionLoggedPayload,
   type MemoryPromotedPayload,
   type FileTouchedPayload,
@@ -68,6 +73,11 @@ export interface DecisionState {
    * one. Render contract: verbatim, never clipped, never aged out.
    */
   rule?: string
+  /**
+   * The mechanical half of that clause (drift-hardening D3) — a `path:`/`cmd:`
+   * glob list. Present only alongside `rule`, by payload validation.
+   */
+  guard?: string
 }
 
 /** A fact promoted to repo memory — addressable as `<slug> M<n>`. */
@@ -232,6 +242,65 @@ export function standingRules(
   return rules
 }
 
+/**
+ * One crossing of a guarded rule (drift-hardening D3) — a file_touched or
+ * command_run event whose subject matched a decision's guard.
+ *
+ * It carries the whole citation with it: the [D<n>] handle, the rule VERBATIM
+ * (D2 — no surface may clip inside it), and the event that crossed it. Every
+ * surface reads this one derivation, so the audit, the prompt line and the
+ * Stop message can never disagree about what fired.
+ */
+export interface GuardViolation {
+  /** 1-based ordinal of the guarding decision in log order — the D<n> handle. */
+  decision: number
+  /** The clause that was crossed, verbatim. */
+  rule: string
+  /** The guard spec that matched. */
+  guard: string
+  domain: GuardDomain
+  /** The path or command that matched. */
+  subject: string
+  /** The offending event. */
+  event_id: string
+  ts: string
+  session: string
+}
+
+/**
+ * Ceiling on retained violations — one broad guard over a long log must not
+ * grow the fold without bound. Deduping by (decision, session, subject) means
+ * this is a count of DISTINCT crossings, not of edits, so a real repo reaches
+ * it only by genuinely violating a rule a hundred different ways.
+ */
+export const GUARD_VIOLATION_CAP = 100
+
+/**
+ * Violations attributed to one session since a point in time — what the
+ * live surfaces (the prompt line, the Stop message) report, as opposed to
+ * doctor's whole-record audit. `since` is the session's last write-back, or
+ * absent when it has none — the same "what have I not accounted for" frame the
+ * parallel-wrap line uses, so a session that wrote back stops being told about
+ * crossings it already answered for while one that never did hears about all
+ * of them. There is deliberately no session-start floor: every violation here
+ * already belongs to this session, so a floor could only ever drop one.
+ *
+ * The window is STRICTLY after `since`. Timestamps carry millisecond
+ * granularity, so a crossing and the write-back that follows it can share one
+ * — and the tie resolves toward silence, because a repeated warning about work
+ * already accounted for is the noise that gets this whole class of line
+ * ignored. doctor still reports every crossing, whatever its timing.
+ */
+export function sessionGuardViolations(
+  state: InitiativeState,
+  sessionId: string,
+  since?: string,
+): GuardViolation[] {
+  return state.guard_violations.filter(
+    (v) => v.session === sessionId && (since === undefined || v.ts > since),
+  )
+}
+
 export interface InitiativeState {
   slug: string
   goal: string
@@ -278,6 +347,13 @@ export interface InitiativeState {
    * show it and doctor can audit that one was given at all.
    */
   drop_notes: Record<string, string>
+  /**
+   * Guarded rules this log's own work crossed (drift-hardening D3), in log
+   * order, deduped and capped at GUARD_VIOLATION_CAP. Derived at replay: a
+   * guard only ever sees events that come AFTER the decision carrying it, so
+   * the first thing a new guard flags is never the work that motivated it.
+   */
+  guard_violations: GuardViolation[]
   current: {
     active_phase: string | null
     next_action: string | null
@@ -345,6 +421,7 @@ export function emptyState(): InitiativeState {
     files_touched: [],
     task_files: {},
     drop_notes: {},
+    guard_violations: [],
     current: { active_phase: null, next_action: null },
     freshness: emptyFreshness(),
     cursor: null,
@@ -450,6 +527,8 @@ export function foldLines(lines: readonly string[], slug = ''): FoldResult {
   const edges: GraphEdge[] = [] // per-log adjacency, emitted as this replay goes (4.1/4.2)
   const seenSessions = new Set<string>() // every session id on any event (record-integrity 2.1)
   const orphanCandidates: OrphanTaskEvent[] = [] // task 12.2: replay-time skips, filtered against the final plan below
+  const guardCache = new Map<string, CompiledGuard | null>() // spec → compiled, once per fold (D3)
+  const guardSeen = new Set<string>() // decision + session + subject — one crossing, one violation
 
   for (const { lineNo, event } of parsed) {
     // Cursor tracks the last envelope-valid event: sync (export/import)
@@ -489,6 +568,10 @@ export function foldLines(lines: readonly string[], slug = ''): FoldResult {
     // recordTaskFiles did (it read the same mutated state.phases).
     edges.push(...edgesForEvent(event, slug, activeTaskIds(state)))
     recordFreshness(state, event)
+    // Guards run AFTER applyEvent for the same reason adjacency does: the
+    // decisions in state are exactly those already logged, so a guard can
+    // only ever see the work that followed it (D3, non-retroactive).
+    recordGuardViolations(state, event, guardCache, guardSeen)
 
     // Orphan candidate (task 12.2): a task_status_changed that applyEvent
     // just skipped — the id is not (yet) in the plan.
@@ -605,6 +688,72 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
       mutation(() => (counts.memories += 1))
       break
   }
+}
+
+// ---------------------------------------------------------------------------
+// Fold-time decision guards (drift-hardening D3) — the mechanical tier.
+// ---------------------------------------------------------------------------
+
+/**
+ * Match one mechanical event against every guard logged BEFORE it, recording
+ * the crossings.
+ *
+ * Non-retroactivity is structural rather than a date comparison: this runs
+ * inside the replay, so `state.decisions` holds exactly the decisions that
+ * precede this event. A guard therefore cannot flag the work that motivated
+ * it, and no rule about clock skew is needed to say so.
+ *
+ * Everything here is best-effort in the same sense the rest of the fold is: a
+ * malformed guard compiles to null and simply never matches (payload
+ * validation already rejects those at the write, so this is the
+ * hand-edited-log path), and one broad guard cannot grow the state past
+ * GUARD_VIOLATION_CAP.
+ */
+function recordGuardViolations(
+  state: InitiativeState,
+  event: EventEnvelope,
+  cache: Map<string, CompiledGuard | null>,
+  seen: Set<string>,
+): void {
+  if (state.guard_violations.length >= GUARD_VIOLATION_CAP) return
+
+  let domain: GuardDomain
+  let subject: string
+  if (event.type === 'file_touched') {
+    domain = 'path'
+    subject = (event.payload as unknown as FileTouchedPayload).path
+  } else if (event.type === 'command_run') {
+    domain = 'cmd'
+    subject = (event.payload as unknown as CommandRunPayload).cmd
+  } else {
+    return
+  }
+
+  state.decisions.forEach((decision, index) => {
+    const spec = decision.guard
+    if (spec === undefined || decision.rule === undefined) return
+    if (!cache.has(spec)) cache.set(spec, parseGuard(spec))
+    const compiled = cache.get(spec) ?? null
+    if (compiled === null || compiled.domain !== domain) return
+    if (!guardMatches(compiled, subject)) return
+
+    // One crossing per (rule, session, subject): a file edited thirty times
+    // is one violation of one rule, not thirty warnings.
+    const key = `${index} ${event.session} ${subject}`
+    if (seen.has(key)) return
+    seen.add(key)
+    if (state.guard_violations.length >= GUARD_VIOLATION_CAP) return
+    state.guard_violations.push({
+      decision: index + 1,
+      rule: decision.rule,
+      guard: spec,
+      domain,
+      subject,
+      event_id: event.id,
+      ts: event.ts,
+      session: event.session,
+    })
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -865,6 +1014,7 @@ function applyEvent(
         because: p.because,
         // Absent stays absent — a missing rule must not serialize as a key.
         ...(p.rule !== undefined ? { rule: p.rule } : {}),
+        ...(p.guard !== undefined ? { guard: p.guard } : {}),
       })
       break
     }

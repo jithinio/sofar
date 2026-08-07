@@ -4,6 +4,13 @@
  * envelope (src/core/envelope.ts) is stable and lives outside it.
  */
 
+import { guardSpecErrors } from './guards'
+
+// The guard grammar is part of the decision_logged payload contract, so it
+// lives here and is re-exported from the package entry — one definition
+// shared by payload validation and by the fold that evaluates it.
+export * from './guards'
+
 /**
  * `blocked` and `dropped` are NOT synonyms (task-drop-state D1). `blocked`
  * means "wants to happen, cannot yet" — it stays outstanding and keeps
@@ -91,7 +98,20 @@ export interface TaskStatusChangedPayload { id: string; status: TaskStatus; note
  * ablation showed decisions are the load-bearing resume field, and clipped
  * normative text is how dead ends recur.
  */
-export interface DecisionLoggedPayload { chose: string; over: string; because: string; rule?: string }
+export interface DecisionLoggedPayload {
+  chose: string
+  over: string
+  because: string
+  rule?: string
+  /**
+   * `guard` (drift-hardening D3): the mechanical half of the SAME clause —
+   * a `path:`/`cmd:` glob list (src/guards.ts) the fold matches against
+   * file_touched / command_run events logged after this decision. Valid only
+   * alongside `rule`: a guard with no clause has nothing to cite when it
+   * fires, and what it produces is a WARNING that never changes an exit code.
+   */
+  guard?: string
+}
 export interface SessionStartedPayload { tool: string; model?: string }
 export interface SessionEndedPayload { session_id?: string; summary: string; next_action: string }
 /**
@@ -310,6 +330,12 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (!str(p.over)) e.push('over: must be a non-empty string')
     if (!str(p.because)) e.push('because: must be a non-empty string')
     if (!optNonEmptyStr(p.rule)) e.push('rule: must be a non-empty string when present')
+    if (p.guard !== undefined) {
+      // A guard is the mechanical half of a rule (D3), so it cannot stand
+      // alone: the violation it raises has to name the clause it enforces.
+      if (!str(p.rule)) e.push('guard: requires `rule` — a guard with no clause has nothing to cite')
+      e.push(...guardSpecErrors(p.guard))
+    }
   },
   session_started(p, e) {
     if (!str(p.tool)) e.push('tool: must be a non-empty string')

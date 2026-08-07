@@ -121,6 +121,8 @@ export interface LogDecisionArgs {
   because: string
   /** Standing-constraint clause (drift-hardening D1) — see the JSON schema description. */
   rule?: string
+  /** Machine-checkable half of `rule` (drift-hardening D3) — see guards.ts. */
+  guard?: string
 }
 export interface UpdatePlanArgs {
   initiative?: string
@@ -309,6 +311,12 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
         minLength: 1,
         description:
           'ONE short imperative every future session must obey (e.g. "Never emit `@source not` when the installed tailwindcss is below 4.1."). Its presence makes this decision a standing constraint: rendered verbatim in every digest, never clipped, never ages out. Reserve for decisions that constrain future work; omit for one-off choices.',
+      },
+      guard: {
+        type: 'string',
+        minLength: 1,
+        description:
+          'Optional machine-checkable half of `rule` (requires `rule`): a glob list matched against the work that follows this decision, warning when the rule is crossed. Form: "path:<globs>" against edited file paths, or "cmd:<globs>" against shell commands; comma-separated, a leading "!" exempts. Globs use * (not crossing / for paths), ** and ?; path patterns match a path tail (`packages/schema/**`), cmd patterns match anywhere in the command (`*npm publish*`). Example: "path:**/*.ts,!packages/schema/src/**". It only ever warns — it never blocks anything. Omit unless the rule is genuinely expressible as "these files" or "these commands".',
       },
     },
     required: ['chose', 'over', 'because'],

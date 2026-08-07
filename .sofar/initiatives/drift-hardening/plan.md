@@ -4,7 +4,7 @@
 
 Goal: Make cross-session/cross-model drift structurally low instead of accidentally low: the normative clause of a decision survives every render surface verbatim (never clipped, never aged out), gets re-surfaced at the point of use, and — where expressible as a predicate — is mechanically enforced. Engine-side only; certification (A3 trap harness, cross-model arms, n>=150) is handoff-bench machinery outside this repo. Evidence base: C-abl ablation showed decisions are load-bearing; live digest shows 90/280-char clips cutting operative detail; MAX_DECISIONS=5 ages settled decisions out.
 
-Progress: 7/10 tasks done (70%)
+Progress: 10/10 tasks done (100%)
 
 ## Phase 1 — rule field (schema + fold) [done] — 2/2 done
 
@@ -25,10 +25,10 @@ Progress: 7/10 tasks done (70%)
 
 - [x] 4.1 sofar_update_task (-> active) response carries the standing rules, budgeted — reminder at point of use beats instructions at session start; test
 
-## Phase 5 — decision guards (mechanical tier) [pending] — 0/3 done
+## Phase 5 — decision guards (mechanical tier) [done] — 3/3 done
 
-- [ ] 5.1 Design: guard predicate shape (glob/grep over touched files + commands, zero model calls) — log decision before building
-- [ ] 5.2 Doctor + Stop-gate check session events against guards; violation names the decision
-- [ ] 5.3 Tests: guard match/no-match, doctor axis, gate surface
+- [x] 5.1 Design: guard predicate shape (glob/grep over touched files + commands, zero model calls) — log decision before building
+- [x] 5.2 Doctor + Stop-gate check session events against guards; violation names the decision
+- [x] 5.3 Tests: guard match/no-match, doctor axis, gate surface
 
-Next action: Phase 5.1 in a fresh session (new engine hooks live): design the guard predicate (glob/grep over touched files + commands, warn-don't-block, no new deps), log the decision, then build doctor/Stop-gate checks (5.2, 5.3).
+Next action: Release 0.23.0: bump sofar.sh, publish (user runs `npm publish -w sofar.sh`), then `sofar upgrade`.

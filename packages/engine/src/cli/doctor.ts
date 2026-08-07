@@ -54,6 +54,8 @@ import {
  *      changes — work missing from the plan, 11.3)
  *   3. concurrency        — no file under concurrent edit by ≥2 OPEN sessions
  *      (live clobber risk, 11.2)
+ *   3b. decision guards   — has any work crossed a guarded rule (drift-hardening
+ *      D3)? WARN only: a guard never moves an exit code, this one included.
  *   4. repo memory        — is every decision the record TREATS as repo-wide
  *      (cited from other initiatives, record-graph 2.3/3.3) named in the
  *      hand-written .sofar/repo.md? Both halves: decisions OBSERVED repo-general
@@ -512,6 +514,45 @@ function auditSplitSessions(folded: Folded[]): Section {
   return { title: 'Session routing', findings }
 }
 
+/**
+ * Decision guards (drift-hardening D3) — the retrospective half of the
+ * mechanical tier. The hooks warn a session about its OWN crossings while it
+ * works; this axis answers the other question, over the whole record: which
+ * guarded rules has this initiative's work crossed, by whom, and where.
+ *
+ * WARN, never FAIL — a guard is advisory by construction (D3), and doctor's
+ * exit code is the same exit code the rule says a violation must not move.
+ * The rule text is reproduced VERBATIM (D2): this is a surface, so the
+ * never-clip contract binds it exactly as it binds the digest.
+ */
+function auditGuards(rootDir: string, folded: Folded[]): Section {
+  const findings: Finding[] = []
+  let guarded = 0
+  for (const { slug, state } of folded) {
+    if (state === undefined) continue
+    guarded += state.decisions.filter((d) => d.guard !== undefined).length
+    for (const v of state.guard_violations) {
+      const rel = relative(rootDir, v.subject)
+      const where = v.domain === 'path' && rel.length > 0 && !rel.startsWith('..') ? rel : v.subject
+      findings.push({
+        level: 'warn',
+        text: `${slug}: [D${v.decision}] guard crossed — ${where}`,
+        hint: `"${v.rule}" (guard: ${v.guard}; session ${v.session}, event ${v.event_id})`,
+      })
+    }
+  }
+  if (findings.length === 0) {
+    findings.push({
+      level: 'ok',
+      text:
+        guarded === 0
+          ? 'no decision carries a guard'
+          : `no work crosses any of the ${guarded} guarded rule(s)`,
+    })
+  }
+  return { title: 'Decision guards', findings }
+}
+
 function auditConcurrency(folded: Folded[]): Section {
   const findings: Finding[] = []
   let conflictTotal = 0
@@ -833,6 +874,7 @@ export function runDoctor(
     auditLifecycle(rootDir, folded),
     auditSplitSessions(folded),
     auditConcurrency(folded),
+    auditGuards(rootDir, folded),
     auditRepoMemory(rootDir, folded),
     auditScanners(rootDir, fix, { caps: progress.caps ?? stderrCaps(), stream: progress.stream }),
   ]

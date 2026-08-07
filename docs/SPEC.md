@@ -126,7 +126,9 @@ phase_status_changed · task_added · task_status_changed (id, status:
 pending|active|done|blocked|dropped, note?) · decision_logged (chose, over,
 because, rule? — optional standing-constraint clause, one short imperative;
 presence makes the decision a standing constraint with a verbatim-render
-contract: never clipped, never aged out; drift-hardening D1) ·
+contract: never clipped, never aged out; drift-hardening D1 — guard? — the
+mechanical half of that same clause, a `path:`/`cmd:` glob list valid ONLY
+alongside `rule`; see §Decision guards, drift-hardening D3) ·
 session_started (tool, model?) · session_ended (summary, next_action) ·
 session_closed (reason — mechanical close from the SessionEnd hook; never
 carries summary/next_action, added Phase 3, BD21) ·
@@ -140,8 +142,9 @@ status_note, phases[ {name, status, tasks[ {id, title,
 status} ]} ], decisions[], memories[ {id, ts, text} ],
 sessions[ {id, tool, model?, started, ended?,
 summary?, next_action?, closed_reason?, activity?} ],
-files_touched[], task_files, drop_notes, current: {active_phase, next_action,
-blocked_on?}, freshness, cursor: <last event id> }
+files_touched[], task_files, drop_notes, guard_violations[ {decision, rule,
+guard, domain, subject, event_id, ts, session} ], current: {active_phase,
+next_action, blocked_on?}, freshness, cursor: <last event id> }
 
 ### Task statuses (task-drop-state D1)
 `blocked` and `dropped` are NOT synonyms. `blocked` means "wants to happen,
@@ -306,6 +309,45 @@ to registered sessions only (BD21/BD44), so such events were previously
 counted by freshness and files_touched while attributable to no session —
 invisible mass. A non-empty list is the misroute signature and feeds
 doctor's session-routing audit. Additive; InitiativeState unchanged.
+### Decision guards (drift-hardening D3)
+The MECHANICAL tier of a standing constraint. `rule` states the law in prose
+(D1); `guard` is the half of that same law a machine can check, and it lives
+on the same event, because the warning it raises has to name the decision it
+enforces — a side file drifts from the clause it claims to guard. Valid only
+alongside `rule`: a guard with no clause has nothing to cite.
+
+Grammar (packages/schema/src/guards.ts — the payload contract, so it lives in
+the schema package): `path:<globs>` matches file_touched paths, `cmd:<globs>`
+matches command_run commands; comma-separated, a leading `!` EXEMPTS, and a
+guard fires when ≥1 positive pattern matches and no exemption does. Globs
+carry `*` (not crossing `/` in the path domain), `**` (crossing it, and
+matching zero directories as a leading segment) and `?`. `path` patterns
+anchor at a `/` boundary on the left and at end-of-string on the right, so
+`packages/schema/**` means the same thing against the ABSOLUTE paths hooks
+log on any machine; `cmd` patterns match as a SUBSTRING, because
+`cmd:npm publish` silently never firing would be a guard that reads as
+compliance. Not regex: agent-authored patterns must be safe to compile and
+cheap inside the 100ms shim budget, and every ambiguity resolves toward a
+non-match. An all-exemption guard is rejected at validation for the same
+reason — it can never fire.
+
+Evaluation is fold-time and NON-RETROACTIVE by construction: guards run
+inside the replay against the decisions already logged, so a guard only ever
+sees the work that followed it and never flags the work that motivated it.
+Crossings land in `state.guard_violations` deduped per (rule, session,
+subject) — a file edited thirty times is one violation of one rule — and
+capped at 100 so one broad guard cannot grow the fold without bound. A voided
+decision guards nothing.
+
+WARN, NEVER BLOCK: no exit code anywhere moves because a guard fired. Three
+surfaces read the one derivation — `sofar doctor`'s decision-guards axis
+(WARN, whole record), the UserPromptSubmit line (this session's crossings
+since its last write-back, rendered first), and the Stop message, which
+appends crossings to a block the gate had ALREADY raised for a missing
+write-back and never converts an exit 0 into an exit 2. The rule text renders
+verbatim on every one of them (D2): subjects drop whole with a count pointer
+and paths render repo-relative, but nothing clips inside the clause.
+
 Repo-level derivation listInitiatives(rootDir) (initiative-list 1.2):
 every directory under .sofar/initiatives/ summarized — slug, bound
 branches (bindings.json inverted), tasks done/total, active phase, next
@@ -745,9 +787,12 @@ also collides with a sofar-cloud-internal package).
 - sofar_update_task({initiative?, task_id, status, note?}) → ok
   # status=active also returns standing_constraints (drift-hardening 4.1):
   # the [D<n>]-tagged rules, resurfaced at the point of use
-- sofar_log_decision({initiative?, chose, over, because, rule?}) → ok
+- sofar_log_decision({initiative?, chose, over, because, rule?, guard?}) → ok
   # rule (drift-hardening D1): standing-constraint clause, rendered verbatim
   # on every surface — never clipped, never aged out of the digest
+  # guard (drift-hardening D3): the machine-checkable half of that rule —
+  # `path:`/`cmd:` globs (§Decision guards). Requires `rule`; a malformed
+  # guard fails payload validation and appends nothing. Warns, never blocks.
 - sofar_update_plan({initiative?, plan}) → ok   # full-structure replace
 - sofar_add_note({initiative?, text}) → ok
 - sofar_remember({initiative?, text}) → ok   # promote a fact to repo memory
@@ -1068,7 +1113,7 @@ Shims contain no logic — they invoke the sofar CLI.
   the scanner would ingest committed `.sofar/` records; the hint points at
   `sofar doctor --fix` (added Phase 10, D-P10). The statusline hint, when
   both fire, prints before it — the scanner hint keeps the final slot.
-- `sofar doctor [--fix]` — audit a host repo across six axes: (1) wiring
+- `sofar doctor [--fix]` — audit a host repo across seven axes: (1) wiring
   integrity (init's shims/settings/.mcp.json/protocol blocks intact); (2)
   record health — initiative logs fold without stub sessions or corrupt lines,
   no STALE PHASE (all tasks done but the phase still active/pending, missing a
@@ -1093,7 +1138,10 @@ Shims contain no logic — they invoke the sofar CLI.
   plus each state's registered ids; deterministic, sessions sorted by id and
   footprints by slug;
   (4) concurrency — no file under concurrent edit by ≥2 OPEN sessions (a live
-  clobber risk); (5) repo memory — two halves, both checked against the
+  clobber risk); (5) decision guards — every crossing in `guard_violations`
+  (§Decision guards), one WARN naming `[D<n>]`, the subject, and the rule
+  VERBATIM. Always WARN and never FAIL: the audit's exit code is the very
+  exit code D3 forbids a guard from moving; (6) repo memory — two halves, both checked against the
   hand-written `.sofar/repo.md`, the one file every SessionStart injects.
   OBSERVED: every decision the record TREATS as repo-wide (§Record graph
   `repoGeneral`: cited FROM another initiative). DECLARED: every fact promoted
@@ -1107,7 +1155,7 @@ Shims contain no logic — they invoke the sofar CLI.
   rewording. DETECTION ONLY, always WARN: repo.md is hand-written per §Record
   layout and sofar never generates or rewrites it, so both the curation and the
   SessionStart token budget stay the author's (record-graph 3.3);
-  (6) scanner hazards (Tailwind v4 entry stylesheet lacking a
+  (7) scanner hazards (Tailwind v4 entry stylesheet lacking a
   `@source not` exclusion for `.sofar`). Record-health, concurrency and
   repo-memory findings
   are WARN (surfaced, non-fatal); exit 1 only when a FAIL-level finding remains,
@@ -1948,3 +1996,18 @@ stay the underlying derivation's, and exit codes are styling-independent.
   tail, reports the true total, and stays inside 300 chars. Passing no
   session id re-admits nobody, so `sofar doctor`'s concurrency audit is
   byte-identical; passing a DIFFERENT session's id re-admits only that one.
+- **Decision guards (drift-hardening 5.1-5.3, D3):** `guard` validates only
+  alongside `rule`, only in the `path:`/`cmd:` grammar, and never as an
+  all-exemption spec — each failure appends nothing and returns the typed
+  error. A `path` guard matches the tail of the ABSOLUTE path a hook logs and
+  not a partial segment; `*` stops at `/` while `**` crosses it; a `cmd` guard
+  matches anywhere in the command; exemptions beat positives. The fold flags
+  only work logged AFTER the guarding decision, counts one crossing per (rule,
+  session, subject) however many times the file is re-touched, keeps sibling
+  sessions separate, ignores a voided decision, and stops at 100 violations.
+  `sofar doctor` reports each crossing at WARN with the rule verbatim and
+  exits 0 on a repo whose only findings are crossings; the UserPromptSubmit
+  line leads with them and falls silent after the session writes back; the
+  Stop message carries them only when it was already blocking for a missing
+  write-back, and a session that wrote back exits 0 with a crossing on record.
+  A log carrying no guard folds and renders byte-identically to before.

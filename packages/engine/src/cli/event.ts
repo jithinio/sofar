@@ -1,11 +1,13 @@
 import { readFileSync, statSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import type { Command } from 'commander'
 import { isClosedInitiativeStatus } from '@sofar/schema'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
 import {
   openSessionFileConflicts,
   sessionDebt,
+  sessionGuardViolations,
+  type GuardViolation,
   type InitiativeState,
   type SessionState,
 } from '../core/fold'
@@ -551,7 +553,21 @@ export function handleStop(
       // fall through to the block below
     }
 
-    return { exitCode: 2, stdout: '', stderr: STOP_BLOCK_MESSAGE }
+    // Guard crossings RIDE the block; they never cause one (D3). By the time
+    // we are here the gate has already decided to hold this session for its
+    // missing write-back, so naming the rules its own work crossed costs
+    // nothing and lands where the agent is already reading — while a guard
+    // that could flip an exit 0 into an exit 2 would let one false positive
+    // stop real work.
+    const crossings = guardViolationLines(
+      sessionGuardViolations(state, sessionId, session.ended),
+      rootDir,
+    )
+    return {
+      exitCode: 2,
+      stdout: '',
+      stderr: [STOP_BLOCK_MESSAGE, ...crossings].join('\n'),
+    }
   } catch {
     return { ...OK }
   }
@@ -722,6 +738,64 @@ function parallelWrapLine(state: InitiativeState, sessionId: string): string | n
 }
 
 /**
+ * Guard crossings (drift-hardening D3) — the mechanical tier's ONE user-facing
+ * sentence, shared by the prompt line and the Stop message so the thing that
+ * warns you and the thing that reports at exit can never word it differently.
+ *
+ * Composition follows D2 exactly: the rule renders VERBATIM and is never
+ * clipped, and everything around it absorbs the budget instead — subjects drop
+ * whole with a count pointer, rules beyond the cap drop whole with a pointer at
+ * `sofar doctor`. Paths render relative to the repo (hooks log absolute ones),
+ * which is exact rather than a truncation; commands, which are neither
+ * normative nor bounded, clip like any other budgeted line.
+ *
+ * What this is NOT: a gate. Nothing here changes an exit code (D3) — the
+ * Stop caller only ever appends these lines to a block it had already decided
+ * to raise for a missing write-back.
+ */
+export const GUARD_SUBJECTS_MAX = 3
+export const GUARD_RULES_MAX = 2
+export const GUARD_CMD_BUDGET = 60
+
+function guardSubject(v: GuardViolation, rootDir: string): string {
+  if (v.domain === 'cmd') return clipTo(v.subject, GUARD_CMD_BUDGET)
+  const rel = relative(rootDir, v.subject)
+  return rel.length > 0 && !rel.startsWith('..') ? rel : v.subject
+}
+
+export function guardViolationLines(
+  violations: readonly GuardViolation[],
+  rootDir: string,
+): string[] {
+  if (violations.length === 0) return []
+  const byRule = new Map<number, GuardViolation[]>()
+  for (const v of violations) {
+    const group = byRule.get(v.decision) ?? []
+    group.push(v)
+    byRule.set(v.decision, group)
+  }
+
+  const lines: string[] = []
+  const ordinals = [...byRule.keys()].sort((a, b) => a - b)
+  for (const ordinal of ordinals.slice(0, GUARD_RULES_MAX)) {
+    const group = byRule.get(ordinal)!
+    const head = group[0]!
+    const named = group.slice(0, GUARD_SUBJECTS_MAX).map((v) => guardSubject(v, rootDir))
+    const more = group.length > named.length ? ` (+${group.length - named.length} more)` : ''
+    lines.push(
+      `sofar: [D${ordinal}] guard crossed — "${head.rule}" — ${group.length} event(s): ` +
+        `${named.join(', ')}${more} (guard: ${head.guard}).`,
+    )
+  }
+  if (ordinals.length > GUARD_RULES_MAX) {
+    lines.push(
+      `sofar: …and ${ordinals.length - GUARD_RULES_MAX} more guarded rule(s) crossed — \`sofar doctor\` lists them.`,
+    )
+  }
+  return lines
+}
+
+/**
  * Live file conflicts (writeback-collisions 2.1) — the file THIS session is
  * in is also being edited by another live session, right now.
  *
@@ -779,6 +853,13 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     const lines: string[] = []
     const conflict = fileConflictLine(state, sessionId)
     if (conflict !== null) lines.push(conflict)
+
+    // A crossed rule outranks even the conflict hazard: it is the one line
+    // here that says the work already done disagrees with a standing
+    // constraint, and it is the surface the mechanical tier actually reaches
+    // an agent through — a Stop-only warning would arrive after the fact
+    // (D3), and a non-blocking Stop exit is not fed back to the model at all.
+    lines.unshift(...guardViolationLines(sessionGuardViolations(state, sessionId, me.ended), rootDir))
 
     const wrap = parallelWrapLine(state, sessionId)
     if (wrap !== null) lines.push(wrap)
