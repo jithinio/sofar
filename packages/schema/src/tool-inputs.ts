@@ -119,6 +119,8 @@ export interface LogDecisionArgs {
   chose: string
   over: string
   because: string
+  /** Standing-constraint clause (drift-hardening D1) — see the JSON schema description. */
+  rule?: string
 }
 export interface UpdatePlanArgs {
   initiative?: string
@@ -293,6 +295,12 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       chose: { type: 'string', minLength: 1 },
       over: { type: 'string', minLength: 1 },
       because: { type: 'string', minLength: 1 },
+      rule: {
+        type: 'string',
+        minLength: 1,
+        description:
+          'ONE short imperative every future session must obey (e.g. "Never emit `@source not` when the installed tailwindcss is below 4.1."). Its presence makes this decision a standing constraint: rendered verbatim in every digest, never clipped, never ages out. Reserve for decisions that constrain future work; omit for one-off choices.',
+      },
     },
     required: ['chose', 'over', 'because'],
     additionalProperties: false,

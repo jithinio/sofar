@@ -83,7 +83,15 @@ export interface PlanUpdatedPayload { plan: PlanStructure }
 export interface PhaseStatusChangedPayload { phase: string; status: PhaseStatus }
 export interface TaskAddedPayload { phase: string; id: string; title: string; status?: TaskStatus }
 export interface TaskStatusChangedPayload { id: string; status: TaskStatus; note?: string }
-export interface DecisionLoggedPayload { chose: string; over: string; because: string }
+/**
+ * `rule` (drift-hardening D1): optional standing-constraint clause — one short
+ * imperative every future session must obey. Its presence is what makes a
+ * decision a standing constraint; there is no separate flag. Render contract:
+ * verbatim on every surface, never clipped, never aged out — the C-abl
+ * ablation showed decisions are the load-bearing resume field, and clipped
+ * normative text is how dead ends recur.
+ */
+export interface DecisionLoggedPayload { chose: string; over: string; because: string; rule?: string }
 export interface SessionStartedPayload { tool: string; model?: string }
 export interface SessionEndedPayload { session_id?: string; summary: string; next_action: string }
 /**
@@ -158,6 +166,10 @@ function str(v: unknown): v is string {
 }
 function optStr(v: unknown): boolean {
   return v === undefined || typeof v === 'string'
+}
+/** Optional, but non-empty when present — an empty rule would render an empty constraint. */
+function optNonEmptyStr(v: unknown): boolean {
+  return v === undefined || str(v)
 }
 function taskStatus(v: unknown): v is TaskStatus {
   return typeof v === 'string' && (TASK_STATUSES as readonly string[]).includes(v)
@@ -297,6 +309,7 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (!str(p.chose)) e.push('chose: must be a non-empty string')
     if (!str(p.over)) e.push('over: must be a non-empty string')
     if (!str(p.because)) e.push('because: must be a non-empty string')
+    if (!optNonEmptyStr(p.rule)) e.push('rule: must be a non-empty string when present')
   },
   session_started(p, e) {
     if (!str(p.tool)) e.push('tool: must be a non-empty string')

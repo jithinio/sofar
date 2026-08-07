@@ -2,7 +2,7 @@ import type { LogDecisionArgs, ToolOkResult } from '@sofar/schema/tool-inputs'
 import type { ToolContext } from './context'
 
 /**
- * sofar_log_decision — appends decision_logged {chose, over, because}.
+ * sofar_log_decision — appends decision_logged {chose, over, because, rule?}.
  * Resolution pins to the active session's initiative (task 12.1, BD58).
  */
 export function logDecision(ctx: ToolContext, args: LogDecisionArgs): ToolOkResult {
@@ -11,6 +11,8 @@ export function logDecision(ctx: ToolContext, args: LogDecisionArgs): ToolOkResu
     chose: args.chose,
     over: args.over,
     because: args.because,
+    // Absent stays absent (drift-hardening D1) — never an empty key.
+    ...(args.rule !== undefined ? { rule: args.rule } : {}),
   })
   return { ok: true, event_id: event.id }
 }

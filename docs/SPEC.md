@@ -124,7 +124,9 @@ active|done|dropped, note? — note REQUIRED for `dropped`;
 initiative-lifecycle 2.1) · plan_updated (full plan structure) ·
 phase_status_changed · task_added · task_status_changed (id, status:
 pending|active|done|blocked|dropped, note?) · decision_logged (chose, over,
-because) ·
+because, rule? — optional standing-constraint clause, one short imperative;
+presence makes the decision a standing constraint with a verbatim-render
+contract: never clipped, never aged out; drift-hardening D1) ·
 session_started (tool, model?) · session_ended (summary, next_action) ·
 session_closed (reason — mechanical close from the SessionEnd hook; never
 carries summary/next_action, added Phase 3, BD21) ·
@@ -741,7 +743,9 @@ also collides with a sofar-cloud-internal package).
   held by a killed agent would deadlock against the Stop gate that blocks
   exit on a missing write-back.
 - sofar_update_task({initiative?, task_id, status, note?}) → ok
-- sofar_log_decision({initiative?, chose, over, because}) → ok
+- sofar_log_decision({initiative?, chose, over, because, rule?}) → ok
+  # rule (drift-hardening D1): standing-constraint clause, rendered verbatim
+  # on every surface — never clipped, never aged out of the digest
 - sofar_update_plan({initiative?, plan}) → ok   # full-structure replace
 - sofar_add_note({initiative?, text}) → ok
 - sofar_remember({initiative?, text}) → ok   # promote a fact to repo memory

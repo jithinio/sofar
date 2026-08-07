@@ -68,6 +68,7 @@ describe('validatePayload', () => {
     ['task_added', { phase: 'P', id: '', title: 'T' }, /id/],
     ['task_status_changed', { id: '1.1', status: 'finished' }, /status/],
     ['decision_logged', { chose: 'a', over: 'b' }, /because/],
+    ['decision_logged', { chose: 'a', over: 'b', because: 'c', rule: '' }, /rule/],
     ['session_started', { model: 'm' }, /tool/],
     ['session_ended', { summary: 'did things' }, /next_action/],
     ['session_closed', {}, /reason/],
@@ -85,4 +86,15 @@ describe('validatePayload', () => {
       if (!result.ok) expect(result.errors.join('; ')).toMatch(pattern)
     })
   }
+
+  it('accepts decision_logged carrying a standing-constraint rule (drift-hardening D1)', () => {
+    expect(
+      validatePayload('decision_logged', {
+        chose: 'version gate',
+        over: 'unconditional emit',
+        because: 'field breakage',
+        rule: 'Never emit `@source not` when the installed tailwindcss is below 4.1.',
+      }),
+    ).toEqual({ ok: true })
+  })
 })
