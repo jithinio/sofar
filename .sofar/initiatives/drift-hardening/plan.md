@@ -31,4 +31,4 @@ Progress: 10/10 tasks done (100%)
 - [x] 5.2 Doctor + Stop-gate check session events against guards; violation names the decision
 - [x] 5.3 Tests: guard match/no-match, doctor axis, gate surface
 
-Next action: Nothing open here. Coverage, not mechanism, is the gap: rules/guards on existing decisions, and the unused 36% digest headroom.
+Next action: Nothing open. If pursued: rules/guards on existing decisions, and the per-line clip rather than the last-5 window is where headroom would buy the most.
