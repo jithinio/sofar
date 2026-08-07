@@ -63,6 +63,11 @@ export interface DecisionState {
   chose: string
   over: string
   because: string
+  /**
+   * Standing-constraint clause (drift-hardening D1), when the decision carries
+   * one. Render contract: verbatim, never clipped, never aged out.
+   */
+  rule?: string
 }
 
 /** A fact promoted to repo memory — addressable as `<slug> M<n>`. */
@@ -841,6 +846,8 @@ function applyEvent(
         chose: p.chose,
         over: p.over,
         because: p.because,
+        // Absent stays absent — a missing rule must not serialize as a key.
+        ...(p.rule !== undefined ? { rule: p.rule } : {}),
       })
       break
     }

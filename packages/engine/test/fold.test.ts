@@ -89,6 +89,8 @@ describe('foldLines', () => {
       over: 'lockfile',
       because: 'kernel-atomic, simpler',
     })
+    // No rule logged → no key at all, not an empty one (drift-hardening D1).
+    expect('rule' in state.decisions[0]!).toBe(false)
 
     expect(state.sessions).toHaveLength(1)
     expect(state.sessions[0]).toMatchObject({
@@ -105,6 +107,17 @@ describe('foldLines', () => {
     expect(state.current.blocked_on).toBeUndefined()
 
     expect(state.cursor).toBe(events[events.length - 1]?.id)
+  })
+
+  it('carries a decision rule through verbatim (drift-hardening D1)', () => {
+    const rule = 'Never emit `@source not` when the installed tailwindcss is below 4.1.'
+    const { state } = foldLines(
+      lines([
+        ev('initiative_created', { slug: 'sofar-build', goal: 'Build the v1 engine' }),
+        ev('decision_logged', { chose: 'version gate', over: 'unconditional emit', because: 'field breakage', rule }),
+      ]),
+    )
+    expect(state.decisions[0]?.rule).toBe(rule)
   })
 
   it('is deterministic: same log → deep-equal state and warnings (acceptance)', () => {
