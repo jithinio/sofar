@@ -85,6 +85,15 @@
   animation only when isTTY && !CI. Agent-facing surfaces — renderStatus
   digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every
   new CLI surface inherits this; no TUI framework, no truecolor themes.
+- Emitted-directive version gating (scanner-version-gate M1): any Tailwind
+  directive sofar writes into a host stylesheet is gated on the host's
+  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it
+  fails the host build ("`@source` paths must be quoted"). Establish such
+  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,
+  untar, grep dist/ for the parse site. Second rule from the same bug:
+  Tailwind resolves every path relative to the STYLESHEET, so suggested
+  directives are computed per stylesheet (like sofarExclusionDirective) and
+  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.
 - Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`
   subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the
   code already describe it, and the parts that generalize are covered by

@@ -24,4 +24,4 @@ Progress: 9/9 tasks done (100%)
 
 - [x] 3.1 Bump sofar.sh, publish, and verify the gate against the published binary on a 4.0.x fixture
 
-Next action: Nothing open — close the initiative. Optionally decide whether repo.md should absorb scanner-version-gate M1, and whether a deliberate session re-home should stop tripping doctor’s torn-session FAIL (see note).
+Next action: None — closed. Active work moved to drift-hardening.
