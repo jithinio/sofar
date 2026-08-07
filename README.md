@@ -186,7 +186,11 @@ it in `~/.claude/settings.json` for every project at once. (`sofar init
 --statusline` wires the same thing as part of a full init.) It restores
 what Claude Code's own status line shows, so nothing is lost by switching:
 same model, directory and branch, in the same colors. An existing status
-line is always left alone.
+line is always left alone. The entry carries `refreshInterval: 10`, because
+Claude Code re-runs a status line only on session start, a new message,
+compact and mode toggles — without it an idle session shows a frozen line.
+Retune that number freely; the line stays sofar's and `--uninstall` still
+takes it off.
 
 `sofar statusline --uninstall` takes it back off and Claude Code's own line
 returns; `--user` removes the personal one. A status line that is not

@@ -267,6 +267,16 @@ export const GITATTRIBUTES_LINE = '.sofar/**/events.jsonl merge=union'
 const HOOK_COMMAND_PREFIX = '$CLAUDE_PROJECT_DIR/.claude/hooks/'
 
 /**
+ * Seconds between statusline re-renders. Claude Code re-runs a statusLine
+ * command only on session start, a new assistant message, compact, and mode
+ * toggles, so an idle session shows a frozen line — the staleness is the
+ * host's render cadence, not a stale fold (`sofar statusline` folds in
+ * ~40 ms). `refreshInterval` is the host's own remedy, so the installed
+ * entry ships it instead of leaving every user to discover the gap.
+ */
+export const STATUSLINE_REFRESH_SECONDS = 10
+
+/**
  * The settings.json statusLine entry `--statusline` installs (D4 informed
  * re-test, init-statusline D1). Merged ONLY when the key is absent — an
  * existing statusLine, whatever its value, is the user's and wins.
@@ -274,15 +284,25 @@ const HOOK_COMMAND_PREFIX = '$CLAUDE_PROJECT_DIR/.claude/hooks/'
 export const STATUSLINE_SETTINGS_ENTRY = {
   type: 'command',
   command: 'sofar statusline',
+  refreshInterval: STATUSLINE_REFRESH_SECONDS,
 } as const
 
-/** Is this settings.statusLine value exactly the one --statusline installs? */
+/**
+ * Keys that may appear on our entry without it ceasing to be ours. Identity
+ * is type + command, NOT byte equality: `refreshInterval` is render cadence
+ * the user is meant to tune, and an entry installed before it shipped has
+ * only two keys. Neither may make `--uninstall` call our own line foreign
+ * and refuse to remove it.
+ */
+const STATUSLINE_OWN_KEYS = new Set(['type', 'command', 'refreshInterval'])
+
+/** Is this settings.statusLine value the one --statusline installs? */
 export function isSofarStatusline(v: unknown): boolean {
   return (
     isObj(v) &&
     v.type === STATUSLINE_SETTINGS_ENTRY.type &&
     v.command === STATUSLINE_SETTINGS_ENTRY.command &&
-    Object.keys(v).length === 2
+    Object.keys(v).every((k) => STATUSLINE_OWN_KEYS.has(k))
   )
 }
 

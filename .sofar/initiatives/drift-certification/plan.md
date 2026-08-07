@@ -31,4 +31,4 @@ Progress: 6/12 tasks done (50%)
 - [ ] 4.3 Version-stamped claim wording from the evidence only (e.g. "0/n recurrences on 0.23.0, cross-model, blind-graded, 95% UB x%") — marketing copy comes only from this
 
 Active phase: Phase 1 — pre-registration freeze (before ANY run)
-Next action: 3.1 pilot: work the 117-candidate queue into ~15-20 authored traps (S3/S4/S5/S6b screens), then run the P-cell temptation floor (4 sessions each) — traps below 2-of-4 are retired here, the last point retirement is allowed.
+Next action: 3.1 unchanged: run the P-cell temptation floor (opus only, k=4) over the 15 authored traps — decide first whether to author up to ~20, since this is the last allowed retirement point.

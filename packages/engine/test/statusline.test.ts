@@ -498,6 +498,48 @@ describe('sofar statusline --uninstall (felt-cost D15)', () => {
     expect(readSettings(fixture.root).statusLine).toEqual(custom)
   })
 
+  it('removes our line after the user retuned refreshInterval', () => {
+    // The regression this pins: refreshInterval is the documented cure for a
+    // frozen idle line, and an exact-key-count identity test made setting it
+    // turn sofar's own entry foreign — uninstall refused, install refused.
+    const fixture = fx({ bind: false })
+    mkdirSync(join(fixture.root, '.claude'), { recursive: true })
+    const retuned = { ...STATUSLINE_SETTINGS_ENTRY, refreshInterval: 3 }
+    writeFileSync(settingsOf(fixture.root), `${JSON.stringify({ statusLine: retuned }, null, 2)}\n`)
+    expect(uninstallStatusline(fixture.root).status).toBe('removed')
+    expect(readSettings(fixture.root).statusLine).toBeUndefined()
+  })
+
+  it('removes a legacy entry installed before refreshInterval shipped', () => {
+    const fixture = fx({ bind: false })
+    mkdirSync(join(fixture.root, '.claude'), { recursive: true })
+    const legacy = { type: 'command', command: 'sofar statusline' }
+    writeFileSync(settingsOf(fixture.root), `${JSON.stringify({ statusLine: legacy }, null, 2)}\n`)
+    expect(uninstallStatusline(fixture.root).status).toBe('removed')
+    expect(readSettings(fixture.root).statusLine).toBeUndefined()
+  })
+
+  it('still refuses a line that only shares our shape — command is identity', () => {
+    const fixture = fx({ bind: false })
+    mkdirSync(join(fixture.root, '.claude'), { recursive: true })
+    const foreign = { type: 'command', command: 'sofar statusline --custom', refreshInterval: 10 }
+    writeFileSync(settingsOf(fixture.root), `${JSON.stringify({ statusLine: foreign }, null, 2)}\n`)
+    expect(uninstallStatusline(fixture.root).status).toBe('foreign')
+    expect(readSettings(fixture.root).statusLine).toEqual(foreign)
+  })
+
+  it('refuses our command carrying a key we do not own', () => {
+    const fixture = fx({ bind: false })
+    mkdirSync(join(fixture.root, '.claude'), { recursive: true })
+    const extended = { ...STATUSLINE_SETTINGS_ENTRY, padding: 0 }
+    writeFileSync(
+      settingsOf(fixture.root),
+      `${JSON.stringify({ statusLine: extended }, null, 2)}\n`,
+    )
+    expect(uninstallStatusline(fixture.root).status).toBe('foreign')
+    expect(readSettings(fixture.root).statusLine).toEqual(extended)
+  })
+
   it('reports absent for a missing file or a file with no statusLine', () => {
     const fixture = fx({ bind: false })
     rmSync(join(fixture.root, '.claude'), { recursive: true, force: true })

@@ -22,9 +22,10 @@ import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui
  *   - settings.json hook entries whose command points at one of our five
  *     shims (matched on the shim path substring); emptied matcher groups,
  *     event arrays, and the hooks key itself are pruned
- *   - the settings.json statusLine entry, ONLY when it is exactly the one
- *     `init --statusline` installs — a customized statusLine is user
- *     config, kept (init-statusline D1)
+ *   - the settings.json statusLine entry, ONLY when it is the one
+ *     `init --statusline` installs (matched on type + command, tolerating a
+ *     retuned refreshInterval) — a customized statusLine is user config,
+ *     kept (init-statusline D1, statusline-refresh D1)
  *   - .mcp.json's mcpServers.sofar (other servers/keys untouched)
  *   - the marker-delimited protocol blocks in CLAUDE.md / AGENTS.md, plus
  *     exactly one adjacent blank-line seam so pre-init spacing is restored
@@ -134,8 +135,9 @@ function stripSettings(rootDir: string, purge: boolean, report: string[]): boole
     }
   }
 
-  // statusLine: ours iff exactly what `init --statusline` installs — a
-  // customized entry is user config, kept (theirs-wins, mirrored from init).
+  // statusLine: ours iff what `init --statusline` installs, by type +
+  // command — a customized entry is user config, kept (theirs-wins,
+  // mirrored from init).
   if (isSofarStatusline(settings.statusLine)) {
     delete settings.statusLine
     removedParts.push('statusLine')

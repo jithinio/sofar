@@ -1100,11 +1100,14 @@ Shims contain no logic — they invoke the sofar CLI.
   caused a second initiative's state to leak into Claude Code native memory
   + a scratch dir — jurisdiction must be total, not per-file.]
   With `--statusline`, init also merges the rent-meter wiring
-  `"statusLine": { "type": "command", "command": "sofar statusline" }` into
-  .claude/settings.json — ONLY when the key is absent: an existing
-  statusLine, whatever its value, is the user's and wins (felt-cost D4's
-  clobber concern, honored under explicit opt-in — D4 informed re-test,
-  init-statusline D1). Without the flag, when the project settings carry
+  `"statusLine": { "type": "command", "command": "sofar statusline",
+  "refreshInterval": 10 }` into .claude/settings.json — ONLY when the key is
+  absent: an existing statusLine, whatever its value, is the user's and wins
+  (felt-cost D4's clobber concern, honored under explicit opt-in — D4
+  informed re-test, init-statusline D1). `refreshInterval` ships in the
+  entry because the host re-runs a statusLine command only on session start,
+  a new assistant message, compact and mode toggles, so an idle session
+  renders a frozen line without it (statusline-refresh D1). Without the flag, when the project settings carry
   no statusLine, init prints a plain opt-in hint (points at
   `sofar init --statusline`, notes a project statusLine shadows a personal
   ~/.claude/settings.json one).
@@ -1177,9 +1180,11 @@ Shims contain no logic — they invoke the sofar CLI.
   context and `sofar status` (rendered only when open sessions overlap, D-P11).
 - `sofar uninit [--purge]` — exact inverse of init, surgical: remove the
   five hook shims, our settings.json hook entries (matched on the shim path),
-  the settings.json statusLine entry ONLY when it is exactly the one
-  `--statusline` installs (a customized statusLine is user config — kept;
-  init-statusline D1), .mcp.json's sofar server, our exact .gitattributes
+  the settings.json statusLine entry ONLY when it is the one `--statusline`
+  installs — matched on `type` + `command`, tolerating a retuned
+  `refreshInterval` and the two-key entry installed before that key shipped,
+  and refusing any other extra key (a customized statusLine is user config —
+  kept; init-statusline D1, statusline-refresh D1), .mcp.json's sofar server, our exact .gitattributes
   union-merge line (a customized events.jsonl rule is user content — kept;
   team-readiness T2), and the protocol blocks (markers + one seam
   blank line), preserving all user content; .sofar/ is kept with a notice
