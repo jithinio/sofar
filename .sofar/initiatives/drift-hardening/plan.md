@@ -31,4 +31,4 @@ Progress: 10/10 tasks done (100%)
 - [x] 5.2 Doctor + Stop-gate check session events against guards; violation names the decision
 - [x] 5.3 Tests: guard match/no-match, doctor axis, gate surface
 
-Next action: Release 0.23.0: bump sofar.sh, publish (user runs `npm publish -w sofar.sh`), then `sofar upgrade`.
+Next action: Close drift-hardening (`sofar close drift-hardening`) — engine-side scope is complete; certification is handoff-bench, outside this repo.
