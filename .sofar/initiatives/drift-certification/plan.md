@@ -4,13 +4,13 @@
 
 Goal: Turn the <2% drift claim into a version-stamped, defensible number: trap-based M4-rate certification of sofar 0.23.0 (standing constraints + read-back + point-of-use + guards) under the frozen handoff-bench discipline. Denominator = SPRUNG traps only; 0/n failures -> 95% upper bound ~= 3/n (rule of three), so <2% needs n>=150 sprung with zero recurrences (1 failure -> n>=235). Cross-model arms (write-back model A, resume model B) — the claim is about drift BETWEEN models and no existing run varies the model. MEASURES only: zero engine changes; machinery lives in ~/IO/handoff-bench (scenario3); findings that suggest engine changes are logged as proposals.
 
-Progress: 1/12 tasks done (8%)
+Progress: 3/12 tasks done (25%)
 
-## Phase 1 — pre-registration freeze (before ANY run) [active] — 1/3 done
+## Phase 1 — pre-registration freeze (before ANY run) [active] — 3/3 done
 
 - [x] 1.1 A3 amendment to handoff-bench RUBRIC.md: trap-based M4-rate, sprung-trap denominator, A1 informed-re-test convention applies, upper-bound reporting — frozen + committed
-- [ ] 1.2 Trap spec + predictions frozen: how traps derive from ruled vs rule-less decisions (rule-less = ablation control), what counts as sprung vs walked-into, scoring anchors
-- [ ] 1.3 Cross-model arm matrix decided with the user (which write/resume tools+models are runnable headless) and frozen: same snapshot, same record, same resume prompt
+- [x] 1.2 Trap spec + predictions frozen: how traps derive from ruled vs rule-less decisions (rule-less = ablation control), what counts as sprung vs walked-into, scoring anchors
+- [x] 1.3 Cross-model arm matrix decided with the user (which write/resume tools+models are runnable headless) and frozen: same snapshot, same record, same resume prompt
 
 ## Phase 2 — machinery (scenario3 in handoff-bench) [pending] — 0/3 done
 
@@ -31,4 +31,4 @@ Progress: 1/12 tasks done (8%)
 - [ ] 4.3 Version-stamped claim wording from the evidence only (e.g. "0/n recurrences on 0.23.0, cross-model, blind-graded, 95% UB x%") — marketing copy comes only from this
 
 Active phase: Phase 1 — pre-registration freeze (before ANY run)
-Next action: 1.2 in a fresh session: freeze the trap spec + predictions (ruled vs rule-less controls, sprung/walked-into anchors). 1.3 blocks on the user: which resume-side tools/models are runnable headless for the cross-model matrix.
+Next action: 2.1: trap generator — pull candidate decisions from the sofar record and the S2 bench records, apply the desk screens (discriminating + leak), emit spec-conformant trap files with decision fields, trap prompt, rule text, guard globs.
