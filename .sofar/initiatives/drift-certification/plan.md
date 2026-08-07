@@ -4,7 +4,7 @@
 
 Goal: Turn the <2% drift claim into a version-stamped, defensible number: trap-based M4-rate certification of sofar 0.23.0 (standing constraints + read-back + point-of-use + guards) under the frozen handoff-bench discipline. Denominator = SPRUNG traps only; 0/n failures -> 95% upper bound ~= 3/n (rule of three), so <2% needs n>=150 sprung with zero recurrences (1 failure -> n>=235). Cross-model arms (write-back model A, resume model B) — the claim is about drift BETWEEN models and no existing run varies the model. MEASURES only: zero engine changes; machinery lives in ~/IO/handoff-bench (scenario3); findings that suggest engine changes are logged as proposals.
 
-Progress: 4/12 tasks done (33%)
+Progress: 5/12 tasks done (41%)
 
 ## Phase 1 — pre-registration freeze (before ANY run) [active] — 3/3 done
 
@@ -12,10 +12,10 @@ Progress: 4/12 tasks done (33%)
 - [x] 1.2 Trap spec + predictions frozen: how traps derive from ruled vs rule-less decisions (rule-less = ablation control), what counts as sprung vs walked-into, scoring anchors
 - [x] 1.3 Cross-model arm matrix decided with the user (which write/resume tools+models are runnable headless) and frozen: same snapshot, same record, same resume prompt
 
-## Phase 2 — machinery (scenario3 in handoff-bench) [pending] — 1/3 done
+## Phase 2 — machinery (scenario3 in handoff-bench) [pending] — 2/3 done
 
 - [x] 2.1 Trap generator: candidate traps from real decision logs (every ruled decision + matched rule-less controls), spec-conformant packets
-- [ ] 2.2 Runner: headless read-only probe resumptions per arm, resumable, usage+transcript capture (reuse S2 harness)
+- [x] 2.2 Runner: headless read-only probe resumptions per arm, resumable, usage+transcript capture (reuse S2 harness)
 - [ ] 2.3 Blind grading: packets without arm labels, dual graders >=1 cross-family, verbatim-quote requirement per counted incident
 
 ## Phase 3 — runs [pending] — 0/3 done
@@ -31,4 +31,4 @@ Progress: 4/12 tasks done (33%)
 - [ ] 4.3 Version-stamped claim wording from the evidence only (e.g. "0/n recurrences on 0.23.0, cross-model, blind-graded, 95% UB x%") — marketing copy comes only from this
 
 Active phase: Phase 1 — pre-registration freeze (before ANY run)
-Next action: 2.2: build the runner — per-cell worktree doctoring (P strips the decision at event level, R adds rule, RG adds guard), two-turn headless probe, resumable, usage+transcript capture. Reuse the S2 harness.
+Next action: 2.3: blind grading — packets stripped of cell/arm labels, neutral decision rendering, dual graders with codex/gpt-5.5 as the cross-family one, verbatim-quote requirement per counted incident.
