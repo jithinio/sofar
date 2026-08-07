@@ -31,4 +31,4 @@ Progress: 10/10 tasks done (100%)
 - [x] 5.2 Doctor + Stop-gate check session events against guards; violation names the decision
 - [x] 5.3 Tests: guard match/no-match, doctor axis, gate surface
 
-Next action: Close drift-hardening (`sofar close drift-hardening`) — engine-side scope is complete; certification is handoff-bench, outside this repo.
+Next action: Nothing open here. Coverage, not mechanism, is the gap: rules/guards on existing decisions, and the unused 36% digest headroom.
