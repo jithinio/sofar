@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
 import { validatePayload, isKnownEventType } from '@sofar/schema'
 import type { ToolErrorCode, ToolErrorShape } from '@sofar/schema/tool-inputs'
@@ -114,17 +114,57 @@ function registeredAt(logPath: string, sessionId: string): string | null {
 }
 
 /**
+ * True when this log MAY hold an event newer than `ts`.
+ *
+ * mtime is a sound upper bound on the timestamps a log contains: an event's ts
+ * is stamped immediately before its append, so a file untouched since `ts`
+ * cannot hold anything stamped after it. Every failure mode — an unreadable
+ * stat, an unparseable ts, a checkout that bumped mtime without appending —
+ * answers `true` and costs a read, never a wrong answer.
+ */
+function modifiedAfter(logPath: string, ts: string): boolean {
+  const cutoff = Date.parse(ts)
+  if (Number.isNaN(cutoff)) return true
+  try {
+    return statSync(logPath).mtimeMs >= cutoff
+  } catch {
+    return true
+  }
+}
+
+/**
  * A session's HOME initiative: the one whose log registered it with
  * session_started (record-integrity D1 — derived from the truth log, never
  * copied into a second store that could desync).
  *
- * `preferred` (the branch-bound slug) is checked FIRST and wins outright when
- * it registered the session — branch and registration agree, so the common
- * path costs one file read. Siblings are scanned only on a miss, which is
- * precisely the situation that produced a misroute before this existed: the
- * session is live in an initiative the current branch no longer points at.
- * Among siblings the LATEST session_started wins, so a deliberate re-home
- * (start_session naming an initiative) beats a stale earlier registration.
+ * The LATEST session_started wins, across every log including the branch-bound
+ * one (D9). `preferred` is read first and seeds the candidate, so branch and
+ * registration agreeing still settles in one read and still breaks a tie — but
+ * it no longer short-circuits the scan, and that difference is the whole fix.
+ *
+ * What the short-circuit cost: lazy registration (D2) means an agent that runs
+ * ONE tool before calling sofar_start_session gets registered on the BRANCH by
+ * the PostToolUse hook. When it then names an initiative explicitly —
+ * start_session's deliberate re-home, which appends a SECOND, later
+ * session_started — the branch registration was stale by seconds and won
+ * anyway, because `preferred` returned before any sibling was read. Latest-wins
+ * was already the documented rule; the short-circuit above it meant the rule
+ * only ever applied to logs the branch was NOT bound to.
+ *
+ * The session was then torn in half for the rest of its life: decisions and
+ * task updates followed the MCP pin to the real record, while every hook event,
+ * the injected SessionStart digest on resume, and the Stop write-back gate
+ * followed the branch to the wrong one — so Stop blocked on debt in a log the
+ * write-back could never reach. Observed live in the brillo record, where
+ * `instant-navigations` collected 12 command_run events belonging to
+ * `setup-completion-system`.
+ *
+ * The scan cannot be skipped, because "is there a later registration" is not
+ * answerable from the preferred log alone. It is kept cheap by mtime instead: a
+ * log untouched since the standing candidate registered is pruned without being
+ * read, leaving only the handful of initiatives actually worked this session
+ * (measured on a 40-log, 9.7 MB record: 8.95ms full scan, 0.50ms pruned, 2 logs
+ * read).
  *
  * Returns null when no log has registered the session — a brand-new session,
  * whose home is legitimately the current branch (lazy registration, D2).
@@ -141,16 +181,24 @@ export function homeInitiative(
   const eventsPathFor = (slug: string): string =>
     join(sofarDir, 'initiatives', slug, 'events.jsonl')
 
-  if (preferred != null && registeredAt(eventsPathFor(preferred), sessionId) !== null) {
-    return preferred
-  }
-
   let home: string | null = null
   let latest = ''
+  if (preferred != null) {
+    const ts = registeredAt(eventsPathFor(preferred), sessionId)
+    if (ts !== null) {
+      home = preferred
+      latest = ts
+    }
+  }
+
   for (const slug of initiativeSlugs(sofarDir)) {
-    if (slug === preferred) continue // already missed above
-    const ts = registeredAt(eventsPathFor(slug), sessionId)
-    if (ts !== null && ts >= latest) {
+    if (slug === preferred) continue // already read above
+    const path = eventsPathFor(slug)
+    // Only a STRICTLY later registration can displace the candidate, so a log
+    // that cannot hold one is never opened.
+    if (latest !== '' && !modifiedAfter(path, latest)) continue
+    const ts = registeredAt(path, sessionId)
+    if (ts !== null && ts > latest) {
       latest = ts
       home = slug
     }

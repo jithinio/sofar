@@ -30,4 +30,4 @@ Progress: 9/11 tasks done (81%)
 - [ ] 4.2 Equivalence proof: indexed answers byte-match from-logs answers on every fixture, and a corrupt/stale/absent index still returns the right answer via fallback
 
 Active phase: Phase 3 — Tier 1: guards first, then reach
-Next action: record-index Phase 4.1: the SPEC contract pass over the reach index and its surfaces.
+Next action: record-index 4.1: the SPEC contract pass over the reach index and its surfaces. Separately: ship record-integrity D9 — bump sofar.sh, then npm publish.

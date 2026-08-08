@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 // (mkdirSync/writeFileSync also back the Phase 4 ref fixtures below)
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -127,14 +127,43 @@ const editStdin = (session: string, file: string): string =>
   })
 
 describe('homeInitiative (1.1)', () => {
-  it('prefers the branch-bound initiative when it registered the session', () => {
+  it('prefers the branch-bound initiative when it holds the only registration', () => {
     const f = fx({ slug: 'alpha' })
     addInitiative(f.root, 'beta')
     register(f.root, 'alpha', 'sess-1', '2026-08-01T10:00:00.000Z')
-    register(f.root, 'beta', 'sess-1', '2026-08-01T12:00:00.000Z') // later, but not preferred
 
     const sofarDir = join(f.root, '.sofar')
     expect(homeInitiative(sofarDir, 'sess-1', 'alpha')).toBe('alpha')
+  })
+
+  it('breaks an exact tie toward the branch-bound initiative', () => {
+    const f = fx({ slug: 'alpha' })
+    addInitiative(f.root, 'beta')
+    register(f.root, 'alpha', 'sess-1', '2026-08-01T10:00:00.000Z')
+    register(f.root, 'beta', 'sess-1', '2026-08-01T10:00:00.000Z')
+
+    expect(homeInitiative(join(f.root, '.sofar'), 'sess-1', 'alpha')).toBe('alpha')
+  })
+
+  /**
+   * The defect D9 closes, in the shape it actually shipped in: an agent runs
+   * one tool before calling sofar_start_session, the PostToolUse hook registers
+   * it on the BRANCH (lazy registration, D2), and the explicit re-home seconds
+   * later loses to a registration that is stale by seconds.
+   *
+   * Before the fix `preferred` returned without reading a single sibling, so
+   * this asserted 'alpha'. Everything downstream inherited it: hook events, the
+   * SessionStart digest on resume, and the Stop gate all followed the branch
+   * while decisions and task updates followed the MCP pin — one session, two
+   * records, observed live in the brillo repo.
+   */
+  it('lets a LATER registration beat the branch-bound one — the deliberate re-home wins', () => {
+    const f = fx({ slug: 'alpha' })
+    addInitiative(f.root, 'beta')
+    register(f.root, 'alpha', 'sess-1', '2026-08-01T10:00:00.000Z') // hook, on the branch
+    register(f.root, 'beta', 'sess-1', '2026-08-01T10:00:05.000Z') // start_session, explicit
+
+    expect(homeInitiative(join(f.root, '.sofar'), 'sess-1', 'alpha')).toBe('beta')
   })
 
   it('falls through to siblings when the preferred initiative never registered it', () => {
@@ -172,6 +201,33 @@ describe('homeInitiative (1.1)', () => {
 
     expect(homeInitiative(join(f.root, '.sofar'), 'sess-1', 'alpha')).toBeNull()
     expect(homeInitiative(join(f.root, 'nope', '.sofar'), 'sess-1', null)).toBeNull()
+  })
+
+  /**
+   * The mtime prune, stated as the assumption it is (D9): an event's ts is
+   * stamped immediately before its append, so a log untouched since the
+   * standing candidate registered cannot hold a LATER session_started and is
+   * skipped without being read. That is what keeps latest-wins affordable on
+   * the hook path — 8.95ms to 0.50ms on a 40-log, 9.7 MB record.
+   *
+   * Backdating the mtime here forges the one state the assumption excludes, so
+   * the stale answer below is the prune firing, not a resolution bug. Every
+   * genuine failure — an unreadable stat, an unparseable candidate ts, a
+   * checkout that bumped mtime without appending — resolves toward READING,
+   * which is the direction that cannot be wrong.
+   */
+  it('skips a log whose mtime predates the standing candidate', () => {
+    const f = fx({ slug: 'alpha' })
+    const betaLog = addInitiative(f.root, 'beta')
+    register(f.root, 'alpha', 'sess-1', '2026-08-01T10:00:00.000Z')
+    register(f.root, 'beta', 'sess-1', '2026-08-01T12:00:00.000Z') // later, but…
+
+    const sofarDir = join(f.root, '.sofar')
+    expect(homeInitiative(sofarDir, 'sess-1', 'alpha')).toBe('beta') // …read, so it wins
+
+    const stale = new Date('2026-07-01T00:00:00.000Z')
+    utimesSync(betaLog, stale, stale) // …untouched since — pruned unread
+    expect(homeInitiative(sofarDir, 'sess-1', 'alpha')).toBe('alpha')
   })
 })
 
@@ -222,6 +278,37 @@ describe('hook routing follows the session home (1.2)', () => {
     const result = handlePostTool(f.root, bashStdin('fresh-sess', 'npm test'))
     expect(result.exitCode).toBe(0)
     expect(logEvents(f.eventsPath)).toHaveLength(0)
+  })
+
+  /**
+   * The brillo shape, end to end (D9). One tool call before
+   * sofar_start_session, so the hook lazily registers the session on the BRANCH
+   * (D2); then an explicit re-home five seconds later. Before D9 every hook
+   * below stayed on `alpha` while decisions and task updates went to `beta` —
+   * and Stop blocked on alpha's debt, which no write-back to beta could ever
+   * settle.
+   */
+  it('follows an explicit re-home that lands AFTER the hook registered the branch', () => {
+    const f = fx({ slug: 'alpha' })
+    const betaLog = addInitiative(f.root, 'beta')
+
+    // The real lazy registration: PostToolUse, resolving by branch, on alpha.
+    handlePostTool(f.root, bashStdin('sess-1', 'npm test'))
+    const lazy = logEvents(f.eventsPath).find((e) => e.type === 'session_started')
+    expect(lazy).toBeDefined()
+
+    // sofar_start_session naming beta — strictly later, so latest-wins picks it.
+    const later = new Date(Date.parse(lazy!.ts) + 5_000).toISOString()
+    register(f.root, 'beta', 'sess-1', later)
+
+    handlePostTool(f.root, editStdin('sess-1', 'src/a.ts'))
+    expect(logEvents(betaLog).filter((e) => e.type === 'file_touched')).toHaveLength(1)
+    expect(logEvents(f.eventsPath).filter((e) => e.type === 'file_touched')).toHaveLength(0)
+
+    // The gate now measures the record the write-back can actually reach.
+    expect(handleStop(f.root, JSON.stringify({ session_id: 'sess-1', cwd: '/tmp' })).exitCode).toBe(2)
+    endSession(f.root, 'beta', 'sess-1')
+    expect(handleStop(f.root, JSON.stringify({ session_id: 'sess-1', cwd: '/tmp' })).exitCode).toBe(0)
   })
 
   it('routes the Stop gate and SessionEnd marker to the home initiative too', () => {
