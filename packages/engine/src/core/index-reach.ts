@@ -16,6 +16,7 @@ import { bindHandle, canonicalSlugs, scanCitations } from './citations'
 import { passOverRecord } from './index-pass'
 import { INDEX_SCHEMA_VERSION, readIndexFile, writeIndexFile } from './index-store'
 import type { IndexedEvent } from './index-tail'
+import { lexicalCounts, rankLexical, type LexicalDoc } from './lexicon'
 
 /**
  * The REACH half of Tier 1 (record-index 3.4): what `sofar find` traverses.
@@ -44,6 +45,14 @@ import type { IndexedEvent } from './index-tail'
  *    reading, not to become the thing that is read — and a full copy of the
  *    record is a copy that invites being read as truth (D1). Every result names
  *    the event id, and the record is one command away.
+ *
+ * TERMS are the one thing derived from the WHOLE prose rather than the clip
+ * (3.5). A term set is not readable prose, so it does not make this a copy of
+ * the record, and it has to see everything: measured over this record, 16,688 of
+ * 24,410 distinct decision terms — 68% — appear only past the 300-character clip,
+ * because `because` is where the reasoning lives and the clip only holds `chose`.
+ * Indexing the label alone would have been blind to two thirds of the vocabulary
+ * a question is asked in.
  */
 
 const REACH_FILE = 'reach.json'
@@ -55,6 +64,17 @@ const REACH_META = 'meta-reach.json'
  * far below the record itself (decisions here average 945 chars of prose).
  */
 export const REACH_PROSE = 300
+
+/**
+ * How many text matches become seeds (3.5).
+ *
+ * Small on purpose. Each seed expands the traversal, and a question answered
+ * from twenty weakly-matching decisions is a question answered by the record's
+ * whole vocabulary. Everything below the cap is still COUNTED and reported, so a
+ * query that matched two hundred documents says so — which is itself the useful
+ * answer: the words were not discriminating.
+ */
+export const LEXICAL_SEED_CAP = 5
 
 /** Default hop budget: one hop out and one hop back is the useful question. */
 export const REACH_DEFAULT_HOPS = 2
@@ -84,6 +104,10 @@ interface DecisionRow {
   chose: string
   /** Scanned citation handles as [word, handle], BOUND at query time (citations.ts). */
   cites: [string, string][]
+  /** Terms of the WHOLE decision — chose, over and because (lexicon.ts). */
+  terms: Record<string, number>
+  /** Total tokens, so ranking never has to sum them (lexicon.ts). */
+  len: number
 }
 
 interface NoteRow {
@@ -92,6 +116,9 @@ interface NoteRow {
   session: string
   /** Note text, clipped to REACH_PROSE. */
   text: string
+  /** Terms of the whole note, which the clip may not hold all of. */
+  terms: Record<string, number>
+  len: number
 }
 
 interface SlugReachState {
@@ -128,11 +155,19 @@ function cloneReach(state: SlugReachState): SlugReachState {
     decisions: state.decisions.map((d) => ({
       ...d,
       cites: d.cites.map((c) => [...c] as [string, string]),
+      terms: { ...d.terms },
     })),
-    notes: state.notes.map((n) => ({ ...n })),
+    notes: state.notes.map((n) => ({ ...n, terms: { ...n.terms } })),
     files,
     tasks: [...state.tasks],
   }
+}
+
+/** Tokens in a counted term map — stored on the row so ranking never sums it. */
+function total(counts: Record<string, number>): number {
+  let n = 0
+  for (const term in counts) n += counts[term]!
+  return n
 }
 
 /** Collapse whitespace and hard-cap, ellipsis inside the budget (projections' clip). */
@@ -157,6 +192,8 @@ function applyReach(state: SlugReachState, event: IndexedEvent): void {
   switch (event.type) {
     case 'decision_logged': {
       const p = event.payload as unknown as DecisionLoggedPayload
+      const prose = `${p.chose}\n${p.over}\n${p.because}`
+      const counts = lexicalCounts(prose)
       state.decisions.push({
         id: event.id,
         ts: event.ts,
@@ -164,19 +201,23 @@ function applyReach(state: SlugReachState, event: IndexedEvent): void {
         chose: clipProse(p.chose, REACH_PROSE),
         // Scanned over the WHOLE decision, exactly as buildGraph reads it —
         // `because` is where most cross-record citations actually live.
-        cites: scanCitations(`${p.chose}\n${p.over}\n${p.because}`).map(
-          (s) => [s.word, s.handle] as [string, string],
-        ),
+        cites: scanCitations(prose).map((s) => [s.word, s.handle] as [string, string]),
+        // Same whole text, for the same reason: what a question is asked in.
+        terms: counts,
+        len: total(counts),
       })
       return
     }
     case 'note_added': {
       const p = event.payload as unknown as NoteAddedPayload
+      const counts = lexicalCounts(p.text)
       state.notes.push({
         id: event.id,
         ts: event.ts,
         session: event.session,
         text: clipProse(p.text, REACH_PROSE),
+        terms: counts,
+        len: total(counts),
       })
       return
     }
@@ -262,6 +303,8 @@ export interface ReachIndex {
   paths: string[]
   /** Session ids the index knows, for seed resolution. */
   sessions: Set<string>
+  /** Every decision and note as scorable prose — the corpus a text query ranks. */
+  lexicon: LexicalDoc[]
 }
 
 /**
@@ -282,6 +325,7 @@ export function reachView(states: Record<string, SlugReachState>): ReachIndex {
   const decisions = new Map<string, string[]>()
   const paths = new Set<string>()
   const sessions = new Set<string>()
+  const lexicon: LexicalDoc[] = []
 
   const link = (from: string, edge: ReachEdge): void => {
     const list = edges.get(from)
@@ -327,6 +371,7 @@ export function reachView(states: Record<string, SlugReachState>): ReachIndex {
         ordinal: ordinals.length + 1,
       })
       ordinals.push(id)
+      lexicon.push({ id, ts: row.ts, terms: row.terms, tokens: row.len })
       const stamp = { initiative: slug, event_id: row.id, ts: row.ts }
       held.push({ kind: 'decided', to: id, ...stamp })
       if (row.session === 'cli' || row.session.length === 0) return
@@ -340,6 +385,7 @@ export function reachView(states: Record<string, SlugReachState>): ReachIndex {
     for (const row of state.notes) {
       const id = `note:${row.id}`
       nodes.set(id, { kind: 'note', id, initiative: slug, label: row.text, ts: row.ts })
+      lexicon.push({ id, ts: row.ts, terms: row.terms, tokens: row.len })
       const stamp = { initiative: slug, event_id: row.id, ts: row.ts }
       held.push({ kind: 'noted', to: id, ...stamp })
       if (row.session === 'cli' || row.session.length === 0) continue
@@ -375,7 +421,7 @@ export function reachView(states: Record<string, SlugReachState>): ReachIndex {
   }
 
   linkCitations(states, decisions, nodes, link)
-  return { nodes, edges, contents, decisions, paths: [...paths].sort(), sessions }
+  return { nodes, edges, contents, decisions, paths: [...paths].sort(), sessions, lexicon }
 }
 
 /**
@@ -458,12 +504,48 @@ export function readReach(sofarDir: string): ReachIndex | null {
 // Seeds.
 // ---------------------------------------------------------------------------
 
+/**
+ * `text` is not a node kind — it is how the seed was FOUND, and the distinction
+ * is the authority (D2). Every other kind means the query denoted something;
+ * `text` means words in the question appear in the prose of these events, which
+ * is a weaker claim and has to stay visibly weaker.
+ */
+export type ReachSeedKind = ReachNodeKind | 'text'
+
+/**
+ * One text match: the record it is in, what it says, and WHICH WORDS carried it.
+ *
+ * The terms are not decoration. A decision matches on its whole prose while its
+ * label is only the clipped `chose`, so a match on a word from `because` shows a
+ * label that does not contain it — naming the terms is what keeps that honest,
+ * and `event_id` is the event whose own text holds them, which a reader can open
+ * and check. Unlike a traversal hit this cites no edge, because there is none.
+ */
+export interface LexicalSeedMatch {
+  kind: 'decision' | 'note'
+  id: string
+  initiative: string
+  /** Clipped prose, exactly as a traversal hit would show it. */
+  label: string
+  ts: string
+  /** `D<n>` within its own initiative, for a decision. */
+  ordinal?: number
+  event_id: string
+  score: number
+  /** The query terms this prose carried, rarest first. */
+  terms: string[]
+}
+
 export interface ReachSeed {
   /** The query as asked. */
   query: string
-  kind: ReachNodeKind | null
+  kind: ReachSeedKind | null
   /** Node ids the query denotes — several for a path recorded under several roots. */
   ids: string[]
+  /** Text-seed evidence, `kind: 'text'` only: what matched, and on what words. */
+  matches?: LexicalSeedMatch[]
+  /** Further documents sharing a query term, past LEXICAL_SEED_CAP. */
+  omitted?: number
 }
 
 export interface ResolveSeedOptions {
@@ -481,9 +563,10 @@ export interface ResolveSeedOptions {
  *   4. a known session id
  *   5. a path, resolved across checkouts (matchRecordedPaths)
  *
- * Nothing here guesses. An unresolvable query comes back with kind null and the
- * caller says so, rather than returning the nearest thing it could find —
- * derived relevance is weak enough (D2) without also being approximate.
+ * Nothing here guesses. An unresolvable query comes back with kind null, and
+ * what happens next is the CALLER's choice, not this function's: `resolveQuery`
+ * falls back to lexical matching (3.5), which is a different and weaker kind of
+ * answer and must never be reached while a literal reading is available.
  */
 export function resolveSeed(
   index: ReachIndex,
@@ -518,6 +601,68 @@ function seedPath(index: ReachIndex, query: string, path: string): ReachSeed {
   return matched.length === 0
     ? { query, kind: null, ids: [] }
     : { query, kind: 'file', ids: matched.map(fileNodeId) }
+}
+
+/**
+ * Seed from the WORDS of a question, when nothing in the record denotes it (3.5).
+ *
+ * IDF-ranked over decision and note prose, no model (D1, and SPEC's zero-model
+ * invariant): the rare word in a question carries it, the common one does not,
+ * and the terms that carried each match come back with it so the ranking can be
+ * argued with. Scores are rounded AFTER ordering — a tidier surface must never
+ * be able to change which result came first.
+ */
+export function lexicalSeed(
+  index: ReachIndex,
+  query: string,
+  limit: number = LEXICAL_SEED_CAP,
+): ReachSeed {
+  const ranked = rankLexical(index.lexicon, query, limit)
+  const matches: LexicalSeedMatch[] = []
+  for (const match of ranked.matches) {
+    const node = index.nodes.get(match.id)
+    if (node === undefined || (node.kind !== 'decision' && node.kind !== 'note')) continue
+    const hit: LexicalSeedMatch = {
+      kind: node.kind,
+      id: node.id,
+      initiative: node.initiative,
+      label: node.label,
+      ts: node.ts,
+      // An occurrence node IS its event, so the citation needs no lookup.
+      event_id: eventIdOf(node.id) ?? '',
+      score: Math.round(match.score * 1000) / 1000,
+      terms: match.terms,
+    }
+    if (node.ordinal !== undefined) hit.ordinal = node.ordinal
+    matches.push(hit)
+  }
+  if (matches.length === 0) return { query, kind: null, ids: [] }
+  return {
+    query,
+    kind: 'text',
+    ids: matches.map((m) => m.id),
+    matches,
+    omitted: Math.max(0, ranked.total - matches.length),
+  }
+}
+
+/**
+ * The whole seed ladder: literal first, words only if literal found nothing.
+ *
+ * Order is the entire safety argument. A path, a slug, a session id or a
+ * decision handle DENOTES something, and a query that denotes something must
+ * never be answered by what it merely resembles — otherwise a mistyped path
+ * quietly becomes a search and the caller cannot tell which happened. Text
+ * matching is the fallback, is labelled `text` in the result, and every surface
+ * renders it as the weaker thing it is.
+ */
+export function resolveQuery(
+  index: ReachIndex,
+  query: string,
+  options: ResolveSeedOptions = {},
+): ReachSeed {
+  const literal = resolveSeed(index, query, options)
+  return literal.kind !== null ? literal : lexicalSeed(index, query)
 }
 
 // ---------------------------------------------------------------------------
@@ -742,12 +887,20 @@ function group(hits: readonly ReachHit[]): ReachGroup[] {
   return groups
 }
 
-/** Refresh, resolve, traverse — the whole surface, for one query. */
+/**
+ * Refresh, resolve, traverse — the whole surface, for one query.
+ *
+ * A text seed's own matches are NOT in `groups`: they were not traversed to, so
+ * they have no edge and no `via` to cite, and inventing one would dress word
+ * overlap up as an adjacency the record can prove. They ride on `seed.matches`,
+ * and `groups` holds what the traversal reached FROM them — which is the point
+ * of seeding by words at all.
+ */
 export function findFrom(
   sofarDir: string,
   query: string,
   options: ResolveSeedOptions & { hops?: number } = {},
 ): ReachResult {
   const index = refreshReach(sofarDir)
-  return reachFrom(index, resolveSeed(index, query, options), options.hops ?? REACH_DEFAULT_HOPS)
+  return reachFrom(index, resolveQuery(index, query, options), options.hops ?? REACH_DEFAULT_HOPS)
 }

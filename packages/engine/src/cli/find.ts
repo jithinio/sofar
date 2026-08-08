@@ -4,6 +4,7 @@ import {
   findFrom,
   REACH_DEFAULT_HOPS,
   REACH_MAX_HOPS,
+  type LexicalSeedMatch,
   type ReachGroup,
   type ReachHit,
   type ReachResult,
@@ -41,6 +42,10 @@ import {
  * it reads the reach index, which is incremental and per-initiative-cursored,
  * so the cost is what has been appended since the last question rather than the
  * whole repo's history.
+ *
+ * A seed that denotes nothing is matched against decision and note prose (3.5),
+ * which is a THIRD strength of claim and printed as one: the literal seed
+ * denotes, adjacency is proven, and a text match only says the words are there.
  */
 
 /** Prose budget for a label line — fixed, so plain output never depends on $COLUMNS. */
@@ -110,6 +115,18 @@ const CAVEAT =
   'adjacency the record can prove — offered as worth reading, never as a rule about this work'
 
 /**
+ * The same disclaimer, one notch weaker, for a seed found by its words (3.5).
+ *
+ * A literal seed denotes something and the rows around it are proven adjacency.
+ * A text seed is not even that: the record can prove the words are in that
+ * decision and nothing more — not that the decision answers the question. Saying
+ * "matched on words" out loud is what keeps the reader from reading a ranked
+ * list as a ranked list of answers.
+ */
+const TEXT_CAVEAT =
+  'matched on the words, then expanded by adjacency — offered as worth reading, never as an answer'
+
+/**
  * A node id as a reader would name it.
  *
  * A decision is named by its HANDLE (`record-index D6`) rather than its ulid,
@@ -119,7 +136,18 @@ const CAVEAT =
  * which the caller typed and is not otherwise in the hit list.
  */
 function shortNode(rootDir: string, result: ReachResult, nodeId: string): string {
-  if (result.seed.ids.length === 1 && result.seed.ids[0] === nodeId) return result.seed.query
+  // A LITERAL seed is named by what the caller typed, which is how they think of
+  // it. A text seed is not: the query is a sentence, and a row reading "logged
+  // by why is the cursor rebuilt" names nothing. Its matches carry handles, so
+  // they are named the same way every other decision here is.
+  if (result.seed.kind !== 'text' && result.seed.ids.length === 1 && result.seed.ids[0] === nodeId) {
+    return result.seed.query
+  }
+  for (const match of result.seed.matches ?? []) {
+    if (match.id === nodeId && match.kind === 'decision' && match.ordinal !== undefined) {
+      return `${match.initiative} D${match.ordinal}`
+    }
+  }
   for (const group of result.groups) {
     for (const hit of group.hits) {
       if (hit.id === nodeId && hit.kind === 'decision' && hit.ordinal !== undefined) {
@@ -133,6 +161,7 @@ function shortNode(rootDir: string, result: ReachResult, nodeId: string): string
   if (nodeId.startsWith('file:')) return shortPath(rootDir, nodeId.slice('file:'.length))
   if (nodeId.startsWith('initiative:')) return nodeId.slice('initiative:'.length)
   if (nodeId.startsWith('decision:')) return `decision ${nodeId.slice('decision:'.length)}`
+  if (nodeId.startsWith('note:')) return `note ${nodeId.slice('note:'.length)}`
   return nodeId
 }
 
@@ -184,6 +213,33 @@ function blocksOf(rootDir: string, result: ReachResult): Block[] {
   }))
 }
 
+/**
+ * The text-seed block: what matched, and on which words.
+ *
+ * Rendered ABOVE the traversal groups because it is the closest thing to an
+ * answer the record has, and rendered as its own block rather than merged into
+ * Decisions/Notes because it is a different claim — these were matched, those
+ * were reached. The matched terms sit where a traversal row puts its edge
+ * phrase, in the same `… · event <id>` shape, so the two read as siblings of
+ * different strength rather than as one list.
+ */
+function matchedBlock(matches: readonly LexicalSeedMatch[], omitted: number): Block {
+  return {
+    title: `Matched (${matches.length + omitted})`,
+    entries: matches.map((match) => ({
+      head:
+        match.kind === 'decision'
+          ? `${match.initiative} D${match.ordinal ?? '?'}  ${day(match.ts)}`
+          : `${match.initiative}  ${day(match.ts)}`,
+      detail: [
+        clip(match.label, PROSE),
+        `matched ${match.terms.join(', ')} · event ${match.event_id}`,
+      ],
+    })),
+    omitted,
+  }
+}
+
 function seedLine(result: ReachResult): string {
   const { seed } = result
   const scope = result.hops === 1 ? '1 hop' : `${result.hops} hops`
@@ -193,10 +249,11 @@ function seedLine(result: ReachResult): string {
 }
 
 const MISS = [
-  'nothing in the record denotes that seed',
+  'nothing in the record denotes that seed, and no decision or note uses those words',
   '',
   'a seed is a path (matched across checkouts), a session id, an initiative slug,',
-  'or a decision handle like "record-index D2" — never a search term',
+  'or a decision handle like "record-index D2"; anything else is matched against',
+  'decision and note prose, which found nothing here',
 ]
 
 export function runFind(
@@ -228,9 +285,9 @@ function renderPlain(rootDir: string, result: ReachResult): string {
     for (const id of result.seed.ids) lines.push(`  ${id.slice('file:'.length)}`)
     lines.push('')
   }
-  lines.push(`(${CAVEAT})`, '')
+  lines.push(`(${caveatFor(result)})`, '')
 
-  const blocks = blocksOf(rootDir, result)
+  const blocks = [...matchedBlocks(result), ...blocksOf(rootDir, result)]
   if (blocks.length === 0) {
     lines.push(`nothing within ${result.hops === 1 ? '1 hop' : `${result.hops} hops`} of this seed`)
     return `${lines.join('\n')}\n`
@@ -247,6 +304,14 @@ function renderPlain(rootDir: string, result: ReachResult): string {
   if (result.truncated) lines.push(TRUNCATED, '')
   return `${lines.join('\n').replace(/\n+$/, '')}\n`
 }
+
+const caveatFor = (result: ReachResult): string =>
+  result.seed.kind === 'text' ? TEXT_CAVEAT : CAVEAT
+
+const matchedBlocks = (result: ReachResult): Block[] =>
+  result.seed.matches === undefined || result.seed.matches.length === 0
+    ? []
+    : [matchedBlock(result.seed.matches, result.seed.omitted ?? 0)]
 
 const TRUNCATED =
   'expansion stopped at the visit ceiling — this seed reaches too much of the record for the answer to be complete'
@@ -269,9 +334,9 @@ function renderStyled(rootDir: string, result: ReachResult, caps: Caps): string 
     for (const id of result.seed.ids) lines.push(`  ${s.dim(sanitizeProse(id.slice('file:'.length)))}`)
     lines.push('')
   }
-  lines.push(s.dim(`(${CAVEAT})`), '')
+  lines.push(s.dim(`(${caveatFor(result)})`), '')
 
-  const blocks = blocksOf(rootDir, result)
+  const blocks = [...matchedBlocks(result), ...blocksOf(rootDir, result)]
   if (blocks.length === 0) {
     lines.push(s.dim(`nothing within ${result.hops === 1 ? '1 hop' : `${result.hops} hops`} of this seed`))
     return `${lines.join('\n')}\n`

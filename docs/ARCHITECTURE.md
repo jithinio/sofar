@@ -78,6 +78,7 @@ synced, and any absence, staleness, or corruption falls back to reading the logs
 | `core/index-tier0.ts` | **Hot tier.** Open sessions and the files they hold. Byte-sized, so the shim can read it. Faithful to the fold's caps rather than better than them. |
 | `core/index-tier1.ts` | **Keyed tier.** Declared relevance (which decisions guard this path) and derived relevance (who else touched it, from which initiative). |
 | `core/index-reach.ts` | **Reach tier.** What `sofar find` traverses: decisions, notes, files, sessions and citation edges, each carrying the event id that produced it. Read only when asked, so it can afford prose the hot tiers cannot. |
+| `core/lexicon.ts` | Turns a question into seeds when nothing denotes it: tokenize, fold plurals and tenses, rank by IDF. No model, and every match returns the words that carried it. |
 
 ### 4. Projections — state rendered to disk
 

@@ -145,10 +145,13 @@ export interface CloseInitiativeArgs {
 }
 
 /**
- * find (record-index 3.4): the agent-pulled half of retrieval. Seeds are
- * LITERAL — a path, a session id, an initiative slug, a decision handle — never
- * a search term, because everything this returns is DERIVED relevance (D2) and
- * approximate seeds would make a weak claim weaker.
+ * find (record-index 3.4, 3.5): the agent-pulled half of retrieval. Seeds resolve
+ * LITERALLY FIRST — a path, a session id, an initiative slug, a decision handle
+ * — and a query that denotes none of those is matched against decision and note
+ * prose, IDF-ranked with no model (3.5). The order is the contract: a literal
+ * reading always wins, so a mistyped path can never quietly become a search, and
+ * a text seed is labelled `text` in the result because it is the weakest claim
+ * the record makes (D2).
  */
 export interface FindArgs {
   seed: string
@@ -389,7 +392,7 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
         type: 'string',
         minLength: 1,
         description:
-          'A file path (matched across checkouts), a session id, an initiative slug, or a decision handle ("record-index D2"). Literal — not a search term.',
+          'A file path (matched across checkouts), a session id, an initiative slug, or a decision handle ("record-index D2") — resolved literally, in that order. Anything else is treated as a question and matched against decision and note prose.',
       },
       hops: {
         type: 'integer',
@@ -463,7 +466,7 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_find',
     description:
-      'Traverse the record out from a seed and return what is within a hop budget — the decisions, notes, files, sessions and OTHER INITIATIVES connected to it, each result naming the event id that produced the edge. Use it when work touches a file, a record, or a decision you did not write: it answers "who else has been here, and what did they conclude". Everything returned is ADJACENCY the record can prove — a session touched this file, the same session logged that decision. It is offered as worth reading, never as a rule about your work: the record does not know a decision was ABOUT a file, so weigh it yourself and read the cited event before relying on it.',
+      'Traverse the record out from a seed and return what is within a hop budget — the decisions, notes, files, sessions and OTHER INITIATIVES connected to it, each result naming the event id that produced the edge. Use it when work touches a file, a record, or a decision you did not write: it answers "who else has been here, and what did they conclude". A seed that denotes nothing in the record is treated as a QUESTION and matched against decision and note prose; those matches come back on seed.matches with the words that carried each one, never in groups, because word overlap is not an edge. Everything returned is ADJACENCY the record can prove — a session touched this file, the same session logged that decision. It is offered as worth reading, never as a rule about your work: the record does not know a decision was ABOUT a file, nor that a decision your words appear in answers your question, so weigh it yourself and read the cited event before relying on it.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_find,
   },
 ]

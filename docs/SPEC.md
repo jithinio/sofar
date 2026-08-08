@@ -830,8 +830,13 @@ also collides with a sofar-cloud-internal package).
   `via.event_id`: the event that produced the edge, so any claim can be
   checked against the log. A bare `D<n>` needs `initiative` — unlike the write
   tools this is NOT resolved from the branch, because a read that silently
-  answers about a different record is worse than one that finds nothing. An
-  unresolvable seed is `kind: null` with no groups, never a nearest match.
+  answers about a different record is worse than one that finds nothing. A seed
+  denoting nothing is matched against decision and note prose (record-index 3.5)
+  and comes back as `seed.kind: 'text'` with `seed.matches[]` — each carrying the
+  event id whose prose holds the words, the words themselves, and a score — plus
+  `seed.omitted` for what the cap left out. Matches never appear in `groups`:
+  they seeded the traversal, and word overlap is not an edge. A query matching
+  neither way is `kind: null` with no groups, never a nearest match.
   Everything returned is DERIVED relevance (record-index D2): offered as worth
   reading, never asserted as a rule, and the tool description says so because
   the result is JSON with no room for a caveat line.
@@ -1404,18 +1409,28 @@ Shims contain no logic — they invoke the sofar CLI.
 - `sofar find <seed> [--hops <n>] [--initiative <slug>]` — traverse the reach
   index out from a seed and report what is within the budget, grouped by kind
   (initiatives, decisions, notes, files, sessions), each row citing the event
-  id that produced its edge (record-index 3.4). Seeds are LITERAL and resolved
+  id that produced its edge (record-index 3.4). Seeds resolve LITERALLY FIRST,
   in a fixed order — node id, initiative slug, decision handle (`<slug> D<n>`,
   `<slug>#D<n>`, or `D<n>` with `--initiative`), session id, then path across
-  checkouts — never a search: an unresolvable seed is exit 0 naming the seed
-  vocabulary, not a nearest match. `--hops` defaults to 2 and is capped at 3;
-  out of range is exit 1. Unlike `sofar why` / `sofar related` this NEVER
-  builds the record graph — measured on this record, 1.8ms against `sofar
-  why`'s 35.4ms — because the index is maintained incrementally on its own
-  cursor. The surface offers, never asserts (record-index D2): it states what
-  each edge IS ("logged by", "touched by", "cited by") and carries the caveat
-  that adjacency is not a rule about the work. An expansion that hits the
-  visit ceiling says so rather than presenting a partial answer as whole.
+  checkouts. A query denoting NONE of those is treated as a question and matched
+  against decision and note prose (record-index 3.5): tokenized, plurals and
+  tenses folded, ranked by BM25 over the whole record with NO model, and reported
+  in a `Matched` block that names the words which carried each hit and the event
+  whose own prose holds them. The matches are the traversal's seeds; they are
+  never presented as traversal hits, because word overlap is not an edge. At most
+  5 become seeds and the rest are COUNTED, so a query that matched two hundred
+  documents says so. A query matching nothing either way is exit 0 naming the
+  seed vocabulary, not a nearest match. `--hops` defaults to 2 and is capped at
+  3; out of range is exit 1. Unlike `sofar why` / `sofar related` this NEVER
+  builds the record graph — measured on this record, 3.0ms end to end for a text
+  question (0.2ms of it ranking) against `sofar why`'s 35.4ms — because the index
+  is maintained incrementally on its own cursor. The surface offers, never
+  asserts (record-index D2): it states what each edge IS ("logged by", "touched
+  by", "cited by") and carries the caveat that adjacency is not a rule about the
+  work; a text seed carries a WEAKER caveat still, because the record can prove
+  only that the words are there, never that they answer the question. An
+  expansion that hits the visit ceiling says so rather than presenting a partial
+  answer as whole.
 - `sofar export [slug] [--since <id>]` / `sofar import <file|-> [slug]`
   — per-initiative NDJSON over the §Cursor primitive; slug resolves like
   status (explicit wins, else branch binding) (extended Phase 4, BD28)
@@ -2268,3 +2283,16 @@ stay the underlying derivation's, and exit codes are styling-independent.
   withdraws a decision (which renumbers the survivors, as the fold does), the
   half keeps its OWN cursor file, and cli-sourced touches create no adjacency.
   The surface never states that a result bears on the work.
+- **Lexical seeds (record-index 3.5):** a text question resolves to decision and
+  note seeds the traversal then expands, and every match names an event that
+  exists in a log and is of the type it claims. A LITERAL reading always wins:
+  a query that is also a path, a slug, a session id or a decision handle resolves
+  as that one, never as text. Ranking is rarity and repetition, not presence — a
+  decision a word runs through outranks a shorter, newer one that mentions it
+  once — and the words that carried each match come back with it, as the ASKER
+  wrote them, folded so a plural or a tense need not match the record word for
+  word. Terms are derived from the WHOLE prose, so a word living only in
+  `because` is findable though the stored label cannot show it. A query of
+  nothing but common words is a miss, not a weak guess; matches past the cap are
+  counted, never dropped silently; matches are never presented as traversal hits;
+  and the answer is byte-identical on a repeat and after a cold rebuild.

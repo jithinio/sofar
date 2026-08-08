@@ -8,7 +8,9 @@ import {
   findFrom,
   reachFrom,
   refreshReach,
+  resolveQuery,
   resolveSeed,
+  LEXICAL_SEED_CAP,
   REACH_MAX_HOPS,
   type ReachHit,
   type ReachResult,
@@ -130,9 +132,10 @@ const allHits = (result: ReachResult): ReachHit[] => result.groups.flatMap((g) =
 const kind = (result: ReachResult, k: ReachHit['kind']): ReachHit[] =>
   result.groups.find((g) => g.kind === k)?.hits ?? []
 
+/** The whole ladder, exactly as findFrom drives it: literal first, then words. */
 function find(sofar: string, query: string, hops?: number): ReachResult {
   const index = refreshReach(sofar)
-  return reachFrom(index, resolveSeed(index, query), hops)
+  return reachFrom(index, resolveQuery(index, query), hops)
 }
 
 describe('3.4 traversal — every result cites the event behind its edge', () => {
@@ -435,7 +438,7 @@ describe('3.4 `sofar find` — offered, never asserted', () => {
     const out = runFind(root, 'authentication', {}, { color: false, unicode: false, animate: false })
     expect(out.exitCode).toBe(0)
     expect(out.stdout).toContain('nothing in the record denotes that seed')
-    expect(out.stdout).toContain('never a search term')
+    expect(out.stdout).toContain('decision and note prose, which found nothing here')
   })
 
   it('rejects a hop budget that is not a whole number in range', () => {
@@ -457,6 +460,202 @@ describe('3.4 `sofar find` — offered, never asserted', () => {
     start(sofar, 'alpha', 'A')
     touch(sofar, 'alpha', 'A', 'src/a.ts')
     expect(findFrom(sofar, 'src/a.ts', { hops: 1 }).reached).toBe(1)
+  })
+})
+
+/**
+ * record-index 3.5 — lexical seeds: a question, resolved to seeds.
+ *
+ * The task exists because every seed until now had to be something the asker
+ * already knew the name of. Three properties carry it.
+ *
+ * A LITERAL READING ALWAYS WINS. Text matching is a fallback and never a mode:
+ * anything that denotes a path, a session, a record or a decision is resolved as
+ * that, so a query can never quietly turn into a search.
+ * THE RANKING IS RARITY, AND IT SHOWS ITS WORK. IDF over the whole record, no
+ * model — and every match returns the terms that carried it, so a reader can
+ * disagree with the ranking instead of having to trust it.
+ * A MATCH IS NOT AN EDGE. Matches ride on the seed, never in `groups`: they were
+ * not traversed to, so there is no event to cite for a relationship, only the
+ * event whose own prose holds the words.
+ */
+describe('3.5 lexical seeds — a question resolves to seeds', () => {
+  /** A record whose decisions differ only in the words a question would use. */
+  function corpus(): { root: string; sofar: string; cursor: EventEnvelope } {
+    const { root, sofar } = repo()
+    start(sofar, 'alpha', 'A')
+    start(sofar, 'beta', 'B')
+    touch(sofar, 'alpha', 'A', 'src/core/index-pass.ts')
+    const cursor = decide(sofar, 'alpha', 'A', {
+      chose: 'rebuilding the whole log',
+      over: 'resuming from the cursor',
+      because: 'a correction reaching back past the batch makes the resume unsound',
+    })
+    decide(sofar, 'alpha', 'A', {
+      chose: 'one shared pass over every log',
+      over: 'a copy of the loop per tier',
+      because: 'the parts that are easy to get wrong should exist once',
+    })
+    note(sofar, 'beta', 'B', 'the priming line ranks neighbours by shared paths')
+    return { root, sofar, cursor }
+  }
+
+  it('matches a question against decision prose and cites the event holding the words', () => {
+    const { sofar, cursor } = corpus()
+    const result = find(sofar, 'why does a correction rebuild the whole log')
+
+    expect(result.seed.kind).toBe('text')
+    const [top] = result.seed.matches!
+    expect(top!.id).toBe(`decision:${cursor.id}`)
+    expect(top!.event_id).toBe(cursor.id)
+    expect(top!.initiative).toBe('alpha')
+    expect(top!.ordinal).toBe(1)
+    // The words that carried it, rarest first, as the ASKER wrote them.
+    expect(top!.terms[0]).toBe('correction')
+    expect(top!.terms).toContain('rebuild')
+    // ...and the event named really is a decision in the log.
+    expect(eventsById(sofar).get(top!.event_id)!.type).toBe('decision_logged')
+  })
+
+  it('folds plurals and tenses, so a question need not match the record word for word', () => {
+    const { sofar } = repo()
+    start(sofar, 'alpha', 'A')
+    const guards = decide(sofar, 'alpha', 'A', {
+      chose: 'a guard warns at the point of use',
+      over: 'a guard that blocks',
+      because: 'the shim is logging the crossing, not refusing it',
+    })
+    // "guards" → guard, "logged" → log — both sides fold the same way.
+    const result = find(sofar, 'which guards get logged')
+    expect(result.seed.matches![0]!.id).toBe(`decision:${guards.id}`)
+    expect(result.seed.matches![0]!.terms).toEqual(['guards', 'logged'])
+  })
+
+  it('ranks by rarity: the rare word decides, the common one cannot', () => {
+    const { sofar, cursor } = corpus()
+    // `over` appears in every decision; `correction` in one. A query holding
+    // both must land on the one the rare word names.
+    const result = find(sofar, 'correction over')
+    expect(result.seed.matches![0]!.id).toBe(`decision:${cursor.id}`)
+    expect(result.seed.matches![0]!.terms[0]).toBe('correction')
+
+    // And a query of nothing but words the corpus uses everywhere ranks by
+    // rarity too — it just has none to work with, so it says how little it found.
+    const common = find(sofar, 'the a of')
+    expect(common.seed.kind).toBeNull()
+  })
+
+  it('ranks the decision a word is ABOUT over the one that mentions it once', () => {
+    const { sofar } = repo()
+    start(sofar, 'alpha', 'A')
+    const about = decide(sofar, 'alpha', 'A', {
+      chose: 'a cursor per initiative per tier',
+      over: 'one cursor shared by every tier',
+      because:
+        'a shared cursor lets whichever tier refreshed first advance the cursor past events the others never saw',
+    })
+    // Shorter, newer, and mentions the word once in passing. On PRESENCE alone
+    // this one wins on both counts — it is the shorter document and the newer
+    // tie-break — so the ordering below holds only because occurrences are kept.
+    decide(sofar, 'alpha', 'A', {
+      chose: 'the priming line ranks neighbours by shared paths',
+      over: 'the two-hop decision join',
+      because: 'a cursor keeps it incremental',
+    })
+
+    const matches = find(sofar, 'cursor').seed.matches!
+    expect(matches[0]!.id).toBe(`decision:${about.id}`)
+    expect(matches[0]!.score).toBeGreaterThan(matches[1]!.score)
+  })
+
+  it('reads the WHOLE decision, not the clipped label', () => {
+    const { sofar } = repo()
+    start(sofar, 'alpha', 'A')
+    const long = decide(sofar, 'alpha', 'A', {
+      chose: `${'padding words that mean nothing at all '.repeat(12)}`,
+      over: 'something else',
+      because: 'the vitest transform stalls on a cold cache',
+    })
+    const result = find(sofar, 'vitest transform')
+    // The matched word lives past REACH_PROSE, in `because` — the clip cannot see
+    // it, and the label the surface shows does not contain it.
+    expect(result.seed.matches![0]!.id).toBe(`decision:${long.id}`)
+    expect(result.seed.matches![0]!.label).not.toContain('vitest')
+  })
+
+  it('never text-matches what the record already denotes', () => {
+    const { sofar } = corpus()
+    // Each of these is a literal seed AND a word the prose uses.
+    for (const [query, expected] of [
+      ['alpha', 'initiative'],
+      ['A', 'session'],
+      ['src/core/index-pass.ts', 'file'],
+      ['alpha D1', 'decision'],
+    ] as const) {
+      expect(find(sofar, query).seed.kind, query).toBe(expected)
+    }
+  })
+
+  it('expands the traversal from what it matched, and keeps the two apart', () => {
+    const { sofar, cursor } = corpus()
+    const result = find(sofar, 'why does a correction rebuild the whole log')
+
+    // The match itself is seed evidence, never a traversal hit: it has no edge.
+    expect(allHits(result).map((h) => h.id)).not.toContain(`decision:${cursor.id}`)
+    // What the traversal reached FROM it is the point of seeding by words.
+    expect(kind(result, 'session').map((h) => h.label)).toContain('A')
+    expect(kind(result, 'file').map((h) => h.label)).toContain('src/core/index-pass.ts')
+    // And every one of those still cites a real event of its edge's type.
+    const byId = eventsById(sofar)
+    for (const hit of allHits(result)) expect(byId.get(hit.via.event_id)).toBeDefined()
+  })
+
+  it('counts what it did not show rather than dropping it silently', () => {
+    const { sofar } = repo()
+    start(sofar, 'alpha', 'A')
+    for (let i = 0; i < LEXICAL_SEED_CAP + 3; i += 1) {
+      decide(sofar, 'alpha', 'A', { chose: `throttling attempt ${i}`, because: 'throttling' })
+    }
+    const result = find(sofar, 'throttling')
+    expect(result.seed.matches).toHaveLength(LEXICAL_SEED_CAP)
+    expect(result.seed.omitted).toBe(3)
+  })
+
+  it('is deterministic, and equal to a cold rebuild after an append', () => {
+    const { sofar } = corpus()
+    const query = 'correction to the cursor'
+    const warm = find(sofar, query)
+    expect(find(sofar, query)).toEqual(warm)
+
+    decide(sofar, 'alpha', 'A', {
+      chose: 'voiding a correction target wherever it sits',
+      because: 'the fold does',
+    })
+    const incremental = find(sofar, query)
+    rmSync(join(sofar, '.index'), { recursive: true, force: true })
+    expect(incremental).toEqual(find(sofar, query))
+    expect(incremental.seed.matches!.length).toBeGreaterThan(warm.seed.matches!.length)
+  })
+
+  it('prints the matched words and the weaker caveat, and asserts nothing', () => {
+    const { root, sofar, cursor } = corpus()
+    const out = runFind(
+      root,
+      'why does a correction rebuild the whole log',
+      {},
+      { color: false, unicode: false, animate: false },
+    )
+    expect(out.exitCode).toBe(0)
+    expect(out.stdout).toContain('[text,')
+    // Both decisions use "log"; only one uses "correction", and it ranks first.
+    expect(out.stdout).toContain('Matched (2)')
+    expect(out.stdout).toMatch(/matched correction.* · event /)
+    expect(out.stdout).toContain(`event ${cursor.id}`)
+    expect(out.stdout).toContain('never as an answer')
+    // The question is a sentence; it must never be used to NAME a node.
+    expect(out.stdout).toContain('logged alpha D1')
+    expect(out.stdout).not.toMatch(/answers|about this|you must|relevant to/i)
+    expect(refreshReach(sofar).lexicon.length).toBeGreaterThan(0)
   })
 })
 

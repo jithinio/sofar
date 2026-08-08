@@ -10,11 +10,13 @@ import type { ToolContext } from './context'
  * costs what has been appended since the last question rather than the repo's
  * whole history. That is what makes this callable mid-task instead of once.
  *
- * The seed is resolved LITERALLY (path, session id, slug, decision handle). A
- * bare `D<n>` needs an initiative, and — unlike the write tools — it is NOT
- * resolved from the branch by default: a read that silently answers about a
- * different record than the caller meant is worse than one that says it found
- * nothing. The caller passes `initiative` when it means the bound one.
+ * The seed is resolved LITERALLY FIRST (path, session id, slug, decision handle),
+ * and only a query denoting none of those is matched against decision and note
+ * prose (3.5) — IDF-ranked, no model. A bare `D<n>` needs an initiative, and —
+ * unlike the write tools — it is NOT resolved from the branch by default: a read
+ * that silently answers about a different record than the caller meant is worse
+ * than one that says it found nothing. The caller passes `initiative` when it
+ * means the bound one.
  *
  * Everything returned is DERIVED relevance (D2). The tool description carries
  * that caveat because the result is JSON: the agent sees the shape, not a
