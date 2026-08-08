@@ -187,6 +187,20 @@ export const TASK_FILES_CAP = 20
 export const ACTIVITY_LIST_CAP = 20
 
 /**
+ * Per-list cap on structural QUERY results (record-graph 2.x), re-exported by
+ * core/graph.ts where readers look for it. It lives down here beside the other
+ * two caps because the index answers the same questions the graph does
+ * (record-index 3.1) and must cap them identically — and core/graph.ts is
+ * import-locked away from the hot path, so a hot-path module cannot reach a
+ * constant that lives there.
+ *
+ * Overflow past it is reported as a NUMERIC count, never as a "+N more"
+ * element inside a typed list: the in-band sentinel in activity.files above is
+ * why openSessionFileConflicts has to defend with `startsWith('+')`.
+ */
+export const GRAPH_RESULT_CAP = 20
+
+/**
  * File-locality hints (speed T4) as a function of the `worked` edges: task id
  * → paths touched while that task was active, deduped MOST-RECENT-FIRST (a
  * re-touch moves the path to the front), capped at TASK_FILES_CAP.

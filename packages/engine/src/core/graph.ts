@@ -11,6 +11,7 @@ import {
   commandTextOf,
   decisionOf,
   fileNodeId,
+  GRAPH_RESULT_CAP,
   initiativeNodeId,
   noteTextOf,
   phaseNodeId,
@@ -545,8 +546,12 @@ function resolveCitation(
 // renderers. The "+N more" text is a render-time concern (3.1/3.2).
 // ---------------------------------------------------------------------------
 
-/** Per-list cap on query results — the task_files/activity number. */
-export const GRAPH_RESULT_CAP = 20
+/**
+ * Per-list cap on query results — the task_files/activity number. Defined in
+ * core/adjacency.ts (below the hot-path import lock) and re-exported here,
+ * where every reader of the query surface looks for it.
+ */
+export { GRAPH_RESULT_CAP } from './adjacency'
 
 /** A session that touched the path, in any initiative. */
 export interface FileToucher {

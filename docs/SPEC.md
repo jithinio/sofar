@@ -2080,11 +2080,13 @@ stay the underlying derivation's, and exit codes are styling-independent.
   empty reads as "no conflict". Steady-state cost is the pin: no log whose
   size AND mtime are unchanged is read at all, so the indexed answer stays a
   small multiple cheaper than the folded one as initiatives multiply
-  (measured: shim end-to-end 60.5ms at 30, 62.1ms at 300, 72.0ms at 1000
-  initiatives against the 100ms budget; derivation 1.2/2.0/4.7ms against the
-  fold's 4.8/39.9/132.4ms). Building a cold index is O(total history) ONCE —
-  147ms at 1000 initiatives, over budget for that single prompt — which is
-  the accepted price of never answering from a partial index.
+  (measured: shim end-to-end 67.1ms at 30, 70.3ms at 300, 83.5ms at 1000
+  initiatives against the 100ms budget; derivation 0.9/1.9/5.5ms against the
+  fold's 5.0/44.6/146.3ms). Building a cold index is O(total history) ONCE and
+  costs about what folding costs, since it applies the same envelope and
+  payload validation — 111ms at 300 and 203ms at 1000, over budget for that
+  single prompt, which is the accepted price of never answering from a partial
+  index.
 - **Peer addressing (peer-messaging 1.1/2.1/2.2):** with the host's registry
   naming a colliding session as a live Claude Code session, its UserPromptSubmit
   line gains a SECOND line carrying the name SendMessage addresses, and

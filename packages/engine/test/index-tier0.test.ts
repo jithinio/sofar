@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -116,6 +116,80 @@ describe('Tier 0', () => {
       step()
       expect(refreshTier0(dir)).toEqual(fromLogs(dir))
     }
+  })
+
+  it('follows a correction that withdraws a session already indexed', () => {
+    // The retroactive act in an append-only log (record-index 3.1): the index
+    // has no way to un-apply, so a correction reaching back rebuilds the log.
+    // Without this the index keeps a session open that the record withdrew,
+    // and the conflict line warns about an agent who was never there.
+    const dir = sofarDir()
+    start(dir, 'alpha', 'A')
+    touch(dir, 'alpha', 'A', 'src/env.ts')
+    expect(refreshTier0(dir)).toHaveLength(1)
+
+    const log = join(dir, 'initiatives', 'alpha', 'events.jsonl')
+    const started = JSON.parse(readFileSync(log, 'utf8').split('\n')[0]!) as { id: string }
+    emit(dir, 'alpha', 'A', 'correction', { ref: started.id, reason: 'session id was mistyped' })
+
+    expect(refreshTier0(dir)).toEqual(fromLogs(dir))
+    expect(refreshTier0(dir)).toEqual([])
+  })
+
+  it('re-orders a union-merged log the way the fold does', () => {
+    // `merge=union` appends a sibling branch's block whatever its ids compare
+    // to; the fold replays in ULID order. A mechanical `session_closed` is the
+    // case where the two orders genuinely disagree: it creates no stub, so in
+    // id order it arrives before the session exists and is DROPPED, leaving
+    // the session open — while reading the file top to bottom would close it.
+    const dir = sofarDir()
+    start(dir, 'alpha', 'A')
+    touch(dir, 'alpha', 'A', 'src/env.ts')
+    expect(refreshTier0(dir)).toHaveLength(1)
+
+    const log = join(dir, 'initiatives', 'alpha', 'events.jsonl')
+    const backdated = {
+      ...makeEvent({
+        initiative: 'alpha',
+        session: 'A',
+        source: 'hook',
+        actor: 'agent',
+        type: 'session_closed',
+        payload: { reason: 'exit' },
+      }),
+      id: '01AAAAAAAAAAAAAAAAAAAAAAAA',
+    }
+    writeFileSync(log, `${readFileSync(log, 'utf8')}${JSON.stringify(backdated)}\n`)
+
+    expect(refreshTier0(dir)).toEqual(fromLogs(dir))
+    expect(refreshTier0(dir)).toHaveLength(1) // the close sorts before the start
+  })
+
+  it('refuses to re-open a session that already ended', () => {
+    // The fold skips session_started for an id its log already knows, so a
+    // start arriving after an end leaves the session ended — the shape a
+    // merged sibling branch produces, and the one a delete-on-end index gets
+    // wrong by construction.
+    const dir = sofarDir()
+    emit(dir, 'alpha', 'A', 'session_ended', { session_id: 'A', summary: 'x', next_action: 'y' })
+    start(dir, 'alpha', 'A')
+    touch(dir, 'alpha', 'A', 'src/env.ts')
+
+    expect(refreshTier0(dir)).toEqual(fromLogs(dir))
+    expect(refreshTier0(dir)).toEqual([])
+  })
+
+  it('ends the session the write-back NAMES, not the one that appended it', () => {
+    // sofar_end_session takes session_id explicitly, so the envelope's session
+    // and the settled one can differ — this record carries a mistyped pair.
+    const dir = sofarDir()
+    start(dir, 'alpha', 'A')
+    start(dir, 'alpha', 'B')
+    touch(dir, 'alpha', 'A', 'src/env.ts')
+    emit(dir, 'alpha', 'B', 'session_ended', { session_id: 'A', summary: 'x', next_action: 'y' })
+
+    expect(refreshTier0(dir)).toEqual(fromLogs(dir))
+    expect(refreshTier0(dir).map((s) => s.session)).toEqual(['B'])
   })
 
   it('inherits the fold cap rather than storing more', () => {

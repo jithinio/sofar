@@ -46,20 +46,44 @@ function scratch(): string {
   return root
 }
 
+/**
+ * A line that is a real event.
+ *
+ * Ids are hand-minted rather than random so ordering is controllable, but they
+ * are REAL ulids and the payloads are payloads the fold would replay: the
+ * reader applies the fold's own skip rules (invalid envelope, invalid
+ * payload), so a fixture that cut corners would be testing a reader nobody
+ * has.
+ */
 let seq = 0
 function event(type: string, extra: Record<string, unknown> = {}): string {
   seq++
   return JSON.stringify({
     v: 1,
-    id: `01AAAAAAAA${String(seq).padStart(6, '0')}`,
+    id: `01AAAAAAAA${String(seq).padStart(16, '0')}`,
     ts: '2026-08-08T12:00:00.000Z',
     initiative: 'demo',
     session: 'S1',
     source: 'claude-code',
     actor: 'agent',
     type,
-    payload: extra,
+    payload: { ...defaultPayload(type), ...extra },
   })
+}
+
+function defaultPayload(type: string): Record<string, unknown> {
+  switch (type) {
+    case 'session_started':
+      return { tool: 'claude-code' }
+    case 'file_touched':
+      return { path: 'a.ts', op: 'edit' }
+    case 'note_added':
+      return { text: 'a note' }
+    case 'decision_logged':
+      return { chose: 'this', over: 'that', because: 'reasons' }
+    default:
+      return {}
+  }
 }
 
 function freshLog(events: string[]): string {

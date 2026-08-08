@@ -6,19 +6,19 @@
 - Tool: claude-code
 - Model: claude-opus-5[1m]
 - Started: 2026-08-08T16:25:34.170Z
-- Ended: 2026-08-08T16:50:02.168Z
+- Ended: 2026-08-08T17:19:53.349Z
 
 ## Summary
 
-2.2 done: UserPromptSubmit reports cross-initiative conflicts from Tier 0, refreshed on the path; peer line covers both hazard lines. Unblocked cross-initiative-conflicts 2.2 (shipped index-backed, not warm-gated). Cursors gained mtimeMs (index v2): shim 60.5/62.1/72.0ms at 30/300/1000. SPEC + acceptance updated.
+3.1 done: Tier 1 materializes the graph keyed for lookup (guards by subject, touchers by path, neighbouring initiatives), equal to whyFile and the fold's guard ordinals. Shared pass core/index-pass.ts hardened Tier 0 too: corrections, ulid order, envelope+payload validation, per-tier cursors. Cold build now costs what folding costs; steady state unchanged.
 
 ## Next action
 
-record-index 3.1: materialize the graph incrementally into the index, KEYED for lookup (path -> guarding decisions, path -> touching sessions), so 3.2's PostToolUse guard is an O(1) lookup.
+record-index 3.2: PostToolUse asks guardsForSubject whether any decision ANYWHERE guards the edited path, and surfaces the rule verbatim (D2: declared relevance may be asserted).
 
 ## Activity (derived from mechanical events)
 
-- Derived: 16 files (/Users/jins/IO/sofar/packages/engine/src/core/cross-conflicts.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/test/cross-conflict-line.test.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/derivations.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/bench.mjs, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/bench.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/run-bench.mjs, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/phases.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/run-phases.mjs, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/seeder.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-store.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-tail.ts, /Users/jins/IO/sofar/packages/engine/test/index-incremental.test.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/bench-shims.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/.sofar/repo.md), 47 commands, task changes: 2.2 → done
+- Derived: 23 files (/Users/jins/IO/sofar/packages/engine/src/core/cross-conflicts.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/test/cross-conflict-line.test.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/derivations.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/bench.mjs, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/bench.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/run-bench.mjs, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/phases.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/run-phases.mjs, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/seeder.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-store.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-tail.ts, /Users/jins/IO/sofar/packages/engine/test/index-incremental.test.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/bench-shims.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/.sofar/repo.md, /Users/jins/IO/sofar/packages/engine/src/core/index-pass.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-tier0.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-tier1.ts, /Users/jins/IO/sofar/packages/engine/src/core/adjacency.ts, +3 more), 84 commands, task changes: 2.2 → done, 3.1 → done
 - Files:
   - /Users/jins/IO/sofar/packages/engine/src/core/cross-conflicts.ts
   - /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
@@ -36,6 +36,12 @@ record-index 3.1: materialize the graph incrementally into the index, KEYED for 
   - /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/bench-shims.ts
   - /Users/jins/IO/sofar/docs/SPEC.md
   - /Users/jins/IO/sofar/.sofar/repo.md
-- Commands run: 47
+  - /Users/jins/IO/sofar/packages/engine/src/core/index-pass.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/index-tier0.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/index-tier1.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/adjacency.ts
+  - +3 more
+- Commands run: 84
 - Task changes:
   - 2.2 → done
+  - 3.1 → done

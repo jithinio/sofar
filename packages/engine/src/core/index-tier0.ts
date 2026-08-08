@@ -1,15 +1,7 @@
-import { join } from 'node:path'
 import { ACTIVITY_LIST_CAP } from './adjacency'
-import {
-  INDEX_SCHEMA_VERSION,
-  readIndexFile,
-  readIndexMeta,
-  writeIndexFile,
-  writeIndexMeta,
-  type IndexMeta,
-} from './index-store'
-import { readSince, type IndexedEvent } from './index-tail'
-import { initiativeSlugs } from './listing'
+import { passOverRecord } from './index-pass'
+import { DEFAULT_META_FILE, INDEX_SCHEMA_VERSION, readIndexFile, writeIndexFile } from './index-store'
+import { type IndexedEvent } from './index-tail'
 
 /**
  * Tier 0: which sessions are OPEN, and which files they hold (record-index 2.1).
@@ -39,8 +31,19 @@ const TIER0_FILE = 'open.json'
 
 interface Tier0Disk {
   version: number
-  /** slug → session id → files held, in the fold's own order. */
-  initiatives: Record<string, Record<string, string[]>>
+  /**
+   * slug → session id → files held in the fold's own order, or NULL once the
+   * session is known and finished.
+   *
+   * Finished sessions are remembered rather than forgotten because the fold
+   * remembers them, and the difference is observable: `session_started` for an
+   * id the log already knows is SKIPPED, so a start arriving after an end
+   * leaves the session ended. Deleting the entry instead would let that start
+   * re-open a session the record considers closed — which is exactly what a
+   * union-merged log produces, since replay is in ulid order and a sibling
+   * branch's write-back can sort ahead of the start it belongs to.
+   */
+  initiatives: Record<string, Record<string, string[] | null>>
 }
 
 /** One open session and the files it holds. */
@@ -56,20 +59,44 @@ function isTier0Disk(v: unknown): v is Tier0Disk {
   return r.version === INDEX_SCHEMA_VERSION && typeof r.initiatives === 'object' && r.initiatives !== null
 }
 
-/** Apply one event to a slug's open-session map, exactly as the fold would. */
-function apply(open: Record<string, string[]>, ev: IndexedEvent): void {
-  if (ev.session.length === 0) return
+/**
+ * Apply one event to a slug's session map, exactly as the fold would.
+ *
+ * The lifecycle is copied from applyEvent rather than approximated, because
+ * every one of its asymmetries is observable in the open set:
+ *  - `session_started` for an id the log already knows is SKIPPED, so it can
+ *    never re-open a finished session.
+ *  - `session_ended` names its subject in the PAYLOAD (the write-back tool
+ *    takes session_id explicitly, and this record has a mistyped one to prove
+ *    it), and creates a finished stub when that subject was never started.
+ *  - `session_closed` — the mechanical SessionEnd fallback — creates no stub
+ *    and is ignored for a session this log never registered.
+ */
+function apply(sessions: Record<string, string[] | null>, ev: IndexedEvent): void {
   switch (ev.type) {
     case 'session_started':
-      if (open[ev.session] === undefined) open[ev.session] = []
+      if (ev.session.length === 0) return
+      if (sessions[ev.session] === undefined) sessions[ev.session] = []
       return
-    case 'session_ended':
+    case 'session_ended': {
+      const named = ev.payload.session_id
+      const subject = typeof named === 'string' && named.length > 0 ? named : ev.session
+      if (subject.length === 0) return
+      sessions[subject] = null
+      return
+    }
     case 'session_closed':
-      delete open[ev.session]
+      if (ev.session.length === 0) return
+      if (sessions[ev.session] === undefined) return // no stub for an unknown session
+      sessions[ev.session] = null
       return
     case 'file_touched': {
-      const files = open[ev.session]
-      if (files === undefined) return // never registered here — not the fold's session
+      const files = sessions[ev.session]
+      // undefined: never registered here — not the fold's session.
+      // null: registered and finished — the fold attaches the touch, and
+      // openSessionFiles then filters the session out, so the open set is the
+      // same either way.
+      if (files === undefined || files === null) return
       const path = ev.payload.path
       if (typeof path !== 'string' || path.length === 0) return
       // First-touch order, deduped, capped: SessionActivity.touched's contract.
@@ -88,41 +115,25 @@ function apply(open: Record<string, string[]>, ev: IndexedEvent): void {
  *
  * Cost is O(events appended since last call) per initiative — the point of the
  * whole exercise. An initiative whose log has not grown contributes one cheap
- * cursor check and nothing else.
+ * stat and nothing else.
  *
- * A `full` read means the tail reader could not corroborate its cursor (cold
- * start, rewritten log, restore), so that initiative's prior entry is DISCARDED
- * and rebuilt from the whole log. Merging into stale state there is the one way
- * this could silently diverge from truth, so it never merges.
+ * Every judgment about whether resuming is SOUND lives in index-pass.ts, which
+ * this shares with every other tier: a cursor that no longer describes its
+ * file, a tail that arrives out of ulid order, a correction that voids
+ * something already applied. All of them rebuild this initiative from its
+ * whole log rather than merging into state that may already be wrong.
  */
 export function refreshTier0(sofarDir: string): Tier0Session[] {
-  const meta: IndexMeta = readIndexMeta(sofarDir) ?? { version: INDEX_SCHEMA_VERSION, cursors: {} }
   const prior = readIndexFile<Tier0Disk>(sofarDir, TIER0_FILE, isTier0Disk)
-  const next: Tier0Disk = { version: INDEX_SCHEMA_VERSION, initiatives: {} }
+  const { states, changed } = passOverRecord<Record<string, string[] | null>>(
+    sofarDir,
+    DEFAULT_META_FILE,
+    prior === null ? null : prior.initiatives,
+    { empty: () => ({}), clone: cloneSessions, apply },
+  )
 
-  for (const slug of initiativeSlugs(sofarDir)) {
-    const log = join(sofarDir, 'initiatives', slug, 'events.jsonl')
-    const cursor = meta.cursors[slug] ?? null
-    const read = readSince(log, cursor)
-
-    // Resume from what we had, unless the reader had to start over.
-    const open: Record<string, string[]> =
-      read.full || prior === null ? {} : { ...structuredCloneish(prior.initiatives[slug]) }
-
-    for (const ev of read.events) apply(open, ev)
-
-    next.initiatives[slug] = open
-    if (read.cursor !== null) meta.cursors[slug] = read.cursor
-    else delete meta.cursors[slug]
-  }
-
-  // Initiatives that vanished must not linger in the cursor map.
-  for (const slug of Object.keys(meta.cursors)) {
-    if (next.initiatives[slug] === undefined) delete meta.cursors[slug]
-  }
-
-  writeIndexFile(sofarDir, TIER0_FILE, next)
-  writeIndexMeta(sofarDir, meta)
+  const next: Tier0Disk = { version: INDEX_SCHEMA_VERSION, initiatives: states }
+  if (changed) writeIndexFile(sofarDir, TIER0_FILE, next)
   return flatten(next)
 }
 
@@ -136,6 +147,7 @@ function flatten(disk: Tier0Disk): Tier0Session[] {
   const out: Tier0Session[] = []
   for (const [initiative, sessions] of Object.entries(disk.initiatives)) {
     for (const [session, files] of Object.entries(sessions)) {
+      if (files === null) continue // known and finished — not open
       out.push({ session, initiative, files: [...files] })
     }
   }
@@ -146,9 +158,8 @@ function flatten(disk: Tier0Disk): Tier0Session[] {
 }
 
 /** Copy one slug's map so a resume never mutates the object read from disk. */
-function structuredCloneish(v: Record<string, string[]> | undefined): Record<string, string[]> {
-  if (v === undefined) return {}
-  const out: Record<string, string[]> = {}
-  for (const [k, files] of Object.entries(v)) out[k] = [...files]
+function cloneSessions(v: Record<string, string[] | null>): Record<string, string[] | null> {
+  const out: Record<string, string[] | null> = {}
+  for (const [k, files] of Object.entries(v)) out[k] = files === null ? null : [...files]
   return out
 }

@@ -32,7 +32,7 @@ import { writeFileAtomic } from './atomic'
  */
 
 /** Bump on ANY change to the on-disk shape. Old versions cold-start. */
-export const INDEX_SCHEMA_VERSION = 2
+export const INDEX_SCHEMA_VERSION = 3
 
 /** How far one initiative's log has been consumed. */
 export interface InitiativeCursor {
@@ -65,6 +65,24 @@ export interface InitiativeCursor {
    * and looking fresh here only ever costs an extra read).
    */
   mtimeMs: number
+  /**
+   * Greatest event id consumed, which is NOT always the id at `offset`: the
+   * fold replays in ulid order rather than file order (the convergent-fold
+   * rule), and a union-merged log interleaves two branches' lines. Resuming
+   * incrementally is only sound while every arriving id is above everything
+   * already applied, so the pass compares against this and rebuilds when it
+   * is not. Absent on a cursor written before this existed.
+   */
+  maxId?: string
+  /**
+   * Event ids voided by a `correction` in this log. The log is append-only,
+   * but a correction is retroactive: it can void an event a previous pass
+   * already applied, and an index that ignores it reports work the fold has
+   * dropped. Kept per log so a void survives across refreshes — this record
+   * alone carries 24 corrections, over session_started, session_ended,
+   * decision_logged and command_run.
+   */
+  voided?: string[]
 }
 
 /** Size + mtime in one syscall — the cheapest question you can ask a log. */
@@ -86,8 +104,18 @@ export function indexDir(sofarDir: string): string {
   return join(sofarDir, '.index')
 }
 
-function metaPath(sofarDir: string): string {
-  return join(indexDir(sofarDir), 'meta.json')
+/**
+ * Cursor file for the DEFAULT tier. Every tier names its own (record-index
+ * 3.1): cursors say how far a tier has consumed each log, so sharing one file
+ * across tiers would let whichever tier refreshed first advance the cursor
+ * past events the others never saw. Separate files also keep the tiers
+ * independently refreshable, which is the whole point of tiering — the hot
+ * consumer must never pay to maintain a tier it does not read.
+ */
+export const DEFAULT_META_FILE = 'meta.json'
+
+function metaPath(sofarDir: string, file: string): string {
+  return join(indexDir(sofarDir), file)
 }
 
 /**
@@ -114,9 +142,9 @@ export function ensureIndexDir(sofarDir: string): string {
  * to a caller: derive from the logs instead. Distinguishing them would only
  * tempt a reader into trusting a partially-valid file.
  */
-export function readIndexMeta(sofarDir: string): IndexMeta | null {
+export function readIndexMeta(sofarDir: string, file: string = DEFAULT_META_FILE): IndexMeta | null {
   try {
-    const raw: unknown = JSON.parse(readFileSync(metaPath(sofarDir), 'utf8'))
+    const raw: unknown = JSON.parse(readFileSync(metaPath(sofarDir, file), 'utf8'))
     if (typeof raw !== 'object' || raw === null) return null
     const rec = raw as Record<string, unknown>
     if (rec.version !== INDEX_SCHEMA_VERSION) return null
@@ -130,7 +158,12 @@ export function readIndexMeta(sofarDir: string): IndexMeta | null {
       if (typeof c.offset !== 'number' || !Number.isInteger(c.offset) || c.offset < 0) continue
       if (typeof c.size !== 'number' || !Number.isInteger(c.size) || c.size < 0) continue
       if (typeof c.mtimeMs !== 'number' || !Number.isFinite(c.mtimeMs) || c.mtimeMs < 0) continue
-      clean[slug] = { id: c.id, offset: c.offset, size: c.size, mtimeMs: c.mtimeMs }
+      const cursor: InitiativeCursor = { id: c.id, offset: c.offset, size: c.size, mtimeMs: c.mtimeMs }
+      if (typeof c.maxId === 'string' && c.maxId.length > 0) cursor.maxId = c.maxId
+      if (Array.isArray(c.voided) && c.voided.every((v) => typeof v === 'string')) {
+        cursor.voided = c.voided as string[]
+      }
+      clean[slug] = cursor
     }
     return { version: INDEX_SCHEMA_VERSION, cursors: clean }
   } catch {
@@ -139,10 +172,10 @@ export function readIndexMeta(sofarDir: string): IndexMeta | null {
 }
 
 /** Persist metadata atomically. Silent on failure — the index is disposable. */
-export function writeIndexMeta(sofarDir: string, meta: IndexMeta): void {
+export function writeIndexMeta(sofarDir: string, meta: IndexMeta, file: string = DEFAULT_META_FILE): void {
   try {
     ensureIndexDir(sofarDir)
-    writeFileAtomic(metaPath(sofarDir), `${JSON.stringify({ ...meta, version: INDEX_SCHEMA_VERSION })}\n`)
+    writeFileAtomic(metaPath(sofarDir, file), `${JSON.stringify({ ...meta, version: INDEX_SCHEMA_VERSION })}\n`)
   } catch {
     // A record that cannot cache is a record that is merely slower. Never
     // let index maintenance fail an append, a hook, or a command.

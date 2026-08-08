@@ -1,4 +1,6 @@
 import { closeSync, fstatSync, openSync, readSync } from 'node:fs'
+import { validatePayload } from '@sofar/schema'
+import { validateEnvelope } from './envelope'
 import { cursorUsable, logStat, logUntouched, type InitiativeCursor } from './index-store'
 
 /**
@@ -37,23 +39,39 @@ export interface TailRead {
   full: boolean
 }
 
-function decode(line: string): IndexedEvent | null {
+/**
+ * A line the index may anchor a cursor on, and whether the fold would REPLAY
+ * it.
+ *
+ * The two are not the same question, and the fold answers them separately:
+ * a line that fails envelope validation is not an event at all, while a
+ * payload-invalid or unknown-typed event is a real event the replay skips.
+ * The cursor tracks the former (it is a position in a file) and `usable`
+ * marks the latter, so a derivation built from these events sees exactly the
+ * set the fold sees — no more, which would invent work, and no fewer, which
+ * would hide it.
+ */
+function decode(line: string): { event: IndexedEvent; usable: boolean } | null {
+  let raw: unknown
   try {
-    const raw: unknown = JSON.parse(line)
-    if (typeof raw !== 'object' || raw === null) return null
-    const r = raw as Record<string, unknown>
-    if (typeof r.id !== 'string' || typeof r.type !== 'string') return null
-    const payload = typeof r.payload === 'object' && r.payload !== null ? (r.payload as Record<string, unknown>) : {}
-    return {
-      id: r.id,
-      type: r.type,
-      session: typeof r.session === 'string' ? r.session : '',
-      initiative: typeof r.initiative === 'string' ? r.initiative : '',
-      payload,
-      ts: typeof r.ts === 'string' ? r.ts : '',
-    }
+    raw = JSON.parse(line)
   } catch {
     return null // a corrupt line is skipped, exactly as the fold skips it
+  }
+  const check = validateEnvelope(raw)
+  if (!check.ok) return null
+
+  const e = check.event
+  return {
+    event: {
+      id: e.id,
+      type: e.type,
+      session: e.session,
+      initiative: e.initiative,
+      payload: e.payload,
+      ts: e.ts,
+    },
+    usable: validatePayload(e.type, e.payload).ok,
   }
 }
 
@@ -122,15 +140,15 @@ export function readSince(logPath: string, cursor: InitiativeCursor | null): Tai
       const lines = linesWithOffsets(chunk.text, cursor.offset)
       const first = lines[0] === undefined ? null : decode(lines[0].line)
       // Corroboration: the offset must land exactly on the event it claims.
-      if (first !== null && first.id === cursor.id) {
+      if (first !== null && first.event.id === cursor.id) {
         const fresh = lines.slice(1)
         const events: IndexedEvent[] = []
         let last = { id: cursor.id, offset: cursor.offset }
         for (const { line, offset } of fresh) {
-          const ev = decode(line)
-          if (ev === null) continue
-          events.push(ev)
-          last = { id: ev.id, offset }
+          const decoded = decode(line)
+          if (decoded === null) continue
+          last = { id: decoded.event.id, offset }
+          if (decoded.usable) events.push(decoded.event)
         }
         return { events, cursor: { ...last, size: chunk.size, mtimeMs: chunk.mtimeMs }, full: false }
       }
@@ -143,10 +161,10 @@ export function readSince(logPath: string, cursor: InitiativeCursor | null): Tai
   const events: IndexedEvent[] = []
   let last: { id: string; offset: number } | null = null
   for (const { line, offset } of linesWithOffsets(whole.text, 0)) {
-    const ev = decode(line)
-    if (ev === null) continue
-    events.push(ev)
-    last = { id: ev.id, offset }
+    const decoded = decode(line)
+    if (decoded === null) continue
+    last = { id: decoded.event.id, offset }
+    if (decoded.usable) events.push(decoded.event)
   }
   return {
     events,
