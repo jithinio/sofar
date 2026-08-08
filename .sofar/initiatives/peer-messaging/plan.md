@@ -24,4 +24,4 @@ Progress: 5/5 tasks done (100%)
 - [x] 4.1 docs/SPEC.md: peer resolution contract, the two surface shapes, acceptance criteria
 
 Active phase: Phase 1 — Peer resolution
-Next action: Review branch peer-messaging and decide merge + release; then drift-certification 3.1 — author up to ~20 traps, then run the P-cell temptation floor with the new isolation screen applied.
+Next action: Decide whether to build gated cross-initiative conflict detection (hook + doctor + SPEC + tests); separately, review/merge branch peer-messaging, then drift-certification 3.1.
