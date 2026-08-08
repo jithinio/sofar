@@ -1,0 +1,142 @@
+import { closeSync, fstatSync, openSync, readSync } from 'node:fs'
+import { cursorPlausible, type InitiativeCursor } from './index-store'
+
+/**
+ * Read only what a log has grown by (record-index 1.2).
+ *
+ * This is where O(new events) actually happens. Every other cross-record
+ * surface in the codebase re-reads whole logs to answer questions about a
+ * handful of recent events; with a cursor, the common case — nothing appended
+ * since last time — reads a few bytes and returns nothing.
+ *
+ * The correctness bargain is that a seek is never TRUSTED. The cursor stores
+ * the byte offset where its event's line begins, so the first line read back
+ * must carry that exact id. When it does, the offset described this file and
+ * the tail after it is genuinely new. When it does not — a rewritten log, an
+ * import, a restore, a truncation that happened to land plausibly — the reader
+ * silently falls back to reading everything, which is slower and right. There
+ * is no configuration for this and no way to force the fast path: an index
+ * that can be talked into a wrong answer is worse than no index.
+ */
+
+/** A decoded envelope, only as far as the index needs it. */
+export interface IndexedEvent {
+  id: string
+  type: string
+  session: string
+  initiative: string
+  payload: Record<string, unknown>
+  ts: string
+}
+
+export interface TailRead {
+  events: IndexedEvent[]
+  /** Cursor to persist, or null when the log held no usable event. */
+  cursor: InitiativeCursor | null
+  /** True when the whole log was read — a cold start or a failed corroboration. */
+  full: boolean
+}
+
+function decode(line: string): IndexedEvent | null {
+  try {
+    const raw: unknown = JSON.parse(line)
+    if (typeof raw !== 'object' || raw === null) return null
+    const r = raw as Record<string, unknown>
+    if (typeof r.id !== 'string' || typeof r.type !== 'string') return null
+    const payload = typeof r.payload === 'object' && r.payload !== null ? (r.payload as Record<string, unknown>) : {}
+    return {
+      id: r.id,
+      type: r.type,
+      session: typeof r.session === 'string' ? r.session : '',
+      initiative: typeof r.initiative === 'string' ? r.initiative : '',
+      payload,
+      ts: typeof r.ts === 'string' ? r.ts : '',
+    }
+  } catch {
+    return null // a corrupt line is skipped, exactly as the fold skips it
+  }
+}
+
+/** Read `length` bytes from `start`, or the whole file when start is 0. */
+function readFrom(path: string, start: number): { text: string; size: number } | null {
+  let fd: number | null = null
+  try {
+    fd = openSync(path, 'r')
+    const size = fstatSync(fd).size
+    if (start >= size) return { text: '', size }
+    const length = size - start
+    const buf = Buffer.allocUnsafe(length)
+    readSync(fd, buf, 0, length, start)
+    return { text: buf.toString('utf8'), size }
+  } catch {
+    return null
+  } finally {
+    if (fd !== null) {
+      try {
+        closeSync(fd)
+      } catch {
+        // Cannot change the bytes already read.
+      }
+    }
+  }
+}
+
+/**
+ * Split into lines, keeping each line's absolute byte offset.
+ *
+ * Offsets are computed in BYTES, not characters. Event payloads carry prose,
+ * and prose carries em dashes and arrows — a UTF-16 length would drift from
+ * the file position on the first non-ASCII character and put every subsequent
+ * cursor a few bytes off.
+ */
+function linesWithOffsets(text: string, base: number): { line: string; offset: number }[] {
+  const out: { line: string; offset: number }[] = []
+  let cursor = base
+  for (const line of text.split('\n')) {
+    if (line.trim().length > 0) out.push({ line, offset: cursor })
+    cursor += Buffer.byteLength(line, 'utf8') + 1 // +1 for the newline
+  }
+  return out
+}
+
+/** Events appended since the cursor, plus the cursor to store next time. */
+export function readSince(logPath: string, cursor: InitiativeCursor | null): TailRead {
+  const usable = cursor !== null && cursorPlausible(logPath, cursor)
+  if (usable) {
+    const chunk = readFrom(logPath, cursor.offset)
+    if (chunk !== null) {
+      const lines = linesWithOffsets(chunk.text, cursor.offset)
+      const first = lines[0] === undefined ? null : decode(lines[0].line)
+      // Corroboration: the offset must land exactly on the event it claims.
+      if (first !== null && first.id === cursor.id) {
+        const fresh = lines.slice(1)
+        const events: IndexedEvent[] = []
+        let last = { id: cursor.id, offset: cursor.offset }
+        for (const { line, offset } of fresh) {
+          const ev = decode(line)
+          if (ev === null) continue
+          events.push(ev)
+          last = { id: ev.id, offset }
+        }
+        return { events, cursor: { ...last, size: chunk.size }, full: false }
+      }
+    }
+  }
+
+  // Cold start, or the offset did not describe this file. Read everything.
+  const whole = readFrom(logPath, 0)
+  if (whole === null) return { events: [], cursor: null, full: true }
+  const events: IndexedEvent[] = []
+  let last: { id: string; offset: number } | null = null
+  for (const { line, offset } of linesWithOffsets(whole.text, 0)) {
+    const ev = decode(line)
+    if (ev === null) continue
+    events.push(ev)
+    last = { id: ev.id, offset }
+  }
+  return {
+    events,
+    cursor: last === null ? null : { ...last, size: whole.size },
+    full: true,
+  }
+}
