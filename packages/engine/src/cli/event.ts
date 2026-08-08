@@ -895,7 +895,7 @@ export function guardViolationLines(
  * standing rule reasonably believes it governs the repo; it governed one log.
  *
  * Tier 1 closes it by materializing every guarded decision in the repo into one
- * list (this record: 3 of 195 decisions), so asking "does ANY decision anywhere
+ * list (this record: 6 of 208 decisions), so asking "does ANY decision anywhere
  * guard this path" costs O(guards) instead of folding every log.
  *
  * PostToolUse rather than the prompt line, because this is the surface where

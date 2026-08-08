@@ -4,7 +4,7 @@
 
 Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first consumer is CROSS-INITIATIVE GUARDS (pushed by the harness, needing no agent cooperation), then a priming line, then agent-initiated search. Maintained by per-initiative cursors so cost is O(new events). LOCAL and gitignored: derived state never merges, never syncs, rebuilds from truth. Zero model calls — the edges are recorded facts, so retrieval traverses them and cites the event id behind every result.
 
-Progress: 9/11 tasks done (81%)
+Progress: 10/11 tasks done (90%)
 
 ## Phase 1 — Incremental core [done] — 2/2 done
 
@@ -16,7 +16,7 @@ Progress: 9/11 tasks done (81%)
 - [x] 2.1 open.json: open sessions per initiative + the files they hold, maintained incrementally through the cursor core. Bytes, not megabytes — O(1) read on the shim path.
 - [x] 2.2 Wire cross-initiative conflicts through Tier 0, unblocking cross-initiative-conflicts 2.2; re-measure the shim against speed T2's 100ms at 30/300/1000 initiatives
 
-## Phase 3 — Tier 1: guards first, then reach [active] — 5/5 done
+## Phase 3 — Tier 1: guards first, then reach [done] — 5/5 done
 
 - [x] 3.1 Materialize the graph incrementally into the index (nodes/edges from core/adjacency), KEYED for lookup — path -> guarding decisions, path -> touching sessions/initiatives — rather than rebuilt per query
 - [x] 3.2 LAYER 1, cross-initiative guards: PostToolUse resolves 'does any decision ANYWHERE guard this path' in O(1) and surfaces the rule verbatim. Un-scopes the existing guard, which today can never fire because the guard lives in one log and the work is appended to another. The layer that prevents damage — build before search.
@@ -24,10 +24,10 @@ Progress: 9/11 tasks done (81%)
 - [x] 3.4 LAYER 3, `sofar find` + MCP tool: traverse from a seed (file, session, decision, initiative) with a hop budget; every result cites the event id that produced the edge. OFFERED as worth reading, never asserted — D2's declared-vs-derived rule.
 - [x] 3.5 Lexical seeds over decision/note prose (IDF-ranked, no model) so a text question resolves to seeds the traversal can expand
 
-## Phase 4 — Contract + proof [pending] — 0/2 done
+## Phase 4 — Contract + proof [active] — 1/2 done
 
-- [ ] 4.1 SPEC: index layout, cursor semantics, derived-never-truth, the guard un-scoping contract, retrieval authority split
+- [x] 4.1 SPEC: index layout, cursor semantics, derived-never-truth, the guard un-scoping contract, retrieval authority split
 - [ ] 4.2 Equivalence proof: indexed answers byte-match from-logs answers on every fixture, and a corrupt/stale/absent index still returns the right answer via fallback
 
-Active phase: Phase 3 — Tier 1: guards first, then reach
-Next action: record-index 4.1: the SPEC contract pass over the reach index and its surfaces. Separately: ship record-integrity D9 — bump sofar.sh, then npm publish.
+Active phase: Phase 4 — Contract + proof
+Next action: Publish 0.25.0 (user runs `npm publish -w sofar.sh`, then reinstall global), then record-index 4.2 equivalence proof.

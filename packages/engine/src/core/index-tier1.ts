@@ -22,7 +22,7 @@ import { type IndexedEvent } from './index-tail'
  *   DECLARED relevance — does any decision ANYWHERE guard this path or command?
  *     Guards are globs, so there is no map to hash; what the index removes is
  *     the sweep. Every guarded decision in the repo is materialized into one
- *     small list (this record: 3 of 195 decisions), and a lookup compiles that
+ *     small list (this record: 6 of 208 decisions), and a lookup compiles that
  *     list and matches. Cost is O(guards), not O(history).
  *   DERIVED relevance — who else has touched this path, and from which
  *     initiative? Keyed by path, unioned across initiatives, which is the join
@@ -224,7 +224,7 @@ function refreshHalf<S>(
  *
  * The one call PostToolUse makes on every edit, and the reason the halves have
  * separate cursors: this reads and writes a file sized by the number of guarded
- * decisions (3 of 195 on this record), never by the repo's touch history.
+ * decisions (6 of 208 on this record), never by the repo's touch history.
  */
 export function refreshGuards(sofarDir: string): GuardIndex {
   return declaredView(refreshHalf(sofarDir, GUARDS_FILE, GUARDS_META, {

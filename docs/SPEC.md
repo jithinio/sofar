@@ -57,6 +57,7 @@ engine-only scope law still applies during the Fable window.
 .sofar/
   repo.md                      # repo-scoped memory (hand-written, NOT generated)
   bindings.json                # { "<git-branch-or-worktree>": "<slug>" }
+  .index/                      # DERIVED, local, gitignored — §Derived index
   initiatives/<slug>/
     events.jsonl               # TRUTH — append-only
     plan.md                    # generated projection
@@ -588,6 +589,162 @@ registration (the misroute signature) where the graph makes a session id one
 identity across every log — the very property the cross-initiative join rests
 on — and `overlappingWritebacks` needs write-back prose for a `next_action`
 that is per-initiative by construction (BD9).
+
+## Derived index (record-index — local, incremental, never truth)
+Every cross-record question — which initiatives hold open sessions, who else
+has this file, what guards this path, what else bears on this work — costs a
+sweep of the whole record when answered from the logs, and the shims that need
+those answers fire against speed T2's 100ms end-to-end budget. The index is
+the other shape. Events are APPEND-ONLY and ulid-ordered, so a derivation over
+a PREFIX is permanently valid: nothing is ever invalidated, only extended.
+That makes maintenance O(new events) and makes a stale index a PARTIAL index
+rather than a wrong one — which is the property the whole safety argument
+rests on.
+
+**Layout** (created on demand; every file disposable):
+```
+.sofar/.index/
+  .gitignore          # `*` — ignores the directory AND itself, so the user's
+                      #   own .gitignore never has to learn this exists
+  meta.json           # Tier 0 cursors
+  open.json           # TIER 0 — open sessions per initiative + files held
+  meta-guards.json    # Tier 1 declared cursors
+  guards.json         # TIER 1 DECLARED — every guarded decision in the repo
+  meta-graph.json     # Tier 1 derived cursors
+  graph.json          # TIER 1 DERIVED — path → session → (ts, touches)
+  meta-reach.json     # Tier 1 reach cursors
+  reach.json          # TIER 1 REACH — clipped prose, citation handles, terms
+```
+
+**Three rules, and they are the whole safety argument (record-index D1).**
+1. DERIVED, NEVER TRUTH. Truth is events.jsonl. Any file here may be deleted
+   at any moment and rebuilt with no loss. Absence, staleness or corruption
+   MUST fall back to reading the logs — a reader may answer more slowly
+   because the index was missing, never differently.
+2. LOCAL, NEVER COMMITTED, NEVER SYNCED. It is not append-only, so the
+   `merge=union` bargain that makes events.jsonl mergeable (team-readiness T2)
+   does not apply to it, and it would arrive stale in every clone. It is not
+   part of §Cursor primitive's export/import stream either.
+3. VERSION-STAMPED. `INDEX_SCHEMA_VERSION` (4) is written into every file and
+   every meta file. Absent, unreadable, malformed, wrong version and wrong
+   shape all collapse to the SAME null — start cold — because they mean the
+   same thing to a caller, and distinguishing them would tempt a reader into
+   trusting a partially-valid file.
+
+**Cursor semantics.** Distinct from §Cursor primitive, which is the sync
+cursor over event ids; this is a per-initiative READ POSITION in one log:
+`{ id, offset, size, mtimeMs, maxId?, voided? }`. `offset` is the byte offset
+where the line of `id` STARTS, not where it ends, and that is what makes a
+seek self-corroborating — the first line read back must carry `id`, and when
+it does not, the offset is lying (an import, a rewrite, a restore, a
+truncation that landed plausibly) and the reader falls back to reading the
+whole log. Offsets are computed in BYTES: payloads carry prose, and a UTF-16
+length would drift from the file position on the first em dash. There is no
+configuration for this and no way to force the fast path — an index that can
+be talked into a wrong answer is worse than no index.
+
+`size` + `mtimeMs` together answer "has this file been touched since I read
+it" from ONE stat, which is what keeps a quiet initiative costing a syscall
+instead of a read. Neither half stands alone: an append always grows the file,
+so `size` catches every append, while a rewrite can preserve size, so
+`mtimeMs` catches the import/restore/checkout that size cannot see. Both must
+match to skip a log. mtime is never TRUSTED here, only used as a difference
+detector — the one thing it is honest about, and the opposite of why
+`warmth.ts` rejects it as a warmth signal.
+
+**When resuming is UNSOUND** — four cases, each falling back to reading the
+whole log rather than to a guess, because the cost of being wrong is silent
+and permanent while the cost of being conservative is one re-read:
+1. THE CURSOR DOES NOT DESCRIBE THIS FILE — caught by the corroboration above.
+2. THE TAIL IS NOT IN ULID ORDER. The fold replays in ulid order, not file
+   order (§Cursor primitive, convergent fold), and `merge=union` interleaves
+   two branches' lines. An arriving id that is not above everything already
+   applied forces a rebuild, and a rebuild sorts exactly as the fold does.
+3. A CORRECTION VOIDS SOMETHING ALREADY APPLIED. `correction` is the one
+   retroactive act in an append-only log: it names an event id and the fold
+   drops that event wherever it sits. A correction reaching back past the
+   current batch rebuilds the log; ignoring it would keep reporting work the
+   record has withdrawn.
+4. A LATER EVENT WAS ALREADY VOIDED — so voids are remembered ON the cursor
+   (`voided`), not merely applied to the batch that carried them.
+
+**One loop, one reducer per tier.** `core/index-pass.ts` owns the loop and all
+four judgments above; a tier supplies only what an empty state is and what one
+event does to it. A quiet initiative is carried forward BY REFERENCE rather
+than cloned — with nothing to apply there is nothing to mutate, and cloning it
+made one appended event deep-copy the whole repo's derived state.
+
+**Tiering: one file per question, each on its OWN cursor file.** Sharing a
+cursor across tiers would let whichever tier refreshed first advance the
+cursor past events the others never saw. Sharing a FILE is the same mistake in
+the other direction — it makes the cheap question pay the expensive one's
+parse and rewrite:
+
+| file | answers | read by | refreshed | sized by |
+| --- | --- | --- | --- | --- |
+| `open.json` | which sessions are open, holding what | UserPromptSubmit shim | on that shim | live sessions |
+| `guards.json` | does any decision ANYWHERE guard this subject | PostToolUse | every edit | guarded decisions (6 of 208 here) |
+| `graph.json` | who else has touched this path | PostToolUse dedupe, priming line | after a guard MATCHES; once per session | the repo's whole touch history |
+| `reach.json` | what else bears on this | `sofar find` / `sofar_find` | on a query | prose + terms of every decision and note |
+
+Read frequency, not taste, draws these lines — and they coincide with D2's
+authority split, which is usually what a real boundary looks like. Measured
+costs and the pins are in §Hooks and §Acceptance.
+
+**FAITHFUL, NOT BETTER.** Every tier mirrors the fold's and the graph's
+semantics exactly, including their limits: first-touch order and
+`ACTIVITY_LIST_CAP` in Tier 0, `GRAPH_RESULT_CAP` (20) with a numeric
+`omitted` in every query result, the `D<n>` ordinal counting the decisions the
+fold counts, `cli` anchoring no session-side edge (BD44), a session created
+only by `session_started`. An index that answered a slightly better question
+would be an index whose answers could not be checked against the logs. If a
+cap should be larger, the FOLD is the place to change it and this follows.
+
+**Retrieval authority — the ladder (record-index D2).** Relevance the record's
+author DECLARED may be asserted; relevance the engine DERIVED may only be
+offered:
+- DECLARED — a decision's own `guard` matching the subject. Asserted to the
+  agent, rule verbatim (§Hooks, point-of-use guard). UN-SCOPED by
+  construction: the subject is tested against every guarded decision in the
+  REPO, which is what the fold's own guard check structurally cannot do, since
+  it replays one log against that log's decisions while the work is appended
+  to another. Even so a guard may INFORM, never gate (D6): no surface may turn
+  a guard match into a non-zero exit, a `block` decision, or a refusal.
+- DERIVED — graph adjacency (`touched`, `decided`, `noted`, `cites`). Offered
+  as worth reading, never asserted: the record knows the work happened in the
+  same places, never that a decision was ABOUT the file. Every result cites
+  the event id that produced its edge, so the claim is checkable.
+- TEXT — words from the question appearing in decision or note prose (BM25,
+  no model, §Architectural invariants). Weaker still: OFFERED as prose
+  containing the asker's words, never as an answer and never as a traversal
+  hit with a `via` edge (D14). A literal reading of the query always wins;
+  text is only reached when the query denotes nothing.
+
+**An initiative is a DESTINATION, never a corridor (D12).** Initiative nodes
+carry no adjacency. A traversal that reaches one REPORTS it and stops, citing
+the member it was reached through; only an initiative SEED expands, to what it
+holds. Traversing THROUGH one would put every record two hops from every
+other and the answer would be "the repo" — the hub hazard 3.3 measured on
+files, one level up and structural rather than statistical.
+
+**Bounded, and it says when it is.** `reach.json` stores prose CLIPPED to
+`REACH_PROSE` (300 chars) — the index exists to say what is worth reading, not
+to become the thing that is read, and a full copy invites being read as truth
+(D1). Terms are the one thing derived from the WHOLE prose, since a term set
+is not readable prose and 68% of this record's decision vocabulary lives past
+the clip. Traversal defaults to `REACH_DEFAULT_HOPS` (2), caps at
+`REACH_MAX_HOPS` (3) and stops at `VISIT_CAP` (20,000) nodes visited; text
+seeding caps at `LEXICAL_SEED_CAP` (5). Every cap reports what it dropped as a
+COUNT — a truncated answer that says so is usable, a silent one is a lie about
+coverage.
+
+**Never in the hot path.** `core/index-reach.ts` is the pull layer and only
+the pull layer: the full CLI (`sofar find`) and the `sofar_find` MCP tool
+reach it, and no shim, hook or statusline bundle carries a byte of it —
+`dist/fast.js` and the `cli/boot.ts`, `cli/event.ts`, `cli/statusline.ts`
+entries are clean of reach and lexicon code. Same rule as §Record graph's
+exclusion of `core/graph.ts`, for the same reason and one layer down: the
+declared half is what a shim may afford, and it is sized so that it is.
 
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
@@ -2296,3 +2453,11 @@ stay the underlying derivation's, and exit codes are styling-independent.
   nothing but common words is a miss, not a weak guess; matches past the cap are
   counted, never dropped silently; matches are never presented as traversal hits;
   and the answer is byte-identical on a repeat and after a cold rebuild.
+- **Reach stays off the hot path (record-index 4.1):** the shim bundle
+  (`cli/fast.ts`), the router entry (`cli/boot.ts`), the event/PostToolUse
+  entry (`cli/event.ts`) and the statusline carry no byte of `core/index-reach`
+  — asserted against the REBUILT bundles, not the import graph, so a dynamic
+  import or a barrel re-export cannot slip through. The full CLI is the
+  positive control: `sofar find` lives there and does bundle it. `mcp/` is
+  deliberately unprotected, unlike the graph exclusion — `sofar_find` is the
+  agent asking, not the harness pushing.

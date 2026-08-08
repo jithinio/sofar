@@ -36,6 +36,18 @@ import { describe, expect, it } from 'vitest'
 const SRC_DIR = resolve(fileURLToPath(new URL('../src', import.meta.url)))
 const GRAPH = join(SRC_DIR, 'core', 'graph.ts')
 
+/** Bundle one CLI entry exactly as build.mjs does, in memory. */
+const bundleOf = (entry: string): string =>
+  buildSync({
+    entryPoints: [join(SRC_DIR, 'cli', entry)],
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    target: 'node18',
+    loader: { '.sh': 'text' },
+    write: false,
+  }).outputFiles[0]!.text
+
 function walkTs(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir).sort()) {
     const path = join(dir, entry)
@@ -156,19 +168,48 @@ describe('record graph stays out of the hot path', () => {
 
   it('the hot-path bundle (dist/fast.js entry) carries no graph code', () => {
     expect(readFileSync(GRAPH, 'utf8')).toContain(GRAPH_MARKER)
-    const bundleOf = (entry: string): string =>
-      buildSync({
-        entryPoints: [join(SRC_DIR, 'cli', entry)],
-        bundle: true,
-        platform: 'node',
-        format: 'esm',
-        target: 'node18',
-        loader: { '.sh': 'text' },
-        write: false,
-      }).outputFiles[0]!.text
-
     // Positive control first: the full CLI DOES bundle the graph.
     expect(bundleOf('index.ts')).toContain(GRAPH_MARKER)
     expect(bundleOf('fast.ts')).not.toContain(GRAPH_MARKER)
+  })
+})
+
+/**
+ * The reach half stays out of the hot path too (record-index 4.1, SPEC
+ * §Derived index "Never in the hot path").
+ *
+ * Same rule as the graph exclusion above, one layer down and for a narrower
+ * module. The index made the RECORD's structure affordable on a shim path, but
+ * only in the shape a shim can pay for: `guards.json` is sized by the repo's
+ * guarded decisions, while `reach.json` carries the prose and term counts of
+ * every decision and note in the repo. Reach is the PULL layer — `sofar find`
+ * and `sofar_find` — and a shim that imported it would quietly pay a query's
+ * price on every turn.
+ *
+ * The mcp/ root is deliberately NOT protected here, unlike the graph guard:
+ * `sofar_find` is a legitimate consumer, and it is the agent asking rather than
+ * the harness pushing.
+ */
+describe('the reach index stays out of the hot path', () => {
+  /** String literals only core/index-reach.ts carries — survive mangling. */
+  const REACH_MARKERS = ['meta-reach.json', 'reach.json']
+  const HOT_ENTRIES = ['fast.ts', 'boot.ts', 'event.ts', 'statusline.ts']
+
+  it('the shim, router, event and statusline bundles carry no reach code', () => {
+    const reach = readFileSync(join(SRC_DIR, 'core', 'index-reach.ts'), 'utf8')
+    for (const marker of REACH_MARKERS) expect(reach).toContain(marker)
+
+    // Positive control: the full CLI DOES bundle it — `sofar find` lives there.
+    const full = bundleOf('index.ts')
+    for (const marker of REACH_MARKERS) expect(full).toContain(marker)
+
+    const violations: string[] = []
+    for (const entry of HOT_ENTRIES) {
+      const bundle = bundleOf(entry)
+      for (const marker of REACH_MARKERS) {
+        if (bundle.includes(marker)) violations.push(`${entry} carries ${marker}`)
+      }
+    }
+    expect(violations).toEqual([])
   })
 })
