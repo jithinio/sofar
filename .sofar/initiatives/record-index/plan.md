@@ -2,30 +2,32 @@
 
 # Plan: record-index
 
-Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count). Tiered: Tier 0 is a byte-sized hot file (open sessions + held files) making cross-initiative conflict detection O(1) on the shim path; Tier 1 materializes the record graph for structural retrieval — exact, explainable, every result citing the event id that produced it. Maintained by per-initiative cursors so cost is O(new events), never O(history). LOCAL and gitignored: derived state never merges, never syncs, and rebuilds from truth when absent, stale, or corrupt. Zero model calls — the record has recorded edges, so retrieval traverses facts instead of guessing similarity.
+Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first consumer is CROSS-INITIATIVE GUARDS (pushed by the harness, needing no agent cooperation), then a priming line, then agent-initiated search. Maintained by per-initiative cursors so cost is O(new events). LOCAL and gitignored: derived state never merges, never syncs, rebuilds from truth. Zero model calls — the edges are recorded facts, so retrieval traverses them and cites the event id behind every result.
 
-Progress: 2/9 tasks done (22%)
+Progress: 3/11 tasks done (27%)
 
-## Phase 1 — Incremental core [active] — 2/2 done
+## Phase 1 — Incremental core [done] — 2/2 done
 
-- [x] 1.1 core/index/store.ts: gitignored .sofar/.index/ with atomic writes, a schema-version stamp, and per-initiative cursors. Any version mismatch, parse failure, or missing file yields a cold start rather than a wrong answer.
-- [x] 1.2 core/index/tail.ts: read events AFTER a cursor without re-reading the log — byte-offset resume validated against the cursor's event id, falling back to a full scan whenever the offset does not corroborate
+- [x] 1.1 core/index-store.ts: gitignored self-ignoring .sofar/.index/, version-stamped, atomic, every failure collapsing to cold start
+- [x] 1.2 core/index-tail.ts: read only what a log grew by, via a self-corroborating cursor (offset points at its event's line START)
 
-## Phase 2 — Tier 0 (hot) [pending] — 0/2 done
+## Phase 2 — Tier 0 (hot) [active] — 1/2 done
 
-- [ ] 2.1 open.json: open sessions per initiative + the files they hold, updated incrementally. Bytes, not megabytes — O(1) read on the shim path.
+- [x] 2.1 open.json: open sessions per initiative + the files they hold, maintained incrementally through the cursor core. Bytes, not megabytes — O(1) read on the shim path.
 - [ ] 2.2 Wire cross-initiative conflicts through Tier 0, unblocking cross-initiative-conflicts 2.2; re-measure the shim against speed T2's 100ms at 30/300/1000 initiatives
 
-## Phase 3 — Tier 1 (structural retrieval) [pending] — 0/3 done
+## Phase 3 — Tier 1: guards first, then reach [pending] — 0/5 done
 
-- [ ] 3.1 Materialize the record graph incrementally into the index (nodes/edges from core/adjacency), keyed for lookup rather than rebuilt per query
-- [ ] 3.2 Retrieval API + `sofar find`: traverse from a seed (file, session, decision, initiative) with a hop budget; every result carries the event id that produced the edge — exact and explainable, zero inference
-- [ ] 3.3 Lexical layer over decision/note prose (IDF-ranked terms, no model) so text questions resolve to seeds the traversal can expand
+- [ ] 3.1 Materialize the graph incrementally into the index (nodes/edges from core/adjacency), KEYED for lookup — path -> guarding decisions, path -> touching sessions/initiatives — rather than rebuilt per query
+- [ ] 3.2 LAYER 1, cross-initiative guards: PostToolUse resolves 'does any decision ANYWHERE guard this path' in O(1) and surfaces the rule verbatim. Un-scopes the existing guard, which today can never fire because the guard lives in one log and the work is appended to another. The layer that prevents damage — build before search.
+- [ ] 3.3 LAYER 2, priming: SessionStart states a concrete fact (N decisions from M named initiatives touch this initiative's files), never a capability blurb — a count creates the intent to ask where an offer is ignored
+- [ ] 3.4 LAYER 3, `sofar find` + MCP tool: traverse from a seed (file, session, decision, initiative) with a hop budget; every result cites the event id that produced the edge. OFFERED as worth reading, never asserted — D2's declared-vs-derived rule.
+- [ ] 3.5 Lexical seeds over decision/note prose (IDF-ranked, no model) so a text question resolves to seeds the traversal can expand
 
 ## Phase 4 — Contract + proof [pending] — 0/2 done
 
-- [ ] 4.1 SPEC: index layout, cursor semantics, the derived-never-truth rule, retrieval contract
-- [ ] 4.2 Equivalence proof: indexed answers byte-match the from-logs answers on every fixture, and a corrupted/stale/absent index still returns the right answer via fallback
+- [ ] 4.1 SPEC: index layout, cursor semantics, derived-never-truth, the guard un-scoping contract, retrieval authority split
+- [ ] 4.2 Equivalence proof: indexed answers byte-match from-logs answers on every fixture, and a corrupt/stale/absent index still returns the right answer via fallback
 
-Active phase: Phase 1 — Incremental core
-Next action: Phase 2.1: build Tier 0 (open.json — open sessions and the files they hold, maintained incrementally), then 2.2 wire cross-initiative conflicts through it and re-measure the shim at 30/300/1000 initiatives.
+Active phase: Phase 2 — Tier 0 (hot)
+Next action: record-index 2.2: wire cross-initiative conflicts through Tier 0, unblocking cross-initiative-conflicts 2.2, then re-measure the shim at 30/300/1000 initiatives against the 100ms budget.

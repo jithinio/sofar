@@ -24,4 +24,4 @@ Progress: 5/5 tasks done (100%)
 - [x] 4.1 docs/SPEC.md: peer resolution contract, the two surface shapes, acceptance criteria
 
 Active phase: Phase 1 — Peer resolution
-Next action: Decide whether to build gated cross-initiative conflict detection (hook + doctor + SPEC + tests); separately, review/merge branch peer-messaging, then drift-certification 3.1.
+Next action: record-index 2.1: Tier 0 (open.json) then 2.2 wire the cross-initiative hook and re-measure. Still open behind it: review/merge the peer-messaging branch stack, then drift-certification 3.1 (~20 traps, then the P-cell floor under the isolation rule).
