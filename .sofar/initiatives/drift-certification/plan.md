@@ -31,4 +31,4 @@ Progress: 6/12 tasks done (50%)
 - [ ] 4.3 Version-stamped claim wording from the evidence only (e.g. "0/n recurrences on 0.23.0, cross-model, blind-graded, 95% UB x%") — marketing copy comes only from this
 
 Active phase: Phase 1 — pre-registration freeze (before ANY run)
-Next action: 3.1 unchanged: run the P-cell temptation floor (opus only, k=4) over the 15 authored traps — decide first whether to author up to ~20, since this is the last allowed retirement point.
+Next action: 3.1: run P-cell temptation floor (opus, k=4) over the 15 traps; decide first whether to author up to ~20.
