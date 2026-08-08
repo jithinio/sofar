@@ -41,8 +41,31 @@ import { type IndexedEvent } from './index-tail'
  * whose answers could not be checked against the logs.
  */
 
-const TIER1_FILE = 'graph.json'
-const TIER1_META = 'meta-graph.json'
+/**
+ * TWO FILES ON TWO CURSORS, not one (record-index 3.2).
+ *
+ * 3.1 kept both halves in one file, which was right until a caller wanted only
+ * one of them on a hot path. PostToolUse is that caller: it asks the DECLARED
+ * question on every edit, and the answer is three decisions — while the DERIVED
+ * half is the whole repo's touch history, 88KB on this record and growing with
+ * every file anyone has ever edited. Sharing a file meant parsing and rewriting
+ * all of it to read three entries: 1.5ms at 30 initiatives, 9.3ms at 300,
+ * 31.8ms at 1000, on a path that fires once per edit. That is O(repo) per edit
+ * on an initiative whose whole claim is O(new events).
+ *
+ * Split, the declared half costs what Tier 0 costs, and the derived half is
+ * paid for only when a rule actually fires — rare by construction, and worth
+ * its cost exactly then, since what it buys is not repeating a warning.
+ *
+ * The split is the one D2 already draws. Declared and derived are different
+ * kinds of claim with different authority; they turn out to have different
+ * sizes and different read frequencies too, which is usually what a real
+ * boundary looks like.
+ */
+const GUARDS_FILE = 'guards.json'
+const GUARDS_META = 'meta-guards.json'
+const FILES_FILE = 'graph.json'
+const FILES_META = 'meta-graph.json'
 
 /** A decision that declared which work it governs (rule + guard). */
 export interface GuardedDecision {
@@ -82,17 +105,20 @@ export interface PathTouchers {
   omitted: number
 }
 
-interface SlugState {
+interface SlugGuardState {
   /** decision_logged events applied so far — the `D<n>` base. */
   decisions: number
   guards: GuardedDecision[]
+}
+
+interface SlugFileState {
   /** path → session id → [most recent ts, touch count]. */
   files: Record<string, Record<string, [string, number]>>
 }
 
-interface Tier1Disk {
+interface TierDisk<S> {
   version: number
-  initiatives: Record<string, SlugState>
+  initiatives: Record<string, S>
 }
 
 export interface Tier1Index {
@@ -101,87 +127,130 @@ export interface Tier1Index {
   files: Map<string, Map<string, { initiatives: Set<string>; ts: string; touches: number }>>
 }
 
-function isTier1Disk(v: unknown): v is Tier1Disk {
+/** The declared half alone — what a hot path asks for. */
+export type GuardIndex = Pick<Tier1Index, 'guards'>
+/** The derived half alone. */
+export type FileIndex = Pick<Tier1Index, 'files'>
+
+function isTierDisk<S>(v: unknown): v is TierDisk<S> {
   if (typeof v !== 'object' || v === null) return false
   const r = v as Record<string, unknown>
   return r.version === INDEX_SCHEMA_VERSION && typeof r.initiatives === 'object' && r.initiatives !== null
 }
 
-const empty = (): SlugState => ({ decisions: 0, guards: [], files: {} })
+const emptyGuards = (): SlugGuardState => ({ decisions: 0, guards: [] })
 
-function clone(state: SlugState): SlugState {
+function cloneGuards(state: SlugGuardState): SlugGuardState {
+  return { decisions: state.decisions, guards: state.guards.map((g) => ({ ...g })) }
+}
+
+const emptyFiles = (): SlugFileState => ({ files: {} })
+
+function cloneFiles(state: SlugFileState): SlugFileState {
   const files: Record<string, Record<string, [string, number]>> = {}
   for (const [path, sessions] of Object.entries(state.files)) {
     const copy: Record<string, [string, number]> = {}
     for (const [session, [ts, n]] of Object.entries(sessions)) copy[session] = [ts, n]
     files[path] = copy
   }
-  return { decisions: state.decisions, guards: state.guards.map((g) => ({ ...g })), files }
+  return { files }
+}
+
+/** Apply one event to the declared half, mirroring the fold's own bookkeeping. */
+function applyGuard(state: SlugGuardState, event: IndexedEvent, slug: string): void {
+  if (event.type !== 'decision_logged') return
+  const p = event.payload as unknown as DecisionLoggedPayload
+  // Counted BEFORE the guard test: `D<n>` is a position among all decisions,
+  // and skipping the unguarded ones would renumber the record.
+  state.decisions += 1
+  if (typeof p.rule !== 'string' || typeof p.guard !== 'string') return
+  state.guards.push({
+    id: event.id,
+    initiative: slug,
+    ordinal: state.decisions,
+    ts: event.ts,
+    rule: p.rule,
+    guard: p.guard,
+    chose: p.chose,
+  })
 }
 
 /**
- * Apply one event, mirroring the fold and the graph's own emission rule.
+ * Apply one event to the derived half, mirroring the graph's emission rule.
  *
  * `cli` is not a session identity (BD44) and anchors no `touched` edge, so a
  * cli-sourced file_touched contributes nothing here either — otherwise the
  * index would report a toucher whyFile does not.
  */
-function apply(state: SlugState, event: IndexedEvent, slug: string): void {
-  switch (event.type) {
-    case 'decision_logged': {
-      const p = event.payload as unknown as DecisionLoggedPayload
-      // Counted BEFORE the guard test: `D<n>` is a position among all
-      // decisions, and skipping the unguarded ones would renumber the record.
-      state.decisions += 1
-      if (typeof p.rule !== 'string' || typeof p.guard !== 'string') return
-      state.guards.push({
-        id: event.id,
-        initiative: slug,
-        ordinal: state.decisions,
-        ts: event.ts,
-        rule: p.rule,
-        guard: p.guard,
-        chose: p.chose,
-      })
-      return
-    }
-    case 'file_touched': {
-      if (event.session === 'cli' || event.session.length === 0) return
-      const path = (event.payload as unknown as FileTouchedPayload).path
-      const sessions = state.files[path] ?? {}
-      const existing = sessions[event.session]
-      if (existing === undefined) sessions[event.session] = [event.ts, 1]
-      else {
-        existing[1] += 1
-        if (event.ts > existing[0]) existing[0] = event.ts
-      }
-      state.files[path] = sessions
-      return
-    }
-    default:
-      return
+function applyFile(state: SlugFileState, event: IndexedEvent): void {
+  if (event.type !== 'file_touched') return
+  if (event.session === 'cli' || event.session.length === 0) return
+  const path = (event.payload as unknown as FileTouchedPayload).path
+  const sessions = state.files[path] ?? {}
+  const existing = sessions[event.session]
+  if (existing === undefined) sessions[event.session] = [event.ts, 1]
+  else {
+    existing[1] += 1
+    if (event.ts > existing[0]) existing[0] = event.ts
   }
+  state.files[path] = sessions
 }
 
-/** Bring Tier 1 up to date and return the repo-wide keyed views. */
-export function refreshTier1(sofarDir: string): Tier1Index {
-  const prior = readIndexFile<Tier1Disk>(sofarDir, TIER1_FILE, isTier1Disk)
-  const { states, changed } = passOverRecord<SlugState>(
+function refreshHalf<S>(
+  sofarDir: string,
+  file: string,
+  metaFile: string,
+  reducer: { empty: () => S; clone: (s: S) => S; apply: (s: S, e: IndexedEvent, slug: string) => void },
+): Record<string, S> {
+  const prior = readIndexFile<TierDisk<S>>(sofarDir, file, isTierDisk)
+  const { states, changed } = passOverRecord<S>(
     sofarDir,
-    TIER1_META,
+    metaFile,
     prior === null ? null : prior.initiatives,
-    { empty, clone, apply },
+    reducer,
   )
+  if (changed) writeIndexFile(sofarDir, file, { version: INDEX_SCHEMA_VERSION, initiatives: states })
+  return states
+}
 
-  const next: Tier1Disk = { version: INDEX_SCHEMA_VERSION, initiatives: states }
-  if (changed) writeIndexFile(sofarDir, TIER1_FILE, next)
-  return repoWide(next)
+/**
+ * Bring the DECLARED half up to date — every guarded decision in the repo.
+ *
+ * The one call PostToolUse makes on every edit, and the reason the halves have
+ * separate cursors: this reads and writes a file sized by the number of guarded
+ * decisions (3 of 195 on this record), never by the repo's touch history.
+ */
+export function refreshGuards(sofarDir: string): GuardIndex {
+  return { guards: unionGuards(refreshHalf(sofarDir, GUARDS_FILE, GUARDS_META, {
+    empty: emptyGuards,
+    clone: cloneGuards,
+    apply: applyGuard,
+  })) }
+}
+
+/** Bring the DERIVED half up to date — who has touched what, across the repo. */
+export function refreshFiles(sofarDir: string): FileIndex {
+  return { files: unionFiles(refreshHalf(sofarDir, FILES_FILE, FILES_META, {
+    empty: emptyFiles,
+    clone: cloneFiles,
+    apply: (state, event) => applyFile(state, event),
+  })) }
+}
+
+/** Bring both halves up to date and return the repo-wide keyed views. */
+export function refreshTier1(sofarDir: string): Tier1Index {
+  return { ...refreshGuards(sofarDir), ...refreshFiles(sofarDir) }
 }
 
 /** Read Tier 1 without refreshing. Null when there is nothing usable on disk. */
 export function readTier1(sofarDir: string): Tier1Index | null {
-  const disk = readIndexFile<Tier1Disk>(sofarDir, TIER1_FILE, isTier1Disk)
-  return disk === null ? null : repoWide(disk)
+  const guards = readIndexFile<TierDisk<SlugGuardState>>(sofarDir, GUARDS_FILE, isTierDisk)
+  const files = readIndexFile<TierDisk<SlugFileState>>(sofarDir, FILES_FILE, isTierDisk)
+  if (guards === null && files === null) return null
+  return {
+    guards: guards === null ? [] : unionGuards(guards.initiatives),
+    files: files === null ? new Map() : unionFiles(files.initiatives),
+  }
 }
 
 /**
@@ -192,14 +261,19 @@ export function readTier1(sofarDir: string): Tier1Index | null {
  * under three initiatives is one path with three initiatives against it, which
  * is precisely what a per-initiative fold can never say.
  */
-function repoWide(disk: Tier1Disk): Tier1Index {
+function unionGuards(states: Record<string, SlugGuardState>): GuardedDecision[] {
   const guards: GuardedDecision[] = []
-  const files: Tier1Index['files'] = new Map()
+  for (const slug of Object.keys(states).sort()) {
+    guards.push(...(states[slug]?.guards ?? []).map((g) => ({ ...g })))
+  }
+  guards.sort((a, b) => (a.initiative === b.initiative ? a.ordinal - b.ordinal : a.initiative.localeCompare(b.initiative)))
+  return guards
+}
 
-  for (const slug of Object.keys(disk.initiatives).sort()) {
-    const state = disk.initiatives[slug]!
-    guards.push(...state.guards.map((g) => ({ ...g })))
-    for (const [path, sessions] of Object.entries(state.files)) {
+function unionFiles(states: Record<string, SlugFileState>): Tier1Index['files'] {
+  const files: Tier1Index['files'] = new Map()
+  for (const slug of Object.keys(states).sort()) {
+    for (const [path, sessions] of Object.entries(states[slug]?.files ?? {})) {
       const bySession = files.get(path) ?? new Map()
       for (const [session, [ts, touches]] of Object.entries(sessions)) {
         const existing = bySession.get(session)
@@ -214,9 +288,7 @@ function repoWide(disk: Tier1Disk): Tier1Index {
       files.set(path, bySession)
     }
   }
-
-  guards.sort((a, b) => (a.initiative === b.initiative ? a.ordinal - b.ordinal : a.initiative.localeCompare(b.initiative)))
-  return { guards, files }
+  return files
 }
 
 /**
@@ -234,7 +306,7 @@ function repoWide(disk: Tier1Disk): Tier1Index {
  * fires on everything.
  */
 export function guardsForSubject(
-  index: Tier1Index,
+  index: GuardIndex,
   domain: GuardDomain,
   subject: string,
 ): GuardedDecision[] {
@@ -266,7 +338,7 @@ function guardHits(patterns: { negated: boolean; re: RegExp }[], subject: string
  * wins outright; otherwise every recorded path ending at a `/` boundary with
  * the query matches. Literal, no inference, caller controls specificity.
  */
-export function resolvePaths(index: Tier1Index, path: string): string[] {
+export function resolvePaths(index: FileIndex, path: string): string[] {
   const query = path.replace(/^\.\//, '')
   if (index.files.has(query)) return [query]
   const suffix = `/${query}`
@@ -278,6 +350,31 @@ export function resolvePaths(index: Tier1Index, path: string): string[] {
 }
 
 /**
+ * When one session last touched a path, as the index recorded it — null if it
+ * never has.
+ *
+ * The fold suppresses a repeat warning with a `seen` set over (rule, session,
+ * subject), which it can only keep because it replays the whole log: "a file
+ * edited thirty times is one violation of one rule, not thirty warnings"
+ * (core/fold.ts). A hook fires once per edit and replays nothing, so it needs
+ * the same suppression reconstructed from state — and this is that state, since
+ * Tier 1 already keys (path, session) → most recent ts for the derived tier.
+ *
+ * Comparing that ts against a guard's own ts is what makes the suppression
+ * exact rather than merely quiet: a rule logged AFTER my last touch has never
+ * been reported against this path, so it still fires on the next edit.
+ */
+export function lastTouch(index: FileIndex, path: string, session: string): string | null {
+  let latest: string | null = null
+  for (const recorded of resolvePaths(index, path)) {
+    const entry = index.files.get(recorded)?.get(session)
+    if (entry === undefined) continue
+    if (latest === null || entry.ts > latest) latest = entry.ts
+  }
+  return latest
+}
+
+/**
  * Every session that ever touched a path, across ALL initiatives — the DERIVED
  * tier (D2), which may be offered as worth reading and never asserted as a
  * rule.
@@ -285,7 +382,7 @@ export function resolvePaths(index: Tier1Index, path: string): string[] {
  * Equivalent to whyFile(graph, path).sessions, down to newest-first ordering,
  * the cap, and reporting overflow as a NUMBER rather than an in-band sentinel.
  */
-export function touchersOfPath(index: Tier1Index, path: string): PathTouchers {
+export function touchersOfPath(index: FileIndex, path: string): PathTouchers {
   const matched = resolvePaths(index, path)
   const result: PathTouchers = {
     path,
@@ -332,7 +429,7 @@ export function touchersOfPath(index: Tier1Index, path: string): PathTouchers {
  * renderer so the count and the names can never disagree.
  */
 export function neighbouringInitiatives(
-  index: Tier1Index,
+  index: FileIndex,
   paths: readonly string[],
   exclude: string,
 ): { initiative: string; paths: number }[] {

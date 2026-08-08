@@ -1096,6 +1096,51 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   ambiguity resolves toward LOGGING, so the exemption can never swallow real
   work (`cd x && git push`, `git log | head`, `git push & npm test` and
   `git log $(rm -rf x)` are all logged).
+  The same shim emits the POINT-OF-USE GUARD NOTICE (record-index 3.2), the
+  only thing it says back to the agent: `sofar: [<slug> D<n>] standing rule
+  guards <subject> — "<rule>" (guard: <spec>) — obey it verbatim, or log a
+  decision that supersedes it.` Emitted as exit-0 JSON on stdout —
+  `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":
+  …}}` — which is the only PostToolUse output Claude Code injects into the
+  model's context; plain stdout on this hook is transcript-only. NEVER exit 2
+  and never `decision: "block"`: a guard that could stop work would let one
+  false positive stop real work (drift-hardening D3).
+  UN-SCOPED, which is the point: the subject is tested against EVERY guarded
+  decision in the repo via the Tier 1 declared index, not against the bound
+  initiative's decisions alone. The fold's own guard check (§State
+  guard_violations) replays ONE log against THAT log's decisions, so a rule
+  declared in one initiative had never been tested against work appended to
+  another — structurally, not rarely.
+  The handle carries the declaring record (`[<slug> D<n>]`) unless the rule is
+  from the session's own initiative, where `D<n>` is already unambiguous. The
+  rule renders VERBATIM and is never clipped (drift-hardening D2); the subject
+  renders repo-relative for paths and clips at 60 chars for commands. At most
+  GUARD_RULES_MAX (2) rules render, OTHER initiatives first — the session's
+  own standing constraints already render verbatim in its SessionStart digest,
+  so under the cap the rule worth keeping is the one it cannot otherwise see.
+  Overflow drops whole rules and names the initiatives they live in (never a
+  pointer at `sofar doctor`, which audits one initiative).
+  SAID ONCE PER (session, rule, subject), mirroring the fold's own dedupe ("a
+  file edited thirty times is one violation of one rule, not thirty
+  warnings"): a rule fires for a path only when it was logged strictly AFTER
+  that session's last recorded touch of it, so a re-edit is silent and a newly
+  declared rule still gets its first warning. Ties resolve toward silence.
+  Commands are not deduped — the index keys touches by path, and each run of a
+  guarded command is its own act.
+  A SELF-RECORDING COMMAND IS STILL READ though it is never appended: the
+  exemption exists to keep the tree settleable and a read appends nothing, so
+  `cmd:*git push*`-shaped rules become enforceable for the first time. The
+  guard matches the REDACTED command text — what the record holds — so the
+  hook and the fold can never disagree about whether a rule fired.
+  COST, and the reason Tier 1 is two files on two cursors: the DECLARED half
+  (`guards.json`) is sized by the repo's guarded decisions and is refreshed on
+  every edit (0.5/1.5/4.4ms at 30/300/1000 initiatives, matching Tier 0); the
+  DERIVED half (`graph.json`) is sized by the whole repo's touch history
+  (1.5/9.7/33.0ms) and is refreshed ONLY once a rule has matched and the dedupe
+  needs it. Sharing one file cost the derived half's price on every edit.
+  Best-effort per BD22 and D1: any failure yields no notice, never an error and
+  never a wrong answer — a missing, stale or corrupt index rebuilds and answers
+  correctly, more slowly.
 - Stop shim → reads stdin JSON; if stop_hook_active is true → exit 0
   (loop guard). Else if no session_ended event exists for this session_id
   AND gate-relevant drift is nonzero → exit 2 with stderr: "Write back to
@@ -2125,3 +2170,20 @@ stay the underlying derivation's, and exit codes are styling-independent.
   Stop message carries them only when it was already blocking for a missing
   write-back, and a session that wrote back exits 0 with a crossing on record.
   A log carrying no guard folds and renders byte-identically to before.
+- **Point-of-use guard, un-scoped (record-index 3.2):** an edit under one
+  initiative surfaces a rule declared in ANOTHER on the same PostToolUse, as
+  exit-0 `hookSpecificOutput.additionalContext` — never exit 2, never
+  `decision: "block"` — while the fold's own guard check, on the same fixture,
+  reports nothing. The rule renders verbatim however long; the handle carries
+  the declaring initiative unless it is the session's own; the ordinal equals
+  the fold's `D<n>`, counting unguarded decisions; the path renders
+  repo-relative. A malformed guard never fires, exemptions still win, and an
+  unguarded subject produces EMPTY stdout and a byte-identical append. Repeat
+  edits of one path by one session say it once; another session still hears
+  it; a rule declared after a session's earlier touch of that path still fires
+  on the next one; each run of a guarded command fires. A self-recording
+  command is tested and still appends nothing. The declared half is refreshed
+  on every edit and the derived half only after a rule matches — asserted
+  structurally: an edit matching no guard leaves `graph.json` untouched. An
+  index that is absent, deleted mid-session, or corrupt answers correctly on
+  the next edit, and an unreadable log costs the notice, never the exit code.

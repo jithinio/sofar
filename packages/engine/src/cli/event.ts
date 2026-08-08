@@ -1,7 +1,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import type { Command } from 'commander'
-import { isClosedInitiativeStatus } from '@sofar/schema'
+import { isClosedInitiativeStatus, type GuardDomain } from '@sofar/schema'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
 import { crossConflictsFromOpenSessions, type CrossFileConflict } from '../core/cross-conflicts'
 import {
@@ -16,6 +16,13 @@ import {
 } from '../core/fold'
 import { readGitState } from '../core/git'
 import { refreshTier0 } from '../core/index-tier0'
+import {
+  guardsForSubject,
+  lastTouch,
+  refreshFiles,
+  refreshGuards,
+  type GuardedDecision,
+} from '../core/index-tier1'
 import { resolvePeers, type Peer } from '../core/peers'
 import { redactCommand } from '../core/redact'
 import {
@@ -450,6 +457,11 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
  *  - this is the lazy-registration point: SessionStart no longer registers,
  *    so a session enters the log immediately before its first real event.
  *    Sessions that only read and exit never register at all.
+ *
+ * It also READS (record-index 3.2): the same edit is tested against every
+ * guarded decision in the repo, and a match returns the rule verbatim as
+ * PostToolUse additionalContext. See guardNotice for why this hook and not the
+ * prompt line, and why the read runs before the append.
  */
 export function handlePostTool(rootDir: string, input: string): HookResult {
   try {
@@ -464,15 +476,26 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
 
     let type: 'file_touched' | 'command_run'
     let payload: Obj
+    let domain: GuardDomain
+    let subject: string
+    // A self-recording command still gets its guard read (record-index 3.2).
+    // The record-hygiene D1 exemption exists to keep the tree settleable, and
+    // it does that by appending nothing — a read appends nothing either. Not
+    // reading would leave `cmd:*git push*`-shaped rules permanently
+    // unenforceable, since no event about a push is ever written for the fold
+    // to test.
+    let exempt = false
     if (toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'Write') {
       const path = strField(toolInput, 'file_path')
       if (path === null) return { ...OK }
       type = 'file_touched'
       payload = { path, op: toolName === 'Write' ? 'write' : 'edit' }
+      domain = 'path'
+      subject = path
     } else if (toolName === 'Bash') {
       const cmd = strField(toolInput, 'command')
       if (cmd === null) return { ...OK }
-      if (isSelfRecordingCommand(cmd)) return { ...OK }
+      exempt = isSelfRecordingCommand(cmd)
       type = 'command_run'
       // Redact BEFORE the append, because there is no after: the log is
       // append-only and committed, so a credential that lands here is a
@@ -480,20 +503,30 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
       // The exemption scan above still reads the raw text — redaction must
       // not change which commands are considered self-recording.
       payload = { cmd: redactCommand(cmd) }
+      domain = 'cmd'
+      // The guard matches what the record HOLDS, not what was typed, so the
+      // hook and the fold can never disagree about whether a rule fired.
+      subject = payload.cmd as string
     } else {
       return { ...OK }
     }
 
-    // Lazy registration: one fold to see whether this session is already in
-    // the log — the same read the Stop and UserPromptSubmit shims already do
-    // on every invocation, and it only precedes an append that folds anyway.
-    // "cli" is never a session identity (the fold skips it), so it is never
-    // registered.
-    if (session !== 'cli' && !ctx.foldState(slug).sessions.some((s) => s.id === session)) {
-      ctx.appendAndProject(slug, 'session_started', { tool: HOOK_TOOL }, { session, source: 'hook' })
+    // Before the append, never after: the notice asks what this session has
+    // already been told, and the current edit is not yet part of that history.
+    const notice = guardNotice(ctx.sofarDir, rootDir, slug, session, domain, subject)
+
+    if (!exempt) {
+      // Lazy registration: one fold to see whether this session is already in
+      // the log — the same read the Stop and UserPromptSubmit shims already do
+      // on every invocation, and it only precedes an append that folds anyway.
+      // "cli" is never a session identity (the fold skips it), so it is never
+      // registered.
+      if (session !== 'cli' && !ctx.foldState(slug).sessions.some((s) => s.id === session)) {
+        ctx.appendAndProject(slug, 'session_started', { tool: HOOK_TOOL }, { session, source: 'hook' })
+      }
+      ctx.appendAndProject(slug, type, payload, { session, source: 'hook' })
     }
-    ctx.appendAndProject(slug, type, payload, { session, source: 'hook' })
-    return { ...OK }
+    return notice.length === 0 ? { ...OK } : { ...OK, stdout: postToolContext(notice) }
   } catch {
     return { ...OK }
   }
@@ -774,10 +807,14 @@ export const GUARD_SUBJECTS_MAX = 3
 export const GUARD_RULES_MAX = 2
 export const GUARD_CMD_BUDGET = 60
 
+function renderSubject(domain: GuardDomain, subject: string, rootDir: string): string {
+  if (domain === 'cmd') return clipTo(subject, GUARD_CMD_BUDGET)
+  const rel = relative(rootDir, subject)
+  return rel.length > 0 && !rel.startsWith('..') ? rel : subject
+}
+
 function guardSubject(v: GuardViolation, rootDir: string): string {
-  if (v.domain === 'cmd') return clipTo(v.subject, GUARD_CMD_BUDGET)
-  const rel = relative(rootDir, v.subject)
-  return rel.length > 0 && !rel.startsWith('..') ? rel : v.subject
+  return renderSubject(v.domain, v.subject, rootDir)
 }
 
 export function guardViolationLines(
@@ -810,6 +847,146 @@ export function guardViolationLines(
     )
   }
   return lines
+}
+
+/**
+ * The same rule, un-scoped and moved to the point of use (record-index 3.2).
+ *
+ * The surfaces above read `state.guard_violations`, which the fold builds while
+ * replaying ONE initiative's log against THAT initiative's decisions. That is
+ * the whole of the mechanical tier's reach, and it has a hole in the middle of
+ * it: the work is appended wherever the branch is bound, so a rule declared in
+ * `security-hardening` has never once been tested against an edit made on the
+ * `record-index` branch. Not "rarely" — structurally never. A user who writes a
+ * standing rule reasonably believes it governs the repo; it governed one log.
+ *
+ * Tier 1 closes it by materializing every guarded decision in the repo into one
+ * list (this record: 3 of 195 decisions), so asking "does ANY decision anywhere
+ * guard this path" costs O(guards) instead of folding every log.
+ *
+ * PostToolUse rather than the prompt line, because this is the surface where
+ * the mechanical tier arrives while the edit is still the current thought. The
+ * prompt line reports at the next turn, and the Stop message only when the
+ * session is already being blocked for something else (D3) — both are after the
+ * fact by construction.
+ *
+ * D2 of this initiative governs the wording: a guard is relevance its author
+ * DECLARED, so it is asserted — "obey it verbatim" — not offered as worth
+ * reading. Only adjacency gets hedged.
+ *
+ * OTHER initiatives lead. Under the cap the rule to keep is the one the agent
+ * cannot already see: its own record's standing constraints render verbatim and
+ * un-clipped in the SessionStart digest, while a rule from a record it has
+ * never opened appears nowhere else in its context.
+ *
+ * The rule renders VERBATIM and is never clipped (drift-hardening D2) — the
+ * subject and the overflow pointer absorb the budget instead.
+ */
+export function guardNoticeLines(
+  hits: readonly GuardedDecision[],
+  domain: GuardDomain,
+  subject: string,
+  slug: string,
+  rootDir: string,
+): string[] {
+  if (hits.length === 0) return []
+
+  const ordered = [...hits].sort((a, b) => {
+    if ((a.initiative === slug) !== (b.initiative === slug)) return a.initiative === slug ? 1 : -1
+    return a.initiative === b.initiative ? a.ordinal - b.ordinal : a.initiative.localeCompare(b.initiative)
+  })
+
+  const rendered = renderSubject(domain, subject, rootDir)
+  const lines = ordered.slice(0, GUARD_RULES_MAX).map((d) => {
+    // `D<n>` is initiative-scoped, so a handle from elsewhere has to carry its
+    // record — and carrying it is also what makes the un-scoping visible.
+    const handle = d.initiative === slug ? `D${d.ordinal}` : `${d.initiative} D${d.ordinal}`
+    return (
+      `sofar: [${handle}] standing rule guards ${rendered} — "${d.rule}" ` +
+      `(guard: ${d.guard}) — obey it verbatim, or log a decision that supersedes it.`
+    )
+  })
+
+  const dropped = ordered.slice(GUARD_RULES_MAX)
+  if (dropped.length > 0) {
+    // Not a pointer at `sofar doctor`: doctor audits ONE initiative, and the
+    // rules dropped here are exactly the ones that may live in another.
+    const where = [...new Set(dropped.map((d) => d.initiative))].join(', ')
+    lines.push(
+      `sofar: …and ${dropped.length} more standing rule(s) guard this, in ${where} — read their decisions.md.`,
+    )
+  }
+  return lines
+}
+
+/**
+ * Resolve the notice for one just-made edit, suppressing what has already been
+ * said.
+ *
+ * REFRESHED, not merely read, for the reason 2.2 established: an index nobody
+ * maintains reports no guards, and "no guards" is indistinguishable from "no
+ * rule applies" — D1 forbids absence costing correctness.
+ *
+ * Refreshed BEFORE the caller appends, which is semantics rather than
+ * convenience: the question is whether this session has ALREADY been told, and
+ * an index that already contained the current edit would answer about itself.
+ *
+ * Non-retroactivity comes free here, where the fold has to arrange it: every
+ * decision in the index was logged before an edit that is happening now, so a
+ * guard still cannot flag the work that motivated it.
+ *
+ * Commands are not suppressed — Tier 1 keys touches by path and has no command
+ * history to suppress against, and each run of a guarded command is a separate
+ * act with separate consequences, unlike re-editing a file already reported.
+ *
+ * TWO REFRESHES, ordered by what they cost. The declared half is sized by the
+ * repo's guarded decisions and is refreshed on every edit; the derived half is
+ * sized by the repo's whole touch history (31.8ms at 1000 initiatives) and is
+ * refreshed only once a rule has actually matched — which is what a hot path
+ * can afford to be exact about, and rare enough that being exact is cheap.
+ */
+function guardNotice(
+  sofarDir: string,
+  rootDir: string,
+  slug: string,
+  session: string,
+  domain: GuardDomain,
+  subject: string,
+): string[] {
+  try {
+    const declared = refreshGuards(sofarDir)
+    if (declared.guards.length === 0) return []
+
+    let hits = guardsForSubject(declared, domain, subject)
+    if (hits.length === 0) return []
+
+    if (domain === 'path' && session !== 'cli') {
+      const since = lastTouch(refreshFiles(sofarDir), subject, session)
+      // A rule logged at or before my last touch of this path already fired on
+      // that touch. One logged after it has never been tested against this path
+      // and still has its first warning to give.
+      if (since !== null) hits = hits.filter((d) => d.ts > since)
+    }
+    return guardNoticeLines(hits, domain, subject, slug, rootDir)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * The one way a PostToolUse hook reaches the model (Claude Code hook contract):
+ * exit 0 with `hookSpecificOutput.additionalContext`. Plain stdout on this hook
+ * is transcript-only, and `decision: "block"` / exit 2 would make a guard a
+ * gate — which drift-hardening D3 rules out, because one false positive would
+ * then stop real work.
+ */
+function postToolContext(lines: readonly string[]): string {
+  return `${JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: 'PostToolUse',
+      additionalContext: lines.join('\n'),
+    },
+  })}\n`
 }
 
 /**
@@ -1169,7 +1346,7 @@ export const SUBCOMMANDS: ReadonlyArray<{
   {
     name: 'post-tool',
     description:
-      'PostToolUse hook: append mechanical file_touched (Edit|Write|MultiEdit) / command_run (Bash) events',
+      'PostToolUse hook: append mechanical file_touched (Edit|Write|MultiEdit) / command_run (Bash) events, and surface any repo-wide guarded rule the subject crosses',
     handler: handlePostTool,
   },
   {
