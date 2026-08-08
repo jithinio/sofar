@@ -1,3 +1,4 @@
 {
-  "main": "drift-certification"
+  "main": "drift-certification",
+  "peer-messaging": "peer-messaging"
 }

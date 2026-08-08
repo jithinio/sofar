@@ -7,11 +7,13 @@ import {
   openSessionFileConflicts,
   sessionDebt,
   sessionGuardViolations,
+  type FileConflict,
   type GuardViolation,
   type InitiativeState,
   type SessionState,
 } from '../core/fold'
 import { readGitState } from '../core/git'
+import { resolvePeers, type Peer } from '../core/peers'
 import { redactCommand } from '../core/redact'
 import {
   createToolContext,
@@ -624,6 +626,12 @@ export const FILE_CONFLICT_BUDGET = 300
 /** Files named in full on the conflict line before it falls back to a count. */
 export const FILE_CONFLICT_MAX_PATHS = 3
 
+/** Character budget for the reachable-peer line (peer-messaging 2.1). */
+export const PEER_LINE_BUDGET = 300
+
+/** Peers named in full on the peer line before it falls back to a count. */
+export const PEER_MAX_NAMES = 3
+
 function clipTo(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, Math.max(0, max - 1))}…`
 }
@@ -818,10 +826,11 @@ export function guardViolationLines(
  * line on its own. Until then it re-fires statelessly, the same bargain the
  * drift nudge and push-state line already make.
  */
-function fileConflictLine(state: InitiativeState, sessionId: string): string | null {
-  const mine = openSessionFileConflicts(state, sessionId).filter((c) =>
-    c.sessions.includes(sessionId),
-  )
+function myFileConflicts(state: InitiativeState, sessionId: string): FileConflict[] {
+  return openSessionFileConflicts(state, sessionId).filter((c) => c.sessions.includes(sessionId))
+}
+
+function fileConflictLine(mine: FileConflict[], sessionId: string): string | null {
   if (mine.length === 0) return null
 
   const named = mine.slice(0, FILE_CONFLICT_MAX_PATHS).map((c) => {
@@ -831,6 +840,61 @@ function fileConflictLine(state: InitiativeState, sessionId: string): string | n
   const more = mine.length > named.length ? ` (+${mine.length - named.length} more)` : ''
   const head = `sofar: ${mine.length} file(s) you touched are ALSO open in another live session — `
   return clipTo(`${head}${named.join('; ')}${more}.`, FILE_CONFLICT_BUDGET)
+}
+
+/**
+ * The address for the hazard the line above just reported (peer-messaging 2.1).
+ *
+ * 2.1 tells you a sibling is in your file; this tells you how to reach it. The
+ * conflict line names a session id, which is the right key for the record and
+ * useless as an address — so where the host's own registry knows that id as a
+ * live Claude Code session, this hands over the name its `SendMessage` tool
+ * addresses and stops there. sofar does not send: the agent reading this line
+ * is already inside the host that owns the channel, so it can warn its sibling
+ * with its own tool, under its own permissions, billed as its own turn.
+ *
+ * A SEPARATE line rather than more text on the conflict line. The two are
+ * different speech acts — one reports a hazard, one offers an action — and
+ * folding names into the path list would spend the conflict line's 300-char
+ * budget on addresses, clipping the paths that are the more important half.
+ * Keeping them apart also makes the degradation exact: when nothing resolves,
+ * the conflict line is byte-identical to what shipped before this existed.
+ *
+ * Silence is the common case and not a failure. The sibling may be on another
+ * tool, on another machine, or running a Claude Code without messaging — the
+ * registry simply will not know it, and orientation-time reporting stays the
+ * only channel, exactly as before. Nothing here may become the mechanism.
+ *
+ * The closing clause is the jurisdiction rule, placed where it bites: a
+ * message is transport, never storage, so whatever comes back has to be
+ * recorded or it dies with the session that heard it.
+ */
+function reachablePeerLine(mine: FileConflict[], sessionId: string): string | null {
+  const others = [...new Set(mine.flatMap((c) => c.sessions))].filter((id) => id !== sessionId)
+  if (others.length === 0) return null
+
+  const resolved = resolvePeers(others)
+  const found = others
+    .map((id) => resolved.get(id))
+    .filter((p): p is Peer => p !== undefined)
+  if (found.length === 0) return null
+
+  // An ambiguous name reaches more than one live session, so naming it alone
+  // would imply a precision we do not have. The host's own tie-breaker is the
+  // working directory, so hand that over too and let the agent disambiguate.
+  const named = found
+    .slice(0, PEER_MAX_NAMES)
+    .map((p) => (p.ambiguous ? `"${p.name}" (in ${p.cwd})` : `"${p.name}"`))
+  const more = found.length > named.length ? `, +${found.length - named.length} more` : ''
+
+  const one = found.length === 1
+  const head = one
+    ? 'sofar: that session is live in Claude Code as '
+    : 'sofar: those sessions are live in Claude Code as '
+  const tail = one
+    ? ' — message it if your change affects its work, then RECORD what it says; a message is not in the record.'
+    : ' — message them if your change affects their work, then RECORD what they say; a message is not in the record.'
+  return clipTo(`${head}${named.join(', ')}${more}${tail}`, PEER_LINE_BUDGET)
 }
 
 export function handleUserPrompt(rootDir: string, input: string): HookResult {
@@ -851,8 +915,15 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     // (what to do about it). The conflict line leads because it is the only
     // one about work still in motion — the rest report settled facts.
     const lines: string[] = []
-    const conflict = fileConflictLine(state, sessionId)
+    const mine = myFileConflicts(state, sessionId)
+    const conflict = fileConflictLine(mine, sessionId)
     if (conflict !== null) lines.push(conflict)
+
+    // Immediately after the hazard, never instead of it: the address is only
+    // meaningful once you know what it is for, and the hazard line still
+    // stands alone when no peer resolves.
+    const peer = reachablePeerLine(mine, sessionId)
+    if (peer !== null) lines.push(peer)
 
     // A crossed rule outranks even the conflict hazard: it is the one line
     // here that says the work already done disagrees with a standing

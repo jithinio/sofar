@@ -382,7 +382,7 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_end_session',
     description:
-      'End a session with a summary and the single next action — the write-back that lets the next session resume without context. A returned `parallel_writebacks` means a concurrent session recorded a DIFFERENT next action — reconcile before finishing.',
+      'End a session with a summary and the single next action — the write-back that lets the next session resume without context. A returned `parallel_writebacks` means a concurrent session recorded a DIFFERENT next action — reconcile before finishing. An entry carrying `peer` is a live Claude Code session you can reach by that name with SendMessage; when `peer_cwd` is also present the name is shared, so confirm the target before sending. Anything a peer tells you belongs in the record — a message is transport, never storage.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_end_session,
   },
   {

@@ -784,6 +784,18 @@ also collides with a sofar-cloud-internal package).
   a single O_APPEND write with no in-flight window to wait on, and a lease
   held by a killed agent would deadlock against the Stop gate that blocks
   exit on a missing write-back.
+  Each entry MAY carry `peer` (peer-messaging 2.2): the name Claude Code's
+  own SendMessage tool addresses, resolved from the host's live-session
+  registry by session id — plus `peer_cwd` when that name is shared by more
+  than one live session and so cannot address one on its own. Both are
+  OMITTED when the registry does not know the session, which is the ordinary
+  case (the sibling may be on another tool, another machine, or a Claude Code
+  without messaging), leaving the entry byte-identical to its 1.2 shape.
+  sofar ADDRESSES, never delivers: it binds no socket and sends nothing, so
+  reported-never-prevented and the zero-model-calls invariant both hold. The
+  peer fields are added at the tool layer, never on the folded
+  ParallelWriteback — who is reachable is a fact about live host processes,
+  and folding it in would make one log fold differently on two machines.
 - sofar_update_task({initiative?, task_id, status, note?}) → ok
   # status=active also returns standing_constraints (drift-hardening 4.1):
   # the [D<n>]-tagged rules, resurfaced at the point of use
@@ -1004,6 +1016,19 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   session is party to. It leads because it is the only line about work
   still IN MOTION — the others report settled facts, and a hazard you can
   still scope around outranks news you can only absorb.
+  Directly after it, and ONLY when the host's live-session registry resolves
+  a colliding session id, the same shim emits the REACHABLE-PEER line
+  (peer-messaging 2.1): `sofar: that session is live in Claude Code as
+  "<name>" — message it if your change affects its work, then RECORD what it
+  says; a message is not in the record.` At most 3 names with a `, +N more`
+  tail, clipped to 300 chars; an ambiguous name — one the registry shows for
+  two or more live sessions — carries `(in <cwd>)`, the host's own
+  tie-breaker, rather than implying a precision the name does not have. A
+  SEPARATE line, never text folded into the conflict line: the conflict line
+  must stay byte-identical whether or not a peer resolves, so a host without
+  messaging renders exactly what shipped before this existed. Resolution is
+  best-effort per BD22 — an absent, unreadable, or reshaped registry, or a
+  registered process that is gone, yields no line and never an error.
   The optional second argument counts the CALLER as open even though
   `ended` is set. A session that writes back mid-flight and keeps working
   has `ended` — the drift nudge asks for exactly that — so the bare rule
@@ -1990,6 +2015,18 @@ stay the underlying derivation's, and exit codes are styling-independent.
   identical either way (the report is read-side — no new event type, and
   the same collision still renders in both status surfaces). Parity-locked
   stdio vs HTTP like every other tool result.
+- **Peer addressing (peer-messaging 1.1/2.1/2.2):** with the host's registry
+  naming a colliding session as a live Claude Code session, its UserPromptSubmit
+  line gains a SECOND line carrying the name SendMessage addresses, and
+  sofar_end_session's matching `parallel_writebacks` entry gains `peer`. With
+  the registry absent, unreadable, holding malformed JSON, holding an entry
+  whose fields changed type, or naming a process that is gone, BOTH surfaces
+  render exactly what they rendered before the feature: no peer line, no
+  `peer` key, and — asserted byte for byte — an unchanged conflict line. A
+  name the registry shows for two or more live sessions carries the working
+  directory beside it (`peer_cwd` on the tool result), and a session is never
+  offered its own address. Nothing here opens a socket or sends a message:
+  sofar resolves an address and the agent decides whether to use its own tool.
 - **Live file-conflict warning (writeback-collisions 2.1):** two open
   sessions that have both touched one path put the line on each one's next
   UserPromptSubmit, naming the path and the OTHER session; two open sessions

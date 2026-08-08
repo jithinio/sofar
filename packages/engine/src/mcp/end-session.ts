@@ -1,6 +1,35 @@
 import type { EndSessionArgs, ToolOkResult } from '@sofar/schema/tool-inputs'
 import { overlappingWritebacks, type ParallelWriteback } from '../core/fold'
+import { resolvePeers } from '../core/peers'
 import { homeInitiative, type ToolContext } from './context'
+
+/**
+ * A colliding write-back, plus how to reach the session that wrote it
+ * (peer-messaging 2.2).
+ *
+ * The peer fields are added HERE rather than on core/fold's ParallelWriteback
+ * because that type is a pure derivation from the log and must stay one: who
+ * is reachable right now is a fact about the host's live processes, not about
+ * the record, and folding it in would make an identical log fold differently
+ * on two machines.
+ */
+export interface ParallelWritebackPeer extends ParallelWriteback {
+  /**
+   * The name Claude Code's own `SendMessage` addresses, when the host's
+   * session registry knows this session as live. Absent otherwise — the
+   * common case, since the colliding session may be on another tool, another
+   * machine, or a Claude Code without messaging.
+   */
+  peer?: string
+  /**
+   * The peer's working directory, present ONLY when `peer` is shared by more
+   * than one live session. Claude Code derives default names from the folder,
+   * so a bare name can reach the wrong session; when that risk exists the
+   * host's own tie-breaker travels with it, and the caller is expected to
+   * disambiguate before sending rather than trust the name alone.
+   */
+  peer_cwd?: string
+}
 
 /**
  * The write-back result (writeback-collisions 1.2). `parallel_writebacks` is
@@ -12,7 +41,7 @@ import { homeInitiative, type ToolContext } from './context'
  */
 export interface EndSessionResult extends ToolOkResult {
   /** Overlapping sessions whose next_action differs from the one just written. */
-  parallel_writebacks?: ParallelWriteback[]
+  parallel_writebacks?: ParallelWritebackPeer[]
 }
 
 /**
@@ -89,5 +118,18 @@ export function endSession(ctx: ToolContext, args: EndSessionArgs): EndSessionRe
   // in it there is nothing to compare against.
   const parallel = overlappingWritebacks(ctx.foldState(slug), args.session_id)
   if (parallel.length === 0) return { ok: true, event_id: event.id }
-  return { ok: true, event_id: event.id, parallel_writebacks: parallel }
+
+  // Reconciling used to mean leaving a note and hoping the other session read
+  // it at its next orientation. Where the host knows the colliding session as
+  // a live Claude Code peer, the caller can instead say so directly with its
+  // own SendMessage — so hand over the address and let it decide. Best-effort
+  // throughout (BD22): an absent, unreadable, or reshaped registry simply
+  // leaves these fields off and the result is what 1.2 always returned.
+  const peers = resolvePeers(parallel.map((p) => p.session_id))
+  const withPeers: ParallelWritebackPeer[] = parallel.map((p) => {
+    const peer = peers.get(p.session_id)
+    if (peer === undefined) return p
+    return peer.ambiguous ? { ...p, peer: peer.name, peer_cwd: peer.cwd } : { ...p, peer: peer.name }
+  })
+  return { ok: true, event_id: event.id, parallel_writebacks: withPeers }
 }
