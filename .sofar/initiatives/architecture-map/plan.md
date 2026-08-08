@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: Build .foglamp/scan.json from ARCHITECTURE.md (gitignore .foglamp/ — the editToken is a secret) and show it to the user; upload only on explicit approval, since it publishes to a third party at a public URL.
+Next action: On the user's go-ahead: write .foglamp/scan.json from ARCHITECTURE.md, gitignore .foglamp/, show the JSON for review, upload, then hand over the editToken to store durably.
