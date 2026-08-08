@@ -68,6 +68,7 @@ export const TOOL_NAMES = [
   'sofar_add_note',
   'sofar_remember',
   'sofar_close_initiative',
+  'sofar_find',
 ] as const
 export type ToolName = (typeof TOOL_NAMES)[number]
 
@@ -143,6 +144,22 @@ export interface CloseInitiativeArgs {
   note?: string
 }
 
+/**
+ * find (record-index 3.4): the agent-pulled half of retrieval. Seeds are
+ * LITERAL — a path, a session id, an initiative slug, a decision handle — never
+ * a search term, because everything this returns is DERIVED relevance (D2) and
+ * approximate seeds would make a weak claim weaker.
+ */
+export interface FindArgs {
+  seed: string
+  hops?: number
+  initiative?: string
+}
+
+/** Hop budget contract, mirrored by the engine's traversal (core/index-reach.ts). */
+export const FIND_DEFAULT_HOPS = 2
+export const FIND_MAX_HOPS = 3
+
 export interface ToolArgs {
   sofar_get_state: GetStateArgs
   sofar_start_session: StartSessionArgs
@@ -153,6 +170,7 @@ export interface ToolArgs {
   sofar_add_note: AddNoteArgs
   sofar_remember: RememberArgs
   sofar_close_initiative: CloseInitiativeArgs
+  sofar_find: FindArgs
 }
 
 /** Result shape for the write tools (SPEC "→ ok"); event_id aids testing/audit. */
@@ -364,6 +382,29 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
     required: ['status'],
     additionalProperties: false,
   },
+  sofar_find: {
+    type: 'object',
+    properties: {
+      seed: {
+        type: 'string',
+        minLength: 1,
+        description:
+          'A file path (matched across checkouts), a session id, an initiative slug, or a decision handle ("record-index D2"). Literal — not a search term.',
+      },
+      hops: {
+        type: 'integer',
+        minimum: 1,
+        maximum: FIND_MAX_HOPS,
+        description: `How far to traverse; default ${FIND_DEFAULT_HOPS}. 1 = direct edges only.`,
+      },
+      initiative: {
+        ...initiativeProp,
+        description: 'Initiative a bare "D<n>" seed belongs to; omit for a qualified handle.',
+      },
+    },
+    required: ['seed'],
+    additionalProperties: false,
+  },
 }
 
 export const TOOL_DEFS: readonly ToolDef[] = [
@@ -418,6 +459,12 @@ export const TOOL_DEFS: readonly ToolDef[] = [
     description:
       'Close an initiative: record that it is finished (`done`) or abandoned (`dropped`, which requires a reason), and unbind every branch pointing at it. This session keeps working in it until it ends; a NEW session on the unbound branch is told to start or switch instead of landing on finished work. Reopening happens by working on it again — `sofar switch <slug>`.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_close_initiative,
+  },
+  {
+    name: 'sofar_find',
+    description:
+      'Traverse the record out from a seed and return what is within a hop budget — the decisions, notes, files, sessions and OTHER INITIATIVES connected to it, each result naming the event id that produced the edge. Use it when work touches a file, a record, or a decision you did not write: it answers "who else has been here, and what did they conclude". Everything returned is ADJACENCY the record can prove — a session touched this file, the same session logged that decision. It is offered as worth reading, never as a rule about your work: the record does not know a decision was ABOUT a file, so weigh it yourself and read the cited event before relying on it.',
+    inputSchema: TOOL_INPUT_SCHEMAS.sofar_find,
   },
 ]
 
@@ -512,6 +559,19 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
   sofar_remember(a, e) {
     if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
     if (!str(a.text)) e.push('text: must be a non-empty string')
+  },
+  sofar_find(a, e) {
+    if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
+    if (!str(a.seed)) e.push('seed: must be a non-empty string')
+    if (
+      a.hops !== undefined &&
+      (typeof a.hops !== 'number' ||
+        !Number.isInteger(a.hops) ||
+        a.hops < 1 ||
+        a.hops > FIND_MAX_HOPS)
+    ) {
+      e.push(`hops: must be a whole number from 1 to ${FIND_MAX_HOPS}`)
+    }
   },
 }
 

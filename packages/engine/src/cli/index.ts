@@ -14,6 +14,8 @@ import { runStatus, runStatusWatch } from './status'
 import { runList } from './list'
 import { runNext } from './next'
 import { runRelated, runWhy } from './graph'
+import { runFind } from './find'
+import { REACH_DEFAULT_HOPS, REACH_MAX_HOPS } from '../core/index-reach'
 import { runRemember } from './remember'
 import { registerStatuslineCommand } from './statusline'
 import { startServer, renderServeBanner, DEFAULT_PORT } from './serve'
@@ -179,6 +181,23 @@ program
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((taskId: string, opts: { initiative?: string; root?: string }) => {
     emit(runRelated(rootOf(opts), taskId, opts.initiative !== undefined ? { initiative: opts.initiative } : {}))
+  })
+
+program
+  .command('find <seed>')
+  .description(
+    'traverse the record out from a seed — a path, a session id, an initiative slug, or a decision handle like "record-index D2" — and report what is within a hop budget, each row citing the event id behind its edge; adjacency, offered as worth reading, never a rule',
+  )
+  .option('--hops <n>', `how far to traverse (default ${REACH_DEFAULT_HOPS}, max ${REACH_MAX_HOPS})`)
+  .option('--initiative <slug>', 'initiative a bare "D<n>" seed belongs to (default: the branch-bound one)')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action((seed: string, opts: { hops?: string; initiative?: string; root?: string }) => {
+    emit(
+      runFind(rootOf(opts), seed, {
+        ...(opts.hops !== undefined ? { hops: Number(opts.hops) } : {}),
+        ...(opts.initiative !== undefined ? { initiative: opts.initiative } : {}),
+      }),
+    )
   })
 
 program

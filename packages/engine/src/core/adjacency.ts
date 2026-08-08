@@ -61,6 +61,34 @@ export function pathOfNodeId(nodeId: string): string {
   return nodeId.startsWith('file:') ? nodeId.slice('file:'.length) : nodeId
 }
 
+/**
+ * Which RECORDED paths a queried path denotes (SPEC §Path identity).
+ *
+ * file_touched records the path the agent actually edited, which is an ABSOLUTE
+ * path — so one logical file accumulates several identities over a record's
+ * life (measured: 21 paths in this record are split across a pre-rename root, a
+ * renamed root and a worktree). Recorded paths are never rewritten, and no
+ * prefix rule recovers a directory rename, so identity stays verbatim and the
+ * join happens at query time: an exact hit wins outright, otherwise every
+ * recorded path ending at a `/` boundary with the query matches.
+ *
+ * Literal, no inference, and the caller controls specificity — a bare
+ * `fold.ts` matches broadly by construction, which is why every caller shows
+ * the paths it matched. Defined here rather than in core/graph.ts because the
+ * index answers the same question (record-index 3.1/3.4) and cannot import a
+ * module the hot-path lock keeps it away from.
+ */
+export function matchRecordedPaths(query: string, recorded: Iterable<string>): string[] {
+  const wanted = query.replace(/^\.\//, '')
+  const suffix = `/${wanted}`
+  const matches: string[] = []
+  for (const path of recorded) {
+    if (path === wanted) return [path] // an exact hit wins outright
+    if (path.endsWith(suffix)) matches.push(path)
+  }
+  return matches.sort()
+}
+
 // ---------------------------------------------------------------------------
 // Edges.
 // ---------------------------------------------------------------------------

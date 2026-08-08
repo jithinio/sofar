@@ -13,6 +13,7 @@ import {
   fileNodeId,
   GRAPH_RESULT_CAP,
   initiativeNodeId,
+  matchRecordedPaths,
   noteTextOf,
   phaseNodeId,
   sessionNodeId,
@@ -20,6 +21,7 @@ import {
   taskNodeId,
   type GraphEdge,
 } from './adjacency'
+import { extractCitations, type Citation } from './citations'
 import { decodeLines, foldLines, type InitiativeState } from './fold'
 
 /**
@@ -173,80 +175,14 @@ export interface RecordGraph {
 
 // ---------------------------------------------------------------------------
 // Citation grammar (record-graph 1.3) — closed, lexical, literal.
+//
+// The rule itself lives in core/citations.ts, BELOW this module (record-index
+// 3.4), so the reach index can point decisions at each other without dragging
+// buildGraph onto a path the hot-path lock keeps it off. Re-exported here,
+// unchanged, because this is where its callers look for it.
 // ---------------------------------------------------------------------------
 
-/** One handle-shaped token found in decision prose, before resolution. */
-export interface Citation {
-  /** The matched text, verbatim — what a dangling report shows. */
-  raw: string
-  /** Initiative the handle is scoped to: the qualifier, or the citing decision's own slug. */
-  slug: string
-  /** `D<n>`, `T<n>`, or `<n>.<n>`. */
-  handle: string
-  /** True when the slug came from an explicit qualifier rather than the default. */
-  qualified: boolean
-}
-
-/**
- * Extract citation handles from decision prose.
- *
- * QUALIFIED `<slug> <handle>` binds to that initiative; UNQUALIFIED
- * `D<n>`/`T<n>` binds to the citing decision's own. A bare `<n>.<n>` is NOT
- * a handle: measured over the live record it matches version strings
- * (`0.1`, `0.7`, `0.8`) and an IP octet (`127.0`) and nothing true. `BD<n>`
- * and `D-<label>` are not in the grammar at all — they name the archived
- * pre-migration prose record and hand-coined labels, which have no nodes
- * here; resolving them would require inference (D3).
- *
- * Qualifier binding is CASE-INSENSITIVE (5.1). Slugs are lowercase by
- * construction (`sofar new` validates `[a-z0-9-]+`), so `Felt-cost D3` at a
- * sentence start is orthography, not a different name — and an exact-match
- * rule would not leave it unbound: the handle would silently degrade to an
- * UNQUALIFIED `D3` and bind to the citing decision's own initiative, a
- * manufactured edge. A word that case-folds to no known slug qualifies
- * nothing and the handle stays home-bound, because every unqualified
- * citation follows some prose word (`per D3`, `a D4 amendment`).
- *
- * Only a space or tab may separate qualifier from handle, so a slug ending
- * one field cannot bind to a handle opening the next.
- *
- * `M<n>` (a promoted memory) is OFF by default and enabled only for the
- * repo.md scan (repo-memory-capture D2). Decision prose is the other caller,
- * and there M<n> has nothing to resolve against — promoted memories are not
- * graph nodes yet — so matching it there would turn every legitimate mention
- * into a dangling entry. The repo.md scan reads qualified handles only and
- * never resolves, so it wants the wider grammar.
- */
-export function extractCitations(
-  text: string,
-  homeSlug: string,
-  knownSlugs: readonly string[],
-  options: { memories?: boolean } = {},
-): Citation[] {
-  const citations: Citation[] = []
-  if (knownSlugs.length === 0) return citations
-  const canonical = new Map(knownSlugs.map((slug) => [slug.toLowerCase(), slug]))
-  const pattern = options.memories === true
-    ? /\b(D\d+|T\d+|M\d+|\d+\.\d+)\b/g
-    : /\b(D\d+|T\d+|\d+\.\d+)\b/g
-  for (const match of text.matchAll(pattern)) {
-    const handle = match[1]!
-    // The word directly before the handle is a qualifier ATTEMPT; matching it
-    // separately from the handle keeps a handle-shaped word (`D3 D4`) from
-    // being consumed as a failed qualifier and lost as a citation.
-    const attempt = /([A-Za-z0-9-]+)([ \t]+)$/.exec(text.slice(0, match.index ?? 0))
-    const slug = attempt === null ? undefined : canonical.get(attempt[1]!.toLowerCase())
-    // A dotted task id without its slug is not a handle.
-    if (slug === undefined && handle.includes('.')) continue
-    citations.push({
-      raw: slug === undefined ? handle : `${attempt![1]!}${attempt![2]!}${handle}`,
-      slug: slug ?? homeSlug,
-      handle,
-      qualified: slug !== undefined,
-    })
-  }
-  return citations
-}
+export { extractCitations, type Citation } from './citations'
 
 // ---------------------------------------------------------------------------
 // buildGraph.
@@ -624,16 +560,11 @@ export interface FileProvenance {
  * broadly by construction, which is why callers show `matched_paths`.
  */
 export function resolveFileNodes(graph: RecordGraph, path: string): string[] {
-  const query = path.replace(/^\.\//, '')
-  const exact = fileNodeId(query)
+  const exact = fileNodeId(path.replace(/^\.\//, ''))
   if (graph.nodes.has(exact)) return [exact]
-  const suffix = `/${query}`
-  const matches: string[] = []
-  for (const node of graph.nodes.values()) {
-    if (node.kind !== 'file') continue
-    if (node.path === query || node.path.endsWith(suffix)) matches.push(node.path)
-  }
-  return matches.sort().map(fileNodeId)
+  const recorded: string[] = []
+  for (const node of graph.nodes.values()) if (node.kind === 'file') recorded.push(node.path)
+  return matchRecordedPaths(path, recorded).map(fileNodeId)
 }
 
 /**

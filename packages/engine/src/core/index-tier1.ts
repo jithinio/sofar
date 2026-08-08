@@ -1,6 +1,6 @@
 import { parseGuard, type GuardDomain } from '@sofar/schema'
 import type { DecisionLoggedPayload, FileTouchedPayload } from '@sofar/schema'
-import { GRAPH_RESULT_CAP } from './adjacency'
+import { GRAPH_RESULT_CAP, matchRecordedPaths } from './adjacency'
 import { passOverRecord } from './index-pass'
 import { INDEX_SCHEMA_VERSION, readIndexFile, writeIndexFile } from './index-store'
 import { type IndexedEvent } from './index-tail'
@@ -339,22 +339,13 @@ function guardHits(patterns: { negated: boolean; re: RegExp }[], subject: string
 }
 
 /**
- * Which recorded paths a query denotes — resolveFileNodes' rule, over the index.
- *
- * file_touched records the ABSOLUTE path the agent edited, so one logical file
- * accumulates several identities across checkouts and worktrees. An exact hit
- * wins outright; otherwise every recorded path ending at a `/` boundary with
- * the query matches. Literal, no inference, caller controls specificity.
+ * Which recorded paths a query denotes — matchRecordedPaths (core/adjacency),
+ * over the index, with the exact hit taken by hash first since the keys are one.
  */
 export function resolvePaths(index: FileIndex, path: string): string[] {
   const query = path.replace(/^\.\//, '')
   if (index.files.has(query)) return [query]
-  const suffix = `/${query}`
-  const matches: string[] = []
-  for (const recorded of index.files.keys()) {
-    if (recorded === query || recorded.endsWith(suffix)) matches.push(recorded)
-  }
-  return matches.sort()
+  return matchRecordedPaths(query, index.files.keys())
 }
 
 /**

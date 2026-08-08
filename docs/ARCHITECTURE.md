@@ -56,6 +56,7 @@ Three consequences run through every design decision in the codebase:
 | `core/fold.ts` | `InitiativeState` — the fold. Tolerant (corrupt lines skipped, never fatal), deterministic, ULID-ordered. Also `openSessionFiles`, `openSessionFileConflicts`, `overlappingWritebacks`, `sessionDebt`, `sessionGuardViolations`. |
 | `core/adjacency.ts` | Typed edges (`touched`, `ran`, `changed`, `worked`) and the derived `SessionActivity`. Caps live here (`ACTIVITY_LIST_CAP`, `TASK_FILES_CAP`). |
 | `core/graph.ts` | The cross-record adjacency graph — facts that outlive one log. **Never on the hot path**: it reads N logs where a shim can afford one. |
+| `core/citations.ts` | The citation grammar — scan handles from prose (lexical, permanent), bind them to initiatives (current, because `sofar new` changes the answer). Below `graph.ts` so the index can reach it. |
 | `core/warmth.ts` | Has a log grown recently? Read from the log's own newest event, never filesystem mtime — `git checkout` rewrites mtime on every file. |
 | `core/cross-conflicts.ts` | Files under concurrent edit by sessions in *different* initiatives. Gated on the hot path, exhaustive in `doctor`. |
 | `core/listing.ts` | `initiativeSlugs` and the portfolio listing behind `sofar list`. |
@@ -76,6 +77,7 @@ synced, and any absence, staleness, or corruption falls back to reading the logs
 | `core/index-pass.ts` | The one incremental pass every tier shares. Holds the four cases where resuming would be unsound, each falling back to a full read. |
 | `core/index-tier0.ts` | **Hot tier.** Open sessions and the files they hold. Byte-sized, so the shim can read it. Faithful to the fold's caps rather than better than them. |
 | `core/index-tier1.ts` | **Keyed tier.** Declared relevance (which decisions guard this path) and derived relevance (who else touched it, from which initiative). |
+| `core/index-reach.ts` | **Reach tier.** What `sofar find` traverses: decisions, notes, files, sessions and citation edges, each carrying the event id that produced it. Read only when asked, so it can afford prose the hot tiers cannot. |
 
 ### 4. Projections — state rendered to disk
 
@@ -121,6 +123,7 @@ silence, never a broken session.
 | `cli/list.ts` | `sofar list` — the portfolio. |
 | `cli/doctor.ts` | `sofar doctor` — the audit: records, lifecycle, split sessions, concurrency, guards, repo memory, scanners. |
 | `cli/graph.ts` | `sofar graph` — cross-record queries. |
+| `cli/find.ts` | `sofar find` — traverse from a seed within a hop budget. Offers adjacency, never asserts relevance; every row cites its event. |
 | `cli/remember.ts` | `sofar remember` — promote an operational fact. |
 | `cli/statusline.ts` | `sofar statusline` — the one-line host status. Resolves session-first. |
 | `cli/serve.ts` | `sofar serve` — localhost JSON state server. |
@@ -146,6 +149,7 @@ silence, never a broken session.
 | `mcp/remember.ts` | `sofar_remember`. |
 | `mcp/get-state.ts` | `sofar_get_state`. |
 | `mcp/close-initiative.ts` | `sofar_close_initiative`. |
+| `mcp/find.ts` | `sofar_find` — index-backed retrieval. Read-only, appends nothing, never builds the graph. |
 
 **Library** — importable entry points, side-effect free.
 

@@ -821,11 +821,26 @@ also collides with a sofar-cloud-internal package).
   every branch binding pointing at the slug; `event_id` is null when it was
   already at that status (idempotent, no second event). Resolves to the
   ACTIVE session's pinned initiative like every other write tool.
+- sofar_find({seed, hops?, initiative?}) → ReachResult   # READ-ONLY, appends
+  nothing (record-index 3.4). Traverses the reach index out from a LITERAL
+  seed — a path (resolved across checkouts, §Path identity), a session id, an
+  initiative slug, a decision handle `<slug> D<n>`, or a node id — and returns
+  what is within `hops` (default 2, max 3), grouped by kind and capped at
+  GRAPH_RESULT_CAP per group with a numeric `omitted`. Every hit carries
+  `via.event_id`: the event that produced the edge, so any claim can be
+  checked against the log. A bare `D<n>` needs `initiative` — unlike the write
+  tools this is NOT resolved from the branch, because a read that silently
+  answers about a different record is worse than one that finds nothing. An
+  unresolvable seed is `kind: null` with no groups, never a nearest match.
+  Everything returned is DERIVED relevance (record-index D2): offered as worth
+  reading, never asserted as a rule, and the tool description says so because
+  the result is JSON with no room for a caveat line.
 Every tool = validate payload → append event → regenerate projections →
-return. No tool mutates state except via an event.
+return. No tool mutates state except via an event (sofar_get_state and
+sofar_find are reads and append nothing).
 Transports (speed T3): stdio (`sofar mcp`) is the DEFAULT and the only
 transport `sofar init` registers — zero-config users lose nothing. The
-SAME frozen 9-tool surface is additionally served over streamable HTTP at
+SAME frozen 10-tool surface is additionally served over streamable HTTP at
 `/mcp` on the `sofar serve` daemon (127.0.0.1 only), opt-in via a
 documented .mcp.json entry `{"type": "http", "url":
 "http://127.0.0.1:4173/mcp"}` — sessions connect to the running daemon
@@ -1386,6 +1401,21 @@ Shims contain no logic — they invoke the sofar CLI.
   node keeps such edges visible in the graph, but the CLI refuses to anchor
   on a status the plan cannot vouch for. A task with no neighbours is exit 0
   saying so (record-graph 3.2).
+- `sofar find <seed> [--hops <n>] [--initiative <slug>]` — traverse the reach
+  index out from a seed and report what is within the budget, grouped by kind
+  (initiatives, decisions, notes, files, sessions), each row citing the event
+  id that produced its edge (record-index 3.4). Seeds are LITERAL and resolved
+  in a fixed order — node id, initiative slug, decision handle (`<slug> D<n>`,
+  `<slug>#D<n>`, or `D<n>` with `--initiative`), session id, then path across
+  checkouts — never a search: an unresolvable seed is exit 0 naming the seed
+  vocabulary, not a nearest match. `--hops` defaults to 2 and is capped at 3;
+  out of range is exit 1. Unlike `sofar why` / `sofar related` this NEVER
+  builds the record graph — measured on this record, 1.8ms against `sofar
+  why`'s 35.4ms — because the index is maintained incrementally on its own
+  cursor. The surface offers, never asserts (record-index D2): it states what
+  each edge IS ("logged by", "touched by", "cited by") and carries the caveat
+  that adjacency is not a rule about the work. An expansion that hits the
+  visit ceiling says so rather than presenting a partial answer as whole.
 - `sofar export [slug] [--since <id>]` / `sofar import <file|-> [slug]`
   — per-initiative NDJSON over the §Cursor primitive; slug resolves like
   status (explicit wins, else branch binding) (extended Phase 4, BD28)
@@ -2224,3 +2254,17 @@ stay the underlying derivation's, and exit codes are styling-independent.
   with a crowded neighbourhood. Nothing overlapping, an initiative that has
   touched nothing, or an unreadable index renders NO section and a block that
   is otherwise unchanged.
+- **Reach traversal (record-index 3.4):** `sofar find` and `sofar_find` answer
+  from a seed within a hop budget, and EVERY hit names an event that exists in
+  a log and is of the type its edge claims — checked as a property over every
+  result, not on a sample. The decision→decision citation edges equal the ones
+  buildGraph derives from the same fixture, exactly; a citation binds to the
+  slugs that exist NOW, so an initiative arriving later re-binds a handle that
+  had been reading as home-scoped, and nothing ever cites the future. An
+  initiative is never traversed THROUGH — two records sharing no files stay
+  unconnected at max hops — while an initiative SEED expands to what it holds.
+  A hit is dated by its own event, not by the edge that reached it. The
+  incremental answer equals a cold rebuild after appends and after a correction
+  withdraws a decision (which renumbers the survivors, as the fold does), the
+  half keeps its OWN cursor file, and cli-sourced touches create no adjacency.
+  The surface never states that a result bears on the work.

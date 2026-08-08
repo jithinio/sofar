@@ -20,6 +20,7 @@ describe('tool contract surface', () => {
       'sofar_add_note',
       'sofar_remember',
       'sofar_close_initiative',
+      'sofar_find',
     ])
     expect(TOOL_DEFS.map((t) => t.name)).toEqual([...TOOL_NAMES])
   })
@@ -61,6 +62,7 @@ describe('validateToolInput', () => {
     },
     sofar_add_note: { text: 'hello' },
     sofar_remember: { text: 'release: npm publish -w sofar.sh from the root' },
+    sofar_find: { seed: 'packages/engine/src/core/fold.ts', hops: 2 },
   }
 
   it('accepts a valid argument object for every tool', () => {

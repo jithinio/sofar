@@ -409,7 +409,7 @@ describe('stdio end-to-end via `sofar mcp`', () => {
     await client.connect(transport)
 
     const { tools } = await client.listTools()
-    expect(tools).toHaveLength(9)
+    expect(tools).toHaveLength(10)
 
     const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
       tool: 'claude-code',
