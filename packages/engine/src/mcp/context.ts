@@ -6,6 +6,7 @@ import { makeEvent, SOURCES, type Actor, type EventEnvelope, type Source } from 
 import { appendEvent } from '../core/log'
 import { foldLog, emptyState, type InitiativeState } from '../core/fold'
 import { currentBranch } from '../core/git'
+import { initiativeSlugs } from '../core/listing'
 import { regenerateProjections } from '../projections/generator'
 
 // Branch → initiative resolution reads git; the reader itself lives in core/
@@ -74,17 +75,10 @@ export function toSource(tool: string | undefined): Source {
 // Session → home initiative (record-integrity 1.1, D1).
 // ---------------------------------------------------------------------------
 
-/** Initiative slugs present under .sofar/initiatives/, sorted; [] on any failure. */
-export function initiativeSlugs(sofarDir: string): string[] {
-  try {
-    return readdirSync(join(sofarDir, 'initiatives'), { withFileTypes: true })
-      .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
-      .map((d) => d.name)
-      .sort()
-  } catch {
-    return []
-  }
-}
+// initiativeSlugs moved to core/listing (cross-initiative-conflicts 2.1) so the
+// core derivation can reach it without core importing mcp; imported for local
+// use and re-exported, unchanged, for every caller that already had it here.
+export { initiativeSlugs }
 
 /**
  * ts of this log's session_started for `sessionId`, or null. The substring

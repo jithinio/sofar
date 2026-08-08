@@ -9,6 +9,7 @@ import {
   type OrphanTaskEvent,
 } from '../core/fold'
 import { readBindingsFile } from '../core/bindings'
+import { crossConflictsFromStates } from '../core/cross-conflicts'
 import { buildGraph, extractCitations, repoGeneral } from '../core/graph'
 import { clip } from '../projections/templates/shared'
 import {
@@ -567,6 +568,28 @@ function auditConcurrency(folded: Folded[]): Section {
       })
     }
   }
+  // The boundary the per-slug loop above cannot see (cross-initiative-conflicts
+  // 3.1). A clobber is physical: two agents in one file overwrite each other
+  // whether or not they serve the same record, and until now NOTHING reported
+  // that — the hook folds a single slug, and the loop above detects per-slug.
+  //
+  // Ungated here on purpose. core/graph.ts's law is that cross-record
+  // derivations stay off the hot path because a shim can afford one log where
+  // this reads N; doctor is the other side of that bargain — an audit, run on
+  // demand, where the exhaustive answer is the whole point and milliseconds
+  // are not. So however narrow the live surfaces are, the complete answer
+  // always exists behind one command.
+  const states = folded.filter((f): f is Folded & { state: InitiativeState } => f.state !== undefined)
+  const crossed = crossConflictsFromStates(states)
+  for (const c of crossed) {
+    conflictTotal++
+    findings.push({
+      level: 'warn',
+      text: `${c.path} — held across ${c.initiatives.length} initiatives (${c.initiatives.join(', ')})`,
+      hint: `${c.holders.map((h) => `${h.session} in ${h.initiative}`).join('; ')} — a clobber does not respect the initiative boundary`,
+    })
+  }
+
   if (conflictTotal === 0) {
     findings.push({ level: 'ok', text: 'no files under concurrent edit by multiple open sessions' })
   }

@@ -1,4 +1,5 @@
 {
   "main": "drift-certification",
-  "peer-messaging": "peer-messaging"
+  "peer-messaging": "peer-messaging",
+  "cross-initiative-conflicts": "cross-initiative-conflicts"
 }

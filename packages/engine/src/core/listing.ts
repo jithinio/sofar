@@ -80,6 +80,23 @@ function readBindingsTolerant(bindingsPath: string, warnings: string[]): Record<
 }
 
 /** Every initiative directory under .sofar/initiatives, summarized. */
+/**
+ * Initiative slugs present under .sofar/initiatives/, sorted; [] on any
+ * failure. Lives in core/ because the cross-initiative conflict derivation
+ * needs it and core must not reach up into mcp/; mcp/context.ts re-exports it
+ * for the importers that already had it there (the REPO_MD_STUB precedent).
+ */
+export function initiativeSlugs(sofarDir: string): string[] {
+  try {
+    return readdirSync(join(sofarDir, 'initiatives'), { withFileTypes: true })
+      .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+      .map((d) => d.name)
+      .sort()
+  } catch {
+    return []
+  }
+}
+
 export function listInitiatives(rootDir: string): InitiativeListing {
   const warnings: string[] = []
   const entries: InitiativeListEntry[] = []

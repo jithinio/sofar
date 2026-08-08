@@ -825,15 +825,10 @@ export function openSessionFileConflicts(
   alsoLiveSessionId?: string,
 ): FileConflict[] {
   const byFile = new Map<string, string[]>()
-  for (const session of state.sessions) {
-    const live = session.ended === undefined || session.id === alsoLiveSessionId
-    if (!live || session.activity === undefined) continue
-    for (const file of session.activity.files) {
-      if (file.startsWith('+')) continue // the "+N more" overflow sentinel
-      const owners = byFile.get(file) ?? []
-      owners.push(session.id)
-      byFile.set(file, owners)
-    }
+  for (const { session, file } of openSessionFiles(state, alsoLiveSessionId)) {
+    const owners = byFile.get(file) ?? []
+    owners.push(session)
+    byFile.set(file, owners)
   }
   const conflicts: FileConflict[] = []
   for (const [path, sessions] of byFile) {
@@ -841,6 +836,39 @@ export function openSessionFileConflicts(
   }
   conflicts.sort((a, b) => a.path.localeCompare(b.path))
   return conflicts
+}
+
+/** One open session's hold on one file. */
+export interface OpenSessionFile {
+  session: string
+  file: string
+}
+
+/**
+ * Every (open session, file) pair in one initiative — the shared half of the
+ * conflict question, extracted so the cross-initiative derivation composes it
+ * instead of restating it (cross-initiative-conflicts 2.1).
+ *
+ * Restating it was the real risk: liveness here is subtle (the
+ * `alsoLiveSessionId` re-admission above, the sentinel skip), and a second
+ * copy drifting from this one would make the same two sessions a conflict
+ * within an initiative and not across it, or the reverse — a discrepancy no
+ * test asks about directly and no user could ever explain.
+ */
+export function openSessionFiles(
+  state: InitiativeState,
+  alsoLiveSessionId?: string,
+): OpenSessionFile[] {
+  const pairs: OpenSessionFile[] = []
+  for (const session of state.sessions) {
+    const live = session.ended === undefined || session.id === alsoLiveSessionId
+    if (!live || session.activity === undefined) continue
+    for (const file of session.activity.files) {
+      if (file.startsWith('+')) continue // the "+N more" overflow sentinel
+      pairs.push({ session: session.id, file })
+    }
+  }
+  return pairs
 }
 
 /** A concurrent session's write-back that lost the next_action scalar (task 12.4). */

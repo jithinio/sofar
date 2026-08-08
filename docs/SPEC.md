@@ -1166,7 +1166,18 @@ Shims contain no logic — they invoke the sofar CLI.
   plus each state's registered ids; deterministic, sessions sorted by id and
   footprints by slug;
   (4) concurrency — no file under concurrent edit by ≥2 OPEN sessions (a live
-  clobber risk); (5) decision guards — every crossing in `guard_violations`
+  clobber risk), reported in two scopes: WITHIN each initiative, and ACROSS
+  initiatives (cross-initiative-conflicts 3.1), the latter naming every
+  initiative holding the path. A clobber is physical and does not respect the
+  record boundary, and per-slug detection structurally cannot see it. The
+  cross scope is computed from the states doctor has ALREADY folded and is
+  never gated: core/graph.ts's law keeps cross-record derivations off the hot
+  path because a shim can afford one log where they read N, and doctor is the
+  other side of that bargain — the on-demand audit where the exhaustive answer
+  is the point. However narrow the live surfaces are, the complete answer
+  always exists behind this one command. A conflict inside a single initiative
+  is reported by the within scope only, never by both;
+  (5) decision guards — every crossing in `guard_violations`
   (§Decision guards), one WARN naming `[D<n>]`, the subject, and the rule
   VERBATIM. Always WARN and never FAIL: the audit's exit code is the very
   exit code D3 forbids a guard from moving; (6) repo memory — two halves, both checked against the
@@ -2015,6 +2026,26 @@ stay the underlying derivation's, and exit codes are styling-independent.
   identical either way (the report is read-side — no new event type, and
   the same collision still renders in both status surfaces). Parity-locked
   stdio vs HTTP like every other tool result.
+- **Warm-log signal (cross-initiative-conflicts 1.1):** a log's warmth is its
+  own newest event timestamp, read from the TAIL of events.jsonl — never
+  filesystem mtime. Rewriting a log's mtime without changing its content (what
+  `git checkout` does to every events.jsonl in the tree, and what a copy,
+  restore, or `touch` does) must NOT make a cold log read warm. The newest
+  timestamp among the tail's complete lines wins, not the last line's, since
+  an explicit-ts append can land backdated. The partial line the tail read cuts
+  through is discarded; a single event larger than the tail window falls back
+  to a whole-file read; corrupt lines are skipped exactly as the fold skips
+  them. An absent, empty, or unparseable log counts as WARM — ambiguity costs
+  one extra fold, never a dropped warning.
+- **Cross-initiative concurrency (cross-initiative-conflicts 2.1/3.1):** two
+  OPEN sessions in DIFFERENT initiatives holding one path are reported as a
+  conflict naming both initiatives; two in the SAME initiative are not, since
+  the within-initiative surface already reports them and both would double the
+  warning. The `alsoLiveSessionId` re-admission holds across the boundary
+  exactly as it does within one. Given a window, only logs that grew inside it
+  are read — and the window may change which logs are READ, never what counts
+  as a conflict: gated and ungated agree on every initiative the gate admits.
+  An unreadable record degrades to no conflicts, never to an error.
 - **Peer addressing (peer-messaging 1.1/2.1/2.2):** with the host's registry
   naming a colliding session as a live Claude Code session, its UserPromptSubmit
   line gains a SECOND line carrying the name SendMessage addresses, and
