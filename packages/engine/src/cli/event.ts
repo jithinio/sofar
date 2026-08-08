@@ -3,8 +3,10 @@ import { join, relative, resolve } from 'node:path'
 import type { Command } from 'commander'
 import { isClosedInitiativeStatus } from '@sofar/schema'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
+import { crossConflictsFromOpenSessions, type CrossFileConflict } from '../core/cross-conflicts'
 import {
   openSessionFileConflicts,
+  openSessionFiles,
   sessionDebt,
   sessionGuardViolations,
   type FileConflict,
@@ -13,6 +15,7 @@ import {
   type SessionState,
 } from '../core/fold'
 import { readGitState } from '../core/git'
+import { refreshTier0 } from '../core/index-tier0'
 import { resolvePeers, type Peer } from '../core/peers'
 import { redactCommand } from '../core/redact'
 import {
@@ -626,6 +629,12 @@ export const FILE_CONFLICT_BUDGET = 300
 /** Files named in full on the conflict line before it falls back to a count. */
 export const FILE_CONFLICT_MAX_PATHS = 3
 
+/** Character budget for the cross-initiative conflict line (record-index 2.2). */
+export const CROSS_CONFLICT_BUDGET = 320
+
+/** Files named in full on the cross-initiative line before it falls back to a count. */
+export const CROSS_CONFLICT_MAX_PATHS = 3
+
 /** Character budget for the reachable-peer line (peer-messaging 2.1). */
 export const PEER_LINE_BUDGET = 300
 
@@ -843,6 +852,81 @@ function fileConflictLine(mine: FileConflict[], sessionId: string): string | nul
 }
 
 /**
+ * The same hazard across the initiative boundary (record-index 2.2,
+ * unblocking cross-initiative-conflicts 2.2).
+ *
+ * The line above stops at the record boundary because its derivation does: the
+ * hook folds ONE initiative, so two agents on different branches editing one
+ * file were invisible to both. The filesystem does not honour that boundary,
+ * and neither does the damage.
+ *
+ * What blocked it was cost, not doubt. Folding every log on every prompt is
+ * O(initiative count) — 18.9ms at 300, 64.1ms at 1000, against a budget the
+ * shim already spends 63-67ms of — and the warm gate narrowed the constant
+ * without changing the shape. Tier 0 changes the shape: the open set is
+ * maintained incrementally by cursors, so this reads a small file and tails
+ * only what the logs grew by.
+ *
+ * Refreshed here rather than merely read. A read-only shim would depend on
+ * some other process having maintained the index, and an index nobody
+ * refreshes reports an empty open set — silence that reads exactly like "no
+ * conflict". D1 forbids that trade: absence must cost time, never correctness,
+ * and refreshing is what makes a cold, stale, or deleted index answer right on
+ * the first prompt that needs it.
+ *
+ * Its own try/catch, because this is the youngest thing on the path and the
+ * lines below it (git state, the drift nudge) predate it and must not be
+ * taken down by it.
+ */
+function myCrossConflicts(
+  sofarDir: string,
+  state: InitiativeState,
+  slug: string,
+  sessionId: string,
+): CrossFileConflict[] {
+  try {
+    const files = openSessionFiles(state, sessionId)
+      .filter((p) => p.session === sessionId)
+      .map((p) => p.file)
+    if (files.length === 0) return []
+    return crossConflictsFromOpenSessions(refreshTier0(sofarDir), {
+      initiative: slug,
+      session: sessionId,
+      files,
+    })
+  } catch {
+    return []
+  }
+}
+
+/**
+ * A SEPARATE line from the same-initiative one, for the same reason the peer
+ * line is separate: the two are different facts. "Another session in this
+ * record" is someone whose write-back you will read; "another initiative" is
+ * someone whose write-back lands in a record you never see, so the collision
+ * has to be resolved between the two agents or not at all. Naming the
+ * initiative is the actionable half — it is what tells you which record to
+ * read and which branch the other agent is on.
+ *
+ * Holders on MY initiative are dropped from the rendering, not from the
+ * derivation: they are already named on the line above, and repeating them
+ * here would spend this line's budget restating it.
+ */
+function crossConflictLine(cross: CrossFileConflict[], slug: string): string | null {
+  if (cross.length === 0) return null
+
+  const named = cross.slice(0, CROSS_CONFLICT_MAX_PATHS).map((c) => {
+    const others = c.holders
+      .filter((h) => h.initiative !== slug)
+      .map((h) => `${h.session} on ${h.initiative}`)
+    return `${c.path} (session ${others.join(', ')})`
+  })
+  const more = cross.length > named.length ? ` (+${cross.length - named.length} more)` : ''
+  const head = `sofar: ${cross.length} file(s) you touched are ALSO open in a live session on ANOTHER initiative — `
+  return clipTo(`${head}${named.join('; ')}${more}.`, CROSS_CONFLICT_BUDGET)
+}
+
+/**
  * The address for the hazard the line above just reported (peer-messaging 2.1).
  *
  * 2.1 tells you a sibling is in your file; this tells you how to reach it. The
@@ -868,9 +952,15 @@ function fileConflictLine(mine: FileConflict[], sessionId: string): string | nul
  * The closing clause is the jurisdiction rule, placed where it bites: a
  * message is transport, never storage, so whatever comes back has to be
  * recorded or it dies with the session that heard it.
+ *
+ * It takes session ids rather than conflicts (record-index 2.2) because there
+ * are now two hazard lines feeding it and an address does not care which one
+ * named the sibling — a cross-initiative collision is exactly the case where
+ * messaging matters MOST, since neither agent will ever read the other's
+ * write-back. Same-initiative siblings are passed first, so a record with no
+ * cross-initiative sibling still renders the byte-identical line.
  */
-function reachablePeerLine(mine: FileConflict[], sessionId: string): string | null {
-  const others = [...new Set(mine.flatMap((c) => c.sessions))].filter((id) => id !== sessionId)
+function reachablePeerLine(others: string[]): string | null {
   if (others.length === 0) return null
 
   const resolved = resolvePeers(others)
@@ -919,10 +1009,24 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     const conflict = fileConflictLine(mine, sessionId)
     if (conflict !== null) lines.push(conflict)
 
-    // Immediately after the hazard, never instead of it: the address is only
-    // meaningful once you know what it is for, and the hazard line still
-    // stands alone when no peer resolves.
-    const peer = reachablePeerLine(mine, sessionId)
+    // Then the same hazard from outside this record, which the fold above
+    // structurally cannot see (record-index 2.2). Second because the sibling
+    // you share an initiative with is the likelier collision and the cheaper
+    // one to resolve — you will at least read each other's write-backs.
+    const cross = myCrossConflicts(ctx.sofarDir, state, slug, sessionId)
+    const crossLine = crossConflictLine(cross, slug)
+    if (crossLine !== null) lines.push(crossLine)
+
+    // Immediately after the hazards, never instead of them: the address is
+    // only meaningful once you know what it is for, and the hazard lines still
+    // stand alone when no peer resolves.
+    const siblings = [
+      ...new Set([
+        ...mine.flatMap((c) => c.sessions),
+        ...cross.flatMap((c) => c.holders.map((h) => h.session)),
+      ]),
+    ].filter((id) => id !== sessionId)
+    const peer = reachablePeerLine(siblings)
     if (peer !== null) lines.push(peer)
 
     // A crossed rule outranks even the conflict hazard: it is the one line

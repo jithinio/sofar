@@ -94,6 +94,11 @@
   Tailwind resolves every path relative to the STYLESHEET, so suggested
   directives are computed per stylesheet (like sofarExclusionDirective) and
   live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.
+- Searching fold.ts (record-index M1): packages/engine/src/core/fold.ts holds
+  literal NUL bytes (a map key built as `${index}\0${session}\0${subject}`), so
+  grep and ripgrep call it binary and print NOTHING — silently, exit 0. A
+  symbol that lives there reads as nonexistent. Use `rg -a`/`grep -a` on that
+  file, or follow the import from a module that uses the symbol.
 - Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`
   subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the
   code already describe it, and the parts that generalize are covered by

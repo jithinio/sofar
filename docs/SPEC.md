@@ -1016,8 +1016,25 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   session is party to. It leads because it is the only line about work
   still IN MOTION — the others report settled facts, and a hazard you can
   still scope around outranks news you can only absorb.
-  Directly after it, and ONLY when the host's live-session registry resolves
-  a colliding session id, the same shim emits the REACHABLE-PEER line
+  Immediately after it the same shim emits the CROSS-INITIATIVE CONFLICT
+  line (record-index 2.2): `sofar: N file(s) you touched are ALSO open in a
+  live session on ANOTHER initiative — <path> (session <id> on <slug>); …`,
+  at most 3 paths named with a `(+N more)` tail, clipped to 320 chars. This
+  is the collision a per-initiative fold structurally cannot see — the hook
+  folds one log and the sibling appends to another — and it ranks SECOND
+  because the sibling sharing your record is the likelier collision and the
+  cheaper one to settle: you will at least read each other's write-backs.
+  Source is the derived Tier 0 open-session index (record-index 2.1),
+  REFRESHED on the path rather than merely read: an index nobody maintains
+  reports an empty open set, and empty is indistinguishable from "no
+  conflict". The caller's own hold comes from the fold the shim already
+  paid for, never from the index, because `alsoLiveSessionId` re-admits an
+  ended caller and Tier 0 cannot carry that re-admission. Holders on the
+  caller's OWN initiative are dropped from the rendering — the line above
+  names them — but never from the derivation. Best-effort on its own
+  (BD22): a failure here costs this line only, never the lines after it.
+  Directly after both, and ONLY when the host's live-session registry
+  resolves a colliding session id, the same shim emits the REACHABLE-PEER line
   (peer-messaging 2.1): `sofar: that session is live in Claude Code as
   "<name>" — message it if your change affects its work, then RECORD what it
   says; a message is not in the record.` At most 3 names with a `, +N more`
@@ -1026,7 +1043,11 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   tie-breaker, rather than implying a precision the name does not have. A
   SEPARATE line, never text folded into the conflict line: the conflict line
   must stay byte-identical whether or not a peer resolves, so a host without
-  messaging renders exactly what shipped before this existed. Resolution is
+  messaging renders exactly what shipped before this existed. Siblings named
+  by EITHER hazard line feed it, same-initiative first — a cross-initiative
+  collision is where messaging matters most, since neither agent will ever
+  read the other's write-back, and a record with no cross-initiative sibling
+  still renders the identical line. Resolution is
   best-effort per BD22 — an absent, unreadable, or reshaped registry, or a
   registered process that is gone, yields no line and never an error.
   The optional second argument counts the CALLER as open even though
@@ -2046,6 +2067,24 @@ stay the underlying derivation's, and exit codes are styling-independent.
   are read — and the window may change which logs are READ, never what counts
   as a conflict: gated and ungated agree on every initiative the gate admits.
   An unreadable record degrades to no conflicts, never to an error.
+- **Cross-initiative conflict on the shim path (record-index 2.2):** the
+  UserPromptSubmit line answered from Tier 0 must equal what folding every log
+  answers — same paths, same holders, same initiatives — on a plain collision,
+  on a file held both inside and outside the initiative, after a sibling wraps
+  up, past the caller's own mid-flight write-back, and after each incremental
+  append rather than only on a cold build. A same-initiative collision is
+  never reported here (the within-initiative line already has it), and that
+  line stays byte-identical whether or not this one fires. An index that is
+  ABSENT, cold, corrupt, or describing a rewritten log yields the right answer
+  on the very first prompt and repairs itself — never an empty answer, since
+  empty reads as "no conflict". Steady-state cost is the pin: no log whose
+  size AND mtime are unchanged is read at all, so the indexed answer stays a
+  small multiple cheaper than the folded one as initiatives multiply
+  (measured: shim end-to-end 60.5ms at 30, 62.1ms at 300, 72.0ms at 1000
+  initiatives against the 100ms budget; derivation 1.2/2.0/4.7ms against the
+  fold's 4.8/39.9/132.4ms). Building a cold index is O(total history) ONCE —
+  147ms at 1000 initiatives, over budget for that single prompt — which is
+  the accepted price of never answering from a partial index.
 - **Peer addressing (peer-messaging 1.1/2.1/2.2):** with the host's registry
   naming a colliding session as a live Claude Code session, its UserPromptSubmit
   line gains a SECOND line carrying the name SendMessage addresses, and

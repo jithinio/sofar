@@ -1,5 +1,5 @@
 import { closeSync, fstatSync, openSync, readSync } from 'node:fs'
-import { cursorPlausible, type InitiativeCursor } from './index-store'
+import { cursorUsable, logStat, logUntouched, type InitiativeCursor } from './index-store'
 
 /**
  * Read only what a log has grown by (record-index 1.2).
@@ -7,7 +7,7 @@ import { cursorPlausible, type InitiativeCursor } from './index-store'
  * This is where O(new events) actually happens. Every other cross-record
  * surface in the codebase re-reads whole logs to answer questions about a
  * handful of recent events; with a cursor, the common case — nothing appended
- * since last time — reads a few bytes and returns nothing.
+ * since last time — costs one stat and reads nothing at all.
  *
  * The correctness bargain is that a seek is never TRUSTED. The cursor stores
  * the byte offset where its event's line begins, so the first line read back
@@ -58,16 +58,20 @@ function decode(line: string): IndexedEvent | null {
 }
 
 /** Read `length` bytes from `start`, or the whole file when start is 0. */
-function readFrom(path: string, start: number): { text: string; size: number } | null {
+function readFrom(path: string, start: number): { text: string; size: number; mtimeMs: number } | null {
   let fd: number | null = null
   try {
     fd = openSync(path, 'r')
-    const size = fstatSync(fd).size
-    if (start >= size) return { text: '', size }
+    // One fstat for both, so the stored cursor describes exactly the bytes
+    // this call read — a separate stat could straddle a concurrent append.
+    const stat = fstatSync(fd)
+    const size = stat.size
+    const mtimeMs = stat.mtimeMs
+    if (start >= size) return { text: '', size, mtimeMs }
     const length = size - start
     const buf = Buffer.allocUnsafe(length)
     readSync(fd, buf, 0, length, start)
-    return { text: buf.toString('utf8'), size }
+    return { text: buf.toString('utf8'), size, mtimeMs }
   } catch {
     return null
   } finally {
@@ -101,8 +105,18 @@ function linesWithOffsets(text: string, base: number): { line: string; offset: n
 
 /** Events appended since the cursor, plus the cursor to store next time. */
 export function readSince(logPath: string, cursor: InitiativeCursor | null): TailRead {
-  const usable = cursor !== null && cursorPlausible(logPath, cursor)
-  if (usable) {
+  const stat = cursor === null ? null : logStat(logPath)
+
+  // Nothing was appended and nothing was rewritten — the cheapest answer
+  // there is, and the one a quiet initiative gives on every single refresh.
+  // A record's logs are overwhelmingly quiet at any instant, so this is the
+  // common case, not the optimization: it is what keeps a refresh O(active
+  // initiatives) instead of O(initiatives).
+  if (cursor !== null && stat !== null && logUntouched(stat, cursor)) {
+    return { events: [], cursor, full: false }
+  }
+
+  if (cursor !== null && stat !== null && cursorUsable(stat, cursor)) {
     const chunk = readFrom(logPath, cursor.offset)
     if (chunk !== null) {
       const lines = linesWithOffsets(chunk.text, cursor.offset)
@@ -118,7 +132,7 @@ export function readSince(logPath: string, cursor: InitiativeCursor | null): Tai
           events.push(ev)
           last = { id: ev.id, offset }
         }
-        return { events, cursor: { ...last, size: chunk.size }, full: false }
+        return { events, cursor: { ...last, size: chunk.size, mtimeMs: chunk.mtimeMs }, full: false }
       }
     }
   }
@@ -136,7 +150,7 @@ export function readSince(logPath: string, cursor: InitiativeCursor | null): Tai
   }
   return {
     events,
-    cursor: last === null ? null : { ...last, size: whole.size },
+    cursor: last === null ? null : { ...last, size: whole.size, mtimeMs: whole.mtimeMs },
     full: true,
   }
 }

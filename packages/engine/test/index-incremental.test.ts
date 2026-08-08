@@ -1,4 +1,13 @@
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -157,6 +166,51 @@ describe('incremental read', () => {
     expect(read.events.map((e) => e.payload.text ?? null)).toEqual([null, 'survived'])
   })
 
+  it('does not read a log whose size AND mtime are unchanged', () => {
+    // Proven by making the read impossible to get right: the bytes are
+    // replaced while size and mtime are held fixed. Returning the old answer
+    // is the fast path skipping the file, and pinning it here also pins the
+    // ONE case it cannot see — a rewrite that forges both. Appends grow the
+    // file and every ordinary rewrite moves mtime, so nothing in normal
+    // operation lands here.
+    const log = freshLog([event('session_started')])
+    const cursor = readSince(log, null).cursor!
+
+    writeFileSync(log, readFileSync(log, 'utf8').replace(/./, 'X')) // corrupt, same length
+    // A cursor that still describes the file's size and mtime exactly — which
+    // is what an untouched log looks like, and what a same-size rewrite would
+    // have to forge to get here.
+    const untouched = { ...cursor, mtimeMs: statSync(log).mtimeMs }
+
+    expect(readSince(log, untouched)).toEqual({ events: [], cursor: untouched, full: false })
+    // …and the moment mtime moves, the corruption is found and re-read.
+    utimesSync(log, new Date(), new Date(Date.now() + 1000))
+    expect(readSince(log, untouched).full).toBe(true)
+  })
+
+  it('catches a same-size rewrite once mtime moves', () => {
+    const log = freshLog([event('session_started')])
+    const cursor = readSince(log, null).cursor!
+
+    const replacement = event('file_touched', { path: 'a.ts' })
+    const padded = replacement.padEnd(readFileSync(log, 'utf8').trimEnd().length, ' ')
+    writeFileSync(log, `${padded}\n`)
+
+    const read = readSince(log, cursor)
+    expect(read.full).toBe(true) // corroboration failed → whole file re-read
+    expect(read.events.map((e) => e.type)).toEqual(['file_touched'])
+  })
+
+  it('still sees an append made in the same millisecond', () => {
+    const log = freshLog([event('session_started')])
+    const cursor = readSince(log, null).cursor!
+    appendFileSync(log, `${event('file_touched', { path: 'a.ts' })}\n`)
+
+    const read = readSince(log, cursor)
+    expect(read.full).toBe(false)
+    expect(read.events.map((e) => e.type)).toEqual(['file_touched'])
+  })
+
   it('handles an absent or empty log without throwing', () => {
     expect(readSince(join(scratch(), 'nope.jsonl'), null)).toEqual({ events: [], cursor: null, full: true })
     expect(readSince(freshLog([]), null).cursor).toBeNull()
@@ -173,15 +227,22 @@ describe('index store', () => {
 
   it('round-trips cursors', () => {
     const sofar = join(scratch(), '.sofar')
-    writeIndexMeta(sofar, { version: INDEX_SCHEMA_VERSION, cursors: { demo: { id: 'x', offset: 10, size: 20 } } })
-    expect(readIndexMeta(sofar)?.cursors.demo).toEqual({ id: 'x', offset: 10, size: 20 })
+    const cursor = { id: 'x', offset: 10, size: 20, mtimeMs: 1_700_000_000_123 }
+    writeIndexMeta(sofar, { version: INDEX_SCHEMA_VERSION, cursors: { demo: cursor } })
+    expect(readIndexMeta(sofar)?.cursors.demo).toEqual(cursor)
   })
 
   it('cold-starts on a version bump rather than misreading', () => {
     const sofar = join(scratch(), '.sofar')
     writeIndexMeta(sofar, { version: INDEX_SCHEMA_VERSION, cursors: {} })
     const path = join(sofar, '.index', 'meta.json')
-    writeFileSync(path, JSON.stringify({ version: INDEX_SCHEMA_VERSION + 1, cursors: { demo: { id: 'x', offset: 1, size: 2 } } }))
+    writeFileSync(
+      path,
+      JSON.stringify({
+        version: INDEX_SCHEMA_VERSION + 1,
+        cursors: { demo: { id: 'x', offset: 1, size: 2, mtimeMs: 3 } },
+      }),
+    )
     expect(readIndexMeta(sofar)).toBeNull()
   })
 
@@ -193,10 +254,18 @@ describe('index store', () => {
     writeFileSync(join(sofar, '.index', 'meta.json'), '{ broken')
     expect(readIndexMeta(sofar)).toBeNull() // corrupt
 
-    // A cursor whose fields changed type is dropped; the file still loads.
+    // A cursor whose fields changed type — or one written before mtimeMs
+    // existed — is dropped; the file still loads.
     writeFileSync(
       join(sofar, '.index', 'meta.json'),
-      JSON.stringify({ version: INDEX_SCHEMA_VERSION, cursors: { a: { id: 'ok', offset: 0, size: 0 }, b: { id: 5 } } }),
+      JSON.stringify({
+        version: INDEX_SCHEMA_VERSION,
+        cursors: {
+          a: { id: 'ok', offset: 0, size: 0, mtimeMs: 1 },
+          b: { id: 5 },
+          c: { id: 'no-mtime', offset: 0, size: 0 },
+        },
+      }),
     )
     const meta = readIndexMeta(sofar)
     expect(Object.keys(meta!.cursors)).toEqual(['a'])
