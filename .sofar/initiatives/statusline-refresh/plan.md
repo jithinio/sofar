@@ -14,3 +14,4 @@ Progress: 4/4 tasks done (100%)
 - [x] 1.4 Release: bump sofar.sh to 0.24.0 and publish (user runs npm publish)
 
 Active phase: Phase 1 — identity + shipped cadence
+Next action: Decide whether to mark home != branch-binding disagreement on the statusline initiative segment (a mark, never a warning — both values are already in hand, so no fold or I/O cost).
