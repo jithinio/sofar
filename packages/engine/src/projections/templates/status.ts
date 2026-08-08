@@ -8,6 +8,7 @@ import {
   type SessionState,
 } from '../../core/fold'
 import type { GitState } from '../../core/git'
+import type { NeighbourRecord } from '../../core/index-tier1'
 import {
   clip,
   clipBlockDetect,
@@ -90,6 +91,14 @@ const MAX_NOTES = 5
 // when no file_touched ever landed while the task was active.
 const TASK_FILES_LINE_BUDGET = 300
 const MAX_TASK_FILES = 8
+// Adjacent records (record-index 3.3): other initiatives that have worked this
+// one's files, from the Tier 1 index — absent when the caller could not read it
+// or nothing overlaps, so a single-initiative repo renders exactly as before.
+const NEIGHBOUR_LINE_BUDGET = 200
+const MAX_NEIGHBOURS = 3
+
+/** `1 decision` / `8 decisions` — the staleness line's convention, reused. */
+const plural = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`
 
 /** Hard cap: anything over the limit is cut to fit, marker included. */
 export function enforceStatusLimit(text: string): string {
@@ -320,6 +329,17 @@ export interface StatusOptions {
    * so. Omitted entirely when the caller could not read git.
    */
   git?: GitState
+  /**
+   * Other records that have worked this one's files (record-index 3.3),
+   * densest first, uncapped — the template owns the cap and the wording.
+   *
+   * Derived by the caller from the Tier 1 index, which renderStatus cannot
+   * reach: it is handed a folded state, and this is the one fact in the block
+   * that no single log contains. Omitted when the index is unreadable or
+   * nothing overlaps, so a repo with one initiative renders byte-identically
+   * to before this existed.
+   */
+  neighbours?: readonly NeighbourRecord[]
 }
 
 export function renderStatus(state: InitiativeState, options?: StatusOptions): string {
@@ -452,6 +472,44 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
     if (conflicts.length > MAX_CONFLICT_LINES) {
       lines.push(`- …and ${conflicts.length - MAX_CONFLICT_LINES} more (run sofar doctor)`)
     }
+  }
+
+  // Adjacent records (record-index 3.3) — the priming line, last in this block
+  // because it is the only entry that is not about THIS record: the ones above
+  // report what has happened to your work, this one reports where else your
+  // work has company.
+  //
+  // A COUNT, never a capability blurb. An offer ("you can search the record")
+  // is ignored, because nothing in it says there is anything to find; a number
+  // and three names create the intent to look, which is the whole mechanism
+  // this layer is for. Nothing here tells the agent what to do about it.
+  //
+  // D2 is in the wording, not just the doc: this is DERIVED relevance, so the
+  // header says adjacency and the closing clause says offered-not-binding. The
+  // record knows these initiatives worked the same files; it does not know
+  // their decisions are ABOUT those files, and the line must not imply it.
+  const neighbours = options?.neighbours ?? []
+  if (neighbours.length > 0) {
+    const named = neighbours.slice(0, MAX_NEIGHBOURS)
+    // The header carries the READABLE total, not just the initiative count.
+    // Ranking is by shared files — the direct edge, and the honest answer to
+    // who is on your ground — which can put a record holding one decision at
+    // the top. Leading with the decision total means the intent to look is
+    // already created by the time the reader gets there.
+    const decisions = neighbours.reduce((sum, n) => sum + n.decisions, 0)
+    lines.push(
+      `Adjacent records — ${plural(decisions, 'decision')} across ` +
+        `${plural(neighbours.length, 'other initiative')} that have worked this one's files, densest first:`,
+    )
+    for (const n of named) {
+      lines.push(
+        `- ${clip(`${n.initiative} — ${plural(n.paths, 'shared file')}, ${plural(n.decisions, 'decision')}`, NEIGHBOUR_LINE_BUDGET)}`,
+      )
+    }
+    const rest = neighbours.length - named.length
+    lines.push(
+      `${rest > 0 ? `…and ${rest} more. ` : ''}Adjacency, not aboutness — offered as worth reading, never as a rule.`,
+    )
   }
   lines.push('')
 

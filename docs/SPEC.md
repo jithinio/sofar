@@ -947,6 +947,31 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   never an error. The advisory composes AROUND the status block — never
   inside renderStatus (byte-stability, §Architectural invariants) — and the
   composed output is re-capped to the same hard limit.
+  ADJACENT RECORDS (record-index 3.3) — the priming line, rendered last in
+  the current-situation block (after concurrent edits) because it is the only
+  entry there that is not about this record: `Adjacent records — N decisions
+  across M other initiative(s) that have worked this one's files, densest
+  first:`, then up to 3 `- <slug> — N shared file(s), N decision(s)` lines,
+  then `…and N more. Adjacency, not aboutness — offered as worth reading,
+  never as a rule.` A FACT WITH A COUNT, never a capability blurb: an offer
+  ("you can search the record") is ignored because nothing in it says there
+  is anything to find, while a number and three names create the intent to
+  look. Ranked by SHARED PATHS — the direct edge, and the honest answer to
+  who is on your ground — with decisions then name breaking ties; the header
+  leads with the decision total because the densest neighbour may hold few.
+  Deliberately NOT the two-hop `decision <- session -> file` join whyFile
+  exposes: measured on this record that join is dominated by hub files every
+  initiative has edited, which makes the whole repo adjacent to everything.
+  Sourced from the Tier 1 index (declared half for decision counts, derived
+  half for the overlap), REFRESHED once per session — nothing else on the
+  tool path maintains the derived half, so a repo that has never crossed a
+  guard would otherwise carry a permanently cold index and never see the
+  line. DERIVED relevance under D2: offered as worth reading, never asserted
+  — the record knows these initiatives worked the same files, never that
+  their decisions are ABOUT those files. Absent when the index is unreadable
+  or nothing overlaps, so a single-initiative repo renders byte-identically
+  to before it existed, and best-effort per BD22: a failure here costs the
+  line only.
   HARD LIMIT:
   output ≤10,000 chars — projection generator must guarantee this.
 - UserPromptSubmit shim (felt-cost 4.1/4.2, D5) → the batch-complete nudge:
@@ -2187,3 +2212,15 @@ stay the underlying derivation's, and exit codes are styling-independent.
   structurally: an edit matching no guard leaves `graph.json` untouched. An
   index that is absent, deleted mid-session, or corrupt answers correctly on
   the next edit, and an unreadable log costs the notice, never the exit code.
+- **Priming line (record-index 3.3):** the SessionStart block names the other
+  initiatives that have touched this one's files, and the shared-path counts
+  match what buildGraph answers from the logs, path for path; each named
+  record's decision count equals what folding that log counts. The asking
+  record is never its own neighbour, cli-sourced touches create no adjacency
+  (the `touched` edge drops them too), ranking is shared-paths then decisions
+  then name, and the incremental answer tracks an initiative that appears
+  after the index was already warm. At most 3 are named with a `…and N more`
+  tail, the D2 clause is part of the line, and the block stays ≤10,000 chars
+  with a crowded neighbourhood. Nothing overlapping, an initiative that has
+  touched nothing, or an unreadable index renders NO section and a block that
+  is otherwise unchanged.

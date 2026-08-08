@@ -122,7 +122,6 @@ export function passOverRecord<S>(
     }
 
     const rebuilt = read.full || prior === null || prior[slug] === undefined
-    const state = rebuilt ? reducer.empty() : reducer.clone(prior[slug]!)
     if (read.full) voided = new Set() // a rebuild re-derives every void below
 
     // Corrections first, exactly as the fold's pre-pass does: a correction
@@ -131,6 +130,20 @@ export function passOverRecord<S>(
     const events = read.full
       ? [...read.events].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
       : read.events
+
+    // A quiet initiative is carried forward BY REFERENCE. `clone` exists so a
+    // resume never mutates prior state in place, and with nothing to apply
+    // there is nothing to mutate — the copy would be written back byte for
+    // byte. It is the difference between O(new events) and O(repo) per
+    // refresh: at 1000 initiatives one appended event was deep-copying 50,272
+    // path entries, which is most of what the derived half cost to read
+    // (record-index 3.3). Safe because `prior` is a fresh parse owned by this
+    // call and the states it returns are serialized, never mutated.
+    const state = rebuilt
+      ? reducer.empty()
+      : events.length === 0
+        ? prior[slug]!
+        : reducer.clone(prior[slug]!)
     for (const event of events) {
       const ref = voidedRef(event)
       if (ref !== null) voided.add(ref)

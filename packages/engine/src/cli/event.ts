@@ -21,7 +21,9 @@ import {
   lastTouch,
   refreshFiles,
   refreshGuards,
+  refreshNeighbours,
   type GuardedDecision,
+  type NeighbourRecord,
 } from '../core/index-tier1'
 import { resolvePeers, type Peer } from '../core/peers'
 import { redactCommand } from '../core/redact'
@@ -404,6 +406,33 @@ export function closedBanner(state: InitiativeState): string | null {
   ].join('\n')
 }
 
+/**
+ * The priming line's derivation (record-index 3.3), resolved once per session.
+ *
+ * Refreshed rather than read, but for a weaker reason than the guard notice's.
+ * There, a stale index would have made an absent rule indistinguishable from no
+ * rule — a correctness failure. Here the worst case is a missing OFFER, which
+ * D2 already says nobody may rely on. It refreshes anyway because nothing else
+ * on the tool path maintains the derived half: PostToolUse touches it only once
+ * a guard has fired, so a repo that has never crossed a rule would carry a
+ * permanently cold index and this line would never appear at all.
+ *
+ * Once per session is what makes the cost affordable — this is the whole-repo
+ * half (1.5ms at 30 initiatives, 9.7ms at 300, 33ms at 1000), which the guard
+ * notice deliberately refuses to pay per edit.
+ *
+ * Its own try/catch, like every other index reader on a shim path: a priming
+ * line is the least load-bearing thing in the block and must never be what
+ * takes SessionStart down.
+ */
+function adjacentRecords(sofarDir: string, slug: string): NeighbourRecord[] {
+  try {
+    return refreshNeighbours(sofarDir, slug)
+  } catch {
+    return []
+  }
+}
+
 export function handleSessionStart(rootDir: string, input: string): HookResult {
   try {
     const hook = parseHook(input)
@@ -427,10 +456,15 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     // Git state is READ, never logged (record-integrity 4.1) — refs only, so
     // it costs no subprocess inside the 100ms shim budget.
     const git = readGitState(rootDir)
+    // The one fact in the block that no single log holds (record-index 3.3):
+    // which OTHER records have worked these files. Derived here rather than in
+    // renderStatus, which is handed a folded state and cannot reach the index.
+    const neighbours = adjacentRecords(ctx.sofarDir, slug)
     const status = renderStatus(state, {
       ...(repoMemory !== null ? { repoMemory } : {}),
       ...(sessionId !== null ? { sessionId } : {}),
       ...(git !== null ? { git } : {}),
+      ...(neighbours.length > 0 ? { neighbours } : {}),
     })
     // Both the closed banner and the cold-resume advisory compose AROUND the
     // status block, never inside it — the block's byte-stability is pinned

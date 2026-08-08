@@ -123,12 +123,18 @@ interface TierDisk<S> {
 
 export interface Tier1Index {
   guards: GuardedDecision[]
+  /**
+   * initiative → how many decisions it holds. Already maintained as the `D<n>`
+   * base, and independently the answer to "how much reasoning is in that
+   * record" — the number that makes an adjacent record worth opening.
+   */
+  decisions: Record<string, number>
   /** path → session id → { initiatives, ts, touches } — the cross-initiative join. */
   files: Map<string, Map<string, { initiatives: Set<string>; ts: string; touches: number }>>
 }
 
 /** The declared half alone — what a hot path asks for. */
-export type GuardIndex = Pick<Tier1Index, 'guards'>
+export type GuardIndex = Pick<Tier1Index, 'guards' | 'decisions'>
 /** The derived half alone. */
 export type FileIndex = Pick<Tier1Index, 'files'>
 
@@ -221,11 +227,11 @@ function refreshHalf<S>(
  * decisions (3 of 195 on this record), never by the repo's touch history.
  */
 export function refreshGuards(sofarDir: string): GuardIndex {
-  return { guards: unionGuards(refreshHalf(sofarDir, GUARDS_FILE, GUARDS_META, {
+  return declaredView(refreshHalf(sofarDir, GUARDS_FILE, GUARDS_META, {
     empty: emptyGuards,
     clone: cloneGuards,
     apply: applyGuard,
-  })) }
+  }))
 }
 
 /** Bring the DERIVED half up to date — who has touched what, across the repo. */
@@ -248,7 +254,7 @@ export function readTier1(sofarDir: string): Tier1Index | null {
   const files = readIndexFile<TierDisk<SlugFileState>>(sofarDir, FILES_FILE, isTierDisk)
   if (guards === null && files === null) return null
   return {
-    guards: guards === null ? [] : unionGuards(guards.initiatives),
+    ...(guards === null ? { guards: [], decisions: {} } : declaredView(guards.initiatives)),
     files: files === null ? new Map() : unionFiles(files.initiatives),
   }
 }
@@ -261,13 +267,15 @@ export function readTier1(sofarDir: string): Tier1Index | null {
  * under three initiatives is one path with three initiatives against it, which
  * is precisely what a per-initiative fold can never say.
  */
-function unionGuards(states: Record<string, SlugGuardState>): GuardedDecision[] {
+function declaredView(states: Record<string, SlugGuardState>): GuardIndex {
   const guards: GuardedDecision[] = []
+  const decisions: Record<string, number> = {}
   for (const slug of Object.keys(states).sort()) {
     guards.push(...(states[slug]?.guards ?? []).map((g) => ({ ...g })))
+    decisions[slug] = states[slug]?.decisions ?? 0
   }
   guards.sort((a, b) => (a.initiative === b.initiative ? a.ordinal - b.ordinal : a.initiative.localeCompare(b.initiative)))
-  return guards
+  return { guards, decisions }
 }
 
 function unionFiles(states: Record<string, SlugFileState>): Tier1Index['files'] {
@@ -419,6 +427,105 @@ export function touchersOfPath(index: FileIndex, path: string): PathTouchers {
   if (sessions.length > GRAPH_RESULT_CAP) result.omitted = sessions.length - GRAPH_RESULT_CAP
   result.sessions = sessions.slice(0, GRAPH_RESULT_CAP)
   return result
+}
+
+/** One other record that has worked the same ground as this one. */
+export interface NeighbourRecord {
+  initiative: string
+  /** Paths both records have touched — the DIRECT edge, and the ranking. */
+  paths: number
+  /** Decisions that record holds — how much reasoning opening it would buy. */
+  decisions: number
+}
+
+/**
+ * The records that have worked this one's files, densest first (record-index
+ * 3.3) — the whole derivation behind the priming line, in one pass.
+ *
+ * Two numbers, because one of them alone says nothing worth acting on. Shared
+ * paths is the DIRECT edge and the honest ranking: a record that has been in
+ * eight of your files is in your way, and one that shares a single hub file is
+ * not. Decision count is what makes the pointer worth following — "another
+ * record touched this" is a fact about files, while "and it recorded 31
+ * decisions doing so" is the reason to open it.
+ *
+ * Deliberately NOT the two-hop decision join (decision <- session -> file) that
+ * whyFile exposes. Measured on this record, that join reports 41 decisions from
+ * 14 records for record-index, and the ranking it produces is dominated by hub
+ * files every initiative has edited — cli/event.ts alone makes the whole repo
+ * adjacent to everything. Counting shared PATHS instead keeps the weight on
+ * ground genuinely held in common, and the decision count stays a property of
+ * the record rather than a claim about its contents.
+ *
+ * Everything here is DERIVED relevance under D2: it may be offered as worth
+ * reading and never asserted. Nothing in the record says these decisions are
+ * ABOUT your files — only that the work happened in the same places.
+ */
+export function refreshNeighbours(sofarDir: string, slug: string): NeighbourRecord[] {
+  const declared = refreshGuards(sofarDir)
+  const states = refreshHalf(sofarDir, FILES_FILE, FILES_META, {
+    empty: emptyFiles,
+    clone: cloneFiles,
+    apply: (state: SlugFileState, event: IndexedEvent) => applyFile(state, event),
+  })
+
+  const mine = states[slug]
+  if (mine === undefined) return []
+  const myPaths = new Set(Object.keys(mine.files))
+  if (myPaths.size === 0) return []
+
+  const found: NeighbourRecord[] = []
+  for (const [initiative, state] of Object.entries(states)) {
+    if (initiative === slug) continue
+    let paths = 0
+    for (const path of Object.keys(state.files)) if (myPaths.has(path)) paths += 1
+    if (paths > 0) found.push({ initiative, paths, decisions: declared.decisions[initiative] ?? 0 })
+  }
+  return rankNeighbours(found)
+}
+
+/**
+ * The same answer over the unioned view — the reference implementation.
+ *
+ * refreshNeighbours must never disagree with this, and a test holds the two
+ * against each other. It exists separately because the union is what costs:
+ * building the repo-wide Map of Maps allocates two objects per path, which at
+ * 1000 initiatives is 100,000 allocations to answer one question about one
+ * initiative. Intersecting per-slug path sets asks the same question without
+ * ever materializing the join.
+ */
+export function neighbourRecords(
+  index: GuardIndex & FileIndex,
+  slug: string,
+): NeighbourRecord[] {
+  const shared = new Map<string, number>()
+  for (const sessions of index.files.values()) {
+    let mine = false
+    const others = new Set<string>()
+    for (const entry of sessions.values()) {
+      for (const initiative of entry.initiatives) {
+        if (initiative === slug) mine = true
+        else others.add(initiative)
+      }
+    }
+    if (!mine) continue
+    for (const initiative of others) shared.set(initiative, (shared.get(initiative) ?? 0) + 1)
+  }
+
+  return rankNeighbours(
+    [...shared.entries()].map(([initiative, paths]) => ({
+      initiative,
+      paths,
+      decisions: index.decisions[initiative] ?? 0,
+    })),
+  )
+}
+
+/** Densest overlap first; decisions break ties, then the name, so it is total. */
+function rankNeighbours(found: NeighbourRecord[]): NeighbourRecord[] {
+  return found.sort(
+    (a, b) => b.paths - a.paths || b.decisions - a.decisions || a.initiative.localeCompare(b.initiative),
+  )
 }
 
 /**
