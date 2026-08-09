@@ -271,7 +271,7 @@ describe('3.3 the line', () => {
 })
 
 describe('3.3 it is the least load-bearing thing in the block', () => {
-  it('renders the rest of the block when the index cannot be read', () => {
+  it('still answers from the logs when the index cannot be read or written', () => {
     const { root, sofar } = repo()
     touch(sofar, 'demo', 'A', '/repo/a.ts')
     touch(sofar, 'speed', 'B', '/repo/a.ts')
@@ -280,6 +280,25 @@ describe('3.3 it is the least load-bearing thing in the block', () => {
     const dir = indexDir(sofar)
     rmSync(join(dir, 'graph.json'), { force: true })
     mkdirSync(join(dir, 'graph.json'), { recursive: true })
+
+    // D1: an unreadable index is a SLOWER answer, not a missing one — the
+    // cursors that survive alongside it describe state this pass no longer
+    // has, so the logs are read in full (record-index 4.2). Nothing can be
+    // persisted here, so every session pays that cost until it is repaired.
+    const out = block(root)
+    expect(out).toContain('# Sofar status: demo')
+    expect(out).toContain(HEADER)
+    expect(section(root)).toContain('- speed — 1 shared file, 0 decisions')
+  })
+
+  it('renders the rest of the block when the record itself cannot be read', () => {
+    const { root, sofar } = repo()
+    touch(sofar, 'demo', 'A', '/repo/a.ts')
+    touch(sofar, 'speed', 'B', '/repo/a.ts')
+    block(root)
+    // The logs are the fallback, so losing THEM is what costs the line.
+    rmSync(indexDir(sofar), { recursive: true, force: true })
+    rmSync(join(sofar, 'initiatives', 'speed'), { recursive: true, force: true })
 
     const out = block(root)
     expect(out).toContain('# Sofar status: demo')

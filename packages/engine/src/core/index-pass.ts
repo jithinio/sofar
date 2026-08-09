@@ -42,6 +42,12 @@ import { initiativeSlugs } from './listing'
  *    and command_run, so it is a live case rather than a theoretical one.
  * 4. A LATER EVENT WAS ALREADY VOIDED. Voids are therefore remembered on the
  *    cursor, not just applied to the batch that carried them.
+ * 5. THE STATE THE CURSOR DESCRIBES IS GONE. Cursors and derived state live in
+ *    different files and can come apart — a lost payload write, a partial
+ *    cleanup, a payload missing a slug the meta still has a cursor for. The
+ *    cursor is then a position into a state that no longer exists, and
+ *    resuming from it reads the tail into an empty state. Absent state
+ *    invalidates its own cursor, per slug (record-index 4.2).
  *
  * The cost of being wrong here is silent and permanent, and the cost of being
  * conservative is one re-read of one log. That is the whole trade.
@@ -103,7 +109,16 @@ export function passOverRecord<S>(
 
   for (const slug of initiativeSlugs(sofarDir)) {
     const log = join(sofarDir, 'initiatives', slug, 'events.jsonl')
-    const cursor = meta.cursors[slug] ?? null
+    // A CURSOR IS ONLY MEANINGFUL BESIDE THE STATE IT PRODUCED (record-index
+    // 4.2). The two live in different files, and the pair can come apart:
+    // writeIndexMeta lands before the payload write and both fail silently, a
+    // cleanup deletes one, a partial payload is missing a slug the meta still
+    // has a cursor for. Trusting the cursor alone then reads only the TAIL into
+    // an EMPTY state and persists the result — an index that says a record is
+    // empty, stably, until something appends. So absent state invalidates its
+    // own cursor, per slug: no prior state means a full read.
+    const priorState = prior === null ? undefined : prior[slug]
+    const cursor = priorState === undefined ? null : (meta.cursors[slug] ?? null)
     let read = readSince(log, cursor)
     let voided = new Set(cursor?.voided ?? [])
 
@@ -121,7 +136,12 @@ export function passOverRecord<S>(
       }
     }
 
-    const rebuilt = read.full || prior === null || prior[slug] === undefined
+    // `priorState === undefined` is now redundant with `read.full` — a null
+    // cursor forces a whole-log read above — and is kept because the two say
+    // different things: one is "there is nothing to resume from", the other is
+    // "nothing was resumed". Losing either would make the pair silently
+    // separable again.
+    const rebuilt = read.full || priorState === undefined
     if (read.full) voided = new Set() // a rebuild re-derives every void below
 
     // Corrections first, exactly as the fold's pre-pass does: a correction
@@ -142,8 +162,8 @@ export function passOverRecord<S>(
     const state = rebuilt
       ? reducer.empty()
       : events.length === 0
-        ? prior[slug]!
-        : reducer.clone(prior[slug]!)
+        ? priorState!
+        : reducer.clone(priorState!)
     for (const event of events) {
       const ref = voidedRef(event)
       if (ref !== null) voided.add(ref)
@@ -157,7 +177,7 @@ export function passOverRecord<S>(
     // A rebuild that read nothing (an absent or unreadable log) lands on the
     // same empty state it had, so it is not a change — otherwise a record with
     // one logless initiative would rewrite every index file on every pass.
-    if (events.length > 0 || prior === null || prior[slug] === undefined) changed = true
+    if (events.length > 0 || priorState === undefined) changed = true
     else if (read.full && read.cursor !== null) changed = true
 
     if (read.cursor === null) {

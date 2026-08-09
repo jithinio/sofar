@@ -4,7 +4,7 @@
 
 Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first consumer is CROSS-INITIATIVE GUARDS (pushed by the harness, needing no agent cooperation), then a priming line, then agent-initiated search. Maintained by per-initiative cursors so cost is O(new events). LOCAL and gitignored: derived state never merges, never syncs, rebuilds from truth. Zero model calls — the edges are recorded facts, so retrieval traverses them and cites the event id behind every result.
 
-Progress: 10/11 tasks done (90%)
+Progress: 11/11 tasks done (100%)
 
 ## Phase 1 — Incremental core [done] — 2/2 done
 
@@ -24,10 +24,9 @@ Progress: 10/11 tasks done (90%)
 - [x] 3.4 LAYER 3, `sofar find` + MCP tool: traverse from a seed (file, session, decision, initiative) with a hop budget; every result cites the event id that produced the edge. OFFERED as worth reading, never asserted — D2's declared-vs-derived rule.
 - [x] 3.5 Lexical seeds over decision/note prose (IDF-ranked, no model) so a text question resolves to seeds the traversal can expand
 
-## Phase 4 — Contract + proof [active] — 1/2 done
+## Phase 4 — Contract + proof [done] — 2/2 done
 
 - [x] 4.1 SPEC: index layout, cursor semantics, derived-never-truth, the guard un-scoping contract, retrieval authority split
-- [ ] 4.2 Equivalence proof: indexed answers byte-match from-logs answers on every fixture, and a corrupt/stale/absent index still returns the right answer via fallback
+- [x] 4.2 Equivalence proof: indexed answers byte-match from-logs answers on every fixture, and a corrupt/stale/absent index still returns the right answer via fallback
 
-Active phase: Phase 4 — Contract + proof
-Next action: Publish 0.25.0 (user runs `npm publish -w sofar.sh`, then reinstall global), then record-index 4.2 equivalence proof.
+Next action: Publish 0.25.1 (`npm publish -w sofar.sh`, then reinstall global) and close record-index.

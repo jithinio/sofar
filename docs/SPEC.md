@@ -700,6 +700,21 @@ only by `session_started`. An index that answered a slightly better question
 would be an index whose answers could not be checked against the logs. If a
 cap should be larger, the FOLD is the place to change it and this follows.
 
+ONE BOUNDARY, stated rather than left to be found (record-index 4.2). The fold
+derives a session's held files from the whole edge list at the end, so a
+`file_touched` is attributed wherever that session is registered in the log;
+Tier 0 replays event by event and can only attribute a touch to a session it
+has already seen registered. A touch sorting BEFORE its own `session_started`
+therefore goes to the fold and not to Tier 0. Reaching it needs those two
+events to invert in ulid order — monotonic within a process, so it takes two of
+the session's short-lived processes (the MCP server, a hook shim) landing in
+the same MILLISECOND with the random halves falling the wrong way; measured
+over this repo's record, 0 of 172 registered sessions. It is left open because
+closing it means STORING every touch of every unregistered session in the file
+read on each prompt (here: 11 sessions, 318 touches), and the error runs toward
+silence — a held file is missed, never invented. Tier 0 alone is affected: the
+derived and reach halves attribute a touch by its own event.
+
 **Retrieval authority — the ladder (record-index D2).** Relevance the record's
 author DECLARED may be asserted; relevance the engine DERIVED may only be
 offered:
@@ -2453,6 +2468,23 @@ stay the underlying derivation's, and exit codes are styling-independent.
   nothing but common words is a miss, not a weak guess; matches past the cap are
   counted, never dropped silently; matches are never presented as traversal hits;
   and the answer is byte-identical on a repeat and after a cold rebuild.
+- **Equivalence and fallback (record-index 4.2):** over a corpus of records
+  built one append at a time — a correction reaching back, a union merge out of
+  ulid order, a session that ends before it starts, prose whose bytes and
+  characters disagree, a path under two checkouts, lines the fold skips, an
+  initiative with no log — every tier's answer equals the from-logs answer
+  after EVERY append, compared as canonical JSON rather than field by field.
+  Then each record is answered from a warm index and the index is DAMAGED ten
+  ways — removed, emptied, truncated, garbled, version-bumped, shape-broken,
+  cursors pointing at the wrong line, and split so cursors and derived state
+  disagree in each direction — and every time the answer is still the one the
+  logs give, still right when asked twice, and repaired on disk rather than
+  recomputed forever. A log that grew, was rewritten under a plausible cursor,
+  or belonged to a deleted initiative is answered correctly without a refresh
+  in between. The index never writes into the record it derives from. The one
+  documented divergence (§Derived index, Tier 0 and a touch that sorts before
+  its own registration) is asserted in both directions, so it cannot widen
+  unnoticed.
 - **Reach stays off the hot path (record-index 4.1):** the shim bundle
   (`cli/fast.ts`), the router entry (`cli/boot.ts`), the event/PostToolUse
   entry (`cli/event.ts`) and the statusline carry no byte of `core/index-reach`
