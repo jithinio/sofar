@@ -22,7 +22,7 @@ Progress: 8/18 tasks done (44%)
 ## Phase 2b — trap set: repair the active set, then build out to T ~= 50 [active] — 1/5 done
 
 - [x] 2b.0 Premise screen (S9) built and run: prompts presupposing entities absent at the snapshot, or calling PRESENT entities new. 3 of the first 3 audited are defective (algrowth-D1, s2bench-w1-D2, s2bench-w2-D5)
-- [ ] 2b.1 Author `## premise` sections for the remaining 14 active traps and rule on every trap S9 flags — reword, retire, or keep-and-publish. No floor session runs on an unaudited trap: a defective trap spends floor money measuring prompt compliance
+- [ ] 2b.1 Author `## premise` sections for the remaining 14 active traps and rule on every trap S9 flags — reword, retire, or keep-and-publish. No floor session runs on an unaudited trap: a defective trap spends floor money measuring prompt compliance (active)
 - [ ] 2b.2 Desk-screen the 87 unreviewed leak survivors in candidates/screen-queue.json against S3/S3b/S4/S5/S6b AND S9, holding every screen as written; publish the attrition count by source
 - [ ] 2b.3 Author the survivors into authoring.json + traps/*.md, validate with validate-traps.py, and re-run leak-scan, dangling-scan and premise-scan over the enlarged set
 - [ ] 2b.4 Build and verify every new cell (seal, isolation, effort pin per D6/D11/D12), then re-run claim-arithmetic.py at the T actually reached — if T < 40, MATRIX §4's shortfall clause governs and the weaker bound is published with the count
@@ -40,5 +40,5 @@ Progress: 8/18 tasks done (44%)
 - [ ] 4.3 Version-stamped claim wording from the evidence only, incl. the 0.23.0->0.25.1 retarget and the T4 point-of-use delta — marketing copy comes only from this
 
 Active phase: Phase 2b — trap set: repair the active set, then build out to T ~= 50
-Next action: Author premise sections for the remaining 14 active traps, then rule on every trap S9 flags.
+Next action: Audit the 7 remaining traps named in the premise scan, then take the run owner's ruling on each of the 5 defective ones.
 Blocked on: task 3.1: Blocker moved again, and up a level. The cost blocker is resolved — the floor is fully priced at $1,134.65 (all 68 sessions, all 4 sources measured) and the cells are sealed and verified. What blocks the pilot now is Phase 2b: at 17 traps the certified run is 26 ruled variants x 3 arms = 78 sessions, a 3.85% ceiling even at a 100% spring rate, so no pilot or full run against this set can produce the <2% headline. Run-owner ruling 2026-08-09 is to build the set out toward T ~= 50 first. The brillo rebalance lever is rejected on claim strength (it would cut 9 of 26 ruled variants), superseding the cost framing it was queued under.
