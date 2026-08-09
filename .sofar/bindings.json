@@ -1,6 +1,5 @@
 {
   "main": "drift-certification",
   "peer-messaging": "peer-messaging",
-  "cross-initiative-conflicts": "cross-initiative-conflicts",
-  "record-citations": "record-citations"
+  "cross-initiative-conflicts": "cross-initiative-conflicts"
 }
