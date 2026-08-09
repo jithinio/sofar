@@ -31,4 +31,4 @@ Progress: 6/12 tasks done (50%)
 - [ ] 4.3 Version-stamped claim wording from the evidence only (e.g. "0/n recurrences on 0.23.0, cross-model, blind-graded, 95% UB x%") — marketing copy comes only from this
 
 Active phase: Phase 1 — pre-registration freeze (before ANY run)
-Next action: When stage-1 matrix exits: report per-session wall/cost to the run owner to green-light the remaining 15 traps (60 sessions); retry timeouts once; no floor grading until all 20 traps have run.
+Next action: Verify the isolated smoke cell records host_isolation and completes, then relaunch stage-1 floor (5 traps x k=4, P/opus, jobs=4) from a clean runs dir.
