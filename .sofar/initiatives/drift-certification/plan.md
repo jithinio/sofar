@@ -31,4 +31,4 @@ Progress: 6/12 tasks done (50%)
 - [ ] 4.3 Version-stamped claim wording from the evidence only (e.g. "0/n recurrences on 0.23.0, cross-model, blind-graded, 95% UB x%") — marketing copy comes only from this
 
 Active phase: Phase 1 — pre-registration freeze (before ANY run)
-Next action: When the matrix exits: re-run the same run-matrix command once to retry timeouts, then grade P-cell walk-ins (2-of-4 floor), publish retirements; queue spares brillo-design-consistency-D12/D26 may only join before the full run.
+Next action: Run owner rules on floor relaunch shape: full 80-session run as pre-registered, or a staged tranche (e.g. 5 traps × 4 = 20 sessions) to calibrate wall/cost first — staging changes nothing statistical (floor is per-trap, retirement stays at the pilot boundary).
