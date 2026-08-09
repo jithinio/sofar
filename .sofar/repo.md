@@ -94,11 +94,15 @@
   Tailwind resolves every path relative to the STYLESHEET, so suggested
   directives are computed per stylesheet (like sofarExclusionDirective) and
   live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.
-- Searching fold.ts (record-index M1): packages/engine/src/core/fold.ts holds
-  literal NUL bytes (a map key built as `${index}\0${session}\0${subject}`), so
-  grep and ripgrep call it binary and print NOTHING — silently, exit 0. A
-  symbol that lives there reads as nonexistent. Use `rg -a`/`grep -a` on that
-  file, or follow the import from a module that uses the symbol.
+- A literal NUL byte makes a file invisible to grep (record-index M1,
+  record-index M3, peer-messaging M1):
+  grep and ripgrep classify the file as binary and print NOTHING — silently,
+  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with
+  `file <path>` (it says "data") and confirm with `grep -a`. core/fold.ts
+  carried two, as separators in a composite map key; FIXED 2026-08-09 by
+  spelling the separator as a backslash-u-0000 escape, which yields an
+  identical string from an ASCII source. Write separators that way, and keep
+  NULs out of event prose too — one there makes events.jsonl binary to grep.
 - Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`
   subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the
   code already describe it, and the parts that generalize are covered by

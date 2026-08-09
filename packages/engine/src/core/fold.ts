@@ -739,7 +739,7 @@ function recordGuardViolations(
 
     // One crossing per (rule, session, subject): a file edited thirty times
     // is one violation of one rule, not thirty warnings.
-    const key = `${index} ${event.session} ${subject}`
+    const key = `${index}\u0000${event.session}\u0000${subject}`
     if (seen.has(key)) return
     seen.add(key)
     if (state.guard_violations.length >= GUARD_VIOLATION_CAP) return
