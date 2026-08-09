@@ -4,19 +4,20 @@
 
 Goal: Turn the <2% drift claim into a version-stamped, defensible number: trap-based M4-rate certification of sofar 0.23.0 (standing constraints + read-back + point-of-use + guards) under the frozen handoff-bench discipline. Denominator = SPRUNG traps only; 0/n failures -> 95% upper bound ~= 3/n (rule of three), so <2% needs n>=150 sprung with zero recurrences (1 failure -> n>=235). Cross-model arms (write-back model A, resume model B) — the claim is about drift BETWEEN models and no existing run varies the model. MEASURES only: zero engine changes; machinery lives in ~/IO/handoff-bench (scenario3); findings that suggest engine changes are logged as proposals.
 
-Progress: 6/12 tasks done (50%)
+Progress: 6/13 tasks done (46%)
 
-## Phase 1 — pre-registration freeze (before ANY run) [active] — 3/3 done
+## Phase 1 — pre-registration freeze (before ANY run) [done] — 3/3 done
 
 - [x] 1.1 A3 amendment to handoff-bench RUBRIC.md: trap-based M4-rate, sprung-trap denominator, A1 informed-re-test convention applies, upper-bound reporting — frozen + committed
 - [x] 1.2 Trap spec + predictions frozen: how traps derive from ruled vs rule-less decisions (rule-less = ablation control), what counts as sprung vs walked-into, scoring anchors
 - [x] 1.3 Cross-model arm matrix decided with the user (which write/resume tools+models are runnable headless) and frozen: same snapshot, same record, same resume prompt
 
-## Phase 2 — machinery (scenario3 in handoff-bench) [pending] — 3/3 done
+## Phase 2 — machinery (scenario3 in handoff-bench) [active] — 3/4 done
 
 - [x] 2.1 Trap generator: candidate traps from real decision logs (every ruled decision + matched rule-less controls), spec-conformant packets
 - [x] 2.2 Runner: headless read-only probe resumptions per arm, resumable, usage+transcript capture (reuse S2 harness)
 - [x] 2.3 Blind grading: packets without arm labels, dual graders >=1 cross-family, verbatim-quote requirement per counted incident
+- [ ] 2.4 Dangling-reference screen: stripping a decision leaves sibling text referencing it ("load-bearing for the backlog decision"), a tell that survives the git seal and that `sofar doctor` does not see — it reports the stripped record as folding clean. Scan every P cell for text orphaned by its own strip, publish the count, and screen affected traps before the floor.
 
 ## Phase 3 — runs [pending] — 0/3 done
 
@@ -30,6 +31,6 @@ Progress: 6/12 tasks done (50%)
 - [ ] 4.2 Caveats log: every confound, grader provenance, workload count — none dropped
 - [ ] 4.3 Version-stamped claim wording from the evidence only (e.g. "0/n recurrences on 0.23.0, cross-model, blind-graded, 95% UB x%") — marketing copy comes only from this
 
-Active phase: Phase 1 — pre-registration freeze (before ANY run)
-Next action: Run owner rules on lever 1 (block Bash in the probe variant) — the only lever that cuts cost without changing what the number means; if taken, re-measure one session before re-projecting.
-Blocked on: task 3.1: Held by the run owner 2026-08-09 on cost, before any floor session. Machinery is verified ready (isolation, effort pin, version pin all confirmed in a clean smoke). Blocked on a scale ruling — see the SCALE REVIEW note and the cost-basis memory; lever 1 (block Bash in the probe) is the only option that cuts cost without weakening the claim.
+Active phase: Phase 2 — machinery (scenario3 in handoff-bench)
+Next action: Close task 2.4 (dangling-reference screen), then re-measure one sealed cell and put the cost ruling back to the run owner.
+Blocked on: task 3.1: Still blocked, but the blocker moved off cost. Every cell built before 2026-08-09 was recoverable and self-labelling, so no floor session may run until (a) task 2.4 closes the dangling-reference tell — the one leak the git seal does not cover — and (b) one instrumented session is re-measured on a sealed cell, since the $13.35/session basis was measured on cells where sessions spent turns detecting and repairing the doctoring. The cost ruling itself is deferred to that re-measure by run-owner ruling 2026-08-09; lever 1 is rejected on measurement. All pre-seal runs archived to runs/.archive-pre-seal/ so they cannot be mistaken for valid cells.
