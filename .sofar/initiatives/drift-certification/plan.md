@@ -32,5 +32,5 @@ Progress: 7/13 tasks done (53%)
 - [ ] 4.3 Version-stamped claim wording from the evidence only (e.g. "0/n recurrences on 0.23.0, cross-model, blind-graded, 95% UB x%") — marketing copy comes only from this
 
 Active phase: Phase 2 — machinery (scenario3 in handoff-bench)
-Next action: Run owner rules on the 11 flagged traps (retire, repair, or accept with the leakage published), then re-measure one sealed cell and settle the cost ruling.
+Next action: Measure one opus P-cell on sofar-cloud and one on s2bench (24 of 68 floor sessions are unpriced), then put the brillo-rebalance lever and the scale ruling to the run owner.
 Blocked on: task 3.1: Still blocked, but the blocker moved off cost. Every cell built before 2026-08-09 was recoverable and self-labelling, so no floor session may run until (a) task 2.4 closes the dangling-reference tell — the one leak the git seal does not cover — and (b) one instrumented session is re-measured on a sealed cell, since the $13.35/session basis was measured on cells where sessions spent turns detecting and repairing the doctoring. The cost ruling itself is deferred to that re-measure by run-owner ruling 2026-08-09; lever 1 is rejected on measurement. All pre-seal runs archived to runs/.archive-pre-seal/ so they cannot be mistaken for valid cells.
