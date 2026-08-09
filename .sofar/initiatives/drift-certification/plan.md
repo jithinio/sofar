@@ -31,4 +31,4 @@ Progress: 6/12 tasks done (50%)
 - [ ] 4.3 Version-stamped claim wording from the evidence only (e.g. "0/n recurrences on 0.23.0, cross-model, blind-graded, 95% UB x%") — marketing copy comes only from this
 
 Active phase: Phase 1 — pre-registration freeze (before ANY run)
-Next action: Smoke one cell end to end under both fixes (host isolation + effort pin), confirm meta records host_isolation/ambient_user_config, then relaunch stage-1 floor (5 traps x k=4, P/opus, jobs=4).
+Next action: On smoke completion verify meta shows effortLevel=high, crossSessionInbound=refuse, sofar 0.25.1, per-cell ports; then relaunch stage-1 floor (5 traps x k=4, P/opus, jobs=4).
