@@ -17,4 +17,4 @@ Progress: 5/5 tasks done (100%)
 
 - [x] 2.1 sofar doctor detector: resolve every §Name in hand-written docs and source comments against real SPEC/FORMAT headings and **Bold label** sub-sections; WARN with a nearest-heading hint. Detection only, never rewrites. Catches the rename-drift case a convention cannot (D1).
 
-Next action: Push record-citations and open the PR; the initiative is complete at 5/5.
+Next action: drift-certification 3.1: run the P-cell temptation floor (opus, k=4) over the 15 traps; decide first whether to author up to ~20.
