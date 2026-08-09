@@ -19,7 +19,7 @@ import {
 } from '../src/projections/templates/shared'
 
 /**
- * task-drop-state acceptance (SPEC §Acceptance "Dropped tasks"):
+ * task-drop-state acceptance (SPEC §Acceptance criteria, "Dropped tasks"):
  *   D1 `dropped` is terminal and counted as its own third term
  *   D2 an unknown status inside plan_updated never rejects the whole plan
  *   D3 a drop must carry a reason

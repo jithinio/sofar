@@ -18,7 +18,7 @@ import { renderFullStatus, renderStatus, STATUS_CHAR_LIMIT } from '../src/projec
 import { clipBlockDetect, clipDetect, describeFreshness } from '../src/projections/templates/shared'
 
 /**
- * Staleness-detection acceptance (SPEC §Acceptance "Staleness"):
+ * Staleness-detection acceptance (SPEC §Acceptance criteria, "Staleness"):
  *   4.1 fold-time freshness (counting, reset, determinism)
  *   4.2 render surfacing (presence/absence, budgets, 10k worst case,
  *       clipped-summary pointer)

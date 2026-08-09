@@ -16,7 +16,7 @@ import { startMockCloud, type MockCloud } from './helpers/mock-cloud'
 /**
  * Pull — since-cursor paging, dedupe import, separate cursors, and the
  * round-trip acceptance: push → pull into a fresh clone → zero-diff status
- * (sync-client 3.2, SPEC §Acceptance).
+ * (sync-client 3.2, SPEC §Acceptance criteria).
  */
 
 const scratch = mkdtempSync(join(tmpdir(), 'sofar-client-pull-'))

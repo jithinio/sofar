@@ -35,7 +35,7 @@ import { stripAnsi, type Caps } from '../src/cli/ui'
 import { callToolText, connectServer, makeRepoFixture, type Fixture } from './helpers/mcp'
 
 /**
- * CLI UI acceptance (cli-ui 3.3) — the SPEC §Acceptance "CLI UI" criteria,
+ * CLI UI acceptance (cli-ui 3.3) — the SPEC §Acceptance criteria, "CLI UI",
  * exercised end-to-end over the pure handlers (caps injected — tests never
  * fake capability detection except where detection itself is under test):
  *

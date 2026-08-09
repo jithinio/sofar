@@ -3,7 +3,7 @@ import { dirname } from 'node:path'
 import { validateEnvelope, type EventEnvelope } from './envelope'
 
 /**
- * Append-only event log I/O (SPEC §Envelope rules).
+ * Append-only event log I/O (SPEC §Event envelope).
  *
  * Atomicity contract: each event is serialized to exactly one line and
  * written with a single write() on a fd opened with O_APPEND. POSIX
@@ -19,7 +19,7 @@ import { validateEnvelope, type EventEnvelope } from './envelope'
  * repos, and Postgres jsonb reorders payload keys server-side, so anything
  * order-sensitive produces spurious diffs/merge conflicts on identical events.
  *
- * Rules (SPEC §Envelope):
+ * Rules (SPEC §Event envelope):
  * - Envelope fields in fixed schema order: v, id, ts, initiative, session,
  *   source, actor, user (omitted when absent), type, payload — the order the
  *   append path has always written, so canonical output byte-matches every

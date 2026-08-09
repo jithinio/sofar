@@ -17,7 +17,7 @@ import {
 
 /**
  * Record graph primitive (record-graph 1.2/1.3/1.4, SPEC §Record graph,
- * §Acceptance "Record graph"). Covers the four properties the derivation
+ * §Acceptance criteria, "Record graph"). Covers the four properties the derivation
  * is claimed on: determinism, tolerance, cross-initiative edge presence,
  * and citation-extraction precision.
  */

@@ -23,7 +23,7 @@ import { runStatus } from '../src/cli/status'
 import { callTool, connectServer } from './helpers/mcp'
 
 /**
- * Phase 4 acceptance (SPEC §Acceptance):
+ * Phase 4 acceptance (SPEC §Acceptance criteria):
  *  1. `sofar init` on a fresh repo yields a working end-to-end loop
  *     (start session → tool events → end session → status shows it)
  *  2. init is idempotent (second run changes nothing) — verified here

@@ -6,7 +6,7 @@ import { renderFullStatus, renderStatus, STATUS_CHAR_LIMIT } from '../src/projec
 import { callTool, callToolText, connectServer, makeRepoFixture } from './helpers/mcp'
 
 /**
- * Notes-in-digest acceptance (SPEC §Acceptance "Notes surfacing"):
+ * Notes-in-digest acceptance (SPEC §Acceptance criteria, "Notes surfacing"):
  *   4.1 fold selection (since-write-back window, straddle, void, determinism)
  *   4.2 render surfacing (budget, count cap, clip, absence, 10k worst case,
  *       digest/SessionStart parity via the shared renderStatus seam)

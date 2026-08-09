@@ -8,7 +8,7 @@ import { renderNextActions } from '../src/projections/templates/next'
 import { makeRepoFixture } from './helpers/mcp'
 
 /**
- * Next-actions acceptance (next-command 1.4, SPEC §Acceptance "Next
+ * Next-actions acceptance (next-command 1.4, SPEC §Acceptance criteria, "Next
  * actions"): one line per initiative in listing recency order, the
  * stale-suffix rules (drifted → suffix with count; fresh or never-written-
  * back → none), warnings to stderr with exit 0, and the empty-repo hint.

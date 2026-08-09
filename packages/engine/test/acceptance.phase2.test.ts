@@ -21,7 +21,7 @@ import {
 } from './helpers/mcp'
 
 /**
- * Phase 2 acceptance (SPEC §Acceptance):
+ * Phase 2 acceptance (SPEC §Acceptance criteria):
  *  - each tool call appends exactly its event and projections regenerate
  *  - invalid payloads rejected with typed errors (and zero appends)
  *  - get_state resolves initiative from branch binding

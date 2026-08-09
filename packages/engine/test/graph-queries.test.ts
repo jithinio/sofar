@@ -16,8 +16,9 @@ import {
 
 /**
  * Record graph queries (record-graph 2.1-2.4, SPEC §Record graph,
- * §Acceptance "Record graph"): cross-initiative provenance, co-touched-file
- * neighbours, observed repo-generality, and the ordering/cap contract.
+ * §Acceptance criteria, "Record graph"): cross-initiative provenance,
+ * co-touched-file neighbours, observed repo-generality, and the ordering/cap
+ * contract.
  */
 
 const roots: string[] = []

@@ -2,7 +2,7 @@
 /**
  * cli-ui 3.3 live-fire — drive the BUILT bundle (packages/engine/dist/cli.js)
  * through a real repo lifecycle, once per env mode, and assert the SPEC
- * §Acceptance "CLI UI" byte laws against actual process stdout/stderr:
+ * §Acceptance criteria, "CLI UI" byte laws against actual process stdout/stderr:
  *
  *   sequence: init → new → new --no-bind → status → list → doctor →
  *             switch → uninit → doctor (broken wiring → exit 1)

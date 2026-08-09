@@ -36,7 +36,7 @@ program
   .version(version)
   // Registration only: the UI kernel (cli/ui/caps.ts) reads these straight
   // from process.argv, so commander merely has to accept them anywhere on
-  // the line (SPEC §CLI UI ladder). --no-color also defines the paired
+  // the line (SPEC §CLI UI, ladder). --no-color also defines the paired
   // opts.color default; the value is unused.
   .option('--color', 'force styled output, even piped')
   .option('--no-color', 'plain output, even on a TTY')

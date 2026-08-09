@@ -11,12 +11,34 @@ contracts.
 - Dependencies: @modelcontextprotocol/sdk, commander, chokidar (watcher),
   ulid. Nothing else without logging a Decision.
 - Tests: vitest; every core module ships with tests; acceptance criteria in
-  docs/SPEC.md §Acceptance define "done" — do not mark a task complete
-  without its criteria passing.
+  docs/SPEC.md §Acceptance criteria define "done" — do not mark a task
+  complete without its criteria passing.
 - Commits: small, one per task where possible, message prefixed with the
   task id (e.g. "1.3: atomic append with O_APPEND").
 - Errors: never corrupt the log. Unknown/corrupt event lines are skipped
   with a warning during fold, never fatal, never rewritten.
+
+### Citing things (the § rule)
+`§` cites a section of a HAND-WRITTEN document only — docs/SPEC.md,
+docs/FORMAT.md, CLAUDE.md. NEVER a generated file (plan.md, decisions.md,
+memory.md, sessions/*.md): those render from events.jsonl, so a heading
+there is a projection that templates can change, while the id underneath
+is truth. Never a function's output either.
+
+- Name the target VERBATIM and WHOLE — a `##`/`###` heading, or one of
+  SPEC's `**Bold label**` sub-sections: `§Acceptance criteria`, not
+  `§Acceptance`; `§Event envelope`, not `§Envelope`.
+- Keep the citation on ONE line. A `§Sync` / `client` line-wrap is
+  unresolvable by search even though it reads fine.
+- CLOSE it when the next word could read as part of the heading — comma,
+  parens, or reword. `§Acceptance criteria, Phase 4` ✓ · `(§CLI UI)` ✓ ·
+  `the ladder in §CLI UI:` ✓ · `§CLI UI ladder` ✗ (is the section named
+  "CLI UI ladder"?).
+- Numbered docs take the number: `FORMAT.md §5.5`.
+
+Tasks, phases and decisions are NOT document sections — cite them by id,
+never with `§`: `record-index 4.2`, `cross-initiative-conflicts 2.2`,
+`speed T2`, `Phase 3 — Contract + proof`, `D17`, `felt-cost D3`.
 
 ## Guard-rails (scope law for the Fable window)
 - DO NOT build: any UI, the sync service/backend, team/identity features,

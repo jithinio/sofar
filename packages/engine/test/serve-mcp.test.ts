@@ -14,7 +14,7 @@ import { startServer, type ServeHandle } from '../src/cli/serve'
 import { makeRepoFixture, type Fixture } from './helpers/mcp'
 
 /**
- * speed T3 — the persistent MCP daemon (SPEC §MCP tools transport, §CLI
+ * speed T3 — the persistent MCP daemon (SPEC §MCP tools, transport, §CLI,
  * serve). The 7-tool surface is FROZEN; this suite proves the transport
  * changed and nothing else:
  *  - tool parity stdio vs HTTP: a genuinely SPAWNED `sofar mcp` stdio

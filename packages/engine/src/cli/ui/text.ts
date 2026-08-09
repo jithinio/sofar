@@ -13,7 +13,7 @@
 // erase-line), and OSC/DCS-style strings terminated by BEL or ST — not
 // just the `m`-final semantic-16 subset sofar's own styles emit. Record
 // prose can carry arbitrary escapes; the styled layouts must degrade all
-// of them (SPEC §CLI UI color law), so an SGR-only strip is not enough.
+// of them (SPEC §CLI UI, color law), so an SGR-only strip is not enough.
 // eslint-disable-next-line no-control-regex
 const ANSI_RE =
   /[\x1b\x9b][[\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\d/#&.:=?%@~_]+)*|[a-zA-Z\d]+(?:;[-a-zA-Z\d/#&.:=?%@~_]*)*)?(?:\x07|\x1b\x5c|\x9c))|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g
@@ -28,7 +28,7 @@ export function stripAnsi(s: string): string {
 }
 
 /**
- * Record-prose sanitizer (SPEC §CLI UI color law): ANSI sequences
+ * Record-prose sanitizer (SPEC §CLI UI, color law): ANSI sequences
  * stripped, then leftover control bytes dropped, so a hostile or
  * accidental escape inside a log degrades to plain printable characters
  * before any styling wraps it. Newlines and tabs survive — one-line slots

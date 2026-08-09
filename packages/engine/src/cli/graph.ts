@@ -59,8 +59,8 @@ function plural(n: number, one: string, many = `${one}s`): string {
  * Render-time path shortening for BODY lines: a recorded path under this root
  * shows repo-relative, anything else stays verbatim. Identity is never
  * shortened — `sofar why`'s Paths block prints the recorded paths as recorded,
- * because those ARE the node ids the answer was joined on (SPEC §Path
- * identity: one logical file accumulates a node per checkout it was edited
+ * because those ARE the node ids the answer was joined on (SPEC §Path identity
+ * : one logical file accumulates a node per checkout it was edited
  * from, and no prefix rule recovers that).
  */
 function shortPath(rootDir: string, path: string): string {

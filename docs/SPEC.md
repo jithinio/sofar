@@ -289,7 +289,7 @@ task_status_changed events that were skipped at replay AND whose task id
 is absent from the FINAL plan — replay-time skips later legitimized by a
 task_added/plan_updated (clock-skew ordering, D-sync-1 rider b) are NOT
 orphans. Additive; InitiativeState itself is unchanged.
-Git state (record-integrity 4.1) is DERIVED at render time and never
+**Git state** (record-integrity 4.1) is DERIVED at render time and never
 recorded: core/git.ts readGitState(rootDir) resolves branch, local tip
 (refs/heads/<branch>), and origin tip (refs/remotes/origin/<branch>) from
 loose refs then packed-refs, yielding {branch, head, upstream, synced}.
@@ -549,10 +549,11 @@ into the SessionStart block or the `sofar_get_state` digest, which would put
 an N-log read behind every session start and spend the digest budget on
 adjacency.
 
-Rendering follows the §CLI UI ladder: capability-gated styling over a shared
-section model, so the styled path paints the plain one rather than re-deriving
-it. Plain output is WIDTH-INDEPENDENT — prose clipped at a fixed budget, never
-wrapped to `$COLUMNS` — so piped output is byte-stable across terminals.
+Rendering follows the ladder in §CLI UI: capability-gated styling over a
+shared section model, so the styled path paints the plain one rather than
+re-deriving it. Plain output is WIDTH-INDEPENDENT — prose clipped at a fixed
+budget, never wrapped to `$COLUMNS` — so piped output is byte-stable across
+terminals.
 
 **Consolidation (record-graph 4.1-4.3) — where the ONE rule lives.** The
 adjacency vocabulary and the single emission rule live in `core/adjacency.ts`,
@@ -689,7 +690,7 @@ parse and rewrite:
 
 Read frequency, not taste, draws these lines — and they coincide with D2's
 authority split, which is usually what a real boundary looks like. Measured
-costs and the pins are in §Hooks and §Acceptance.
+costs and the pins are in §Hooks and §Acceptance criteria.
 
 **FAITHFUL, NOT BETTER.** Every tier mirrors the fold's and the graph's
 semantics exactly, including their limits: first-touch order and
@@ -1121,8 +1122,9 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   hide every other session's unwritten work from the block entirely. A
   last-session summary cut by its budget carries `(clipped — full text in
   sessions/<id>.md)` INSIDE the budget. Un-absorbed notes (notes-in-digest
-  2.1) render as a budgeted section under the staleness line — see §MCP
-  get_state digest for the exact rule; both surfaces share renderStatus.
+  2.1) render as a budgeted section under the staleness line — see
+  §MCP tools, get_state digest, for the exact rule; both surfaces share
+  renderStatus.
   File-locality hint (speed T4): directly under the "Current task" line,
   ONE budgeted line `files: a.ts, b.ts, …` naming the active task's
   task_files (§State) — at most 8 files, most-recent first, 300-char clip,
@@ -1324,7 +1326,7 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   false positive stop real work (drift-hardening D3).
   UN-SCOPED, which is the point: the subject is tested against EVERY guarded
   decision in the repo via the Tier 1 declared index, not against the bound
-  initiative's decisions alone. The fold's own guard check (§State
+  initiative's decisions alone. The fold's own guard check (§State,
   guard_violations) replays ONE log against THAT log's decisions, so a rule
   declared in one initiative had never been tested against work appended to
   another — structurally, not rarely.
@@ -1474,9 +1476,9 @@ Shims contain no logic — they invoke the sofar CLI.
   `<slug> D<n>` or `<slug> M<n>`. Unqualified handles cannot count — repo.md has
   no home initiative, so a bare handle would be ambiguous repo-wide; prose
   matching would be inference (felt-cost D3) and would rot on either side's
-  rewording. DETECTION ONLY, always WARN: repo.md is hand-written per §Record
-  layout and sofar never generates or rewrites it, so both the curation and the
-  SessionStart token budget stay the author's (record-graph 3.3);
+  rewording. DETECTION ONLY, always WARN: repo.md is hand-written per
+  §Record layout and sofar never generates or rewrites it, so both the curation
+  and the SessionStart token budget stay the author's (record-graph 3.3);
   (7) scanner hazards (Tailwind v4 entry stylesheet lacking a
   `@source not` exclusion for `.sofar`). Record-health, concurrency and
   repo-memory findings
@@ -1607,8 +1609,8 @@ Shims contain no logic — they invoke the sofar CLI.
   — per-initiative NDJSON over the §Cursor primitive; slug resolves like
   status (explicit wins, else branch binding) (extended Phase 4, BD28)
 - `sofar login` / `sofar link` / `sofar push` / `sofar pull [--watch]`
-  — the v2 sync client against api.sofar.sh; full contract in §Sync
-  client (sync-client, Jul 2026).
+  — the v2 sync client against api.sofar.sh; full contract in
+  §Sync client (sync-client, Jul 2026).
 - `sofar event <subcommand>` — append-side surface: session-start,
   post-tool, stop, session-end are internal subcommands for the hook shims;
   `event append --type <event_type> --payload <json-object> [--session <id>]
@@ -1710,7 +1712,7 @@ Shims contain no logic — they invoke the sofar CLI.
 - `sofar serve [--port 4173]` — chokidar watch on .sofar/ → GET /state
   (JSON InitiativeState per initiative), Server-Sent Events on change;
   plus the opt-in MCP endpoint at /mcp (streamable HTTP, POST/GET/DELETE,
-  one isolated server handle per MCP session — §MCP tools transports,
+  one isolated server handle per MCP session — §MCP tools, transports;
   speed T3). Still 127.0.0.1 only, JSON only.
   EVERY request must carry a loopback `Host` naming the listening port, and
   an `Origin` that is either absent (not a browser) or itself loopback;
@@ -1806,9 +1808,9 @@ shims and the protocol block are files in the repo, speed-2 T6).
 
 Egress: the refresh child runs `npm view sofar.sh version` against the
 user's configured registry. This is the same query `sofar upgrade --check`
-has always made and carries no record content — the §Architectural
-invariants ban on model calls and the "nothing else ever leaves the
-machine" rule are about USER CONTENT, and a dist-tag lookup sends none.
+has always made and carries no record content — the ban on model calls in
+§Architectural invariants and the "nothing else ever leaves the machine"
+rule are about USER CONTENT, and a dist-tag lookup sends none.
 
 ## CLI UI (terminal rendering — human surfaces only)
 Rendering kernel: src/cli/ui/ — caps, style, symbols, text, frames,
@@ -1961,8 +1963,8 @@ combination, FORCE_COLOR and `--color` included):
 - SessionStart hook stdout (renderStatus context block), Stop hook stderr
   block message, PostToolUse/SessionEnd — src/cli/event.ts
 - `sofar event append` {ok, event_id} / typed-error JSON output
-- `sofar export` NDJSON stdout and `sofar import` report (§Cursor
-  primitive)
+- `sofar export` NDJSON stdout and `sofar import` report
+  (§Cursor primitive)
 - generated projections on disk (plan.md, decisions.md, sessions/*.md) —
   src/projections/**
 - `sofar serve` HTTP response bodies

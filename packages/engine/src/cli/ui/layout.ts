@@ -188,7 +188,7 @@ function taskLine(task: TaskState, s: Style, sym: Symbols, pulse = false): strin
   }
 }
 
-/** Same staleness content as renderFullStatus's §Staleness, itemized. */
+/** Same staleness content as renderFullStatus's staleness block, itemized. */
 function stalenessItems(state: InitiativeState): string[] {
   const items: string[] = []
   const drift = freshnessTotal(state.freshness)

@@ -3,7 +3,7 @@ import { validateEnvelope, type EventEnvelope } from './envelope'
 import { appendEvents, serializeEvent } from './log'
 
 /**
- * Cursor primitive (SPEC §Cursor) — the entire future sync interface.
+ * Cursor primitive (SPEC §Cursor primitive) — the entire future sync interface.
  * export(sinceId?) → NDJSON of events with id > sinceId, ordered by ulid.
  * import(stream)   → appends events not already present (dedupe by id).
  * Both are per-initiative: one call operates on one events.jsonl.

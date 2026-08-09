@@ -51,9 +51,9 @@ a bug in the adapter layer.
 ## 3. Manual verification checklist (convention fallback)
 
 Run this in a real OpenCode session to prove the AGENTS.md dialect drives
-read → work → write-back (SPEC §Acceptance Phase 5). Steps 1–3 are operator
-setup in a terminal; steps 4–12 are what the OpenCode agent should do when
-told: *"Follow the sofar protocol in AGENTS.md; the initiative's task v1
+read → work → write-back (SPEC §Acceptance criteria, Phase 5). Steps 1–3 are
+operator setup in a terminal; steps 4–12 are what the OpenCode agent should
+do when told: *"Follow the sofar protocol in AGENTS.md; the initiative's task v1
 is your work item — mark it done, log one decision, then finish."* Verify
 each expected outcome before moving on.
 
