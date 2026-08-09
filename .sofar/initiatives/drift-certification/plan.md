@@ -20,7 +20,7 @@ Progress: 6/12 tasks done (50%)
 
 ## Phase 3 — runs [pending] — 0/3 done
 
-- [ ] 3.1 Pilot (~15 sprung traps, one model pair): sanity the sprung/walked-into classifier and grading before scale — no headline from pilot
+- [ ] 3.1 Pilot (~15 sprung traps, one model pair): sanity the sprung/walked-into classifier and grading before scale — no headline from pilot (blocked)
 - [ ] 3.2 Full run: n>=150 sprung traps on 0.23.0 across the frozen model matrix
 - [ ] 3.3 Blind grading of the full run
 
@@ -31,4 +31,5 @@ Progress: 6/12 tasks done (50%)
 - [ ] 4.3 Version-stamped claim wording from the evidence only (e.g. "0/n recurrences on 0.23.0, cross-model, blind-graded, 95% UB x%") — marketing copy comes only from this
 
 Active phase: Phase 1 — pre-registration freeze (before ANY run)
-Next action: On smoke completion verify meta shows effortLevel=high, crossSessionInbound=refuse, sofar 0.25.1, per-cell ports; then relaunch stage-1 floor (5 traps x k=4, P/opus, jobs=4).
+Next action: Run owner rules on lever 1 (block Bash in the probe variant) — the only lever that cuts cost without changing what the number means; if taken, re-measure one session before re-projecting.
+Blocked on: task 3.1: Held by the run owner 2026-08-09 on cost, before any floor session. Machinery is verified ready (isolation, effort pin, version pin all confirmed in a clean smoke). Blocked on a scale ruling — see the SCALE REVIEW note and the cost-basis memory; lever 1 (block Bash in the probe) is the only option that cuts cost without weakening the claim.
