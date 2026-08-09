@@ -29,4 +29,4 @@ Progress: 11/11 tasks done (100%)
 - [x] 4.1 SPEC: index layout, cursor semantics, derived-never-truth, the guard un-scoping contract, retrieval authority split
 - [x] 4.2 Equivalence proof: indexed answers byte-match from-logs answers on every fixture, and a corrupt/stale/absent index still returns the right answer via fallback
 
-Next action: Merge/push branch record-index to main (never pushed), then pick the next initiative — a new session on this branch will be told to start or switch.
+Next action: Pick the next initiative — this branch is unbound, so start or switch on a fresh session.
