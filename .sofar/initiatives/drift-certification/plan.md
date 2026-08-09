@@ -4,7 +4,7 @@
 
 Goal: Turn the <2% drift claim into a version-stamped, defensible number: trap-based M4-rate certification of sofar 0.25.1 (standing constraints + read-back + point-of-use + guards) under the frozen handoff-bench discipline. Denominator = SPRUNG traps only; 0/n failures -> 95% upper bound ~= 3/n (rule of three), so <2% needs n>=150 sprung with zero recurrences (1 failure -> n>=235). n is bounded by the TRAP SET, not by budget: ruled variants x 3 arms = the whole headline pool, so T ~= 41-55 traps is a precondition for the claim, not an aspiration. Cross-model arms (write-back model A, resume model B) — the claim is about drift BETWEEN models and no existing run varies the model. MEASURES only: zero engine changes; machinery lives in ~/IO/handoff-bench (scenario3); findings that suggest engine changes are logged as proposals.
 
-Progress: 8/18 tasks done (44%)
+Progress: 9/18 tasks done (50%)
 
 ## Phase 1 — pre-registration freeze (before ANY run) [done] — 3/3 done
 
@@ -19,10 +19,10 @@ Progress: 8/18 tasks done (44%)
 - [x] 2.3 Blind grading: packets without arm labels, dual graders >=1 cross-family, verbatim-quote requirement per counted incident
 - [x] 2.4 Dangling-reference screen: stripping a decision leaves sibling text referencing it, a tell that survives the git seal and that `sofar doctor` does not see. Scan every P cell, publish the count, screen affected traps before the floor.
 
-## Phase 2b — trap set: repair the active set, then build out to T ~= 50 [active] — 1/5 done
+## Phase 2b — trap set: repair the active set, then build out to T ~= 50 [active] — 2/5 done
 
 - [x] 2b.0 Premise screen (S9) built and run: prompts presupposing entities absent at the snapshot, or calling PRESENT entities new. 3 of the first 3 audited are defective (algrowth-D1, s2bench-w1-D2, s2bench-w2-D5)
-- [ ] 2b.1 Author `## premise` sections for the remaining 14 active traps and rule on every trap S9 flags — reword, retire, or keep-and-publish. No floor session runs on an unaudited trap: a defective trap spends floor money measuring prompt compliance (active)
+- [x] 2b.1 Author `## premise` sections for the remaining 14 active traps and rule on every trap S9 flags — reword, retire, or keep-and-publish. No floor session runs on an unaudited trap: a defective trap spends floor money measuring prompt compliance
 - [ ] 2b.2 Desk-screen the 87 unreviewed leak survivors in candidates/screen-queue.json against S3/S3b/S4/S5/S6b AND S9, holding every screen as written; publish the attrition count by source
 - [ ] 2b.3 Author the survivors into authoring.json + traps/*.md, validate with validate-traps.py, and re-run leak-scan, dangling-scan and premise-scan over the enlarged set
 - [ ] 2b.4 Build and verify every new cell (seal, isolation, effort pin per D6/D11/D12), then re-run claim-arithmetic.py at the T actually reached — if T < 40, MATRIX §4's shortfall clause governs and the weaker bound is published with the count
@@ -40,5 +40,5 @@ Progress: 8/18 tasks done (44%)
 - [ ] 4.3 Version-stamped claim wording from the evidence only, incl. the 0.23.0->0.25.1 retarget and the T4 point-of-use delta — marketing copy comes only from this
 
 Active phase: Phase 2b — trap set: repair the active set, then build out to T ~= 50
-Next action: Audit the 7 remaining traps named in the premise scan, then take the run owner's ruling on each of the 5 defective ones.
+Next action: Take the run owner's ruling on the 8 defective traps and on retiring the s2bench source whole.
 Blocked on: task 3.1: Blocker moved again, and up a level. The cost blocker is resolved — the floor is fully priced at $1,134.65 (all 68 sessions, all 4 sources measured) and the cells are sealed and verified. What blocks the pilot now is Phase 2b: at 17 traps the certified run is 26 ruled variants x 3 arms = 78 sessions, a 3.85% ceiling even at a 100% spring rate, so no pilot or full run against this set can produce the <2% headline. Run-owner ruling 2026-08-09 is to build the set out toward T ~= 50 first. The brillo rebalance lever is rejected on claim strength (it would cut 9 of 26 ruled variants), superseding the cost framing it was queued under.
