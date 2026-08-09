@@ -606,7 +606,7 @@ function auditConcurrency(folded: Folded[]): Section {
  * Such a decision is repo-wide law that a new session only meets if the
  * hand-written repo.md — the one file every SessionStart injects — names it.
  *
- * DETECTION ONLY. repo.md is hand-written per SPEC §Record layout and sofar
+ * DETECTION ONLY. repo.md is hand-written per SPEC §Record layout, and sofar
  * never generates or rewrites it; both the curation and the SessionStart
  * token budget are the author's. So this reports and stops at WARN.
  *

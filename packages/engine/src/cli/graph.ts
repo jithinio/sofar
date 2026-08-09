@@ -128,7 +128,7 @@ function whyBlocks(p: FileProvenance): Block[] {
       title: `Decisions (${p.decisions.length + p.omitted.decisions})`,
       // The record knows which session logged a decision and which files that
       // session touched — never that the decision was ABOUT the file. Say so
-      // on the surface (SPEC §Record graph Queries).
+      // on the surface (SPEC §Record graph, Queries).
       caveat: 'logged by a session that also touched this path — two-hop, not necessarily about it',
       entries: p.decisions.map((d) => ({
         head: `${d.initiative}  ${day(d.ts)}  via ${d.via_session}`,

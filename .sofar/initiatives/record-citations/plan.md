@@ -4,7 +4,7 @@
 
 Goal: One citation grammar for the record: § points only into hand-written documents (SPEC.md, FORMAT.md, CLAUDE.md), named verbatim, on one line, closed when the next word could extend the heading. Tasks, phases and decisions are cited by id, never §. Generated projections are never § targets because their headings render from events.jsonl and templates can change them, while the id underneath is truth. Fixes the existing broken refs in hand-written docs and source comments; append-only history is left alone.
 
-Progress: 4/5 tasks done (80%)
+Progress: 5/5 tasks done (100%)
 
 ## Phase 1 — The rule and the existing damage [done] — 4/4 done
 
@@ -13,8 +13,8 @@ Progress: 4/5 tasks done (80%)
 - [x] 1.3 Fix the 46 broken refs in source comments across 37 files — §Acceptance→§Acceptance criteria, §Envelope→§Event envelope, §Cursor→§Cursor primitive, comma-locators for sub-parts, line-joins; §Staleness dropped (it cited a function's output, not a document)
 - [x] 1.4 Validator run clean across docs/SPEC.md, docs/FORMAT.md, docs/opencode-adapter.md and all of packages/*/src + packages/*/test; build, typecheck and 1443 tests green
 
-## Phase 2 — Mechanical enforcement [pending] — 0/1 done
+## Phase 2 — Mechanical enforcement [pending] — 1/1 done
 
-- [ ] 2.1 sofar doctor detector: resolve every §Name in hand-written docs and source comments against real SPEC/FORMAT headings and **Bold label** sub-sections; WARN with a nearest-heading hint. Detection only, never rewrites. Catches the rename-drift case a convention cannot (D1).
+- [x] 2.1 sofar doctor detector: resolve every §Name in hand-written docs and source comments against real SPEC/FORMAT headings and **Bold label** sub-sections; WARN with a nearest-heading hint. Detection only, never rewrites. Catches the rename-drift case a convention cannot (D1).
 
-Next action: 2.1: the sofar doctor detector resolving §Name against real SPEC/FORMAT headings, WARN-only.
+Next action: Push record-citations and open the PR; the initiative is complete at 5/5.

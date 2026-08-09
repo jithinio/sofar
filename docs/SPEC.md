@@ -2260,7 +2260,7 @@ stay the underlying derivation's, and exit codes are styling-independent.
   import-lock precedent), and the speed T2 shim-latency pin still passes.
   Consolidation was GO/NO-GO and resolved GO: task_files and activity are
   re-expressed as pure functions of one emitted edge list (core/adjacency.ts,
-  §Record graph Consolidation), and the graph unions those per-log lists
+  §Record graph, Consolidation), and the graph unions those per-log lists
   instead of walking events itself. BYTE-IDENTICAL was the gate and was
   measured against the pre-consolidation engine over the live record — whole
   graph in order, plus every fold — with the byte-stability and shim-latency
