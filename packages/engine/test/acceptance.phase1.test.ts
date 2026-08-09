@@ -1,5 +1,5 @@
 /**
- * Phase 1 acceptance (SPEC §Acceptance) — one integrated scenario driving
+ * Phase 1 acceptance (SPEC §Acceptance criteria) — one integrated scenario driving
  * every bullet against the same log:
  *   1. 1k concurrent appends from 4 processes → zero lost/interleaved lines
  *   2. fold of a log with an injected corrupt line succeeds with warning

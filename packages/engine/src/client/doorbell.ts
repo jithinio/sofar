@@ -1,8 +1,8 @@
 import { ApiError, defaultSleep, toApiError, type FetchLike, type Sleep } from './http'
 
 /**
- * Doorbell — the SSE notification channel (sync-client 3.3, SPEC §Sync
- * client). NOTIFICATION ONLY: data always flows through pull. `data:` events
+ * Doorbell — the SSE notification channel (sync-client 3.3, SPEC §Sync client
+ * ). NOTIFICATION ONLY: data always flows through pull. `data:` events
  * are {"stream":"<repo_id>/<slug>","head":"<ulid>"}; `: heartbeat` comments
  * arrive every ~25s. On any ring — and on every (re)connect after a drop —
  * the caller does a since-cursor pull, so a missed doorbell can never lose

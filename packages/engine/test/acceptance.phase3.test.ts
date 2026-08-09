@@ -18,7 +18,7 @@ import {
 import { makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
 
 /**
- * Phase 3 acceptance (SPEC §Acceptance):
+ * Phase 3 acceptance (SPEC §Acceptance criteria):
  *  1. SessionStart output ≤10,000 chars on a large synthetic initiative
  *  2. Stop shim blocks a session lacking session_ended, passes one that has it
  *  3. stop_hook_active loop guard verified

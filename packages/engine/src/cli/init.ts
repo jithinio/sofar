@@ -19,7 +19,7 @@ import sessionEndShim from '../hooks/session-end.sh'
  *   AGENTS.md (CLI convention dialect for MCP-less tools — task 5.1, BD31).
  *
  * Idempotency is BYTE-LEVEL: a file is written only when its target content
- * differs, so a second run changes nothing (SPEC §Acceptance Phase 4).
+ * differs, so a second run changes nothing (SPEC §Acceptance criteria, Phase 4).
  * Hand-written files are sacred: repo.md is never overwritten; CLAUDE.md
  * outside (and inside) the markers is never touched once the block exists;
  * settings.json/.mcp.json are merged, never clobbered — unparseable JSON in

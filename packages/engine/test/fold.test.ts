@@ -65,7 +65,7 @@ function lines(events: EventEnvelope[]): string[] {
 }
 
 describe('foldLines', () => {
-  it('folds a well-formed log into the SPEC §State shape', () => {
+  it('folds a well-formed log into the shape in SPEC §State', () => {
     const events = storyline()
     const { state, warnings } = foldLines(lines(events))
 

@@ -32,7 +32,7 @@ import {
 /**
  * Task 4.1 — `sofar init`. Fresh-repo artifact contents, merge-not-clobber
  * for user-owned files, repo.md sanctity, and BYTE-LEVEL idempotency
- * (SPEC §Acceptance Phase 4 bullet 2: second run changes nothing).
+ * (SPEC §Acceptance criteria, Phase 4 bullet 2: second run changes nothing).
  */
 
 const here = fileURLToPath(new URL('.', import.meta.url))

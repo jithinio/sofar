@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 
 /**
  * Record-graph hot-path exclusion (record-graph 3.4, SPEC §Record graph
- * "Never in the hot path", §Acceptance).
+ * "Never in the hot path", §Acceptance criteria).
  *
  * buildGraph reads EVERY initiative log in the repo where a hook shim can
  * afford one fold (speed T2's 100ms end-to-end budget), and the shims fire on

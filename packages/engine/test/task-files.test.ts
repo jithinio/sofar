@@ -5,8 +5,8 @@ import { serializeEvent } from '../src/core/log'
 import { renderStatus, STATUS_CHAR_LIMIT } from '../src/projections/templates/status'
 
 /**
- * speed T4 — file-locality hints (SPEC §State task_files, §Hooks
- * SessionStart, §Acceptance speed T4). Derived ONLY from existing
+ * speed T4 — file-locality hints (SPEC §State, task_files; §Hooks,
+ * SessionStart; §Acceptance criteria, speed T4). Derived ONLY from existing
  * file_touched events at replay time: zero new event types, zero new
  * capture, deterministic, byte-stability-safe.
  */

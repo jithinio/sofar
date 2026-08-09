@@ -15,8 +15,8 @@ import { STOP_BLOCK_MESSAGE } from '../src/cli/event'
  * asserts every "expected record outcome" the checklist promises — so the
  * checklist can never drift from what the CLI actually does.
  *
- * This does NOT replace the manual OpenCode run (SPEC §Acceptance Phase 5):
- * only a real OpenCode session can prove an unmodified agent follows the
+ * This does NOT replace the manual OpenCode run (SPEC §Acceptance criteria,
+ * Phase 5): only a real OpenCode session can prove an unmodified agent follows the
  * AGENTS.md convention. It proves the checklist is ACCURATE.
  */
 

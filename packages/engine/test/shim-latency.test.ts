@@ -10,7 +10,7 @@ import { makeEvent, type EventEnvelope } from '../src/core/envelope'
 import { serializeEvent } from '../src/core/log'
 
 /**
- * speed T2 — the shim-latency budget pin (SPEC §Acceptance, speed).
+ * speed T2 — the shim-latency budget pin (SPEC §Acceptance criteria, speed).
  *
  * Every hook shim fires on the user's critical path (SessionStart before the
  * first token, Stop/UserPromptSubmit between turns), so each one must

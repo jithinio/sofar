@@ -3,7 +3,7 @@ import { validateEnvelope, type EventEnvelope } from '../src/core/envelope'
 import { serializeEvent } from '../src/core/log'
 
 /**
- * 0.9.1 — canonical envelope serialization (SPEC §Envelope).
+ * 0.9.1 — canonical envelope serialization (SPEC §Event envelope).
  *
  * serializeEvent must be a pure function of the envelope VALUE, independent
  * of key insertion order: envelope fields in fixed schema order, payload

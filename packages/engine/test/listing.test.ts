@@ -13,7 +13,7 @@ import {
 import { callToolExpectError, callToolText, connectServer, makeRepoFixture } from './helpers/mcp'
 
 /**
- * Listing acceptance (initiative-list 4.2, SPEC §Acceptance "Listing"):
+ * Listing acceptance (initiative-list 4.2, SPEC §Acceptance criteria, "Listing"):
  * derivation over several initiatives incl. empty logs and corrupt
  * bindings, recency ordering, determinism, and both renders' budgets.
  */

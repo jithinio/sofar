@@ -11,7 +11,7 @@ import { makeEvent } from '../src/core/envelope'
 import { appendEvents } from '../src/core/log'
 
 /**
- * LIVE E2E (sync-client 5.2, SPEC §Acceptance) — runs only when
+ * LIVE E2E (sync-client 5.2, SPEC §Acceptance criteria) — runs only when
  * SOFAR_LIVE_API points at a running api.sofar.sh, e.g. a local one:
  *
  *   cd ../sofar-cloud/apps/api

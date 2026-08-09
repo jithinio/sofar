@@ -6,12 +6,12 @@ import { errMessage, fail, ok, type CmdResult } from './shared'
 
 /**
  * `sofar export [slug] [--since <id>]` / `sofar import <file|-> [slug]`
- * (task 4.4, SPEC §CLI/§Cursor) — thin CLI wrappers over core/cursor.ts, the
- * entire future sync interface. Initiative resolution matches status/MCP
- * (explicit slug wins, else branch binding — BD16). Export writes NDJSON to
- * stdout; import reads a captured stream, dedupes by id (idempotent), prints
- * an {appended, skipped} JSON summary, and regenerates projections when
- * anything new landed.
+ * (task 4.4, SPEC §CLI, §Cursor primitive) — thin CLI wrappers over
+ * core/cursor.ts, the entire future sync interface. Initiative resolution
+ * matches status/MCP (explicit slug wins, else branch binding — BD16). Export
+ * writes NDJSON to stdout; import reads a captured stream, dedupes by id
+ * (idempotent), prints an {appended, skipped} JSON summary, and regenerates
+ * projections when anything new landed.
  */
 
 export interface ExportOptions {

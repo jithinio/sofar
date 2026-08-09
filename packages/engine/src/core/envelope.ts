@@ -7,8 +7,9 @@ import { gitUserEmail } from './identity'
 const ulid = monotonicFactory()
 
 /**
- * Event envelope (SPEC §Envelope) — v1, stable. Payloads evolve (src/schema/),
- * the envelope does not. One JSON object per line in events.jsonl.
+ * Event envelope (SPEC §Event envelope) — v1, stable. Payloads evolve
+ * (src/schema/), the envelope does not. One JSON object per line in
+ * events.jsonl.
  */
 
 export const ENVELOPE_VERSION = 1 as const

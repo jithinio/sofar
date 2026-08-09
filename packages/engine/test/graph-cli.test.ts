@@ -12,8 +12,8 @@ import { serializeEvent } from '../src/core/log'
 
 /**
  * The record-graph surfaces (record-graph 3.1/3.2/3.3, SPEC §CLI,
- * §Acceptance "Record graph"): `sofar why <path>`, `sofar related <task-id>`,
- * and doctor's repo-general finding.
+ * §Acceptance criteria, "Record graph"): `sofar why <path>`, `sofar related
+ * <task-id>`, and doctor's repo-general finding.
  *
  * What these pin, beyond "it renders": the cross-initiative answer the fold
  * cannot produce reaches the surface intact; the `+N more` sentinel exists

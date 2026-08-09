@@ -59,8 +59,8 @@ function plural(n: number, one: string, many = `${one}s`): string {
  * Render-time path shortening for BODY lines: a recorded path under this root
  * shows repo-relative, anything else stays verbatim. Identity is never
  * shortened — `sofar why`'s Paths block prints the recorded paths as recorded,
- * because those ARE the node ids the answer was joined on (SPEC §Path
- * identity: one logical file accumulates a node per checkout it was edited
+ * because those ARE the node ids the answer was joined on (SPEC §Path identity
+ * : one logical file accumulates a node per checkout it was edited
  * from, and no prefix rule recovers that).
  */
 function shortPath(rootDir: string, path: string): string {
@@ -128,7 +128,7 @@ function whyBlocks(p: FileProvenance): Block[] {
       title: `Decisions (${p.decisions.length + p.omitted.decisions})`,
       // The record knows which session logged a decision and which files that
       // session touched — never that the decision was ABOUT the file. Say so
-      // on the surface (SPEC §Record graph Queries).
+      // on the surface (SPEC §Record graph, Queries).
       caveat: 'logged by a session that also touched this path — two-hop, not necessarily about it',
       entries: p.decisions.map((d) => ({
         head: `${d.initiative}  ${day(d.ts)}  via ${d.via_session}`,

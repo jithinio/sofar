@@ -19,7 +19,7 @@ import { type Caps, createStyle, stderrCaps } from './ui'
  *   /state/<slug>  → single InitiativeState (404 unknown)          (GET)
  *   /events        → SSE: `event: state` + {slug, state} JSON pushed when a
  *                    chokidar watch sees an events.jsonl append (≤500ms,
- *                    SPEC §Acceptance Phase 4); `: heartbeat` every 15s.
+ *                    SPEC §Acceptance criteria, Phase 4); `: heartbeat` every 15s.
  *   /mcp           → the frozen 8-tool MCP surface over streamable HTTP
  *                    (speed T3): POST for JSON-RPC, GET for the notification
  *                    stream, DELETE for session termination. One FRESH

@@ -1,6 +1,6 @@
 /**
- * Event payload schemas + validation — the swappable part (SPEC §Event
- * types, BD6). This directory is the ONLY home for payload shapes; the
+ * Event payload schemas + validation — the swappable part (SPEC §Event types
+ * , BD6). This directory is the ONLY home for payload shapes; the
  * envelope (src/core/envelope.ts) is stable and lives outside it.
  */
 
