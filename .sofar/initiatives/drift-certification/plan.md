@@ -2,9 +2,9 @@
 
 # Plan: drift-certification
 
-Goal: Turn the <2% drift claim into a version-stamped, defensible number: trap-based M4-rate certification of sofar 0.23.0 (standing constraints + read-back + point-of-use + guards) under the frozen handoff-bench discipline. Denominator = SPRUNG traps only; 0/n failures -> 95% upper bound ~= 3/n (rule of three), so <2% needs n>=150 sprung with zero recurrences (1 failure -> n>=235). Cross-model arms (write-back model A, resume model B) — the claim is about drift BETWEEN models and no existing run varies the model. MEASURES only: zero engine changes; machinery lives in ~/IO/handoff-bench (scenario3); findings that suggest engine changes are logged as proposals.
+Goal: Turn the <2% drift claim into a version-stamped, defensible number: trap-based M4-rate certification of sofar 0.25.1 (standing constraints + read-back + point-of-use + guards) under the frozen handoff-bench discipline. Denominator = SPRUNG traps only; 0/n failures -> 95% upper bound ~= 3/n (rule of three), so <2% needs n>=150 sprung with zero recurrences (1 failure -> n>=235). n is bounded by the TRAP SET, not by budget: ruled variants x 3 arms = the whole headline pool, so T ~= 41-55 traps is a precondition for the claim, not an aspiration. Cross-model arms (write-back model A, resume model B) — the claim is about drift BETWEEN models and no existing run varies the model. MEASURES only: zero engine changes; machinery lives in ~/IO/handoff-bench (scenario3); findings that suggest engine changes are logged as proposals.
 
-Progress: 7/13 tasks done (53%)
+Progress: 7/16 tasks done (43%)
 
 ## Phase 1 — pre-registration freeze (before ANY run) [done] — 3/3 done
 
@@ -12,25 +12,31 @@ Progress: 7/13 tasks done (53%)
 - [x] 1.2 Trap spec + predictions frozen: how traps derive from ruled vs rule-less decisions (rule-less = ablation control), what counts as sprung vs walked-into, scoring anchors
 - [x] 1.3 Cross-model arm matrix decided with the user (which write/resume tools+models are runnable headless) and frozen: same snapshot, same record, same resume prompt
 
-## Phase 2 — machinery (scenario3 in handoff-bench) [active] — 4/4 done
+## Phase 2 — machinery (scenario3 in handoff-bench) [done] — 4/4 done
 
 - [x] 2.1 Trap generator: candidate traps from real decision logs (every ruled decision + matched rule-less controls), spec-conformant packets
 - [x] 2.2 Runner: headless read-only probe resumptions per arm, resumable, usage+transcript capture (reuse S2 harness)
 - [x] 2.3 Blind grading: packets without arm labels, dual graders >=1 cross-family, verbatim-quote requirement per counted incident
-- [x] 2.4 Dangling-reference screen: stripping a decision leaves sibling text referencing it ("load-bearing for the backlog decision"), a tell that survives the git seal and that `sofar doctor` does not see — it reports the stripped record as folding clean. Scan every P cell for text orphaned by its own strip, publish the count, and screen affected traps before the floor.
+- [x] 2.4 Dangling-reference screen: stripping a decision leaves sibling text referencing it, a tell that survives the git seal and that `sofar doctor` does not see. Scan every P cell, publish the count, screen affected traps before the floor.
+
+## Phase 2b — trap set build-out to T ~= 50 (precondition for <2%) [active] — 0/3 done
+
+- [ ] 2b.1 Desk-screen the 87 unreviewed leak survivors against S3/S3b/S4/S5/S6b, holding every screen as written; record a verdict per candidate and publish the attrition count by source
+- [ ] 2b.2 Author the survivors into authoring.json + traps/*.md, validate with validate-traps.py, and re-run leak-scan and dangling-scan (S8) over the enlarged set
+- [ ] 2b.3 Build and verify every new cell (seal, isolation, effort pin per D6/D11/D12), then re-project n and the achievable 95% upper bound at the T actually reached — if T < 40, MATRIX §4's shortfall clause governs and the weaker bound is published with the count
 
 ## Phase 3 — runs [pending] — 0/3 done
 
 - [ ] 3.1 Pilot (~15 sprung traps, one model pair): sanity the sprung/walked-into classifier and grading before scale — no headline from pilot (blocked)
-- [ ] 3.2 Full run: n>=150 sprung traps on 0.23.0 across the frozen model matrix
+- [ ] 3.2 Full run: n>=150 sprung traps on 0.25.1 across the frozen model matrix
 - [ ] 3.3 Blind grading of the full run
 
 ## Phase 4 — evidence + claim [pending] — 0/3 done
 
 - [ ] 4.1 Rate + 95% upper bound overall and per model pair; sprung/candidate ratio reported (unsprung traps are not evidence)
 - [ ] 4.2 Caveats log: every confound, grader provenance, workload count — none dropped
-- [ ] 4.3 Version-stamped claim wording from the evidence only (e.g. "0/n recurrences on 0.23.0, cross-model, blind-graded, 95% UB x%") — marketing copy comes only from this
+- [ ] 4.3 Version-stamped claim wording from the evidence only, incl. the 0.23.0->0.25.1 retarget and the T4 point-of-use delta — marketing copy comes only from this
 
-Active phase: Phase 2 — machinery (scenario3 in handoff-bench)
-Next action: Measure one opus P-cell on sofar-cloud and one on s2bench (24 of 68 floor sessions are unpriced), then put the brillo-rebalance lever and the scale ruling to the run owner.
-Blocked on: task 3.1: Still blocked, but the blocker moved off cost. Every cell built before 2026-08-09 was recoverable and self-labelling, so no floor session may run until (a) task 2.4 closes the dangling-reference tell — the one leak the git seal does not cover — and (b) one instrumented session is re-measured on a sealed cell, since the $13.35/session basis was measured on cells where sessions spent turns detecting and repairing the doctoring. The cost ruling itself is deferred to that re-measure by run-owner ruling 2026-08-09; lever 1 is rejected on measurement. All pre-seal runs archived to runs/.archive-pre-seal/ so they cannot be mistaken for valid cells.
+Active phase: Phase 2b — trap set build-out to T ~= 50 (precondition for <2%)
+Next action: Start task 2b.1: desk-screen the 87 candidates in candidates/screen-queue.json against S3, S3b, S4, S5 and S6b, and rule on the proposed premise-check screen first.
+Blocked on: task 3.1: Blocker moved again, and up a level. The cost blocker is resolved — the floor is fully priced at $1,134.65 (all 68 sessions, all 4 sources measured) and the cells are sealed and verified. What blocks the pilot now is Phase 2b: at 17 traps the certified run is 26 ruled variants x 3 arms = 78 sessions, a 3.85% ceiling even at a 100% spring rate, so no pilot or full run against this set can produce the <2% headline. Run-owner ruling 2026-08-09 is to build the set out toward T ~= 50 first. The brillo rebalance lever is rejected on claim strength (it would cut 9 of 26 ruled variants), superseding the cost framing it was queued under.
