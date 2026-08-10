@@ -2,9 +2,9 @@
 
 # Plan: drift-certification
 
-Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09 by run-owner ruling: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical-decision corpus is exhausted — 592 candidates survived end-to-end at 0.8%, and n>=150 sprung would need ~5,600. Authored constraints pass the leak and code-embodiment screens by construction; the temptation floor still gates entry, tightened to k=6 / 4-of-6 (D24) now that the author chooses the temptation, so an authored constraint that does not tempt is excluded. Concentration is governed per-repo at 40% with >=3 repos (D25), since the per-constraint cap is slack at this set size. Cost, accepted and stated in every report: the claim covers constraints planted for the benchmark, NOT decisions teams actually made. The 5 surviving historical traps run as a separately-reported validity anchor under the same gate, never pooled. Denominator = SPRUNG only; 0/n -> 95% UB ~= 3/n. MEASURES only: zero engine changes; machinery lives in ~/IO/handoff-bench.
+Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical corpus is exhausted at 0.8% end-to-end. PRE-REGISTRATION FROZEN 2026-08-10 (D29). Screens pass by construction; the temptation floor gates entry at k=6 / 4-of-6 (D24). Concentration is governed at two levels: 40% per repo with >=3 repos (D25) and at most ONE constraint per initiative (D27), since the digest renders every standing constraint of an initiative verbatim. Host pool reopened to 6 repos (D28) because one-per-initiative and the 40% cap are jointly infeasible on the old four. N is fixed at 4.1 on cost grounds alone, N<=70 (D29). Cost, stated in every report: the claim covers constraints planted for the benchmark, NOT decisions teams actually made. The 5 surviving historical traps run as a separately-reported anchor under the same gate, never pooled. Denominator = SPRUNG only; 0/n -> 95% UB ~= 3/n. MEASURES only: zero engine changes; machinery lives in ~/IO/handoff-bench.
 
-Progress: 13/24 tasks done (54%)
+Progress: 14/25 tasks done (56%)
 
 ## Phase 1 — scenario 3 pre-registration and machinery [done] — 7/7 done
 
@@ -20,33 +20,34 @@ Progress: 13/24 tasks done (54%)
 
 - [x] 2b.0 Premise screen (S9) built: prompts presupposing absent entities, or calling present entities new
 - [x] 2b.1 Premise audit of all 17 active traps — 9 clean, 7 broken on S9, 1 on S3b
-- [x] 2b.5 s2bench retired whole (structural record/repo mismatch); leak-scan.py's code-embodiment half fixed and made reproducible — 7 more traps disqualified, 5 survive both screens
+- [x] 2b.5 s2bench retired whole; leak-scan.py's code-embodiment half fixed and made reproducible — 7 more traps disqualified, 5 survive both screens
 - [x] 2b.6 Corpus exhaustion established: 592 -> 471 -> 122 -> 57 -> 20 -> 5 = 0.8% end-to-end; <2% unreachable from historical decisions at any budget
 
-## Phase 3 — scenario 4 pre-registration [active] — 2/3 done
+## Phase 3 — scenario 4 pre-registration [done] — 3/3 done
 
 - [x] 3.1 PRE-REGISTRATION.md drafted: corpus definition, authoring rules, validity threat model, inherited machinery, claim scope
-- [x] 3.2 Three open items settled and written into the pre-registration (D24 floor gate k=6/4-of-6; D25 per-repo cap 40% with >=3 repos; D26 band-match + blind discrimination test at CI upper < 0.65)
-- [ ] 3.3 Freeze the pre-registration with the run owner and commit it as the frozen artifact
+- [x] 3.2 Three open items settled (D24 floor gate k=6/4-of-6; D25 per-repo cap 40% with >=3 repos; D26 band-match + blind discrimination test at CI upper < 0.65)
+- [x] 3.3 Freeze review found the cap was at the wrong level: D27 one constraint per initiative, D28 host pool reopened to 6 repos. FROZEN 2026-08-10 with N's selection rule frozen in place of N (D29)
 
-## Phase 4 — authored constraint set [pending] — 0/4 done
+## Phase 4 — authored constraint set [active] — 0/5 done
 
-- [ ] 4.1 Author 45-60 constraints honouring D25's 40% per-repo cap and >=3 repos, each with a written prediction of the tempting default recorded BEFORE any floor session
+- [ ] 4.0 Price the three unpriced hosts (sofar, crisperflow, waylla) and build S7 host isolation for crisperflow and waylla — detached snapshot clones under bench-hosts/, neither exists yet and both have live origin remotes
+- [ ] 4.1 Run owner fixes N on cost grounds alone, N<=70 (D29), then author N constraints one per initiative (D27) honouring the 40% per-repo cap (D25), each with its tempting-default prediction written into PREDICTIONS.md and hash-stamped BEFORE any floor cell
 - [ ] 4.2 Verify every constraint mechanically: leak-scan clean, premise-scan clean, S4/S5 by hand, D26 band-match into the reference IQR; publish the verification output with the set
-- [ ] 4.3 Freeze the set, then run the temptation floor (k=6, 4-of-6 per D24, P cells, M-O) over the authored set AND the 5-constraint anchor; exclude every constraint that fails the gate; publish the prediction-vs-floor agreement rate
+- [ ] 4.3 Freeze the set in a frozen order, then run the temptation floor over EVERY authored constraint with no early stop (k=6, 4-of-6 per D24/D29, P cells, M-O) plus the 5-constraint anchor; publish the prediction-vs-floor agreement rate
 - [ ] 4.4 Run D26's blind discrimination test (~50 authored vs ~50 historical, decision text only, same-repo comparators) and publish accuracy with its 95% CI against the 0.65 bound
 
 ## Phase 5 — runs [pending] — 0/3 done
 
-- [ ] 5.1 Pilot on the frozen set: sanity the classifier and grading, measure the PER-ARM spring rate, and measure sofar's per-P-session cost (currently unmeasured, so the floor projection is a floor on the floor)
-- [ ] 5.2 Full run: n>=150 sprung across the three arms, plus the 5-constraint historical anchor on the same cells and the same 6/4-of gate
+- [ ] 5.1 Pilot on the frozen set: sanity the classifier and grading, and measure the PER-ARM spring rate. Projected sprung = V x 3 x spring_rate; below 150 the escalation ladder governs and nothing is added (D29)
+- [ ] 5.2 Full run across the three arms, plus the 5-constraint historical anchor on the same cells and the same 6/4-of gate
 - [ ] 5.3 Blind grading of the full run
 
 ## Phase 6 — evidence + claim [pending] — 0/3 done
 
 - [ ] 6.1 Rate + 95% upper bound overall and per arm; sprung/candidate ratio; per-repo n beside the headline (D25); authored set and historical anchor reported separately, never pooled
-- [ ] 6.2 Caveats log: construct validity first — planted constraints, not decisions teams made — then the thin rule-voice corpus (62 entries, 2 repos), confounds, grader provenance, per-arm spring divergence, source concentration
+- [ ] 6.2 Caveats log: construct validity first — planted constraints, not decisions teams made — then the thin rule-voice corpus (100 entries, 3 of 6 hosts have none), confounds, grader provenance, per-arm spring divergence, source concentration
 - [ ] 6.3 Version-stamped claim wording from the evidence only, carrying the authored/planted qualification in every form
 
-Active phase: Phase 3 — scenario 4 pre-registration
-Next action: Freeze the pre-registration with the run owner (3.3), then author the constraint set under the 40% per-repo cap.
+Active phase: Phase 4 — authored constraint set
+Next action: Price sofar, crisperflow and waylla, and build detached snapshot clones with S7 verification for the two new hosts (4.0) before the run owner fixes N.
