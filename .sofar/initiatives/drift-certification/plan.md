@@ -2,43 +2,50 @@
 
 # Plan: drift-certification
 
-Goal: Turn the <2% drift claim into a version-stamped, defensible number: trap-based M4-rate certification of sofar 0.25.1 (standing constraints + read-back + point-of-use + guards) under the frozen handoff-bench discipline. Denominator = SPRUNG traps only; 0/n failures -> 95% upper bound ~= 3/n (rule of three), so <2% needs n>=150 sprung with zero recurrences (1 failure -> n>=235). n is bounded by the TRAP SET, not by budget: ruled variants x 3 arms = the whole headline pool, so T ~= 41-55 traps is a precondition for the claim, not an aspiration. Cross-model arms (write-back model A, resume model B) — the claim is about drift BETWEEN models and no existing run varies the model. MEASURES only: zero engine changes; machinery lives in ~/IO/handoff-bench (scenario3); findings that suggest engine changes are logged as proposals.
+Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09 by run-owner ruling: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical-decision corpus is exhausted — 592 candidates survived end-to-end at 0.8%, and n>=150 sprung would need ~5,600. Authored constraints pass the leak and code-embodiment screens by construction; the temptation floor (k=4, 2-of-4) still gates entry, so an authored constraint that does not tempt is excluded. Cost, accepted and stated in every report: the claim covers constraints planted for the benchmark, NOT decisions teams actually made. The 5 surviving historical traps run as a separately-reported validity anchor, never pooled. Denominator = SPRUNG only; 0/n -> 95% UB ~= 3/n. MEASURES only: zero engine changes; machinery lives in ~/IO/handoff-bench.
 
-Progress: 9/18 tasks done (50%)
+Progress: 12/23 tasks done (52%)
 
-## Phase 1 — pre-registration freeze (before ANY run) [done] — 3/3 done
+## Phase 1 — scenario 3 pre-registration and machinery [done] — 7/7 done
 
-- [x] 1.1 A3 amendment to handoff-bench RUBRIC.md: trap-based M4-rate, sprung-trap denominator, A1 informed-re-test convention applies, upper-bound reporting — frozen + committed
-- [x] 1.2 Trap spec + predictions frozen: how traps derive from ruled vs rule-less decisions (rule-less = ablation control), what counts as sprung vs walked-into, scoring anchors
-- [x] 1.3 Cross-model arm matrix decided with the user (which write/resume tools+models are runnable headless) and frozen: same snapshot, same record, same resume prompt
+- [x] 1.1 RUBRIC.md §A3: M4-rate, sprung-only denominator, upper-bound reporting — frozen
+- [x] 1.2 TRAP-SPEC.md + PREDICTIONS.md frozen: cell ladder, sprung/walked-into anchors, scoring
+- [x] 1.3 MATRIX.md frozen: arms, allocation, claim scope
+- [x] 2.1 Trap generator, candidate extraction, spec-conformant packets
+- [x] 2.2 Runner: headless probe resumptions per arm, sealed and isolated cells, usage+transcript capture
+- [x] 2.3 Blind grading: unlabelled packets, dual graders >=1 cross-family, verbatim-quote requirement
+- [x] 2.4 Dangling-reference screen (S8)
 
-## Phase 2 — machinery (scenario3 in handoff-bench) [done] — 4/4 done
+## Phase 2 — what the historical corpus proved (kept: it is the reason for the re-scope) [done] — 4/4 done
 
-- [x] 2.1 Trap generator: candidate traps from real decision logs (every ruled decision + matched rule-less controls), spec-conformant packets
-- [x] 2.2 Runner: headless read-only probe resumptions per arm, resumable, usage+transcript capture (reuse S2 harness)
-- [x] 2.3 Blind grading: packets without arm labels, dual graders >=1 cross-family, verbatim-quote requirement per counted incident
-- [x] 2.4 Dangling-reference screen: stripping a decision leaves sibling text referencing it, a tell that survives the git seal and that `sofar doctor` does not see. Scan every P cell, publish the count, screen affected traps before the floor.
+- [x] 2b.0 Premise screen (S9) built: prompts presupposing absent entities, or calling present entities new
+- [x] 2b.1 Premise audit of all 17 active traps — 9 clean, 7 broken on S9, 1 on S3b
+- [x] 2b.5 s2bench retired whole (structural record/repo mismatch); leak-scan.py's code-embodiment half fixed and made reproducible — 7 more traps disqualified, 5 survive both screens
+- [x] 2b.6 Corpus exhaustion established: 592 -> 471 -> 122 -> 57 -> 20 -> 5 = 0.8% end-to-end; <2% unreachable from historical decisions at any budget
 
-## Phase 2b — trap set: repair the active set, then build out to T ~= 50 [active] — 2/5 done
+## Phase 3 — scenario 4 pre-registration [active] — 1/3 done
 
-- [x] 2b.0 Premise screen (S9) built and run: prompts presupposing entities absent at the snapshot, or calling PRESENT entities new. 3 of the first 3 audited are defective (algrowth-D1, s2bench-w1-D2, s2bench-w2-D5)
-- [x] 2b.1 Author `## premise` sections for the remaining 14 active traps and rule on every trap S9 flags — reword, retire, or keep-and-publish. No floor session runs on an unaudited trap: a defective trap spends floor money measuring prompt compliance
-- [ ] 2b.2 Desk-screen the 87 unreviewed leak survivors in candidates/screen-queue.json against S3/S3b/S4/S5/S6b AND S9, holding every screen as written; publish the attrition count by source
-- [ ] 2b.3 Author the survivors into authoring.json + traps/*.md, validate with validate-traps.py, and re-run leak-scan, dangling-scan and premise-scan over the enlarged set
-- [ ] 2b.4 Build and verify every new cell (seal, isolation, effort pin per D6/D11/D12), then re-run claim-arithmetic.py at the T actually reached — if T < 40, MATRIX §4's shortfall clause governs and the weaker bound is published with the count
+- [x] 3.1 PRE-REGISTRATION.md drafted: corpus definition, authoring rules, validity threat model, inherited machinery, claim scope
+- [ ] 3.2 Settle the three open items before freeze: phrasing-match procedure and how its fidelity is measured; whether the floor's k=4 / 2-of-4 gate tightens now that the author chooses the temptation; per-repo cap before source concentration binds
+- [ ] 3.3 Freeze the pre-registration with the run owner and commit it as the frozen artifact
 
-## Phase 3 — runs [pending] — 0/3 done
+## Phase 4 — authored constraint set [pending] — 0/3 done
 
-- [ ] 3.1 Pilot (~15 sprung traps, one model pair): sanity the sprung/walked-into classifier and grading before scale, and measure the PER-ARM spring rate — no headline from pilot (blocked)
-- [ ] 3.2 Full run: n>=150 sprung traps on 0.25.1 across the frozen model matrix
-- [ ] 3.3 Blind grading of the full run
+- [ ] 4.1 Author 45-60 constraints across the surviving repos, each with a written prediction of the tempting default recorded BEFORE any floor session
+- [ ] 4.2 Verify every constraint mechanically: leak-scan clean, premise-scan clean, S4/S5 by hand; publish the verification output with the set
+- [ ] 4.3 Freeze the set, then run the temptation floor (k=4, P cells, M-O) and exclude every constraint that fails the gate; publish the prediction-vs-floor agreement rate
 
-## Phase 4 — evidence + claim [pending] — 0/3 done
+## Phase 5 — runs [pending] — 0/3 done
 
-- [ ] 4.1 Rate + 95% upper bound overall and per model pair; sprung/candidate ratio reported (unsprung traps are not evidence)
-- [ ] 4.2 Caveats log: every confound, grader provenance, workload count — none dropped
-- [ ] 4.3 Version-stamped claim wording from the evidence only, incl. the 0.23.0->0.25.1 retarget and the T4 point-of-use delta — marketing copy comes only from this
+- [ ] 5.1 Pilot on the frozen set: sanity the classifier and grading, and measure the PER-ARM spring rate
+- [ ] 5.2 Full run: n>=150 sprung across the three arms, plus the 5-constraint historical anchor on the same cells
+- [ ] 5.3 Blind grading of the full run
 
-Active phase: Phase 2b — trap set: repair the active set, then build out to T ~= 50
-Next action: Put the corpus shortfall to the run owner: publish a weaker bound, widen to more repos, or re-scope the instrument.
-Blocked on: task 3.1: Blocker moved again, and up a level. The cost blocker is resolved — the floor is fully priced at $1,134.65 (all 68 sessions, all 4 sources measured) and the cells are sealed and verified. What blocks the pilot now is Phase 2b: at 17 traps the certified run is 26 ruled variants x 3 arms = 78 sessions, a 3.85% ceiling even at a 100% spring rate, so no pilot or full run against this set can produce the <2% headline. Run-owner ruling 2026-08-09 is to build the set out toward T ~= 50 first. The brillo rebalance lever is rejected on claim strength (it would cut 9 of 26 ruled variants), superseding the cost framing it was queued under.
+## Phase 6 — evidence + claim [pending] — 0/3 done
+
+- [ ] 6.1 Rate + 95% upper bound overall and per arm; sprung/candidate ratio; authored set and historical anchor reported separately, never pooled
+- [ ] 6.2 Caveats log: construct validity first — planted constraints, not decisions teams made — then confounds, grader provenance, per-arm spring divergence, source concentration
+- [ ] 6.3 Version-stamped claim wording from the evidence only, carrying the authored/planted qualification in every form
+
+Active phase: Phase 3 — scenario 4 pre-registration
+Next action: Settle the three open items in the pre-registration, then freeze it with the run owner.
