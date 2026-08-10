@@ -31,7 +31,7 @@ Progress: 14/25 tasks done (56%)
 
 ## Phase 4 — authored constraint set [active] — 0/5 done
 
-- [ ] 4.0 Price the three unpriced hosts (sofar, crisperflow, waylla) and build S7 host isolation for crisperflow and waylla — detached snapshot clones under bench-hosts/, neither exists yet and both have live origin remotes
+- [ ] 4.0 Price the three unpriced hosts (sofar, crisperflow, waylla) and build S7 host isolation for crisperflow and waylla — detached snapshot clones under bench-hosts/, neither exists yet and both have live origin remotes (active)
 - [ ] 4.1 Run owner fixes N on cost grounds alone, N<=70 (D29), then author N constraints one per initiative (D27) honouring the 40% per-repo cap (D25), each with its tempting-default prediction written into PREDICTIONS.md and hash-stamped BEFORE any floor cell
 - [ ] 4.2 Verify every constraint mechanically: leak-scan clean, premise-scan clean, S4/S5 by hand, D26 band-match into the reference IQR; publish the verification output with the set
 - [ ] 4.3 Freeze the set in a frozen order, then run the temptation floor over EVERY authored constraint with no early stop (k=6, 4-of-6 per D24/D29, P cells, M-O) plus the 5-constraint anchor; publish the prediction-vs-floor agreement rate
@@ -50,4 +50,4 @@ Progress: 14/25 tasks done (56%)
 - [ ] 6.3 Version-stamped claim wording from the evidence only, carrying the authored/planted qualification in every form
 
 Active phase: Phase 4 — authored constraint set
-Next action: Price sofar, crisperflow and waylla, and build detached snapshot clones with S7 verification for the two new hosts (4.0) before the run owner fixes N.
+Next action: Get the run owner's go-ahead to spend on pricing sofar, crisperflow and waylla — 2 to 3 opus P sessions per host against throwaway probe constraints that never join the set — since D20 forbids ruling on cost while the projection still prints a gap, and D29 needs that cost to fix N at 4.1.
