@@ -2,9 +2,9 @@
 
 # Plan: drift-certification
 
-Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09 by run-owner ruling: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical-decision corpus is exhausted — 592 candidates survived end-to-end at 0.8%, and n>=150 sprung would need ~5,600. Authored constraints pass the leak and code-embodiment screens by construction; the temptation floor (k=4, 2-of-4) still gates entry, so an authored constraint that does not tempt is excluded. Cost, accepted and stated in every report: the claim covers constraints planted for the benchmark, NOT decisions teams actually made. The 5 surviving historical traps run as a separately-reported validity anchor, never pooled. Denominator = SPRUNG only; 0/n -> 95% UB ~= 3/n. MEASURES only: zero engine changes; machinery lives in ~/IO/handoff-bench.
+Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09 by run-owner ruling: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical-decision corpus is exhausted — 592 candidates survived end-to-end at 0.8%, and n>=150 sprung would need ~5,600. Authored constraints pass the leak and code-embodiment screens by construction; the temptation floor still gates entry, tightened to k=6 / 4-of-6 (D24) now that the author chooses the temptation, so an authored constraint that does not tempt is excluded. Concentration is governed per-repo at 40% with >=3 repos (D25), since the per-constraint cap is slack at this set size. Cost, accepted and stated in every report: the claim covers constraints planted for the benchmark, NOT decisions teams actually made. The 5 surviving historical traps run as a separately-reported validity anchor under the same gate, never pooled. Denominator = SPRUNG only; 0/n -> 95% UB ~= 3/n. MEASURES only: zero engine changes; machinery lives in ~/IO/handoff-bench.
 
-Progress: 12/23 tasks done (52%)
+Progress: 13/24 tasks done (54%)
 
 ## Phase 1 — scenario 3 pre-registration and machinery [done] — 7/7 done
 
@@ -23,29 +23,30 @@ Progress: 12/23 tasks done (52%)
 - [x] 2b.5 s2bench retired whole (structural record/repo mismatch); leak-scan.py's code-embodiment half fixed and made reproducible — 7 more traps disqualified, 5 survive both screens
 - [x] 2b.6 Corpus exhaustion established: 592 -> 471 -> 122 -> 57 -> 20 -> 5 = 0.8% end-to-end; <2% unreachable from historical decisions at any budget
 
-## Phase 3 — scenario 4 pre-registration [active] — 1/3 done
+## Phase 3 — scenario 4 pre-registration [active] — 2/3 done
 
 - [x] 3.1 PRE-REGISTRATION.md drafted: corpus definition, authoring rules, validity threat model, inherited machinery, claim scope
-- [ ] 3.2 Settle the three open items before freeze: phrasing-match procedure and how its fidelity is measured; whether the floor's k=4 / 2-of-4 gate tightens now that the author chooses the temptation; per-repo cap before source concentration binds
+- [x] 3.2 Three open items settled and written into the pre-registration (D24 floor gate k=6/4-of-6; D25 per-repo cap 40% with >=3 repos; D26 band-match + blind discrimination test at CI upper < 0.65)
 - [ ] 3.3 Freeze the pre-registration with the run owner and commit it as the frozen artifact
 
-## Phase 4 — authored constraint set [pending] — 0/3 done
+## Phase 4 — authored constraint set [pending] — 0/4 done
 
-- [ ] 4.1 Author 45-60 constraints across the surviving repos, each with a written prediction of the tempting default recorded BEFORE any floor session
-- [ ] 4.2 Verify every constraint mechanically: leak-scan clean, premise-scan clean, S4/S5 by hand; publish the verification output with the set
-- [ ] 4.3 Freeze the set, then run the temptation floor (k=4, P cells, M-O) and exclude every constraint that fails the gate; publish the prediction-vs-floor agreement rate
+- [ ] 4.1 Author 45-60 constraints honouring D25's 40% per-repo cap and >=3 repos, each with a written prediction of the tempting default recorded BEFORE any floor session
+- [ ] 4.2 Verify every constraint mechanically: leak-scan clean, premise-scan clean, S4/S5 by hand, D26 band-match into the reference IQR; publish the verification output with the set
+- [ ] 4.3 Freeze the set, then run the temptation floor (k=6, 4-of-6 per D24, P cells, M-O) over the authored set AND the 5-constraint anchor; exclude every constraint that fails the gate; publish the prediction-vs-floor agreement rate
+- [ ] 4.4 Run D26's blind discrimination test (~50 authored vs ~50 historical, decision text only, same-repo comparators) and publish accuracy with its 95% CI against the 0.65 bound
 
 ## Phase 5 — runs [pending] — 0/3 done
 
-- [ ] 5.1 Pilot on the frozen set: sanity the classifier and grading, and measure the PER-ARM spring rate
-- [ ] 5.2 Full run: n>=150 sprung across the three arms, plus the 5-constraint historical anchor on the same cells
+- [ ] 5.1 Pilot on the frozen set: sanity the classifier and grading, measure the PER-ARM spring rate, and measure sofar's per-P-session cost (currently unmeasured, so the floor projection is a floor on the floor)
+- [ ] 5.2 Full run: n>=150 sprung across the three arms, plus the 5-constraint historical anchor on the same cells and the same 6/4-of gate
 - [ ] 5.3 Blind grading of the full run
 
 ## Phase 6 — evidence + claim [pending] — 0/3 done
 
-- [ ] 6.1 Rate + 95% upper bound overall and per arm; sprung/candidate ratio; authored set and historical anchor reported separately, never pooled
-- [ ] 6.2 Caveats log: construct validity first — planted constraints, not decisions teams made — then confounds, grader provenance, per-arm spring divergence, source concentration
+- [ ] 6.1 Rate + 95% upper bound overall and per arm; sprung/candidate ratio; per-repo n beside the headline (D25); authored set and historical anchor reported separately, never pooled
+- [ ] 6.2 Caveats log: construct validity first — planted constraints, not decisions teams made — then the thin rule-voice corpus (62 entries, 2 repos), confounds, grader provenance, per-arm spring divergence, source concentration
 - [ ] 6.3 Version-stamped claim wording from the evidence only, carrying the authored/planted qualification in every form
 
 Active phase: Phase 3 — scenario 4 pre-registration
-Next action: Settle the three open items in the pre-registration, then freeze it with the run owner.
+Next action: Freeze the pre-registration with the run owner (3.3), then author the constraint set under the 40% per-repo cap.
