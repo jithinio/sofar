@@ -40,5 +40,5 @@ Progress: 9/18 tasks done (50%)
 - [ ] 4.3 Version-stamped claim wording from the evidence only, incl. the 0.23.0->0.25.1 retarget and the T4 point-of-use delta — marketing copy comes only from this
 
 Active phase: Phase 2b — trap set: repair the active set, then build out to T ~= 50
-Next action: Take the run owner's ruling on the 8 defective traps and on retiring the s2bench source whole.
+Next action: Put the corpus shortfall to the run owner: publish a weaker bound, widen to more repos, or re-scope the instrument.
 Blocked on: task 3.1: Blocker moved again, and up a level. The cost blocker is resolved — the floor is fully priced at $1,134.65 (all 68 sessions, all 4 sources measured) and the cells are sealed and verified. What blocks the pilot now is Phase 2b: at 17 traps the certified run is 26 ruled variants x 3 arms = 78 sessions, a 3.85% ceiling even at a 100% spring rate, so no pilot or full run against this set can produce the <2% headline. Run-owner ruling 2026-08-09 is to build the set out toward T ~= 50 first. The brillo rebalance lever is rejected on claim strength (it would cut 9 of 26 ruled variants), superseding the cost framing it was queued under.
