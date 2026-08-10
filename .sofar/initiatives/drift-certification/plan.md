@@ -50,4 +50,4 @@ Progress: 14/25 tasks done (56%)
 - [ ] 6.3 Version-stamped claim wording from the evidence only, carrying the authored/planted qualification in every form
 
 Active phase: Phase 4 — authored constraint set
-Next action: Get the run owner's go-ahead to spend on pricing sofar, crisperflow and waylla — 2 to 3 opus P sessions per host against throwaway probe constraints that never join the set — since D20 forbids ruling on cost while the projection still prints a gap, and D29 needs that cost to fix N at 4.1.
+Next action: Rule on where an authored constraint is planted — the live repo or the snapshot clone — as a pre-run correction to the frozen section 2, before anything is authored at 4.1; crisperflow and waylla pricing is the only other gap and is just 12 percent of the floor.
