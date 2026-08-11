@@ -50,4 +50,4 @@ Progress: 14/25 tasks done (56%)
 - [ ] 6.3 Version-stamped claim wording from the evidence only, carrying the authored/planted qualification in every form
 
 Active phase: Phase 4 — authored constraint set
-Next action: Rule on where an authored constraint is planted — the live repo or the snapshot clone — as a pre-run correction to the frozen section 2, before anything is authored at 4.1; crisperflow and waylla pricing is the only other gap and is just 12 percent of the floor.
+Next action: Record the crisperflow and waylla P-cell prices when those two probes land, then hand the run owner the closed floor number so N can be fixed at 4.1.
