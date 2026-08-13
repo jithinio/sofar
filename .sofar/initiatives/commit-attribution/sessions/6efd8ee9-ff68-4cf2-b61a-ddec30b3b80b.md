@@ -6,19 +6,19 @@
 - Tool: claude-code
 - Model: claude-opus-5[1m]
 - Started: 2026-08-13T10:08:33.476Z
-- Ended: 2026-08-13T10:43:00.230Z
+- Ended: 2026-08-13T10:52:15.154Z
 
 ## Summary
 
-Ran the first review round this record has ever had — Phase 2 and Phase 3, both verdict `findings`, recorded via the CLI dialect because this session's MCP server is 0.25.1 and predates sofar_review. Phase 2 was recorded WITHOUT a watermark and Phase 3 WITH it, deliberately: the fold walks back to the most recent review carrying one (fold.ts:104), so two phases closing in one batch review the same range and advance it once. Verified live — after Phase 2 the range was unchanged, after Phase 3 it reads 3eefa2d..HEAD with no attributed commits, which the packet correctly renders as a finding in itself. Findings worth carrying: docs/SPEC.md does not merely lag this work, it CONTRADICTS it — the UserPromptSubmit section still says the shim is repo-level and reports "never your commits", justified by a full commit-graph walk and time-window attribution, both superseded by D4 and D6. SPEC is authoritative, so 5.4 must rewrite that passage rather than append to it, and part 5 of the packet is unanswerable meanwhile because §Acceptance criteria stops before this initiative. The first review's range is necessarily the whole initiative, so a phase packet lists one phase's tasks over a diff that is mostly another's — renderReviewPacket should say so when the watermark is null. Self-caught and fixed: core/shipwatch.ts documented its failure mode backwards, claiming an unstorable mark costs a repeated line when an unwritable index actually goes permanently silent. D5 verified EMPIRICALLY rather than by reading: with main bound to drift-certification, commit-trailer resolved this session to commit-attribution and an unregistered id wrote nothing. D16 verified inert on real history — no indented markers exist in 40 commits. Suite 1579 green.
+The delegated code-review pass landed and found a REAL BUG in code this record had already shipped to main and already reviewed `findings` without catching. landedNotice inflated a branch's first push: with no origin/branch to diff against it walked bare reachability from the new tip, so a feature branch cut from an already-pushed base reported 4 commits landed when 1 had arrived. Reproduced before accepting it, then fixed and verified 4 to 1. D17 amends D15, whose own wording ("walking reachability from the new tip instead of a delta") WAS the defect rather than a paraphrase of it: the first appearance of the ref now subtracts every other origin ref. Recorded for the next person, because it fails silently: `--exclude` is matched relative to refs/remotes/, so `origin/branch` is the only form git honours — the bare name and the full refname both exclude NOTHING and return an empty walk, which reads as "no news" rather than as an error. Two more shipwatch defects fixed from the same pass: eviction ordered by last WRITE starved a quiet session, so marks now refresh on every look; and the concurrency docblock claimed a lost race costs a MISSED line when it reverts the loser's mark and costs a DUPLICATE. All 13 remaining findings recorded as a follow-up review against Phase 4 rather than re-running the range. Two findings belonged to the peer's uncommitted session-orientation 2.2 and were routed to that record as a note, flagged as an early read of in-flight code. Suite 1581 green.
 
 ## Next action
 
-Do NOT re-review this range — the watermark is at 3eefa2d and a re-run renders empty by design. Next is 5.4, docs/SPEC.md, and it is now the critical path: the contradiction the Phase 2 review found means shipped code and the authoritative contract disagree, which is the one state CLAUDE.md says SPEC wins by default. Sequence it AFTER peer sofar-1b lands its session-orientation SPEC edit — that file had 36 uncommitted lines in flight this session, so start by re-reading it. The delegated /code-review pass was still running at 12 minutes when this closed; if it surfaces anything material, record it as a follow-up review event rather than re-running the range.
+5.4, docs/SPEC.md, now confirmed twice over — the delegated pass found it sharper than the Phase 2 review did: schema/test/tool-inputs.test.ts:12 was edited from "exactly the nine SPEC MCP tools" to "exactly the SPEC MCP tools", deleting the count that pinned the contract, and acceptance.phase2 was bumped 10 to 11, so the assertions were moved to follow the code instead of SPEC being brought forward. Re-read docs/SPEC.md first and sequence after peer sofar-1b lands its session-orientation edit. Then fold.ts:737, the highest-value open finding: review_recorded accrues no session debt, so a session whose whole job is a review can exit with no write-back.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 8 files (/Users/jins/IO/sofar/packages/engine/src/core/git.ts, /Users/jins/IO/sofar/packages/engine/src/core/shipwatch.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/docs/ARCHITECTURE.md, /Users/jins/IO/sofar/packages/engine/test/landed-notice.test.ts, /Users/jins/IO/sofar/packages/engine/test/record-integrity.test.ts, /Users/jins/IO/sofar/packages/engine/src/core/attribution.ts, /Users/jins/IO/sofar/packages/engine/test/attribution.test.ts), 128 commands, task changes: 3.4 → done, 2.3 → done
+- Derived: 8 files (/Users/jins/IO/sofar/packages/engine/src/core/git.ts, /Users/jins/IO/sofar/packages/engine/src/core/shipwatch.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/docs/ARCHITECTURE.md, /Users/jins/IO/sofar/packages/engine/test/landed-notice.test.ts, /Users/jins/IO/sofar/packages/engine/test/record-integrity.test.ts, /Users/jins/IO/sofar/packages/engine/src/core/attribution.ts, /Users/jins/IO/sofar/packages/engine/test/attribution.test.ts), 139 commands, task changes: 3.4 → done, 2.3 → done
 - Files:
   - /Users/jins/IO/sofar/packages/engine/src/core/git.ts
   - /Users/jins/IO/sofar/packages/engine/src/core/shipwatch.ts
@@ -28,7 +28,7 @@ Do NOT re-review this range — the watermark is at 3eefa2d and a re-run renders
   - /Users/jins/IO/sofar/packages/engine/test/record-integrity.test.ts
   - /Users/jins/IO/sofar/packages/engine/src/core/attribution.ts
   - /Users/jins/IO/sofar/packages/engine/test/attribution.test.ts
-- Commands run: 128
+- Commands run: 139
 - Task changes:
   - 3.4 → done
   - 2.3 → done

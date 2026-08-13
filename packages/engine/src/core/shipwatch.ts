@@ -32,11 +32,15 @@ import { readIndexFile, writeIndexFile } from './index-store'
  * what stops the repeat.
  *
  * CONCURRENCY: sessions share one worktree here, so they share this file. The
- * write is atomic, but a read-modify-write race between two prompts submitted
- * in the same millisecond can drop one session's mark. The loss degrades to a
- * missed announcement (that session reads as a first look, which is silent) —
- * never to a false one, since a mark is only ever replaced by a sha read from
- * the same refs.
+ * write is atomic, but a read-modify-write race between two prompts in the same
+ * instant REVERTS the loser's mark rather than dropping it — the winner writes
+ * back the copy it read, which still carries the loser's OLD sha. So the loser
+ * does not read as a first look (silent); it re-detects the same movement and
+ * announces the push a second time. Stated plainly because the first version of
+ * this comment claimed the opposite, and the difference is the whole
+ * edge-trigger property: the race costs a DUPLICATE line, never a missed one,
+ * and never a wrong attribution, since a mark is only ever replaced by a sha
+ * read from the same refs.
  */
 
 /** Filename inside the index dir. Version lives in the payload, not the name. */
@@ -130,8 +134,8 @@ function readMarks(sofarDir: string): Record<string, WatchMark> {
  * halves must see the same file: reading the mark and then writing it back from
  * a second read is how a session announces the same push twice.
  *
- * Writes ONLY when the mark actually changes, so a quiet session pays one read
- * per prompt and no write at all.
+ * Writes on every look, not only on change — see the note at the write itself:
+ * ordering marks by last LOOK is what stops eviction starving a quiet session.
  *
  * Best-effort throughout — the index writer swallows its own failures — and the
  * two shapes that failure takes are worth stating exactly, because they are
@@ -160,13 +164,20 @@ export function noteUpstream(
   // A mark taken on another branch describes a different ref entirely, so it
   // is no evidence about this one — treated as a first look, never as movement.
   const usable = prior !== undefined && prior.branch === branch ? prior : undefined
-  if (usable !== undefined && usable.upstream === upstream) return { previous: upstream, moved: false }
 
+  // Refresh on EVERY look, even when nothing moved, so `seq` orders marks by
+  // last LOOK rather than last WRITE. Write-order alone starves the quiet
+  // session: one that has seen no push never rewrites, its seq freezes, and
+  // SHIPWATCH_MAX_MARKS writes by busier sessions evict a window that is still
+  // live — so the push it was waiting for is precisely the one it never hears,
+  // its next look reading as a first look and staying silent. That defeats the
+  // cap's stated guarantee, and the extra cost is one small write per prompt.
   marks[sessionId] = { branch, upstream, seq: nextSeq(marks) }
   writeIndexFile(sofarDir, SHIPWATCH_FILE, { version: SHIPWATCH_VERSION, marks: evict(marks) })
 
-  return usable === undefined
-    ? { previous: null, moved: false }
+  if (usable === undefined) return { previous: null, moved: false }
+  return usable.upstream === upstream
+    ? { previous: upstream, moved: false }
     : { previous: usable.upstream, moved: true }
 }
 

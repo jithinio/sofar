@@ -56,6 +56,21 @@ export interface AttributionQuery {
   range?: string
   /** Hard ceiling on commits walked. Defaults to DEFAULT_MAX_COUNT. */
   maxCount?: number
+  /**
+   * Branch name for the FIRST appearance of `origin/<branch>`, which has no
+   * previous sha to diff against (3.4). Subtracts every OTHER origin ref from
+   * the walk, so the answer is "what reached the remote because of THIS push"
+   * rather than "everything reachable from the new tip".
+   *
+   * Without it the first push of a feature branch cut from an already-pushed
+   * base reports the whole base as newly landed — measured at 4 commits when 1
+   * had arrived. That is a false "your work shipped", which D2 ranks as worse
+   * than no signal at all because it retires a next action nobody performed.
+   *
+   * A branch that is the only one on the remote subtracts nothing, and every
+   * commit is genuinely new — which is the honest answer for a true first push.
+   */
+  firstPushOf?: string
 }
 
 /** Slug shape, mirroring the tool-input pattern — anything else is not ours. */
@@ -90,6 +105,15 @@ export function readAttribution(
   if (query.range !== undefined) {
     if (query.range.length === 0 || query.range.startsWith('-')) return null
     args.push(query.range)
+  }
+  // Must follow the range: these flip the sense of the refs that come after.
+  // The `origin/<branch>` form is the one git actually honours here — matched
+  // relative to refs/remotes/, so neither the bare branch nor the full refname
+  // works, and both silently exclude NOTHING (verified on git 2.50.1).
+  if (query.firstPushOf !== undefined) {
+    const branch = query.firstPushOf
+    if (branch.length === 0 || branch.startsWith('-') || /[\s*?[\]]/.test(branch)) return null
+    args.push('--not', `--exclude=origin/${branch}`, '--remotes=origin')
   }
 
   let out: string

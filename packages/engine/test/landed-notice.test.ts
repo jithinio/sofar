@@ -165,6 +165,26 @@ describe('live shipping signal (3.4)', () => {
     expect(prompt(root)).not.toContain('just landed')
   })
 
+  it('counts only what the first push ADDED, never the base branch behind it', () => {
+    // The false-alarm this whole initiative exists to remove, found by review
+    // after it shipped: a feature branch cut from an already-pushed base has no
+    // origin/<branch> to diff against, and walking reachability from the new
+    // tip reported the entire base as newly landed — measured at 4 when 1 had
+    // arrived. D2 ranks a wrong "your work shipped" as worse than no signal,
+    // because it retires a next action nobody performed.
+    const { root } = repo('firstpush-base')
+    commit(root, 'base-one', SLUG)
+    commit(root, 'base-two', SLUG)
+    siblingPush(root) // the base is already on origin
+    git(root, 'checkout', '--quiet', '-b', 'feature')
+    commit(root, 'the-only-new-work', SLUG)
+    orient(root) // origin/feature does not exist yet
+    git(root, 'push', '--quiet', '-u', 'origin', 'HEAD')
+    const out = prompt(root)
+    expect(out).toContain('1 commit(s) of this record just landed')
+    expect(out).not.toContain('3 commit(s)')
+  })
+
   it('reports the branch\'s FIRST push, where no upstream ref existed before', () => {
     // The state that has to be watched rather than skipped: before the first
     // push there is no origin/<branch> at all, and the ref appearing IS the
@@ -288,6 +308,21 @@ describe('the movement mark (core/shipwatch)', () => {
     // The newest survivor still holds its mark; the very first is long gone.
     expect(noteUpstream(dir, `s${SHIPWATCH_MAX_MARKS + 4}`, 'main', SHA_B).moved).toBe(true)
     expect(noteUpstream(dir, 's0', 'main', SHA_B).moved).toBe(false)
+  })
+
+  it('does not evict a QUIET session that keeps looking', () => {
+    // Found by review: eviction ordered by last WRITE starves the session that
+    // has seen no push — it never rewrites, its seq freezes, and busier
+    // sessions evict a window that is still live. The push it was waiting for
+    // is then exactly the one it never hears. Looking must count as activity.
+    const dir = sofarDir('quiet')
+    noteUpstream(dir, 'quiet-one', 'main', SHA_A)
+    for (let i = 0; i < SHIPWATCH_MAX_MARKS + 5; i += 1) {
+      noteUpstream(dir, `busy${i}`, 'main', SHA_A)
+      noteUpstream(dir, 'quiet-one', 'main', SHA_A) // looks, sees nothing, stays
+    }
+    // Still marked, so a real push still reaches it.
+    expect(noteUpstream(dir, 'quiet-one', 'main', SHA_B).moved).toBe(true)
   })
 
   it('cold-starts on a corrupt file instead of throwing', () => {

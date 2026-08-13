@@ -953,10 +953,13 @@ function landedNotice(
     if (git.upstreamFull === null || !look.moved) return null
 
     const arrived = readAttribution(rootDir, {
-      // No previous ref means everything on origin arrived at once — the range
-      // is reachability from the new tip, not a delta against a sha that never
-      // existed. LANDED_WINDOW is what keeps that bounded (D6).
       range: look.previous === null ? git.upstreamFull : `${look.previous}..${git.upstreamFull}`,
+      // No previous sha means origin/<branch> did not exist, so there is no
+      // delta to take. Reachability from the new tip is NOT the answer: a
+      // feature branch cut from an already-pushed base would report the whole
+      // base as newly landed. firstPushOf subtracts every other origin ref, so
+      // only what this push actually put on the remote is counted.
+      ...(look.previous === null ? { firstPushOf: git.branch } : {}),
       maxCount: LANDED_WINDOW,
     })
     if (arrived === null) return null
