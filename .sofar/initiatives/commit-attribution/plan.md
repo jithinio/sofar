@@ -46,4 +46,4 @@ Progress: 15 done, 2 dropped, 7 remaining
 - [ ] 5.5 Dogfood both halves: run the review over a real initiative's phases, and confirm a session whose commits shipped inside a peer's push is TOLD so — at SessionStart AND, per 3.4, while still live.
 
 Active phase: Phase 2 — Write and read the trailer
-Next action: Build 3.4, the ref-gated UserPromptSubmit line that tells a LIVE session its commits reached origin — the floor D13's optional ping layers onto. Also still open: 2.3 squash-merge recovery, all of Phase 5, and docs/SPEC.md is the last place out of date (5.4).
+Next action: Build 3.4, the ref-gated UserPromptSubmit line that tells a LIVE session its commits reached origin — the floor D13's optional ping layers onto. Also open here: 2.3 squash-merge recovery, all of Phase 5, and docs/SPEC.md (5.4). Session-orientation now tracks the re-homing and fresh-session gaps separately, starting at its 1.1.
