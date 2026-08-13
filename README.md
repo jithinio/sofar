@@ -124,7 +124,7 @@ and the result still reads correctly.
   `init` writes an instruction block there, and those tools follow the same
   loop using the `sofar` command. No extra setup.
 * **Any other MCP client.** Point it at `sofar mcp` in its own config to get
-  the same eleven tools over stdio.
+  the same twelve tools over stdio.
 
 ## Commands
 
