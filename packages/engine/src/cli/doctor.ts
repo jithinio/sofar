@@ -8,7 +8,9 @@ import {
   type InitiativeState,
   type OrphanTaskEvent,
 } from '../core/fold'
+import { readAttribution, unattributed } from '../core/attribution'
 import { readBindingsFile } from '../core/bindings'
+import { gitDir } from '../core/git'
 import { crossConflictsFromStates } from '../core/cross-conflicts'
 import { buildGraph, extractCitations, repoGeneral } from '../core/graph'
 import { clip } from '../projections/templates/shared'
@@ -142,6 +144,54 @@ function mcpHasSofar(rootDir: string): boolean {
   }
 }
 
+/**
+ * Is commit attribution actually working? (2.4)
+ *
+ * Deliberately EMPIRICAL rather than diagnostic. Attribution can be silently
+ * off for several unrelated reasons — the hook was never installed (a fresh
+ * clone never gets one, since `.git/hooks` is not cloned), the `sofar` on PATH
+ * predates the `commit-trailer` subcommand so the shim's `|| true` swallows the
+ * failure, or CLAUDE_CODE_SESSION_ID stopped being exported. Enumerating causes
+ * would miss the next one. Asking "do recent commits actually carry trailers"
+ * catches all of them, including causes nobody has thought of yet.
+ *
+ * Never FAIL: unattributed commits are legitimately normal (every commit made
+ * before adopting this, and every commit made from a plain terminal). A
+ * permanently red doctor trains people to ignore it — record-integrity D3.
+ *
+ * Bounded per D6: a fixed, small window, never a full-history walk.
+ */
+const ATTRIBUTION_WINDOW = 20
+
+function auditAttribution(rootDir: string, findings: Finding[]): void {
+  if (gitDir(rootDir) === null) return // not a git repo — nothing to attribute
+  const hook = join(gitDir(rootDir)!, 'hooks', 'prepare-commit-msg')
+  if (!existsSync(hook)) {
+    findings.push({
+      level: 'warn',
+      text: 'commit attribution off — no prepare-commit-msg hook',
+      hint: 'run `sofar init` to install it; commits will not be linked to their initiative',
+    })
+    return
+  }
+
+  const commits = readAttribution(rootDir, { maxCount: ATTRIBUTION_WINDOW })
+  if (commits === null || commits.length === 0) return // no history to judge
+  const blank = unattributed(commits).length
+  if (blank < commits.length) {
+    findings.push({
+      level: 'ok',
+      text: `commit attribution live (${commits.length - blank}/${commits.length} recent commits attributed)`,
+    })
+    return
+  }
+  findings.push({
+    level: 'warn',
+    text: `prepare-commit-msg installed but the last ${commits.length} commits carry no attribution`,
+    hint: 'the hook exits 0 on every failure, so this is silent: check that the `sofar` on PATH has `commit-trailer` (`sofar commit-trailer --help`) and that commits are made from a registered session',
+  })
+}
+
 function auditWiring(rootDir: string): Section {
   const findings: Finding[] = []
   const repair = 'run `sofar init` to (re)install it'
@@ -212,6 +262,8 @@ function auditWiring(rootDir: string): Section {
         findings.push({ level: 'fail', text: `${file} protocol block missing`, hint: repair })
     }
   }
+
+  auditAttribution(rootDir, findings)
 
   return { title: 'Wiring integrity', findings }
 }
