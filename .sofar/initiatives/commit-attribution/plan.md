@@ -4,7 +4,7 @@
 
 Goal: Bind every commit to the initiative that produced it, exactly and at commit time, and spend that primitive on two gaps that share it. Gap 1 (staleness): several initiatives share one worktree and one branch, so any session's push carries other initiatives' commits and their records never learn their work shipped. Gap 2 (review): closing an initiative is today an unconditional append — nothing rechecks that the execution was right, and a reviewer with no diff can only re-read the record's own prose and confirm it. SETTLED: the binding is a `Sofar-Initiative:` COMMIT TRAILER read from git, never an event (D4); a prepare-commit-msg hook injects it by resolving the session, never the branch binding (D5); reads are bounded and kept off the hot path on measurement (D6); init installs without clobbering (D7); shipping is derived locally from refs, never from a forge API (D8); reviews fire at phase boundaries for 3+ phase initiatives with a final cross-cutting pass at close (D9, D10); a live session re-reads refs rather than being messaged (D11).
 
-Progress: 17 done, 2 dropped, 5 remaining
+Progress: 22 done, 2 dropped, 0 remaining
 
 ## Phase 1 — Settle attribution (blocks everything else) [done] — 2/4 (2 dropped) done
 
@@ -37,13 +37,13 @@ Progress: 17 done, 2 dropped, 5 remaining
 - [x] 4.5 Review DECOUPLED from marking done — sofar_review gates nothing, so a reviewing agent gains nothing by passing.
 - [x] 4.6 `sofar review [--final] [--phase]` — the read half, and the entry point the loop had been missing entirely. Range from the watermark and trailer attribution, filtered to this initiative.
 
-## Phase 5 — Close gate + contracts [pending] — 0/5 done
+## Phase 5 — Close gate + contracts [pending] — 5/5 done
 
-- [ ] 5.1 Mechanical tier at close, no model needed: tasks still pending/active while closing `done`, phases never resolved, tasks claiming files no file_touched event ever saw, guard violations never addressed, a next_action left dangling, and — per D9 — phases that were never reviewed. This is doctor scoped to one initiative, and the mirror of initiative-lifecycle 4.3.
-- [ ] 5.2 The override is an EVENT, never silent. A hard refusal on a solo tool grows a --force and the flag becomes the habit; "closed with 3 tasks pending, overridden" rendered in the digest forever is what keeps it honest.
-- [ ] 5.3 `dropped` gets the review too — arguably needs it more, since half-built abandoned work is a bigger landmine than finished work, and today `dropped` demands only a prose reason.
-- [ ] 5.4 docs/SPEC.md is authoritative: the trailer contract and its read incantation, the read-never-record rule, the prepare-commit-msg resolution order, the review_recorded event and its watermark, sofar_review in §MCP tools, the close-gate semantics, and §Acceptance criteria. The tool-surface tests already pin the count, so SPEC is the last place still out of date.
-- [ ] 5.5 Dogfood both halves: run the review over a real initiative's phases, and confirm a session whose commits shipped inside a peer's push is TOLD so — at SessionStart AND, per 3.4, while still live.
+- [x] 5.1 Mechanical tier at close, no model needed: tasks still pending/active while closing `done`, phases never resolved, tasks claiming files no file_touched event ever saw, guard violations never addressed, a next_action left dangling, and — per D9 — phases that were never reviewed. This is doctor scoped to one initiative, and the mirror of initiative-lifecycle 4.3.
+- [x] 5.2 The override is an EVENT, never silent. A hard refusal on a solo tool grows a --force and the flag becomes the habit; "closed with 3 tasks pending, overridden" rendered in the digest forever is what keeps it honest.
+- [x] 5.3 `dropped` gets the review too — arguably needs it more, since half-built abandoned work is a bigger landmine than finished work, and today `dropped` demands only a prose reason.
+- [x] 5.4 docs/SPEC.md is authoritative: the trailer contract and its read incantation, the read-never-record rule, the prepare-commit-msg resolution order, the review_recorded event and its watermark, sofar_review in §MCP tools, the close-gate semantics, and §Acceptance criteria. The tool-surface tests already pin the count, so SPEC is the last place still out of date.
+- [x] 5.5 Dogfood both halves: run the review over a real initiative's phases, and confirm a session whose commits shipped inside a peer's push is TOLD so — at SessionStart AND, per 3.4, while still live.
 
 Active phase: Phase 2 — Write and read the trailer
-Next action: 5.4, docs/SPEC.md, now confirmed twice over — the delegated pass found it sharper than the Phase 2 review did: schema/test/tool-inputs.test.ts:12 was edited from "exactly the nine SPEC MCP tools" to "exactly the SPEC MCP tools", deleting the count that pinned the contract, and acceptance.phase2 was bumped 10 to 11, so the assertions were moved to follow the code instead of SPEC being brought forward. Re-read docs/SPEC.md first and sequence after peer sofar-1b lands its session-orientation edit. Then fold.ts:737, the highest-value open finding: review_recorded accrues no session debt, so a session whose whole job is a review can exit with no write-back.
+Next action: Close this record, which is itself the last dogfood: run the final review pass, rule on the note this session left about guards_crossed firing on every mature record, then close and read what the audit says about the initiative that built it.

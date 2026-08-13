@@ -18,7 +18,7 @@ The delegated code-review pass landed and found a REAL BUG in code this record h
 
 ## Activity (derived from mechanical events)
 
-- Derived: 8 files (/Users/jins/IO/sofar/packages/engine/src/core/git.ts, /Users/jins/IO/sofar/packages/engine/src/core/shipwatch.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/docs/ARCHITECTURE.md, /Users/jins/IO/sofar/packages/engine/test/landed-notice.test.ts, /Users/jins/IO/sofar/packages/engine/test/record-integrity.test.ts, /Users/jins/IO/sofar/packages/engine/src/core/attribution.ts, /Users/jins/IO/sofar/packages/engine/test/attribution.test.ts), 139 commands, task changes: 3.4 → done, 2.3 → done
+- Derived: 8 files (/Users/jins/IO/sofar/packages/engine/src/core/git.ts, /Users/jins/IO/sofar/packages/engine/src/core/shipwatch.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/docs/ARCHITECTURE.md, /Users/jins/IO/sofar/packages/engine/test/landed-notice.test.ts, /Users/jins/IO/sofar/packages/engine/test/record-integrity.test.ts, /Users/jins/IO/sofar/packages/engine/src/core/attribution.ts, /Users/jins/IO/sofar/packages/engine/test/attribution.test.ts), 142 commands, task changes: 3.4 → done, 2.3 → done
 - Files:
   - /Users/jins/IO/sofar/packages/engine/src/core/git.ts
   - /Users/jins/IO/sofar/packages/engine/src/core/shipwatch.ts
@@ -28,7 +28,7 @@ The delegated code-review pass landed and found a REAL BUG in code this record h
   - /Users/jins/IO/sofar/packages/engine/test/record-integrity.test.ts
   - /Users/jins/IO/sofar/packages/engine/src/core/attribution.ts
   - /Users/jins/IO/sofar/packages/engine/test/attribution.test.ts
-- Commands run: 139
+- Commands run: 142
 - Task changes:
   - 3.4 → done
   - 2.3 → done
