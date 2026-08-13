@@ -14,4 +14,4 @@ Progress: 5/5 tasks done (100%)
 - [x] 1.4 Tests: absolute and relative paths that resolve to .git/hooks install; a hook in the directory init chose demonstrably fires; an elsewhere-path skips with the file named and .git/hooks left empty; doctor stays quiet with a hook under core.hooksPath. The two install cases fail against the 0.26.0 code.
 - [x] 1.5 SPEC §Hooks and §Acceptance criteria; ship 0.26.1.
 
-Next action: Publish 0.26.1: hand `! npm publish -w sofar.sh` to the user, then re-run `sofar init` in brillo to pick up the hook.
+Next action: Publish 0.27.0, NOT 0.26.1 — the user runs `npm publish -w sofar.sh`; npm packs the working tree, so the GitHub 500 blocking `git push` does not block the publish, but push 729ed42 and 4201de0 once the outage clears.
