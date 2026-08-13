@@ -29,6 +29,11 @@ import { startSession } from '../src/mcp/start-session'
  *   3. peer sessions on the old record are UNAFFECTED, and bindings.json is
  *      never touched — re-homing moves ONE session, not the branch.
  *
+ * Property 3 still holds of RE-HOMING exactly as written, and
+ * binding-follows-session D1 deliberately left it that way: the branch is now
+ * bound by the WRITE-BACK instead, so a re-home taken to read a record cannot
+ * reroute every future session. See binding-follows-session.test.ts.
+ *
  * Every surface here is exercised through its real entry point — the hook
  * handlers, the statusline command, the MCP tools — because the bug being
  * pinned was precisely that these agreed in principle and diverged in practice.

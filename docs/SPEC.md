@@ -1313,7 +1313,11 @@ also collides with a sofar-cloud-internal package).
   write-back linkage breaks). That is the record-integrity misroute class,
   and the side-index workaround for it is already rejected.
 - sofar_end_session({session_id, summary, next_action}) → {ok, event_id,
-  parallel_writebacks?}  # the write-back. `parallel_writebacks` carries
+  parallel_writebacks?, rebound?}  # the write-back. `rebound` names the
+  branch binding this write-back moved ({branch, from, to}), omitted when
+  none moved — the rebind contract and its three guards are stated with the
+  session-before-branch precedence below (binding-follows-session D1).
+  `parallel_writebacks` carries
   overlappingWritebacks(state, session_id) computed AFTER the append — the
   concurrent sessions whose next action differs from the one just written —
   and is OMITTED when there is none, so the ordinary case is byte-identical
@@ -1497,6 +1501,31 @@ re-home beats a stale registration. A session registered nowhere falls back
 to the branch and registers there (lazy registration, D2 — unchanged). An
 UNBOUND branch is a miss rather than an error for a registered session,
 which also ends the silent event drop unbound branches used to cause.
+THE WRITE-BACK BINDS THE BRANCH (binding-follows-session D1). end_session,
+after appending session_ended, points the current branch at the initiative
+that write-back landed in, and returns `rebound: {branch, from, to}` when it
+moved (omitted otherwise, the parallel_writebacks shape). This changes NO
+resolution: a fresh session still resolves branch-first, and nothing infers
+a record from recency or peer liveness — session-orientation D2 stands. It
+changes what the branch STATES, because bindings.json is what a fresh
+session reads and until now only a human `sofar switch` maintained it, so it
+decayed the moment work moved (observed: a repo whose main stayed bound to
+one initiative across 8 commits of another, mis-orienting every new
+session). "Last session to finish here" is computable because ending is an
+event; which peer is alive is not, and a live peer has simply not ended, so
+it never moves the binding. Write-back time rather than re-home time because
+a re-home is not always durable intent — a session may re-home into a CLOSED
+record purely to read it — and because bindings.json is committed, so moving
+it inside the write-back gets it committed with the record rather than left
+as trailing dirt. Three guards: MOVE-ONLY, so a branch with no binding stays
+unbound (`sofar new --no-bind` is a deliberate "do not route this branch");
+never onto a closed or dropped record; and best-effort (BD22) — a detached
+HEAD, an absent or malformed bindings.json, any throw leaves the write-back
+untouched, since a routing convenience must never be able to fail a wrap-up.
+With several sessions on one branch the last to write back wins; that cannot
+tear a running peer, which resolves through its own home and only ever takes
+the binding as a seed candidate, and session-orientation's recent-work notice
+remains the backstop for the residue.
 SESSION-BEFORE-BRANCH IS ONE SHARED PRECEDENCE (initiative-lifecycle 1.2,
 3.1): `resolveSessionFirst` is its single definition, and the statusline
 uses it too — it read the branch alone before, so closing an initiative,
