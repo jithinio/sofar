@@ -50,4 +50,4 @@ Progress: 15/25 tasks done (60%)
 - [ ] 6.3 Version-stamped claim wording from the evidence only, carrying the authored/planted qualification in every form
 
 Active phase: Phase 4 — authored constraint set
-Next action: Author the 60 constraints for 4.1, one per initiative, into the snapshot clones only per D31, each with its tempting-default prediction hash-stamped into PREDICTIONS.md before any floor cell is built.
+Next action: Author the 60 constraints against the frozen inventory, one per initiative into the snapshot clones, starting with the zero-margin hosts so a screen failure there surfaces while brillo can still absorb the slot.
