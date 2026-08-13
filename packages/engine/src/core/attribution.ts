@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { currentBranch } from './git'
 
 /**
  * Commit → initiative attribution, read from git commit trailers (D4).
@@ -156,4 +157,118 @@ export function bySlug(commits: CommitAttribution[]): Map<string, string[]> {
 /** Commits carrying no attribution at all — doctor's 2.4 surface. */
 export function unattributed(commits: CommitAttribution[]): string[] {
   return commits.filter((c) => c.initiatives.length === 0).map((c) => c.sha)
+}
+
+/**
+ * Whether a commit has reached the remote.
+ *
+ * `unknown` is a first-class answer, not a failure dressed up: with no remote
+ * ref fetched there is genuinely no way to tell, and reporting `local` would
+ * assert "your work has not shipped" on no evidence — the exact false alarm
+ * this initiative exists to remove.
+ */
+export type ShipState = 'pushed' | 'local' | 'unknown'
+
+/**
+ * Shas reachable from HEAD but not from the upstream ref — i.e. not yet pushed.
+ * Null means the question is unanswerable (no upstream, no git), which callers
+ * must render as `unknown`.
+ *
+ * ONE spawn for the whole set. The obvious alternative, `git merge-base
+ * --is-ancestor` per sha, is a spawn each — at the measured 8.35ms floor that
+ * is ~168ms for a 20-commit window, versus ~9ms here. Same answer, and this one
+ * is bounded by the unpushed delta rather than by the window size.
+ */
+export function readUnpushed(rootDir: string, upstreamRef: string): Set<string> | null {
+  if (upstreamRef.length === 0 || upstreamRef.startsWith('-')) return null
+  let out: string
+  try {
+    out = execFileSync('git', ['rev-list', `${upstreamRef}..HEAD`], {
+      cwd: rootDir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 5000,
+      maxBuffer: 16 * 1024 * 1024,
+    })
+  } catch {
+    return null // no such ref (never fetched, or no remote) — unanswerable
+  }
+  const shas = new Set<string>()
+  for (const line of out.split('\n')) {
+    const sha = line.trim()
+    if (FULL_SHA.test(sha)) shas.add(sha)
+  }
+  return shas
+}
+
+/**
+ * Label each commit with whether it has reached the remote. `unpushed` is the
+ * set from readUnpushed, or null when the question could not be answered.
+ */
+export function shipStates(
+  commits: CommitAttribution[],
+  unpushed: Set<string> | null,
+): Map<string, ShipState> {
+  const out = new Map<string, ShipState>()
+  for (const commit of commits) {
+    out.set(
+      commit.sha,
+      unpushed === null ? 'unknown' : unpushed.has(commit.sha) ? 'local' : 'pushed',
+    )
+  }
+  return out
+}
+
+/** One initiative's standing in the walked window. */
+export interface InitiativeShipping {
+  slug: string
+  pushed: string[]
+  local: string[]
+  unknown: string[]
+}
+
+/**
+ * Per-initiative shipping, the shape the digest asks for (3.2): of THIS
+ * initiative's recent commits, which have reached the remote.
+ *
+ * This is the whole point of the primitive. A branch-level "is my tip on
+ * origin" (record-integrity 4.4) cannot answer it, because in a shared
+ * worktree the tip belongs to whoever committed last.
+ */
+export function shippingBySlug(
+  commits: CommitAttribution[],
+  unpushed: Set<string> | null,
+): Map<string, InitiativeShipping> {
+  const states = shipStates(commits, unpushed)
+  const out = new Map<string, InitiativeShipping>()
+  for (const commit of commits) {
+    for (const slug of commit.initiatives) {
+      let entry = out.get(slug)
+      if (entry === undefined) {
+        entry = { slug, pushed: [], local: [], unknown: [] }
+        out.set(slug, entry)
+      }
+      entry[states.get(commit.sha) ?? 'unknown'].push(commit.sha)
+    }
+  }
+  return out
+}
+
+/**
+ * The whole read side in one call: walk a bounded window, resolve the upstream
+ * from the current branch, and report per-initiative shipping. Two spawns.
+ *
+ * Null only when there is no git or no branch to speak of. A missing UPSTREAM
+ * is not null — it yields `unknown` states, which is a different and honest
+ * answer (D6's rule: say unknown, never guess unpushed).
+ */
+export function readShipping(
+  rootDir: string,
+  query: AttributionQuery = {},
+): Map<string, InitiativeShipping> | null {
+  const commits = readAttribution(rootDir, query)
+  if (commits === null) return null
+  const branch = currentBranch(rootDir)
+  const unpushed = branch === null ? null : readUnpushed(rootDir, `origin/${branch}`)
+  return shippingBySlug(commits, unpushed)
 }

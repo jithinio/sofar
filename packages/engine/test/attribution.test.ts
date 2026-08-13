@@ -9,6 +9,9 @@ import {
   bySlug,
   parseAttribution,
   readAttribution,
+  readShipping,
+  readUnpushed,
+  shippingBySlug,
   unattributed,
   type CommitAttribution,
 } from '../src/core/attribution'
@@ -174,6 +177,67 @@ describe('readAttribution', () => {
   it('defaults to a sane ceiling', () => {
     expect(DEFAULT_MAX_COUNT).toBeGreaterThan(0)
     expect(Number.isInteger(DEFAULT_MAX_COUNT)).toBe(true)
+  })
+})
+
+describe('shipping — has this initiative\'s work reached the remote? (3.1)', () => {
+  it('reports unknown, never "local", when there is no upstream to compare', () => {
+    // The core honesty rule: with nothing fetched there is no evidence either
+    // way, and "your work has not shipped" is exactly the false alarm this
+    // initiative exists to remove.
+    const commits: CommitAttribution[] = [{ sha: SHA_A, initiatives: ['alpha'] }]
+    const shipping = shippingBySlug(commits, null)
+    expect(shipping.get('alpha')).toEqual({
+      slug: 'alpha',
+      pushed: [],
+      local: [],
+      unknown: [SHA_A],
+    })
+  })
+
+  it('splits an initiative\'s commits into pushed and local', () => {
+    const commits: CommitAttribution[] = [
+      { sha: SHA_A, initiatives: ['alpha'] },
+      { sha: SHA_B, initiatives: ['alpha'] },
+    ]
+    // SHA_A is still local; SHA_B is not in the unpushed set, so it landed.
+    const shipping = shippingBySlug(commits, new Set([SHA_A]))
+    expect(shipping.get('alpha')!.local).toEqual([SHA_A])
+    expect(shipping.get('alpha')!.pushed).toEqual([SHA_B])
+  })
+
+  it('answers per initiative, which a branch-level check cannot', () => {
+    // The motivating case: one push carries several initiatives' commits.
+    const commits: CommitAttribution[] = [
+      { sha: SHA_A, initiatives: ['alpha'] },
+      { sha: SHA_B, initiatives: ['beta'] },
+    ]
+    const shipping = shippingBySlug(commits, new Set([SHA_A]))
+    expect(shipping.get('alpha')!.pushed).toEqual([])
+    expect(shipping.get('beta')!.pushed).toEqual([SHA_B])
+  })
+
+  it('reads a real repo end to end: everything is local before a push', () => {
+    const dir = makeRepo('shipping', [
+      `one\n\n${TRAILER_KEY}: alpha\n`,
+      `two\n\n${TRAILER_KEY}: beta\n`,
+    ])
+    const shipping = readShipping(dir)
+    expect(shipping).not.toBeNull()
+    // No origin at all, so the honest answer is unknown — not "local".
+    expect(shipping!.get('alpha')!.unknown.length).toBe(1)
+    expect(shipping!.get('alpha')!.local).toEqual([])
+  })
+
+  it('readUnpushed refuses a ref that could read as a flag', () => {
+    const dir = makeRepo('unpushed-flag', [`one\n\n${TRAILER_KEY}: alpha\n`])
+    expect(readUnpushed(dir, '--all')).toBeNull()
+    expect(readUnpushed(dir, '')).toBeNull()
+  })
+
+  it('readUnpushed returns null for a ref that does not exist', () => {
+    const dir = makeRepo('unpushed-missing', [`one\n\n${TRAILER_KEY}: alpha\n`])
+    expect(readUnpushed(dir, 'origin/nope')).toBeNull()
   })
 })
 

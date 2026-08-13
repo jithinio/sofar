@@ -4,7 +4,7 @@
 
 Goal: Bind every commit to the initiative that produced it, exactly and at commit time, and spend that primitive on two gaps that share it. Gap 1 (staleness): several initiatives share one worktree and one branch, so any session's push carries other initiatives' commits and their records never learn their work shipped. Gap 2 (review): closing an initiative is today an unconditional append — nothing rechecks that the execution was right, and a reviewer with no diff can only re-read the record's own prose and confirm it. SETTLED AT 1.1 (D4): the binding lives in a `Sofar-Initiative:` COMMIT TRAILER and is READ from git — never recorded as an event, never inferred. SETTLED AT 2.1 (D5): a prepare-commit-msg hook injects it automatically, resolving CLAUDE_CODE_SESSION_ID through the existing homeInitiative rather than the branch binding. Together those keep record-hygiene D1 intact (logging git makes the record un-settleable) and clear record-integrity D6, which rejected per-commit attribution because it needed state the record must not keep. sofar stores nothing about commits; git carries the fact and sofar reads it, exactly as it already reads push state.
 
-Progress: 5 done, 2 dropped, 15 remaining
+Progress: 6 done, 2 dropped, 14 remaining
 
 ## Phase 1 — Settle attribution (blocks everything else) [done] — 1/4 (2 dropped) done
 
@@ -21,9 +21,9 @@ Progress: 5 done, 2 dropped, 15 remaining
 - [x] 2.4 doctor: commits reachable on the branch carrying no trailer and no recovered fallback — 1.3's surface, and the honest accounting of what the mechanism missed.
 - [x] 2.5 Hook installation and its two exposures, both opened by D5. (a) `.git/hooks/` is LOCAL and never cloned, so attribution silently does not exist in a fresh clone until something installs it — decide between installing from `sofar init` and a committed dir wired via core.hooksPath, knowing the second overrides any hooks the user already has. (b) CLAUDE_CODE_SESSION_ID is an undocumented Claude Code implementation detail that can vanish in any release; decide how the hook behaves when it disappears — per D5's rule that is silence, never a branch-binding guess, but it must be a VISIBLE silence or the whole signal rots quietly.
 
-## Phase 3 — Derive shipped state (gap 1: staleness) [pending] — 0/3 done
+## Phase 3 — Derive shipped state (gap 1: staleness) [pending] — 1/3 done
 
-- [ ] 3.1 Given the initiative's trailer-derived sha set, answer shipped-ness with `git merge-base --is-ancestor <sha> <remote ref>`. Decide the behaviour when the remote ref is stale, absent, or never fetched: say "unknown", never guess "unpushed".
+- [x] 3.1 Given the initiative's trailer-derived sha set, answer shipped-ness with `git merge-base --is-ancestor <sha> <remote ref>`. Decide the behaviour when the remote ref is stale, absent, or never fetched: say "unknown", never guess "unpushed".
 - [ ] 3.2 Digest surface: upgrade record-integrity 4.4's branch-level "is my tip on origin" to the per-initiative signal — "N of THIS initiative's commits reached origin/main via another session's push". This is the payoff the whole initiative is for, and the thing that today needs a human to ping each session by hand. Must stay inside the ≤10,000-char SessionStart guarantee.
 - [ ] 3.3 DECIDE whether PR state is in scope at all. It is the one piece needing `gh` and a network call, and "no sync service" is a guard-rail in CLAUDE.md. Default is OUT until a Decision says otherwise; pushed/merged already carries most of the staleness value without leaving the machine.
 
