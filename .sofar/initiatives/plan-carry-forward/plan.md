@@ -25,4 +25,4 @@ Progress: 1/9 tasks done (11%)
 - [ ] 3.3 docs/SPEC.md is authoritative: the full-replace wording either changes or gains its carve-out, plus §Acceptance criteria. No task is done until its criteria pass.
 
 Active phase: Phase 1 — Establish the exposure (blocks the ruling)
-Next action: Run 1.1: replay every initiative log and count the plan_updated events that took a phase or task from a resolved status back to pending, on an engine at or above 0.28.0 — if the count is zero the ruling in 2.1 changes shape.
+Next action: Take 1.2 and 1.3, then rule at 2.1 and 2.3 together — they cannot be decided apart, because the tool-boundary merge fixes the hole that never fired and leaves the rename hole that has.
