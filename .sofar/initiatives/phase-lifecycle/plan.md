@@ -35,7 +35,7 @@ Progress: 12 done, 1 dropped, 3 remaining
 - [x] 5.1 docs/SPEC.md is authoritative: the new tool(s) in §MCP tools and their §Acceptance criteria. No task is done until its criteria pass.
 - [x] 5.2 Tests: one event per call, idempotent re-issue appends nothing, session pin survives a parallel branch rebind, unknown phase errors typed, and replay stays deterministic.
 - [x] 5.3 Dogfood: close THIS initiative's own phases with the new tool as each completes, then re-run doctor and confirm the stale-phase count falls. The dogfood IS the acceptance evidence.
-- [ ] 5.4 Release 0.27.0. Until it is published AND installed, this repo's own sessions cannot use the tool: .mcp.json runs the `sofar` on PATH, which is the installed bundle, so every session here still sees eleven tools. The user runs `npm publish -w sofar.sh` (classifier + OTP).
+- [ ] 5.4 Release 0.27.0. Until it is published AND installed, this repo's own sessions cannot use the tool: .mcp.json runs the `sofar` on PATH, which is the installed bundle, so every session here still sees eleven tools. The user runs `npm publish -w sofar.sh` (classifier + OTP). (active)
 
 Active phase: Phase 4 — The 35 existing stale phases
-Next action: Release 0.27.0 (task 5.4) so the tool becomes reachable from this repo's own sessions — the user runs the publish. Then take 4.2: decide how to write phase closes into 16 other records without tearing the writing session or misrouting by branch.
+Next action: The user runs the publish, then upgrades the global install so this repo stops dogfooding a stale engine; after that mark 5.4 done and take 4.2, the cross-record write mechanism for the 35 stale phases.
