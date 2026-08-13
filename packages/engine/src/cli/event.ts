@@ -14,7 +14,11 @@ import {
   type InitiativeState,
   type SessionState,
 } from '../core/fold'
+import { readShipping } from '../core/attribution'
 import { readGitState } from '../core/git'
+
+/** Commits walked for the SessionStart shipping notice — bounded per D6. */
+const SHIPPING_WINDOW = 30
 import { refreshTier0 } from '../core/index-tier0'
 import {
   guardsForSubject,
@@ -470,7 +474,9 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     // status block, never inside it — the block's byte-stability is pinned
     // (felt-cost 1.2), and the composed output is re-capped so the injection
     // contract stays ≤10,000 chars.
-    const preface = [closedBanner(state), advisory].filter((p) => p !== null).join('\n\n')
+    const preface = [closedBanner(state), advisory, shippingNotice(rootDir, slug)]
+      .filter((p) => p !== null)
+      .join('\n\n')
     return {
       ...OK,
       stdout: preface.length === 0 ? status : enforceStatusLimit(`${preface}\n\n${status}`),
@@ -747,6 +753,45 @@ function gitStateLine(git: ReturnType<typeof readGitState>): string | null {
   return git.synced
     ? `sofar: ${git.branch} @ ${git.head}, pushed (in sync with origin/${git.branch}).`
     : `sofar: ${git.branch} @ ${git.head}, NOT pushed (origin/${git.branch} at ${git.upstream}).`
+}
+
+/**
+ * Per-initiative shipping at SessionStart (commit-attribution 3.2).
+ *
+ * gitStateLine above answers "is the TIP on origin", which is the honest limit
+ * of what refs alone can say. In a shared worktree that tip belongs to whoever
+ * committed last, so it cannot tell THIS record whether ITS work has landed —
+ * the gap that forced a human to announce every push to every other window.
+ * Trailer attribution (D4) closes it: the commits are labelled, so the question
+ * becomes per-initiative.
+ *
+ * Renders ONLY when there is something to act on. Silence means everything this
+ * initiative has committed is on the remote, and that silence is the signal: a
+ * session that sees the line, then sees it gone after a sibling's push, has
+ * learned its work shipped without anyone saying so. Announcing "all 6 commits
+ * pushed" every session would be noise on the one surface with a 10,000-char
+ * budget, and the standing culture here (guard notice, drift nudge) is that
+ * conditional lines earn their place.
+ *
+ * Cost: two spawns, ~17ms. Affordable for the same reason adjacentRecords pays
+ * up to 33ms — SessionStart runs ONCE per session. D6 forbids this on the hot
+ * per-prompt path, and it is deliberately not placed there.
+ *
+ * Best-effort like every other reader on a shim path: any failure is silence.
+ */
+function shippingNotice(rootDir: string, slug: string): string | null {
+  try {
+    const shipping = readShipping(rootDir, { maxCount: SHIPPING_WINDOW })
+    const mine = shipping?.get(slug)
+    if (mine === undefined) return null
+    if (mine.unknown.length > 0) {
+      return `sofar: ${mine.unknown.length} commit(s) of this record are unverified — origin not fetched, so whether they shipped is unknown.`
+    }
+    if (mine.local.length === 0) return null
+    return `sofar: ${mine.local.length} of this record's commit(s) are NOT on origin yet — a sibling's push will not carry them unless they are committed to the same branch.`
+  } catch {
+    return null
+  }
 }
 
 /**

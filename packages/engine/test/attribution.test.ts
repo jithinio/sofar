@@ -229,6 +229,14 @@ describe('shipping — has this initiative\'s work reached the remote? (3.1)', (
     expect(shipping!.get('alpha')!.local).toEqual([])
   })
 
+  it('skips the second spawn entirely when nothing is attributed', () => {
+    // The dominant case — every repo before it adopts attribution. With no
+    // slugs to file, the unpushed set cannot change the answer, so paying for
+    // it would be 10ms of a 100ms SessionStart budget bought for nothing.
+    const dir = makeRepo('unattributed-window', ['plain one\n', 'plain two\n'])
+    expect(readShipping(dir)).toEqual(new Map())
+  })
+
   it('readUnpushed refuses a ref that could read as a flag', () => {
     const dir = makeRepo('unpushed-flag', [`one\n\n${TRAILER_KEY}: alpha\n`])
     expect(readUnpushed(dir, '--all')).toBeNull()
