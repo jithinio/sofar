@@ -124,6 +124,7 @@ worse than no attribution.
 | --- | --- |
 | `cli/index.ts` | Command registration. |
 | `cli/event.ts` | All five hook handlers, plus `sofar event append`. |
+| `cli/review.ts` | `sofar review` — prints the evidence packet (read half). `sofar_review` records the verdict (write half). |
 | `cli/commit-trailer.ts` | `sofar commit-trailer` — the prepare-commit-msg worker that stamps `Sofar-Initiative:` from the session that made the commit (D5). Session-only resolution; never fails a commit. |
 | `cli/init.ts` | `sofar init` — hooks, MCP wiring, protocol block, `.gitattributes`. Owns the protocol-block ledger. |
 | `cli/uninit.ts` | `sofar uninit` — removes what init wrote. |

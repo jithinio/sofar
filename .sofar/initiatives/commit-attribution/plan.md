@@ -2,18 +2,18 @@
 
 # Plan: commit-attribution
 
-Goal: Bind every commit to the initiative that produced it, exactly and at commit time, and spend that primitive on two gaps that share it. Gap 1 (staleness): several initiatives share one worktree and one branch, so any session's push carries other initiatives' commits and their records never learn their work shipped. Gap 2 (review): closing an initiative is today an unconditional append — nothing rechecks that the execution was right, and a reviewer with no diff can only re-read the record's own prose and confirm it. SETTLED: the binding is a `Sofar-Initiative:` COMMIT TRAILER read from git, never an event (D4); a prepare-commit-msg hook injects it by resolving the session, never the branch binding (D5); reads are bounded and kept off the hot path on measurement (D6); init installs without clobbering (D7); shipping is derived locally from refs, never from a forge API (D8). Gap 1 is DELIVERED. Reviews fire at phase boundaries for initiatives of 3+ phases, with a final cross-cutting pass at close (D9, D10).
+Goal: Bind every commit to the initiative that produced it, exactly and at commit time, and spend that primitive on two gaps that share it. Gap 1 (staleness): several initiatives share one worktree and one branch, so any session's push carries other initiatives' commits and their records never learn their work shipped. Gap 2 (review): closing an initiative is today an unconditional append — nothing rechecks that the execution was right, and a reviewer with no diff can only re-read the record's own prose and confirm it. SETTLED: the binding is a `Sofar-Initiative:` COMMIT TRAILER read from git, never an event (D4); a prepare-commit-msg hook injects it by resolving the session, never the branch binding (D5); reads are bounded and kept off the hot path on measurement (D6); init installs without clobbering (D7); shipping is derived locally from refs, never from a forge API (D8); reviews fire at phase boundaries for 3+ phase initiatives with a final cross-cutting pass at close (D9, D10); a live session re-reads refs rather than being messaged (D11).
 
-Progress: 13 done, 2 dropped, 8 remaining
+Progress: 15 done, 2 dropped, 7 remaining
 
 ## Phase 1 — Settle attribution (blocks everything else) [done] — 2/4 (2 dropped) done
 
 - [x] 1.1 DECIDE the capture mechanism. SETTLED as D4: `Sofar-Initiative:` commit trailer, read from git, no event. Probed on git 2.50.1 first — cherry-pick and rebase preserve it, untrailered commits read back empty.
-- [-] 1.2 Resolve the record-hygiene D1 collision by carving `git commit` out of the exemption. DROPPED by D4: nothing is logged, so there is no collision. The exemption stands untouched, which is the point. (dropped)
+- [-] 1.2 Resolve the record-hygiene D1 collision by carving `git commit` out of the exemption. DROPPED by D4: nothing is logged, so there is no collision. (dropped)
 - [x] 1.3 DECIDE the surface for an unattributed commit. Settled: git reads it back as empty, never as a guess, and doctor 2.4 renders it.
-- [-] 1.4 Back-compat probe for an unknown event type. DROPPED by D4: no new event type, so nothing for an older engine to misread. (dropped)
+- [-] 1.4 Back-compat probe for an unknown event type. DROPPED by D4: no new event type at that point. (dropped)
 
-## Phase 2 — Write and read the trailer [done] — 4/5 done
+## Phase 2 — Write and read the trailer [active] — 4/5 done
 
 - [x] 2.1 DECIDE who writes the trailer. SETTLED as D5: a prepare-commit-msg hook resolving CLAUDE_CODE_SESSION_ID through homeInitiative. Automatic, not remembered.
 - [x] 2.2 Read path. Built as core/attribution.ts (NOT core/git.ts, whose no-subprocess guarantee would have been voided). Bounded walks per D6.
@@ -21,27 +21,28 @@ Progress: 13 done, 2 dropped, 8 remaining
 - [x] 2.4 doctor: empirical attribution check — asks whether recent commits actually carry trailers rather than enumerating why they might not. WARN only, never FAIL.
 - [x] 2.5 Hook installation. Built as D7: install from `sofar init`, never clobber, detect core.hooksPath, mirrored in uninit.
 
-## Phase 3 — Derive shipped state (gap 1: staleness) — DELIVERED [done] — 3/3 done
+## Phase 3 — Derive shipped state (gap 1: staleness) [active] — 3/4 done
 
 - [x] 3.1 Per-initiative shipping via `git rev-list <upstream>..HEAD` — one spawn for the set, not one per sha. No upstream means `unknown`, never `local`.
 - [x] 3.2 SessionStart shipping notice, conditional and composed around the pinned status block. Silence means shipped, and that silence is the signal.
 - [x] 3.3 PR state: OUT of scope (D8). Not on egress grounds — SPEC carves out egress carrying no user content — but on cost, dependency, and marginality.
+- [ ] 3.4 THE LIVE-SESSION GAP, and the reason this phase reopened: 3.2's notice fires once per session, so a session already RUNNING when a sibling pushes learns nothing until it restarts — the user's original complaint, still open in exactly the case they described. Per D11, add a UserPromptSubmit line gated on ref MOVEMENT: read refs from files (free, no subprocess) and pay for the trailer walk ONLY when origin/<branch> has moved since this session last looked. That gate is not an exception to D6 but the escape D6 was written with. Never a peer message.
 
-## Phase 4 — The review step (gap 2) [active] — 4/6 done
+## Phase 4 — The review step (gap 2) [done] — 6/6 done
 
-- [x] 4.1 DECIDE review granularity and who pays. SETTLED as D9/D10: phase boundaries, 3-phase floor, plus a final cross-cutting pass at close. The watermark is the consequence that makes ranges computable.
-- [x] 4.2 The evidence packet, rendered from the record (a projection — templates dir only): the range watermark..HEAD filtered to this initiative's attributed commits, the tasks claimed done, the decisions IN FORCE when that work happened, the rejected approaches, and any guard violations. Without a diff the reviewer re-reads the record's own prose and confirms it — the packet IS the review.
-- [ ] 4.3 The instruction half: NAME the skills (`/code-review`, `/simplify`) rather than describing bug-hunting in prose — a named skill buys a real review, a description buys a paragraph of reassurance. sofar ships zero analysis code and makes zero model calls (SPEC §Architectural invariants); it emits the prompt and records the verdict. The conformance half — did the work honour the standing constraints and stay out of the rejected approaches — is the part with NO substitute, because only sofar holds them.
-- [x] 4.4 The verdict event, load-bearing rather than decorative: it carries the WATERMARK that makes the next review's range computable (D9), plus what was found and what is still open. Decide whether surviving findings become tasks. A review that can only emit "looks good" is a rubber stamp — the verdict must be able to be "no".
-- [x] 4.5 Keep review DECOUPLED from marking done. If passing the review is what lets a session go home, the reviewing agent has an incentive to pass and will find nothing. Review emits findings; close reads them.
-- [ ] 4.6 The FINAL PASS at close (D10), scoped to the four questions a phase review structurally cannot answer: goal conformance (does the finished thing achieve the initiative's stated goal — the question with no other home, and the one "once it's done it's done" was raised to fix), cross-phase drift, integration, and unresolved findings carried forward. It reads the phase verdicts as INPUT and must never re-audit per-phase correctness.
+- [x] 4.1 DECIDE review granularity and who pays. SETTLED as D9/D10: phase boundaries, 3-phase floor, plus a final cross-cutting pass at close.
+- [x] 4.2 The evidence packet (projections/templates/review.ts): diff range, tasks claimed done, standing constraints verbatim, rejected approaches, guard violations. An empty range renders as a FINDING.
+- [x] 4.3 The instruction half: NAMES the skills (`/code-review`, `/simplify`) rather than describing bug-hunting. The conformance half — did the work honour the standing constraints and stay out of the rejected approaches — is the part with NO substitute, because only sofar holds them. Delivered inside the packet.
+- [x] 4.4 The verdict event carrying the WATERMARK (D9), plus findings. A blocked review skips rather than resetting the watermark; a re-review of the same phase supersedes its predecessor's findings.
+- [x] 4.5 Review DECOUPLED from marking done — sofar_review gates nothing, so a reviewing agent gains nothing by passing.
+- [x] 4.6 `sofar review [--final] [--phase]` — the read half, and the entry point the loop had been missing entirely. Range from the watermark and trailer attribution, filtered to this initiative.
 
 ## Phase 5 — Close gate + contracts [pending] — 0/5 done
 
 - [ ] 5.1 Mechanical tier at close, no model needed: tasks still pending/active while closing `done`, phases never resolved, tasks claiming files no file_touched event ever saw, guard violations never addressed, a next_action left dangling, and — per D9 — phases that were never reviewed. This is doctor scoped to one initiative, and the mirror of initiative-lifecycle 4.3.
 - [ ] 5.2 The override is an EVENT, never silent. A hard refusal on a solo tool grows a --force and the flag becomes the habit; "closed with 3 tasks pending, overridden" rendered in the digest forever is what keeps it honest.
 - [ ] 5.3 `dropped` gets the review too — arguably needs it more, since half-built abandoned work is a bigger landmine than finished work, and today `dropped` demands only a prose reason.
-- [ ] 5.4 docs/SPEC.md is authoritative: the trailer contract and its read incantation, the read-never-record rule, the prepare-commit-msg resolution order, the review event and its watermark, the close-gate semantics, and §Acceptance criteria.
-- [ ] 5.5 Dogfood both halves: run the review over a real initiative's phases, and confirm a session whose commits shipped inside a peer's push is TOLD so at SessionStart instead of being manually pinged.
+- [ ] 5.4 docs/SPEC.md is authoritative: the trailer contract and its read incantation, the read-never-record rule, the prepare-commit-msg resolution order, the review_recorded event and its watermark, sofar_review in §MCP tools, the close-gate semantics, and §Acceptance criteria. The tool-surface tests already pin the count, so SPEC is the last place still out of date.
+- [ ] 5.5 Dogfood both halves: run the review over a real initiative's phases, and confirm a session whose commits shipped inside a peer's push is TOLD so — at SessionStart AND, per 3.4, while still live.
 
-Active phase: Phase 4 — The review step (gap 2)
+Active phase: Phase 2 — Write and read the trailer

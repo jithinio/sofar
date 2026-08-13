@@ -5,6 +5,7 @@ import { version } from '../../package.json'
 import { createSofarServer } from '../mcp/server'
 import { registerCommitTrailerCommand } from './commit-trailer'
 import { registerEventCommand } from './event'
+import { registerReviewCommand } from './review'
 import { runAdopt } from './adopt'
 import { runInit } from './init'
 import { runDoctor } from './doctor'
@@ -398,6 +399,7 @@ program
 
 registerEventCommand(program)
 registerCommitTrailerCommand(program, rootOf)
+registerReviewCommand(program, rootOf)
 registerStatuslineCommand(program, rootOf)
 
 await program.parseAsync(process.argv)
