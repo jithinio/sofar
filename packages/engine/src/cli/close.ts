@@ -91,7 +91,10 @@ export function runClose(
       report.push(
         `closed with ${overrides.length} finding(s) OVERRIDDEN — recorded on the event and rendered from here on:`,
       )
-      for (const finding of overrides) report.push(`  - ${finding}`)
+      // No bullet character: renderConfirmation already marks every detail
+      // line with its own elbow, and two markers on one line read as a nested
+      // list that is not there (cli-ui D1).
+      for (const finding of overrides) report.push(`  ${finding}`)
     }
     report.push(
       unbound.length === 0

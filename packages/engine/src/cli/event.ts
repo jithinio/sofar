@@ -486,13 +486,34 @@ export function closedBanner(state: InitiativeState): string | null {
   if (!isClosedInitiativeStatus(state.status)) return null
   const when = state.status_ts === null ? '' : ` on ${state.status_ts.slice(0, 10)}`
   const why = state.status_note === null ? '' : ` — ${state.status_note}`
+  // What the close was taken OVER (commit-attribution 5.2). It rides here
+  // because this banner is the surface an agent actually reads — recording the
+  // override and then only rendering it in `sofar status` would leave the one
+  // reader who could act on it looking at a clean close. Named few, pointed at
+  // the full list, because the banner precedes a block with a hard budget.
+  const overridden =
+    state.status_overrides.length === 0
+      ? []
+      : [
+          `Closed over ${state.status_overrides.length} finding(s) the close-time audit raised:`,
+          ...state.status_overrides.slice(0, CLOSED_BANNER_MAX_FINDINGS).map((f) => `  - ${f}`),
+          ...(state.status_overrides.length > CLOSED_BANNER_MAX_FINDINGS
+            ? [
+                `  (+${state.status_overrides.length - CLOSED_BANNER_MAX_FINDINGS} more — \`sofar status ${state.slug}\`)`,
+              ]
+            : []),
+        ]
   return [
     `⚠ ${state.slug} is CLOSED (${state.status}${when})${why}`,
+    ...overridden,
     'No branch is bound to it. Do not queue new work here: close-out notes and',
     `write-back still belong in this record, but new work needs \`sofar new <slug>\`,`,
     `and resuming this one needs \`sofar switch ${state.slug}\` (which reopens it).`,
   ].join('\n')
 }
+
+/** Findings named in the closed banner before it points at `sofar status`. */
+export const CLOSED_BANNER_MAX_FINDINGS = 3
 
 /**
  * The priming line's derivation (record-index 3.3), resolved once per session.

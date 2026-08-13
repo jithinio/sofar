@@ -2,6 +2,7 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { afterAll, describe, expect, it } from 'vitest'
 import { validatePayload } from '@sofar/schema'
 import { runClose } from '../src/cli/close'
+import { closedBanner } from '../src/cli/event'
 import { closeoutFindings, type CloseFindingKind } from '../src/core/closeout'
 import { makeEvent, type EventEnvelope, type MakeEventInput } from '../src/core/envelope'
 import { foldLines, type InitiativeState } from '../src/core/fold'
@@ -371,5 +372,33 @@ describe('both close surfaces record the same override (5.2)', () => {
     const result = runClose(fixture.root, fixture.slug, {}, PLAIN, PLAIN)
     expect(result.exitCode).toBe(0)
     expect(result.stdout).not.toContain('OVERRIDDEN')
+  })
+})
+
+describe('the closed banner carries the override too (5.2)', () => {
+  const closedOver = (findings: string[]): InitiativeState =>
+    foldOf([
+      ev('initiative_created', { slug: 'demo', goal: 'g' }),
+      plan([{ name: 'P1', tasks: [{ id: '1.1', title: 't' }] }]),
+      ev('initiative_status_changed', { status: 'done', overrides: findings }),
+    ])
+
+  it('names what the close was taken over, on the surface an agent reads', () => {
+    const banner = closedBanner(closedOver(['1 task never resolved: 1.1 (pending)']))
+    expect(banner).toContain('Closed over 1 finding(s)')
+    expect(banner).toContain('1.1 (pending)')
+  })
+
+  it('points at `sofar status` rather than rendering a wall into a budgeted block', () => {
+    const banner = closedBanner(closedOver(['a', 'b', 'c', 'd', 'e']))
+    expect(banner).toContain('(+2 more — `sofar status demo`)')
+  })
+
+  it('is byte-identical to before on a close that had nothing outstanding', () => {
+    const clean = foldOf([
+      ev('initiative_created', { slug: 'demo', goal: 'g' }),
+      ev('initiative_status_changed', { status: 'done' }),
+    ])
+    expect(closedBanner(clean)).not.toContain('Closed over')
   })
 })

@@ -230,8 +230,11 @@ sentence: content-semantic staleness inference is banned (D3/D12).
 NOTHING IS REFUSED. A hard gate on a solo tool grows a `--force`, the flag
 becomes the habit, and the check ends up worth less than nothing because
 everyone has learned to step over it. Instead the findings ride ON the close
-event as `overrides` and render under the record's `Status:` line from then
-on — "Closed over 3 finding(s)" is a sentence its author has to live beside.
+event as `overrides` and render from then on — under the record's `Status:`
+line in `sofar status`, and on the SessionStart CLOSED banner, which is the
+surface an agent actually reads (named up to 3, then a `(+N more)` pointer at
+`sofar status`, because that banner precedes a block with a hard budget).
+"Closed over 3 finding(s)" is a sentence its author has to live beside.
 Both surfaces return them as well as recording them: the closing agent is the
 only party who can still act, and a finding it never sees is aimed at nobody.
 Absent `overrides` means the audit found NOTHING, never that it was skipped;
@@ -1290,7 +1293,9 @@ also collides with a sofar-cloud-internal package).
 - sofar_close_initiative({initiative?, status, note?}) → {ok, event_id,
   unbound[], overrides[]}  # close an initiative (§Initiative statuses):
   `overrides` is what the close-time audit found still outstanding, recorded on
-  the event and returned here because the close went ahead anyway (5.2); status is
+  the event and returned here because the close went ahead anyway (5.2) — empty
+  when it found nothing, and likewise on the idempotent path, where no event is
+  appended and there is no close to audit; status is
   `done`|`dropped` only — reopening is a binding act (`sofar switch`) — and
   `dropped` REQUIRES a note. Appends initiative_status_changed, then removes
   every branch binding pointing at the slug; `event_id` is null when it was
@@ -2993,6 +2998,8 @@ stay the underlying derivation's, and exit codes are styling-independent.
   other question unchanged. Nothing is refused: both surfaces close and both
   return the findings — `sofar_close_initiative` in `overrides`, `sofar close`
   as an OVERRIDDEN block — the event carries them, `sofar status` renders them
-  under `Status:` forever, reopening clears them, an unknown `overrides` value
-  fails validation, and an older engine folds a close carrying them without a
+  under `Status:` forever, the SessionStart closed banner names up to three and
+  points at `sofar status` for the rest while staying byte-identical to before
+  on a clean close, reopening clears them, an unknown `overrides` value fails
+  validation, and an older engine folds a close carrying them without a
   warning.
