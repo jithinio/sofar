@@ -4,7 +4,7 @@
 
 Goal: Make phase status writable at the same tier as task status. SHIPPED 2026-08-13: sofar_update_phase is the twelfth MCP tool, phase status is written and never derived (D2), and phase_status_changed now counts as drift (D3). Remaining: the 35 stale phases across 16 initiatives, which D5 rules a one-off append-only repair — and the mechanism for writing across 16 records without tearing the session doing it is the open question. Settled up front on measurement: MCP-only, no CLI sibling (D1).
 
-Progress: 12 done, 1 dropped, 3 remaining
+Progress: 13 done, 1 dropped, 2 remaining
 
 ## Phase 1 — Settle the write path (blocks everything else) [done] — 3/3 done
 
@@ -30,12 +30,12 @@ Progress: 12 done, 1 dropped, 3 remaining
 - [ ] 4.2 Settle HOW to write phase closes into 16 OTHER records without tearing the session that does it. The two hazards D5 names: an MCP write carrying an explicit `initiative` tears the calling session (statusline-refresh M1), and the CLI's `sofar event append` resolves by branch alone, never through the session home (record-integrity M1). Candidates: one re-homed session per record; a branch-hop pass; or accepting `cli` attribution deliberately and stating why. Log the decision before writing anything.
 - [ ] 4.3 Run the repair: for each of the 16 records, confirm by reading the plan that every stale phase is genuinely finished — a judgement, never a script (D5) — then append the phase_status_changed. Re-run doctor and publish the before/after count. Any phase that is NOT actually finished stays open and is named.
 
-## Phase 5 — Contract + dogfood [active] — 3/4 done
+## Phase 5 — Contract + dogfood [done] — 4/4 done
 
 - [x] 5.1 docs/SPEC.md is authoritative: the new tool(s) in §MCP tools and their §Acceptance criteria. No task is done until its criteria pass.
 - [x] 5.2 Tests: one event per call, idempotent re-issue appends nothing, session pin survives a parallel branch rebind, unknown phase errors typed, and replay stays deterministic.
 - [x] 5.3 Dogfood: close THIS initiative's own phases with the new tool as each completes, then re-run doctor and confirm the stale-phase count falls. The dogfood IS the acceptance evidence.
-- [ ] 5.4 Release 0.27.0. Until it is published AND installed, this repo's own sessions cannot use the tool: .mcp.json runs the `sofar` on PATH, which is the installed bundle, so every session here still sees eleven tools. The user runs `npm publish -w sofar.sh` (classifier + OTP). (active)
+- [x] 5.4 Release 0.27.0. Until it is published AND installed, this repo's own sessions cannot use the tool: .mcp.json runs the `sofar` on PATH, which is the installed bundle, so every session here still sees eleven tools. The user runs `npm publish -w sofar.sh` (classifier + OTP).
 
 Active phase: Phase 4 — The 35 existing stale phases
-Next action: The user runs the publish, then upgrades the global install so this repo stops dogfooding a stale engine; after that mark 5.4 done and take 4.2, the cross-record write mechanism for the 35 stale phases.
+Next action: Take 4.2: decide how to append phase closes into the 16 other records without tearing the writing session (statusline-refresh M1) or misrouting by branch (record-integrity M1), then run the repair in 4.3 — reading each plan to confirm the phase is genuinely finished, never scripting that judgement (D5).
