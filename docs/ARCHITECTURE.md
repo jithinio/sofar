@@ -93,6 +93,7 @@ Regenerated on every append. Never hand-edited.
 | `projections/templates/session.ts` | `sessions/<id>.md` — one file per session. |
 | `projections/templates/memory.ts` | `memory.md` — promoted operational facts. |
 | `projections/templates/status.ts` | The status digest — what SessionStart injects. |
+| `projections/templates/review.ts` | The review evidence packet — diff range, tasks claimed done, standing constraints, rejected approaches. Text only; the judging is the reviewing session's, never sofar's. |
 | `projections/templates/next.ts` | The single next action. |
 | `projections/templates/list.ts` | The portfolio view. |
 | `projections/templates/shared.ts` | Shared rendering helpers. |
