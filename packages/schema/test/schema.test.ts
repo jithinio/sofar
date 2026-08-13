@@ -28,6 +28,13 @@ const validPayloads: Record<string, Record<string, unknown>> = {
   command_run: { cmd: 'npm test' },
   note_added: { text: 'esbuild banner needed for CJS interop' },
   memory_promoted: { text: 'Release: `npm publish -w sofar.sh` from the root, run by the user' },
+  review_recorded: {
+    scope: 'phase',
+    verdict: 'findings',
+    watermark: '0415062a1b2c3d4e5f60718293a4b5c6d7e8f900',
+    phase: 'Phase 1',
+    findings: ['4.2 emitted a two-dot range that dropped the oldest commit'],
+  },
   correction: { ref: '01JZ8B3V0N5B4W8XK2M9QF7TSD' },
 }
 

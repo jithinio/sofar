@@ -53,7 +53,7 @@ Three consequences run through every design decision in the codebase:
 
 | module | what it derives |
 | --- | --- |
-| `core/fold.ts` | `InitiativeState` — the fold. Tolerant (corrupt lines skipped, never fatal), deterministic, ULID-ordered. Also `openSessionFiles`, `openSessionFileConflicts`, `overlappingWritebacks`, `sessionDebt`, `sessionGuardViolations`. |
+| `core/fold.ts` | `InitiativeState` — the fold. Tolerant (corrupt lines skipped, never fatal), deterministic, ULID-ordered. Also `openSessionFiles`, `openSessionFileConflicts`, `overlappingWritebacks`, `sessionDebt`, `sessionGuardViolations`, `reviewWatermark`, `openFindings`. |
 | `core/adjacency.ts` | Typed edges (`touched`, `ran`, `changed`, `worked`) and the derived `SessionActivity`. Caps live here (`ACTIVITY_LIST_CAP`, `TASK_FILES_CAP`). |
 | `core/graph.ts` | The cross-record adjacency graph — facts that outlive one log. **Never on the hot path**: it reads N logs where a shim can afford one. |
 | `core/citations.ts` | The citation grammar — scan handles from prose (lexical, permanent), bind them to initiatives (current, because `sofar new` changes the answer). Below `graph.ts` so the index can reach it. |
@@ -158,6 +158,7 @@ worse than no attribution.
 | `mcp/update-task.ts`, `mcp/update-plan.ts` | Task status, whole-plan replace. |
 | `mcp/add-note.ts` | `sofar_add_note`. |
 | `mcp/remember.ts` | `sofar_remember`. |
+| `mcp/review.ts` | `sofar_review` — records a performed review and its watermark. Records, never judges. |
 | `mcp/get-state.ts` | `sofar_get_state`. |
 | `mcp/close-initiative.ts` | `sofar_close_initiative`. |
 | `mcp/find.ts` | `sofar_find` — index-backed retrieval. Read-only, appends nothing, never builds the graph. |

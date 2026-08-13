@@ -4,7 +4,7 @@
 
 Goal: Bind every commit to the initiative that produced it, exactly and at commit time, and spend that primitive on two gaps that share it. Gap 1 (staleness): several initiatives share one worktree and one branch, so any session's push carries other initiatives' commits and their records never learn their work shipped. Gap 2 (review): closing an initiative is today an unconditional append — nothing rechecks that the execution was right, and a reviewer with no diff can only re-read the record's own prose and confirm it. SETTLED: the binding is a `Sofar-Initiative:` COMMIT TRAILER read from git, never an event (D4); a prepare-commit-msg hook injects it by resolving the session, never the branch binding (D5); reads are bounded and kept off the hot path on measurement (D6); init installs without clobbering (D7); shipping is derived locally from refs, never from a forge API (D8). Gap 1 is DELIVERED. Reviews fire at phase boundaries for initiatives of 3+ phases, with a final cross-cutting pass at close (D9, D10).
 
-Progress: 11 done, 2 dropped, 10 remaining
+Progress: 13 done, 2 dropped, 8 remaining
 
 ## Phase 1 — Settle attribution (blocks everything else) [done] — 2/4 (2 dropped) done
 
@@ -27,13 +27,13 @@ Progress: 11 done, 2 dropped, 10 remaining
 - [x] 3.2 SessionStart shipping notice, conditional and composed around the pinned status block. Silence means shipped, and that silence is the signal.
 - [x] 3.3 PR state: OUT of scope (D8). Not on egress grounds — SPEC carves out egress carrying no user content — but on cost, dependency, and marginality.
 
-## Phase 4 — The review step (gap 2) [active] — 2/6 done
+## Phase 4 — The review step (gap 2) [active] — 4/6 done
 
 - [x] 4.1 DECIDE review granularity and who pays. SETTLED as D9/D10: phase boundaries, 3-phase floor, plus a final cross-cutting pass at close. The watermark is the consequence that makes ranges computable.
 - [x] 4.2 The evidence packet, rendered from the record (a projection — templates dir only): the range watermark..HEAD filtered to this initiative's attributed commits, the tasks claimed done, the decisions IN FORCE when that work happened, the rejected approaches, and any guard violations. Without a diff the reviewer re-reads the record's own prose and confirms it — the packet IS the review.
 - [ ] 4.3 The instruction half: NAME the skills (`/code-review`, `/simplify`) rather than describing bug-hunting in prose — a named skill buys a real review, a description buys a paragraph of reassurance. sofar ships zero analysis code and makes zero model calls (SPEC §Architectural invariants); it emits the prompt and records the verdict. The conformance half — did the work honour the standing constraints and stay out of the rejected approaches — is the part with NO substitute, because only sofar holds them.
-- [ ] 4.4 The verdict event, load-bearing rather than decorative: it carries the WATERMARK that makes the next review's range computable (D9), plus what was found and what is still open. Decide whether surviving findings become tasks. A review that can only emit "looks good" is a rubber stamp — the verdict must be able to be "no".
-- [ ] 4.5 Keep review DECOUPLED from marking done. If passing the review is what lets a session go home, the reviewing agent has an incentive to pass and will find nothing. Review emits findings; close reads them.
+- [x] 4.4 The verdict event, load-bearing rather than decorative: it carries the WATERMARK that makes the next review's range computable (D9), plus what was found and what is still open. Decide whether surviving findings become tasks. A review that can only emit "looks good" is a rubber stamp — the verdict must be able to be "no".
+- [x] 4.5 Keep review DECOUPLED from marking done. If passing the review is what lets a session go home, the reviewing agent has an incentive to pass and will find nothing. Review emits findings; close reads them.
 - [ ] 4.6 The FINAL PASS at close (D10), scoped to the four questions a phase review structurally cannot answer: goal conformance (does the finished thing achieve the initiative's stated goal — the question with no other home, and the one "once it's done it's done" was raised to fix), cross-phase drift, integration, and unresolved findings carried forward. It reads the phase verdicts as INPUT and must never re-audit per-phase correctness.
 
 ## Phase 5 — Close gate + contracts [pending] — 0/5 done

@@ -67,6 +67,7 @@ export const TOOL_NAMES = [
   'sofar_update_plan',
   'sofar_add_note',
   'sofar_remember',
+  'sofar_review',
   'sofar_close_initiative',
   'sofar_find',
 ] as const
@@ -145,6 +146,22 @@ export interface CloseInitiativeArgs {
 }
 
 /**
+ * review (commit-attribution 4.4): record a review that was actually performed.
+ *
+ * `watermark` is the load-bearing field. It is the sha the review read through,
+ * and it bounds the NEXT review's range (D9) — which is why a review is an
+ * event rather than a note.
+ */
+export interface ReviewArgs {
+  initiative?: string
+  scope: 'phase' | 'final'
+  verdict: 'pass' | 'findings' | 'blocked'
+  watermark?: string
+  phase?: string
+  findings?: string[]
+}
+
+/**
  * find (record-index 3.4, 3.5): the agent-pulled half of retrieval. Seeds resolve
  * LITERALLY FIRST — a path, a session id, an initiative slug, a decision handle
  * — and a query that denotes none of those is matched against decision and note
@@ -172,6 +189,7 @@ export interface ToolArgs {
   sofar_update_plan: UpdatePlanArgs
   sofar_add_note: AddNoteArgs
   sofar_remember: RememberArgs
+  sofar_review: ReviewArgs
   sofar_close_initiative: CloseInitiativeArgs
   sofar_find: FindArgs
 }
@@ -367,6 +385,38 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
     required: ['text'],
     additionalProperties: false,
   },
+  sofar_review: {
+    type: 'object',
+    properties: {
+      initiative: initiativeProp,
+      scope: {
+        type: 'string',
+        enum: ['phase', 'final'],
+        description:
+          '`phase` = one phase just completed. `final` = the close-time pass, which asks ONLY what a phase review cannot (goal conformance, cross-phase drift, integration, open findings) and never re-audits per-phase correctness.',
+      },
+      verdict: {
+        type: 'string',
+        enum: ['pass', 'findings', 'blocked'],
+        description:
+          '`pass` = nothing survived. `findings` = something did, and `findings` must list them. `blocked` = the review could not be performed (e.g. no attributed commits, so there was no diff to read).',
+      },
+      watermark: {
+        type: 'string',
+        minLength: 1,
+        description:
+          'The sha this review read THROUGH — it bounds the next review\'s range. Omit only when the range was empty.',
+      },
+      phase: { type: 'string', minLength: 1, description: 'Phase name; omit for a `final` review.' },
+      findings: {
+        type: 'array',
+        items: { type: 'string', minLength: 1 },
+        description: 'One line each, actionable. Required and non-empty when verdict is `findings`.',
+      },
+    },
+    required: ['scope', 'verdict'],
+    additionalProperties: false,
+  },
   sofar_close_initiative: {
     type: 'object',
     properties: {
@@ -456,6 +506,12 @@ export const TOOL_DEFS: readonly ToolDef[] = [
     description:
       'Promote an operational fact to repo memory — a release command, a failure mode and how it is diagnosed, a convention every future session must know. Use this the moment you learn such a fact, for knowledge that is NOT a design decision (use sofar_log_decision for those) and would otherwise live only in your own context, where the next session cannot reach it. Recorded as `<slug> M<n>`; `sofar doctor` then reports it until the hand-written .sofar/repo.md names that handle.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_remember,
+  },
+  {
+    name: 'sofar_review',
+    description:
+      'Record a review that was actually performed. `watermark` is the load-bearing field: it is the sha the review read through, and it bounds the NEXT review\'s range — which is why a review is an event and not a note. A verdict of `findings` MUST list them; a review that can only ever say "looks good" is a rubber stamp, so if nothing is wrong say so with `pass`, but the verdict must be able to be "no".',
+    inputSchema: TOOL_INPUT_SCHEMAS.sofar_review,
   },
   {
     name: 'sofar_close_initiative',
@@ -562,6 +618,27 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
   sofar_remember(a, e) {
     if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
     if (!str(a.text)) e.push('text: must be a non-empty string')
+  },
+  sofar_review(a, e) {
+    if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
+    if (a.scope !== 'phase' && a.scope !== 'final') e.push('scope: must be one of phase|final')
+    if (a.verdict !== 'pass' && a.verdict !== 'findings' && a.verdict !== 'blocked') {
+      e.push('verdict: must be one of pass|findings|blocked')
+    }
+    if (a.watermark !== undefined && !str(a.watermark)) {
+      e.push('watermark: must be a non-empty string when present')
+    }
+    if (a.phase !== undefined && !str(a.phase)) {
+      e.push('phase: must be a non-empty string when present')
+    }
+    if (a.findings !== undefined && !(Array.isArray(a.findings) && a.findings.every(str))) {
+      e.push('findings: must be an array of non-empty strings when present')
+    }
+    // Symmetric with the payload validator: claiming findings while recording
+    // none leaves the next review nothing to carry forward.
+    if (a.verdict === 'findings' && !(Array.isArray(a.findings) && a.findings.length > 0)) {
+      e.push('findings: required and non-empty when verdict is `findings`')
+    }
   },
   sofar_find(a, e) {
     if (!optSlug(a.initiative)) e.push(SLUG_ERROR)

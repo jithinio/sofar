@@ -9,7 +9,7 @@ import {
 } from '../src/tool-inputs'
 
 describe('tool contract surface', () => {
-  it('declares exactly the nine SPEC §MCP tools', () => {
+  it('declares exactly the SPEC §MCP tools', () => {
     expect([...TOOL_NAMES]).toEqual([
       'sofar_get_state',
       'sofar_start_session',
@@ -19,6 +19,7 @@ describe('tool contract surface', () => {
       'sofar_update_plan',
       'sofar_add_note',
       'sofar_remember',
+      'sofar_review',
       'sofar_close_initiative',
       'sofar_find',
     ])
@@ -62,6 +63,13 @@ describe('validateToolInput', () => {
     },
     sofar_add_note: { text: 'hello' },
     sofar_remember: { text: 'release: npm publish -w sofar.sh from the root' },
+    sofar_review: {
+      scope: 'phase',
+      verdict: 'findings',
+      watermark: '0415062a1b2c3d4e5f60718293a4b5c6d7e8f900',
+      phase: 'Phase 1',
+      findings: ['the emitted range dropped the oldest commit'],
+    },
     sofar_find: { seed: 'packages/engine/src/core/fold.ts', hops: 2 },
   }
 

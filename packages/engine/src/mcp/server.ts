@@ -24,6 +24,7 @@ import { logDecision } from './log-decision'
 import { updatePlan } from './update-plan'
 import { addNote } from './add-note'
 import { remember } from './remember'
+import { review } from './review'
 import { closeInitiative } from './close-initiative'
 import { find } from './find'
 
@@ -54,6 +55,7 @@ const handlers: { [K in ToolName]: (ctx: ToolContext, args: ToolArgs[K]) => unkn
   sofar_update_plan: updatePlan,
   sofar_add_note: addNote,
   sofar_remember: remember,
+  sofar_review: review,
   sofar_close_initiative: closeInitiative,
   sofar_find: find,
 }

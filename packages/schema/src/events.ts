@@ -130,6 +130,39 @@ export interface NoteAddedPayload { text: string }
  * never written down (repo-memory-capture D1).
  */
 export interface MemoryPromotedPayload { text: string }
+
+/** What a review concluded. `blocked` means it could not be performed at all. */
+export const REVIEW_VERDICTS = ['pass', 'findings', 'blocked'] as const
+export type ReviewVerdict = (typeof REVIEW_VERDICTS)[number]
+
+/** Whether the review covered one phase or the whole initiative at close. */
+export const REVIEW_SCOPES = ['phase', 'final'] as const
+export type ReviewScope = (typeof REVIEW_SCOPES)[number]
+
+/**
+ * A review that was actually performed (commit-attribution 4.4).
+ *
+ * `watermark` is the load-bearing field, not `verdict`. It is the sha the
+ * review read through, and it is what makes the NEXT review's range computable
+ * — watermark..HEAD filtered to this initiative's attributed commits (D9).
+ * Without it a range could only be derived from task timestamps, which is the
+ * time-window guess record-integrity D6 rejected. That is why a review is an
+ * EVENT and could never have been a note.
+ *
+ * `findings` are the ones that survived, one line each. An empty list with
+ * verdict `pass` is a legitimate outcome; an empty list with verdict `findings`
+ * is not, and validation rejects it — a review that reports findings must say
+ * what they were, or it is a rubber stamp wearing the wrong hat.
+ */
+export interface ReviewRecordedPayload {
+  scope: ReviewScope
+  verdict: ReviewVerdict
+  /** Sha read through; omitted only when the range was empty. */
+  watermark?: string
+  /** Phase name for a `phase` review; absent for `final`. */
+  phase?: string
+  findings?: string[]
+}
 export interface CorrectionPayload { ref: string; reason?: string }
 
 export interface KnownEventPayloads {
@@ -147,6 +180,7 @@ export interface KnownEventPayloads {
   command_run: CommandRunPayload
   note_added: NoteAddedPayload
   memory_promoted: MemoryPromotedPayload
+  review_recorded: ReviewRecordedPayload
   correction: CorrectionPayload
 }
 
@@ -167,6 +201,7 @@ export const EVENT_TYPES = [
   'command_run',
   'note_added',
   'memory_promoted',
+  'review_recorded',
   'correction',
 ] as const satisfies readonly KnownEventType[]
 
@@ -361,6 +396,29 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
   },
   memory_promoted(p, e) {
     if (!str(p.text)) e.push('text: must be a non-empty string')
+  },
+  review_recorded(p, e) {
+    if (!(REVIEW_SCOPES as readonly unknown[]).includes(p.scope)) {
+      e.push(`scope: must be one of ${REVIEW_SCOPES.join('|')}`)
+    }
+    if (!(REVIEW_VERDICTS as readonly unknown[]).includes(p.verdict)) {
+      e.push(`verdict: must be one of ${REVIEW_VERDICTS.join('|')}`)
+    }
+    if (p.watermark !== undefined && !str(p.watermark)) {
+      e.push('watermark: must be a non-empty string when present')
+    }
+    if (p.phase !== undefined && !str(p.phase)) {
+      e.push('phase: must be a non-empty string when present')
+    }
+    if (p.findings !== undefined && !(Array.isArray(p.findings) && p.findings.every(str))) {
+      e.push('findings: must be an array of non-empty strings when present')
+    }
+    // A verdict of `findings` with nothing listed is a rubber stamp wearing the
+    // wrong hat: it claims something was found while recording nothing anyone
+    // can act on, and the next review would have no idea what to carry forward.
+    if (p.verdict === 'findings' && !(Array.isArray(p.findings) && p.findings.length > 0)) {
+      e.push('findings: required and non-empty when verdict is `findings`')
+    }
   },
   correction(p, e) {
     if (!str(p.ref)) e.push('ref: must be a non-empty string (target event id)')

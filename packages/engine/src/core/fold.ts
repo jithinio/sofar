@@ -21,6 +21,9 @@ import {
   type GuardDomain,
   type DecisionLoggedPayload,
   type MemoryPromotedPayload,
+  type ReviewRecordedPayload,
+  type ReviewScope,
+  type ReviewVerdict,
   type FileTouchedPayload,
   type InitiativeCreatedPayload,
   type InitiativeStatus,
@@ -78,6 +81,43 @@ export interface DecisionState {
    * glob list. Present only alongside `rule`, by payload validation.
    */
   guard?: string
+}
+
+/** One performed review (commit-attribution 4.4). */
+export interface ReviewState {
+  id: string
+  ts: string
+  scope: ReviewScope
+  verdict: ReviewVerdict
+  /** Sha read through — what bounds the next review's range (D9). */
+  watermark?: string
+  /** Phase name for a `phase` review; absent for `final`. */
+  phase?: string
+  findings: string[]
+}
+
+/**
+ * The sha the last review read through, or null when none has run. This is the
+ * lower bound of the next review's range — the whole reason a review is an
+ * event and not a note.
+ */
+export function reviewWatermark(state: InitiativeState): string | null {
+  for (let i = state.reviews.length - 1; i >= 0; i--) {
+    const mark = state.reviews[i]!.watermark
+    if (mark !== undefined) return mark
+  }
+  return null
+}
+
+/**
+ * Findings from earlier reviews that no later review has superseded — what the
+ * close-time final pass must carry forward (D10). A review of the same scope
+ * and phase replaces its predecessor, so a re-review after fixes clears them.
+ */
+export function openFindings(state: InitiativeState): string[] {
+  const latest = new Map<string, ReviewState>()
+  for (const review of state.reviews) latest.set(`${review.scope}:${review.phase ?? ''}`, review)
+  return [...latest.values()].flatMap((review) => review.findings)
 }
 
 /** A fact promoted to repo memory — addressable as `<slug> M<n>`. */
@@ -354,6 +394,12 @@ export interface InitiativeState {
    * the first thing a new guard flags is never the work that motivated it.
    */
   guard_violations: GuardViolation[]
+  /**
+   * Reviews actually performed, log order (commit-attribution 4.4). The latest
+   * one carrying a watermark is what bounds the NEXT review's range, so this is
+   * load-bearing state rather than a history of opinions.
+   */
+  reviews: ReviewState[]
   current: {
     active_phase: string | null
     next_action: string | null
@@ -422,6 +468,7 @@ export function emptyState(): InitiativeState {
     task_files: {},
     drop_notes: {},
     guard_violations: [],
+    reviews: [],
     current: { active_phase: null, next_action: null },
     freshness: emptyFreshness(),
     cursor: null,
@@ -1049,6 +1096,19 @@ function applyEvent(
     case 'memory_promoted': {
       const p = event.payload as unknown as MemoryPromotedPayload
       state.memories.push({ id: event.id, ts: event.ts, text: p.text })
+      break
+    }
+    case 'review_recorded': {
+      const p = event.payload as unknown as ReviewRecordedPayload
+      state.reviews.push({
+        id: event.id,
+        ts: event.ts,
+        scope: p.scope,
+        verdict: p.verdict,
+        ...(p.watermark !== undefined ? { watermark: p.watermark } : {}),
+        ...(p.phase !== undefined ? { phase: p.phase } : {}),
+        findings: p.findings ?? [],
+      })
       break
     }
     case 'session_started': {
