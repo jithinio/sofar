@@ -874,6 +874,36 @@ and reports what is open. A `blocked` verdict SKIPS rather than
 resetting the watermark, so a review that could not run cannot silently widen
 the next one's range back to the start of the record.
 
+## Host tiers (what each signal does where — stale-session-signals D2)
+sofar runs under any agent (BD31), and its signals do not all survive the trip.
+Stating the tiers here stops the next surface being designed for Claude Code by
+accident, which D12 already had to correct once.
+
+**Tier 1 — a host with hooks AND a live-session registry** (Claude Code today).
+Everything fires: the SessionStart block, the per-prompt lines, and the two
+that need to name another live session — the reachable-peer address on a file
+conflict, and the push ping. This is the only tier where sofar can tell you WHO
+to talk to, because it is the only one publishing a registry to read.
+
+**Tier 2 — a host with hooks but no registry.** Every signal except the
+addresses: shipping, drift, conflicts and the engine-changed line all work,
+while lines whose entire content is an address render nothing. Silence rather
+than a name-less variant is deliberate: "another record's work landed and you
+can do nothing about it" is noise, and a line that cannot be acted on trains
+the reader to skim the ones that can.
+
+**Tier 3 — no hooks at all** (Codex, Grok, OpenCode, anything on the AGENTS.md
+dialect). Nothing fires on its own, because nothing runs between prompts. The
+same facts are all still REACHABLE, and the dialect's orient-first step is what
+reaches them: `sofar status` renders the record with its staleness signals, and
+`sofar review` renders the packet. The loss is latency and prompting, never
+truth — which is the whole reason the ref-gated read is the mechanism of record
+and the ping is only ever a layer over it (commit-attribution D11/D13).
+
+The invariant across all three: NO signal may be the only way a session can
+learn something. Anything a Tier 1 line reports must also be derivable by a
+Tier 3 session that simply asks.
+
 ## Derived index (record-index — local, incremental, never truth)
 Every cross-record question — which initiatives hold open sessions, who else
 has this file, what guards this path, what else bears on this work — costs a
@@ -1675,6 +1705,40 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   says nothing. The SessionStart notice covers exactly that moment: the two
   halves compose, and neither may be changed on the assumption that the other
   is stateless.
+  The same shim emits the PUSH PING (commit-attribution D13, built as
+  stale-session-signals 1.1) directly after the landed line, from the SAME
+  movement mark: `sofar: this push also carried commits of <slug> (live as
+  "<name>")… those sessions do not know yet unless they prompt. Tell them if it
+  unblocks them, then RECORD what they say; a message is not the record.` — at
+  most 2 records named with a `, +N more` tail, clipped to 340 chars. It
+  notifies NOBODY: D11 governs how a session learns its own work shipped and
+  stands unchanged; what it leaves open is LATENCY, since a session that is not
+  prompting learns nothing until it is. So this hands the reader the ADDRESS and
+  the send stays an act by an agent, which is the only thing that bridges two
+  processes here. Tier 0 is REFRESHED rather than read (an index nobody
+  maintains reports an empty open set, and empty is indistinguishable from
+  "nobody to tell"), the caller's own session is excluded, and the line is
+  SILENT when no live-session registry resolves a name — the address is the
+  whole actionable content, so a host without one renders nothing rather than a
+  line it cannot act on. That silence is not a gap in coverage: every host still
+  learns its OWN shipping state from the ref-gated read, which is exactly why
+  D13 sequenced the ping after 3.4 rather than instead of it (§Host tiers).
+  The same shim emits the ENGINE-CHANGED line FIRST of all
+  (stale-session-signals 2.1), outside every git gate because an upgrade is not
+  a git fact: `sofar: the sofar engine changed under this session (<was> →
+  <now>). Your MCP tools are still the ones this session STARTED with…restart
+  the session to pick them up.`, clipped to 320 chars. A session holds the tool
+  surface it was started with — `.mcp.json` runs the `sofar` on PATH and that
+  server process lives for the session — so a publish plus an upgrade leaves
+  every running session on the old surface, with a new tool simply absent and an
+  older tool silently doing the older thing. Measured cost: two wrong
+  conclusions in one day in this repo (commit-attribution M5). The running
+  version is free to read (the shim IS the new binary), the comparison is
+  against a per-session mark beside the ref mark in `shipwatch.json`, and it is
+  EDGE-TRIGGERED like everything else here. Its own mark call, never folded into
+  the ref look: that look needs a branch and gives up without one, so the first
+  version went silent in a repo with no commits yet — which is exactly a fresh
+  clone about to be upgraded.
   The same shim emits the LIVE FILE-CONFLICT line (writeback-collisions
   2.1) FIRST, ahead of parallel-wrap: `sofar: N file(s) you touched are
   ALSO open in another live session — <path> (session <id>); …`, at most 3
@@ -3121,3 +3185,14 @@ stay the underlying derivation's, and exit codes are styling-independent.
   fires; a path pointing elsewhere is still skipped, naming that directory's
   `prepare-commit-msg` and the line to add; and doctor reports attribution as
   live when the hook sits under a configured path rather than the default.
+- **Stale-session signals (stale-session-signals):** a push carrying another
+  record's commits names that record and the address its live session answers
+  to, fires once on the same movement mark as the landed line, reports both
+  halves when a push carries this record and another, and is SILENT when no
+  registry resolves a name or the other record has no open session. The engine
+  transition reports the version a session started with when the binary changes
+  under it, says nothing on a first look or while it holds still, survives a ref
+  look in between (which must carry it forward, not blank it), answers with no
+  ref and no commits at all, and announces once. The review packet asks, at both
+  scopes, whether any decision names work no task implements — the question that
+  would have caught commit-attribution D13.

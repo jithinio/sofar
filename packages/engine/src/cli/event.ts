@@ -16,7 +16,8 @@ import {
 } from '../core/fold'
 import { readAttribution, readShipping } from '../core/attribution'
 import { readGitState, type GitState } from '../core/git'
-import { noteUpstream } from '../core/shipwatch'
+import { noteEngine, noteUpstream } from '../core/shipwatch'
+import { version as ENGINE_VERSION } from '../../package.json'
 
 /** Commits walked for the SessionStart shipping notice — bounded per D6. */
 const SHIPPING_WINDOW = 30
@@ -968,15 +969,15 @@ function landedNotice(
   slug: string,
   sessionId: string,
   git: GitState | null,
-): string | null {
+): string[] {
   try {
-    if (git === null) return null
+    if (git === null) return []
     // Mark FIRST, unconditionally on a readable branch — including when there
     // is no upstream ref at all. That state is watched rather than skipped, so
     // the branch's first push (the ref appearing) reports like any other.
     const look = noteUpstream(sofarDir, sessionId, git.branch, git.upstreamFull)
     // A ref that vanished (remote branch deleted) moved, but nothing landed.
-    if (git.upstreamFull === null || !look.moved) return null
+    if (git.upstreamFull === null || !look.moved) return []
 
     const arrived = readAttribution(rootDir, {
       range: look.previous === null ? git.upstreamFull : `${look.previous}..${git.upstreamFull}`,
@@ -988,25 +989,153 @@ function landedNotice(
       ...(look.previous === null ? { firstPushOf: git.branch } : {}),
       maxCount: LANDED_WINDOW,
     })
-    if (arrived === null) return null
+    if (arrived === null) return []
+    const lines: string[] = []
     const mine = arrived.filter((c) => c.initiatives.includes(slug))
-    if (mine.length === 0) return null
+    if (mine.length > 0) lines.push(minesLanded(mine, arrived.length, git.branch))
+    // The SAME movement, asked of the other records on this branch (D13's ping).
+    const theirs = othersLanded(sofarDir, slug, sessionId, arrived)
+    if (theirs !== null) lines.push(theirs)
+    return lines
+  } catch {
+    return []
+  }
+}
 
+/**
+ * THE ENGINE CHANGED UNDER YOU (stale-session-signals 2.1).
+ *
+ * A session holds the MCP tool surface it was started with: `.mcp.json` runs
+ * the `sofar` on PATH, that server process lives for the session, and the tool
+ * list the agent loaded never changes. So a publish plus an upgrade leaves
+ * every running session quietly on the old surface — a tool built an hour ago
+ * is simply absent, and an OLD tool silently does the old thing.
+ *
+ * That is not hypothetical: it cost this repo two wrong conclusions in one day
+ * (commit-attribution M5). `sofar_review` never appeared for the sessions that
+ * built it, and `sofar_close_initiative` closed a record with no close audit
+ * because the installed engine predated it — the only visible tell being a
+ * field missing from the tool result.
+ *
+ * The hook shim is the NEW binary the moment the upgrade lands, so the running
+ * version is free to read here and the comparison is against what this session
+ * last saw. Edge-triggered like everything else on this path: it is a
+ * transition, and restating it every prompt would be the noise the ref line is
+ * careful not to be.
+ */
+function engineChangedLine(was: string | null): string | null {
+  if (was === null) return null
+  return clipTo(
+    `sofar: the sofar engine changed under this session (${was} → ${ENGINE_VERSION}). ` +
+      `Your MCP tools are still the ones this session STARTED with, so anything added ` +
+      `since is absent and an older tool silently does the older thing — restart the ` +
+      `session to pick them up.`,
+    ENGINE_LINE_BUDGET,
+  )
+}
+
+/** Character budget for the engine-changed line. */
+export const ENGINE_LINE_BUDGET = 320
+
+/** Records named on the ping line before it falls back to a count. */
+export const PING_MAX_SLUGS = 2
+
+/** Character budget for the ping line. */
+export const PING_BUDGET = 340
+
+/**
+ * THE PUSH PING (commit-attribution D13, built here as stale-session-signals
+ * 1.1) — the layer that was accepted, named in a note as task 3.5, and closed
+ * over without ever being built.
+ *
+ * D11 settles how a session learns its OWN work shipped: it re-reads refs, and
+ * no surface may notify it. That rule is about the mechanism of record, and it
+ * stands. What it leaves open is LATENCY — a session that is not prompting
+ * right now learns nothing until it is, which in practice means a human says
+ * it out loud, exactly as one had to before any of this existed.
+ *
+ * So this does not notify anybody. It tells whoever is looking that OTHER
+ * records' work rode along in this push, and hands over the address that makes
+ * telling them possible. The send stays an act by an agent, which is the only
+ * thing that can bridge two processes here, and D13's rule holds: an optional
+ * layer over the ref-gated read, never the only way.
+ *
+ * SILENT WITHOUT A TRANSPORT, deliberately. The address is the whole actionable
+ * content — "some other record's work landed, and there is nothing you can do
+ * about it" is noise — so a host with no live-session registry (Codex, Grok,
+ * anything on the AGENTS.md dialect) renders nothing rather than a line it
+ * cannot act on. Those hosts are not left blind: every session there still
+ * learns its own shipping state from the ref-gated read, which is why D13
+ * insisted the ping be sequenced AFTER 3.4 rather than instead of it.
+ *
+ * Rides the movement mark the landed line already took, so it adds no state,
+ * stays edge-triggered (D15), and cannot fire twice for one push.
+ *
+ * Both this and the engine transition are emitted by landedNotice rather than
+ * beside it, because that function makes the single noteUpstream call and the
+ * mark carries both facts — splitting the caller would mean marking twice and
+ * losing one of the two transitions to whichever wrote last.
+ */
+function othersLanded(
+  sofarDir: string,
+  slug: string,
+  sessionId: string,
+  arrived: readonly { initiatives: string[] }[],
+): string | null {
+  const slugs = [
+    ...new Set(arrived.flatMap((c) => c.initiatives).filter((s) => s !== slug)),
+  ].sort()
+  if (slugs.length === 0) return null
+
+  // Tier 0 is REFRESHED rather than read, the same reason the conflict lines
+  // refresh it: an index nobody maintains reports an empty open set, and empty
+  // is indistinguishable from "nobody is there to tell".
+  let open: { session: string; initiative: string }[]
+  try {
+    open = refreshTier0(sofarDir).filter(
+      (row) => slugs.includes(row.initiative) && row.session !== sessionId,
+    )
+  } catch {
+    return null
+  }
+  if (open.length === 0) return null
+
+  const peers = resolvePeers([...new Set(open.map((row) => row.session))])
+  const reachable = open
+    .map((row) => ({ row, peer: peers.get(row.session) }))
+    .filter((entry): entry is { row: typeof entry.row; peer: Peer } => entry.peer !== undefined)
+  if (reachable.length === 0) return null // no transport — say nothing
+
+  const named = reachable
+    .slice(0, PING_MAX_SLUGS)
+    .map((entry) => `${entry.row.initiative} (live as "${entry.peer.name}")`)
+  const more = reachable.length > named.length ? `, +${reachable.length - named.length} more` : ''
+  return clipTo(
+    `sofar: this push also carried commits of ${named.join(', ')}${more} — ` +
+      `those sessions do not know yet unless they prompt. Tell them if it unblocks them, ` +
+      `then RECORD what they say; a message is not the record.`,
+    PING_BUDGET,
+  )
+}
+
+/** The line for THIS record's own commits — extracted so the two can compose. */
+function minesLanded(
+  mine: readonly { sha: string }[],
+  walked: number,
+  branch: string,
+): string {
     const named = mine.slice(0, LANDED_MAX_SHAS).map((c) => c.sha.slice(0, 7))
     const more = mine.length > named.length ? `, +${mine.length - named.length} more` : ''
     // HEDGE when the cap bit. Under-reporting is the safe direction and it is
     // documented, but the line stated N as a fact — and a count the reader
     // cannot tell is a floor is a count they will trust as exact.
-    const count = arrived.length >= LANDED_WINDOW ? `at least ${mine.length}` : `${mine.length}`
-    return clipTo(
-      `sofar: ${count} commit(s) of this record just landed on origin/${git.branch} ` +
-        `(${named.join(', ')}${more}) — that work has SHIPPED; if a next action was waiting on ` +
-        `the push, it is done.`,
-      LANDED_BUDGET,
-    )
-  } catch {
-    return null
-  }
+  const count = walked >= LANDED_WINDOW ? `at least ${mine.length}` : `${mine.length}`
+  return clipTo(
+    `sofar: ${count} commit(s) of this record just landed on origin/${branch} ` +
+      `(${named.join(', ')}${more}) — that work has SHIPPED; if a next action was waiting on ` +
+      `the push, it is done.`,
+    LANDED_BUDGET,
+  )
 }
 
 /**
@@ -1515,8 +1644,11 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     // landed" is the actionable half, and gitStateLine's "in sync with origin"
     // is the background it sits against.
     const git = readGitState(rootDir)
-    const landed = landedNotice(rootDir, ctx.sofarDir, slug, sessionId, git)
-    if (landed !== null) lines.push(landed)
+    // FIRST, and outside every git gate: an upgrade is not a git fact, and a
+    // stale tool surface changes how far the reader should trust the rest.
+    const engineLine = engineChangedLine(noteEngine(ctx.sofarDir, sessionId, ENGINE_VERSION))
+    if (engineLine !== null) lines.push(engineLine)
+    lines.push(...landedNotice(rootDir, ctx.sofarDir, slug, sessionId, git))
 
     const gitLine = gitStateLine(git)
     if (gitLine !== null) lines.push(gitLine)

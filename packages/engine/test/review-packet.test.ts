@@ -253,3 +253,19 @@ describe('the packet is honest about what it could not read', () => {
     expect(out).not.toContain('Watermark to record')
   })
 })
+
+describe('the question that would have caught D13 (stale-session-signals 3.1)', () => {
+  it('asks a PHASE review whether a decision named work nothing implements', () => {
+    const out = renderReviewPacket(state(), { scope: 'phase', commits: [], watermark: null })
+    expect(out).toContain('PROMISED BUT UNBUILT')
+    // Asked, never detected: reading intent out of prose is the inference the
+    // record refuses to make, so the packet renders and the reviewer judges.
+    expect(out).toContain('cannot ask this mechanically')
+  })
+
+  it('asks it again at CLOSE, where it is the last chance', () => {
+    const out = renderReviewPacket(state(), { scope: 'final', commits: [], watermark: null })
+    expect(out).toContain('PROMISED BUT UNBUILT')
+    expect(out).toContain('last moment anyone asks')
+  })
+})

@@ -2,12 +2,12 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import { TRAILER_KEY } from '../src/core/attribution'
 import { handleSessionStart, handleUserPrompt } from '../src/cli/event'
 import { makeEvent } from '../src/core/envelope'
 import { appendEvent } from '../src/core/log'
-import { noteUpstream, SHIPWATCH_MAX_MARKS } from '../src/core/shipwatch'
+import { noteEngine, noteUpstream, SHIPWATCH_MAX_MARKS } from '../src/core/shipwatch'
 
 /**
  * The LIVE shipping signal (commit-attribution 3.4, D11) — a session already
@@ -277,10 +277,10 @@ describe('the movement mark (core/shipwatch)', () => {
 
   it('reports a first look as unmoved, then movement against it', () => {
     const dir = sofarDir('basic')
-    expect(noteUpstream(dir, 's1', 'main', SHA_A)).toEqual({ previous: null, moved: false })
-    expect(noteUpstream(dir, 's1', 'main', SHA_A)).toEqual({ previous: SHA_A, moved: false })
-    expect(noteUpstream(dir, 's1', 'main', SHA_B)).toEqual({ previous: SHA_A, moved: true })
-    expect(noteUpstream(dir, 's1', 'main', SHA_B)).toEqual({ previous: SHA_B, moved: false })
+    expect(noteUpstream(dir, 's1', 'main', SHA_A)).toMatchObject({ previous: null, moved: false })
+    expect(noteUpstream(dir, 's1', 'main', SHA_A)).toMatchObject({ previous: SHA_A, moved: false })
+    expect(noteUpstream(dir, 's1', 'main', SHA_B)).toMatchObject({ previous: SHA_A, moved: true })
+    expect(noteUpstream(dir, 's1', 'main', SHA_B)).toMatchObject({ previous: SHA_B, moved: false })
   })
 
   it('keeps sessions independent — one session looking does not consume another\'s news', () => {
@@ -297,14 +297,14 @@ describe('the movement mark (core/shipwatch)', () => {
     // reading it as movement would announce a push that never happened.
     const dir = sofarDir('branch')
     noteUpstream(dir, 's1', 'main', SHA_A)
-    expect(noteUpstream(dir, 's1', 'other', SHA_B)).toEqual({ previous: null, moved: false })
+    expect(noteUpstream(dir, 's1', 'other', SHA_B)).toMatchObject({ previous: null, moved: false })
   })
 
   it('rejects a sha that is not a full one', () => {
     // Short shas are display values; feeding one back as a rev is how the
     // range silently stops resolving.
     const dir = sofarDir('short')
-    expect(noteUpstream(dir, 's1', 'main', SHA_A.slice(0, 7))).toEqual({
+    expect(noteUpstream(dir, 's1', 'main', SHA_A.slice(0, 7))).toMatchObject({
       previous: null,
       moved: false,
     })
@@ -338,6 +338,166 @@ describe('the movement mark (core/shipwatch)', () => {
     const dir = sofarDir('corrupt')
     mkdirSync(join(dir, '.index'), { recursive: true })
     writeFileSync(join(dir, '.index', 'shipwatch.json'), '{not json')
-    expect(noteUpstream(dir, 's1', 'main', SHA_A)).toEqual({ previous: null, moved: false })
+    expect(noteUpstream(dir, 's1', 'main', SHA_A)).toMatchObject({ previous: null, moved: false })
+  })
+})
+
+describe('the push ping — other records that rode along (D13, 1.1/1.2)', () => {
+  // commit-attribution D13 accepted this and a note named it task 3.5; the
+  // plan was rewritten twice without it and the initiative closed over it.
+  // D11 stands: this notifies nobody. It hands over the ADDRESS, so an agent
+  // can, which is the only thing that bridges two processes here.
+  function registry(entries: { sessionId: string; name: string }[]): void {
+    const root = mkdtempSync(join(tmpdir(), 'sofar-landed-registry-'))
+    roots.push(root)
+    const dir = join(root, 'sessions')
+    mkdirSync(dir, { recursive: true })
+    // The registry filters on process liveness (peers.ts `alive`), so the
+    // entries must carry a pid that really exists — this test process.
+    entries.forEach((e, i) => {
+      const pid = process.pid
+      writeFileSync(
+        join(dir, `${pid}-${i}.json`),
+        JSON.stringify({
+          pid,
+          sessionId: e.sessionId,
+          name: e.name,
+          cwd: '/repo',
+          messagingSocketPath: `/tmp/cc-socks/${pid}.sock`,
+        }),
+      )
+    })
+    vi.stubEnv('CLAUDE_CONFIG_DIR', root)
+  }
+
+  /** Register an OPEN session on another initiative, so Tier 0 sees it. */
+  function otherRecord(root: string, otherSlug: string, session: string): void {
+    const dir = join(root, '.sofar', 'initiatives', otherSlug)
+    mkdirSync(dir, { recursive: true })
+    const log = join(dir, 'events.jsonl')
+    writeFileSync(log, '')
+    for (const event of [
+      makeEvent({ initiative: otherSlug, session, type: 'initiative_created', payload: { goal: 'g' }, source: 'cli', actor: 'agent' }),
+      makeEvent({ initiative: otherSlug, session, type: 'session_started', payload: { tool: 'claude-code' }, source: 'hook', actor: 'agent' }),
+    ]) {
+      appendEvent(log, event)
+    }
+  }
+
+  it('names the other record and the address that can reach it', () => {
+    const { root } = repo('ping')
+    otherRecord(root, 'sibling', 'sess-sibling')
+    registry([{ sessionId: 'sess-sibling', name: 'sofar-42' }])
+    commit(root, 'theirs', 'sibling')
+    orient(root)
+    siblingPush(root)
+
+    const line = prompt(root).split('\n').find((l) => l.includes('also carried'))
+    expect(line).toBeDefined()
+    expect(line).toContain('sibling')
+    expect(line).toContain('sofar-42')
+    expect(line).toContain('a message is not the record')
+  })
+
+  it('is SILENT where no transport resolves — the Codex and Grok case', () => {
+    // The address is the whole actionable content: "some other record shipped
+    // and you can do nothing about it" is noise. Those hosts still get their
+    // own shipping state from the ref-gated read, which is why D13 sequenced
+    // the ping after it rather than instead of it.
+    const { root } = repo('ping-noregistry')
+    otherRecord(root, 'sibling', 'sess-sibling')
+    registry([]) // a host with no live-session registry
+    commit(root, 'theirs', 'sibling')
+    orient(root)
+    siblingPush(root)
+    expect(prompt(root)).not.toContain('also carried')
+  })
+
+  it('says nothing when the other record has no OPEN session to tell', () => {
+    const { root } = repo('ping-noopen')
+    registry([{ sessionId: 'sess-sibling', name: 'sofar-42' }])
+    commit(root, 'theirs', 'sibling') // no log, so no open session
+    orient(root)
+    siblingPush(root)
+    expect(prompt(root)).not.toContain('also carried')
+  })
+
+  it('fires ONCE, on the same movement mark as the landed line', () => {
+    const { root } = repo('ping-once')
+    otherRecord(root, 'sibling', 'sess-sibling')
+    registry([{ sessionId: 'sess-sibling', name: 'sofar-42' }])
+    commit(root, 'theirs', 'sibling')
+    orient(root)
+    siblingPush(root)
+    expect(prompt(root)).toContain('also carried')
+    expect(prompt(root)).not.toContain('also carried')
+  })
+
+  it('reports BOTH halves when a push carries this record and another', () => {
+    const { root } = repo('ping-both')
+    otherRecord(root, 'sibling', 'sess-sibling')
+    registry([{ sessionId: 'sess-sibling', name: 'sofar-42' }])
+    commit(root, 'mine', SLUG)
+    commit(root, 'theirs', 'sibling')
+    orient(root)
+    siblingPush(root)
+    const out = prompt(root)
+    expect(out).toContain('just landed')
+    expect(out).toContain('also carried')
+  })
+})
+
+describe('the engine changed under you (2.1)', () => {
+  // A session holds the MCP tool surface it started with, so an upgrade leaves
+  // it quietly on the old one. That cost this repo two wrong conclusions in a
+  // day: sofar_review never appeared for the sessions that built it, and a
+  // close ran with no audit because the installed engine predated it.
+  const dirOf = (root: string): string => join(root, '.sofar')
+  const SHA = 'a'.repeat(40)
+
+  it('says nothing on a first look — there is no transition yet', () => {
+    const { root } = repo('engine-first')
+    expect(noteEngine(dirOf(root), 'e1', '0.27.0')).toBeNull()
+  })
+
+  it('says nothing while the engine stays put', () => {
+    const { root } = repo('engine-same')
+    noteEngine(dirOf(root), 'e1', '0.27.0')
+    expect(noteEngine(dirOf(root), 'e1', '0.27.0')).toBeNull()
+  })
+
+  it('reports the version this session STARTED with when it changes', () => {
+    const { root } = repo('engine-moved')
+    noteEngine(dirOf(root), 'e1', '0.26.1')
+    expect(noteEngine(dirOf(root), 'e1', '0.27.0')).toBe('0.26.1')
+  })
+
+  it('answers with no ref, no branch and no commits at all', () => {
+    // The upgrade case exactly, and the one the first version got wrong by
+    // living inside the ref gate: nobody pushed, there may be no commit yet,
+    // and the binary still changed underneath.
+    const { root } = repo('engine-noref')
+    noteEngine(dirOf(root), 'e1', '0.26.1')
+    expect(noteEngine(dirOf(root), 'e1', '0.27.0')).toBe('0.26.1')
+  })
+
+  it('survives a ref look in between, which must not blank it', () => {
+    // noteUpstream carries the engine forward untouched; if it overwrote the
+    // mark wholesale, a single prompt would erase the transition.
+    const { root } = repo('engine-branch')
+    noteEngine(dirOf(root), 'e1', '0.26.1')
+    noteUpstream(dirOf(root), 'e1', 'main', SHA)
+    expect(noteEngine(dirOf(root), 'e1', '0.27.0')).toBe('0.26.1')
+  })
+
+  it('announces it ONCE on the prompt path, and names the restart', () => {
+    const { root } = repo('engine-line')
+    // Seed a mark from an older engine, the way a session started before the
+    // upgrade would carry one.
+    noteEngine(dirOf(root), SESSION, '0.0.1-old')
+    const first = prompt(root)
+    expect(first).toContain('the sofar engine changed under this session (0.0.1-old →')
+    expect(first).toContain('restart the session')
+    expect(prompt(root)).not.toContain('engine changed under this session')
   })
 })

@@ -47,7 +47,7 @@ import { readIndexFile, writeIndexFile } from './index-store'
 export const SHIPWATCH_FILE = 'shipwatch.json'
 
 /** Bump on ANY change to the on-disk shape — a mismatch cold-starts. */
-export const SHIPWATCH_VERSION = 1
+export const SHIPWATCH_VERSION = 2
 
 /**
  * Marks kept before the oldest are evicted. Sessions are never cleaned up on
@@ -71,6 +71,16 @@ export interface WatchMark {
    * for the first time — the one event that could never be reported.
    */
   upstream: string | null
+  /**
+   * The sofar engine this session last saw (stale-session-signals 2.1).
+   *
+   * Kept beside the ref mark because it is the same kind of fact — something
+   * that changed UNDER a session, detectable only by comparing against what it
+   * saw last — and because sharing the file means one read, one write and one
+   * eviction policy rather than two. Absent on a mark written before this
+   * field existed, which reads as "no engine seen yet" and stays silent.
+   */
+  engine?: string
   /**
    * Write order — the highest on disk plus one. Eviction only; never compared
    * against event time or anything outside this file.
@@ -118,10 +128,15 @@ function readMarks(sofarDir: string): Record<string, WatchMark> {
   for (const [id, mark] of Object.entries(disk.marks)) {
     if (typeof mark !== 'object' || mark === null) continue
     const m = mark as Partial<WatchMark>
-    if (typeof m.branch !== 'string' || m.branch.length === 0) continue
+    if (typeof m.branch !== 'string') continue
     if (m.upstream !== null && (typeof m.upstream !== 'string' || !FULL_SHA.test(m.upstream))) continue
     if (typeof m.seq !== 'number' || !Number.isFinite(m.seq)) continue
-    clean[id] = { branch: m.branch, upstream: m.upstream, seq: m.seq }
+    clean[id] = {
+      branch: m.branch,
+      upstream: m.upstream,
+      seq: m.seq,
+      ...(typeof m.engine === 'string' && m.engine.length > 0 ? { engine: m.engine } : {}),
+    }
   }
   return clean
 }
@@ -172,7 +187,14 @@ export function noteUpstream(
   // live — so the push it was waiting for is precisely the one it never hears,
   // its next look reading as a first look and staying silent. That defeats the
   // cap's stated guarantee, and the extra cost is one small write per prompt.
-  marks[sessionId] = { branch, upstream, seq: nextSeq(marks) }
+  // The engine version is carried forward untouched: noteEngine owns it, and a
+  // ref look must never blank a fact it does not know about.
+  marks[sessionId] = {
+    branch,
+    upstream,
+    seq: nextSeq(marks),
+    ...(prior?.engine !== undefined ? { engine: prior.engine } : {}),
+  }
   writeIndexFile(sofarDir, SHIPWATCH_FILE, { version: SHIPWATCH_VERSION, marks: evict(marks) })
 
   if (usable === undefined) return { previous: null, moved: false }
@@ -197,4 +219,38 @@ function evict(marks: Record<string, WatchMark>): Record<string, WatchMark> {
     kept[id] = marks[id]!
   }
   return kept
+}
+
+/**
+ * Mark the ENGINE this session is running against, and report the version it
+ * saw last when that differs (stale-session-signals 2.1).
+ *
+ * Deliberately NOT folded into noteUpstream, though they share the file: the
+ * ref look needs a branch and gives up without one, and an upgrade has nothing
+ * to do with git — the first version of this shipped inside that gate and went
+ * silent in a repo with no commits yet, which is exactly a fresh clone about to
+ * be upgraded. Same mark, same eviction, independent question.
+ *
+ * A transition rather than a state, like everything else on this path: "you are
+ * on 0.27.0" repeated every prompt is noise; "it changed under you" is news
+ * once. Returns null on a first look, since a session that has never been
+ * marked has not seen anything change.
+ */
+export function noteEngine(
+  sofarDir: string,
+  sessionId: string,
+  engine: string,
+): string | null {
+  if (sessionId.length === 0 || engine.length === 0) return null
+  const marks = readMarks(sofarDir)
+  const prior = marks[sessionId]
+  const was = prior?.engine !== undefined && prior.engine !== engine ? prior.engine : null
+  marks[sessionId] = {
+    branch: prior?.branch ?? '',
+    upstream: prior?.upstream ?? null,
+    seq: nextSeq(marks),
+    engine,
+  }
+  writeIndexFile(sofarDir, SHIPWATCH_FILE, { version: SHIPWATCH_VERSION, marks: evict(marks) })
+  return was
 }
