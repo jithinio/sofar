@@ -62,6 +62,7 @@ Three consequences run through every design decision in the codebase:
 | `core/listing.ts` | `initiativeSlugs` and the portfolio listing behind `sofar list`. |
 | `core/bindings.ts` | `.sofar/bindings.json` — which branch serves which initiative. |
 | `core/git.ts` | Branch, HEAD, upstream — read from `.git` files, no subprocess. |
+| `core/attribution.ts` | Commit → initiative from `Sofar-Initiative:` trailers (D4). Spawns `git log`, so it is kept OUT of `git.ts` to preserve that file's no-subprocess guarantee; every walk is bounded and gated on a ref having moved (D6). |
 | `core/cursor.ts` | Export/import cursors: the entire sync interface. |
 | `core/peers.ts` | Resolves a Claude Code session id to the name its `SendMessage` addresses, from the host's own registry. Best-effort; absent means no address. |
 
