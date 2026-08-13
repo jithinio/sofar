@@ -279,6 +279,9 @@ function auditWiring(rootDir: string): Section {
 /** Below this many files, a session touching them without task changes is noise, not untracked work. */
 const UNTRACKED_FILE_THRESHOLD = 3
 
+/** Fold warnings listed per record before the `+N more` sentinel. */
+const FOLD_WARNING_HINTS = 5
+
 interface Folded {
   slug: string
   state?: InitiativeState
@@ -356,8 +359,20 @@ function auditRecords(folded: Folded[]): Section {
     }
 
     // Fold warnings (corrupt/unknown lines) — tolerated by design, surfaced here.
+    // Listed rather than sampled: this showed `warnings[0]` alone, so in a
+    // record carrying several, every warning after the first was invisible —
+    // and a record that already has warnings is exactly where a NEW one most
+    // needs to be read (plan-carry-forward Phase 3 review). Capped with the
+    // usual `+N more` sentinel so one corrupt log cannot flood the report.
     if (warnings.length > 0) {
-      findings.push({ level: 'warn', text: `${slug}: ${warnings.length} fold warning(s)`, hint: warnings[0]! })
+      const shown = warnings.slice(0, FOLD_WARNING_HINTS)
+      const hidden = warnings.length - shown.length
+      const hint = hidden > 0 ? [...shown, `+${hidden} more (see \`sofar status <slug>\`)`] : shown
+      findings.push({
+        level: 'warn',
+        text: `${slug}: ${warnings.length} fold warning(s)`,
+        hint: hint.join('\n'),
+      })
     }
 
     // Stale phase (task 11.1): all tasks done but the phase never marked
@@ -901,7 +916,9 @@ function renderPlain(rootDir: string, sections: Section[], tally: Tally): string
     lines.push(`${section.title}:`)
     for (const f of section.findings) {
       lines.push(`${MARKER[f.level]}  ${f.text}`)
-      if (f.hint !== undefined) lines.push(`          ${f.hint}`)
+      // A hint may carry several lines (fold warnings list one per line);
+      // each is indented identically, so a one-line hint is unchanged.
+      if (f.hint !== undefined) for (const h of f.hint.split('\n')) lines.push(`          ${h}`)
     }
     lines.push('')
   }
@@ -926,7 +943,13 @@ function renderStyled(rootDir: string, sections: Section[], tally: Tally, caps: 
     for (const f of section.findings) {
       lines.push(`  ${padEndVisible(mark[f.level], markWidth)} ${f.text}`)
       if (f.hint !== undefined) {
-        lines.push(style.dim(`${' '.repeat(markWidth + 3)}${sym.elbow} ${f.hint}`))
+        // Multi-line hints: the elbow marks the first line only, continuations
+        // align under it, so the block reads as one hint rather than several.
+        const pad = ' '.repeat(markWidth + 3)
+        const cont = ' '.repeat(visibleWidth(sym.elbow) + 1)
+        f.hint.split('\n').forEach((h, i) => {
+          lines.push(style.dim(i === 0 ? `${pad}${sym.elbow} ${h}` : `${pad}${cont}${h}`))
+        })
       }
     }
     lines.push('')

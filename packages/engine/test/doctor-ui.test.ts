@@ -2,6 +2,8 @@ import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
+import { makeEvent } from '../src/core/envelope'
+import { serializeEvent } from '../src/core/log'
 import { runInit } from '../src/cli/init'
 import { runDoctor } from '../src/cli/doctor'
 import type { Caps } from '../src/cli/ui'
@@ -197,5 +199,65 @@ describe('sofar doctor: scan spinner', () => {
       stream: out,
     })
     expect(out.chunks).toEqual([])
+  })
+})
+
+/**
+ * plan-carry-forward Phase 3 review: this rendered `warnings[0]` alone, so in
+ * a record carrying several, every warning after the first was invisible —
+ * and a record that already has warnings is exactly where a new one most
+ * needs to be read.
+ */
+describe('sofar doctor: fold warnings are listed, not sampled', () => {
+  function warnRecord(root: string, slug: string, count: number): void {
+    const dir = join(root, '.sofar', 'initiatives', slug)
+    mkdirSync(dir, { recursive: true })
+    const lines = Array.from({ length: count }, (_, i) =>
+      serializeEvent(
+        makeEvent({
+          initiative: slug,
+          session: 'cli',
+          source: 'cli',
+          actor: 'agent',
+          type: `unknown_type_${i}`,
+          payload: {},
+        }),
+      ),
+    )
+    writeFileSync(join(dir, 'events.jsonl'), `${lines.join('\n')}\n`)
+  }
+
+  it('lists every warning up to the cap rather than only the first', () => {
+    const root = tmpRepo()
+    runInit(root)
+    warnRecord(root, 'noisy', 3)
+    const r = runDoctor(root, {}, PLAIN, { caps: INERT, stream: capture() })
+
+    expect(r.stdout).toContain('noisy: 3 fold warning(s)')
+    for (let i = 0; i < 3; i++) expect(r.stdout).toContain(`unknown_type_${i}`)
+    expect(r.stdout).not.toContain('+0 more')
+  })
+
+  it('caps the list and says how many it withheld', () => {
+    const root = tmpRepo()
+    runInit(root)
+    warnRecord(root, 'very-noisy', 8)
+    const r = runDoctor(root, {}, PLAIN, { caps: INERT, stream: capture() })
+
+    expect(r.stdout).toContain('very-noisy: 8 fold warning(s)')
+    expect(r.stdout).toContain('+3 more')
+    // The cap is real: past it, nothing is printed.
+    expect(r.stdout).not.toContain('unknown_type_5')
+  })
+
+  it('styled: the elbow marks the first hint line only, continuations align under it', () => {
+    const root = tmpRepo()
+    runInit(root)
+    warnRecord(root, 'noisy', 2)
+    const r = runDoctor(root, {}, STYLED, { caps: INERT, stream: capture() })
+
+    const out = r.stdout.split('\n')
+    expect(out.find((l) => l.includes('unknown_type_0'))).toContain('└')
+    expect(out.find((l) => l.includes('unknown_type_1'))).not.toContain('└')
   })
 })

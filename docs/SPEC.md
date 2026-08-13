@@ -2007,7 +2007,13 @@ Shims contain no logic — they invoke the sofar CLI.
   commit made from a plain terminal), and a permanently red doctor trains
   people to ignore it (record-integrity D3). Bounded per D6 — a fixed small
   window, never a full-history walk; (2)
-  record health — initiative logs fold without stub sessions or corrupt lines,
+  record health — initiative logs fold without stub sessions or corrupt lines.
+  Fold warnings are LISTED per record, one hint line each, capped at 5 with a
+  `+N more` sentinel: reporting only the first hid every warning after it, and
+  a record that already carries warnings is exactly where a new one most needs
+  reading (plan-carry-forward Phase 3 review). A finding's hint may therefore
+  span lines — the plain renderer indents each identically, the styled one puts
+  the elbow on the first and aligns the rest under it. Also checked:
   no STALE PHASE (all tasks done but the phase still active/pending, missing a
   phase_status_changed — D-P11), no UNTRACKED WORK (a wrapped session with real
   file activity but zero task changes — work missing from the plan, or
