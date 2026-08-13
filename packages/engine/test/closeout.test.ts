@@ -451,3 +451,47 @@ describe('guard crossings are counted against the last review (ruled at close)',
     expect(finding?.text).toContain('1 guarded-rule crossing')
   })
 })
+
+describe('missing file evidence: a minority accuses tasks, a majority accuses the record', () => {
+  const record = (doneCount: number, evidencedCount: number): InitiativeState => {
+    const tasks = Array.from({ length: doneCount }, (_, i) => ({
+      id: `1.${i + 1}`,
+      title: 't',
+      status: 'done',
+    }))
+    const events: EventEnvelope[] = [
+      ev('initiative_created', { slug: 'demo', goal: 'g' }),
+      plan([{ name: 'P1', status: 'done', tasks }]),
+    ]
+    // Evidence accrues only while a task is `active` — that is the mechanism
+    // the finding is really about.
+    for (let i = 0; i < evidencedCount; i++) {
+      events.push(
+        ev('task_status_changed', { id: `1.${i + 1}`, status: 'active' }),
+        ev('file_touched', { path: `src/f${i}.ts`, op: 'edit' }),
+        ev('task_status_changed', { id: `1.${i + 1}`, status: 'done' }),
+      )
+    }
+    return foldOf(events)
+  }
+
+  it('names the ids when only a few lack evidence', () => {
+    const finding = closeoutFindings(record(4, 3), 'done').find(
+      (f) => f.kind === 'tasks_without_evidence',
+    )
+    expect(finding?.text).toContain('1.4')
+    expect(finding?.text).not.toContain('barely used')
+  })
+
+  it('reports the RATIO, not a wall of ids, when most lack it', () => {
+    // Found by closing this initiative: 21 of 24 done tasks had no evidence,
+    // because the sessions marked tasks done directly. Listing 21 ids says
+    // nothing about any of them; the ratio says the true thing.
+    const finding = closeoutFindings(record(10, 1), 'done').find(
+      (f) => f.kind === 'tasks_without_evidence',
+    )
+    expect(finding?.text).toContain('9 of 10 tasks')
+    expect(finding?.text).toContain('barely used')
+    expect(finding?.text).not.toContain('(+')
+  })
+})

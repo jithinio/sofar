@@ -46,4 +46,4 @@ Progress: 22 done, 2 dropped, 0 remaining
 - [x] 5.5 Dogfood both halves: run the review over a real initiative's phases, and confirm a session whose commits shipped inside a peer's push is TOLD so — at SessionStart AND, per 3.4, while still live.
 
 Active phase: Phase 2 — Write and read the trailer
-Next action: Run the final review pass and close, ruling on guards_crossed as you go — the packet now carries 13 open findings, of which 9 are the Phase 5 self-review caveat plus accepted limitations, and 4 are real: Phase 2 and Phase 5 still active with all tasks done (phase-lifecycle owns that), the first-review range not flagging its own task/diff mismatch, task_files carrying scratchpad paths (record-hygiene), and guards_crossed firing on every mature record.
+Next action: Publish: the release gate lifts with this close, so bump the version, build, and hand `! npm publish -w sofar.sh` to the user (they run it — OTP plus the permission classifier).

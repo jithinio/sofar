@@ -104,13 +104,21 @@ export function closeoutFindings(
   // a pure decision record — every task would flag, and a finding that fires
   // on every member of a class says nothing about any of them.
   if (Object.keys(state.task_files).length > 0) {
-    const unevidenced = tasks.filter(
-      (task) => task.status === 'done' && (state.task_files[task.id]?.length ?? 0) === 0,
-    )
+    const done = tasks.filter((task) => task.status === 'done')
+    const unevidenced = done.filter((task) => (state.task_files[task.id]?.length ?? 0) === 0)
     if (unevidenced.length > 0) {
+      // TWO different facts, and the id list is only earned by the first.
+      // A minority without evidence points AT those tasks. A majority points at
+      // the RECORD: task_files accrues only while a task is `active`, so a
+      // session that marks tasks done directly leaves almost every task empty,
+      // and the emptiness then says nothing about any single one. Measured on
+      // this initiative's own close, which is where it surfaced: 21 of 24.
+      const dominant = unevidenced.length * 2 > done.length
       findings.push({
         kind: 'tasks_without_evidence',
-        text: `${plural(unevidenced.length, 'task')} marked done with no file_touched event ever attributed to them — expected for a task that only decided something, a finding for one that claimed to build: ${name(unevidenced.map((t) => t.id))}`,
+        text: dominant
+          ? `${unevidenced.length} of ${done.length} tasks marked done have no file_touched event attributed to them — this record barely used the \`active\` status, which is what file evidence accrues against, so the check cannot tell a decision task from an unbuilt one here (and neither can the review packet's file lines)`
+          : `${plural(unevidenced.length, 'task')} marked done with no file_touched event ever attributed to them — expected for a task that only decided something, a finding for one that claimed to build: ${name(unevidenced.map((t) => t.id))}`,
       })
     }
   }
