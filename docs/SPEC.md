@@ -245,8 +245,9 @@ exists. closed_reason = the session_closed reason when that close set ended.
 freshness (staleness-detection 1.1) = fold-time drift derivation from
 MECHANICAL signals only — content-semantic staleness inference is banned
 (D3/D12): { events_since_writeback: {files, commands, tasks, notes,
-decisions} counting payload-valid, unvoided file_touched / command_run /
-task_status_changed / note_added / decision_logged events appended after
+decisions, memories, reviews} counting payload-valid, unvoided file_touched /
+command_run / task_status_changed / note_added / decision_logged /
+memory_promoted / review_recorded events appended after
 the last session_ended (ANY session/source incl. cli), unattributed_
 mutations: how many of those COUNTED mutations carry no registered session
 (envelope session "cli", or an id this log never registered) — a cross-cut
@@ -260,10 +261,15 @@ nothing ever wrote back }.
 session_ended is the ONLY reset (session_closed resets nothing); zero new
 event types — the derivation is read-side and retroactively covers every
 existing record.
-freshnessTotal(freshness) = files + tasks + notes + decisions + memories.
+freshnessTotal(freshness) = files + tasks + notes + decisions + memories +
+reviews.
 `commands` is counted in the struct and deliberately EXCLUDED from the
 total (drift-signal D1): drift asks whether the recorded next_action is
-now wrong, and a command cannot make it wrong. Speed T1 counted it on the
+now wrong, and a command cannot make it wrong. A REVIEW can and does
+(commit-attribution 4.4): it settles findings the next action has to absorb,
+and a session whose whole job was the review would otherwise owe the record
+nothing and pass the Stop gate with its verdict unexplained — the one session
+whose conclusions are least recoverable from the diff. Speed T1 counted it on the
 premise "pure reads emit no events", which an agent reading through Bash
 disproves continuously — command_run was 57% of every event in this repo's
 own records. Commands are still logged, still carried per session by

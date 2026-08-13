@@ -210,6 +210,15 @@ export interface FreshnessState {
     decisions: number
     /** memory_promoted */
     memories: number
+    /**
+     * review_recorded (commit-attribution 4.4). A review is a mutation like
+     * any other: it settles findings the next action has to absorb, and a
+     * session whose WHOLE job was the review would otherwise owe the record
+     * nothing and walk out through the Stop gate leaving its verdict
+     * unexplained — the one session whose conclusions are least recoverable
+     * from the diff.
+     */
+    reviews: number
   }
   /**
    * How many of the counted mutations belong to NO registered session
@@ -247,7 +256,7 @@ export interface FreshnessState {
  */
 export function freshnessTotal(freshness: FreshnessState): number {
   const c = freshness.events_since_writeback
-  return c.files + c.tasks + c.notes + c.decisions + c.memories
+  return c.files + c.tasks + c.notes + c.decisions + c.memories + c.reviews
 }
 
 /**
@@ -477,7 +486,15 @@ export function emptyState(): InitiativeState {
 
 function emptyFreshness(): FreshnessState {
   return {
-    events_since_writeback: { files: 0, commands: 0, tasks: 0, notes: 0, decisions: 0, memories: 0 },
+    events_since_writeback: {
+      files: 0,
+      commands: 0,
+      tasks: 0,
+      notes: 0,
+      decisions: 0,
+      memories: 0,
+      reviews: 0,
+    },
     unattributed_mutations: 0,
     notes: [],
     last_writeback_ts: null,
@@ -733,6 +750,9 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
       break
     case 'memory_promoted':
       mutation(() => (counts.memories += 1))
+      break
+    case 'review_recorded':
+      mutation(() => (counts.reviews += 1))
       break
   }
 }

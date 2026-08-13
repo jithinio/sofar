@@ -53,7 +53,7 @@ function richState(): InitiativeState {
   state.current.next_action = 'Apply the grammar to sofar status'
   state.current.blocked_on = 'task 2.3: waiting on initiative-list'
   state.freshness = {
-    events_since_writeback: { files: 2, commands: 1, tasks: 0, notes: 1, decisions: 0, memories: 0 },
+    events_since_writeback: { files: 2, commands: 1, tasks: 0, notes: 1, decisions: 0, memories: 0, reviews: 0 },
     unattributed_mutations: 0,
     notes: [{ ts: '2026-07-11T10:00:00.000Z', text: 'grammar  needs\nwhitespace collapse' }],
     last_writeback_ts: '2026-07-10T09:00:00.000Z',
@@ -167,7 +167,7 @@ describe('full zoom — branch coverage', () => {
   it('no staleness section when nothing drifted', () => {
     const state = richState()
     state.freshness = {
-      events_since_writeback: { files: 0, commands: 0, tasks: 0, notes: 0, decisions: 0, memories: 0 },
+      events_since_writeback: { files: 0, commands: 0, tasks: 0, notes: 0, decisions: 0, memories: 0, reviews: 0 },
       unattributed_mutations: 0,
       notes: [],
       last_writeback_ts: '2026-07-10T09:00:00.000Z',

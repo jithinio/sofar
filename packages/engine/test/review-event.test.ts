@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { validatePayload } from '@sofar/schema'
-import { foldLog, openFindings, reviewWatermark } from '../src/core/fold'
+import { foldLog, freshnessTotal, openFindings, reviewWatermark, sessionDebt } from '../src/core/fold'
+import { describeFreshness } from '../src/projections/templates/shared'
 import { makeEvent } from '../src/core/envelope'
 import { appendEvent } from '../src/core/log'
 
@@ -157,5 +158,77 @@ describe('an older engine degrades safely', () => {
     )
     expect(warnings).toEqual([])
     expect(state.reviews).toHaveLength(1)
+  })
+})
+
+describe('a review is DEBT, like every other mutation', () => {
+  // Found by the initiative's own first review round: review_recorded fell
+  // through recordFreshness's switch, so a session whose whole job was a
+  // review owed the record nothing and passed the Stop gate silently — the
+  // one session whose conclusions are least recoverable from the diff.
+  it('counts toward drift, and toward the reviewing session\'s own debt', () => {
+    const path = log('debt', [{ scope: 'phase', verdict: 'pass', watermark: SHA_A, phase: 'P1' }])
+    const { state: unregistered } = foldLog(path)
+    expect(unregistered.freshness.events_since_writeback.reviews).toBe(1)
+    expect(freshnessTotal(unregistered.freshness)).toBe(1)
+    // Nothing registered s1 here, so the debt is owed by whoever is still in
+    // the building — the same rule every other mutation follows.
+    expect(unregistered.freshness.unattributed_mutations).toBe(1)
+
+    const registered = log('debt-registered', [])
+    appendEvent(
+      registered,
+      makeEvent({
+        initiative: 'demo',
+        session: 's1',
+        type: 'session_started',
+        payload: { tool: 'claude-code' },
+        source: 'cli',
+        actor: 'agent',
+      }),
+    )
+    appendEvent(
+      registered,
+      makeEvent({
+        initiative: 'demo',
+        session: 's1',
+        type: 'review_recorded',
+        payload: { scope: 'phase', verdict: 'pass', watermark: SHA_A, phase: 'P1' },
+        source: 'cli',
+        actor: 'agent',
+      }),
+    )
+    const { state } = foldLog(registered)
+    const session = state.sessions.find((s) => s.id === 's1')
+    expect(session?.unwritten).toBe(1)
+    expect(sessionDebt(state, session!)).toBe(1)
+  })
+
+  it('is itemized in the staleness breakdown, never counted silently', () => {
+    const { state } = foldLog(
+      log('breakdown', [
+        { scope: 'phase', verdict: 'findings', phase: 'P1', findings: ['a'] },
+        { scope: 'final', verdict: 'pass', watermark: SHA_B },
+      ]),
+    )
+    expect(describeFreshness(state.freshness.events_since_writeback)).toBe('2 reviews')
+  })
+
+  it('is settled by a write-back, like any other debt', () => {
+    const path = log('settled', [{ scope: 'phase', verdict: 'pass', watermark: SHA_A, phase: 'P1' }])
+    appendEvent(
+      path,
+      makeEvent({
+        initiative: 'demo',
+        session: 's1',
+        type: 'session_ended',
+        payload: { summary: 'reviewed P1', next_action: 'fix what it found' },
+        source: 'cli',
+        actor: 'agent',
+      }),
+    )
+    const { state } = foldLog(path)
+    expect(freshnessTotal(state.freshness)).toBe(0)
+    expect(state.sessions.find((s) => s.id === 's1')?.unwritten).toBe(0)
   })
 })

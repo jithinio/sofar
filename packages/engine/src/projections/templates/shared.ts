@@ -52,6 +52,7 @@ export function describeFreshness(counts: FreshnessState['events_since_writeback
   if (counts.notes > 0) parts.push(n(counts.notes, 'note'))
   if (counts.decisions > 0) parts.push(n(counts.decisions, 'decision'))
   if (counts.memories > 0) parts.push(n(counts.memories, 'promoted memory', 'promoted memories'))
+  if (counts.reviews > 0) parts.push(n(counts.reviews, 'review'))
   return parts.join(', ')
 }
 
