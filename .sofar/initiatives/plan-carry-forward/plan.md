@@ -4,13 +4,15 @@
 
 Goal: Decide whether sofar_update_plan should carry existing phase and task status forward. plan_updated is a full replace: mcp/update-plan.ts appends the caller's payload verbatim with no carry-forward, and core/fold.ts:1085-1091 rebuilds phases and tasks defaulting a missing status to pending — so a replan that OMITS statuses silently erases progress, and nothing warns. MEASURED 2026-08-13 over 41 records and 85 plan_updated events, on the payload rather than on folded state: ZERO occurrences, in both the omitted shape and the rename shape. Only 4 plan_updated events ever omit a status at all, and none of the 54 displacements sits in one. So this is PREVENTION with no incident to repair and nothing racing. The live question is therefore whether to build at all, and what to build that does not have to guess identity across a rename — which the payload cannot support, a rename and a delete-plus-add being byte-identical. The full-replace contract is what SPEC's forward-compatibility story rests on (task-drop-state D2), so changing it is a Decision, not a patch. Promoted as phase-lifecycle M2.
 
-Progress: 1/9 tasks done (11%)
+Progress: 3/9 tasks done (33%)
 
-## Phase 1 — Establish the exposure (blocks the ruling) [active] — 1/3 done
+## Phase 1 — Establish the exposure (blocks the ruling) [done] — 3/3 done
+
+> Answered, and it undercut the premise the initiative was opened on: zero occurrences in both shapes, a fix at the tool boundary would miss the dialect that needs it most, and SPEC already rules warn-plus-coerce for the neighbouring case. The ruling at 2.1 now has all three inputs.
 
 - [x] 1.1 MEASURE it retroactively before designing anything, the repo's refute-before-building discipline. Replay every initiative's log and find every plan_updated that took a phase or task from a resolved status (done/dropped/blocked) back to pending or omitted. Publish the count, name the records and the events. If it is ZERO, the hazard is theoretical and the ruling changes shape — say so rather than building for it. MEASURE ON THE PAYLOAD, never on folded state: omitted-versus-explicit is the whole discriminator and folded state cannot see it.
-- [ ] 1.2 Establish whether the hole is MCP-only or dialect-wide. `sofar event append --type plan_updated` bypasses any tool-layer merge entirely, and the MCP-less convention dialect uses exactly that path (phase-lifecycle D1). Read cli/event.ts's append against mcp/update-plan.ts and state which callers a tool-boundary fix would and would not cover.
-- [ ] 1.3 Separate the two candidate defects. Does SPEC promise full-replace to CALLERS, and do the tool description and docs tell an agent it must restate statuses? A contract nobody is told about is a documentation defect, not a missing merge, and it has a much cheaper fix. Given 1.1's zero, this is now the leading candidate rather than a side question.
+- [x] 1.2 Establish whether the hole is MCP-only or dialect-wide. `sofar event append --type plan_updated` bypasses any tool-layer merge entirely, and the MCP-less convention dialect uses exactly that path (phase-lifecycle D1). Read cli/event.ts's append against mcp/update-plan.ts and state which callers a tool-boundary fix would and would not cover.
+- [x] 1.3 Separate the two candidate defects. Does SPEC promise full-replace to CALLERS, and do the tool description and docs tell an agent it must restate statuses? A contract nobody is told about is a documentation defect, not a missing merge, and it has a much cheaper fix. Given 1.1's zero, this is now the leading candidate rather than a side question.
 
 ## Phase 2 — The ruling [pending] — 0/3 done
 
@@ -24,5 +26,4 @@ Progress: 1/9 tasks done (11%)
 - [ ] 3.2 Tests: a replan omitting statuses preserves them; an explicit status in the payload still wins over the carried one; replay stays deterministic over every existing log; and the MCP-less dialect behaves as the ruling says it should, rather than as an untested afterthought.
 - [ ] 3.3 docs/SPEC.md is authoritative: the full-replace wording either changes or gains its carve-out, plus §Acceptance criteria. No task is done until its criteria pass.
 
-Active phase: Phase 1 — Establish the exposure (blocks the ruling)
 Next action: Take 1.3, the now-leading candidate: whether SPEC and the tool description actually tell a caller it must restate statuses, since against a zero incident count a documentation fix may be the whole answer.
