@@ -4,7 +4,7 @@
 
 Goal: A fresh session should open on the initiative the last session actually finished in, without any surface guessing. Resolution stays branch-first (session-orientation D2 stands); what changes is that the branch binding stops being a fact only a human command maintains. sofar_end_session binds the current branch to the session's home, so bindings.json becomes a durable, inspectable record of last-worked instead of decaying the moment work moves — brillo's main stayed bound to baseui-toast-migration across 8 project-tax-architecture commits, and every fresh session there started on the wrong record.
 
-Progress: 5/7 tasks done (71%)
+Progress: 5 done, 1 dropped, 1 remaining
 
 ## Phase 1 — Rebind at write-back [done] — 3/3 done
 
@@ -17,10 +17,10 @@ Progress: 5/7 tasks done (71%)
 - [x] 2.1 docs/SPEC.md: state the rebind in the same passage that carries the re-homing contract and the session-before-branch precedence, including the move-only and closed-record guards and the new result field.
 - [x] 2.2 Gates: npm run typecheck, npm test, biome clean. Then dogfood against a scratch copy of the brillo record shape — bound main plus a home elsewhere — and confirm a following fresh session resolves to the finished record with no notice fired.
 
-## Phase 3 — Release [active] — 0/2 done
+## Phase 3 — Release [active] — 0/2 (1 dropped) done
 
-- [ ] 3.1 OPTIONAL, decide first: have the recent-work notice prefer a candidate whose newest event is a session_ended over one mid-flight, so it points at concluded work rather than a peer's live edit. Offered to the user and not yet accepted — decide before building, and drop it if the rebind alone makes the notice quiet enough.
-- [ ] 3.2 Cut the release carrying this plus the two already-unreleased commits (cbcb391, 32a48d9). Peer obligation from plan-carry-forward: re-run sofar doctor from the INSTALLED build and diff byte-for-byte against 0.28.0 across every record — that comparison is what proves their fold change safe. The user runs npm publish themselves.
+- [-] 3.1 OPTIONAL, decide first: have the recent-work notice prefer a candidate whose newest event is a session_ended over one mid-flight, so it points at concluded work rather than a peer's live edit. Offered to the user and not yet accepted — decide before building, and drop it if the rebind alone makes the notice quiet enough. (dropped)
+- [ ] 3.2 Cut the release carrying this plus the two already-unreleased commits (cbcb391, 32a48d9). Peer obligation from plan-carry-forward: re-run sofar doctor from the INSTALLED build and diff byte-for-byte against 0.28.0 across every record — that comparison is what proves their fold change safe. The user runs npm publish themselves. (active)
 
 Active phase: Phase 3 — Release
-Next action: Decide 3.1 first since it is optional and the user has not accepted it: have the recent-work notice prefer a candidate whose newest event is a session_ended over one mid-flight. Then 3.2, the release carrying this plus cbcb391 and 32a48d9, where the peer obligation from plan-carry-forward applies — re-run sofar doctor from the INSTALLED build and diff byte-for-byte against 0.28.0 across every record before publishing, and hand the publish command to the user.
+Next action: Hand the user `! npm publish -w sofar.sh` — they run it (OTP plus the permission classifier). Then verify the installed version reports 0.29.0 and confirm in brillo that a fresh session opens on the record its predecessor finished in, which is the whole claim.
