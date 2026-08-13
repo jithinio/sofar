@@ -32,6 +32,7 @@ import {
 } from '../core/index-tier1'
 import { resolvePeers, type Peer } from '../core/peers'
 import { redactCommand } from '../core/redact'
+import { newestEvent } from '../core/warmth'
 import {
   createToolContext,
   homeInitiative,
@@ -394,6 +395,87 @@ export function unboundNotice(rootDir: string): string {
   }
 }
 
+/** Character budget for the recent-work-elsewhere line (session-orientation 2.2). */
+export const RECENT_ELSEWHERE_BUDGET = 480
+
+/** "3m" / "5h" / "2d" — coarse on purpose; this line invites a judgement, not a calculation. */
+function agoLabel(ms: number): string {
+  const minutes = Math.round(ms / 60_000)
+  if (minutes < 90) return `${Math.max(minutes, 1)}m`
+  const hours = Math.round(ms / 3_600_000)
+  return hours < 48 ? `${hours}h` : `${Math.round(hours / 24)}d`
+}
+
+/**
+ * A fresh session's record came from the BRANCH — say so when another record
+ * was written more recently (session-orientation 2.1, option b).
+ *
+ * The gap this closes: on a repo where several initiatives are live, a new
+ * session on a bound branch silently receives that branch's record and has no
+ * way to learn the user's recent work was somewhere else. Resolution is
+ * deliberately NOT changed (2.1's rule): resolveBound feeds every hook, so
+ * redirecting it would move where events LAND, and "most recently active" is a
+ * repo-wide fact that may well be a PARALLEL session's work — silently adopting
+ * it is the misrouting record-integrity D1/D2 closed. So the record names the
+ * candidate and lets the session decide, which is only useful because the
+ * protocol block now teaches re-homing (1.1).
+ *
+ * Two gates keep it quiet. `via` must be 'branch': a session whose own home
+ * answered has already CHOSEN, and second-guessing that is noise. And some
+ * other log must be strictly newer than the bound one — in a single-initiative
+ * repo nothing ever is, so nothing ever renders. A line that fires every
+ * session is one people learn to skip (record-integrity D3), and the gates are
+ * what keep this one rare enough to read.
+ *
+ * Cost is the reason it reads tails rather than folding (2.3): newestEvent is
+ * O(1) in log size, so this is one small read per initiative against a 100ms
+ * shim budget — a fold per initiative would be the scan the budget forbids.
+ *
+ * Best-effort like every other reader on this path: any failure renders
+ * nothing. Silence is the correct failure mode for a line whose whole claim is
+ * that the record cannot be sure.
+ */
+export function recentWorkElsewhereNotice(
+  sofarDir: string,
+  slug: string,
+  via: ResolvedVia,
+  now: number = Date.now(),
+): string | null {
+  try {
+    if (via !== 'branch') return null
+    const logOf = (s: string): string => join(sofarDir, 'initiatives', s, 'events.jsonl')
+    const bound = newestEvent(logOf(slug))
+    // An unreadable bound log leaves nothing to compare against, and a guess
+    // here is exactly the wrong answer this line exists to avoid.
+    if (bound === null) return null
+
+    let best: { slug: string; ts: number } | null = null
+    for (const other of initiativeSlugs(sofarDir)) {
+      if (other === slug) continue
+      const newest = newestEvent(logOf(other))
+      if (newest === null || newest.ts <= bound.ts) continue
+      // A record whose last act was a status change was just closed (or
+      // reopened) rather than worked — pointing a fresh session at it would be
+      // the wrong answer. Reopening then working appends past this, so the
+      // suppression only lasts as long as the claim is doubtful.
+      if (newest.type === 'initiative_status_changed') continue
+      if (best === null || newest.ts > best.ts) best = { slug: other, ts: newest.ts }
+    }
+    if (best === null) return null
+
+    return clipTo(
+      `⚠ More recent work is in ANOTHER record: ${best.slug} (last event ${agoLabel(now - best.ts)} ago) ` +
+        `vs ${slug} (${agoLabel(now - bound.ts)} ago), which this branch is bound to and which the ` +
+        `block below describes. If ${best.slug} is the work you were asked to continue, re-home now — ` +
+        `call sofar_start_session with initiative "${best.slug}". If it is a parallel session's work, ` +
+        `ignore this and stay put.`,
+      RECENT_ELSEWHERE_BUDGET,
+    )
+  } catch {
+    return null
+  }
+}
+
 /**
  * The banner a session pinned to a CLOSED record gets above its status block
  * (4.1). The record still injects in full — the session that closed it is
@@ -445,7 +527,7 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     const sessionId = strField(hook, 'session_id')
     const bound = resolveBound(rootDir, sessionId)
     if (bound === null) return { ...OK, stdout: unboundNotice(rootDir) }
-    const { ctx, slug } = bound
+    const { ctx, slug, via } = bound
 
     // The gap is measured to the prior session's last event; with lazy
     // registration this hook writes nothing, so no bookkeeping of ours can
@@ -484,7 +566,16 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     // status block, never inside it — the block's byte-stability is pinned
     // (felt-cost 1.2), and the composed output is re-capped so the injection
     // contract stays ≤10,000 chars.
-    const preface = [closedBanner(state), advisory, shippingNotice(rootDir, slug)]
+    // The recent-work line leads (session-orientation 2.2): every other part of
+    // this output describes the bound record, and that line questions whether
+    // the bound record is the right one at all — read after them it arrives too
+    // late to change how they were read.
+    const preface = [
+      recentWorkElsewhereNotice(ctx.sofarDir, slug, via),
+      closedBanner(state),
+      advisory,
+      shippingNotice(rootDir, slug),
+    ]
       .filter((p) => p !== null)
       .join('\n\n')
     return {

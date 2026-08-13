@@ -4,7 +4,7 @@
 
 Goal: A session should serve the initiative it is actually working on, and should be able to tell when it is not. The mechanism already exists and is correct — resolveSessionFirst treats the branch as a candidate and lets the session's home win, homeInitiative resolves by the latest session_started across every log, and every surface (statusline, SessionStart digest, hooks) follows it. What is missing is that nothing TELLS an agent to use it, and nothing tells a fresh session that the user's recent work was somewhere other than this branch. Both gaps were found by the user on 2026-08-13 after a session spent its entire life mis-homed: routing individual writes correctly with explicit initiative args while every write-back landed in the wrong record, because sofar_end_session is the one write tool that cannot be targeted.
 
-Progress: 4/8 tasks done (50%)
+Progress: 7/8 tasks done (87%)
 
 ## Phase 1 — Teach re-homing (the shipped trap) [active] — 3/3 done
 
@@ -12,16 +12,16 @@ Progress: 4/8 tasks done (50%)
 - [x] 1.2 Protocol-block edits are VERSIONED — doctor compares the installed block against SHIPPED_PROTOCOL_BLOCKS and reports a stale one (speed-2 T6), because `sofar upgrade` replaces the binary and not repo wiring. So 1.1 means appending a new shipped version, never editing the current one in place. Verify an already-inited repo is told its block is stale rather than silently keeping the old text.
 - [x] 1.3 DECIDE whether sofar_end_session should take an `initiative` at all. It is the ONLY write tool that cannot be targeted, which is what turns a mis-homed session into ~10 misrouted write-backs. But adding it would legitimise the session SPLIT that record-integrity spent a whole initiative eliminating (D13, and the 21 splits accepted as history). Weigh teaching re-homing (1.1) as the complete fix against widening the tool surface; cite record-integrity D13 either way.
 
-## Phase 2 — Orient a FRESH session [pending] — 1/3 done
+## Phase 2 — Orient a FRESH session [pending] — 3/3 done
 
 - [x] 2.1 DECIDE what a brand-new session on a BOUND branch is told. Today it silently gets the branch's initiative, which in a repo like this one is wrong most of the time — main is bound to drift-certification while five initiatives are live. The user's ask is that a new session load the LAST worked initiative. The tension to resolve honestly: 'last worked' is global, so it can be a PEER's work, and silently loading it recreates exactly the misrouting class record-integrity fixed. Weigh (a) resolve to most-recently-active, (b) keep branch resolution but ADD a visible line naming the more recent work and how to re-home, (c) track last-worked per machine. Option (b) is the one consistent with the standing rule that a wrong answer is worse than a missing one.
-- [ ] 2.2 Implement 2.1's choice inside the ≤10,000-char SessionStart guarantee, and WITHOUT adding an unconditional line — it must stay quiet when the branch and the recent work agree, which is the common case in a single-initiative repo. A nudge that fires every session is one people learn to skip (record-integrity D3).
-- [ ] 2.3 Cost check before it ships: 'most recently active initiative' means reading N logs, and the SessionStart budget is 100ms with roughly 65ms already spent. core/warmth.ts already answers recency from a log's own newest event rather than filesystem mtime — reuse it rather than adding a scan, and measure before and after like D6 did.
+- [x] 2.2 Implement 2.1's choice inside the ≤10,000-char SessionStart guarantee, and WITHOUT adding an unconditional line — it must stay quiet when the branch and the recent work agree, which is the common case in a single-initiative repo. A nudge that fires every session is one people learn to skip (record-integrity D3).
+- [x] 2.3 Cost check before it ships: 'most recently active initiative' means reading N logs, and the SessionStart budget is 100ms with roughly 65ms already spent. core/warmth.ts already answers recency from a log's own newest event rather than filesystem mtime — reuse it rather than adding a scan, and measure before and after like D6 did.
 
-## Phase 3 — Prove it [pending] — 0/2 done
+## Phase 3 — Prove it [pending] — 1/2 done
 
 - [ ] 3.1 Dogfood the exact case that prompted this: from a session on a branch bound elsewhere, confirm the fresh-session surface names the right record, that re-homing moves the statusline and the write-back target together, and that peer sessions on the old initiative are UNAFFECTED — the property that makes per-session pinning safe. Verified once already by hand on 2026-08-13; make it a test.
-- [ ] 3.2 docs/SPEC.md: the re-homing contract and the fresh-session resolution order, alongside the session-before-branch precedence initiative-lifecycle already recorded there.
+- [x] 3.2 docs/SPEC.md: the re-homing contract and the fresh-session resolution order, alongside the session-before-branch precedence initiative-lifecycle already recorded there.
 
 Active phase: Phase 1 — Teach re-homing (the shipped trap)
-Next action: Task 2.1: decide what a fresh session on a bound branch is told about more recent work elsewhere. The record leans to option (b) — a line naming the more recent record and how to re-home, staying silent when branch and recent work agree. Note the constraint measured earlier: creation is unattributed (all 38 initiative_created events carry session `cli`), so "last opened" is not answerable and this must rest on most-recently-ACTIVE, which core/warmth.ts already answers.
+Next action: Task 3.1, the last one open: make a test of the dogfooded case — from a session on a branch bound elsewhere, that re-homing moves the statusline and the write-back target together while peer sessions on the old initiative stay unaffected.

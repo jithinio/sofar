@@ -54,8 +54,21 @@ function readTail(path: string, max: number): { text: string; fromStart: boolean
   }
 }
 
+/** The newest event a log holds: when it landed, and what it was. */
+export interface NewestEvent {
+  /** Epoch milliseconds. */
+  ts: number
+  /**
+   * That event's `type`, or null when the line carried none. Callers use it to
+   * ask what a log's last act WAS, which is often the difference between live
+   * work and a record that was just closed — but a line missing the field is
+   * still a real append, so it counts for recency and answers null for type.
+   */
+  type: string | null
+}
+
 /**
- * The newest `ts` among the complete lines in a tail chunk, or null.
+ * The newest-`ts` event among the complete lines in a tail chunk, or null.
  *
  * Takes the MAX rather than the last line's value. Appends are chronological
  * in practice, but nothing enforces it — `sofar event append` accepts an
@@ -63,23 +76,25 @@ function readTail(path: string, max: number): { text: string; fromStart: boolean
  * make a live log read as cold, which is the one error direction that loses a
  * warning.
  */
-function newestTs(text: string, fromStart: boolean): number | null {
+function newestIn(text: string, fromStart: boolean): NewestEvent | null {
   const parts = text.split('\n')
   // Unless the read reached byte 0, the first fragment is the tail of a line
   // whose beginning was never read — it cannot be parsed and must not be.
   if (!fromStart) parts.shift()
 
-  let newest: number | null = null
+  let newest: NewestEvent | null = null
   for (const line of parts) {
     if (line.trim().length === 0) continue
     try {
       const raw: unknown = JSON.parse(line)
       if (typeof raw !== 'object' || raw === null) continue
-      const ts = (raw as Record<string, unknown>).ts
-      if (typeof ts !== 'string') continue
-      const ms = Date.parse(ts)
+      const fields = raw as Record<string, unknown>
+      if (typeof fields.ts !== 'string') continue
+      const ms = Date.parse(fields.ts)
       if (Number.isNaN(ms)) continue
-      if (newest === null || ms > newest) newest = ms
+      if (newest === null || ms > newest.ts) {
+        newest = { ts: ms, type: typeof fields.type === 'string' ? fields.type : null }
+      }
     } catch {
       // A corrupt line is skipped exactly as the fold skips it — never fatal,
       // never a reason to call a live log cold.
@@ -88,19 +103,24 @@ function newestTs(text: string, fromStart: boolean): number | null {
   return newest
 }
 
-/** Epoch ms of the newest event in the log, or null when none can be read. */
-export function lastAppendAt(logPath: string, tailBytes: number = TAIL_BYTES): number | null {
+/** The newest event in the log, or null when none can be read. */
+export function newestEvent(logPath: string, tailBytes: number = TAIL_BYTES): NewestEvent | null {
   const tail = readTail(logPath, tailBytes)
   if (tail === null) return null
 
-  const found = newestTs(tail.text, tail.fromStart)
+  const found = newestIn(tail.text, tail.fromStart)
   if (found !== null) return found
   if (tail.fromStart) return null
 
   // One line longer than the whole window, so the tail held no complete line.
   // Rare enough to be worth a second read and too damaging to guess at.
   const whole = readTail(logPath, Number.MAX_SAFE_INTEGER)
-  return whole === null ? null : newestTs(whole.text, true)
+  return whole === null ? null : newestIn(whole.text, true)
+}
+
+/** Epoch ms of the newest event in the log, or null when none can be read. */
+export function lastAppendAt(logPath: string, tailBytes: number = TAIL_BYTES): number | null {
+  return newestEvent(logPath, tailBytes)?.ts ?? null
 }
 
 /**

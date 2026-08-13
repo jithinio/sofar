@@ -1058,6 +1058,23 @@ whenever the binding moved in between — the dominant tear shape observed
 (11 of 14 double-registrations were hook-then-claude-code across two
 initiatives). With a home present it adopts there; an explicit `initiative`
 still re-homes deliberately.
+RE-HOMING IS THE SUPPORTED WAY TO MOVE A SESSION (session-orientation 1.1,
+1.3), and the protocol blocks both dialects install now say so: calling
+start_session again with an explicit `initiative` appends a session_started
+into that log, and because a home is the LATEST such registration
+(record-integrity D9) every surface follows at once — statusline, hook
+writes, the SessionStart digest on resume, and the Stop gate. Passing
+`initiative` to any other write tool routes ONE write; re-homing moves the
+SESSION. That distinction is load-bearing because end_session takes NO
+`initiative` and never will: a write-back belongs where the session lives,
+and an arg would append a session_ended into a log holding no
+session_started for that id — the split record-integrity 1.1-1.4 exists to
+eliminate, in its worst form (the record holding the work carries no
+wrap-up, the record holding the wrap-up carries no work), while leaving the
+Stop gate armed in the home the write-back skipped. The CLI dialect has no
+re-homing and no session home at all: `sofar event append [slug]` resolves
+its optional leading slug through the branch, so MCP-less tools pass that
+slug on EVERY append, the session_ended one above all.
 HOOK writes are pinned too (record-integrity 1.2, D1). A hook runs in a
 fresh process where the in-memory pin above is always null, so before this
 it resolved by branch alone — and a branch switch during live work sent
@@ -1141,6 +1158,25 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   never an error. The advisory composes AROUND the status block — never
   inside renderStatus (byte-stability, §Architectural invariants) — and the
   composed output is re-capped to the same hard limit.
+  Recent work elsewhere (session-orientation 2.1/2.2): when this session's
+  record was resolved BY THE BRANCH — not by the session's own home — and
+  some OTHER initiative's log carries a strictly newer last event, ONE
+  budgeted line (≤480 chars) LEADS the composed output, naming that
+  initiative, both records' last-event ages, and the single
+  sofar_start_session call that re-homes. It leads because every other part
+  of the output describes the bound record and this line questions whether
+  the bound record is the right one at all. Resolution itself is UNCHANGED,
+  and deliberately so: the same resolution routes every hook write, and
+  "most recently active" is a repo-wide fact that may be a PARALLEL
+  session's work, so the block names the candidate and the session decides
+  (a wrong answer is worse than a missing one). Silent when the bound
+  record is already the most recent — every session in a single-initiative
+  repo — when the session has its own home, when the bound log cannot be
+  read, and when the newer log's own newest event is
+  initiative_status_changed, since a record just closed or reopened is not
+  work in progress. Recency comes from each log's TAIL (§State, warmth):
+  O(1) in log size, ~0.03ms per initiative and 1.7ms across 38, never a
+  fold and never filesystem mtime.
   ADJACENT RECORDS (record-index 3.3) — the priming line, rendered last in
   the current-situation block (after concurrent edits) because it is the only
   entry there that is not about this record: `Adjacent records — N decisions
