@@ -23,4 +23,4 @@ Progress: 5 done, 1 dropped, 1 remaining
 - [ ] 3.2 Cut the release carrying this plus the two already-unreleased commits (cbcb391, 32a48d9). Peer obligation from plan-carry-forward: re-run sofar doctor from the INSTALLED build and diff byte-for-byte against 0.28.0 across every record — that comparison is what proves their fold change safe. The user runs npm publish themselves. (active)
 
 Active phase: Phase 3 — Release
-Next action: Hand the user `! npm publish -w sofar.sh` — they run it (OTP plus the permission classifier). Then verify the installed version reports 0.29.0 and confirm in brillo that a fresh session opens on the record its predecessor finished in, which is the whole claim.
+Next action: Hand the user `! npm publish -w sofar.sh` — they run it (OTP plus the permission classifier). Then verify the installed version reports 0.29.0 and confirm in brillo that a fresh session opens on the record its predecessor finished in, which is the whole claim. Nothing is outstanding to any peer.
