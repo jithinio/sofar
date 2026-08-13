@@ -2,37 +2,40 @@
 
 # Plan: phase-lifecycle
 
-Goal: Make phase status writable at the same tier as task status. 32 of 125 completed phases across 15 initiatives still render active or pending, because phase_status_changed has no first-class tool — only sofar_update_plan's full replace or the MCP-less event append dialect. Consequence: 'Active phase' names finished work in 14 of the 16 records that render the line, and the digest's Current/Next task lines vanish because status.ts scopes them to the active phase. Settled up front on measurement: MCP-only, no CLI sibling.
+Goal: Make phase status writable at the same tier as task status. SHIPPED 2026-08-13: sofar_update_phase is the twelfth MCP tool, phase status is written and never derived (D2), and phase_status_changed now counts as drift (D3). Remaining: the 35 stale phases across 16 initiatives, which D5 rules a one-off append-only repair — and the mechanism for writing across 16 records without tearing the session doing it is the open question. Settled up front on measurement: MCP-only, no CLI sibling (D1).
 
-Progress: 1/13 tasks done (7%)
+Progress: 12 done, 1 dropped, 3 remaining
 
-## Phase 1 — Settle the write path (blocks everything else) [active] — 1/3 done
+## Phase 1 — Settle the write path (blocks everything else) [done] — 3/3 done
 
-- [ ] 1.1 Confirm ZERO new event types. phase_status_changed and task_added already exist, fold correctly (fold.ts:997 and fold.ts:1003) and are rendered everywhere. Verify their payload shapes in packages/schema/src are sufficient for a granular tool, so this initiative adds tool surface only — the record-graph guarantee. Refute before building.
-- [ ] 1.2 DECIDE the phase-status mechanism. (a) sofar_update_phase mirroring sofar_update_task; (b) extend update_task to implicitly close its parent phase; (c) DERIVE phase status in the fold when every task resolves. (c) is the trap: it eliminates the defect and destroys doctor's stale-phase axis, which exists precisely to express 'tasks done, phase not finished'. Log the decision.
+- [x] 1.1 Confirm ZERO new event types. phase_status_changed and task_added already exist, fold correctly (core/fold.ts:1075 and :1081) and are rendered everywhere. Verify their payload shapes in packages/schema/src are sufficient for a granular tool, so this initiative adds tool surface only — the record-graph guarantee. Refute before building.
+- [x] 1.2 DECIDE the phase-status mechanism. (a) sofar_update_phase mirroring sofar_update_task; (b) extend update_task to implicitly close its parent phase; (c) DERIVE phase status in the fold when every task resolves. (c) is the trap: it eliminates the defect and destroys doctor's stale-phase axis, which exists precisely to express 'tasks done, phase not finished'. Log the decision.
 - [x] 1.3 Log the MCP-only ruling as a decision, citing the measurement: CLI event append 61.5ms (50.5ms of it spawn plus full-bundle parse) against ~11ms for an MCP call on the already-running server, plus a second process because the PostToolUse matcher Edit|Write|MultiEdit|Bash catches the Bash call and never matches mcp__sofar__*, plus event append resolving by branch alone with no session pin (record-integrity M1). Benchmark: scratchpad/bench-paths.sh.
 
-## Phase 2 — sofar_update_phase [pending] — 0/4 done
+## Phase 2 — sofar_update_phase [done] — 4/4 done
 
-- [ ] 2.1 Schema: UpdatePhaseArgs {initiative?, phase, status, note?} and its JSON schema entry, in packages/schema/src ONLY — the guard-rail holds, no schema anywhere else.
-- [ ] 2.2 mcp/update-phase.ts mirroring update-task.ts (34 lines): resolveWriteInitiative pin so a peer's branch switch cannot misroute it, one appendAndProject, typed result.
-- [ ] 2.3 Idempotence and error shape: already at this status appends nothing (the close-initiative precedent); an unknown phase name returns a typed error and never a silent no-op, since phases are addressed by free-text name and a typo would otherwise vanish.
-- [ ] 2.4 Register in mcp/server.ts and confirm the tool table renders; the MCP-less dialect keeps reaching the same event through event append, so no caller is stranded.
+- [x] 2.1 Schema: UpdatePhaseArgs {initiative?, phase, status, note?} and its JSON schema entry, in packages/schema/src ONLY — the guard-rail holds, no schema anywhere else.
+- [x] 2.2 mcp/update-phase.ts mirroring update-task.ts (34 lines): resolveWriteInitiative pin so a peer's branch switch cannot misroute it, one appendAndProject, typed result.
+- [x] 2.3 Idempotence and error shape: already at this status appends nothing (the close-initiative precedent); an unknown phase name returns a typed error and never a silent no-op, since phases are addressed by free-text name and a typo would otherwise vanish.
+- [x] 2.4 Register in mcp/server.ts and confirm the tool table renders; the MCP-less dialect keeps reaching the same event through event append, so no caller is stranded.
 
-## Phase 3 — sofar_add_task [pending] — 0/2 done
+## Phase 3 — sofar_add_task [dropped] — 1/2 (1 dropped) done
 
-- [ ] 3.1 DECIDE whether add_task is in scope. task_added has NO emitter anywhere in packages/engine/src — only the two consumers, fold.ts:1003 and index-reach.ts:248 — and 3 uses across the entire 36-initiative record. Confirm it is dead rather than merely rare before building, or rule it out of scope and say why.
-- [ ] 3.2 If in scope: mcp/add-task.ts plus schema, mirroring 2.x. Must not disturb plan_updated's full-replace contract, on which SPEC's forward-compatibility story rests (task-drop-state D2).
+- [x] 3.1 DECIDE whether add_task is in scope. task_added has NO emitter anywhere in packages/engine/src — only the two consumers, fold.ts and index-reach.ts — and 3 uses across the entire 37-initiative record. Confirm it is dead rather than merely rare before building, or rule it out of scope and say why.
+- [-] 3.2 If in scope: mcp/add-task.ts plus schema, mirroring 2.x. Must not disturb plan_updated's full-replace contract, on which SPEC's forward-compatibility story rests (task-drop-state D2). (dropped)
 
-## Phase 4 — The 32 existing stale phases [pending] — 0/1 done
+## Phase 4 — The 35 existing stale phases [active] — 1/3 done
 
-- [ ] 4.1 DECIDE repair versus leave-as-history. doctor --fix never touches record prose (SPEC §CLI), so this is a ruling, not a build. If repair: a one-off operator action, never a shipped command, and it must append real phase_status_changed events rather than rewriting history.
+- [x] 4.1 DECIDE repair versus leave-as-history. doctor --fix never touches record prose (SPEC §CLI), so this is a ruling, not a build. If repair: a one-off operator action, never a shipped command, and it must append real phase_status_changed events rather than rewriting history.
+- [ ] 4.2 Settle HOW to write phase closes into 16 OTHER records without tearing the session that does it. The two hazards D5 names: an MCP write carrying an explicit `initiative` tears the calling session (statusline-refresh M1), and the CLI's `sofar event append` resolves by branch alone, never through the session home (record-integrity M1). Candidates: one re-homed session per record; a branch-hop pass; or accepting `cli` attribution deliberately and stating why. Log the decision before writing anything.
+- [ ] 4.3 Run the repair: for each of the 16 records, confirm by reading the plan that every stale phase is genuinely finished — a judgement, never a script (D5) — then append the phase_status_changed. Re-run doctor and publish the before/after count. Any phase that is NOT actually finished stays open and is named.
 
-## Phase 5 — Contract + dogfood [pending] — 0/3 done
+## Phase 5 — Contract + dogfood [active] — 3/4 done
 
-- [ ] 5.1 docs/SPEC.md is authoritative: the new tool(s) in §MCP tools and their §Acceptance criteria. No task is done until its criteria pass.
-- [ ] 5.2 Tests: one event per call, idempotent re-issue appends nothing, session pin survives a parallel branch rebind, unknown phase errors typed, and replay stays deterministic.
-- [ ] 5.3 Dogfood: close THIS initiative's own phases with the new tool as each completes, then re-run doctor and confirm the stale-phase count falls from 32. The dogfood IS the acceptance evidence.
+- [x] 5.1 docs/SPEC.md is authoritative: the new tool(s) in §MCP tools and their §Acceptance criteria. No task is done until its criteria pass.
+- [x] 5.2 Tests: one event per call, idempotent re-issue appends nothing, session pin survives a parallel branch rebind, unknown phase errors typed, and replay stays deterministic.
+- [x] 5.3 Dogfood: close THIS initiative's own phases with the new tool as each completes, then re-run doctor and confirm the stale-phase count falls. The dogfood IS the acceptance evidence.
+- [ ] 5.4 Release 0.27.0. Until it is published AND installed, this repo's own sessions cannot use the tool: .mcp.json runs the `sofar` on PATH, which is the installed bundle, so every session here still sees eleven tools. The user runs `npm publish -w sofar.sh` (classifier + OTP).
 
-Active phase: Phase 1 — Settle the write path (blocks everything else)
-Next action: Task 1.1: confirm phase_status_changed and task_added need no schema change, then rule 1.2 on the mechanism. Awaiting user go-ahead separately on where the doctor liveness-grading defect lives, and on adding the fast-bundle size budget to speed-2 as a new task.
+Active phase: Phase 4 — The 35 existing stale phases
+Next action: Release 0.27.0 (task 5.4) so the tool becomes reachable from this repo's own sessions — the user runs the publish. Then take 4.2: decide how to write phase closes into 16 other records without tearing the writing session or misrouting by branch.

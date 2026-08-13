@@ -20,6 +20,7 @@ import { getState } from './get-state'
 import { startSession } from './start-session'
 import { endSession } from './end-session'
 import { updateTask } from './update-task'
+import { updatePhase } from './update-phase'
 import { logDecision } from './log-decision'
 import { updatePlan } from './update-plan'
 import { addNote } from './add-note'
@@ -51,6 +52,7 @@ const handlers: { [K in ToolName]: (ctx: ToolContext, args: ToolArgs[K]) => unkn
   sofar_start_session: startSession,
   sofar_end_session: endSession,
   sofar_update_task: updateTask,
+  sofar_update_phase: updatePhase,
   sofar_log_decision: logDecision,
   sofar_update_plan: updatePlan,
   sofar_add_note: addNote,

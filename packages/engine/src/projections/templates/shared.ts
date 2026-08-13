@@ -49,6 +49,7 @@ export function describeFreshness(counts: FreshnessState['events_since_writeback
   const parts: string[] = []
   if (counts.files > 0) parts.push(n(counts.files, 'file'))
   if (counts.tasks > 0) parts.push(n(counts.tasks, 'task change'))
+  if (counts.phases > 0) parts.push(n(counts.phases, 'phase change'))
   if (counts.notes > 0) parts.push(n(counts.notes, 'note'))
   if (counts.decisions > 0) parts.push(n(counts.decisions, 'decision'))
   if (counts.memories > 0) parts.push(n(counts.memories, 'promoted memory', 'promoted memories'))

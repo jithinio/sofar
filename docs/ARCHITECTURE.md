@@ -159,6 +159,7 @@ worse than no attribution.
 | `mcp/end-session.ts` | `sofar_end_session` — the write-back. Reports parallel write-backs and reachable peers. |
 | `mcp/log-decision.ts` | `sofar_log_decision` — including standing constraints and guards. |
 | `mcp/update-task.ts`, `mcp/update-plan.ts` | Task status, whole-plan replace. |
+| `mcp/update-phase.ts` | Phase status, addressed by exact phase name. Unknown name = typed error, not the fold's create-on-miss; already-at-status = no event. |
 | `mcp/add-note.ts` | `sofar_add_note`. |
 | `mcp/remember.ts` | `sofar_remember`. |
 | `mcp/review.ts` | `sofar_review` — records a performed review and its watermark. Records, never judges. |

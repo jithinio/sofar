@@ -179,6 +179,7 @@ describe('MCP over HTTP on the serve daemon (speed T3)', () => {
       'sofar_start_session',
       'sofar_end_session',
       'sofar_update_task',
+      'sofar_update_phase',
       'sofar_log_decision',
       'sofar_update_plan',
       'sofar_add_note',

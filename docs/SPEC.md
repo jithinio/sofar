@@ -125,7 +125,10 @@ active|done|dropped, note? — note REQUIRED for `dropped`;
 initiative-lifecycle 2.1 — overrides? — what the close-time audit found still
 outstanding when the close went ahead anyway; commit-attribution 5.2, see
 §Initiative statuses) · plan_updated (full plan structure) ·
-phase_status_changed · task_added · task_status_changed (id, status:
+phase_status_changed (phase, status: pending|active|done|blocked|dropped,
+note? — REQUIRED for `dropped`; the note explains the CURRENT status and is
+cleared by any later event that omits it; phase-lifecycle 2.1) ·
+task_added · task_status_changed (id, status:
 pending|active|done|blocked|dropped, note?) · decision_logged (chose, over,
 because, rule? — optional standing-constraint clause, one short imperative;
 presence makes the decision a standing constraint with a verbatim-render
@@ -285,10 +288,10 @@ capped at 20 entries + "+N more" sentinel; present only when ≥1 such event
 exists. closed_reason = the session_closed reason when that close set ended.
 freshness (staleness-detection 1.1) = fold-time drift derivation from
 MECHANICAL signals only — content-semantic staleness inference is banned
-(D3/D12): { events_since_writeback: {files, commands, tasks, notes,
+(D3/D12): { events_since_writeback: {files, commands, tasks, phases, notes,
 decisions, memories, reviews} counting payload-valid, unvoided file_touched /
-command_run / task_status_changed / note_added / decision_logged /
-memory_promoted / review_recorded events appended after
+command_run / task_status_changed / phase_status_changed / note_added /
+decision_logged / memory_promoted / review_recorded events appended after
 the last session_ended (ANY session/source incl. cli), unattributed_
 mutations: how many of those COUNTED mutations carry no registered session
 (envelope session "cli", or an id this log never registered) — a cross-cut
@@ -302,8 +305,11 @@ nothing ever wrote back }.
 session_ended is the ONLY reset (session_closed resets nothing); zero new
 event types — the derivation is read-side and retroactively covers every
 existing record.
-freshnessTotal(freshness) = files + tasks + notes + decisions + memories +
-reviews.
+freshnessTotal(freshness) = files + tasks + phases + notes + decisions +
+memories + reviews.
+`phases` is summed for the same reason `tasks` is (phase-lifecycle D3):
+resolving a phase moves the plan, so a written next_action can go stale on
+it — and a session that ONLY closes phases must not register zero drift.
 `commands` is counted in the struct and deliberately EXCLUDED from the
 total (drift-signal D1): drift asks whether the recorded next_action is
 now wrong, and a command cannot make it wrong. A REVIEW can and does
@@ -1290,6 +1296,26 @@ also collides with a sofar-cloud-internal package).
 - sofar_update_task({initiative?, task_id, status, note?}) → ok
   # status=active also returns standing_constraints (drift-hardening 4.1):
   # the [D<n>]-tagged rules, resurfaced at the point of use
+- sofar_update_phase({initiative?, phase, status, note?})
+  → {ok, event_id, tasks_done, tasks_total}   # phase-lifecycle D2, 2.2/2.3.
+  Appends phase_status_changed. Phase status is WRITTEN, never derived from
+  task status — "every task resolved, the phase itself not finished" is a
+  state the record must be able to hold, and it is precisely what doctor's
+  stale-phase axis and the close audit's phases_unresolved finding (§Review)
+  report.
+  `phase` is the phase NAME, matched EXACTLY against the folded plan:
+  plan_updated carries no phase ids, so the name is the only handle there is.
+  A name that matches nothing is an invalid_input error naming the phases
+  that do exist — NEVER the fold's create-on-miss, which is correct for a
+  fold (never lose a logged fact) and wrong for a tool (a typo would mint a
+  phantom phase that renders in the plan forever). Idempotent: already at
+  this status AND this note appends nothing and returns event_id null (the
+  sofar_close_initiative precedent); a note-only change still appends.
+  `note` is REQUIRED for status=dropped — the rule a dropped task already
+  follows (task-drop-state D3), one level up, for the reason it gives: an
+  abandonment with no stated reason reads as something quietly forgotten.
+  There is deliberately no `sofar phase` CLI sibling (D1): the
+  MCP-less dialect reaches the same event through `sofar event append`.
 - sofar_log_decision({initiative?, chose, over, because, rule?, guard?}) → ok
   # rule (drift-hardening D1): standing-constraint clause, rendered verbatim
   # on every surface — never clipped, never aged out of the digest
@@ -3075,6 +3101,20 @@ stay the underlying derivation's, and exit codes are styling-independent.
   THE D6 GATE is pinned by COUNTING spawns through a stub `git` first on PATH —
   asserting the line is absent cannot distinguish a gated walk from a failed
   one, and left the gate deletable with the suite green.
+- **Phase status (phase-lifecycle 2.x, 5.2):** `sofar_update_phase` appends
+  exactly one phase_status_changed carrying {phase, status, note?} and the
+  fold reflects it; re-issuing the SAME status and note appends NOTHING and
+  returns event_id null, while a note-only change on an unchanged status does
+  append; a phase name matching nothing in the plan is an invalid_input error
+  that NAMES the phases which do exist and appends nothing — the fold's
+  create-on-miss must not be reachable through the tool; a drop with no note
+  is refused; the note renders under its phase in plan.md and is CLEARED by a
+  later event that omits it; the write follows the session pin, so a branch
+  rebind mid-session cannot reroute it; phase_status_changed counts toward
+  freshness as `phases` and into freshnessTotal (D3), so a session that only
+  closes phases still owes a write-back; and replay stays deterministic.
+  Closing a phase clears it from doctor's stale-phase axis and from the close
+  audit's phases_unresolved finding — the same one fact, read by both.
 - **core.hooksPath (hookspath-attribution):** a repo whose `core.hooksPath`
   resolves to its own `<common>/hooks` — spelled absolutely or relatively —
   gets the hook installed, and a hook placed in that directory demonstrably

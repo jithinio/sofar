@@ -83,7 +83,7 @@ describe('fold freshness (1.1)', () => {
     const { events, writeback } = staleStoryline()
     const state = foldOf(events)
     expect(state.freshness).toEqual({
-      events_since_writeback: { files: 1, commands: 2, tasks: 1, notes: 1, decisions: 1, memories: 0, reviews: 0 },
+      events_since_writeback: { files: 1, commands: 2, tasks: 1, phases: 0, notes: 1, decisions: 1, memories: 0, reviews: 0 },
       // the sess-2 file touch and the cli task change: mutations this log
       // registered no session for, so no session's own gate would catch them
       unattributed_mutations: 2,
@@ -99,7 +99,7 @@ describe('fold freshness (1.1)', () => {
     const second = ev('session_ended', { summary: 's2', next_action: 'n2' }, { session: 'sess-2' })
     const state = foldOf([...events, second])
     expect(state.freshness).toEqual({
-      events_since_writeback: { files: 0, commands: 0, tasks: 0, notes: 0, decisions: 0, memories: 0, reviews: 0 },
+      events_since_writeback: { files: 0, commands: 0, tasks: 0, phases: 0, notes: 0, decisions: 0, memories: 0, reviews: 0 },
       unattributed_mutations: 0,
       notes: [],
       last_writeback_ts: second.ts,
@@ -113,12 +113,12 @@ describe('fold freshness (1.1)', () => {
       ev('command_run', { cmd: 'ls' }),
     ])
     expect(state.freshness.last_writeback_ts).toBeNull()
-    expect(state.freshness.events_since_writeback).toEqual({ files: 1, commands: 1, tasks: 0, notes: 0, decisions: 0, memories: 0, reviews: 0 })
+    expect(state.freshness.events_since_writeback).toEqual({ files: 1, commands: 1, tasks: 0, phases: 0, notes: 0, decisions: 0, memories: 0, reviews: 0 })
   })
 
   it('empty state carries zeroed freshness (shape is always present)', () => {
     expect(emptyState().freshness).toEqual({
-      events_since_writeback: { files: 0, commands: 0, tasks: 0, notes: 0, decisions: 0, memories: 0, reviews: 0 },
+      events_since_writeback: { files: 0, commands: 0, tasks: 0, phases: 0, notes: 0, decisions: 0, memories: 0, reviews: 0 },
       unattributed_mutations: 0,
       notes: [],
       last_writeback_ts: null,
@@ -135,7 +135,7 @@ describe('fold freshness (1.1)', () => {
       ev('file_touched', { nope: true }), // invalid payload — skipped with warning
       ev('session_closed', { reason: 'window closed' }), // mechanical close ≠ write-back
     ])
-    expect(state.freshness.events_since_writeback).toEqual({ files: 1, commands: 2, tasks: 1, notes: 1, decisions: 1, memories: 0, reviews: 0 })
+    expect(state.freshness.events_since_writeback).toEqual({ files: 1, commands: 2, tasks: 1, phases: 0, notes: 1, decisions: 1, memories: 0, reviews: 0 })
     expect(state.freshness.last_writeback_ts).toBe(writeback.ts)
   })
 
@@ -220,6 +220,7 @@ describe('staleness line in renderStatus (2.1)', () => {
       files: Number.MAX_SAFE_INTEGER,
       commands: Number.MAX_SAFE_INTEGER,
       tasks: Number.MAX_SAFE_INTEGER,
+      phases: Number.MAX_SAFE_INTEGER,
       notes: Number.MAX_SAFE_INTEGER,
       decisions: Number.MAX_SAFE_INTEGER,
       memories: Number.MAX_SAFE_INTEGER,
@@ -231,7 +232,7 @@ describe('staleness line in renderStatus (2.1)', () => {
   })
 
   it('describeFreshness omits zero-count kinds and pluralizes', () => {
-    expect(describeFreshness({ files: 1, commands: 0, tasks: 3, notes: 0, decisions: 0, memories: 0, reviews: 0 })).toBe('1 file, 3 task changes')
+    expect(describeFreshness({ files: 1, commands: 0, tasks: 3, phases: 0, notes: 0, decisions: 0, memories: 0, reviews: 0 })).toBe('1 file, 3 task changes')
   })
 })
 
@@ -360,7 +361,7 @@ describe('10k cap with every section at worst case (4.2)', () => {
     ]
     state.current = { active_phase: phases[3]!.name, next_action: 'z'.repeat(3_000), blocked_on: 'w'.repeat(2_000) }
     state.freshness = {
-      events_since_writeback: { files: 99_999, commands: 99_999, tasks: 99_999, notes: 99_999, decisions: 99_999, memories: 0, reviews: 0 },
+      events_since_writeback: { files: 99_999, commands: 99_999, tasks: 99_999, phases: 0, notes: 99_999, decisions: 99_999, memories: 0, reviews: 0 },
       unattributed_mutations: 0,
       notes: Array.from({ length: 200 }, (_, i) => ({
         ts: '2026-07-11T00:00:00.000Z',

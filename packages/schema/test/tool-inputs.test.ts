@@ -9,16 +9,18 @@ import {
 } from '../src/tool-inputs'
 
 describe('tool contract surface', () => {
-  // The COUNT is the contract, not decoration: eleven are enumerated in SPEC
+  // The COUNT is the contract, not decoration: twelve are enumerated in SPEC
   // §MCP tools, and that surface is called frozen. Dropping the number here is
-  // how a twelfth tool lands without anyone editing SPEC — the assertion
-  // following the code instead of the code following SPEC.
-  it('declares exactly the eleven SPEC §MCP tools', () => {
+  // how a thirteenth tool lands without anyone editing SPEC — the assertion
+  // following the code instead of the code following SPEC. (It worked:
+  // sofar_update_phase failed here first, and SPEC was edited second.)
+  it('declares exactly the twelve SPEC §MCP tools', () => {
     expect([...TOOL_NAMES]).toEqual([
       'sofar_get_state',
       'sofar_start_session',
       'sofar_end_session',
       'sofar_update_task',
+      'sofar_update_phase',
       'sofar_log_decision',
       'sofar_update_plan',
       'sofar_add_note',
@@ -55,6 +57,7 @@ describe('validateToolInput', () => {
     sofar_start_session: { tool: 'claude-code', model: 'fable-5' },
     sofar_end_session: { session_id: 's1', summary: 'did things', next_action: 'do more' },
     sofar_update_task: { task_id: '2.1', status: 'done', note: 'green' },
+    sofar_update_phase: { phase: 'Phase 2 — sofar_update_phase', status: 'done', note: 'shipped' },
     sofar_log_decision: { chose: 'a', over: 'b', because: 'c' },
     sofar_close_initiative: { status: 'done', note: 'goal met' },
     sofar_update_plan: {

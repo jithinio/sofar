@@ -98,7 +98,13 @@ export interface InitiativeStatusChangedPayload {
   overrides?: string[]
 }
 export interface PlanUpdatedPayload { plan: PlanStructure }
-export interface PhaseStatusChangedPayload { phase: string; status: PhaseStatus }
+/**
+ * `note` (phase-lifecycle 2.1) is the same field task_status_changed carries,
+ * one level up, and required for `dropped` for the same reason: a phase
+ * abandoned without a stated reason is indistinguishable from one quietly
+ * forgotten, and nothing else in the record explains it.
+ */
+export interface PhaseStatusChangedPayload { phase: string; status: PhaseStatus; note?: string }
 export interface TaskAddedPayload { phase: string; id: string; title: string; status?: TaskStatus }
 export interface TaskStatusChangedPayload { id: string; status: TaskStatus; note?: string }
 /**
@@ -362,6 +368,7 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
   phase_status_changed(p, e) {
     if (!str(p.phase)) e.push('phase: must be a non-empty string')
     if (!phaseStatus(p.status)) e.push(`status: must be one of ${PHASE_STATUSES.join('|')}`)
+    if (!optStr(p.note)) e.push('note: must be a string')
   },
   task_added(p, e) {
     if (!str(p.phase)) e.push('phase: must be a non-empty string')

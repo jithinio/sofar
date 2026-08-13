@@ -15,6 +15,7 @@ import {
   REVIEW_SCOPES,
   REVIEW_VERDICTS,
   validatePayload,
+  type PhaseStatus,
   type PlanStructure,
   type ReviewScope,
   type ReviewVerdict,
@@ -67,6 +68,7 @@ export const TOOL_NAMES = [
   'sofar_start_session',
   'sofar_end_session',
   'sofar_update_task',
+  'sofar_update_phase',
   'sofar_log_decision',
   'sofar_update_plan',
   'sofar_add_note',
@@ -118,6 +120,18 @@ export interface UpdateTaskArgs {
   initiative?: string
   task_id: string
   status: TaskStatus
+  note?: string
+}
+/**
+ * Phases are addressed by their NAME — plan_updated carries no phase ids, so
+ * the name is the only handle that exists (phase-lifecycle 2.2). The engine
+ * matches it exactly against the folded plan and errors when nothing matches,
+ * which is why there is no id to mint here.
+ */
+export interface UpdatePhaseArgs {
+  initiative?: string
+  phase: string
+  status: PhaseStatus
   note?: string
 }
 export interface LogDecisionArgs {
@@ -192,6 +206,7 @@ export interface ToolArgs {
   sofar_start_session: StartSessionArgs
   sofar_end_session: EndSessionArgs
   sofar_update_task: UpdateTaskArgs
+  sofar_update_phase: UpdatePhaseArgs
   sofar_log_decision: LogDecisionArgs
   sofar_update_plan: UpdatePlanArgs
   sofar_add_note: AddNoteArgs
@@ -214,6 +229,20 @@ export interface ToolOkResult {
  */
 export interface UpdateTaskResult extends ToolOkResult {
   standing_constraints?: string[]
+}
+
+/**
+ * update_phase result (phase-lifecycle 2.3). `event_id` is null when the phase
+ * was ALREADY at this status — idempotent, no second event, the same shape
+ * close_initiative uses for the same reason: re-issuing must be safe, and a
+ * log full of no-op transitions makes the real ones harder to find.
+ */
+export interface UpdatePhaseResult {
+  ok: true
+  event_id: string | null
+  /** Task counts for the phase, so the caller can see what it just resolved. */
+  tasks_done: number
+  tasks_total: number
 }
 
 // ---------------------------------------------------------------------------
@@ -343,6 +372,34 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       },
     },
     required: ['task_id', 'status'],
+    additionalProperties: false,
+  },
+  sofar_update_phase: {
+    type: 'object',
+    properties: {
+      initiative: initiativeProp,
+      phase: {
+        type: 'string',
+        minLength: 1,
+        description:
+          'The phase name, EXACTLY as the plan spells it — phases have no ids. A name that ' +
+          'matches nothing is an error listing the names that do exist, never a silent no-op.',
+      },
+      status: {
+        enum: [...PHASE_STATUSES],
+        description:
+          'Same vocabulary as a task, one level up. `done` = the phase is finished, which is a ' +
+          'separate fact from its tasks being resolved — say it even when the last task landed ' +
+          'days ago. `dropped` = the phase will not happen; `blocked` = it wants to, and cannot yet.',
+      },
+      note: {
+        type: 'string',
+        description:
+          'Why. REQUIRED for `dropped` — an abandoned phase with no stated reason is ' +
+          'indistinguishable from a forgotten one. Rendered under the phase in plan.md.',
+      },
+    },
+    required: ['phase', 'status'],
     additionalProperties: false,
   },
   sofar_log_decision: {
@@ -492,6 +549,12 @@ export const TOOL_DEFS: readonly ToolDef[] = [
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_update_task,
   },
   {
+    name: 'sofar_update_phase',
+    description:
+      "Set a phase's status, optionally with a note. A phase is finished when you say so, never because its last task landed: \"every task resolved, the phase itself not finished\" is a real state the record is built to hold, and it is what `sofar doctor` and the close audit report. So close each phase as you finish it — an unresolved phase keeps naming finished work as the active phase, and is named permanently in the close-time overrides if the initiative closes while it is still open.",
+    inputSchema: TOOL_INPUT_SCHEMAS.sofar_update_phase,
+  },
+  {
     name: 'sofar_log_decision',
     description:
       'Record a design decision: what was chosen, what it was chosen over, and why.',
@@ -590,6 +653,20 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
     // downstream will ever nag anyone into supplying the reason later.
     if (a.status === 'dropped' && !str(a.note)) {
       e.push('note: required when status is "dropped" — say why, and cite the deciding entry (e.g. "D3")')
+    }
+  },
+  sofar_update_phase(a, e) {
+    if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
+    if (!str(a.phase)) e.push('phase: must be a non-empty string')
+    if (typeof a.status !== 'string' || !(PHASE_STATUSES as readonly string[]).includes(a.status)) {
+      e.push(`status: must be one of ${PHASE_STATUSES.join('|')}`)
+    }
+    if (!optStr(a.note)) e.push('note: must be a string')
+    // The task-drop rule (task-drop-state D3) and the initiative-drop rule one
+    // level up, applied to the level between them — for the same reason both
+    // give: nothing else in the record explains an abandonment.
+    if (a.status === 'dropped' && !str(a.note)) {
+      e.push('note: required when status is "dropped" — say why the phase will not happen')
     }
   },
   sofar_close_initiative(a, e) {

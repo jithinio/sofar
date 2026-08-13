@@ -63,6 +63,13 @@ export interface PhaseState {
   name: string
   status: PhaseStatus
   tasks: TaskState[]
+  /**
+   * Reason from the phase_status_changed that set the CURRENT status
+   * (phase-lifecycle 2.1). Cleared when a later event moves the phase without
+   * one, so it can never explain a status the phase has since left — the same
+   * rule task notes follow in applyEvent.
+   */
+  note?: string
 }
 
 export interface DecisionState {
@@ -204,6 +211,16 @@ export interface FreshnessState {
     commands: number
     /** task_status_changed */
     tasks: number
+    /**
+     * phase_status_changed (phase-lifecycle 2.1, D3). Counted for the same
+     * reason task changes are: resolving a phase moves the plan, and a written
+     * next action can go stale on it. Its absence here was never harmless —
+     * 70 of these events were appended across this repo's record in the week
+     * to 2026-08-13, 40 of them from claude-code sessions, every one invisible
+     * to the drift the Stop gate reads. A session that ONLY resolves phases —
+     * exactly what a stale-phase repair pass is — registered zero.
+     */
+    phases: number
     /** note_added */
     notes: number
     /** decision_logged */
@@ -256,7 +273,7 @@ export interface FreshnessState {
  */
 export function freshnessTotal(freshness: FreshnessState): number {
   const c = freshness.events_since_writeback
-  return c.files + c.tasks + c.notes + c.decisions + c.memories + c.reviews
+  return c.files + c.tasks + c.phases + c.notes + c.decisions + c.memories + c.reviews
 }
 
 /**
@@ -500,6 +517,7 @@ function emptyFreshness(): FreshnessState {
       files: 0,
       commands: 0,
       tasks: 0,
+      phases: 0,
       notes: 0,
       decisions: 0,
       memories: 0,
@@ -747,6 +765,9 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
       break
     case 'task_status_changed':
       mutation(() => (counts.tasks += 1))
+      break
+    case 'phase_status_changed':
+      mutation(() => (counts.phases += 1))
       break
     case 'note_added':
       mutation(() => (counts.notes += 1))
@@ -1076,6 +1097,8 @@ function applyEvent(
       const p = event.payload as unknown as PhaseStatusChangedPayload
       const phase = findOrCreatePhase(state, p.phase, warnings, lineNo)
       phase.status = p.status
+      if (p.note !== undefined && p.note.length > 0) phase.note = p.note
+      else delete phase.note
       break
     }
     case 'task_added': {

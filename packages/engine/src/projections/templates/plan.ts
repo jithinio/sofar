@@ -17,6 +17,9 @@ export function renderPlan(state: InitiativeState): string {
   }
   for (const phase of state.phases) {
     lines.push(`## ${phase.name} [${phase.status}] — ${phaseFraction(taskProgress([phase]))} done`, '')
+    // The reason a phase was blocked or dropped, where its status is read
+    // (phase-lifecycle 2.1) — a note nothing renders is a note that dies.
+    if (phase.note !== undefined) lines.push(`> ${phase.note}`, '')
     for (const task of phase.tasks) {
       // A dropped task is resolved but was never built, so it gets neither
       // the done checkmark nor an empty box that would read as still queued.
