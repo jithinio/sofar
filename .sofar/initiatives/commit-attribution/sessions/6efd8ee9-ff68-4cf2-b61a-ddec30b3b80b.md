@@ -18,5 +18,11 @@
 
 ## Activity (derived from mechanical events)
 
-- Derived: 17 commands
-- Commands run: 17
+- Derived: 5 files (/Users/jins/IO/sofar/packages/engine/src/core/git.ts, /Users/jins/IO/sofar/packages/engine/src/core/shipwatch.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/docs/ARCHITECTURE.md, /Users/jins/IO/sofar/packages/engine/test/landed-notice.test.ts), 22 commands
+- Files:
+  - /Users/jins/IO/sofar/packages/engine/src/core/git.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/shipwatch.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+  - /Users/jins/IO/sofar/docs/ARCHITECTURE.md
+  - /Users/jins/IO/sofar/packages/engine/test/landed-notice.test.ts
+- Commands run: 22

@@ -24,3 +24,4 @@ Progress: 0/8 tasks done (0%)
 - [ ] 3.2 docs/SPEC.md: the re-homing contract and the fresh-session resolution order, alongside the session-before-branch precedence initiative-lifecycle already recorded there.
 
 Active phase: Phase 1 — Teach re-homing (the shipped trap)
+Next action: Start at 1.1: add the re-homing instruction to the shipped protocol block in BOTH dialects, with the rule of thumb that an `initiative` arg routes ONE write while re-homing moves the SESSION. Critical mechanic confirmed in cli/init.ts: the blocks are a VERSIONED ledger (PROTOCOL_BLOCK_V1..V4, AGENTS_PROTOCOL_BLOCK_V3) carrying an explicit APPEND-never-edit rule, so move the CURRENT text into the ledger and write a new PROTOCOL_BLOCK — editing in place silently breaks the byte-match that lets doctor tell a stale block from a user-customised one.
