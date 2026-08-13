@@ -6,22 +6,21 @@ Goal: No session should work from a stale picture, and today three kinds of stal
 
 Progress: 5/5 tasks done (100%)
 
-## Phase 1 — The push ping (commit-attribution D13, the missing 3.5) [active] — 2/2 done
+## Phase 1 — The push ping (commit-attribution D13, the missing 3.5) [done] — 2/2 done
 
 - [x] 1.1 When a push lands commits belonging to OTHER records, name those records and the live sessions holding them, resolved to the address SendMessage uses. Rides the SAME ref-movement mark as the landed line, so it costs no extra state and stays edge-triggered (D15).
 - [x] 1.2 Renders ONLY when a transport actually resolves a name; silence otherwise, because the address is the whole actionable content. That is also what makes it degrade correctly on hosts with no registry.
 
-## Phase 2 — The engine changed under you [pending] — 1/1 done
+## Phase 2 — The engine changed under you [done] — 1/1 done
 
 - [x] 2.1 Mark the running engine version per session beside the ref mark, and announce the transition once: a session keeps the MCP tool surface it started with, so after a publish and upgrade it silently holds the old tools. Cost this repo two wrong conclusions in one day (commit-attribution M5).
 
-## Phase 3 — Work a decision promised and no task implements [pending] — 1/1 done
+## Phase 3 — Work a decision promised and no task implements [done] — 1/1 done
 
 - [x] 3.1 The review packet ASKS it, rather than the close audit detecting it: reading intent out of prose is the inference staleness-detection D3/D12 bans, so sofar renders the decisions and the reviewing session judges (commit-attribution D3's division of labour). This is the check that would have caught D13.
 
-## Phase 4 — Contract [pending] — 1/1 done
+## Phase 4 — Contract [done] — 1/1 done
 
 - [x] 4.1 SPEC §Hooks, §Review and §Acceptance criteria, including what each signal does on a host with no live-session registry.
 
-Active phase: Phase 1 — The push ping (commit-attribution D13, the missing 3.5)
-Next action: Review the phases and close: the packet's own new question ("does any decision name work no task implements") applies to this record too, and the phases are still active with all tasks done.
+Next action: Bump and publish: cut the version carrying these signals, then the user runs `npm publish -w sofar.sh` — until it is installed, no session sees any of this, which is the very staleness Phase 2 reports.
