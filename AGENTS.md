@@ -20,7 +20,8 @@ This repo tracks its work in a sofar record; orientation is mandatory.
 This repo's work memory lives in sofar records under `.sofar/`. Drive
 the whole loop with the `sofar` CLI — no MCP support is required.
 1. ALL work state lives in sofar records — never in tool memory, scratch
-   files, or ad-hoc notes. If it is worth keeping, it goes in the record.
+   files, ad-hoc notes, or a message from another session. If it is worth
+   keeping, it goes in the record.
 2. Work that matches no existing initiative requires creating one first:
    run `sofar new <slug>` before proceeding.
 3. Bindings (`.sofar/bindings.json`) resolve which record a session
@@ -30,11 +31,22 @@ Session loop (every write is one `sofar event append` call):
 - BEFORE any work: run `sofar status` and orient from it. Detail lives
   in `.sofar/initiatives/<slug>/plan.md` and `decisions.md`. Do not
   ask for context the record already answers.
+- RECORD: every append takes an optional LEADING slug —
+  `sofar event append <slug> --type …` — naming the record it lands in.
+  Omit it and the write follows the current branch's binding, which is not
+  the same thing as the record you registered in and can move mid-session.
+  So decide the slug once, before the first append, and pass it on EVERY
+  append this session — above all on the session_ended one, because a
+  write-back filed in the wrong record is the event the next session reads
+  first. If the work belongs to a record other than the one `sofar status`
+  shows, that is the slug to pass, every time; there is no session-level
+  re-homing on this path. `sofar remember` takes the same record as
+  `--initiative <slug>`, and follows the branch without it.
 - START: pick one unique session id, reuse it for every append this
   session, and register it:
-  `sofar event append --type session_started --session <session-id> --source opencode --payload '{"tool":"opencode"}'`
+  `sofar event append <slug> --type session_started --session <session-id> --source opencode --payload '{"tool":"opencode"}'`
   (put your tool's name in --source and the payload).
-- DURING: log work as it happens with `sofar event append --session <session-id> --source <tool>` plus:
+- DURING: log work as it happens with `sofar event append <slug> --session <session-id> --source <tool>` plus:
   task status:  `--type task_status_changed --payload '{"id":"<task-id>","status":"pending|active|done|blocked"}'`
   decisions:    `--type decision_logged --payload '{"chose":"...","over":"...","because":"..."}'`
   notes:        `--type note_added --payload '{"text":"..."}'`
@@ -43,7 +55,7 @@ Session loop (every write is one `sofar event append` call):
   Promote it the moment you learn it with `sofar remember "<fact>"`, or it
   lives only in your own context and dies with the session.
 - BEFORE FINISHING (MANDATORY): write back —
-  `sofar event append --type session_ended --session <session-id> --source <tool> --payload '{"summary":"<what happened>","next_action":"<single next step>"}'`
+  `sofar event append <slug> --type session_ended --session <session-id> --source <tool> --payload '{"summary":"<what happened>","next_action":"<single next step>"}'`
   A session that skips this abandons its state and the next session starts blind.
 
 Prohibitions:
