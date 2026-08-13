@@ -40,6 +40,20 @@
   hit 2026-08-04) — never remove that field. An expired npm token surfaces
   as E404 on the publish PUT (npm masks auth errors); `npm whoami`
   returning E401 confirms it, `npm login` fixes it.
+- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT
+  publish while commit-attribution is unfinished — let the whole thing
+  land, then publish once. Attribution is a CHAIN (hook writes the
+  trailer → core/attribution.ts reads it → doctor reports whether it
+  works → the shipping notice and review packet consume it), so a
+  partial release puts users in the worst state available: a hook
+  writing trailers nothing consumes, or a doctor reporting "attribution
+  off" in a version with no way to switch it on. Two consequences: do
+  not install .git/hooks/prepare-commit-msg in THIS repo before the
+  release (trailers stay hand-written, and the accurate "attribution
+  off" beats a misleading "installed but nothing attributed"), and
+  session-orientation's protocol-block change rides the same release,
+  since a half-shipped versioned block leaves repos matching no known
+  version.
 - Misrouted sessions are silent (repo-memory-capture M3): a session rooted in
   this repo fires the hooks on EVERY tool call, and with no explicit pin the
   branch binding decides where they land. A session working on a DIFFERENT

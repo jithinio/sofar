@@ -4,7 +4,7 @@
 
 Goal: Bind every commit to the initiative that produced it, exactly and at commit time, and spend that primitive on two gaps that share it. Gap 1 (staleness): several initiatives share one worktree and one branch, so any session's push carries other initiatives' commits and their records never learn their work shipped. Gap 2 (review): closing an initiative is today an unconditional append — nothing rechecks that the execution was right, and a reviewer with no diff can only re-read the record's own prose and confirm it. SETTLED: the binding is a `Sofar-Initiative:` COMMIT TRAILER read from git, never an event (D4); a prepare-commit-msg hook injects it by resolving the session, never the branch binding (D5); reads are bounded and kept off the hot path on measurement (D6); init installs without clobbering (D7); shipping is derived locally from refs, never from a forge API (D8); reviews fire at phase boundaries for 3+ phase initiatives with a final cross-cutting pass at close (D9, D10); a live session re-reads refs rather than being messaged (D11).
 
-Progress: 15 done, 2 dropped, 7 remaining
+Progress: 17 done, 2 dropped, 5 remaining
 
 ## Phase 1 — Settle attribution (blocks everything else) [done] — 2/4 (2 dropped) done
 
@@ -13,20 +13,20 @@ Progress: 15 done, 2 dropped, 7 remaining
 - [x] 1.3 DECIDE the surface for an unattributed commit. Settled: git reads it back as empty, never as a guess, and doctor 2.4 renders it.
 - [-] 1.4 Back-compat probe for an unknown event type. DROPPED by D4: no new event type at that point. (dropped)
 
-## Phase 2 — Write and read the trailer [active] — 4/5 done
+## Phase 2 — Write and read the trailer [active] — 5/5 done
 
 - [x] 2.1 DECIDE who writes the trailer. SETTLED as D5: a prepare-commit-msg hook resolving CLAUDE_CODE_SESSION_ID through homeInitiative. Automatic, not remembered.
 - [x] 2.2 Read path. Built as core/attribution.ts (NOT core/git.ts, whose no-subprocess guarantee would have been voided). Bounded walks per D6.
-- [ ] 2.3 Squash-merge fallback: `git merge --squash` indents the original message four spaces, so the trailer parser reads empty and a shipped initiative reports as un-shipped. The slug is still in the body verbatim — scan for it as a fallback, which is still reading git rather than guessing. A characterisation test currently PINS the bug and will need inverting.
+- [x] 2.3 Squash-merge fallback: `git merge --squash` indents the original message four spaces, so the trailer parser reads empty and a shipped initiative reports as un-shipped. The slug is still in the body verbatim — scan for it as a fallback, which is still reading git rather than guessing. A characterisation test currently PINS the bug and will need inverting.
 - [x] 2.4 doctor: empirical attribution check — asks whether recent commits actually carry trailers rather than enumerating why they might not. WARN only, never FAIL.
 - [x] 2.5 Hook installation. Built as D7: install from `sofar init`, never clobber, detect core.hooksPath, mirrored in uninit.
 
-## Phase 3 — Derive shipped state (gap 1: staleness) [active] — 3/4 done
+## Phase 3 — Derive shipped state (gap 1: staleness) [active] — 4/4 done
 
 - [x] 3.1 Per-initiative shipping via `git rev-list <upstream>..HEAD` — one spawn for the set, not one per sha. No upstream means `unknown`, never `local`.
 - [x] 3.2 SessionStart shipping notice, conditional and composed around the pinned status block. Silence means shipped, and that silence is the signal.
 - [x] 3.3 PR state: OUT of scope (D8). Not on egress grounds — SPEC carves out egress carrying no user content — but on cost, dependency, and marginality.
-- [ ] 3.4 THE LIVE-SESSION GAP, and the reason this phase reopened: 3.2's notice fires once per session, so a session already RUNNING when a sibling pushes learns nothing until it restarts — the user's original complaint, still open in exactly the case they described. Per D11, add a UserPromptSubmit line gated on ref MOVEMENT: read refs from files (free, no subprocess) and pay for the trailer walk ONLY when origin/<branch> has moved since this session last looked. That gate is not an exception to D6 but the escape D6 was written with. Never a peer message.
+- [x] 3.4 THE LIVE-SESSION GAP, and the reason this phase reopened: 3.2's notice fires once per session, so a session already RUNNING when a sibling pushes learns nothing until it restarts — the user's original complaint, still open in exactly the case they described. Per D11, add a UserPromptSubmit line gated on ref MOVEMENT: read refs from files (free, no subprocess) and pay for the trailer walk ONLY when origin/<branch> has moved since this session last looked. That gate is not an exception to D6 but the escape D6 was written with. Never a peer message.
 
 ## Phase 4 — The review step (gap 2) [done] — 6/6 done
 
