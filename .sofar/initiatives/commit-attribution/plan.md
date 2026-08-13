@@ -13,7 +13,9 @@ Progress: 22 done, 2 dropped, 0 remaining
 - [x] 1.3 DECIDE the surface for an unattributed commit. Settled: git reads it back as empty, never as a guess, and doctor 2.4 renders it.
 - [-] 1.4 Back-compat probe for an unknown event type. DROPPED by D4: no new event type at that point. (dropped)
 
-## Phase 2 — Write and read the trailer [active] — 5/5 done
+## Phase 2 — Write and read the trailer [done] — 5/5 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 2.1 DECIDE who writes the trailer. SETTLED as D5: a prepare-commit-msg hook resolving CLAUDE_CODE_SESSION_ID through homeInitiative. Automatic, not remembered.
 - [x] 2.2 Read path. Built as core/attribution.ts (NOT core/git.ts, whose no-subprocess guarantee would have been voided). Bounded walks per D6.
@@ -21,7 +23,9 @@ Progress: 22 done, 2 dropped, 0 remaining
 - [x] 2.4 doctor: empirical attribution check — asks whether recent commits actually carry trailers rather than enumerating why they might not. WARN only, never FAIL.
 - [x] 2.5 Hook installation. Built as D7: install from `sofar init`, never clobber, detect core.hooksPath, mirrored in uninit.
 
-## Phase 3 — Derive shipped state (gap 1: staleness) [active] — 4/4 done
+## Phase 3 — Derive shipped state (gap 1: staleness) [done] — 4/4 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 3.1 Per-initiative shipping via `git rev-list <upstream>..HEAD` — one spawn for the set, not one per sha. No upstream means `unknown`, never `local`.
 - [x] 3.2 SessionStart shipping notice, conditional and composed around the pinned status block. Silence means shipped, and that silence is the signal.
@@ -37,7 +41,9 @@ Progress: 22 done, 2 dropped, 0 remaining
 - [x] 4.5 Review DECOUPLED from marking done — sofar_review gates nothing, so a reviewing agent gains nothing by passing.
 - [x] 4.6 `sofar review [--final] [--phase]` — the read half, and the entry point the loop had been missing entirely. Range from the watermark and trailer attribution, filtered to this initiative.
 
-## Phase 5 — Close gate + contracts [pending] — 5/5 done
+## Phase 5 — Close gate + contracts [done] — 5/5 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 5.1 Mechanical tier at close, no model needed: tasks still pending/active while closing `done`, phases never resolved, tasks claiming files no file_touched event ever saw, guard violations never addressed, a next_action left dangling, and — per D9 — phases that were never reviewed. This is doctor scoped to one initiative, and the mirror of initiative-lifecycle 4.3.
 - [x] 5.2 The override is an EVENT, never silent. A hard refusal on a solo tool grows a --force and the flag becomes the habit; "closed with 3 tasks pending, overridden" rendered in the digest forever is what keeps it honest.
@@ -45,5 +51,4 @@ Progress: 22 done, 2 dropped, 0 remaining
 - [x] 5.4 docs/SPEC.md is authoritative: the trailer contract and its read incantation, the read-never-record rule, the prepare-commit-msg resolution order, the review_recorded event and its watermark, sofar_review in §MCP tools, the close-gate semantics, and §Acceptance criteria. The tool-surface tests already pin the count, so SPEC is the last place still out of date.
 - [x] 5.5 Dogfood both halves: run the review over a real initiative's phases, and confirm a session whose commits shipped inside a peer's push is TOLD so — at SessionStart AND, per 3.4, while still live.
 
-Active phase: Phase 2 — Write and read the trailer
 Next action: Publish: the release gate lifts with this close, so bump the version, build, and hand `! npm publish -w sofar.sh` to the user (they run it — OTP plus the permission classifier).

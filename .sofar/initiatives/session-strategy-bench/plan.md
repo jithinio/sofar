@@ -30,7 +30,9 @@ Progress: 20/20 tasks done (100%)
 - [x] 4.2 Caveats log in evidence file: observational confounds, grader provenance, workload count — every caveat, none dropped
 - [x] 4.3 Honest-summary paragraph: where S won, where L won (P3 territory), with numbers — marketing copy comes only from this (deliverable 5)
 
-## Phase 5 — S2-R02 post-speed re-run (pre-registration freeze) [active] — 3/3 done
+## Phase 5 — S2-R02 post-speed re-run (pre-registration freeze) [done] — 3/3 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 5.1 Version-delta audit: 0.9.2→0.10.0 diff over injection/render/MCP paths + rendered-block diff on an R01-era record; every non-speed change named (or none)
 - [x] 5.2 Freeze R02 section in the evidence file BEFORE any arm runs: P1'–P5' verbatim, method, version note, every deviation from R01 on its own line
@@ -44,5 +46,4 @@ Progress: 20/20 tasks done (100%)
 - [x] 6.4 Blind grading: primary pair (Claude + GLM, worse-of-two) adjudicates P2'; Grader C (gpt-5.5) robustness table reported separately
 - [x] 6.5 R02 evidence section: per-task tables, R01-vs-R02 arm-S delta table (tasks 1–6), P1'–P5' verdicts unsoftened, complete caveats, honest summary
 
-Active phase: Phase 5 — S2-R02 post-speed re-run (pre-registration freeze)
 Next action: When the driver exits: extract telemetry, run the sidecar, grade (A+B primary, C robustness), write the R02 evidence section.

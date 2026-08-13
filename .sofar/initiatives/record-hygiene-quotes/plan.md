@@ -6,12 +6,13 @@ Goal: Make record-hygiene D1's self-recording exemption quote-aware, so committi
 
 Progress: 4/4 tasks done (100%)
 
-## Quote-aware exemption [active] — 4/4 done
+## Quote-aware exemption [done] — 4/4 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 1.1 Quote-aware operator scan in isSelfRecordingCommand: split on &&, ||, ;, |, newline only outside single/double quotes, honouring backslash escapes; unbalanced quotes fall back to logging
 - [x] 1.2 Close the command-substitution hole in the same scan: $( or backtick in unquoted text makes the command non-exempt (today `git log $(rm -rf x)` is exempt)
 - [x] 1.3 Tests in hooks.test.ts: multi-line commit message exempt, quoted && exempt, unbalanced quotes logged, substitution logged, pipes/echo still logged
 - [x] 1.4 SPEC §PostToolUse (lines 772-781) reworded off 'quote-unaware', plus the Decision entry the deviation requires
 
-Active phase: Quote-aware exemption
 Next action: record-hygiene-quotes is complete — no further work planned.

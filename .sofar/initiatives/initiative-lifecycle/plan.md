@@ -6,35 +6,44 @@ Goal: Let an initiative be closed. Closing records a terminal status (done or dr
 
 Progress: 15/15 tasks done (100%)
 
-## Phase 1 — Settle the resolution mechanism (blocks everything else) [active] — 3/3 done
+## Phase 1 — Settle the resolution mechanism (blocks everything else) [done] — 3/3 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 1.1 Back-compat probe, the task-drop-state 1.1 discipline: verify EMPIRICALLY against published 0.18.x what an older engine does with (a) an `initiative_status_changed` event it does not know, and (b) a bindings.json whose entry was removed. Expected: unknown event type skipped with a warning, and an unbound branch read as unbound — both degrading safe. Confirm or refute before designing on top of it.
 - [x] 1.2 DECIDE the cross-process session→initiative mechanism, the crux of the whole initiative. The pin is in-memory per MCP server process (context.ts:51), so a statusline or hook process cannot read it. Options: scan each initiative log with the existing registeredAt(), or persist the pin (e.g. .sofar/sessions/) for a single cheap read. Weigh statusline cost — it re-renders constantly and `speed` is a standing concern — against stale-pin cleanup. Log a Decision.
 - [x] 1.3 Decide what a hook does when NEITHER a session pin nor a branch binding resolves. Today it exits 0 and silently drops the event (verified). Silence respects BD22 (never break the session) but loses telemetry invisibly; lazily binding would recreate misrouting. Pick, and make the choice observable.
 
-## Phase 2 — Initiative terminal state [pending] — 4/4 done
+## Phase 2 — Initiative terminal state [done] — 4/4 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 2.1 INITIATIVE_STATUSES = active|done|dropped and an `initiative_status_changed` event (payload {status, note?}) — schema lives ONLY in packages/schema/src/. Two terminal states, mirroring tasks and phases: `done` = finished, `dropped` = abandoned. No near-synonyms (task-drop-state D1's lesson). `dropped` requires a reason, per task-drop-state D3.
 - [x] 2.2 Fold: InitiativeState gains status (default `active` — a log with no such event is unchanged), plus when it closed and the reason. Terminal statuses are resolved; reopening is just another status event, so history stays append-only.
 - [x] 2.3 `sofar close [slug]` CLI + MCP tool: append the status event, then remove EVERY bindings.json entry pointing at that slug (not just the current branch — a closed record should have no branch aimed at it). Atomic and idempotent; bindings.json is committed and shared, so a torn write is not acceptable.
 - [x] 2.4 Define reopening: what `sofar switch <closed-slug>` does — silently reopen, refuse, or require `--reopen`. The user's rule is that working on it again is what revives it, so the default must not be a dead end; decide and log it.
 
-## Phase 3 — Session-first resolution (what makes unbinding safe) [pending] — 3/3 done
+## Phase 3 — Session-first resolution (what makes unbinding safe) [done] — 3/3 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 3.1 Implement 1.2's mechanism so ANY process can answer "which initiative is session X registered in", and make session-before-branch the shared precedence — the read path currently has no pin at all (resolveInitiative), while the write path already does (resolveWriteInitiative, context.ts:285).
 - [x] 3.2 Statusline: resolve session-first, branch second; render a closed record distinctly from a live one; render nothing when neither resolves. A drop-free, close-free line must stay byte-identical — the statusline re-renders constantly and its width is the felt surface.
 - [x] 3.3 Hooks (PostToolUse, UserPromptSubmit, Stop, SessionEnd) resolve session-first, so closing mid-session stops silently dropping the rest of the session's telemetry. This is a bug fix independent of closing: an unbound branch loses events today with no signal at all.
 
-## Phase 4 — Orienting surfaces [pending] — 3/3 done
+## Phase 4 — Orienting surfaces [done] — 3/3 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 4.1 SessionStart injection: an unbound branch must say so and name the next move (`sofar new` / `sofar switch`) instead of erroring or injecting nothing; a session pinned to a closed record gets it WITH a closed banner, so the agent knows not to queue new work there. Stays inside the ≤10,000-char guarantee.
 - [x] 4.2 `sofar next` omits closed initiatives — a closed record has no next action, and today it would still be listed. `sofar list` marks them and sorts them below open ones. `sofar status <slug>` shows the closed status with when and why.
 - [x] 4.3 doctor: a closed initiative that still has a branch bound (hand-edits and merges happen), and the mirror of the stale-phase axis — every phase resolved but the initiative never closed. The second is the initiative-level version of the exact false signal task-drop-state fixed one level down.
 
-## Phase 5 — Contracts + dogfood [pending] — 2/2 done
+## Phase 5 — Contracts + dogfood [done] — 2/2 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 5.1 docs/SPEC.md is authoritative: the new event type, the status set, the InitiativeState fields, the session-before-branch resolution precedence, unbind-on-close semantics, and §Acceptance criteria. No task is done until its criteria pass.
 - [x] 5.2 Dogfood the exact case that prompted this: close repo-memory-capture and task-drop-state, then confirm THIS session's statusline still shows its record while a genuinely fresh session on the unbound branch is told to start or switch. Also confirm closing does not silence the closing session's own hooks.
 
-Active phase: Phase 1 — Settle the resolution mechanism (blocks everything else)
 Next action: User decides whether to open a security-hardening initiative; fix order is traversal, then serve origin checks.

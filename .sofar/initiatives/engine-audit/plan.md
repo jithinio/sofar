@@ -6,12 +6,13 @@ Goal: One-session audit of the sofar engine (0.25.1) as the memory layer for a h
 
 Progress: 4/4 tasks done (100%)
 
-## Phase 1 — Audit [active] — 4/4 done
+## Phase 1 — Audit [done] — 4/4 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 1.1 Verification surface: run full test suite, typecheck, build; map SPEC acceptance criteria to tests
 - [x] 1.2 Harness surface: hooks, MCP tools, injection budgets, latency and byte-stability invariants
 - [x] 1.3 Dogfooding evidence: sofar doctor on this repo, estate listing, claim-certification status
 - [x] 1.4 Land findings: record note, published audit report, write-back
 
-Active phase: Phase 1 — Audit
 Next action: Nothing pending on engine-audit — close the initiative. Torn-session ergonomics (explore-first workflow tears sessions) and Stop-gate escape paths are candidate future initiatives if the flags warrant action.

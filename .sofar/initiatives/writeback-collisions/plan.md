@@ -13,13 +13,16 @@ Progress: 6/6 tasks done (100%)
 - [x] 1.3 Tool description tells the agent to reconcile rather than report
 - [x] 1.4 SPEC: derivation contract, tool signature, acceptance criterion
 
-## Phase 2 — Warn on live file conflicts [active] — 1/1 done
+## Phase 2 — Warn on live file conflicts [done] — 1/1 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 2.1 openSessionFileConflicts re-admits the caller past its own mid-flight write-back; UserPromptSubmit leads with the conflict line; SPEC + acceptance
 
-## Phase 3 — Release [pending] — 1/1 done
+## Phase 3 — Release [done] — 1/1 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 3.1 Bump sofar.sh, publish, upgrade — carries the pending 0.19.0 redaction fix live too
 
-Active phase: Phase 2 — Warn on live file conflicts
 Next action: Nothing open — 0.21.0 is published, installed, and both initiatives are verified. Optionally close drift-signal and scanner-version-gate.

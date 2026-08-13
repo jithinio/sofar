@@ -34,10 +34,11 @@ Progress: 15/15 tasks done (100%)
 - [x] 5.2 Live E2E behind env flag (SOFAR_LIVE_API): login via manual claim+approve path, round-trip against locally running api.sofar.sh
 - [x] 5.3 Version 0.9.0 staged: bump, changelog/README, full suite green, user publishes (OTP)
 
-## Phase 6 — Byte canonicalization (0.9.1) [active] — 2/2 done
+## Phase 6 — Byte canonicalization (0.9.1) [done] — 2/2 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — its engine-side tasks landed and 0.9.1 shipped. 6.2's trailing clause (sofar-cloud bumps the catalog and re-runs fold-parity / integration / the drill export leg) lives in ANOTHER repo and can never be marked here; that is the next action, not an open task in this phase.
 
 - [x] 6.1 Canonical serializeEvent: fixed envelope schema order (v,id,ts,initiative,session,source,actor,user?,type,payload; unknown additive fields preserved after payload), payload keys code-point-sorted recursively, arrays in order — jsonb reordering invisible, writer/puller byte parity; SPEC §Envelope amendment + property/jsonb/idempotence/historical-parity tests
 - [x] 6.2 Version 0.9.1 staged: bump lockstep, full suite green, user publishes (OTP); then sofar-cloud bumps catalog + re-runs fold-parity/integration/drill export leg expecting raw diff zero
 
-Active phase: Phase 6 — Byte canonicalization (0.9.1)
-Next action: In sofar-cloud: bump the @alignlabs/sofar catalog to 0.9.1, re-run fold-parity + integration suites, re-run the drill export leg expecting raw diff zero (no jq -S). Nothing else open.
+Next action: In sofar-cloud: bump the @alignlabs/sofar catalog to 0.9.1, re-run fold-parity + integration suites, re-run the drill export leg expecting raw diff zero (no jq -S).

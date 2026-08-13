@@ -33,12 +33,13 @@ Progress: 19/19 tasks done (100%)
 - [x] 4.2 Re-express activity over the graph primitive, byte-identical output
 - [x] 4.3 Decide whether unregistered_sessions and overlappingWritebacks follow, or stay in fold because they are single-log by nature
 
-## Review fixes [active] — 4/4 done
+## Review fixes [done] — 4/4 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 5.1 Citation qualifier mis-binding: a miscased/unknown word before an unqualified handle must not manufacture a home-bound cites edge — case-insensitive binding for KNOWN slugs, unknown words stay prose (pre-publish review major 1)
 - [x] 5.2 Orphan coverage: mint orphan task nodes for dangling worked edges too, last-wins orphan status, `sofar related` exits 1 on an orphan-only anchor per SPEC:942/D9 (review majors 2+3)
 - [x] 5.3 Lock + doc gaps: assert boot.ts present in hot-path walk, README rows for why/related, SPEC BD<n> wording aligned to shipped behaviour (amends D5)
 - [x] 5.4 Missing acceptance tests: unreadable log tolerance, cites→task resolution + task-handle dangling, miscased-qualifier + worked-orphan + related-orphan-exit-1 regression tests
 
-Active phase: Review fixes
 Next action: record-graph is complete — no further work planned.

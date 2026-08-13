@@ -6,20 +6,25 @@ Goal: Close the six findings from the 0.19.0 security audit, highest severity fi
 
 Progress: 6/6 tasks done (100%)
 
-## Phase 1 — Confirmed remote-reachable holes [active] — 2/2 done
+## Phase 1 — Confirmed remote-reachable holes [done] — 2/2 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 1.1 Slug traversal: optSlug enforces [a-z0-9-]+, initiativeProp carries the pattern, context.ts asserts containment under .sofar/initiatives/
 - [x] 1.2 serve: DNS-rebinding protection on the MCP transport + Host/Origin guard on /state and /events
 
-## Phase 2 — Trust the server less [pending] — 3/3 done
+## Phase 2 — Trust the server less [done] — 3/3 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 2.1 Validate verification_uri as https (loopback http excepted) before handing it to the OS opener
 - [x] 2.2 Enforce https on api_url except for loopback
 - [x] 2.3 Cap response body and doorbell buffer sizes
 
-## Phase 3 — Stop recording secrets [pending] — 1/1 done
+## Phase 3 — Stop recording secrets [done] — 1/1 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 3.1 Redact secrets from command_run cmd text before it reaches the log
 
-Active phase: Phase 1 — Confirmed remote-reachable holes
 Next action: Bump sofar.sh version, then user runs `npm publish -w sofar.sh` and `sofar upgrade` to make redaction live.

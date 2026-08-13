@@ -4,7 +4,7 @@
 
 Goal: Make phase status writable at the same tier as task status. SHIPPED 2026-08-13: sofar_update_phase is the twelfth MCP tool, phase status is written and never derived (D2), and phase_status_changed now counts as drift (D3). Remaining: the 35 stale phases across 16 initiatives, which D5 rules a one-off append-only repair — and the mechanism for writing across 16 records without tearing the session doing it is the open question. Settled up front on measurement: MCP-only, no CLI sibling (D1).
 
-Progress: 13 done, 1 dropped, 2 remaining
+Progress: 15 done, 1 dropped, 0 remaining
 
 ## Phase 1 — Settle the write path (blocks everything else) [done] — 3/3 done
 
@@ -21,14 +21,18 @@ Progress: 13 done, 1 dropped, 2 remaining
 
 ## Phase 3 — sofar_add_task [dropped] — 1/2 (1 dropped) done
 
+> sofar_add_task ruled out of scope (D4): task_added is rare but working — 3 uses ever, all folding correctly — and no surface is broken by its absence.
+
 - [x] 3.1 DECIDE whether add_task is in scope. task_added has NO emitter anywhere in packages/engine/src — only the two consumers, fold.ts and index-reach.ts — and 3 uses across the entire 37-initiative record. Confirm it is dead rather than merely rare before building, or rule it out of scope and say why.
 - [-] 3.2 If in scope: mcp/add-task.ts plus schema, mirroring 2.x. Must not disturb plan_updated's full-replace contract, on which SPEC's forward-compatibility story rests (task-drop-state D2). (dropped)
 
-## Phase 4 — The 35 existing stale phases [active] — 1/3 done
+## Phase 4 — The 35 existing stale phases [done] — 3/3 done
+
+> Repair complete: 35 stale phases -> 1. The survivor is session-strategy-bench Phase 6, held open on judgement and named in that record — the count is 1 because a phase was refused, not because one was missed.
 
 - [x] 4.1 DECIDE repair versus leave-as-history. doctor --fix never touches record prose (SPEC §CLI), so this is a ruling, not a build. If repair: a one-off operator action, never a shipped command, and it must append real phase_status_changed events rather than rewriting history.
-- [ ] 4.2 Settle HOW to write phase closes into 16 OTHER records without tearing the session that does it. The two hazards D5 names: an MCP write carrying an explicit `initiative` tears the calling session (statusline-refresh M1), and the CLI's `sofar event append` resolves by branch alone, never through the session home (record-integrity M1). Candidates: one re-homed session per record; a branch-hop pass; or accepting `cli` attribution deliberately and stating why. Log the decision before writing anything.
-- [ ] 4.3 Run the repair: for each of the 16 records, confirm by reading the plan that every stale phase is genuinely finished — a judgement, never a script (D5) — then append the phase_status_changed. Re-run doctor and publish the before/after count. Any phase that is NOT actually finished stays open and is named.
+- [x] 4.2 Settle HOW to write phase closes into 16 OTHER records without tearing the session that does it. The two hazards D5 names: an MCP write carrying an explicit `initiative` tears the calling session (statusline-refresh M1), and the CLI's `sofar event append` resolves by branch alone, never through the session home (record-integrity M1). Candidates: one re-homed session per record; a branch-hop pass; or accepting `cli` attribution deliberately and stating why. Log the decision before writing anything.
+- [x] 4.3 Run the repair: for each of the 16 records, confirm by reading the plan that every stale phase is genuinely finished — a judgement, never a script (D5) — then append the phase_status_changed. Re-run doctor and publish the before/after count. Any phase that is NOT actually finished stays open and is named.
 
 ## Phase 5 — Contract + dogfood [done] — 4/4 done
 
@@ -37,5 +41,4 @@ Progress: 13 done, 1 dropped, 2 remaining
 - [x] 5.3 Dogfood: close THIS initiative's own phases with the new tool as each completes, then re-run doctor and confirm the stale-phase count falls. The dogfood IS the acceptance evidence.
 - [x] 5.4 Release 0.27.0. Until it is published AND installed, this repo's own sessions cannot use the tool: .mcp.json runs the `sofar` on PATH, which is the installed bundle, so every session here still sees eleven tools. The user runs `npm publish -w sofar.sh` (classifier + OTP).
 
-Active phase: Phase 4 — The 35 existing stale phases
-Next action: Take 4.2: decide how to append phase closes into the 16 other records without tearing the writing session (statusline-refresh M1) or misrouting by branch (record-integrity M1), then run the repair in 4.3 — reading each plan to confirm the phase is genuinely finished, never scripting that judgement (D5).
+Next action: Close phase-lifecycle: every phase is resolved, nothing is outstanding, and the close audit will run its mechanical tier over the record.

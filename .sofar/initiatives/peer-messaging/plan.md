@@ -6,22 +6,29 @@ Goal: Make sofar the addressing layer for Claude Code cross-session messaging: w
 
 Progress: 5/5 tasks done (100%)
 
-## Phase 1 — Peer resolution [active] — 1/1 done
+## Phase 1 — Peer resolution [done] — 1/1 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 1.1 core/peers.ts: resolve a Claude Code session id to the name SendMessage addresses, from ~/.claude/sessions/<pid>.json (CLAUDE_CONFIG_DIR honored). No subprocess, liveness via kill(pid,0), name-collision flagged, every failure mode returns no-peer. Tests pin each degradation path.
 
-## Phase 2 — Annotate the collision surfaces [pending] — 2/2 done
+## Phase 2 — Annotate the collision surfaces [done] — 2/2 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 2.1 UserPromptSubmit: after the 2.1 conflict line, name the colliding session as a reachable peer and say to record what comes back
 - [x] 2.2 end_session: optional `peer` on each parallel_writebacks entry, added at the mcp layer so core/fold's ParallelWriteback stays a pure derivation
 
-## Phase 3 — Jurisdiction [pending] — 1/1 done
+## Phase 3 — Jurisdiction [done] — 1/1 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 3.1 Protocol block V3 + AGENTS V2: clause 1 covers a finding that arrives from another session. Old blocks move to the ledger byte-exact.
 
-## Phase 4 — Contract [pending] — 1/1 done
+## Phase 4 — Contract [done] — 1/1 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 4.1 docs/SPEC.md: peer resolution contract, the two surface shapes, acceptance criteria
 
-Active phase: Phase 1 — Peer resolution
 Next action: record-index 2.1: Tier 0 (open.json) then 2.2 wire the cross-initiative hook and re-measure. Still open behind it: review/merge the peer-messaging branch stack, then drift-certification 3.1 (~20 traps, then the P-cell floor under the isolation rule).

@@ -13,7 +13,9 @@ Progress: 5/5 tasks done (100%)
 - [x] 1.3 Fix the 46 broken refs in source comments across 37 files — §Acceptance→§Acceptance criteria, §Envelope→§Event envelope, §Cursor→§Cursor primitive, comma-locators for sub-parts, line-joins; §Staleness dropped (it cited a function's output, not a document)
 - [x] 1.4 Validator run clean across docs/SPEC.md, docs/FORMAT.md, docs/opencode-adapter.md and all of packages/*/src + packages/*/test; build, typecheck and 1443 tests green
 
-## Phase 2 — Mechanical enforcement [pending] — 1/1 done
+## Phase 2 — Mechanical enforcement [done] — 1/1 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 2.1 sofar doctor detector: resolve every §Name in hand-written docs and source comments against real SPEC/FORMAT headings and **Bold label** sub-sections; WARN with a nearest-heading hint. Detection only, never rewrites. Catches the rename-drift case a convention cannot (D1).
 

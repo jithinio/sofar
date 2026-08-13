@@ -6,7 +6,9 @@ Goal: Tell the user sofar is out of date without them asking, and never install 
 
 Progress: 11/11 tasks done (100%)
 
-## Check core [active] — 5/5 done
+## Check core [done] — 5/5 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 1.1 src/cli/update-check.ts: UpdateCache {version,latest,checked_at} at ~/.local/state/sofar/update.json (XDG_STATE_HOME honored); read never throws on missing/corrupt, write is atomic
 - [x] 1.2 isNewer(a,b): dependency-free semver compare, numeric triple, prerelease sorts below its release — strictly-newer so a locally-built version ahead of the registry never nags
@@ -14,20 +16,25 @@ Progress: 11/11 tasks done (100%)
 - [x] 1.4 updateNotice(env,now) reads the cache and compares against the running version; refreshIfStale claims the slot (writes checked_at first) then spawns the detached, unref'd, stdio-ignored child
 - [x] 1.5 Hidden `sofar update-check [--refresh|--status]` — the command the detached child runs, and the way a human inspects the cache
 
-## Surfaces [pending] — 2/2 done
+## Surfaces [done] — 2/2 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 2.1 Statusline segment: cyan info `↑0.17.3` (glyph) / `update 0.17.3` (plain), rendered only when a notice exists; read-only plus the stale-refresh spawn
 - [x] 2.2 Trailing hint line on status / init / doctor — doctor prints it WITHOUT a new axis so its exit code cannot go non-zero because a release landed
 
-## Opt-in auto-install [pending] — 3/3 done
+## Opt-in auto-install [done] — 3/3 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 3.1 ~/.config/sofar/config.json {version:1, auto_upgrade} read/write + `sofar upgrade --auto <on|off>`
 - [x] 3.2 When auto_upgrade is on the refresh child performs the install and records it, so the next surface says "auto-upgraded to X — run `sofar init` here to refresh wiring"
 - [x] 3.3 runUpgrade success message pitches `sofar upgrade --auto on`, but only while auto is off
 
-## Contracts [pending] — 1/1 done
+## Contracts [done] — 1/1 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 4.1 docs/SPEC.md: the update-check command, the two new user-level homes, the statusline segment table, and the acceptance criteria for all of the above
 
-Active phase: Check core
 Next action: Nothing pending — auto-update is shipped and verified.

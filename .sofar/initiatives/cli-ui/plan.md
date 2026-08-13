@@ -28,11 +28,12 @@ Progress: 16/16 tasks done (100%)
 - [x] 3.2 Plain-surface regression guard
 - [x] 3.3 Acceptance suite + 57-cell live-fire
 
-## Phase 4 — Polish round (user feedback on 0.6.2) [active] — 3/3 done
+## Phase 4 — Polish round (user feedback on 0.6.2) [done] — 3/3 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 4.1 Layout balance: greedy word-wrap with hanging indent (wrapPlain helper), blank line between entries, 2-line entry shape for next (header: pointer+slug+branch+pie; body: wrapped action; stale on own line)
 - [x] 4.2 Pie progress glyphs ○◔◑◕● (green full / yellow partial / dim zero, ASCII falls back to bare counts) on status header, list blocks, next entries
 - [x] 4.3 sofar status --watch: TTY-gated live re-render (chokidar on the initiative log + pulse timer), active-task marker breathes warn↔dim, cursor-safe redraw, one-shot fallback when piped
 
-Active phase: Phase 4 — Polish round (user feedback on 0.6.2)
 Next action: User: npm publish -w @alignlabs/sofar (OTP), then sofar upgrade — try sofar next (balanced layout) and sofar status --watch (live pulse).

@@ -6,12 +6,13 @@ Goal: Stop sofar disowning its own statusline: refreshInterval is the documented
 
 Progress: 4/4 tasks done (100%)
 
-## Phase 1 — identity + shipped cadence [active] — 4/4 done
+## Phase 1 — identity + shipped cadence [done] — 4/4 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 1.1 isSofarStatusline: match on type + command against an owned-key allowlist; STATUSLINE_SETTINGS_ENTRY ships refreshInterval: 10
 - [x] 1.2 Tests: retuned interval removable, legacy 2-key removable, foreign command still refused, our command + unowned key still refused
 - [x] 1.3 SPEC §CLI init --statusline entry bytes + uninit matching clause; uninit.ts comments; README refreshInterval note
 - [x] 1.4 Release: bump sofar.sh to 0.24.0 and publish (user runs npm publish)
 
-Active phase: Phase 1 — identity + shipped cadence
 Next action: Decide whether to mark home != branch-binding disagreement on the statusline initiative segment (a mark, never a warning — both values are already in hand, so no fold or I/O cost).

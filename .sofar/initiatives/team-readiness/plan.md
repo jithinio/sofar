@@ -6,11 +6,12 @@ Goal: Make the engine safe for first team adoption (identity, merge safety, team
 
 Progress: 3/3 tasks done (100%)
 
-## Phase 1 — Team readiness [active] — 3/3 done
+## Phase 1 — Team readiness [done] — 3/3 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] T1 Identity field: optional envelope `user` stamped at append from git config user.email (fallback: omit, never fail); strictly additive, envelope stays v1; SPEC §Envelope + decision + tests (stamps when config exists, succeeds without, mixed-log fold deterministic)
 - [x] T2 Merge safety: sofar init writes `.sofar/**/events.jsonl merge=union` to .gitattributes — idempotent, merges with existing file, never clobbers; SPEC §CLI init + tests (fresh repo gets line, double-init adds nothing, pre-existing content preserved)
 - [x] T3 TEAM section in README (<40 lines): install, one init, commit .sofar/, pull, status; why union merge is safe (append-only + fold sorts by id) and author identity from git config
 
-Active phase: Phase 1 — Team readiness
 Next action: team-readiness is complete; only open item is publishing a release (version bump + npm publish + global upgrade) when the user calls for it.

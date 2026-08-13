@@ -6,22 +6,29 @@ Goal: Widen collision detection past the initiative boundary without paying O(to
 
 Progress: 5/5 tasks done (100%)
 
-## Phase 1 — Warm-log signal (git-proof) [active] — 1/1 done
+## Phase 1 — Warm-log signal (git-proof) [done] — 1/1 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 1.1 core/warmth.ts: lastAppendAt(logPath) reads the log TAIL and returns the newest ts among the last complete lines — content, never mtime. O(1) in file size. Tests pin git-checkout immunity (mtime moved, content not), partial trailing line, file shorter than the window, empty/absent/corrupt log, and backdated tail lines.
 
-## Phase 2 — Cross-initiative conflicts [pending] — 2/2 done
+## Phase 2 — Cross-initiative conflicts [done] — 2/2 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 2.1 crossInitiativeFileConflicts(sofarDir, {now, window, only?}): warm-gated fold across initiatives, union the file→sessions map, attribute each session to its slug. Ungated when no window is given — the one derivation both the hook and doctor use.
 - [x] 2.2 UserPromptSubmit: conflict line names cross-initiative holders with their slug, warm-gated; peer address still resolves through core/peers. Budget re-measured against speed T2's 100ms.
 
-## Phase 3 — Ungated audit [pending] — 1/1 done
+## Phase 3 — Ungated audit [done] — 1/1 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 3.1 sofar doctor's concurrency axis calls the same derivation with NO window, so the exhaustive cross-initiative answer always exists off the critical path
 
-## Phase 4 — Contract [pending] — 1/1 done
+## Phase 4 — Contract [done] — 1/1 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
 
 - [x] 4.1 docs/SPEC.md: warmth contract, gated-hook vs ungated-doctor split, acceptance including the no-context-loss pin (the injected digest path is untouched)
 
-Active phase: Phase 1 — Warm-log signal (git-proof)
 Next action: Rule on 2.2: (a) gated+capped hook, (b) doctor-only per graph.ts's law, or (c) append-only .sofar/sessions.jsonl lifecycle index making the hook O(1) at any scale — (c) recommended.
