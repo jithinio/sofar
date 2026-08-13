@@ -409,6 +409,8 @@ describe('stdio end-to-end via `sofar mcp`', () => {
     await client.connect(transport)
 
     const { tools } = await client.listTools()
+    // Eleven are enumerated in SPEC §MCP tools, and that surface is frozen —
+    // bump this only after SPEC is brought forward, never to match the code.
     expect(tools).toHaveLength(11)
 
     const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', {

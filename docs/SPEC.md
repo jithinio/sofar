@@ -135,7 +135,17 @@ session_closed (reason — mechanical close from the SessionEnd hook; never
 carries summary/next_action, added Phase 3, BD21) ·
 file_touched (path, op) · command_run (cmd) · note_added ·
 memory_promoted (text — a fact its author declares repo memory, addressable
-as `<slug> M<n>`; repo-memory-capture D1) · correction (ref)
+as `<slug> M<n>`; repo-memory-capture D1) ·
+review_recorded (scope: phase|final, verdict: pass|findings|blocked,
+watermark?, phase?, findings? — a review that was actually performed;
+commit-attribution 4.4, see §Review) · correction (ref)
+`watermark` is review_recorded's load-bearing field, not `verdict`: it is the
+sha the review read THROUGH, and it is what makes the next review's range
+computable. That is why a review is an event and could never have been a
+note. `findings` is REQUIRED and non-empty when verdict is `findings` —
+validation rejects the pair, because a verdict claiming something was found
+while recording nothing anyone can act on is a rubber stamp wearing the wrong
+hat, and the next review would have nothing to carry forward.
 
 ## State (result of fold)
 InitiativeState = { slug, goal, status: active|done|dropped, status_ts,
@@ -144,7 +154,8 @@ status} ]} ], decisions[], memories[ {id, ts, text} ],
 sessions[ {id, tool, model?, started, ended?,
 summary?, next_action?, closed_reason?, activity?} ],
 files_touched[], task_files, drop_notes, guard_violations[ {decision, rule,
-guard, domain, subject, event_id, ts, session} ], current: {active_phase,
+guard, domain, subject, event_id, ts, session} ], reviews[ {id, ts, scope,
+verdict, watermark?, phase?, findings[]} ], current: {active_phase,
 next_action, blocked_on?}, freshness, cursor: <last event id> }
 
 ### Task statuses (task-drop-state D1)
@@ -303,6 +314,11 @@ a shared checkout every session sees one .git, so a push by any of them
 updates the origin ref for all of them at once. Best-effort: null renders
 nothing. The status block carries it as one `Git:` line above Goal, and the
 UserPromptSubmit shim emits it as its own unconditional line (4.4).
+Its honest limit is the TIP. In a shared worktree that tip belongs to whoever
+committed last, so refs alone can never say whether THIS record's work
+shipped — only whether the branch is level with origin. §Commit attribution
+answers the per-initiative question, from a bounded walk deliberately kept off
+this path.
 FoldResult also carries unregistered_sessions (record-integrity 2.1): every
 session id appearing on an event in THIS log that no session_started here
 ever registered, sorted, never including "cli". The fold attaches activity
@@ -310,6 +326,15 @@ to registered sessions only (BD21/BD44), so such events were previously
 counted by freshness and files_touched while attributable to no session —
 invisible mass. A non-empty list is the misroute signature and feeds
 doctor's session-routing audit. Additive; InitiativeState unchanged.
+**Reviews** (commit-attribution 4.4) fold in log order and are load-bearing
+state rather than a history of opinions. Two derivations read them, and both
+are single-definition: reviewWatermark(state) is the watermark carried by the
+LATEST review that carried one — the lower bound of the next review's range —
+and openFindings(state) is the findings of the latest review per scope+phase,
+flattened. A review of the same scope and phase SUPERSEDES its predecessor, so
+a re-review after fixes clears its findings; a `blocked` review carries no
+watermark and therefore leaves the previous one standing rather than resetting
+the range to the start of the record. Contract in §Review.
 ### Decision guards (drift-hardening D3)
 The MECHANICAL tier of a standing constraint. `rule` states the law in prose
 (D1); `guard` is the half of that same law a machine can check, and it lives
@@ -591,6 +616,183 @@ identity across every log — the very property the cross-initiative join rests
 on — and `overlappingWritebacks` needs write-back prose for a `next_action`
 that is per-initiative by construction (BD9).
 
+## Commit attribution (commit-attribution — read from git, never recorded)
+The record cannot see git and git cannot see the record. That gap is why a
+session could not tell whether ITS work had shipped: §Git state answers "is
+the tip level with origin", and in a shared worktree the tip belongs to
+whoever committed last. The binding that closes it is a COMMIT TRAILER (D4),
+written at commit time by the session that made the commit:
+
+```
+Sofar-Initiative: <slug>
+```
+
+**Recorded in git, derived from git, never in the record.** sofar appends no
+event about a commit and stores no sha. The split is not a preference (D2): a
+commit's initiative NEVER changes, so the recorded half cannot go stale where
+it lives, while push and merge state change constantly — force-push, rebase,
+branch deletion — so recording those would strand a false fact the record
+could never retract. Logging a commit would also collide with record-hygiene
+D1, which exempts git from PostToolUse precisely so a working tree can be
+settled. Attribution is therefore never inferred from timestamps or file
+overlap either: an unattributed commit reads back EMPTY, and that is a
+first-class answer rather than a failure to guess (1.3).
+
+**Read incantation** (core/attribution.ts, probed on git 2.50.1):
+`git log --max-count=<n> --format=…%H…%(trailers:key=Sofar-Initiative,valueonly,separator=%x2C)…%B`.
+Always pass `separator=` — bare `valueonly` emits a TRAILING NEWLINE that
+corrupts any line-oriented parse. Records are split on RS/US (`\x1e`/`\x1f`)
+rather than newlines, because a trailer value may legally fold across lines
+and a newline parse would tear one commit into two. Survival, measured rather
+than assumed: cherry-pick and rebase PRESERVE the trailer; an untrailered
+commit reads back empty; `git merge --squash` indents it (see below). A slug
+must match `[a-z0-9-]+` — anything else is dropped rather than surfaced, since
+the trailer is free text a human can mistype and an invented initiative name
+is exactly the wrong attribution D5 forbids. MORE THAN ONE slug on a commit is
+legitimate, not corruption: a squash carries several, and saying so is the
+honest reading.
+
+**Two rules bound every read (D6).** (1) NEVER run the walk unconditionally on
+the hot hook path. core/attribution.ts is deliberately NOT core/git.ts, whose
+"reads FILES, no subprocess" guarantee the 100ms shim budget rests on (speed
+T2); putting a spawn behind that file's name would void the guarantee silently
+for every caller. (2) ALWAYS bound the walk: spawn cost is fixed, an unbounded
+walk is O(history) and grows without limit. Measured on this repo at 454
+commits (20 iterations, median): bare `git rev-parse HEAD` 8.35ms — so spawn
+alone dominates — a 20-commit trailer walk 10.35ms, last-100 15.55ms, a full
+walk 21.21ms with a 45.25ms tail. Against ~33ms of shim headroom
+(record-integrity D13 measured 63-67ms already spent) the full walk's tail
+alone would blow the budget. Prefer a RANGE over a count: `origin/<branch>..HEAD`
+is both cheaper and exactly the question the shipping signal asks. Callers gate
+on a ref having actually MOVED, which §Git state answers for free from files.
+Best-effort by contract throughout, like gitUserEmail: no git, no repo, a
+malformed trailer → null or an empty list, never a throw. Attribution is a
+signal, and a missing signal must never break a caller.
+
+**Squash recovery (D16).** `git merge --squash` writes SQUASH_MSG with each
+original message indented four spaces, which puts the trailer OUTSIDE git's
+own trailer block: the squashed commit reads back unattributed and a shipped
+initiative reports as un-shipped. A false negative — the safe direction — but
+it becomes the normal case the first time work lands through a squashed PR
+rather than straight to main. The slug is still in the commit object verbatim,
+so recovering it is still READING git rather than guessing, and two gates keep
+it on that side of D4's line: it runs ONLY when git's own trailer block
+yielded nothing, so prose can never override a real trailer, and it matches
+ONLY INDENTED occurrences, so it looks exclusively at the shape a squash
+produces. `%B` rides the existing walk, so the fallback costs output bytes,
+never a second spawn. NOT recoverable by construction: committing a squash
+with `-m` or `-F` discards SQUASH_MSG entirely, so the slug is not in the
+object at all and the commit stays honestly unattributed.
+
+**Who writes it (D5).** A `prepare-commit-msg` hook — automatic, never
+remembered. Resolution is session-first and session-ONLY: git hooks inherit
+`CLAUDE_CODE_SESSION_ID`, `sofar commit-trailer <msgfile>` maps it through
+homeInitiative to the log that actually registered that session, and the
+branch binding is passed only as `preferred`, where it can break a tie but can
+never invent an answer. A session registered nowhere resolves to null and
+NOTHING is written: a wrong attribution is worse than a missing one, and in
+this repo the branch binding IS wrong most of the time — main is bound to one
+initiative while several are worked on it. Idempotent by design, because
+prepare-commit-msg fires again on `git commit --amend` and a message
+accumulating one trailer per amend would forge a single commit into a fake
+multi-initiative squash. The trailer is appended above git's comment block
+(everything from the scissors line or the trailing `#` lines), separated from
+the body by a blank line, or git reads it as prose and `%(trailers)` returns
+nothing. It NEVER fails a commit: no session, no record, an unreadable message
+file, a missing binary — every failure path is a silent success, and the shim
+exits 0 unconditionally. A hook that can block `git commit` is worse than no
+attribution at all.
+
+**Shipping, derived (3.1).** Per initiative, over a bounded window: `pushed` /
+`local` / `unknown`. ONE spawn answers the whole set — `git rev-list
+origin/<branch>..HEAD` yields the unpushed shas and membership labels every
+commit; the obvious alternative, `git merge-base --is-ancestor` per sha, is a
+spawn each (~168ms for a 20-commit window at the measured floor, against ~9ms
+here) and is bounded by the window rather than by the unpushed delta.
+`unknown` is a first-class answer, not a failure dressed up: with no remote ref
+fetched there is genuinely no way to tell, and reporting `local` would assert
+"your work has not shipped" on no evidence — the exact false alarm this
+initiative exists to remove. The walk skips the second spawn entirely when
+nothing in the window is attributed, which is the dominant case (every repo
+before it adopts attribution) and halves the cost there. LOCAL ONLY (D8):
+shipping is answered from refs and trailers, never by querying GitHub or any
+forge API — not on egress grounds, since a call carrying no user content is
+already carved out by §Architectural invariants, but on cost, dependency and
+marginality.
+
+**First push subtracts (D17).** On the FIRST appearance of `origin/<branch>`
+there is no previous sha to diff against, and bare reachability from the new
+tip is not the answer: a feature branch cut from an already-pushed base
+reports the whole base as newly landed (measured: 4 commits when 1 had
+arrived). The walk therefore subtracts every OTHER origin ref — `<tip> --not
+--exclude=origin/<branch> --remotes=origin`, the `origin/<branch>` form being
+the one git actually honours here, since it matches relative to refs/remotes/
+and both the bare branch and the full refname silently exclude NOTHING. The
+answer becomes what THIS push put on the remote. A branch that is the only one
+on the remote subtracts nothing and every commit is genuinely new, which is
+the honest answer for a true first push.
+
+## Review (commit-attribution — phase boundaries, watermark ranges, gates nothing)
+Closing an initiative was an unconditional append: nothing rechecked that the
+execution was RIGHT. And a reviewer handed only the record can do nothing but
+re-read the initiative's own prose and agree with it — the same session's
+claims, restated. Attribution supplies the missing half, the DIFF the work
+actually produced; the record supplies the half no code-review tool can hold,
+the CONSTRAINTS the work was supposed to honour.
+
+**When (D9).** At PHASE BOUNDARIES, and only for initiatives of three or more
+phases — below that the close pass is the whole review and a per-phase one is
+ceremony. Plus one FINAL pass at close (D10).
+
+**Range (D9).** watermark..HEAD, filtered to this initiative's
+trailer-attributed commits. The watermark rides on the review_recorded event
+itself, which is the whole reason a review is an event and not a note. NEVER a
+range derived from task or phase timestamps: that is the time-window guess
+record-integrity D6 rejected, and it misreads interleaved parallel sessions.
+With no prior review the walk falls back to a bounded window (200 commits),
+never to all of history (D6).
+
+**The final pass asks only what a phase review structurally cannot (D10)** —
+goal conformance (does the finished thing achieve the goal stated at the top
+of the record), cross-phase drift (did a later phase violate a decision taken
+in an earlier one), integration (every phase passed alone; do they compose),
+and findings left unresolved. It never re-audits per-phase correctness:
+re-treading ground is how a close review becomes a rubber stamp, and it trains
+a reader to skim.
+
+**The packet** (projections/templates/review.ts, rendered by `sofar review`)
+carries: the goal; the range, with the commits listed EXPLICITLY as
+`git show <sha> <sha> …` rather than as `oldest..newest` — a two-dot range
+means "reachable from newest but not oldest" and silently EXCLUDES the oldest
+commit, losing the first commit of every phase, while parent notation breaks
+on a root commit; tasks claimed done with the files their events touched;
+standing constraints VERBATIM (clipping a constraint in the one document whose
+job is conformance would defeat the packet entirely); rejected approaches,
+because re-entering one looks like progress and is invisible from the diff
+alone; guarded rules the record already crossed; and findings still open from
+earlier reviews. An EMPTY range renders as a FINDING, never as an empty
+section: either the work landed without the trailer — attribution is silently
+off, and `sofar doctor` says which — or the phase was completed with no code
+change at all, and a review of a diff you cannot see is worth nothing.
+
+**The instruction is HOST-AGNOSTIC (D3, amended by D12).** It spells the
+code-quality work out — correctness bugs, unhandled edge cases, error paths,
+resource leaks, and anything a simpler construction would do better, each with
+file and line — and offers a named skill only as a SHORTCUT where the host
+happens to have one (in Claude Code, `/code-review` then `/simplify`). sofar
+runs under any agent, which is what the AGENTS.md dialect exists for (BD31),
+so naming a host-specific command AS the instruction would render an
+instruction most readers cannot follow. sofar ships no analysis code and makes
+no model call (§Architectural invariants): the reviewing SESSION does the work
+and `sofar_review` records what it concluded.
+
+**DECOUPLED from close (4.5).** `sofar_review` gates nothing. If passing a
+review were what let a session go home, the reviewing agent would have an
+incentive to pass and would find nothing. Close reads the verdicts separately
+and reports what is open. A `blocked` verdict SKIPS rather than
+resetting the watermark, so a review that could not run cannot silently widen
+the next one's range back to the start of the record.
+
 ## Derived index (record-index — local, incremental, never truth)
 Every cross-record question — which initiatives hold open sessions, who else
 has this file, what guards this path, what else bears on this work — costs a
@@ -615,6 +817,8 @@ rests on.
   graph.json          # TIER 1 DERIVED — path → session → (ts, touches)
   meta-reach.json     # Tier 1 reach cursors
   reach.json          # TIER 1 REACH — clipped prose, citation handles, terms
+  shipwatch.json      # NOT A TIER — per-session origin/<branch> marks
+                      #   (commit-attribution 3.4); own version, no cursor
 ```
 
 **Three rules, and they are the whole safety argument (record-index D1).**
@@ -626,11 +830,14 @@ rests on.
    `merge=union` bargain that makes events.jsonl mergeable (team-readiness T2)
    does not apply to it, and it would arrive stale in every clone. It is not
    part of §Cursor primitive's export/import stream either.
-3. VERSION-STAMPED. `INDEX_SCHEMA_VERSION` (4) is written into every file and
-   every meta file. Absent, unreadable, malformed, wrong version and wrong
+3. VERSION-STAMPED. `INDEX_SCHEMA_VERSION` (4) is written into every tier file
+   and every meta file. Absent, unreadable, malformed, wrong version and wrong
    shape all collapse to the SAME null — start cold — because they mean the
    same thing to a caller, and distinguishing them would tempt a reader into
-   trusting a partially-valid file.
+   trusting a partially-valid file. `shipwatch.json` carries its OWN version
+   instead, for the same reason it has no cursor: it derives from refs rather
+   than from events, so a shape change there should cold-start that one file
+   and never force a full index rebuild.
 
 **Cursor semantics.** Distinct from §Cursor primitive, which is the sync
 cursor over event ids; this is a per-initiative READ POSITION in one log:
@@ -691,6 +898,42 @@ parse and rewrite:
 Read frequency, not taste, draws these lines — and they coincide with D2's
 authority split, which is usually what a real boundary looks like. Measured
 costs and the pins are in §Hooks and §Acceptance criteria.
+
+**One tenant that is NOT a tier: `shipwatch.json`** (commit-attribution 3.4,
+D15). Per-session marks of `origin/<branch>`, `{version, marks: {<session id>:
+{branch, upstream|null, seq}}}` — the gate that makes the live shipping line
+affordable. Every other file here derives from EVENTS on a cursor; this one
+records what a session last SAW on a ref, so it has no cursor, no tier and no
+reducer. It earns its place here by the same three rules: disposable (losing it
+costs one missed line, never a wrong one), local and never committed (a mark is
+about one session on one machine, and would conflict on every parallel append),
+self-ignoring.
+EDGE-TRIGGERED, unlike every other line on that path. The drift nudge and the
+conflict lines re-fire statelessly because they restate a condition that is
+still true; this one reports a TRANSITION, and "just landed" repeated ten
+prompts later is simply false. So the mark is a WRITE, and the write is what
+stops the repeat. A null upstream is a WATCHED state, never an unwatchable one:
+a branch's FIRST push CREATES the ref, so treating "no upstream" as nothing to
+watch made the most unambiguous shipping event of all — work leaving the
+machine for the first time — the one event that could never be reported. `seq`
+is a counter, never a clock: eviction needs a total order, several marks
+routinely land inside one millisecond, and sorting on a tie lets a fresh mark
+lose its place to one that has been stale for hours. The mark refreshes on
+EVERY look, not only on change, so `seq` orders by last LOOK — write-order
+alone starves the quiet session, whose seq freezes until SHIPWATCH_MAX_MARKS
+(64) writes by busier sessions evict a window that is still live, making the
+push it was waiting for precisely the one it never hears.
+CONCURRENCY, stated exactly because the property is easy to get backwards:
+sessions share one worktree and therefore this file. The write is atomic, but a
+read-modify-write race REVERTS the loser's mark rather than dropping it — the
+winner writes back the copy it read, which still carries the loser's OLD sha —
+so the loser re-detects the same movement and announces the push a SECOND time.
+The race costs a DUPLICATE line, never a missed one, and never a wrong
+attribution, since a mark is only ever replaced by a sha read from the same
+refs. The two failure shapes are opposites and both safe by that same argument:
+with nothing ever persisted (an unwritable index dir) every look reads as a
+first look and the caller stays SILENT; with a stale mark that can no longer be
+updated the caller REPEATS until something can write again.
 
 **FAITHFUL, NOT BETTER.** Every tier mirrors the fold's and the graph's
 semantics exactly, including their limits: first-touch order and
@@ -987,6 +1230,19 @@ also collides with a sofar-cloud-internal package).
   a fact that was never written down. Appends memory_promoted, addressable as
   `<slug> M<n>`; the destination .sofar/repo.md stays hand-written, and doctor
   reports the promotion until repo.md names that handle.
+- sofar_review({initiative?, scope, verdict, watermark?, phase?, findings?})
+  → {ok, event_id}   # record a review that was actually performed
+  (commit-attribution 4.4, §Review). `watermark` is the load-bearing field,
+  not `verdict`: it is the sha the review read THROUGH and it bounds the next
+  review's range, which is why this is an event and not a note — omit it only
+  when the range was empty. `scope` is `phase` (one phase just completed) or
+  `final` (the close-time pass, which asks ONLY what a phase review cannot);
+  `phase` names the phase and is absent for `final`. A verdict of `findings`
+  MUST list them — a review that can only ever say "looks good" is a rubber
+  stamp, so if nothing is wrong say so with `pass`, but the verdict must be
+  able to be "no". GATES NOTHING (4.5): it does not let a session close and
+  close does not require it, because a review that buys the reviewer's exit
+  is one the reviewer has an incentive to pass.
 - sofar_close_initiative({initiative?, status, note?}) → {ok, event_id,
   unbound[]}  # close an initiative (§Initiative statuses): status is
   `done`|`dropped` only — reopening is a binding act (`sofar switch`) — and
@@ -1018,7 +1274,7 @@ return. No tool mutates state except via an event (sofar_get_state and
 sofar_find are reads and append nothing).
 Transports (speed T3): stdio (`sofar mcp`) is the DEFAULT and the only
 transport `sofar init` registers — zero-config users lose nothing. The
-SAME frozen 10-tool surface is additionally served over streamable HTTP at
+SAME frozen 11-tool surface is additionally served over streamable HTTP at
 `/mcp` on the `sofar serve` daemon (127.0.0.1 only), opt-in via a
 documented .mcp.json entry `{"type": "http", "url":
 "http://127.0.0.1:4173/mcp"}` — sessions connect to the running daemon
@@ -1202,6 +1458,20 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   or nothing overlaps, so a single-initiative repo renders byte-identically
   to before it existed, and best-effort per BD22: a failure here costs the
   line only.
+  Per-initiative SHIPPING notice (commit-attribution 3.2): composed around
+  the status block, ONE line, and only when there is something to act on —
+  `sofar: N of this record's commit(s) are NOT on origin yet …`, or
+  `sofar: N commit(s) of this record are unverified — origin not fetched …`
+  when the upstream ref is missing and the answer is honestly `unknown`.
+  SILENCE MEANS SHIPPED, and that silence is the signal: a session that sees
+  the line, then sees it gone after a sibling's push, has learned its work
+  landed without anyone saying so. Announcing "all 6 commits pushed" every
+  session would be noise on the one surface with a 10,000-char budget, and
+  the standing culture here (guard notice, drift nudge) is that conditional
+  lines earn their place. Two spawns, ~17ms — affordable for the same reason
+  the adjacency line pays up to 33ms, because SessionStart runs ONCE per
+  session; D6 forbids this on the per-prompt path and it is deliberately not
+  placed there. Best-effort: any failure is silence.
   HARD LIMIT:
   output ≤10,000 chars — projection generator must guarantee this.
 - UserPromptSubmit shim (felt-cost 4.1/4.2, D5) → the batch-complete nudge:
@@ -1259,10 +1529,40 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   answer from git log. Unbinding costs nothing — refs-only state, a line
   bounded by construction, and the same stateless re-fire as the nudge, so
   the 420-char wrap budget bounds the WRAP line only, never the whole
-  payload. Repo-level by design: it reports HEAD against origin, never "your
-  commits" — per-session commit attribution needs the commit-graph walk
-  §Git state rules out, and time-window attribution misreads interleaved
-  parallel sessions.
+  payload. Repo-level by construction: it reports HEAD against origin, never
+  "your commits". Refs alone cannot say more, and time-window attribution —
+  the obvious substitute — misreads interleaved parallel sessions. The
+  per-initiative question is answered by the LANDED line below instead,
+  which pays for a walk only when a ref has actually moved.
+  The same shim emits the LANDED line (commit-attribution 3.4, D11), the
+  live half of the shipping signal: `sofar: N commit(s) of this record just
+  landed on origin/<branch> (<sha>, <sha>…) — that work has SHIPPED; if a
+  next action was waiting on the push, it is done.`, at most 3 shas named
+  with a `, +N more` tail, clipped to 300 chars. It closes the residual gap
+  the SessionStart notice leaves: that notice fires ONCE, so a window
+  already running when a sibling pushes learns nothing until it restarts —
+  the original complaint, still open in exactly the case it was raised for.
+  No transport is involved (D11): refs are shared across a worktree, so a
+  push updates them for everyone at once and each session simply READS.
+  Nothing is asked of the pushing session, and no surface may notify a peer
+  of a push.
+  The GATE is what makes it legal on this path. D6 forbids an unconditional
+  git subprocess here, and this pays one ONLY when `origin/<branch>` has
+  moved since this session last looked — a comparison of two shas both
+  already read from files (§Derived index, shipwatch.json). The walk that
+  follows is bounded twice over: `previous..current` is the push itself
+  rather than history, and a 100-commit cap bounds even that. A push larger
+  than the cap under-reports the count, the safe direction this module takes
+  everywhere. Range semantics carry the precision: `previous..current` is
+  exactly the set that ARRIVED on origin, so filtering it by trailer answers
+  "did MY work land" rather than the weaker "is the tip in sync" the
+  push-state line reports. On a first look the range is instead the new tip
+  with every other origin ref subtracted (D17). A rebase or force-push whose
+  old sha is gone makes git error, the read returns null and the line is
+  SILENT — the mark is advanced anyway, so the session resynchronises rather
+  than getting stuck. Silent too when the arriving commits belong to other
+  records, the common case on a shared branch: that this record still has
+  unpushed work is what SessionStart already said.
   The same shim emits the LIVE FILE-CONFLICT line (writeback-collisions
   2.1) FIRST, ahead of parallel-wrap: `sofar: N file(s) you touched are
   ALSO open in another live session — <path> (session <id>); …`, at most 3
@@ -1423,10 +1723,32 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   into an exit-0 — no today-exit-0 path becomes blocking.
 - SessionEnd shim → appends mechanical session-close marker (fallback only;
   cannot feed back to the agent).
+- prepare-commit-msg shim → `.git/hooks/prepare-commit-msg`, the one shim that
+  is GIT's rather than the host's (commit-attribution 2.5, D7). Calls
+  `sofar commit-trailer "$1"` and exits 0 unconditionally. Unlike every shim
+  above it CANNOT `exec`: it runs inside `git commit`, so a missing binary or
+  any non-zero status would abort the user's commit — hence `command -v sofar`,
+  `>/dev/null 2>&1 || true`, and a bare `exit 0`.
+  INSTALLED BY `sofar init`, NEVER CLOBBERING (D7): `core.hooksPath` is checked
+  FIRST and reported as a skip, because setting it makes `.git/hooks` inert and
+  writing there would be a file that silently never runs; a hook we did not
+  write is left BYTE-IDENTICAL and reported as skipped, with the one line to
+  add by hand; our own older copy is kept current, identified by the marker
+  string `sofar prepare-commit-msg shim`. `sofar uninit` mirrors it and removes
+  the file ONLY while it still carries that marker — a user's own hook that
+  calls `sofar commit-trailer` is the user's file, and `.git/hooks` has no
+  other owner to ask.
+  VERSION SKEW is the silent failure mode this shape leaves open, and doctor
+  is what surfaces it: `command -v sofar` succeeds for ANY installed sofar,
+  including one predating the `commit-trailer` subcommand, and the `|| true`
+  swallows the error — so attribution is simply off, with no symptom at the
+  commit. See doctor's attribution audit in §CLI.
 Shims contain no logic — they invoke the sofar CLI.
 
 ## CLI
 - `sofar init` — create .sofar/, write repo.md stub, install hook shims
+  (including git's own `.git/hooks/prepare-commit-msg`, never clobbering —
+  commit-attribution D7, §Hooks)
   + .claude/settings.json hooks block, emit .mcp.json registration, append
   protocol blocks to CLAUDE.md and AGENTS.md (idempotent; the AGENTS.md
   block is the CLI convention dialect for MCP-less tools — added Phase 5,
@@ -1463,7 +1785,21 @@ Shims contain no logic — they invoke the sofar CLI.
   `sofar doctor --fix` (added Phase 10, D-P10). The statusline hint, when
   both fire, prints before it — the scanner hint keeps the final slot.
 - `sofar doctor [--fix]` — audit a host repo across seven axes: (1) wiring
-  integrity (init's shims/settings/.mcp.json/protocol blocks intact); (2)
+  integrity (init's shims/settings/.mcp.json/protocol blocks intact), plus the
+  ATTRIBUTION check (commit-attribution 2.4), which is deliberately EMPIRICAL
+  rather than diagnostic: it asks whether the last 20 commits actually carry
+  trailers, not why they might not. Attribution goes silently off for several
+  unrelated reasons — `.git/hooks` is not cloned so a fresh clone never has the
+  hook, the `sofar` on PATH predates `commit-trailer` and the shim's `|| true`
+  swallows the failure, CLAUDE_CODE_SESSION_ID stops being exported — and
+  enumerating causes would miss the next one, while the empirical question
+  catches all of them including causes nobody has thought of. Missing hook →
+  WARN; hook present but a whole window unattributed → WARN naming the silence
+  and how to check; some attributed → OK line. NEVER FAIL: unattributed commits
+  are legitimately normal (everything committed before adopting this, and every
+  commit made from a plain terminal), and a permanently red doctor trains
+  people to ignore it (record-integrity D3). Bounded per D6 — a fixed small
+  window, never a full-history walk; (2)
   record health — initiative logs fold without stub sessions or corrupt lines,
   no STALE PHASE (all tasks done but the phase still active/pending, missing a
   phase_status_changed — D-P11), no UNTRACKED WORK (a wrapped session with real
@@ -1536,7 +1872,10 @@ Shims contain no logic — they invoke the sofar CLI.
   `source(none)`). The concurrent-edit signal also surfaces in the SessionStart
   context and `sofar status` (rendered only when open sessions overlap, D-P11).
 - `sofar uninit [--purge]` — exact inverse of init, surgical: remove the
-  five hook shims, our settings.json hook entries (matched on the shim path),
+  five hook shims, `.git/hooks/prepare-commit-msg` ONLY while it still carries
+  the `sofar prepare-commit-msg shim` marker (D7 — a user's own hook that calls
+  `sofar commit-trailer` is the user's file, and `.git/hooks` has no other
+  owner to ask), our settings.json hook entries (matched on the shim path),
   the settings.json statusLine entry ONLY when it is the one `--statusline`
   installs — matched on `type` + `command`, tolerating a retuned
   `refreshInterval` and the two-key entry installed before that key shipped,
@@ -1641,6 +1980,21 @@ Shims contain no logic — they invoke the sofar CLI.
   only that the words are there, never that they answer the question. An
   expansion that hits the visit ceiling says so rather than presenting a partial
   answer as whole.
+- `sofar review [slug] [--final] [--phase <name>]` — print the evidence packet
+  a reviewing session works from (commit-attribution 4.6, contract in §Review).
+  The READ half of the loop; `sofar_review` is the write half, split
+  deliberately: rendering is cheap and repeatable while recording a verdict is
+  an append, and a session must be able to re-read the packet without emitting
+  an event every time it looks. Range is watermark..HEAD filtered to this
+  initiative's attributed commits, falling back to a bounded window when no
+  review has run. Defaults to the ACTIVE phase; `--phase` names another,
+  `--final` is the close-time pass. Unknown phase, or no active phase and none
+  named, is exit 1 saying so — never a silent review of the wrong range.
+- `sofar commit-trailer <msgfile>` — the prepare-commit-msg worker (D5;
+  §Commit attribution). Stamps `Sofar-Initiative: <slug>` onto a commit message
+  from the SESSION that made the commit. Exits 0 on every path by contract,
+  because it runs inside `git commit`: no session, no record, an unreadable
+  message file and an already-present trailer are all silent successes.
 - `sofar export [slug] [--since <id>]` / `sofar import <file|-> [slug]`
   — per-initiative NDJSON over the §Cursor primitive; slug resolves like
   status (explicit wins, else branch binding) (extended Phase 4, BD28)
@@ -2531,3 +2885,48 @@ stay the underlying derivation's, and exit codes are styling-independent.
   positive control: `sofar find` lives there and does bundle it. `mcp/` is
   deliberately unprotected, unlike the graph exclusion — `sofar_find` is the
   agent asking, not the harness pushing.
+- **Commit attribution (commit-attribution 1.x-3.x):** a trailered commit reads
+  back with its slug and an untrailered one reads back EMPTY, never as a guess;
+  a folded trailer value, a multi-slug commit and a value that is not
+  slug-shaped are all parsed the way §Commit attribution states; a rev range
+  that could read as a flag, a nonsensical maxCount, and running outside a repo
+  all return null rather than throwing. A squash-merged commit recovers every
+  slug the squash swept up from the INDENTED body trailer, body text never
+  overrides a real trailer, an UNINDENTED mention is ignored, and a squash
+  committed with `-m` stays honestly unattributed. Shipping splits an
+  initiative's commits into pushed and local, answers PER INITIATIVE where a
+  branch-level check cannot, reports `unknown` (never `local`) with no upstream
+  to compare, and skips the second spawn entirely when nothing in the window is
+  attributed. The trailer worker stamps a registered session's message above
+  git's comment block, is idempotent across amends, adds a DIFFERENT slug to an
+  already-attributed message, and writes NOTHING for a session registered
+  nowhere even when the branch is bound. `sofar init` installs an executable
+  hook that calls the worker, guards on the binary so it can never abort a
+  commit, NEVER clobbers a hook it did not write, and keeps its own current
+  across versions. doctor warns on a missing hook and on a fully unattributed
+  window, reports ok once commits carry trailers, never FAILs on unattributed
+  history, and is silent outside a git repo. The LIVE line tells a running
+  session its commits reached origin, announces the transition ONCE rather than
+  on every later prompt, counts only THIS record's commits inside a mixed push,
+  counts only what a first push ADDED rather than the base behind it, reports a
+  branch's first push where no upstream ref existed before, recovers rather
+  than sticking when the old sha is gone, and — the D6 pin — SPAWNS NO GIT AT
+  ALL on a quiet prompt. The mark keeps sessions independent, treats a branch
+  switch as a first look, evicts oldest-first without starving a quiet session
+  that keeps looking, and cold-starts on a corrupt file.
+- **Review (commit-attribution 4.x):** `review_recorded` accepts a `pass` with
+  no findings and REJECTS a `findings` verdict listing none; reviewWatermark
+  returns the latest watermark and SKIPS a review that recorded none rather
+  than resetting to null; openFindings carries findings forward, is superseded
+  by a re-review of the SAME phase, and keeps a different phase's findings
+  intact. An older engine folds a log containing review_recorded without
+  failing. The packet names its commits with a runnable `git show`, lists shas
+  EXPLICITLY (a two-dot range would drop the oldest), treats an empty range as
+  a FINDING, renders standing constraints verbatim and unclipped, lists
+  rejected approaches, and demands a verdict that can be "no". Phase and final
+  packets ask DIFFERENT questions: the phase one delegates bug-hunting where a
+  skill exists and STANDS ALONE where none does (D12), the final one asks goal
+  conformance and explicitly forbids re-auditing per-phase correctness (D10).
+  `sofar review` renders the active phase, EXCLUDES another initiative's
+  commits from the range, starts at the watermark once a review has run, and
+  fails clearly on a phase name that does not exist.

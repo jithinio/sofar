@@ -9,7 +9,11 @@ import {
 } from '../src/tool-inputs'
 
 describe('tool contract surface', () => {
-  it('declares exactly the SPEC §MCP tools', () => {
+  // The COUNT is the contract, not decoration: eleven are enumerated in SPEC
+  // §MCP tools, and that surface is called frozen. Dropping the number here is
+  // how a twelfth tool lands without anyone editing SPEC — the assertion
+  // following the code instead of the code following SPEC.
+  it('declares exactly the eleven SPEC §MCP tools', () => {
     expect([...TOOL_NAMES]).toEqual([
       'sofar_get_state',
       'sofar_start_session',
