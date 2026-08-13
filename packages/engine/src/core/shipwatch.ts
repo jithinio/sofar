@@ -245,6 +245,12 @@ export function noteEngine(
   const marks = readMarks(sofarDir)
   const prior = marks[sessionId]
   const was = prior?.engine !== undefined && prior.engine !== engine ? prior.engine : null
+  // Steady state is a READ and nothing else. Unlike the ref look, this has no
+  // reason to rewrite on every prompt: that write exists to order eviction by
+  // last LOOK, and noteUpstream already does it on the same file in the same
+  // prompt — so writing here too would double the hot path's I/O to record a
+  // value that did not change (speed T2's budget is the reason this matters).
+  if (prior?.engine === engine) return null
   marks[sessionId] = {
     branch: prior?.branch ?? '',
     upstream: prior?.upstream ?? null,

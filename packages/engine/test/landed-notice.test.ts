@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
@@ -499,5 +499,30 @@ describe('the engine changed under you (2.1)', () => {
     expect(first).toContain('the sofar engine changed under this session (0.0.1-old →')
     expect(first).toContain('restart the session')
     expect(prompt(root)).not.toContain('engine changed under this session')
+  })
+})
+
+describe('the engine mark stays cheap on the hot path', () => {
+  it('does not rewrite the file when nothing changed', () => {
+    // The ref look already rewrites this file every prompt to keep eviction
+    // ordered by last LOOK; a second write to record an unchanged value would
+    // double the I/O of the path speed T2 budgets at 100ms end to end.
+    const { root } = repo('engine-cheap')
+    const dir = join(root, '.sofar')
+    noteEngine(dir, 'e1', '0.27.0')
+    const file = join(dir, '.index', 'shipwatch.json')
+    const before = statSync(file).mtimeMs
+    const bytes = readFileSync(file, 'utf8')
+    noteEngine(dir, 'e1', '0.27.0')
+    expect(readFileSync(file, 'utf8')).toBe(bytes)
+    expect(statSync(file).mtimeMs).toBe(before)
+  })
+
+  it('still writes when the version actually changes', () => {
+    const { root } = repo('engine-cheap-change')
+    const dir = join(root, '.sofar')
+    noteEngine(dir, 'e1', '0.26.1')
+    expect(noteEngine(dir, 'e1', '0.27.0')).toBe('0.26.1')
+    expect(noteEngine(dir, 'e1', '0.27.0')).toBeNull() // and settles again
   })
 })
