@@ -41,4 +41,4 @@ Progress: 15 done, 1 dropped, 0 remaining
 - [x] 5.3 Dogfood: close THIS initiative's own phases with the new tool as each completes, then re-run doctor and confirm the stale-phase count falls. The dogfood IS the acceptance evidence.
 - [x] 5.4 Release 0.27.0. Until it is published AND installed, this repo's own sessions cannot use the tool: .mcp.json runs the `sofar` on PATH, which is the installed bundle, so every session here still sees eleven tools. The user runs `npm publish -w sofar.sh` (classifier + OTP).
 
-Next action: Close phase-lifecycle: every phase is resolved, nothing is outstanding, and the close audit will run its mechanical tier over the record.
+Next action: Nothing open on phase-lifecycle — it is closed. The live finding wants a ruling in another record: whether update_plan should merge existing statuses forward, which changes the full-replace contract and needs its own Decision.
