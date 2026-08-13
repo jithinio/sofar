@@ -31,4 +31,4 @@ Progress: 11/11 tasks done (100%)
 
 - [x] 4.1 doctor rendered `warnings[0]` alone, so every fold warning after the first was invisible — and a record that already carries warnings is exactly where a new one most needs reading. List them instead, one hint line each, capped at 5 with the usual `+N more` sentinel. Needs multi-line hint support in BOTH renderers: the plain one indents each line identically (its byte contract for single-line hints is unchanged), the styled one puts the elbow on the first line and aligns continuations under it. Tests for the list, the cap, and the elbow placement; SPEC's doctor axis records the new shape.
 
-Next action: On the next release, re-run the byte-identical doctor diff after installing — that comparison against unmodified 0.28.0 is what proves D1 safe, and it has only ever been run from packages/engine/dist.
+Next action: Nothing open — plan-carry-forward is closed and verified on the 0.29.0 tree. At release, the bar is zero D1 warnings and an unchanged verdict, NOT byte-identical output.
