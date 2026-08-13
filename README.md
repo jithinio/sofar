@@ -85,7 +85,14 @@ when you want to look for yourself.
 1. **Start.** The assistant receives the goal, the progress, recent decisions
    and the next action before you type anything.
 2. **During.** Decisions and finished tasks get written down as they happen.
-3. **End.** The assistant writes a summary and the next action. In Claude Code
+   Each commit is stamped with the initiative that produced it, so when work
+   reaches the remote — even inside somebody else's push — the session is told
+   its work shipped, without anyone having to say so.
+3. **Before a phase closes.** `sofar review` hands over what changed, what was
+   claimed done, and the rules the work was supposed to keep. Closing runs the
+   same questions once more and records anything still outstanding, rather than
+   refusing to close.
+4. **End.** The assistant writes a summary and the next action. In Claude Code
    a hook holds the session open until it does.
 
 ## Sharing with your team
@@ -117,7 +124,7 @@ and the result still reads correctly.
   `init` writes an instruction block there, and those tools follow the same
   loop using the `sofar` command. No extra setup.
 * **Any other MCP client.** Point it at `sofar mcp` in its own config to get
-  the same nine tools over stdio.
+  the same eleven tools over stdio.
 
 ## Commands
 
@@ -132,6 +139,7 @@ and the result still reads correctly.
 | `sofar next` | The next action for every initiative |
 | `sofar why <path>` | Every task, session and decision behind a file, across all initiatives |
 | `sofar related <task-id>` | Tasks that worked on the same files, ranked by shared paths |
+| `sofar review [name]` | The evidence a reviewer needs before a phase closes: what changed, what was claimed, and the rules the work had to keep (`--final` for the close-time pass) |
 | `sofar remember <text>` | Keep an operational fact — a release command, a failure mode — where later sessions will find it |
 | `sofar statusline --install` | Put the status line in Claude Code's status bar — this repo, or `--user` for every project (`--uninstall` takes it back off) |
 | `sofar doctor` | Check the setup and the record for problems |
@@ -148,6 +156,7 @@ Less often needed:
 | `sofar mcp` | The MCP server, which `init` already registers |
 | `sofar statusline` | Renders the line itself — Claude Code calls this, you don't |
 | `sofar event append` | Write one entry by hand |
+| `sofar commit-trailer` | Stamps a commit with the initiative that made it — the git hook calls this, you don't |
 | `sofar adopt <file>` | Bring an older, hand written project log into sofar |
 | `sofar uninit` | Undo `init` |
 
