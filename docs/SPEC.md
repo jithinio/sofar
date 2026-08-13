@@ -1822,9 +1822,17 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   fires while init reports "created" (verified live, git 2.50.1). Resolution is
   `commonGitDir` — the `commondir` pointer file, present only in a linked
   worktree — and uninit removes from the same place.
-  `core.hooksPath` is checked
-  FIRST and reported as a skip, because setting it makes `.git/hooks` inert and
-  writing there would be a file that silently never runs; a hook we did not
+  `core.hooksPath` is RESOLVED, not merely detected, and it decides where the
+  hook goes. Setting it elsewhere makes `.git/hooks` inert, so installing there
+  would be a file that silently never runs — that case is still a skip, and the
+  skip names the real directory and the exact line to add, because those
+  directories (husky, lefthook) are tracked in the repo and writing to them
+  would add a COMMITTED file to the user's project. But a path resolving to
+  `<common>/hooks` itself, spelled absolutely or relatively, is the ordinary
+  hooks dir stated explicitly, and refusing it installs nothing for no reason
+  (found in the field on 0.26.0). Compared by realpath, so a symlinked checkout
+  does not read as a different place. doctor asks the same question, or a
+  hand-installed hook under a husky path reads as attribution being off; a hook we did not
   write is left BYTE-IDENTICAL and reported as skipped, with the one line to
   add by hand; our own older copy is kept current, identified by the marker
   string `sofar prepare-commit-msg shim`. `sofar uninit` mirrors it and removes
@@ -3067,3 +3075,9 @@ stay the underlying derivation's, and exit codes are styling-independent.
   THE D6 GATE is pinned by COUNTING spawns through a stub `git` first on PATH —
   asserting the line is absent cannot distinguish a gated walk from a failed
   one, and left the gate deletable with the suite green.
+- **core.hooksPath (hookspath-attribution):** a repo whose `core.hooksPath`
+  resolves to its own `<common>/hooks` — spelled absolutely or relatively —
+  gets the hook installed, and a hook placed in that directory demonstrably
+  fires; a path pointing elsewhere is still skipped, naming that directory's
+  `prepare-commit-msg` and the line to add; and doctor reports attribution as
+  live when the hook sits under a configured path rather than the default.

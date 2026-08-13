@@ -1,7 +1,16 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { effectiveHooksDir } from '../core/attribution'
 import { commonGitDir } from '../core/git'
 import { mcpRegistration } from '../mcp/register'
 import { detectTailwindV4, SOURCE_NOT_SINCE } from './scanners'
@@ -807,10 +816,36 @@ function ensureGitattributes(rootDir: string, report: string[]): void {
  * unrecoverable. So this follows the `.gitattributes` precedent instead — a
  * file we did not write is left exactly alone and reported, never merged into.
  *
- * `core.hooksPath` is checked first because setting it makes `.git/hooks`
- * INERT: installing there would look like success and silently do nothing,
- * which is the one outcome worse than not installing at all.
+ * `core.hooksPath` decides WHERE, and it is resolved rather than merely
+ * detected. Setting it to some other directory makes `.git/hooks` inert, and
+ * installing there would look like success while silently doing nothing — the
+ * one outcome worse than not installing at all. But a great many repos set it
+ * to `.git/hooks` itself, explicitly and redundantly, and treating that as a
+ * skip refuses to install into exactly the directory that would have been
+ * chosen anyway. Found in the field, brillo 2026-08-13: `core.hooksPath =
+ * /Users/jins/IO/brillo/.git/hooks`, attribution unavailable, and the message
+ * told the user `.git/hooks` was inert when it was the live hooks dir.
+ *
+ * A path pointing ELSEWHERE (husky, lefthook, pre-commit) is still a skip, and
+ * deliberately: those directories are tracked in the repo, so writing there
+ * adds a committed file to the user's project rather than an untracked one
+ * under `.git`. The skip now names the real directory and the exact line, which
+ * "install it there by hand" did not.
  */
+/**
+ * Do two paths name the same directory? Compared by realpath, so a symlinked
+ * checkout does not read as a different place; falls back to the literal
+ * strings when either side does not exist yet, which is the honest answer
+ * there — an unresolvable path cannot be shown to be ours.
+ */
+function sameDir(a: string, b: string): boolean {
+  try {
+    return realpathSync(a) === realpathSync(b)
+  } catch {
+    return resolve(a) === resolve(b)
+  }
+}
+
 function installGitHook(rootDir: string, report: string[]): void {
   // The COMMON dir, never the per-worktree one: git runs hooks from the common
   // dir, so a hook written into `.git/worktrees/<name>/hooks` never fires
@@ -822,26 +857,17 @@ function installGitHook(rootDir: string, report: string[]): void {
     report.push('skipped .git/hooks/prepare-commit-msg (not a git repo — no attribution)')
     return
   }
-  let hooksPath: string | null = null
-  try {
-    const out = execFileSync('git', ['config', '--get', 'core.hooksPath'], {
-      cwd: rootDir,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 2000,
-    }).trim()
-    hooksPath = out.length > 0 ? out : null
-  } catch {
-    hooksPath = null // unset is the common case and exits non-zero
-  }
-  if (hooksPath !== null) {
+  const ours = join(dir, 'hooks')
+  const hooks = effectiveHooksDir(rootDir, dir)
+  if (hooks.configured !== null && !sameDir(hooks.dir, ours)) {
     report.push(
-      `skipped prepare-commit-msg (core.hooksPath is ${hooksPath} — .git/hooks is inert; install it there by hand)`,
+      `skipped prepare-commit-msg (core.hooksPath is ${hooks.configured}, so .git/hooks is inert) — ` +
+        `add \`sofar commit-trailer "$1"\` to ${join(hooks.configured, 'prepare-commit-msg')} for attribution`,
     )
     return
   }
 
-  const path = join(dir, 'hooks', 'prepare-commit-msg')
+  const path = join(ours, 'prepare-commit-msg')
   if (existsSync(path)) {
     const existing = readFileSync(path, 'utf8')
     if (existing === prepareCommitMsgShim) {

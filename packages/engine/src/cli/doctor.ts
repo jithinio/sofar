@@ -8,7 +8,7 @@ import {
   type InitiativeState,
   type OrphanTaskEvent,
 } from '../core/fold'
-import { readAttribution, unattributed } from '../core/attribution'
+import { effectiveHooksDir, readAttribution, unattributed } from '../core/attribution'
 import { readBindingsFile } from '../core/bindings'
 import { commonGitDir } from '../core/git'
 import { crossConflictsFromStates } from '../core/cross-conflicts'
@@ -166,7 +166,10 @@ const ATTRIBUTION_WINDOW = 20
 function auditAttribution(rootDir: string, findings: Finding[]): void {
   const dir = commonGitDir(rootDir) // hooks live in the COMMON dir, not a worktree's own
   if (dir === null) return // not a git repo — nothing to attribute
-  const hook = join(dir, 'hooks', 'prepare-commit-msg')
+  // Where git will actually look, which is not always `<common>/hooks`: a repo
+  // using husky or lefthook points core.hooksPath elsewhere, and checking the
+  // default would report attribution off while a hand-installed hook works.
+  const hook = join(effectiveHooksDir(rootDir, dir).dir, 'prepare-commit-msg')
   if (!existsSync(hook)) {
     findings.push({
       level: 'warn',

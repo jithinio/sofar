@@ -171,3 +171,59 @@ describe('the prepare-commit-msg hook in a worktree', () => {
     expect(existsSync(hook)).toBe(true) // uninit leaves the user's file alone
   })
 })
+
+describe('core.hooksPath decides WHERE, and is resolved rather than detected', () => {
+  // Found in the field on 0.26.0: a repo with `core.hooksPath` set to its own
+  // `.git/hooks` — explicit and redundant, and common — was refused the hook
+  // and told `.git/hooks` was inert, when it was the live hooks dir.
+  function repoWithHooksPath(name: string, value: string): string {
+    const root = mkdtempSync(join(tmpdir(), `sofar-hookspath-${name}-`))
+    roots.push(root)
+    execFileSync('git', ['init', '-q', root], { stdio: ['ignore', 'ignore', 'ignore'] })
+    git(root, 'config', 'core.hooksPath', value)
+    return root
+  }
+
+  const hookOf = (root: string): string => join(gitDir(root)!, 'hooks', 'prepare-commit-msg')
+
+  it('installs when the configured path IS .git/hooks, spelled absolutely', () => {
+    const root = repoWithHooksPath('abs', join(realpathSync(mkdtempSync(join(tmpdir(), 'x-'))), 'placeholder'))
+    // Re-point it at this repo's own hooks dir, the shape brillo had.
+    git(root, 'config', 'core.hooksPath', join(root, '.git', 'hooks'))
+    const out = runInit(root)
+    expect(out.stdout).not.toContain('skipped prepare-commit-msg')
+    expect(existsSync(hookOf(root))).toBe(true)
+  })
+
+  it('installs when it is spelled RELATIVE to the working tree', () => {
+    // git resolves a relative hooksPath against the top of the working tree.
+    const root = repoWithHooksPath('rel', '.git/hooks')
+    runInit(root)
+    expect(existsSync(hookOf(root))).toBe(true)
+  })
+
+  it('LIVE: a hook in the directory init chose does fire under an explicit hooksPath', () => {
+    const root = repoWithHooksPath('live', '.git/hooks')
+    runInit(root)
+    writeFileSync(join(gitDir(root)!, 'hooks', 'prepare-commit-msg'), `#!/bin/sh\nprintf "\\n${TRAILER_KEY}: proof\\n" >> "$1"\n`, { mode: 0o755 })
+    git(root, 'config', 'user.email', 't@t.t')
+    git(root, 'config', 'user.name', 't')
+    writeFileSync(join(root, 'a.txt'), 'a\n')
+    git(root, 'add', '-A')
+    git(root, 'commit', '-q', '-m', 'under an explicit hooksPath')
+    expect(
+      git(root, 'log', '-1', `--format=%(trailers:key=${TRAILER_KEY},valueonly,separator=%x2C)`).trim(),
+    ).toBe('proof')
+  })
+
+  it('still skips a path pointing ELSEWHERE, and names the file to edit', () => {
+    // Those directories (husky, lefthook) are tracked in the repo, so writing
+    // there would add a COMMITTED file to the user's project.
+    const root = repoWithHooksPath('elsewhere', '.husky')
+    const out = runInit(root)
+    expect(out.stdout).toContain('skipped prepare-commit-msg')
+    expect(out.stdout).toContain('.husky/prepare-commit-msg')
+    expect(out.stdout).toContain('sofar commit-trailer')
+    expect(existsSync(hookOf(root))).toBe(false)
+  })
+})

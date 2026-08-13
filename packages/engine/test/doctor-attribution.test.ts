@@ -100,3 +100,17 @@ describe('doctor: commit attribution (2.4)', () => {
     expect(out).not.toContain('commit attribution')
   })
 })
+
+describe('doctor asks where git actually looks', () => {
+  it('does not report attribution off when the hook lives under core.hooksPath', () => {
+    // A husky/lefthook repo with the line added by hand: checking the default
+    // `<common>/hooks` would call attribution off while it is working.
+    const root = repo('hookspath')
+    execFileSync('git', ['config', 'core.hooksPath', '.husky'], { cwd: root, stdio: 'ignore' })
+    mkdirSync(join(root, '.husky'), { recursive: true })
+    writeFileSync(join(root, '.husky', 'prepare-commit-msg'), '#!/bin/sh\nsofar commit-trailer "$1"\n', {
+      mode: 0o755,
+    })
+    expect(runDoctor(root).stdout).not.toContain('commit attribution off')
+  })
+})

@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { isAbsolute, join } from 'node:path'
 import { currentBranch } from './git'
 
 /**
@@ -81,6 +82,45 @@ const FULL_SHA = /^[0-9a-f]{40}$/
 // folded across lines, so a line-oriented parse would tear one commit into two.
 const RS = '\x1e'
 const US = '\x1f'
+
+/**
+ * Where git will actually LOOK for hooks in this repo.
+ *
+ * `core.hooksPath` overrides `<common>/hooks`, and it must be asked of git
+ * rather than parsed out of `.git/config`: the value can come from the global
+ * or system scope, or through an `include`, and only `git config --get` sees
+ * all of them. That spawn is why this lives here and not in core/git.ts, whose
+ * no-subprocess guarantee the hook shims depend on — nothing on a hot path
+ * needs this answer.
+ *
+ * `configured` is the raw value when one is set, so a caller can tell "git
+ * looks here because that is the default" from "git looks here because the user
+ * said so" — the difference between installing a hook and explaining why one
+ * was not installed. Relative values resolve against the top of the working
+ * tree, which is what git does.
+ */
+export function effectiveHooksDir(
+  rootDir: string,
+  commonDir: string,
+): { dir: string; configured: string | null } {
+  let configured: string | null = null
+  try {
+    const out = execFileSync('git', ['config', '--get', 'core.hooksPath'], {
+      cwd: rootDir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 2000,
+    }).trim()
+    configured = out.length > 0 ? out : null
+  } catch {
+    configured = null // unset is the common case and exits non-zero
+  }
+  if (configured === null) return { dir: join(commonDir, 'hooks'), configured: null }
+  return {
+    dir: isAbsolute(configured) ? configured : join(rootDir, configured),
+    configured,
+  }
+}
 
 /**
  * Read trailer attribution for a bounded set of commits, newest first.
