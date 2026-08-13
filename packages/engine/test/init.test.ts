@@ -14,20 +14,24 @@ import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 import {
   AGENTS_PROTOCOL_BLOCK,
+  AGENTS_PROTOCOL_BLOCK_V3,
   classifyProtocolBlock,
   GITATTRIBUTES_LINE,
   hookCommand,
   PROTOCOL_BLOCK,
   PROTOCOL_BLOCK_V1,
+  PROTOCOL_BLOCK_V4,
   PROTOCOL_START,
   PROTOCOL_END,
   REPO_MD_STUB,
   runInit,
+  SHIPPED_AGENTS_PROTOCOL_BLOCKS,
   SHIPPED_PROTOCOL_BLOCKS,
   SHIMS,
   STATUSLINE_HINT,
   STATUSLINE_SETTINGS_ENTRY,
 } from '../src/cli/init'
+import { runDoctor } from '../src/cli/doctor'
 
 /**
  * Task 4.1 — `sofar init`. Fresh-repo artifact contents, merge-not-clobber
@@ -602,5 +606,80 @@ describe('protocol block refresh (speed-2 T6)', () => {
       'unchanged CLAUDE.md (protocol block current)',
     )
     expect(readFileSync(join(root, 'CLAUDE.md'), 'utf8')).toBe(once)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// session-orientation 1.1/1.2 — the block is what TELLS an agent which record
+// its writes land in. Both gaps below cost a real session its whole write-back
+// history before anyone noticed, so both are pinned here: the instruction must
+// be present, and the ledger that lets an already-inited repo receive it must
+// keep every block sofar ever shipped refreshable.
+// ---------------------------------------------------------------------------
+
+describe('re-homing instruction (session-orientation 1.1)', () => {
+  it('teaches the MCP dialect that an initiative arg routes one write, re-homing moves the session', () => {
+    expect(PROTOCOL_BLOCK).toContain('- RE-HOME the moment the work turns out to belong to a DIFFERENT record')
+    expect(PROTOCOL_BLOCK).toContain('routes ONE write; re-homing moves the SESSION')
+    // The reason re-homing (not per-call targeting) is the fix: end_session is
+    // the one write tool with no `initiative` and always follows the home.
+    expect(PROTOCOL_BLOCK).toContain('and always follows the home')
+  })
+
+  it('teaches the CLI dialect that the slug is per-append, including the write-back', () => {
+    // `sofar event append` resolves its slug through the BRANCH and never a
+    // session home, so every append carries it — above all the last one.
+    expect(AGENTS_PROTOCOL_BLOCK).toContain(
+      '`sofar event append <slug> --type session_ended --session <session-id>',
+    )
+    expect(AGENTS_PROTOCOL_BLOCK).toContain('there is no session-level')
+    expect(AGENTS_PROTOCOL_BLOCK).toContain('`--initiative <slug>`, and follows the branch without it')
+    // Every append shown in the loop targets a record; a bare `append --type`
+    // in the shipped text is the trap this task closed.
+    expect(AGENTS_PROTOCOL_BLOCK).not.toContain('sofar event append --type')
+  })
+
+  it('keeps every block sofar ever shipped classifiable as stale, in both dialects', () => {
+    // The ledger is the whole delivery mechanism (speed-2 T6): a predecessor
+    // that stops byte-matching silently becomes "customized", and the repo
+    // carrying it never hears about the re-homing clause again.
+    for (const { template, shipped } of [
+      { template: PROTOCOL_BLOCK, shipped: SHIPPED_PROTOCOL_BLOCKS },
+      { template: AGENTS_PROTOCOL_BLOCK, shipped: SHIPPED_AGENTS_PROTOCOL_BLOCKS },
+    ]) {
+      expect(shipped).not.toContain(template) // the current block is never in its own ledger
+      for (const old of shipped) {
+        expect(classifyProtocolBlock(old, template, shipped)).toBe('stale')
+      }
+    }
+  })
+
+  // Delivery has two halves and this suite owns both: init REFRESHES the block,
+  // doctor is what TELLS a repo that never re-runs init that it is behind
+  // (`sofar upgrade` replaces the binary, not repo wiring). A ledger append
+  // that only satisfied init would leave those repos silently stale.
+  it('reports the previous block as stale rather than customized', () => {
+    const root = freshRepo()
+    runInit(root) // full wiring, so the only finding under test is the block
+    writeFileSync(join(root, 'CLAUDE.md'), PROTOCOL_BLOCK_V4, 'utf8')
+    const r = runDoctor(root)
+    expect(r.stdout).toContain('CLAUDE.md protocol block is from an older sofar')
+    expect(r.stdout).toContain('run `sofar init` to refresh it')
+    expect(r.stdout).not.toContain('CLAUDE.md protocol block is customized')
+  })
+
+  it('refreshes a repo sitting on the immediately-previous block', () => {
+    const root = freshRepo()
+    writeFileSync(join(root, 'CLAUDE.md'), `# My repo\n\nMy own notes.\n\n${PROTOCOL_BLOCK_V4}`, 'utf8')
+    writeFileSync(join(root, 'AGENTS.md'), AGENTS_PROTOCOL_BLOCK_V3, 'utf8')
+    const result = runInit(root)
+    expect(result.stdout).toContain('updated CLAUDE.md (protocol block refreshed)')
+    expect(result.stdout).toContain('updated AGENTS.md (protocol block refreshed)')
+
+    const claude = readFileSync(join(root, 'CLAUDE.md'), 'utf8')
+    expect(claude.startsWith('# My repo\n\nMy own notes.\n\n')).toBe(true)
+    expect(claude).toContain('- RE-HOME the moment')
+    expect(claude.split(PROTOCOL_START).length - 1).toBe(1)
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe(AGENTS_PROTOCOL_BLOCK)
   })
 })

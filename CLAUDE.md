@@ -80,6 +80,14 @@ Session loop:
   branch binding, which moves mid-session — and attaches them to YOUR
   session rather than minting a separate id that orphans the
   hook-registered one.
+- RE-HOME the moment the work turns out to belong to a DIFFERENT record
+  than the one injected: call `sofar_start_session` again with that
+  `initiative` (plus the same `session_id`). Passing `initiative` to any
+  other tool routes ONE write; re-homing moves the SESSION. That
+  distinction is the whole point — `sofar_end_session` takes no
+  `initiative` and always follows the home, so a session that only ever
+  targets writes one at a time still files its write-back, the event the
+  next session reads first, in the wrong record.
 - DURING: log decisions (`sofar_log_decision`) and task status changes
   (`sofar_update_task`) as they happen. An operational fact you learn is
   NOT a decision — a release command, a failure mode and how it is

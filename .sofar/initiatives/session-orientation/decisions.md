@@ -2,4 +2,14 @@
 
 # Decisions: session-orientation
 
-(no decisions logged yet)
+- 2026-08-13T10:16:29.172Z — rule: **Never give sofar_end_session an `initiative` argument — a write-back belongs where the session lives; move the SESSION with sofar_start_session instead.** — chose **sofar_end_session keeps its three-argument signature: no `initiative` arg, ever. The write-back stays untargetable BY DESIGN, and teaching re-homing (task 1.1) is the complete fix rather than a partial one.** over Adding an optional `initiative` to sofar_end_session — a SPEC §MCP tools signature change — so a mis-homed session could redirect its write-back per call without moving itself. because The capability already exists; only the instruction was missing. endSession routes the ACTIVE session's write-back through the context pin (mcp/end-session.ts:100), and startSession sets that pin to an explicitly named initiative (mcp/start-session.ts:24-36, 56, 69) — so ONE re-home call moves the write-back target, and record-integrity D8 already routes a non-active session home then branch. Verified by hand 2026-08-13: a re-home moved the statusline and left three peer sessions untouched.
+
+An `initiative` arg would do something the record has no semantics for: append a session_ended into a log holding no session_started for that id — a session that ends where it never began. That is precisely the split shape record-integrity D1 and D2 exist to eliminate and D3 accepted 21 of as unrepairable history, in its worst variant: the record holding the work carries no wrap-up, and the record holding the wrap-up carries no work. Every read surface keys on registration (sessions/<id>.md, overlappingWritebacks, homeInitiative's latest-wins under D9).
+
+It would also leave the Stop gate armed. The gate resolves through the session's home (resolveSessionFirst), so a write-back deliberately filed elsewhere blocks the session on debt in a log its own write-back can never reach — the exact failure D9 names, reintroduced through a new door.
+
+And re-homing is strictly better than per-call targeting on the merits: it moves EVERY surface together — statusline, the SessionStart digest on resume, hook events, the Stop gate — where an arg fixes one event and leaves the rest torn. The rule of thumb now in the protocol block ("an initiative arg routes ONE write, re-homing moves the SESSION") is that difference stated in the one place an agent reads it.
+
+Citation correction: task 1.3's text cites record-integrity D13, which does not exist — that initiative logged D1 through D9. The load-bearing ones are D1, D2, D3, D8, D9.
+
+Residual gap, closed in the other dialect rather than here: the CLI path has no re-homing AT ALL, because `sofar event append` resolves its slug through ctx.resolveInitiative (cli/event.ts:1377) and never consults homeInitiative. So AGENTS.md's new RECORD clause tells those tools to pass the leading slug on every append, the session_ended one above all.
