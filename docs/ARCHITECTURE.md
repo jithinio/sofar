@@ -62,7 +62,8 @@ Three consequences run through every design decision in the codebase:
 | `core/listing.ts` | `initiativeSlugs` and the portfolio listing behind `sofar list`. |
 | `core/bindings.ts` | `.sofar/bindings.json` — which branch serves which initiative. |
 | `core/git.ts` | Branch, HEAD, upstream — read from `.git` files, no subprocess. |
-| `core/attribution.ts` | Commit → initiative from `Sofar-Initiative:` trailers (D4). Spawns `git log`, so it is kept OUT of `git.ts` to preserve that file's no-subprocess guarantee; every walk is bounded and gated on a ref having moved (D6). |
+| `core/attribution.ts` | Commit → initiative from `Sofar-Initiative:` trailers (D4). Spawns `git log`, so it is kept OUT of `git.ts` to preserve that file's no-subprocess guarantee; every walk is bounded and gated on a ref having moved (D6). Falls back to the INDENTED trailer a squash merge leaves in the body, and only when the real trailer block is empty (2.3). |
+| `core/shipwatch.ts` | Per-session `origin/<branch>` marks in the derived index — the free ref-movement gate that lets the per-prompt path pay for `attribution.ts`'s walk only when a push actually happened (3.4, D11). Edge-triggered: marking is what stops a transition being announced twice. |
 | `core/cursor.ts` | Export/import cursors: the entire sync interface. |
 | `core/peers.ts` | Resolves a Claude Code session id to the name its `SendMessage` addresses, from the host's own registry. Best-effort; absent means no address. |
 

@@ -249,27 +249,89 @@ describe('shipping — has this initiative\'s work reached the remote? (3.1)', (
   })
 })
 
-describe('the squash-merge caveat (2.3, not yet handled)', () => {
-  it('documents that a squash loses the trailer — a FALSE NEGATIVE', () => {
-    // Pinned as a characterisation test so 2.3 has a failing-shape to fix and
-    // nobody rediscovers this the hard way. git merge --squash writes
-    // SQUASH_MSG with each original message INDENTED FOUR SPACES, so the
-    // trailer parser sees nothing and shipped work reads as un-shipped.
-    const dir = makeRepo('squash-base', ['base\n'])
+describe('squash-merge recovery (2.3)', () => {
+  // Message files live OUTSIDE the work tree: written inside it, the next
+  // `git add -A` tracks them and the checkout back to base then refuses.
+  let msgSeq = 0
+  function msgFile(message: string): string {
+    const path = join(scratch, `.squash-msg-${(msgSeq += 1)}`)
+    writeFileSync(path, message)
+    return path
+  }
+
+  /** Squash `topic` onto the current branch. Returns the repo path. */
+  function squashed(name: string, message: string, commitArgs?: string[]): string {
+    const dir = makeRepo(name, ['base\n'])
     const git = (...args: string[]): string =>
       execFileSync('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
     git('checkout', '--quiet', '-b', 'topic')
     writeFileSync(join(dir, 'topic-file'), 'x\n')
     git('add', '-A')
-    writeFileSync(join(dir, '.tmsg'), `topic work\n\n${TRAILER_KEY}: gamma\n`)
-    git('commit', '--quiet', '-F', join(dir, '.tmsg'))
-    const onTopic = readAttribution(dir, { maxCount: 1 })
-    expect(onTopic![0]!.initiatives).toEqual(['gamma'])
+    git('commit', '--quiet', '-F', msgFile(message))
 
     git('checkout', '--quiet', '-')
     git('merge', '--squash', 'topic')
+    git('commit', '--quiet', ...(commitArgs ?? ['--no-edit']))
+    return dir
+  }
+
+  it('recovers the slug a squash indented out of the trailer block', () => {
+    // git merge --squash writes SQUASH_MSG with each original message INDENTED
+    // FOUR SPACES, which puts the trailer outside git's trailer block. Before
+    // this, shipped work read as un-shipped — a false negative that becomes
+    // the normal case the moment work lands through a squashed PR.
+    const dir = squashed('squash-base', `topic work\n\n${TRAILER_KEY}: gamma\n`)
+    expect(readAttribution(dir, { maxCount: 1 })![0]!.initiatives).toEqual(['gamma'])
+  })
+
+  it('carries every initiative a squash swept up, not just the first', () => {
+    const dir = makeRepo('squash-multi', ['base\n'])
+    const git = (...args: string[]): string =>
+      execFileSync('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+    git('checkout', '--quiet', '-b', 'topic')
+    for (const [i, slug] of ['gamma', 'delta'].entries()) {
+      writeFileSync(join(dir, `topic-${i}`), 'x\n')
+      git('add', '-A')
+      git('commit', '--quiet', '-F', msgFile(`work ${i}\n\n${TRAILER_KEY}: ${slug}\n`))
+    }
+    git('checkout', '--quiet', '-')
+    git('merge', '--squash', 'topic')
     git('commit', '--quiet', '--no-edit')
-    const squashed = readAttribution(dir, { maxCount: 1 })
-    expect(squashed![0]!.initiatives).toEqual([]) // the loss, pinned
+    expect(readAttribution(dir, { maxCount: 1 })![0]!.initiatives.sort()).toEqual(['delta', 'gamma'])
+  })
+
+  it('stays honestly unattributed when -m discards SQUASH_MSG', () => {
+    // Not a gap to close later: committing the squash with -m throws the
+    // original messages away, so the slug is not in the object at all. There
+    // is nothing to read, and inventing one is what D5's rule forbids.
+    const dir = squashed('squash-dashm', `topic work\n\n${TRAILER_KEY}: gamma\n`, [
+      '-m',
+      'squashed\n',
+    ])
+    expect(readAttribution(dir, { maxCount: 1 })![0]!.initiatives).toEqual([])
+  })
+
+  it('never lets body text override a real trailer', () => {
+    // The fallback runs only when the trailer block yielded nothing, so a
+    // properly attributed commit cannot be re-labelled by its own prose.
+    expect(
+      parseAttribution(
+        `${RS}${SHA_A}${US}alpha${US}subject\n\n    ${TRAILER_KEY}: impostor\n\n${TRAILER_KEY}: alpha\n`,
+      ),
+    ).toEqual([{ sha: SHA_A, initiatives: ['alpha'] }])
+  })
+
+  it('ignores an UNINDENTED mention, which git would already have parsed', () => {
+    // Requiring indentation is what keeps this reading the squash shape rather
+    // than every occurrence of the key anywhere in a body.
+    expect(
+      parseAttribution(`${RS}${SHA_A}${US}${US}subject\n\nnot a trailer: ${TRAILER_KEY}: loose\n`),
+    ).toEqual([{ sha: SHA_A, initiatives: [] }])
+  })
+
+  it('still parses a record with no body field at all', () => {
+    expect(parseAttribution(record(SHA_A, 'alpha'))).toEqual([
+      { sha: SHA_A, initiatives: ['alpha'] },
+    ])
   })
 })

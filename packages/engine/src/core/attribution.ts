@@ -82,7 +82,9 @@ export function readAttribution(
     'log',
     '--no-color',
     `--max-count=${maxCount}`,
-    `--format=${RS}%H${US}%(trailers:key=${TRAILER_KEY},valueonly,separator=%x2C)`,
+    // The raw body rides along for the squash fallback below (2.3). It costs
+    // output bytes, never a second spawn, and the walk is bounded either way.
+    `--format=${RS}%H${US}%(trailers:key=${TRAILER_KEY},valueonly,separator=%x2C)${US}%B`,
   ]
   // A range is a rev, never a flag — reject anything that could read as one.
   if (query.range !== undefined) {
@@ -118,9 +120,56 @@ export function parseAttribution(out: string): CommitAttribution[] {
     if (sep === -1) continue
     const sha = record.slice(0, sep).trim()
     if (!FULL_SHA.test(sha)) continue
-    commits.push({ sha, initiatives: parseSlugs(record.slice(sep + 1)) })
+
+    const bodySep = record.indexOf(US, sep + 1)
+    const trailers = bodySep === -1 ? record.slice(sep + 1) : record.slice(sep + 1, bodySep)
+    const body = bodySep === -1 ? '' : record.slice(bodySep + 1)
+
+    const initiatives = parseSlugs(trailers)
+    commits.push({
+      sha,
+      initiatives: initiatives.length > 0 ? initiatives : squashedSlugs(body),
+    })
   }
   return commits
+}
+
+/**
+ * Slugs recovered from an INDENTED trailer in the body — the squash-merge
+ * fallback (2.3).
+ *
+ * `git merge --squash` writes SQUASH_MSG with each original message indented
+ * four spaces, which puts the trailer outside git's own trailer block: the
+ * squashed commit reads back as unattributed and a shipped initiative reports
+ * as un-shipped. A false NEGATIVE, so the safe direction, but still wrong — and
+ * it becomes the normal case the first time work lands through a squashed PR
+ * rather than straight to main.
+ *
+ * The slug is still there verbatim, so recovering it is still READING git
+ * rather than guessing — the line D4 draws, and this stays on the right side of
+ * it. Two limits keep it from becoming a guess:
+ *
+ *  - It runs ONLY when the real trailer block yielded nothing, so a properly
+ *    trailered commit can never be overridden by something in its own prose.
+ *  - It matches only INDENTED occurrences. An unindented one at the end of a
+ *    message is already a trailer and git has parsed it; requiring indentation
+ *    means this looks exclusively at the shape a squash produces, rather than
+ *    at every mention of the key anywhere in a body.
+ *
+ * NOT recoverable, by construction: committing a squash with `-m` or `-F`
+ * discards SQUASH_MSG entirely, so the slug is not in the object at all. There
+ * is nothing to read and the commit stays honestly unattributed.
+ */
+function squashedSlugs(body: string): string[] {
+  if (body.length === 0) return []
+  // Constructed per call: a /g regex carries lastIndex, and a shared one would
+  // skip matches depending on what the previous commit happened to contain.
+  const indented = new RegExp(`^[ \\t]+${TRAILER_KEY}:(.*)$`, 'gm')
+  const seen = new Set<string>()
+  for (const match of body.matchAll(indented)) {
+    for (const slug of parseSlugs(match[1] ?? '')) seen.add(slug)
+  }
+  return [...seen]
 }
 
 /**

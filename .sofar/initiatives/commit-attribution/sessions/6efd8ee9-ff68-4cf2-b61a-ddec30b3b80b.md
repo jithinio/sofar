@@ -6,19 +6,19 @@
 - Tool: claude-code
 - Model: claude-opus-5[1m]
 - Started: 2026-08-13T10:08:33.476Z
-- Ended: (in progress)
+- Ended: 2026-08-13T10:24:37.237Z
 
 ## Summary
 
-(none recorded — no write-back yet; derived resume point below)
+Closed Phase 2 and Phase 3 — both gaps in the shipping signal are shut. Built 3.4, the live signal: core/shipwatch.ts keeps a per-session mark of origin/branch in the derived index, the per-prompt path compares two shas read from files, and the trailer walk is paid ONLY when the ref moved — the escape D6 was written with. Seeded at SessionStart so the first prompt has something to compare against. D15 records two rulings. The line is EDGE-triggered, breaking the stateless re-firing convention every other line there follows: those restate a condition still true, this reports a transition, so the mark is both the cost gate and what stops the repeat. And absent-upstream is a WATCHED state: the first version skipped it, which made a branch's first push — the least ambiguous shipping event there is — the one event that could never be reported. Its own test caught that. GitState gained upstreamFull, since a 7-char prefix is a display value and goes ambiguous as a rev. Measured 35.7ms end to end in steady state, no subprocess, on a 100ms budget. Dogfooded on real history: of four commits arriving on origin it named the one attributed here, ignored three from session-orientation, then went silent. Then closed 2.3 per D16: a squashed slug is recovered from the INDENTED trailer a squash leaves in the body, gated so it runs only on an empty trailer block and only on indented matches. The characterisation test that pinned the loss is inverted. Suite 1567 green, typecheck clean, ARCHITECTURE.md updated per architecture-map D1.
 
 ## Next action
 
-(none recorded)
+Run the phase reviews now due: Phase 2 and Phase 3 both closed this session, and D9 fires one at each phase boundary. Use sofar review, the 4.6 entry point, which is untested against a real phase — so it doubles as the first half of 5.5's dogfood. Phase 5 is then wholly open, with 5.4 (docs/SPEC.md) deferred longest.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 8 files (/Users/jins/IO/sofar/packages/engine/src/core/git.ts, /Users/jins/IO/sofar/packages/engine/src/core/shipwatch.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/docs/ARCHITECTURE.md, /Users/jins/IO/sofar/packages/engine/test/landed-notice.test.ts, /Users/jins/IO/sofar/packages/engine/test/record-integrity.test.ts, /Users/jins/IO/sofar/packages/engine/src/core/attribution.ts, /Users/jins/IO/sofar/packages/engine/test/attribution.test.ts), 40 commands, task changes: 3.4 → done, 2.3 → done
+- Derived: 8 files (/Users/jins/IO/sofar/packages/engine/src/core/git.ts, /Users/jins/IO/sofar/packages/engine/src/core/shipwatch.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/docs/ARCHITECTURE.md, /Users/jins/IO/sofar/packages/engine/test/landed-notice.test.ts, /Users/jins/IO/sofar/packages/engine/test/record-integrity.test.ts, /Users/jins/IO/sofar/packages/engine/src/core/attribution.ts, /Users/jins/IO/sofar/packages/engine/test/attribution.test.ts), 44 commands, task changes: 3.4 → done, 2.3 → done
 - Files:
   - /Users/jins/IO/sofar/packages/engine/src/core/git.ts
   - /Users/jins/IO/sofar/packages/engine/src/core/shipwatch.ts
@@ -28,7 +28,7 @@
   - /Users/jins/IO/sofar/packages/engine/test/record-integrity.test.ts
   - /Users/jins/IO/sofar/packages/engine/src/core/attribution.ts
   - /Users/jins/IO/sofar/packages/engine/test/attribution.test.ts
-- Commands run: 40
+- Commands run: 44
 - Task changes:
   - 3.4 → done
   - 2.3 → done

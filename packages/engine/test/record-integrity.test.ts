@@ -500,6 +500,9 @@ describe('cross-session awareness (Phase 4)', () => {
       branch: 'main',
       head: 'aaaaaaa',
       upstream: 'aaaaaaa',
+      // The same tip unabbreviated — commit-attribution 3.4 feeds it to git as
+      // a rev, where a seven-char prefix can go ambiguous.
+      upstreamFull: sha('a'),
       synced: true,
     })
 

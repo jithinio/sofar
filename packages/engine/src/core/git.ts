@@ -51,6 +51,15 @@ export interface GitState {
   head: string
   /** origin/<branch> tip (short), or null when the remote ref is absent. */
   upstream: string | null
+  /**
+   * The same tip, full 40 chars. Carried beside the short form because those
+   * seven characters are a DISPLAY value: a prefix can go ambiguous as history
+   * grows, and commit-attribution 3.4 feeds this sha to git as a REV inside a
+   * range, where an ambiguous prefix is an error and the signal disappears
+   * silently. Free to keep — readRef already resolves the full sha and the
+   * short form is a slice of it.
+   */
+  upstreamFull: string | null
   /** head === upstream — i.e. everything local has been pushed. */
   synced: boolean
 }
@@ -109,6 +118,7 @@ export function readGitState(rootDir: string): GitState | null {
     branch,
     head: head.slice(0, 7),
     upstream: upstream === null ? null : upstream.slice(0, 7),
+    upstreamFull: upstream,
     synced: upstream !== null && upstream === head,
   }
 }

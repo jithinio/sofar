@@ -14,8 +14,9 @@ import {
   type InitiativeState,
   type SessionState,
 } from '../core/fold'
-import { readShipping } from '../core/attribution'
-import { readGitState } from '../core/git'
+import { readAttribution, readShipping } from '../core/attribution'
+import { readGitState, type GitState } from '../core/git'
+import { noteUpstream } from '../core/shipwatch'
 
 /** Commits walked for the SessionStart shipping notice — bounded per D6. */
 const SHIPPING_WINDOW = 30
@@ -37,6 +38,7 @@ import {
   initiativeSlugs,
   resolveSessionFirst,
   ToolError,
+  type ResolvedVia,
   type ToolContext,
 } from '../mcp/context'
 import { enforceStatusLimit, renderStatus } from '../projections/templates/status'
@@ -232,12 +234,12 @@ function strField(hook: Obj, key: string): string | null {
 function resolveBound(
   rootDir: string,
   sessionId?: string | null,
-): { ctx: ToolContext; slug: string } | null {
+): { ctx: ToolContext; slug: string; via: ResolvedVia } | null {
   try {
     const ctx = createToolContext(rootDir)
     const resolved = resolveSessionFirst(ctx, sessionId)
     if (resolved === null) return null
-    return { ctx, slug: resolved.slug }
+    return { ctx, slug: resolved.slug, via: resolved.via }
   } catch {
     return null
   }
@@ -460,6 +462,14 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     // Git state is READ, never logged (record-integrity 4.1) — refs only, so
     // it costs no subprocess inside the 100ms shim budget.
     const git = readGitState(rootDir)
+    // Seed 3.4's movement gate here, at orientation, so the session's FIRST
+    // prompt has a sha to compare against. Left to the prompt path itself that
+    // first look would find no mark and stay silent — losing exactly the push
+    // that landed between orientation and the first prompt, which is the case
+    // this is for. Marking costs one small write and renders nothing.
+    if (sessionId !== null && git !== null) {
+      noteUpstream(ctx.sofarDir, sessionId, git.branch, git.upstreamFull)
+    }
     // The one fact in the block that no single log holds (record-index 3.3):
     // which OTHER records have worked these files. Derived here rather than in
     // renderStatus, which is handed a folded state and cannot reach the index.
@@ -789,6 +799,87 @@ function shippingNotice(rootDir: string, slug: string): string | null {
     }
     if (mine.local.length === 0) return null
     return `sofar: ${mine.local.length} of this record's commit(s) are NOT on origin yet — a sibling's push will not carry them unless they are committed to the same branch.`
+  } catch {
+    return null
+  }
+}
+
+/** Commits walked when origin actually moves — the arrival window (3.4). */
+export const LANDED_WINDOW = 100
+
+/** Character budget for the landed line (3.4). */
+export const LANDED_BUDGET = 300
+
+/** Shas named in full on the landed line before it falls back to a count. */
+export const LANDED_MAX_SHAS = 3
+
+/**
+ * THE LIVE SIGNAL (commit-attribution 3.4, D11) — a session already running
+ * when a sibling pushes learns its work shipped, on its next prompt.
+ *
+ * shippingNotice above is the same fact at SessionStart, and it fires once. The
+ * residual gap was the whole original complaint: a long-lived window watched
+ * its commits leave on somebody else's push and had no way to know, so a human
+ * announced it by hand in every other window. This closes it without any
+ * transport — no peer message, no broadcast, nothing for the pushing session to
+ * know or do (D11's rule). Refs are shared across a worktree, so a push updates
+ * them for everyone at once and each session simply reads.
+ *
+ * The gate is what makes it legal on the per-prompt path. D6 forbids an
+ * unconditional git subprocess there, and this pays one ONLY when
+ * origin/<branch> has actually moved since this session last looked — a
+ * comparison of two shas, both already read from files. The walk that follows
+ * is bounded twice over: `previous..current` is the push itself, not history,
+ * and LANDED_WINDOW caps even that. A push larger than the cap under-reports
+ * the count, which is the safe direction and the one the rest of this module
+ * already takes (readAttribution's empty answer, ShipState's `unknown`).
+ *
+ * Range semantics carry the precision: `previous..current` is exactly the set
+ * of commits that ARRIVED on origin, so filtering it by trailer answers "did
+ * MY work land" and not the weaker "is the tip in sync" that gitStateLine
+ * below reports. A rebase or force-push whose old sha is gone makes git error,
+ * readAttribution returns null, and the line is silent — the mark is still
+ * advanced, so the session resynchronises rather than getting stuck.
+ *
+ * Silent when the arriving commits belong to other records, which is the common
+ * case on a shared branch and deliberately not worth a line: that the record
+ * still has unpushed work is what SessionStart already said.
+ */
+function landedNotice(
+  rootDir: string,
+  sofarDir: string,
+  slug: string,
+  sessionId: string,
+  git: GitState | null,
+): string | null {
+  try {
+    if (git === null) return null
+    // Mark FIRST, unconditionally on a readable branch — including when there
+    // is no upstream ref at all. That state is watched rather than skipped, so
+    // the branch's first push (the ref appearing) reports like any other.
+    const look = noteUpstream(sofarDir, sessionId, git.branch, git.upstreamFull)
+    // A ref that vanished (remote branch deleted) moved, but nothing landed.
+    if (git.upstreamFull === null || !look.moved) return null
+
+    const arrived = readAttribution(rootDir, {
+      // No previous ref means everything on origin arrived at once — the range
+      // is reachability from the new tip, not a delta against a sha that never
+      // existed. LANDED_WINDOW is what keeps that bounded (D6).
+      range: look.previous === null ? git.upstreamFull : `${look.previous}..${git.upstreamFull}`,
+      maxCount: LANDED_WINDOW,
+    })
+    if (arrived === null) return null
+    const mine = arrived.filter((c) => c.initiatives.includes(slug))
+    if (mine.length === 0) return null
+
+    const named = mine.slice(0, LANDED_MAX_SHAS).map((c) => c.sha.slice(0, 7))
+    const more = mine.length > named.length ? `, +${mine.length - named.length} more` : ''
+    return clipTo(
+      `sofar: ${mine.length} commit(s) of this record just landed on origin/${git.branch} ` +
+        `(${named.join(', ')}${more}) — that work has SHIPPED; if a next action was waiting on ` +
+        `the push, it is done.`,
+      LANDED_BUDGET,
+    )
   } catch {
     return null
   }
@@ -1295,7 +1386,15 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     const wrap = parallelWrapLine(state, sessionId)
     if (wrap !== null) lines.push(wrap)
 
-    const gitLine = gitStateLine(readGitState(rootDir))
+    // One refs read (files, no subprocess) feeding both lines: the per-record
+    // news first, then the repo-wide state. Order matters — "your commits
+    // landed" is the actionable half, and gitStateLine's "in sync with origin"
+    // is the background it sits against.
+    const git = readGitState(rootDir)
+    const landed = landedNotice(rootDir, ctx.sofarDir, slug, sessionId, git)
+    if (landed !== null) lines.push(landed)
+
+    const gitLine = gitStateLine(git)
     if (gitLine !== null) lines.push(gitLine)
 
     // YOUR debt, not the record's (drift-signal 1.2) — the same number the

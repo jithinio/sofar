@@ -46,4 +46,4 @@ Progress: 17 done, 2 dropped, 5 remaining
 - [ ] 5.5 Dogfood both halves: run the review over a real initiative's phases, and confirm a session whose commits shipped inside a peer's push is TOLD so — at SessionStart AND, per 3.4, while still live.
 
 Active phase: Phase 2 — Write and read the trailer
-Next action: Build 3.4: a UserPromptSubmit line gated on ref MOVEMENT (read refs from files, walk only when origin/branch actually moved) so a LIVE session learns its commits reached origin — today the notice only fires at SessionStart, leaving the original complaint open for running sessions. It is the floor D13's optional peer ping layers onto, so build it before the ping.
+Next action: Run the phase reviews now due: Phase 2 and Phase 3 both closed this session, and D9 fires one at each phase boundary. Use sofar review, the 4.6 entry point, which is untested against a real phase — so it doubles as the first half of 5.5's dogfood. Phase 5 is then wholly open, with 5.4 (docs/SPEC.md) deferred longest.
