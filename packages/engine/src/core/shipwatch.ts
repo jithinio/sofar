@@ -131,9 +131,18 @@ function readMarks(sofarDir: string): Record<string, WatchMark> {
  * a second read is how a session announces the same push twice.
  *
  * Writes ONLY when the mark actually changes, so a quiet session pays one read
- * per prompt and no write at all. Best-effort throughout — the underlying index
- * writer already swallows its own failures, and a mark that cannot be stored
- * costs a repeated line, never a wrong one.
+ * per prompt and no write at all.
+ *
+ * Best-effort throughout — the index writer swallows its own failures — and the
+ * two shapes that failure takes are worth stating exactly, because they are
+ * opposites. With no mark ever persisted (an unwritable index dir), every look
+ * reads as a first look and the caller stays permanently SILENT. With a mark on
+ * disk that can no longer be updated, the same movement is re-detected every
+ * prompt and the caller REPEATS. Silence is the safe direction and the likelier
+ * one; the repeat is the annoying one, and it is bounded by the fact that
+ * anything able to write the index again resynchronises on the next look.
+ * Neither shape can produce a WRONG attribution, which is the property that
+ * matters: a mark is only ever replaced by a sha read from the same refs.
  */
 export function noteUpstream(
   sofarDir: string,
