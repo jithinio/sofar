@@ -422,6 +422,66 @@ describe('sofar init --statusline (opt-in rent-meter wiring, D4 informed re-test
   })
 })
 
+describe('prepare-commit-msg git hook (D5)', () => {
+  const hookPath = (root: string): string => join(root, '.git', 'hooks', 'prepare-commit-msg')
+
+  it('installs an executable hook that calls the worker', () => {
+    const root = freshRepo()
+    runInit(root, noPersonalStatusline(root))
+    const content = readFileSync(hookPath(root), 'utf8')
+    expect(content).toContain('sofar commit-trailer')
+    expect(statSync(hookPath(root)).mode & 0o777).toBe(0o755)
+  })
+
+  it('can never abort a commit: guards on the binary and exits 0', () => {
+    // The one property that matters more than attribution itself — this runs
+    // inside `git commit`, unlike the .claude shims which can `exec` freely.
+    const root = freshRepo()
+    runInit(root, noPersonalStatusline(root))
+    const content = readFileSync(hookPath(root), 'utf8')
+    expect(content).toContain('command -v sofar')
+    expect(content).toContain('exit 0')
+    expect(content).not.toMatch(/^exec /m)
+  })
+
+  it('NEVER clobbers a hook it did not write', () => {
+    // .git/hooks is not version-controlled, so overwriting is unrecoverable.
+    // Same law as .gitattributes: a file we did not write is left alone.
+    const root = freshRepo()
+    mkdirSync(join(root, '.git', 'hooks'), { recursive: true })
+    const mine = '#!/bin/sh\necho my own hook\n'
+    writeFileSync(hookPath(root), mine)
+    const out = runInit(root, noPersonalStatusline(root))
+    expect(readFileSync(hookPath(root), 'utf8')).toBe(mine)
+    expect(out.stdout).toContain('skipped .git/hooks/prepare-commit-msg (yours')
+  })
+
+  it('keeps its OWN hook current across versions', () => {
+    const root = freshRepo()
+    mkdirSync(join(root, '.git', 'hooks'), { recursive: true })
+    writeFileSync(hookPath(root), '#!/bin/sh\n# sofar prepare-commit-msg shim (ancient)\n')
+    const out = runInit(root, noPersonalStatusline(root))
+    expect(readFileSync(hookPath(root), 'utf8')).toContain('sofar commit-trailer')
+    expect(out.stdout).toContain('updated .git/hooks/prepare-commit-msg')
+  })
+
+  it('is byte-idempotent — a second init reports unchanged', () => {
+    const root = freshRepo()
+    runInit(root, noPersonalStatusline(root))
+    expect(runInit(root, noPersonalStatusline(root)).stdout).toContain(
+      'unchanged .git/hooks/prepare-commit-msg',
+    )
+  })
+
+  it('says so rather than pretending when there is no git repo', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sofar-nogit-'))
+    roots.push(root)
+    expect(runInit(root, noPersonalStatusline(root)).stdout).toContain(
+      'skipped .git/hooks/prepare-commit-msg (not a git repo',
+    )
+  })
+})
+
 describe('confirmation styling (cli-ui 2.5)', () => {
   const styled = { color: true, unicode: true, animate: false }
   const piped = { color: false, unicode: true, animate: false }
@@ -432,7 +492,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
     expect(result.exitCode).toBe(0)
     // The report block ends at the blank line before the (unstyled) hint.
     const lines = (result.stdout.split('\n\n')[0] ?? '').split('\n')
-    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (12 changes)')
+    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (13 changes)')
     expect(lines[0]).toBe('\x1b[2m  └ created .sofar/repo.md\x1b[22m')
     for (const line of lines.slice(0, -1)) {
       expect(line.startsWith('\x1b[2m  └ ')).toBe(true)
@@ -452,11 +512,12 @@ describe('confirmation styling (cli-ui 2.5)', () => {
         'created .claude/hooks/post-tool-use.sh',
         'created .claude/hooks/stop.sh',
         'created .claude/hooks/session-end.sh',
+        'created .git/hooks/prepare-commit-msg',
         'created .claude/settings.json',
         'created .mcp.json',
         'created CLAUDE.md (sofar protocol block)',
         'created AGENTS.md (sofar protocol block)',
-        'sofar init: done (12 changes)',
+        'sofar init: done (13 changes)',
         '',
         STATUSLINE_HINT,
         '',

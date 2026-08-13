@@ -112,10 +112,18 @@ silence, never a broken session.
 | Stop | Blocks a session that owes a write-back. |
 | SessionEnd | Closes the session. |
 
+A sixth shim, `hooks/prepare-commit-msg.sh`, is a **git** hook rather than a
+Claude Code one — installed into `.git/hooks/` and never clobbering an existing
+file. It stamps `Sofar-Initiative:` onto the commit message (D5). It cannot
+`exec` like the five above: it runs inside `git commit`, so it guards on the
+binary existing and exits 0 unconditionally — a hook that can abort a commit is
+worse than no attribution.
+
 | module | surface |
 | --- | --- |
 | `cli/index.ts` | Command registration. |
 | `cli/event.ts` | All five hook handlers, plus `sofar event append`. |
+| `cli/commit-trailer.ts` | `sofar commit-trailer` — the prepare-commit-msg worker that stamps `Sofar-Initiative:` from the session that made the commit (D5). Session-only resolution; never fails a commit. |
 | `cli/init.ts` | `sofar init` — hooks, MCP wiring, protocol block, `.gitattributes`. Owns the protocol-block ledger. |
 | `cli/uninit.ts` | `sofar uninit` — removes what init wrote. |
 | `cli/new.ts` | `sofar new` — create an initiative, bind the branch. |

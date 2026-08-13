@@ -16,3 +16,8 @@ KNOWN LOSSY PATH — squash merge. `git merge --squash` writes SQUASH_MSG with e
 Related vars present in the same environment: CLAUDECODE, CLAUDE_CODE_ENTRYPOINT, CLAUDE_PID, CLAUDE_EFFORT, CLAUDE_CODE_CHILD_SESSION.
 
 CAVEAT: none of these are a documented contract — they are Claude Code implementation details and can disappear in any release. Anything depending on them must degrade to silence, never to a branch-binding guess (D5's standing rule), and the silence must be visible or the signal rots without anyone noticing.
+- **M4** (2026-08-13T08:38:21.531Z) — VERSION SKEW makes commit attribution a silent no-op, and nothing currently reports it. The prepare-commit-msg shim guards with `command -v sofar`, which succeeds for ANY installed sofar — including one too old to have the `commit-trailer` subcommand. The unknown subcommand then fails, `|| true` swallows it, and the hook exits 0. Result: the hook is installed, every commit looks normal, and nothing is ever attributed.
+
+Confirmed live on 2026-08-13: the sofar on PATH here is 0.25.1, which predates `commit-trailer`, so installing the hook in this repo TODAY would attribute nothing until a release carrying the command is published and installed. Verified by running `sofar commit-trailer --help` against the global binary — it fell through to top-level help rather than the subcommand.
+
+This is the concrete form of the exposure task 2.5(b) names: silence is the correct behaviour per D5, but invisible silence rots. The safety net is 2.4's doctor check (commits on the branch carrying no trailer), which is NOT built yet. Until it is, assume attribution is off unless a commit has been verified to carry the trailer.

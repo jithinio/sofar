@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { Command } from 'commander'
 import { version } from '../../package.json'
 import { createSofarServer } from '../mcp/server'
+import { registerCommitTrailerCommand } from './commit-trailer'
 import { registerEventCommand } from './event'
 import { runAdopt } from './adopt'
 import { runInit } from './init'
@@ -396,6 +397,7 @@ program
   })
 
 registerEventCommand(program)
+registerCommitTrailerCommand(program, rootOf)
 registerStatuslineCommand(program, rootOf)
 
 await program.parseAsync(process.argv)

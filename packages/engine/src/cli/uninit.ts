@@ -8,7 +8,15 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { join } from 'node:path'
-import { GITATTRIBUTES_LINE, isSofarStatusline, PROTOCOL_END, PROTOCOL_START, SHIMS } from './init'
+import { gitDir } from '../core/git'
+import {
+  GITATTRIBUTES_LINE,
+  GIT_HOOK_MARKER,
+  isSofarStatusline,
+  PROTOCOL_END,
+  PROTOCOL_START,
+  SHIMS,
+} from './init'
 import { fail, ok, type CmdResult } from './shared'
 import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui'
 
@@ -101,6 +109,30 @@ function removeShims(rootDir: string, report: string[]): number {
     removed++
   }
   return removed
+}
+
+/**
+ * Remove the prepare-commit-msg git hook — but ONLY if it is still ours.
+ *
+ * Symmetry with installGitHook: init refuses to clobber a hook it did not
+ * write, so uninit must refuse to delete one. A hand-written hook that merely
+ * calls `sofar commit-trailer` is the user's file, and `.git/hooks` has no
+ * version control to recover it from.
+ */
+function removeGitHook(rootDir: string, report: string[]): void {
+  const dir = gitDir(rootDir)
+  if (dir === null) return
+  const path = join(dir, 'hooks', 'prepare-commit-msg')
+  if (!existsSync(path)) return
+  let content: string
+  try {
+    content = readFileSync(path, 'utf8')
+  } catch {
+    return
+  }
+  if (!content.includes(GIT_HOOK_MARKER)) return // yours — left alone
+  unlinkSync(path)
+  report.push('removed .git/hooks/prepare-commit-msg')
 }
 
 function stripSettings(rootDir: string, purge: boolean, report: string[]): boolean {
@@ -291,6 +323,7 @@ export function runUninit(
 
   try {
     const shimsRemoved = removeShims(rootDir, report)
+    removeGitHook(rootDir, report)
     const settingsDeleted = stripSettings(rootDir, purge, report)
     stripMcp(rootDir, purge, report)
     stripGitattributes(rootDir, purge, report)

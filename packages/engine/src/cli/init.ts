@@ -1,6 +1,8 @@
+import { execFileSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { gitDir } from '../core/git'
 import { mcpRegistration } from '../mcp/register'
 import { detectTailwindV4, SOURCE_NOT_SINCE } from './scanners'
 import { fail, ok, REPO_MD_STUB, type CmdResult } from './shared'
@@ -10,6 +12,11 @@ import userPromptSubmitShim from '../hooks/user-prompt-submit.sh'
 import postToolUseShim from '../hooks/post-tool-use.sh'
 import stopShim from '../hooks/stop.sh'
 import sessionEndShim from '../hooks/session-end.sh'
+import prepareCommitMsgShim from '../hooks/prepare-commit-msg.sh'
+
+/** Identifies a prepare-commit-msg hook as sofar's, so ours can be kept current
+ * while a hand-written one is left strictly alone. */
+export const GIT_HOOK_MARKER = 'sofar prepare-commit-msg shim'
 
 /**
  * `sofar init` (task 4.1, SPEC §CLI) — make a repo sofar-ready:
@@ -659,6 +666,68 @@ function ensureGitattributes(rootDir: string, report: string[]): void {
   report.push('updated .gitattributes (union merge for event logs appended)')
 }
 
+/**
+ * Install the prepare-commit-msg git hook (D5) — NEVER clobbering.
+ *
+ * Unlike `.claude/hooks/`, which is sofar-owned and kept current, `.git/hooks/`
+ * is the user's and is not version-controlled: overwriting a hook there is
+ * unrecoverable. So this follows the `.gitattributes` precedent instead — a
+ * file we did not write is left exactly alone and reported, never merged into.
+ *
+ * `core.hooksPath` is checked first because setting it makes `.git/hooks`
+ * INERT: installing there would look like success and silently do nothing,
+ * which is the one outcome worse than not installing at all.
+ */
+function installGitHook(rootDir: string, report: string[]): void {
+  const dir = gitDir(rootDir)
+  if (dir === null) {
+    report.push('skipped .git/hooks/prepare-commit-msg (not a git repo — no attribution)')
+    return
+  }
+  let hooksPath: string | null = null
+  try {
+    const out = execFileSync('git', ['config', '--get', 'core.hooksPath'], {
+      cwd: rootDir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 2000,
+    }).trim()
+    hooksPath = out.length > 0 ? out : null
+  } catch {
+    hooksPath = null // unset is the common case and exits non-zero
+  }
+  if (hooksPath !== null) {
+    report.push(
+      `skipped prepare-commit-msg (core.hooksPath is ${hooksPath} — .git/hooks is inert; install it there by hand)`,
+    )
+    return
+  }
+
+  const path = join(dir, 'hooks', 'prepare-commit-msg')
+  if (existsSync(path)) {
+    const existing = readFileSync(path, 'utf8')
+    if (existing === prepareCommitMsgShim) {
+      report.push('unchanged .git/hooks/prepare-commit-msg')
+      return
+    }
+    if (!existing.includes(GIT_HOOK_MARKER)) {
+      report.push(
+        'skipped .git/hooks/prepare-commit-msg (yours — add `sofar commit-trailer "$1"` to it for attribution)',
+      )
+      return
+    }
+    // Ours from an older version: keep it current, same as the .claude shims.
+    writeFileSync(path, prepareCommitMsgShim, 'utf8')
+    chmodSync(path, 0o755)
+    report.push('updated .git/hooks/prepare-commit-msg')
+    return
+  }
+  mkdirSync(join(dir, 'hooks'), { recursive: true })
+  writeFileSync(path, prepareCommitMsgShim, 'utf8')
+  chmodSync(path, 0o755)
+  report.push('created .git/hooks/prepare-commit-msg')
+}
+
 function installShims(rootDir: string, report: string[]): void {
   const hooksDir = join(rootDir, '.claude', 'hooks')
   mkdirSync(hooksDir, { recursive: true })
@@ -895,6 +964,7 @@ export function runInit(
     initSofarDir(rootDir, report)
     ensureGitattributes(rootDir, report)
     installShims(rootDir, report)
+    installGitHook(rootDir, report)
     statuslineAbsent = mergeSettings(rootDir, statusline, report).statuslineAbsent
     mergeMcpJson(rootDir, report)
     appendProtocolBlock(rootDir, 'CLAUDE.md', PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS, report)

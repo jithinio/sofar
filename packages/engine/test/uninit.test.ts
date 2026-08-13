@@ -181,6 +181,28 @@ describe('sofar uninit statusLine symmetry (init-statusline D1)', () => {
   })
 })
 
+describe('sofar uninit and the prepare-commit-msg hook (D5)', () => {
+  const hookPath = (root: string): string => join(root, '.git', 'hooks', 'prepare-commit-msg')
+
+  it('removes the hook it installed', () => {
+    const root = freshRepo()
+    expect(runInit(root).exitCode).toBe(0)
+    expect(existsSync(hookPath(root))).toBe(true)
+    expect(runUninit(root, { purge: true }).exitCode).toBe(0)
+    expect(existsSync(hookPath(root))).toBe(false)
+  })
+
+  it('NEVER deletes a hook it did not write — the mirror of init refusing to clobber', () => {
+    const root = freshRepo()
+    mkdirSync(join(root, '.git', 'hooks'), { recursive: true })
+    const mine = '#!/bin/sh\nsofar commit-trailer "$1"\necho also mine\n'
+    writeFileSync(hookPath(root), mine)
+    expect(runInit(root).exitCode).toBe(0)
+    expect(runUninit(root, { purge: true }).exitCode).toBe(0)
+    expect(readFileSync(hookPath(root), 'utf8')).toBe(mine)
+  })
+})
+
 describe('sofar uninit preserves foreign content in the files it edits', () => {
   it('removes only our hook entries; foreign hooks, events, and settings stay', () => {
     const root = freshRepo()

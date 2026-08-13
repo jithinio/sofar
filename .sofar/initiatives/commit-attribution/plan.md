@@ -4,7 +4,7 @@
 
 Goal: Bind every commit to the initiative that produced it, exactly and at commit time, and spend that primitive on two gaps that share it. Gap 1 (staleness): several initiatives share one worktree and one branch, so any session's push carries other initiatives' commits and their records never learn their work shipped. Gap 2 (review): closing an initiative is today an unconditional append — nothing rechecks that the execution was right, and a reviewer with no diff can only re-read the record's own prose and confirm it. SETTLED AT 1.1 (D4): the binding lives in a `Sofar-Initiative:` COMMIT TRAILER and is READ from git — never recorded as an event, never inferred. SETTLED AT 2.1 (D5): a prepare-commit-msg hook injects it automatically, resolving CLAUDE_CODE_SESSION_ID through the existing homeInitiative rather than the branch binding. Together those keep record-hygiene D1 intact (logging git makes the record un-settleable) and clear record-integrity D6, which rejected per-commit attribution because it needed state the record must not keep. sofar stores nothing about commits; git carries the fact and sofar reads it, exactly as it already reads push state.
 
-Progress: 3 done, 2 dropped, 17 remaining
+Progress: 4 done, 2 dropped, 16 remaining
 
 ## Phase 1 — Settle attribution (blocks everything else) [done] — 1/4 (2 dropped) done
 
@@ -13,13 +13,13 @@ Progress: 3 done, 2 dropped, 17 remaining
 - [ ] 1.3 DECIDE the surface for an unattributed commit (bare terminal, no trailer). The probe settled the hard half — git reads it back as empty, never as a guess — so what remains is purely where it shows: a doctor finding, a digest line, or both. A wrong "your work shipped" is worse than a visible gap.
 - [-] 1.4 Back-compat probe for an unknown event type. DROPPED by D4: no new event type is introduced, so there is nothing for an older engine to fail to understand. Older engines simply do not read trailers — they degrade to today's behaviour exactly. (dropped)
 
-## Phase 2 — Write and read the trailer [active] — 2/5 done
+## Phase 2 — Write and read the trailer [active] — 3/5 done
 
 - [x] 2.1 DECIDE who writes the trailer and how it is made hard to forget. SETTLED as D5: a prepare-commit-msg hook reads CLAUDE_CODE_SESSION_ID (proven inherited by git hooks) and resolves it through homeInitiative. Automatic, not remembered; never the branch binding, which would have stamped the wrong slug on this very initiative's commits.
 - [x] 2.2 Read path in core/git.ts alongside readGitState: walk commits, parse the trailer, group shas by initiative. Keep the file's standing rule — it reads FILES, no subprocess, inside the 100ms shim budget (speed T2). A `git log` walk is a subprocess AND a graph walk, so decide honestly whether this belongs on the hook path at all or only in on-demand commands. Do not blow the budget to get the signal into the digest.
 - [ ] 2.3 Squash-merge fallback: `git merge --squash` indents the original message four spaces, so the trailer parser reads empty and a shipped initiative reports as un-shipped. The slug is still in the body verbatim — scan for it as a fallback, which is still reading git rather than guessing. Details and the false-negative direction are in repo memory.
 - [ ] 2.4 doctor: commits reachable on the branch carrying no trailer and no recovered fallback — 1.3's surface, and the honest accounting of what the mechanism missed.
-- [ ] 2.5 Hook installation and its two exposures, both opened by D5. (a) `.git/hooks/` is LOCAL and never cloned, so attribution silently does not exist in a fresh clone until something installs it — decide between installing from `sofar init` and a committed dir wired via core.hooksPath, knowing the second overrides any hooks the user already has. (b) CLAUDE_CODE_SESSION_ID is an undocumented Claude Code implementation detail that can vanish in any release; decide how the hook behaves when it disappears — per D5's rule that is silence, never a branch-binding guess, but it must be a VISIBLE silence or the whole signal rots quietly.
+- [x] 2.5 Hook installation and its two exposures, both opened by D5. (a) `.git/hooks/` is LOCAL and never cloned, so attribution silently does not exist in a fresh clone until something installs it — decide between installing from `sofar init` and a committed dir wired via core.hooksPath, knowing the second overrides any hooks the user already has. (b) CLAUDE_CODE_SESSION_ID is an undocumented Claude Code implementation detail that can vanish in any release; decide how the hook behaves when it disappears — per D5's rule that is silence, never a branch-binding guess, but it must be a VISIBLE silence or the whole signal rots quietly.
 
 ## Phase 3 — Derive shipped state (gap 1: staleness) [pending] — 0/3 done
 
