@@ -12,8 +12,12 @@
 import {
   TASK_STATUSES,
   PHASE_STATUSES,
+  REVIEW_SCOPES,
+  REVIEW_VERDICTS,
   validatePayload,
   type PlanStructure,
+  type ReviewScope,
+  type ReviewVerdict,
   type TaskStatus,
 } from './events'
 
@@ -154,8 +158,11 @@ export interface CloseInitiativeArgs {
  */
 export interface ReviewArgs {
   initiative?: string
-  scope: 'phase' | 'final'
-  verdict: 'pass' | 'findings' | 'blocked'
+  // The payload's own vocabulary, imported rather than restated: a second
+  // declaration of the same closed set is a fifth edit waiting to be missed,
+  // and a miss desyncs the tool surface from the event it writes.
+  scope: ReviewScope
+  verdict: ReviewVerdict
   watermark?: string
   phase?: string
   findings?: string[]
@@ -391,13 +398,13 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       initiative: initiativeProp,
       scope: {
         type: 'string',
-        enum: ['phase', 'final'],
+        enum: [...REVIEW_SCOPES],
         description:
           '`phase` = one phase just completed. `final` = the close-time pass, which asks ONLY what a phase review cannot (goal conformance, cross-phase drift, integration, open findings) and never re-audits per-phase correctness.',
       },
       verdict: {
         type: 'string',
-        enum: ['pass', 'findings', 'blocked'],
+        enum: [...REVIEW_VERDICTS],
         description:
           '`pass` = nothing survived. `findings` = something did, and `findings` must list them. `blocked` = the review could not be performed (e.g. no attributed commits, so there was no diff to read).',
       },
@@ -621,9 +628,11 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
   },
   sofar_review(a, e) {
     if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
-    if (a.scope !== 'phase' && a.scope !== 'final') e.push('scope: must be one of phase|final')
-    if (a.verdict !== 'pass' && a.verdict !== 'findings' && a.verdict !== 'blocked') {
-      e.push('verdict: must be one of pass|findings|blocked')
+    if (!(REVIEW_SCOPES as readonly unknown[]).includes(a.scope)) {
+      e.push(`scope: must be one of ${REVIEW_SCOPES.join('|')}`)
+    }
+    if (!(REVIEW_VERDICTS as readonly unknown[]).includes(a.verdict)) {
+      e.push(`verdict: must be one of ${REVIEW_VERDICTS.join('|')}`)
     }
     if (a.watermark !== undefined && !str(a.watermark)) {
       e.push('watermark: must be a non-empty string when present')

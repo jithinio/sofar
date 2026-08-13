@@ -140,3 +140,74 @@ describe('sofar review', () => {
     expect(out.stderr).toContain('no phase named "Phase 99"')
   })
 })
+
+describe('a walk that FAILED is not an empty range', () => {
+  // Found by audit. A rebase, an amend or a squash-merged PR rewrites shas, so
+  // the recorded watermark stops naming a commit and `git log <gone>..HEAD`
+  // errors. Conflated with an empty range, the packet accused attribution of
+  // being silently off while two properly trailered commits sat right there.
+  const DEAD = 'deadbeef'.repeat(5)
+
+  it('names the unreachable watermark instead of blaming attribution', () => {
+    const { root, log } = repo('deadmark')
+    commit(root, 'one', SLUG)
+    commit(root, 'two', SLUG)
+    append(log, 'review_recorded', {
+      scope: 'phase',
+      verdict: 'pass',
+      phase: 'Phase 1',
+      watermark: DEAD,
+    })
+    const out = runReview({ root })
+    expect(out.stdout).toContain('the commit walk FAILED')
+    expect(out.stdout).toContain('no longer names a commit')
+    expect(out.stdout).not.toContain('attribution is silently off')
+  })
+
+  it('still tells a genuinely empty range apart from a failed one', () => {
+    const { root, log } = repo('genuinely-empty')
+    const only = commit(root, 'one', SLUG)
+    append(log, 'review_recorded', {
+      scope: 'phase',
+      verdict: 'pass',
+      phase: 'Phase 1',
+      watermark: only,
+    })
+    const out = runReview({ root })
+    expect(out.stdout).toContain('(no attributed commits in range)')
+    expect(out.stdout).not.toContain('the commit walk FAILED')
+  })
+})
+
+describe('the watermark the reviewer is asked to record', () => {
+  it('is the FULL head sha, never one of the display abbreviations', () => {
+    const { root } = repo('headsha')
+    const head = commit(root, 'one', SLUG)
+    const out = runReview({ root })
+    expect(out.stdout).toContain(`Watermark to record, if you read through HEAD: ${head}`)
+    // The listed commits stay abbreviated — they are for reading, not recording.
+    expect(out.stdout).toContain(head.slice(0, 12))
+  })
+})
+
+describe('failure surfaces keep the CLI contract', () => {
+  it('reports an unreadable log as a typed error, not a stack trace', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sofar-revcmd-ghost-'))
+    roots.push(root)
+    mkdirSync(join(root, '.git'), { recursive: true })
+    writeFileSync(join(root, '.git', 'HEAD'), 'ref: refs/heads/main\n')
+    mkdirSync(join(root, '.sofar', 'initiatives', 'ghost'), { recursive: true })
+    writeFileSync(join(root, '.sofar', 'bindings.json'), JSON.stringify({ main: 'ghost' }))
+    // A directory where the log should be: readFileSync throws EISDIR, which is
+    // the shape that used to escape as a raw fs stack trace past both the
+    // ToolError catch and commander's action.
+    mkdirSync(join(root, '.sofar', 'initiatives', 'ghost', 'events.jsonl'), { recursive: true })
+
+    const out = runReview({ root, slug: 'ghost' })
+    expect(out.exitCode).toBe(1)
+    expect(out.stderr).toContain('sofar review:')
+    expect(out.stderr).toContain('failed to read')
+    expect(out.stderr).not.toContain('at foldLog')
+    expect(out.stdout).toBe('')
+  })
+})

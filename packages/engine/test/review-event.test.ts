@@ -150,14 +150,28 @@ describe('fold: openFindings', () => {
 })
 
 describe('an older engine degrades safely', () => {
-  it('folds a log containing review_recorded without failing', () => {
-    // The additive contract every event type here has had: a type an older
-    // engine does not know is skipped with a warning, never fatal.
-    const { state, warnings } = foldLog(
-      log('additive', [{ scope: 'phase', verdict: 'pass', watermark: SHA_A, phase: 'P1' }]),
+  it('folds review_recorded, and SKIPS a type it does not know', () => {
+    // Rewritten after audit: the original folded review_recorded with the
+    // CURRENT engine — which knows it — and then asserted zero warnings, i.e.
+    // that the type WAS understood. That is the opposite of the additive
+    // contract it claimed to pin. The contract is about a type the reader does
+    // not know, so the log carries one.
+    const path = log('additive', [{ scope: 'phase', verdict: 'pass', watermark: SHA_A, phase: 'P1' }])
+    appendEvent(
+      path,
+      makeEvent({
+        initiative: 'demo',
+        session: 's1',
+        type: 'review_annotated' as 'note_added', // a type from a future engine
+        payload: { whatever: true } as unknown as { text: string },
+        source: 'cli',
+        actor: 'agent',
+      }),
     )
-    expect(warnings).toEqual([])
-    expect(state.reviews).toHaveLength(1)
+    const { state, warnings } = foldLog(path)
+    expect(state.reviews).toHaveLength(1) // the known event still applied
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('unknown event type "review_annotated" — skipped')
   })
 })
 

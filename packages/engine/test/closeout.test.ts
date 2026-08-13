@@ -297,18 +297,26 @@ describe('the override is an EVENT, never a refusal (5.2)', () => {
     ).toBe(false)
   })
 
-  it('an older engine folds a close carrying overrides without failing', () => {
-    // The additive contract every payload here has had: an unknown field is
-    // ignored, never fatal, so a record closed by a newer engine stays
-    // readable by an older one.
+  it('an older engine folds a close carrying a field it does not know', () => {
+    // The additive contract, tested as the contract rather than as its
+    // opposite: a reader that knows nothing of `overrides` — modelled here by
+    // an extra field NO engine knows — still applies the close it can read.
+    // (The first version of this test folded `overrides` with the engine that
+    // understands it and asserted no warnings, which proves only that the
+    // field WAS understood. Same flaw the review-event suite carried.)
     const { state, warnings } = foldLines(
       [
         ev('initiative_created', { slug: 'demo', goal: 'g' }),
-        ev('initiative_status_changed', { status: 'done', overrides: ['x'] }),
+        ev('initiative_status_changed', {
+          status: 'done',
+          overrides: ['x'],
+          closed_by_a_future_engine: { reason: 'from a schema this build predates' },
+        }),
       ].map(serializeEvent),
     )
     expect(warnings).toEqual([])
     expect(state.status).toBe('done')
+    expect(state.status_overrides).toEqual(['x'])
   })
 })
 

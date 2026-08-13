@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { join } from 'node:path'
-import { gitDir } from '../core/git'
+import { commonGitDir } from '../core/git'
 import {
   GITATTRIBUTES_LINE,
   GIT_HOOK_MARKER,
@@ -120,7 +120,8 @@ function removeShims(rootDir: string, report: string[]): number {
  * version control to recover it from.
  */
 function removeGitHook(rootDir: string, report: string[]): void {
-  const dir = gitDir(rootDir)
+  const dir = commonGitDir(rootDir) // where installGitHook put it
+
   if (dir === null) return
   const path = join(dir, 'hooks', 'prepare-commit-msg')
   if (!existsSync(path)) return

@@ -499,9 +499,11 @@ describe('cross-session awareness (Phase 4)', () => {
     expect(readGitState(f.root)).toEqual({
       branch: 'main',
       head: 'aaaaaaa',
+      // The same tips unabbreviated — commit-attribution 3.4 feeds the upstream
+      // to git as a rev and 4.6 hands HEAD to a reviewer as a watermark, and in
+      // both places a seven-char prefix can go ambiguous.
+      headFull: sha('a'),
       upstream: 'aaaaaaa',
-      // The same tip unabbreviated — commit-attribution 3.4 feeds it to git as
-      // a rev, where a seven-char prefix can go ambiguous.
       upstreamFull: sha('a'),
       synced: true,
     })

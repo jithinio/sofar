@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -16,8 +16,9 @@ import { noteUpstream, SHIPWATCH_MAX_MARKS } from '../src/core/shipwatch'
  * Two properties carry the design and both are pinned here: the line is
  * EDGE-triggered (it announces a transition once, never a standing condition),
  * and the trailer walk is GATED on ref movement, so a quiet prompt spawns no
- * git at all. The second is checked by making git unusable and asserting the
- * prompt path still succeeds.
+ * git at all. The second is checked by putting a stub `git` first on PATH and
+ * asserting it is never invoked — asserting the LINE is absent cannot
+ * distinguish a gated walk from a failed one.
  */
 
 const roots: string[] = []
@@ -220,19 +221,27 @@ describe('live shipping signal (3.4)', () => {
   })
 
   it('never spawns git on a quiet prompt — the D6 gate', () => {
-    // Proven by removing git from PATH: if the prompt path walked trailers
-    // unconditionally it would still return OK (everything is best-effort),
-    // so the assertion is on the LINE, which can only exist via a spawn.
+    // COUNTS the spawns rather than asserting the line is absent. The old shape
+    // could not tell a gated walk from an ungated one: with git unavailable the
+    // walk fails, readAttribution returns null and the line is missing EITHER
+    // way, so deleting the gate left the test green. A stub `git` first on PATH
+    // records every invocation, which only an actual spawn can produce.
     const { root } = repo('gate')
     commit(root, 'one', SLUG)
     siblingPush(root)
-    orient(root)
+    orient(root) // consumes the movement — the next prompt is genuinely quiet
+
+    const binDir = join(root, 'stub-bin')
+    const ledger = join(root, 'git-calls.log')
+    mkdirSync(binDir, { recursive: true })
+    writeFileSync(join(binDir, 'git'), `#!/bin/sh\necho "$@" >> ${ledger}\nexit 1\n`, { mode: 0o755 })
     const path = process.env['PATH']
-    process.env['PATH'] = join(root, 'no-such-bin')
+    process.env['PATH'] = binDir
     try {
       const out = handleUserPrompt(root, JSON.stringify({ session_id: SESSION }))
       expect(out.exitCode).toBe(0)
       expect(out.stdout).not.toContain('just landed')
+      expect(existsSync(ledger)).toBe(false) // the gate held: nothing was spawned
     } finally {
       if (path === undefined) delete process.env['PATH']
       else process.env['PATH'] = path

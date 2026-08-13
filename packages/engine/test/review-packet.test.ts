@@ -208,3 +208,48 @@ describe('renderReviewPacket — phase vs final ask DIFFERENT questions', () => 
     expect(out).toContain('rubber stamp')
   })
 })
+
+describe('the packet is honest about what it could not read', () => {
+  it('says the walk FAILED rather than showing an empty range', () => {
+    const out = renderReviewPacket(state(), {
+      scope: 'phase',
+      commits: [],
+      watermark: 'f'.repeat(40),
+      unreadable: true,
+    })
+    expect(out).toContain('the commit walk FAILED')
+    expect(out).toContain('no longer names a commit')
+    // The empty-range finding would be a false accusation here.
+    expect(out).not.toContain('attribution is silently off')
+  })
+
+  it('reports a truncated walk instead of looking complete', () => {
+    // `git log --max-count` keeps the NEWEST, so hitting the ceiling drops the
+    // OLDEST commits of the range — the same loss this module refuses to accept
+    // from a two-dot range, arriving through the count cap instead.
+    const out = renderReviewPacket(state(), {
+      scope: 'phase',
+      commits: ['a'.repeat(40), 'b'.repeat(40)],
+      watermark: null,
+      truncated: 2,
+    })
+    expect(out).toContain('TRUNCATED')
+    expect(out).toContain('2-commit ceiling')
+  })
+
+  it('names the FULL sha to record as the next watermark', () => {
+    const head = 'c'.repeat(40)
+    const out = renderReviewPacket(state(), {
+      scope: 'phase',
+      commits: ['a'.repeat(40)],
+      watermark: null,
+      head,
+    })
+    expect(out).toContain(`Watermark to record, if you read through HEAD: ${head}`)
+  })
+
+  it('omits the watermark line entirely when HEAD could not be read', () => {
+    const out = renderReviewPacket(state(), { scope: 'phase', commits: [], watermark: null })
+    expect(out).not.toContain('Watermark to record')
+  })
+})

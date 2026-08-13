@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -165,5 +166,105 @@ describe('runCommitTrailer', () => {
     const once = readFileSync(msg, 'utf8')
     expect(runCommitTrailer(root, msg).outcome).toBe('already-present')
     expect(readFileSync(msg, 'utf8')).toBe(once)
+  })
+})
+
+describe('the scissors block — `git commit -v` and --cleanup=scissors', () => {
+  // Found by audit, confirmed live before fixing: with commit.verbose true, an
+  // editor commit put the trailer at line 39 under a scissors line at line 11
+  // and the commit read back UNATTRIBUTED. The trailing-`#` walk cannot see it,
+  // because the lines below the cut are a raw diff, not comments.
+  const VERBOSE = [
+    'subject',
+    '',
+    '# Please enter a commit message.',
+    '# ------------------------ >8 ------------------------',
+    '# Do not modify or remove the line above.',
+    'diff --git a/x.txt b/x.txt',
+    'index 0000000..975fbec',
+    '--- /dev/null',
+    '+++ b/x.txt',
+    '@@ -0,0 +1 @@',
+    '+x',
+    '',
+  ].join('\n')
+
+  it('lands ABOVE the scissors, where git keeps it', () => {
+    const out = applyTrailer(VERBOSE, 'alpha')!
+    const lines = out.split('\n')
+    const trailerAt = lines.findIndex((l) => l.startsWith(TRAILER_KEY))
+    const scissorsAt = lines.findIndex((l) => l.includes('>8'))
+    expect(trailerAt).toBeGreaterThanOrEqual(0)
+    expect(trailerAt).toBeLessThan(scissorsAt)
+  })
+
+  it('keeps the diff below the cut byte-identical', () => {
+    const out = applyTrailer(VERBOSE, 'alpha')!
+    expect(out).toContain('diff --git a/x.txt b/x.txt')
+    expect(out.indexOf('diff --git')).toBeGreaterThan(out.indexOf(`${TRAILER_KEY}: alpha`))
+  })
+
+  it('honours a custom core.commentChar on the cut line', () => {
+    const out = applyTrailer('subject\n\n; ------------------------ >8 ------------------------\ndiff --git a/x b/x\n', 'alpha')!
+    const lines = out.split('\n')
+    expect(lines.findIndex((l) => l.startsWith(TRAILER_KEY))).toBeLessThan(
+      lines.findIndex((l) => l.includes('>8')),
+    )
+  })
+
+  it('does NOT read a diff context line as an existing trailer', () => {
+    // The other half of the same bug: committing an edit next to a
+    // `Sofar-Initiative:` line in any tracked file (this repo's SPEC.md has
+    // several) put that line in the verbose diff, where a trimmed context line
+    // is indistinguishable from a trailer — so the worker read "already
+    // attributed" and silently stamped nothing.
+    const message = [
+      'subject',
+      '',
+      '# ------------------------ >8 ------------------------',
+      'diff --git a/docs/SPEC.md b/docs/SPEC.md',
+      '@@ -1,3 +1,3 @@',
+      ` ${TRAILER_KEY}: alpha`,
+      '-old',
+      '+new',
+      '',
+    ].join('\n')
+    const out = applyTrailer(message, 'alpha')
+    expect(out).not.toBeNull()
+    expect(out!.split('\n').findIndex((l) => l.startsWith(TRAILER_KEY))).toBeLessThan(
+      out!.split('\n').findIndex((l) => l.includes('>8')),
+    )
+  })
+
+  it('LIVE: a verbose editor commit reads back attributed', () => {
+    const root = join(scratch, 'verbose-live')
+    mkdirSync(root, { recursive: true })
+    const git = (...args: string[]): string =>
+      execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+    git('init', '-q', '.')
+    git('config', 'user.email', 't@t.t')
+    git('config', 'user.name', 't')
+    git('config', 'commit.verbose', 'true')
+    writeFileSync(join(root, 'a.txt'), 'a\n')
+    git('add', '-A')
+
+    // Drive the worker exactly as the hook does: on the file git prepared,
+    // before the editor runs.
+    const msgPath = join(root, '.git', 'COMMIT_EDITMSG_PROBE')
+    writeFileSync(msgPath, VERBOSE)
+    process.env.CLAUDE_CODE_SESSION_ID = 'sess-1'
+    const record = makeRecord('verbose-live-record', 'alpha', 'sess-1')
+    expect(runCommitTrailer(record, msgPath).outcome).toBe('added')
+
+    execFileSync('git', ['commit', '-q', '-F', msgPath, '--cleanup=scissors'], {
+      cwd: root,
+      stdio: ['ignore', 'ignore', 'ignore'],
+    })
+    const trailers = execFileSync(
+      'git',
+      ['log', '-1', `--format=%H\x1f%(trailers:key=${TRAILER_KEY},valueonly,separator=%x2C)`],
+      { cwd: root, encoding: 'utf8' },
+    )
+    expect(parseAttribution(`\x1e${trailers.trim()}`)[0]!.initiatives).toEqual(['alpha'])
   })
 })

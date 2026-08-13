@@ -350,7 +350,13 @@ orphans. Additive; InitiativeState itself is unchanged.
 **Git state** (record-integrity 4.1) is DERIVED at render time and never
 recorded: core/git.ts readGitState(rootDir) resolves branch, local tip
 (refs/heads/<branch>), and origin tip (refs/remotes/origin/<branch>) from
-loose refs then packed-refs, yielding {branch, head, upstream, synced}.
+loose refs then packed-refs, yielding {branch, head, headFull, upstream,
+upstreamFull, synced} — the full shas beside the display ones because anything
+handed to git as a REV (a review watermark, a range bound) must stay
+unambiguous as history grows. Refs are read from the COMMON git dir while HEAD
+stays per-worktree: a linked worktree shares refs/heads, refs/remotes and
+packed-refs with the main checkout, so resolving them against its own gitdir
+finds nothing and every git-derived line goes silent inside a worktree.
 Commits and pushes leave no trace in the record by design (record-hygiene
 D1 exempts git from PostToolUse), which is precisely why a session could
 not tell whether work was pushed; git is an authoritative self-describing
@@ -742,10 +748,20 @@ this repo the branch binding IS wrong most of the time — main is bound to one
 initiative while several are worked on it. Idempotent by design, because
 prepare-commit-msg fires again on `git commit --amend` and a message
 accumulating one trailer per amend would forge a single commit into a fake
-multi-initiative squash. The trailer is appended above git's comment block
-(everything from the scissors line or the trailing `#` lines), separated from
-the body by a blank line, or git reads it as prose and `%(trailers)` returns
-nothing. It NEVER fails a commit: no session, no record, an unreadable message
+multi-initiative squash. The trailer is appended above git's comment block,
+separated from the body by a blank line, or git reads it as prose and
+`%(trailers)` returns nothing. TWO shapes of tail, and the second is not a
+special case of the first: `git commit -v`, `commit.verbose`, and
+`--cleanup=scissors` write a SCISSORS line (`# ------ >8 ------`, comment
+character configurable) followed by a RAW DIFF, whose lines are not comments.
+Walking back over trailing `#` lines therefore stops at the last line of the
+diff and lands the trailer BELOW the cut, where git discards it — measured: the
+trailer at line 39 under a scissors line at line 11, and the commit read back
+unattributed. So the scissors line is found first, from the top, and everything
+from it down is tail. The same cut bounds the already-attributed check: below it
+sits a diff, and a context line there is indistinguishable from a trailer once
+trimmed, so committing an edit next to a `Sofar-Initiative:` line in any tracked
+file would otherwise read as "already attributed" and skip the stamp. It NEVER fails a commit: no session, no record, an unreadable message
 file, a missing binary — every failure path is a silent success, and the shim
 exits 0 unconditionally. A hook that can block `git commit` is worse than no
 attribution at all.
@@ -821,6 +837,18 @@ earlier reviews. An EMPTY range renders as a FINDING, never as an empty
 section: either the work landed without the trailer — attribution is silently
 off, and `sofar doctor` says which — or the phase was completed with no code
 change at all, and a review of a diff you cannot see is worth nothing.
+A FAILED WALK IS NOT AN EMPTY RANGE, and the packet says which it got. An
+unresolvable range is the ordinary state after history is rewritten — a rebase,
+an amend or a squash-merged PR leaves the recorded watermark naming no commit —
+and rendering that as an empty range accuses attribution of being off while
+properly trailered commits sit in plain sight. A walk that hits its ceiling
+says so too: `--max-count` keeps the NEWEST, so the cap drops the OLDEST
+commits of the range, which is the same loss the explicit sha list exists to
+prevent. And the packet names the FULL HEAD sha to record as the next
+watermark: every other sha on the page is a 12-char display abbreviation, and
+recording one of those either under-advances the mark or stores a prefix that
+can go ambiguous — which makes the NEXT range unreadable, landing right back in
+the failed-walk case.
 
 **The instruction is HOST-AGNOSTIC (D3, amended by D12).** It spells the
 code-quality work out — correctness bugs, unhandled edge cases, error paths,
@@ -1613,7 +1641,14 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   SILENT — the mark is advanced anyway, so the session resynchronises rather
   than getting stuck. Silent too when the arriving commits belong to other
   records, the common case on a shared branch: that this record still has
-  unpushed work is what SessionStart already said.
+  unpushed work is what SessionStart already said. A count that hit the cap is
+  reported as "at least N" — under-reporting is the safe direction, but a floor
+  the reader cannot recognise as a floor gets trusted as exact.
+  The line requires a REGISTERED session, like everything else on this path, so
+  a session's first prompt after registration always reads as a first look and
+  says nothing. The SessionStart notice covers exactly that moment: the two
+  halves compose, and neither may be changed on the assumption that the other
+  is stateless.
   The same shim emits the LIVE FILE-CONFLICT line (writeback-collisions
   2.1) FIRST, ahead of parallel-wrap: `sofar: N file(s) you touched are
   ALSO open in another live session — <path> (session <id>); …`, at most 3
@@ -1780,7 +1815,14 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   above it CANNOT `exec`: it runs inside `git commit`, so a missing binary or
   any non-zero status would abort the user's commit — hence `command -v sofar`,
   `>/dev/null 2>&1 || true`, and a bare `exit 0`.
-  INSTALLED BY `sofar init`, NEVER CLOBBERING (D7): `core.hooksPath` is checked
+  INSTALLED BY `sofar init` INTO THE COMMON GIT DIR, NEVER CLOBBERING (D7).
+  The common dir matters as much as the not-clobbering: a linked worktree keeps
+  its own HEAD and index under `<main>/.git/worktrees/<name>`, but git runs
+  hooks from the COMMON dir, so a hook written into the per-worktree dir never
+  fires while init reports "created" (verified live, git 2.50.1). Resolution is
+  `commonGitDir` — the `commondir` pointer file, present only in a linked
+  worktree — and uninit removes from the same place.
+  `core.hooksPath` is checked
   FIRST and reported as a skip, because setting it makes `.git/hooks` inert and
   writing there would be a file that silently never runs; a hook we did not
   write is left BYTE-IDENTICAL and reported as skipped, with the one line to
@@ -3003,3 +3045,25 @@ stay the underlying derivation's, and exit codes are styling-independent.
   on a clean close, reopening clears them, an unknown `overrides` value fails
   validation, and an older engine folds a close carrying them without a
   warning.
+- **Attribution's silent-failure edges (audit, 2026-08-13):** every one of
+  these was found by asking what fails without a symptom, and every one is
+  pinned live against real git rather than a fixture. LINKED WORKTREES:
+  `commonGitDir` resolves out of `<main>/.git/worktrees/<name>` to the shared
+  dir and equals the .git dir in an ordinary checkout; a hook in the
+  per-worktree dir provably never fires while the same hook in the common dir
+  does; init installs into the common dir and nowhere else, uninit removes from
+  there, both still refuse to touch a hook sofar did not write; readGitState
+  answers branch, tip and a common-dir-only origin ref from inside a worktree;
+  doctor does not report attribution off from there. THE SCISSORS BLOCK: with a
+  verbose or `--cleanup=scissors` message the trailer lands ABOVE the cut and
+  the diff below it stays byte-identical, a custom `core.commentChar` cut line
+  is honoured, a `Sofar-Initiative:` line appearing as diff CONTEXT is not read
+  as an existing trailer, and a live scissors commit reads back attributed.
+  THE REVIEW PACKET: an unreachable watermark renders as a failed walk naming
+  the cause, never as an empty range blaming attribution; a genuinely empty
+  range still renders as the finding it is; a truncated walk says so; the full
+  HEAD sha is named as the watermark to record, and the line is absent when
+  HEAD cannot be read; an unreadable log is a typed error, never a stack trace.
+  THE D6 GATE is pinned by COUNTING spawns through a stub `git` first on PATH —
+  asserting the line is absent cannot distinguish a gated walk from a failed
+  one, and left the gate deletable with the suite green.

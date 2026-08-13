@@ -907,7 +907,12 @@ function shippingNotice(rootDir: string, slug: string): string | null {
     const mine = shipping?.get(slug)
     if (mine === undefined) return null
     if (mine.unknown.length > 0) {
-      return `sofar: ${mine.unknown.length} commit(s) of this record are unverified — origin not fetched, so whether they shipped is unknown.`
+      // Two causes, both honest as `unknown` and neither worth guessing
+      // between: no origin ref fetched, or a detached HEAD with no branch to
+      // compare. The line names both rather than asserting the likelier one —
+      // "origin not fetched" alone sent a detached-HEAD session looking for a
+      // remote problem it did not have.
+      return `sofar: ${mine.unknown.length} commit(s) of this record are unverified — no origin ref to compare (not fetched, or HEAD is detached), so whether they shipped is unknown.`
     }
     if (mine.local.length === 0) return null
     return `sofar: ${mine.local.length} of this record's commit(s) are NOT on origin yet — a sibling's push will not carry them unless they are committed to the same branch.`
@@ -989,8 +994,12 @@ function landedNotice(
 
     const named = mine.slice(0, LANDED_MAX_SHAS).map((c) => c.sha.slice(0, 7))
     const more = mine.length > named.length ? `, +${mine.length - named.length} more` : ''
+    // HEDGE when the cap bit. Under-reporting is the safe direction and it is
+    // documented, but the line stated N as a fact — and a count the reader
+    // cannot tell is a floor is a count they will trust as exact.
+    const count = arrived.length >= LANDED_WINDOW ? `at least ${mine.length}` : `${mine.length}`
     return clipTo(
-      `sofar: ${mine.length} commit(s) of this record just landed on origin/${git.branch} ` +
+      `sofar: ${count} commit(s) of this record just landed on origin/${git.branch} ` +
         `(${named.join(', ')}${more}) — that work has SHIPPED; if a next action was waiting on ` +
         `the push, it is done.`,
       LANDED_BUDGET,

@@ -41,6 +41,21 @@ export interface ReviewPacketInput {
   commits: string[]
   /** The sha the previous review ended at; null when this is the first. */
   watermark: string | null
+  /**
+   * Full HEAD sha — the watermark THIS review should record. Named explicitly
+   * because every other sha on the page is a 12-char display abbreviation, and
+   * a reviewer copying one of those either under-advances the mark or records
+   * a prefix that can go ambiguous later, which makes the next range error out.
+   */
+  head?: string | null
+  /**
+   * The walk FAILED rather than came back empty. A different fact and a
+   * different instruction: an unresolvable range (a watermark rewritten away by
+   * a rebase, amend or squash-merge) is not evidence that attribution is off.
+   */
+  unreadable?: boolean
+  /** The walk hit this ceiling, so the OLDEST commits of the range are missing. */
+  truncated?: number
   /** Findings from earlier phase reviews that were never resolved (D10). */
   openFindings?: readonly string[]
 }
@@ -137,8 +152,25 @@ export function renderReviewPacket(state: InitiativeState, input: ReviewPacketIn
       ? 'from the start of the record — no prior review'
       : `${watermark.slice(0, 12)}..HEAD`
 
-  const diffHint =
-    commits.length === 0
+  const diffHint = input.unreadable
+    ? [
+        '(the commit walk FAILED — this range could not be read)',
+        '',
+        'NOT the same as an empty range, and not evidence about attribution.',
+        watermark === null
+          ? 'git could not be read at all here.'
+          : `git could not resolve \`${watermark.slice(0, 12)}..HEAD\`. The usual cause is`,
+        ...(watermark === null
+          ? []
+          : [
+              'that the watermark no longer names a commit: a rebase, an amend or a',
+              'squash-merged PR rewrites shas, and the recorded mark points at one',
+              'history no longer has. Re-review from the last sha that still exists,',
+              'and record the new watermark below.',
+            ]),
+        'Do not read the empty section as "attribution is off" — check first.',
+      ]
+    : commits.length === 0
       ? [
           '(no attributed commits in range)',
           '',
@@ -159,6 +191,15 @@ export function renderReviewPacket(state: InitiativeState, input: ReviewPacketIn
           // every phase from the review. Parent notation (`oldest~1..`) fixes
           // that but breaks on a root commit. An explicit list is always right.
           `  git show ${commits.map((sha) => sha.slice(0, 12)).join(' ')}`,
+          ...(input.truncated === undefined
+            ? []
+            : [
+                '',
+                `TRUNCATED: the walk hit its ${input.truncated}-commit ceiling, so the OLDEST`,
+                'commits of this range are NOT listed above. Review in smaller',
+                'ranges — record a watermark part-way and re-run — or the start of',
+                'the range goes unread while the packet looks complete.',
+              ]),
         ]
 
   const openFindings = input.openFindings ?? []
@@ -197,5 +238,17 @@ export function renderReviewPacket(state: InitiativeState, input: ReviewPacketIn
     'review_recorded` if your host has no MCP). A review that can only',
     'say "looks good" is a rubber stamp — if nothing is wrong, say so plainly,',
     'but the verdict must be able to be "no".',
+    // The one field the packet used to demand without ever answering. Every
+    // other sha here is a 12-char display abbreviation: recording one of those
+    // under-advances the mark or stores a prefix that can go ambiguous, and an
+    // ambiguous prefix makes the NEXT range error out.
+    ...(input.head == null
+      ? []
+      : [
+          '',
+          `Watermark to record, if you read through HEAD: ${input.head}`,
+          '(the full sha, deliberately — a 12-char prefix can go ambiguous, and',
+          'an ambiguous watermark makes the next range unreadable.)',
+        ]),
   ])
 }

@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { gitDir } from '../core/git'
+import { commonGitDir } from '../core/git'
 import { mcpRegistration } from '../mcp/register'
 import { detectTailwindV4, SOURCE_NOT_SINCE } from './scanners'
 import { fail, ok, REPO_MD_STUB, type CmdResult } from './shared'
@@ -812,7 +812,12 @@ function ensureGitattributes(rootDir: string, report: string[]): void {
  * which is the one outcome worse than not installing at all.
  */
 function installGitHook(rootDir: string, report: string[]): void {
-  const dir = gitDir(rootDir)
+  // The COMMON dir, never the per-worktree one: git runs hooks from the common
+  // dir, so a hook written into `.git/worktrees/<name>/hooks` never fires
+  // (verified, git 2.50.1). Installing there would report success and silently
+  // do nothing — the exact outcome the core.hooksPath check below exists to
+  // prevent, arrived at by a different route.
+  const dir = commonGitDir(rootDir)
   if (dir === null) {
     report.push('skipped .git/hooks/prepare-commit-msg (not a git repo — no attribution)')
     return

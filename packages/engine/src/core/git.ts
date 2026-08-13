@@ -1,5 +1,5 @@
 import { readFileSync, statSync } from 'node:fs'
-import { isAbsolute, join } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
 
 /**
  * Git facts read straight from the repo, never copied into the record.
@@ -29,6 +29,34 @@ export function gitDir(rootDir: string): string | null {
 }
 
 /**
+ * The COMMON git directory — where `hooks/` actually lives.
+ *
+ * In a linked worktree, gitDir() above resolves to `<main>/.git/worktrees/<name>`,
+ * and git does NOT look for hooks there: it runs them from the common dir.
+ * Verified on git 2.50.1 — a prepare-commit-msg placed in the per-worktree dir
+ * never fires, while the same hook in the common dir fires for commits made
+ * inside the worktree. Installing into the per-worktree dir therefore looks
+ * like success and silently does nothing, which is the outcome
+ * installGitHook's own core.hooksPath check exists to avoid.
+ *
+ * The `commondir` file is present only in a linked worktree and holds a path
+ * relative to that worktree's gitdir (typically `../..`), or an absolute one.
+ * Its absence means this IS the common dir.
+ */
+export function commonGitDir(rootDir: string): string | null {
+  const dir = gitDir(rootDir)
+  if (dir === null) return null
+  let pointer: string
+  try {
+    pointer = readFileSync(join(dir, 'commondir'), 'utf8').trim()
+  } catch {
+    return dir
+  }
+  if (pointer.length === 0) return dir
+  return isAbsolute(pointer) ? pointer : resolve(dir, pointer)
+}
+
+/**
  * Current branch from .git/HEAD without spawning git. Supports a
  * worktree-style .git FILE ("gitdir: <path>") by following it to that HEAD.
  * Returns null for detached HEAD or when no .git is readable.
@@ -49,6 +77,12 @@ export interface GitState {
   branch: string
   /** Local branch tip (short). */
   head: string
+  /**
+   * The same tip, full 40 chars — for the same reason upstreamFull exists
+   * below: a short sha is a DISPLAY value, and anything handed to git as a rev
+   * (a review watermark, a range bound) must be unambiguous for good.
+   */
+  headFull: string
   /** origin/<branch> tip (short), or null when the remote ref is absent. */
   upstream: string | null
   /**
@@ -106,7 +140,12 @@ function readRef(dir: string, ref: string): string | null {
  * Best-effort: any failure returns null and the caller renders nothing.
  */
 export function readGitState(rootDir: string): GitState | null {
-  const dir = gitDir(rootDir)
+  // Refs come from the COMMON dir: a linked worktree keeps its own HEAD but
+  // shares refs/heads, refs/remotes and packed-refs with the main checkout, so
+  // resolving them against the per-worktree gitdir finds nothing and every
+  // git-derived line — push state, shipping, the landed notice — goes silent
+  // inside a worktree. HEAD stays per-worktree, via currentBranch below.
+  const dir = commonGitDir(rootDir)
   if (dir === null) return null
   const branch = currentBranch(rootDir)
   if (branch === null) return null // detached HEAD has no upstream to compare
@@ -117,6 +156,7 @@ export function readGitState(rootDir: string): GitState | null {
   return {
     branch,
     head: head.slice(0, 7),
+    headFull: head,
     upstream: upstream === null ? null : upstream.slice(0, 7),
     upstreamFull: upstream,
     synced: upstream !== null && upstream === head,

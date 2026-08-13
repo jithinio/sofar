@@ -10,7 +10,7 @@ import {
 } from '../core/fold'
 import { readAttribution, unattributed } from '../core/attribution'
 import { readBindingsFile } from '../core/bindings'
-import { gitDir } from '../core/git'
+import { commonGitDir } from '../core/git'
 import { crossConflictsFromStates } from '../core/cross-conflicts'
 import { buildGraph, extractCitations, repoGeneral } from '../core/graph'
 import { clip } from '../projections/templates/shared'
@@ -164,8 +164,9 @@ function mcpHasSofar(rootDir: string): boolean {
 const ATTRIBUTION_WINDOW = 20
 
 function auditAttribution(rootDir: string, findings: Finding[]): void {
-  if (gitDir(rootDir) === null) return // not a git repo — nothing to attribute
-  const hook = join(gitDir(rootDir)!, 'hooks', 'prepare-commit-msg')
+  const dir = commonGitDir(rootDir) // hooks live in the COMMON dir, not a worktree's own
+  if (dir === null) return // not a git repo — nothing to attribute
+  const hook = join(dir, 'hooks', 'prepare-commit-msg')
   if (!existsSync(hook)) {
     findings.push({
       level: 'warn',
