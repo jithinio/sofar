@@ -122,7 +122,9 @@ minting-machine truth.
 ## Event types (payload schemas in packages/schema/ — the swappable part)
 initiative_created · initiative_status_changed (status:
 active|done|dropped, note? — note REQUIRED for `dropped`;
-initiative-lifecycle 2.1) · plan_updated (full plan structure) ·
+initiative-lifecycle 2.1 — overrides? — what the close-time audit found still
+outstanding when the close went ahead anyway; commit-attribution 5.2, see
+§Initiative statuses) · plan_updated (full plan structure) ·
 phase_status_changed · task_added · task_status_changed (id, status:
 pending|active|done|blocked|dropped, note?) · decision_logged (chose, over,
 because, rule? — optional standing-constraint clause, one short imperative;
@@ -149,7 +151,7 @@ hat, and the next review would have nothing to carry forward.
 
 ## State (result of fold)
 InitiativeState = { slug, goal, status: active|done|dropped, status_ts,
-status_note, phases[ {name, status, tasks[ {id, title,
+status_note, status_overrides[], phases[ {name, status, tasks[ {id, title,
 status} ]} ], decisions[], memories[ {id, ts, text} ],
 sessions[ {id, tool, model?, started, ended?,
 summary?, next_action?, closed_reason?, activity?} ],
@@ -206,6 +208,42 @@ with a stale binding, which doctor reports and re-running close repairs; the
 reverse order would unbind branches from a record that never closed —
 invisible, and repetition would not fix it. Idempotent by the same rule:
 already at this status appends nothing and still unbinds.
+
+**Closing is AUDITED, and the audit refuses nothing** (commit-attribution
+5.1/5.2/5.3). Closing used to be an unconditional append: the record said
+"done" because someone said so, and nothing looked. `core/closeout.ts` runs
+the tier that needs no model and no judgement — doctor scoped to ONE
+initiative, asked at the one moment the answer still costs nothing to act on,
+and the mirror of initiative-lifecycle 4.3 asking the same shape of question
+from outside. Findings: tasks never resolved; phases never resolved; tasks
+marked done that no file_touched event ever attributed a file to (asked only
+of a record that touched files at all — in one that never did, every task
+would flag and a finding firing on every member of a class says nothing about
+any of them); guarded-rule crossings never addressed; drift since the last
+write-back; phases never reviewed, above D9's three-phase floor; and no final
+review, which is asked at EVERY size because it is the pass no phase review
+can perform. Ids and names are capped per finding with a `(+N more)` tail.
+MECHANICAL ONLY in the sense §State means it: every check reads structure —
+statuses, counts, event presence. That is why "a next action left dangling" is
+answered as DRIFT since the write-back rather than as a reading of the
+sentence: content-semantic staleness inference is banned (D3/D12).
+NOTHING IS REFUSED. A hard gate on a solo tool grows a `--force`, the flag
+becomes the habit, and the check ends up worth less than nothing because
+everyone has learned to step over it. Instead the findings ride ON the close
+event as `overrides` and render under the record's `Status:` line from then
+on — "Closed over 3 finding(s)" is a sentence its author has to live beside.
+Both surfaces return them as well as recording them: the closing agent is the
+only party who can still act, and a finding it never sees is aimed at nobody.
+Absent `overrides` means the audit found NOTHING, never that it was skipped;
+`status_overrides` is overwritten by the next status event on status_note's
+rule, so reopening clears it rather than carrying forward a complaint about a
+closure the record has since undone.
+A DROP IS AUDITED TOO, and asks a different question (5.3). Dropping claims
+the work was abandoned, so pending tasks are the point rather than a problem —
+but tasks left ACTIVE are the landmine that makes a drop worth auditing at
+all: half-built work, still wired in, with nobody coming back for it. Every
+other check is asked unchanged. A dropped record arguably needs this more than
+a finished one, since a drop otherwise demands only a prose reason.
 
 **Reopening (D3)** happens by working on it again: `sofar switch <closed-slug>`
 appends status `active` and binds, with no flag — switching a branch onto a
@@ -1250,7 +1288,9 @@ also collides with a sofar-cloud-internal package).
   close does not require it, because a review that buys the reviewer's exit
   is one the reviewer has an incentive to pass.
 - sofar_close_initiative({initiative?, status, note?}) → {ok, event_id,
-  unbound[]}  # close an initiative (§Initiative statuses): status is
+  unbound[], overrides[]}  # close an initiative (§Initiative statuses):
+  `overrides` is what the close-time audit found still outstanding, recorded on
+  the event and returned here because the close went ahead anyway (5.2); status is
   `done`|`dropped` only — reopening is a binding act (`sofar switch`) — and
   `dropped` REQUIRES a note. Appends initiative_status_changed, then removes
   every branch binding pointing at the slug; `event_id` is null when it was
@@ -1901,6 +1941,10 @@ Shims contain no logic — they invoke the sofar CLI.
   bindings.json entry pointing at it (§Initiative statuses, D1). Slug
   resolves from the branch when omitted. Idempotent: already at that status
   appends nothing and still unbinds, so re-running repairs a stale binding.
+  Prints whatever the close-time audit found, headed `closed with N finding(s)
+  OVERRIDDEN — recorded on the event and rendered from here on` — read back at
+  the one moment the closer can still act, and NOT a warning that re-running
+  clears: it is what the log now says (5.1/5.2).
 - `sofar adopt <legacy-file> [slug] [--mark]` — guided migration for
   pre-sofar prose records: validates env (legacy file, .sofar/, target
   initiative — positional wins, else branch binding), prints a self-contained
@@ -2936,3 +2980,19 @@ stay the underlying derivation's, and exit codes are styling-independent.
   `sofar review` renders the active phase, EXCLUDES another initiative's
   commits from the range, starts at the watermark once a review has run, and
   fails clearly on a phase name that does not exist.
+- **Close gate (commit-attribution 5.1/5.2/5.3):** a record that actually
+  finished — every task and phase resolved, every phase reviewed, a final pass
+  recorded, nothing appended since the write-back — closes with NO findings and
+  no override section anywhere. Otherwise the audit names what it found:
+  unresolved tasks with their statuses, unresolved phases, done tasks with no
+  file evidence (and nothing at all on a record that never touched a file),
+  unaddressed guard crossings by `D<n>`, drift since the write-back, phases
+  unreviewed above the three-phase floor and silence below it, and a missing
+  final review at every size. Ids past the cap collapse to `(+N more)`. A DROP
+  ignores pending tasks and names ACTIVE ones as half-built, while asking every
+  other question unchanged. Nothing is refused: both surfaces close and both
+  return the findings — `sofar_close_initiative` in `overrides`, `sofar close`
+  as an OVERRIDDEN block — the event carries them, `sofar status` renders them
+  under `Status:` forever, reopening clears them, an unknown `overrides` value
+  fails validation, and an older engine folds a close carrying them without a
+  warning.

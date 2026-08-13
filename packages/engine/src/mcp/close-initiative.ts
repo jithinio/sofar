@@ -1,6 +1,7 @@
 import { isClosedInitiativeStatus, type InitiativeStatus } from '@sofar/schema'
 import type { CloseInitiativeArgs } from '@sofar/schema/tool-inputs'
 import { unbindAll } from '../core/bindings'
+import { closeoutFindings } from '../core/closeout'
 import { ToolError, type ToolContext } from './context'
 
 export interface CloseInitiativeResult {
@@ -9,6 +10,13 @@ export interface CloseInitiativeResult {
   event_id: string | null
   /** Branches taken off the record, sorted; [] when none was bound. */
   unbound: string[]
+  /**
+   * What the close-time audit found still outstanding (5.1), recorded ON the
+   * event because the close went ahead anyway (5.2). Returned as well as
+   * recorded: the closing agent is the one party who can still act on it, and
+   * a finding it never sees is a finding aimed at nobody.
+   */
+  overrides: string[]
 }
 
 /**
@@ -29,17 +37,23 @@ export function applyClose(
   slug: string,
   status: InitiativeStatus,
   note?: string,
-): { event_id: string | null; unbound: string[] } {
+): { event_id: string | null; unbound: string[]; overrides: string[] } {
   if (!isClosedInitiativeStatus(status)) {
     throw new ToolError('invalid_input', 'status: must be one of done|dropped')
   }
   let eventId: string | null = null
-  if (ctx.foldState(slug).status !== status) {
+  let overrides: string[] = []
+  const state = ctx.foldState(slug)
+  if (state.status !== status) {
+    // Audited against the state BEFORE the close event, which is the only
+    // state in which the question means anything (5.1).
+    overrides = closeoutFindings(state, status).map((finding) => finding.text)
     const payload: Record<string, unknown> = { status }
     if (note !== undefined && note.length > 0) payload.note = note
+    if (overrides.length > 0) payload.overrides = overrides
     eventId = ctx.appendAndProject(slug, 'initiative_status_changed', payload).id
   }
-  return { event_id: eventId, unbound: unbindAll(ctx.bindingsPath, slug) }
+  return { event_id: eventId, unbound: unbindAll(ctx.bindingsPath, slug), overrides }
 }
 
 /**
@@ -52,6 +66,6 @@ export function closeInitiative(
   args: CloseInitiativeArgs,
 ): CloseInitiativeResult {
   const slug = ctx.resolveWriteInitiative(args.initiative)
-  const { event_id, unbound } = applyClose(ctx, slug, args.status, args.note)
-  return { ok: true, event_id, unbound }
+  const { event_id, unbound, overrides } = applyClose(ctx, slug, args.status, args.note)
+  return { ok: true, event_id, unbound, overrides }
 }

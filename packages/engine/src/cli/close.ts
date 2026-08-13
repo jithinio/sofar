@@ -78,12 +78,21 @@ export function runClose(
 
   const report: string[] = []
   try {
-    const { event_id, unbound } = applyClose(ctx, resolved, status, reason)
+    const { event_id, unbound, overrides } = applyClose(ctx, resolved, status, reason)
     report.push(
       event_id === null
         ? `${resolved} is already ${status} — no second event appended`
         : `closed ${resolved} as ${status}${reason.length > 0 ? ` — ${reason}` : ''}`,
     )
+    // The audit refuses nothing (5.2), so this is not a warning the user can
+    // clear by re-running — it is what the log now says, read back to them at
+    // the one moment they can still do something about it.
+    if (overrides.length > 0) {
+      report.push(
+        `closed with ${overrides.length} finding(s) OVERRIDDEN — recorded on the event and rendered from here on:`,
+      )
+      for (const finding of overrides) report.push(`  - ${finding}`)
+    }
     report.push(
       unbound.length === 0
         ? 'no branch was bound to it'

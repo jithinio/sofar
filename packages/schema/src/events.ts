@@ -84,8 +84,19 @@ export interface InitiativeCreatedPayload { slug: string; goal: string }
  *
  * Reopening is just another event with status `active` — history stays
  * append-only, so a closed initiative is never a dead end in the log.
+ *
+ * `overrides` (commit-attribution 5.2) is what the close-time audit found
+ * still outstanding, recorded because the close went ahead anyway. It is the
+ * whole mechanism: a hard refusal on a solo tool grows a `--force` and the
+ * flag becomes the habit, while "closed with 3 tasks outstanding, overridden"
+ * rendered in the digest forever is a sentence its author has to live beside.
+ * Absent means the audit found nothing — never that it was skipped.
  */
-export interface InitiativeStatusChangedPayload { status: InitiativeStatus; note?: string }
+export interface InitiativeStatusChangedPayload {
+  status: InitiativeStatus
+  note?: string
+  overrides?: string[]
+}
 export interface PlanUpdatedPayload { plan: PlanStructure }
 export interface PhaseStatusChangedPayload { phase: string; status: PhaseStatus }
 export interface TaskAddedPayload { phase: string; id: string; title: string; status?: TaskStatus }
@@ -340,6 +351,9 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     // task-drop-state D3: a drop with no stated reason reads as forgotten.
     if (p.status === 'dropped' && !str(p.note)) {
       e.push('note: required when status is "dropped" — say why it was abandoned')
+    }
+    if (p.overrides !== undefined && !(Array.isArray(p.overrides) && p.overrides.every(str))) {
+      e.push('overrides: must be an array of non-empty strings when present')
     }
   },
   plan_updated(p, e) {

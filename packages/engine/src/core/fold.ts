@@ -371,6 +371,15 @@ export interface InitiativeState {
    * than accumulating a closure the record has since undone.
    */
   status_note: string | null
+  /**
+   * What the close-time audit found still outstanding when this status was
+   * set, and the close went ahead regardless (commit-attribution 5.2). Empty
+   * when it found nothing — never a signal that it was skipped. Overwritten by
+   * the next status event on the same rule as status_note: it describes the
+   * status IN FORCE, so reopening clears it rather than carrying forward a
+   * complaint about a closure the record has since undone.
+   */
+  status_overrides: string[]
   phases: PhaseState[]
   decisions: DecisionState[]
   /**
@@ -469,6 +478,7 @@ export function emptyState(): InitiativeState {
     status: 'active',
     status_ts: null,
     status_note: null,
+    status_overrides: [],
     phases: [],
     decisions: [],
     memories: [],
@@ -1045,6 +1055,7 @@ function applyEvent(
       state.status = p.status
       state.status_ts = event.ts
       state.status_note = p.note ?? null
+      state.status_overrides = p.overrides ?? []
       break
     }
     case 'plan_updated': {

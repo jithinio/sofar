@@ -175,6 +175,14 @@ export function renderFullStatus(state: InitiativeState): string {
     const when = state.status_ts === null ? '' : ` ${state.status_ts}`
     const why = state.status_note === null ? '' : ` — ${state.status_note}`
     lines.push(`Status: ${state.status}${when}${why}`)
+    // What the close-time audit found and the closer went ahead over
+    // (commit-attribution 5.2). Uncapped here like every other terminal
+    // surface, and never omitted: rendering it forever IS the mechanism, since
+    // nothing refused the close.
+    if (state.status_overrides.length > 0) {
+      lines.push(`Closed over ${state.status_overrides.length} finding(s):`)
+      for (const finding of state.status_overrides) lines.push(`  - ${finding}`)
+    }
   }
   lines.push(`Goal: ${state.goal || '(none recorded)'}`)
 
