@@ -115,11 +115,30 @@ export function closeoutFindings(
     }
   }
 
-  if (state.guard_violations.length > 0) {
-    const rules = [...new Set(state.guard_violations.map((v) => `D${v.decision}`))]
+  // Crossings NOBODY HAS LOOKED AT — not every crossing on record. A path
+  // guard fires on any EDIT to the guarded path, not on a violation of the
+  // rule, so a mature record accumulates crossings that were read and found
+  // fine, and a finding that fires on every member of a class says nothing
+  // about any of them (the same test the evidence check above has to pass).
+  // A review IS the looking, so the cutoff is the last review of any scope;
+  // with no review ever run, every crossing still counts, because then nobody
+  // has looked. Ruled at close, 2026-08-13, on the first record where it fired
+  // — this one, over four crossings of its own rules that violated none of them.
+  // Ordered by EVENT ID, never by ts. Ulids are monotonic and lexicographically
+  // ordered, while `ts` has millisecond granularity — a crossing and the review
+  // that read it routinely land in the same millisecond, and a ts comparison
+  // then silently reports the crossing as unread forever. Same reason
+  // shipwatch's eviction counts rather than clocks.
+  const lastReview = state.reviews.length === 0 ? null : state.reviews[state.reviews.length - 1]!.id
+  const unread =
+    lastReview === null
+      ? state.guard_violations
+      : state.guard_violations.filter((v) => v.event_id > lastReview)
+  if (unread.length > 0) {
+    const rules = [...new Set(unread.map((v) => `D${v.decision}`))]
     findings.push({
       kind: 'guards_crossed',
-      text: `${plural(state.guard_violations.length, 'guarded-rule crossing')} recorded and never addressed (${name(rules)}) — a crossing is a warning, and closing is the last moment it can still be answered`,
+      text: `${plural(unread.length, 'guarded-rule crossing')} no review has looked at (${name(rules)}) — a crossing is a warning, and closing is the last moment it can still be answered`,
     })
   }
 

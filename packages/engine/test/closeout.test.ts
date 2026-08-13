@@ -157,7 +157,7 @@ describe('the close-time audit (5.1)', () => {
     expect(kinds(state, 'done')).not.toContain('tasks_without_evidence')
   })
 
-  it('reports guard crossings nobody answered', () => {
+  it('reports guard crossings NO REVIEW HAS LOOKED AT', () => {
     const state = foldOf([
       ev('initiative_created', { slug: 'demo', goal: 'g' }),
       plan([{ name: 'P1', status: 'done', tasks: [{ id: '1.1', title: 't', status: 'done' }] }]),
@@ -408,5 +408,46 @@ describe('the closed banner carries the override too (5.2)', () => {
       ev('initiative_status_changed', { status: 'done' }),
     ])
     expect(closedBanner(clean)).not.toContain('Closed over')
+  })
+})
+
+describe('guard crossings are counted against the last review (ruled at close)', () => {
+  const crossing = (): EventEnvelope[] => [
+    ev('initiative_created', { slug: 'demo', goal: 'g' }),
+    plan([{ name: 'P1', status: 'done', tasks: [{ id: '1.1', title: 't', status: 'done' }] }]),
+    ev('decision_logged', {
+      chose: 'c',
+      over: 'o',
+      because: 'b',
+      rule: 'never touch the schema from outside packages/schema',
+      guard: 'path:packages/schema/**',
+    }),
+    ev('file_touched', { path: 'packages/schema/src/events.ts', op: 'edit' }),
+  ]
+
+  it('counts every crossing when no review has ever run', () => {
+    expect(kinds(foldOf(crossing()), 'done')).toContain('guards_crossed')
+  })
+
+  it('stops counting one a later review has seen', () => {
+    // A path guard fires on any EDIT to the path, not on a violation, so a
+    // mature record accumulates crossings that were read and found fine. A
+    // review is the looking; without this cutoff the finding fires on every
+    // mature record and therefore says nothing about any of them.
+    const state = foldOf([
+      ...crossing(),
+      ev('review_recorded', { scope: 'phase', verdict: 'pass', phase: 'P1' }),
+    ])
+    expect(kinds(state, 'done')).not.toContain('guards_crossed')
+  })
+
+  it('counts a crossing that came AFTER the last review', () => {
+    const state = foldOf([
+      ...crossing(),
+      ev('review_recorded', { scope: 'phase', verdict: 'pass', phase: 'P1' }),
+      ev('file_touched', { path: 'packages/schema/src/tool-inputs.ts', op: 'edit' }),
+    ])
+    const finding = closeoutFindings(state, 'done').find((f) => f.kind === 'guards_crossed')
+    expect(finding?.text).toContain('1 guarded-rule crossing')
   })
 })
