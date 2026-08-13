@@ -10,11 +10,17 @@ import { doc } from './shared'
  * things the record cannot check about itself: the DIFF the work actually
  * produced, and the CONSTRAINTS it was supposed to honour.
  *
- * The constraint half is the part with no substitute. `/code-review` can find
- * bugs far better than anything here ever will, but it cannot know that D25
- * capped concentration at 40%, or that hand-writing plan.md was tried and
- * rejected. Only sofar holds those, which is exactly why the review delegates
- * bug-hunting (4.3, D3) and keeps conformance for itself.
+ * The constraint half is the part with no substitute. A dedicated code-review
+ * tool finds bugs far better than anything here ever will, but it cannot know
+ * that D25 capped concentration at 40%, or that hand-writing plan.md was tried
+ * and rejected. Only sofar holds those, which is exactly why the review
+ * delegates bug-hunting (4.3, D3) and keeps conformance for itself.
+ *
+ * The delegation is stated HOST-AGNOSTICALLY (D12). sofar runs under any agent
+ * — the AGENTS.md dialect exists for exactly that (BD31) — so naming a Claude
+ * Code slash command as though every host had it would render an instruction
+ * most readers cannot follow. Named skills are offered as a shortcut where they
+ * exist; the work itself is spelled out so the packet stands alone.
  *
  * This module renders TEXT ONLY and reaches no further than the folded state
  * plus a caller-supplied commit range — no model call, no analysis, no
@@ -88,16 +94,20 @@ function taskLines(phase: PhaseState | undefined, state: InitiativeState): strin
 function questions(scope: ReviewScope): string[] {
   if (scope === 'phase') {
     return [
-      '1. Run `/code-review` over the diff above, then `/simplify`. Report what',
-      '   survives. Do NOT re-derive bug-hunting by hand — a named skill buys a',
-      '   real review, a prose description buys a paragraph of reassurance.',
+      '1. CODE QUALITY. If your host has a dedicated code-review capability, use',
+      '   it on the diff above and report what survives — in Claude Code that is',
+      '   `/code-review` then `/simplify`; other hosts have their own. If it has',
+      '   none, do it directly: correctness bugs, unhandled edge cases, error',
+      '   paths, resource leaks, and anything a simpler construction would do',
+      '   better. Name the file and line for each.',
       '2. CONFORMANCE (no substitute — only this record holds it): does the work',
       '   above honour every standing constraint listed? Quote the constraint and',
       '   the code when it does not.',
       '3. Did it re-enter any rejected approach? That drift looks like progress',
       '   and is not, and it is invisible from the diff alone.',
       '4. Does each task marked done actually do what its title claims?',
-      '5. Acceptance criteria: does it meet docs/SPEC.md §Acceptance criteria?',
+      '5. Acceptance criteria: does it meet the repo\'s stated definition of done',
+      '   (in this repo, docs/SPEC.md §Acceptance criteria)?',
     ]
   }
   return [
@@ -183,7 +193,8 @@ export function renderReviewPacket(state: InitiativeState, input: ReviewPacketIn
     '## What to do',
     ...questions(scope),
     '',
-    'Record the verdict with `sofar_review` when done. A review that can only',
+    'Record the verdict with `sofar_review` (or `sofar event append --type',
+    'review_recorded` if your host has no MCP). A review that can only',
     'say "looks good" is a rubber stamp — if nothing is wrong, say so plainly,',
     'but the verdict must be able to be "no".',
   ])

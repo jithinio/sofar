@@ -162,10 +162,24 @@ describe('renderReviewPacket — phase vs final ask DIFFERENT questions', () => 
   // the final pass asked the phase questions again it would be a rubber stamp.
   const args = { commits: COMMITS, watermark: null }
 
-  it('a phase review delegates bug-hunting to named skills', () => {
+  it('a phase review delegates bug-hunting where a skill exists', () => {
     const out = renderReviewPacket(state(), { ...args, scope: 'phase', phase: phase([]) })
     expect(out).toContain('/code-review')
     expect(out).toContain('/simplify')
+  })
+
+  it('STANDS ALONE on a host with no such skill (D12)', () => {
+    // sofar runs under any agent — the AGENTS.md dialect exists for exactly
+    // that (BD31). Naming a Claude Code slash command as though every host had
+    // one would render an instruction most readers cannot follow, so the work
+    // itself is spelled out and the skill is only ever offered as a shortcut.
+    const out = renderReviewPacket(state(), { ...args, scope: 'phase', phase: phase([]) })
+    expect(out).toContain('If your host has a dedicated code-review capability')
+    expect(out).toContain('If it has')
+    expect(out).toContain('correctness bugs')
+    expect(out).toContain('edge cases')
+    // The write half must be reachable without MCP too.
+    expect(out).toContain('sofar event append')
   })
 
   it('the final pass asks goal conformance, which no phase review can', () => {
