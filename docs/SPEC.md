@@ -269,6 +269,20 @@ A task or phase status this build does not recognise is therefore coerced to
 conservative target: a stale reader over-reports remaining work rather than
 quietly claiming something was resolved. Structural corruption (missing id,
 malformed shape) is still skipped whole — the tolerance covers statuses only.
+
+**Omitted statuses (plan-carry-forward D1)** take the same destination and now
+carry the same warning. A payload that OMITS `status` on a phase or task lands
+on `pending` through the fold's default, which is the identical loss the clause
+above warns about — the two paths differed only in that one of them said so.
+The fold therefore warns when a plan_updated omits `status` on an entry that is
+PRESENT in the payload and whose previous status was resolved. This is
+DIAGNOSTIC ONLY: state is untouched, the entry still becomes `pending`, and
+every existing log folds byte-identically — the warning list is the only
+difference. Key presence is the discriminator, never value: an explicit
+`pending` over a done entry is authorship and stays silent. An entry ABSENT
+from the payload is NOT reported — that is a rename or a deletion, the two are
+byte-identical with no phase ids to tell them apart (D2), and reporting it
+would bury the signal under deliberate restructures.
 Engines predating 0.18 skip `dropped` events entirely; no data is lost (the
 log is intact, only their render is wrong) and it self-heals on upgrade.
 task_files (speed T4) = derived file-locality map, task id → file paths
@@ -1352,7 +1366,9 @@ also collides with a sofar-cloud-internal package).
   # guard (drift-hardening D3): the machine-checkable half of that rule —
   # `path:`/`cmd:` globs (§Decision guards). Requires `rule`; a malformed
   # guard fails payload validation and appends nothing. Warns, never blocks.
-- sofar_update_plan({initiative?, plan}) → ok   # full-structure replace
+- sofar_update_plan({initiative?, plan}) → ok   # full-structure replace;
+  an omitted status means `pending`, NOT unchanged — restate every status
+  you intend to keep, and expect a fold warning if a resolved one is dropped
 - sofar_add_note({initiative?, text}) → ok
 - sofar_remember({initiative?, text}) → ok   # promote a fact to repo memory
   (repo-memory-capture D1): operational knowledge that is NOT a decision — a
@@ -2602,7 +2618,13 @@ stay the underlying derivation's, and exit codes are styling-independent.
   build does not know keeps every readable part of the plan — goal, done
   statuses, added tasks and phases — coerces only the unreadable status to
   `pending`, and warns naming the path, the subject, and the upgrade; a
-  structurally malformed plan is still skipped whole.
+  structurally malformed plan is still skipped whole. A plan_updated that
+  OMITS `status` on a present entry whose previous status was resolved warns
+  naming the path, the subject and what the status was, while folding to
+  byte-identical state; an explicit `pending` over a resolved entry stays
+  silent, and an entry absent from the payload stays silent. Folding every
+  record in this repo emits the warning zero times, which is what makes the
+  rule safe to add to an append-only log nobody may rewrite.
 - **Phase 4:** `sofar init` on a fresh repo yields a working end-to-end
   loop (start session → tool events → end session → status shows it);
   init is idempotent (second run changes nothing); serve pushes an SSE on

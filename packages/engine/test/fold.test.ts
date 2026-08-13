@@ -422,3 +422,79 @@ describe('state shape', () => {
     expect(roundTripped).toEqual(state)
   })
 })
+
+// plan-carry-forward D1 — the omitted half of the coercion rule. Under
+// §Forward compatibility of plan_updated, an UNREADABLE status is coerced
+// to pending and warned about; an OMITTED one reached the same place in
+// silence.
+// Diagnostic only: state must be byte-identical to what the payload says.
+describe('plan_updated omitting a resolved status (plan-carry-forward D1)', () => {
+  const plan = (phases: unknown[]): EventEnvelope =>
+    ev('plan_updated', { plan: { goal: 'Build the v1 engine', phases } })
+
+  const dropWarnings = (evts: EventEnvelope[]): string[] =>
+    foldLines(lines(evts)).warnings.filter((w) => w.includes('omits its status'))
+
+  it('warns when a previously-done task loses its status key', () => {
+    const evts = [
+      ev('initiative_created', { slug: 'sofar-build', goal: 'Build the v1 engine' }),
+      plan([{ name: 'P1', status: 'active', tasks: [{ id: '1.1', title: 'Scaffold', status: 'done' }] }]),
+      plan([{ name: 'P1', status: 'active', tasks: [{ id: '1.1', title: 'Scaffold' }] }]),
+    ]
+    const { state, warnings } = foldLines(lines(evts))
+
+    expect(warnings.filter((w) => w.includes('omits its status'))).toHaveLength(1)
+    expect(warnings.find((w) => w.includes('omits its status'))).toContain('phases[0].tasks[0] ("1.1") was done')
+    // DIAGNOSTIC ONLY: state is exactly what the payload said, as before.
+    expect(state.phases[0]!.tasks[0]!.status).toBe('pending')
+  })
+
+  it('warns when a previously-done PHASE loses its status key', () => {
+    const evts = [
+      ev('initiative_created', { slug: 'sofar-build', goal: 'Build the v1 engine' }),
+      plan([{ name: 'P1', status: 'done', tasks: [{ id: '1.1', title: 'Scaffold', status: 'done' }] }]),
+      plan([{ name: 'P1', tasks: [{ id: '1.1', title: 'Scaffold', status: 'done' }] }]),
+    ]
+    expect(dropWarnings(evts)).toHaveLength(1)
+    expect(dropWarnings(evts)[0]).toContain('phases[0] ("P1") was done')
+  })
+
+  it('stays silent when the entry was never resolved — a fresh plan omits statuses legitimately', () => {
+    const evts = [
+      ev('initiative_created', { slug: 'sofar-build', goal: 'Build the v1 engine' }),
+      plan([{ name: 'P1', status: 'active', tasks: [{ id: '1.1', title: 'Scaffold', status: 'pending' }] }]),
+      plan([{ name: 'P1', tasks: [{ id: '1.1', title: 'Scaffold' }, { id: '1.2', title: 'Envelope' }] }]),
+    ]
+    expect(dropWarnings(evts)).toEqual([])
+  })
+
+  it('stays silent on an EXPLICIT pending over a done entry — key presence is the discriminator, not value', () => {
+    const evts = [
+      ev('initiative_created', { slug: 'sofar-build', goal: 'Build the v1 engine' }),
+      plan([{ name: 'P1', status: 'active', tasks: [{ id: '1.1', title: 'Scaffold', status: 'done' }] }]),
+      plan([{ name: 'P1', status: 'active', tasks: [{ id: '1.1', title: 'Scaffold', status: 'pending' }] }]),
+    ]
+    expect(dropWarnings(evts)).toEqual([])
+  })
+
+  it('stays silent when a resolved entry is ABSENT from the payload — the rename/delete case (D2)', () => {
+    const evts = [
+      ev('initiative_created', { slug: 'sofar-build', goal: 'Build the v1 engine' }),
+      plan([{ name: 'P1', status: 'done', tasks: [{ id: '1.1', title: 'Scaffold', status: 'done' }] }]),
+      plan([{ name: 'P1 renamed', status: 'active', tasks: [{ id: '2.1', title: 'Other', status: 'pending' }] }]),
+    ]
+    expect(dropWarnings(evts)).toEqual([])
+  })
+
+  it('follows a task moving between phases rather than calling it a drop', () => {
+    const evts = [
+      ev('initiative_created', { slug: 'sofar-build', goal: 'Build the v1 engine' }),
+      plan([{ name: 'P1', status: 'active', tasks: [{ id: '1.1', title: 'Scaffold', status: 'done' }] }]),
+      plan([
+        { name: 'P1', status: 'active', tasks: [] },
+        { name: 'P2', status: 'active', tasks: [{ id: '1.1', title: 'Scaffold', status: 'done' }] },
+      ]),
+    ]
+    expect(dropWarnings(evts)).toEqual([])
+  })
+})

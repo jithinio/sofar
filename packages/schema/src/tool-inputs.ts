@@ -563,7 +563,9 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_update_plan',
     description:
-      'Replace the entire plan (goal + phases with tasks) — a full replace, not a merge.',
+      'Replace the entire plan (goal + phases with tasks) — a full replace, not a merge. ' +
+        'An omitted status means `pending`, NOT unchanged: restate every phase and task ' +
+        'status you intend to keep. Dropping a resolved one is warned about at fold time.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_update_plan,
   },
   {

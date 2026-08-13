@@ -653,6 +653,17 @@ export function foldLines(lines: readonly string[], slug = ''): FoldResult {
     }
 
     if (event.session !== 'cli') seenSessions.add(event.session)
+    // The omitted half of the coercion above (plan-carry-forward D1). Runs
+    // BEFORE applyEvent because it needs the plan as it stands, which the
+    // full replace is about to overwrite.
+    if (event.type === 'plan_updated') {
+      for (const d of droppedResolvedStatuses(state, event.payload as unknown as PlanUpdatedPayload)) {
+        warnings.push(
+          `line ${lineNo}: ${d.path} ("${d.subject}") was ${d.was} and this plan omits its ` +
+            `status — counted as pending; restate a status to keep it`,
+        )
+      }
+    }
     applyEvent(state, event, blockNotes, warnings, lineNo)
     // Adjacency is emitted AFTER applyEvent, against the plan as it now
     // stands: a task_status_changed that activates a task takes effect for
@@ -1032,6 +1043,65 @@ export function overlappingWritebacks(
     )
     .sort((a, b) => (a.ended < b.ended ? 1 : a.ended > b.ended ? -1 : 0))
     .map((s) => ({ session_id: s.id, tool: s.tool, ended: s.ended, next_action: s.next_action }))
+}
+
+/** One resolved status a plan_updated dropped by omitting the key (D1). */
+interface DroppedStatus {
+  /** Human path into the plan, e.g. `phases[0].tasks[1]` — coerce's shape. */
+  path: string
+  /** Task id, or phase name for a phase-level drop. */
+  subject: string
+  /** The status the entry held before this plan replaced it. */
+  was: string
+}
+
+/**
+ * The omitted half of coerceUnknownPlanStatuses (plan-carry-forward D1).
+ *
+ * SPEC §Forward compatibility of plan_updated already ruled this hazard: a
+ * status this build cannot READ is coerced to `pending` and warned about, so
+ * that a stale reader over-reports remaining work rather than quietly claiming
+ * something was resolved. A status the payload simply does not CARRY reaches
+ * the identical destination — `phase.status ?? 'pending'` below — in silence.
+ * Same loss, same rationale, and only one of the two paths kept its warning.
+ * That asymmetry was an oversight rather than a decision: task-drop-state D2
+ * was reasoning about a stale reader meeting a newer engine's status, and
+ * never considered the payload omitting one.
+ *
+ * DIAGNOSTIC ONLY. Nothing here touches state: the entry still becomes
+ * `pending` exactly as before, so every existing log folds byte-identically
+ * and replay determinism is untouched. That is the whole reason this lives
+ * here rather than in a merge — see D1's rule.
+ *
+ * Scope is load-bearing, not fastidiousness. Only entries PRESENT in the
+ * payload with no `status` key are reported. An entry ABSENT from the payload
+ * is the rename-or-delete case, which is byte-identical to a deliberate
+ * deletion and which D2 rules out of scope; warning on it would have emitted
+ * ~52 permanent warnings across four records for restructures that were
+ * intentional, and an axis that cries wolf teaches people to ignore it.
+ * Scoped this way, task 1.1 measured ZERO occurrences across all 41 records
+ * and 85 plan_updated events — so this can only ever fire on the bug itself.
+ */
+function droppedResolvedStatuses(state: InitiativeState, payload: PlanUpdatedPayload): DroppedStatus[] {
+  const dropped: DroppedStatus[] = []
+  payload.plan.phases.forEach((phase, pi) => {
+    if (phase.status === undefined) {
+      const prior = state.phases.find((p) => p.name === phase.name)
+      if (prior !== undefined && isResolvedTaskStatus(prior.status)) {
+        dropped.push({ path: `phases[${pi}]`, subject: phase.name, was: prior.status })
+      }
+    }
+    phase.tasks.forEach((task, ti) => {
+      if (task.status !== undefined) return
+      // By id across the whole plan, matching findTask — the fold's own notion
+      // of task identity, so a task moving between phases is not a drop.
+      const prior = findTask(state, task.id)
+      if (prior !== undefined && isResolvedTaskStatus(prior.status)) {
+        dropped.push({ path: `phases[${pi}].tasks[${ti}]`, subject: task.id, was: prior.status })
+      }
+    })
+  })
+  return dropped
 }
 
 function findTask(state: InitiativeState, id: string): TaskState | undefined {
