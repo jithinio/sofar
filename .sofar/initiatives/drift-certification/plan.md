@@ -4,7 +4,7 @@
 
 Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical corpus is exhausted at 0.8% end-to-end. PRE-REGISTRATION FROZEN 2026-08-10 (D29). Screens pass by construction; the temptation floor gates entry at k=6 / 4-of-6 (D24). Concentration is governed at two levels: 40% per repo with >=3 repos (D25) and at most ONE constraint per initiative (D27), since the digest renders every standing constraint of an initiative verbatim. Host pool reopened to 6 repos (D28) because one-per-initiative and the 40% cap are jointly infeasible on the old four. N is fixed at 4.1 on cost grounds alone, N<=70 (D29). Cost, stated in every report: the claim covers constraints planted for the benchmark, NOT decisions teams actually made. The 5 surviving historical traps run as a separately-reported anchor under the same gate, never pooled. Denominator = SPRUNG only; 0/n -> 95% UB ~= 3/n. MEASURES only: zero engine changes; machinery lives in ~/IO/handoff-bench.
 
-Progress: 14/25 tasks done (56%)
+Progress: 15/25 tasks done (60%)
 
 ## Phase 1 — scenario 3 pre-registration and machinery [done] — 7/7 done
 
@@ -29,10 +29,10 @@ Progress: 14/25 tasks done (56%)
 - [x] 3.2 Three open items settled (D24 floor gate k=6/4-of-6; D25 per-repo cap 40% with >=3 repos; D26 band-match + blind discrimination test at CI upper < 0.65)
 - [x] 3.3 Freeze review found the cap was at the wrong level: D27 one constraint per initiative, D28 host pool reopened to 6 repos. FROZEN 2026-08-10 with N's selection rule frozen in place of N (D29)
 
-## Phase 4 — authored constraint set [active] — 0/5 done
+## Phase 4 — authored constraint set [active] — 1/5 done
 
-- [ ] 4.0 Price the three unpriced hosts (sofar, crisperflow, waylla) and build S7 host isolation for crisperflow and waylla — detached snapshot clones under bench-hosts/, neither exists yet and both have live origin remotes (active)
-- [ ] 4.1 Run owner fixes N on cost grounds alone, N<=70 (D29), then author N constraints one per initiative (D27) honouring the 40% per-repo cap (D25), each with its tempting-default prediction written into PREDICTIONS.md and hash-stamped BEFORE any floor cell
+- [x] 4.0 Price the three unpriced hosts (sofar, crisperflow, waylla) and build S7 host isolation for crisperflow and waylla — detached snapshot clones under bench-hosts/, neither exists yet and both have live origin remotes
+- [ ] 4.1 Run owner fixes N on cost grounds alone, N<=70 (D29), then author N constraints one per initiative (D27) honouring the 40% per-repo cap (D25), each with its tempting-default prediction written into PREDICTIONS.md and hash-stamped BEFORE any floor cell (active)
 - [ ] 4.2 Verify every constraint mechanically: leak-scan clean, premise-scan clean, S4/S5 by hand, D26 band-match into the reference IQR; publish the verification output with the set
 - [ ] 4.3 Freeze the set in a frozen order, then run the temptation floor over EVERY authored constraint with no early stop (k=6, 4-of-6 per D24/D29, P cells, M-O) plus the 5-constraint anchor; publish the prediction-vs-floor agreement rate
 - [ ] 4.4 Run D26's blind discrimination test (~50 authored vs ~50 historical, decision text only, same-repo comparators) and publish accuracy with its 95% CI against the 0.65 bound
@@ -50,4 +50,4 @@ Progress: 14/25 tasks done (56%)
 - [ ] 6.3 Version-stamped claim wording from the evidence only, carrying the authored/planted qualification in every form
 
 Active phase: Phase 4 — authored constraint set
-Next action: Record the crisperflow and waylla P-cell prices when those two probes land, then hand the run owner the closed floor number so N can be fixed at 4.1.
+Next action: Author the 60 constraints for 4.1, one per initiative, into the snapshot clones only per D31, each with its tempting-default prediction hash-stamped into PREDICTIONS.md before any floor cell is built.
