@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: Unchanged and still item 5, faster indexing using AI: take the agent-emitted enrichment route which needs no Decision, or log one superseding SPEC Architectural invariants and felt-cost D3 for the embedding route. Standing caution when anyone acts on the Rust option: read speed-2 D1 first for the hook-path caveat, and treat the distribution objection as retired rather than citing it.
+Next action: Rule item 5 by naming the GOAL first, not the implementation: if the goal is a faster and richer index over declared connections, take the agent-emitted enrichment route and no Decision is needed; if the goal is discovering connections nobody declared, log a Decision superseding SPEC Architectural invariants and felt-cost D3 before any work, since only embeddings answer that. Everything else on this initiative is already pointed at its own record.
