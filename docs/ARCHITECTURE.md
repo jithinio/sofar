@@ -203,6 +203,7 @@ three-call adapter and the driver never becomes an agent loop of its own.
 | module | role |
 | --- | --- |
 | `driver/adapter.ts` | The adapter contract: `launch` → handle with `usage`/`nudge`/`kill`/`wait`, capabilities declared up front. Driver-side derivations that an adapter must never answer itself: `wroteBack` and `resolveLaunchedSession` read the fold, `policyUnavailable` refuses a threshold policy on an adapter that cannot measure or nudge. |
+| `driver/claude-code.ts` | The Claude Code adapter: `claude -p --output-format stream-json --verbose`, session id from the init line, context from the latest turn's input + cache tokens, output summed per message id, cost from the result line. Initiative pinned through the prompt; nudge delivered as a file whose path rides in `SOFAR_DRIVE_NUDGE`. |
 
 ---
 

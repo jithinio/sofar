@@ -887,6 +887,29 @@ showed if the record registered it, else the one session that tool
 registered since the launch — several is ambiguity, recorded as a stall,
 never a guess.
 
+**Claude Code adapter (2.1, D4).** `claude -p <prompt> --output-format
+stream-json --verbose`, plus `--model` / `--effort` for routing hints and
+whatever argv the driver appends for permissions (2.4); stdin closed, since
+print mode otherwise waits for piped input. Shapes verified on 2.1.251: the
+session id is the `system`/`init` line's `session_id` — the same id the
+SessionStart hook hands the record, so this transport shows the record
+session id; context is the latest `assistant` line's input +
+cache_creation + cache_read; output tokens are summed PER MESSAGE ID
+because the same id is emitted once per content block; cost is the
+`result` line's `total_cost_usd`. Unparseable lines are skipped. The
+initiative is pinned THROUGH THE PROMPT (a preamble naming
+sofar_start_session and the slug) — the engine has no env override for the
+branch binding and a second binding source is a second thing to keep
+honest. The nudge is a FILE: `nudge()` creates it at the path the child got
+in `SOFAR_DRIVE_NUDGE`, and the PostToolUse hook (2.3) turns its existence
+into "finish the current task, write back, end your turn" — print mode has
+no stdin to speak through once started. A spawn failure is exit 127, never
+a rejection. The child is spawned detached and `kill()` signals its whole
+process group — claude's MCP servers and hook shims would otherwise outlive
+it holding the stdout pipe (the D10 reaping rule) — and the exit is
+reported once stdout has drained or a two-second grace has passed,
+whichever comes first.
+
 **What the driver is not (D2).** Not a session, not an agent loop, never an
 inference: it launches existing headless agents through the adapter
 contract (launch, usage, wait) and writes nothing but these events.
@@ -3278,6 +3301,17 @@ stay the underlying derivation's, and exit codes are styling-independent.
   ignores sessions registered before the launch or by other tools, reports
   none when nothing registered, and REFUSES to choose between two
   candidates. A scripted fake adapter drives all of it.
+- **Claude Code adapter (session-driver 2.1):** tested against a stubbed
+  `claude` on PATH, never the real one. The argv pins the initiative in the
+  prompt, asks for verbose stream-json, routes `model`/`effort` as flags and
+  appends caller argv last; the child runs in the request cwd with the
+  request env. The session id comes from the init line; context is the
+  latest turn's input + cache tokens; output tokens dedupe by message id;
+  cost comes from the result line; an unparseable line is skipped; usage is
+  undefined until a usage-bearing line arrives. A non-zero exit keeps the
+  stderr tail; `kill()` yields a null code and the signal; a missing binary
+  is exit 127. The child receives the nudge path in `SOFAR_DRIVE_NUDGE` and
+  `nudge()` creates that file.
 - **Close gate (commit-attribution 5.1/5.2/5.3):** a record that actually
   finished — every task and phase resolved, every phase reviewed, a final pass
   recorded, nothing appended since the write-back — closes with NO findings and

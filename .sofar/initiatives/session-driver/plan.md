@@ -4,7 +4,7 @@
 
 Goal: Automate the session handoff sofar already makes content-complete: a stateless driver (sofar drive <initiative>) that runs an initiative task-by-task through fresh agent sessions, records every handoff as events in the record, and reaches any headless agent through a three-call adapter (launch, usage, wait) — Claude Code first, a second adapter to prove the contract. The record is the queue; the driver holds no state of its own.
 
-Progress: 3/11 tasks done (27%)
+Progress: 4/11 tasks done (36%)
 
 ## Phase 1 — Contract [done] — 3/3 done
 
@@ -14,9 +14,9 @@ Progress: 3/11 tasks done (27%)
 - [x] 1.2 Handoff events in packages/schema — run_started, handoff {reason: threshold|task_done|stall|needs_user}, run_stopped — folded and rendered in sessions/*.md and the digest; unknown lines still skipped, never fatal
 - [x] 1.3 Adapter contract as a TS interface in packages/engine: launch(digest, task), usage() → tokens, wait() → {exit, wrote_back}; a fake adapter drives the tests
 
-## Phase 2 — Claude Code adapter + sofar drive [active] — 0/4 done
+## Phase 2 — Claude Code adapter + sofar drive [active] — 1/4 done
 
-- [ ] 2.1 Claude Code adapter: claude -p --output-format stream-json, per-message usage (input + cache_read + cache_creation), SessionStart injection unchanged, exit and write-back detected from the record fold
+- [x] 2.1 Claude Code adapter: claude -p --output-format stream-json, per-message usage (input + cache_read + cache_creation), SessionStart injection unchanged, exit and write-back detected from the record fold
 - [ ] 2.2 sofar drive <initiative>: stateless loop — next task from the fold → launch → watch → record handoff; stop rules: initiative closed | next action needs the user | N sessions with no task change | cost cap; each session in its own git worktree
 - [ ] 2.3 Context policy: task-scoped by default; optional threshold (config) via a PostToolUse hook that injects "ctx N% — finish the current task, write back, end your turn" as additionalContext
 - [ ] 2.4 Permission surface for unattended sessions: pinned settings file (allow-list, permission mode, effort, model) written per session and verified by reading it back — drift-certification D6/D11 discipline
@@ -32,4 +32,4 @@ Progress: 3/11 tasks done (27%)
 - [ ] 4.2 Release sofar.sh with sofar drive; SPEC §Acceptance criteria extended for the driver
 
 Active phase: Phase 2 — Claude Code adapter + sofar drive
-Next action: Do 2.1: the Claude Code adapter in packages/engine/src/driver/claude-code.ts implementing the contract with claude in print mode and stream-json output: parse the init message for the session id, sum input plus cache_read plus cache_creation per assistant message for usage(), read cost from the result line, pin the initiative via the prompt, and give it an ARCHITECTURE.md line. Test it against a stubbed claude binary on PATH, never the real one.
+Next action: Do 2.2: sofar drive <initiative> in packages/engine/src/driver/drive.ts, a stateless loop over the fold: pick the next task from the plan (first active, else first pending in the active phase), render the prompt from the digest plus the task, launch through the adapter with each session in its own git worktree, wait, resolve the session per D3, append handoff with reason task_done, stall (no task change) or needs_user, and stop on closed, needs_user, N consecutive stalls, cost cap or max_sessions; wire the CLI command; drive the tests with FakeAdapter. Decide how needs_user is detected from a write-back before coding it.

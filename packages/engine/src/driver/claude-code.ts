@@ -1,0 +1,278 @@
+import { spawn, type ChildProcess } from 'node:child_process'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createInterface } from 'node:readline'
+import type {
+  Adapter,
+  AdapterCapabilities,
+  AgentSession,
+  LaunchRequest,
+  SessionExit,
+  Usage,
+} from './adapter'
+
+/**
+ * The Claude Code adapter (session-driver 2.1): `claude -p` in print mode
+ * with `--output-format stream-json`, one JSON object per stdout line. What
+ * the transport shows, verified against Claude Code 2.1.251:
+ *
+ * - `{"type":"system","subtype":"init","session_id","model",...}` — the
+ *   session id is Claude Code's own, and it is the SAME id the SessionStart
+ *   hook hands the record (cli/event.ts reads hook.session_id), so this is a
+ *   transport that shows the record session id.
+ * - `{"type":"assistant","message":{"id","usage":{input_tokens,
+ *   cache_creation_input_tokens, cache_read_input_tokens, output_tokens}}}` —
+ *   context held right now is input + cache_creation + cache_read of the
+ *   latest turn. The same message id is emitted more than once (one line per
+ *   content block), so output tokens are summed PER MESSAGE ID, never per
+ *   line.
+ * - `{"type":"result","subtype","is_error","num_turns","total_cost_usd",
+ *   "usage"}` — cost lives only here.
+ *
+ * Everything else (hook_started, thinking_tokens, rate_limit_event, user
+ * lines) is skipped; an unparseable line is skipped too — the fold's
+ * tolerance rule, applied to a stream.
+ *
+ * Two facts the driver leans on. The initiative is PINNED through the
+ * prompt: the engine has no env override for the branch binding, and adding
+ * one would be a second binding source to keep honest, whereas the prompt
+ * already reaches the one call that pins a session (sofar_start_session's
+ * `initiative`). The nudge is a FILE: `nudge()` creates it at the path the
+ * child received in `SOFAR_DRIVE_NUDGE`, and the PostToolUse hook (2.3)
+ * turns its existence into "finish the current task, write back, end your
+ * turn" — print mode has no stdin to speak through once it has started.
+ */
+
+export interface ClaudeCodeOptions {
+  /** Binary to spawn; default `claude`, resolved on the child's PATH. */
+  bin?: string
+  /**
+   * Extra argv appended after the adapter's own flags — permission mode,
+   * allowed tools, a pinned settings file (2.4). The adapter pins nothing
+   * about permissions itself.
+   */
+  args?: string[]
+}
+
+export const CLAUDE_CODE_CAPABILITIES: AdapterCapabilities = {
+  usage: true,
+  nudge: true,
+  model: true,
+  effort: true,
+}
+
+/** Env var carrying the nudge file's path into the child; 2.3's hook reads it. */
+export const NUDGE_ENV = 'SOFAR_DRIVE_NUDGE'
+
+/** The line prepended to every prompt so the session pins itself to the record it serves. */
+export function pinLine(initiative: string): string {
+  return (
+    `This session is driven by sofar and serves the initiative \`${initiative}\`. ` +
+    `Before anything else, call sofar_start_session with initiative "${initiative}" ` +
+    `and the session id from the injected "Session:" line, so every write lands in ` +
+    `that record and not wherever the branch binding points.`
+  )
+}
+
+export function pinPrompt(request: LaunchRequest): string {
+  return `${pinLine(request.initiative)}\n\n${request.prompt}`
+}
+
+/** The argv the adapter builds, exported so a test can pin it without spawning. */
+export function claudeArgs(request: LaunchRequest, options: ClaudeCodeOptions = {}): string[] {
+  return [
+    '-p',
+    pinPrompt(request),
+    '--output-format',
+    'stream-json',
+    '--verbose',
+    ...(request.model !== undefined ? ['--model', request.model] : []),
+    ...(request.effort !== undefined ? ['--effort', request.effort] : []),
+    ...(options.args ?? []),
+  ]
+}
+
+/** The result line, kept for the driver's diagnostics; not part of SessionExit. */
+export interface ClaudeResult {
+  subtype: string
+  is_error: boolean
+  num_turns?: number
+}
+
+type Obj = Record<string, unknown>
+const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v)
+const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+
+const STDERR_TAIL = 4096
+/** How long after exit to wait for stdout to drain before reporting the exit anyway. */
+const STDOUT_DRAIN_GRACE_MS = 2_000
+
+export class ClaudeCodeSession implements AgentSession {
+  /** Session id from the init line, once seen. */
+  sessionId: string | undefined
+  /** The result line, once seen. */
+  result: ClaudeResult | undefined
+  /** Last STDERR_TAIL chars of stderr — what to show when the exit is not 0. */
+  stderrTail = ''
+  /** Set when the binary could not be spawned at all (ENOENT and friends). */
+  spawnError: string | undefined
+  readonly nudgePath: string
+
+  private latest: Usage | undefined
+  private readonly outputByMessage = new Map<string, number>()
+  private costUsd: number | undefined
+  private readonly exit: Promise<SessionExit>
+  private readonly child: ChildProcess
+
+  constructor(request: LaunchRequest, options: ClaudeCodeOptions) {
+    const env: NodeJS.ProcessEnv = { ...process.env, ...request.env }
+    const nudgeDir = mkdtempSync(join(env.TMPDIR ?? tmpdir(), 'sofar-drive-'))
+    this.nudgePath = join(nudgeDir, 'nudge')
+    env[NUDGE_ENV] = this.nudgePath
+
+    // stdin is closed at once: with it open, print mode waits three seconds
+    // for piped input before proceeding without it. Detached makes the child
+    // a process-group leader so kill() can reap the whole tree — claude
+    // spawns MCP servers and hook shims that would otherwise outlive it and
+    // keep the stdout pipe open (the D10 reaping rule, applied here).
+    this.child = spawn(options.bin ?? 'claude', claudeArgs(request, options), {
+      cwd: request.cwd,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32',
+    })
+
+    const lines = createInterface({ input: this.child.stdout!, crlfDelay: Infinity })
+    lines.on('line', (line) => this.consume(line))
+    this.child.stderr!.setEncoding('utf8')
+    this.child.stderr!.on('data', (chunk: string) => {
+      this.stderrTail = (this.stderrTail + chunk).slice(-STDERR_TAIL)
+    })
+
+    this.exit = new Promise<SessionExit>((resolve) => {
+      let settled = false
+      const settle = (code: number | null, signal: NodeJS.Signals | null): void => {
+        if (settled) return
+        settled = true
+        resolve({
+          code,
+          ...(signal !== null ? { signal } : {}),
+          ...(this.sessionId !== undefined ? { session_id: this.sessionId } : {}),
+          ...(this.latest !== undefined ? { usage: this.latest } : {}),
+        })
+      }
+      // Settle when the process has exited AND stdout has been drained, so
+      // every line is parsed before the exit is reported — but a grandchild
+      // holding the pipe open after a kill must not hold the driver hostage,
+      // so the drain gets a bounded grace after exit. `error` is a spawn
+      // failure and reports as the shell's command-not-found code rather
+      // than rejecting.
+      let exited: { code: number | null; signal: NodeJS.Signals | null } | undefined
+      let drained = false
+      lines.on('close', () => {
+        drained = true
+        if (exited !== undefined) settle(exited.code, exited.signal)
+      })
+      this.child.on('exit', (code, signal) => {
+        exited = { code, signal }
+        if (drained) settle(code, signal)
+        else setTimeout(() => settle(code, signal), STDOUT_DRAIN_GRACE_MS).unref()
+      })
+      this.child.on('error', (err) => {
+        this.spawnError = err.message
+        settle(127, null)
+      })
+    })
+  }
+
+  private consume(line: string): void {
+    let decoded: unknown
+    try {
+      decoded = JSON.parse(line)
+    } catch {
+      return
+    }
+    if (!isObj(decoded)) return
+    switch (decoded.type) {
+      case 'system': {
+        if (decoded.subtype === 'init' && typeof decoded.session_id === 'string' && decoded.session_id.length > 0) {
+          this.sessionId = decoded.session_id
+        }
+        return
+      }
+      case 'assistant': {
+        const message = decoded.message
+        if (!isObj(message) || !isObj(message.usage)) return
+        const u = message.usage
+        if (typeof message.id === 'string') this.outputByMessage.set(message.id, num(u.output_tokens))
+        this.setUsage(num(u.input_tokens) + num(u.cache_creation_input_tokens) + num(u.cache_read_input_tokens))
+        return
+      }
+      case 'result': {
+        this.result = {
+          subtype: typeof decoded.subtype === 'string' ? decoded.subtype : 'unknown',
+          is_error: decoded.is_error === true,
+          ...(typeof decoded.num_turns === 'number' ? { num_turns: decoded.num_turns } : {}),
+        }
+        if (typeof decoded.total_cost_usd === 'number') this.costUsd = decoded.total_cost_usd
+        const u = decoded.usage
+        this.setUsage(
+          isObj(u)
+            ? num(u.input_tokens) + num(u.cache_creation_input_tokens) + num(u.cache_read_input_tokens)
+            : this.latest?.context_tokens ?? 0,
+        )
+        return
+      }
+      default:
+        return
+    }
+  }
+
+  private setUsage(contextTokens: number): void {
+    let output = 0
+    for (const n of this.outputByMessage.values()) output += n
+    this.latest = {
+      context_tokens: contextTokens,
+      output_tokens: output,
+      ...(this.costUsd !== undefined ? { cost_usd: this.costUsd } : {}),
+    }
+  }
+
+  usage(): Usage | undefined {
+    return this.latest
+  }
+
+  nudge(): void {
+    writeFileSync(this.nudgePath, `${new Date().toISOString()}\n`)
+  }
+
+  /** Signal the whole process group; fall back to the child alone where groups are unavailable. */
+  kill(signal: NodeJS.Signals = 'SIGTERM'): void {
+    const pid = this.child.pid
+    if (pid !== undefined && process.platform !== 'win32') {
+      try {
+        process.kill(-pid, signal)
+        return
+      } catch {
+        // Group already gone or never formed — fall through to the child.
+      }
+    }
+    this.child.kill(signal)
+  }
+
+  wait(): Promise<SessionExit> {
+    return this.exit
+  }
+}
+
+export class ClaudeCodeAdapter implements Adapter {
+  readonly name = 'claude-code'
+  readonly capabilities = CLAUDE_CODE_CAPABILITIES
+
+  constructor(private readonly options: ClaudeCodeOptions = {}) {}
+
+  launch(request: LaunchRequest): ClaudeCodeSession {
+    return new ClaudeCodeSession(request, this.options)
+  }
+}
