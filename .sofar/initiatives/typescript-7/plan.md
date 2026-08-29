@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: Nothing required — the upgrade is verified and complete; close this initiative if you agree it is done. If you want it carried further: check whether CI or any other repo pins typescript 6 and needs the same bump, and consider whether the casing behaviour belongs in repo memory rather than only in this initiative's decision.
+Next action: Nothing outstanding on this initiative — close typescript-7 if you agree the upgrade is done. Two loose ends worth their own record if you want them chased: the end_session rebind bug, where writing back rebinds the branch to the session home and silently undoes an initiative created with binding skipped, which can steal the branch from a concurrent peer session; and the snapshot-the-fold idea named in the scalability section, which is the actual answer if the record ever reaches six figures of events.
