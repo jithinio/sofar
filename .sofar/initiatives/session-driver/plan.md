@@ -4,12 +4,12 @@
 
 Goal: Automate the session handoff sofar already makes content-complete: a stateless driver (sofar drive <initiative>) that runs an initiative task-by-task through fresh agent sessions, records every handoff as events in the record, and reaches any headless agent through a three-call adapter (launch, usage, wait) — Claude Code first, a second adapter to prove the contract. The record is the queue; the driver holds no state of its own.
 
-Progress: 0/11 tasks done (0%)
+Progress: 1/11 tasks done (9%)
 
-## Phase 1 — Contract [active] — 0/3 done
+## Phase 1 — Contract [active] — 1/3 done
 
-- [ ] 1.1 Amend the launch clause: CLAUDE.md guard-rails and SPEC §Architectural invariants read as D1 (sofar may launch the operator's own agent under the operator's auth; still no API keys, no inference, no user content off the machine)
-- [ ] 1.2 Handoff events in packages/schema — run_started, handoff {reason: threshold|task_done|stall|needs_user}, run_stopped — folded and rendered in sessions/*.md and the digest; unknown lines still skipped, never fatal
+- [x] 1.1 Amend the launch clause: CLAUDE.md guard-rails and SPEC §Architectural invariants read as D1 (sofar may launch the operator's own agent under the operator's auth; still no API keys, no inference, no user content off the machine)
+- [ ] 1.2 Handoff events in packages/schema — run_started, handoff {reason: threshold|task_done|stall|needs_user}, run_stopped — folded and rendered in sessions/*.md and the digest; unknown lines still skipped, never fatal (active)
 - [ ] 1.3 Adapter contract as a TS interface in packages/engine: launch(digest, task), usage() → tokens, wait() → {exit, wrote_back}; a fake adapter drives the tests
 
 ## Phase 2 — Claude Code adapter + sofar drive [pending] — 0/4 done

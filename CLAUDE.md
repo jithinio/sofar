@@ -48,13 +48,21 @@ never with `§`: `record-index 4.2`, `cross-initiative-conflicts 2.2`,
   packages/engine/src/projections/templates/. If a change wants to touch
   schema from anywhere else, stop and restructure.
 - If a task seems to require violating a guard-rail, do not proceed —
-  log the conflict in Decisions and surface it to the user.
+  log the conflict in Decisions and surface it to the user. Guard-rails
+  yield to efficiency (session-driver D1): a token-, feature- or
+  performance-efficiency gain MAY deviate from a rail, but only once a
+  Decision naming the rail it supersedes is logged — before the work,
+  never after.
 - docs/SPEC.md is authoritative over improvisation. Deviations require a
   Decision entry.
 - Zero model API calls (SPEC §Architectural invariants): sofar itself never
   calls a model — no API keys, no inference costs, no user content sent
-  anywhere. Cheap-model or Batch-API bookkeeping is rejected (felt-cost D3);
-  revisiting requires a new Decision that cites this one.
+  anywhere. Launching the operator's OWN agent process (`claude`, `codex`,
+  `opencode`) under the operator's own auth is not a model call
+  (session-driver D1): that process's inference is the operator's, and
+  `sofar drive` needs no key, no call and no egress to launch it. Cheap-model
+  or Batch-API bookkeeping is rejected (felt-cost D3); revisiting requires a
+  new Decision that cites this one.
 
 <!-- sofar:protocol -->
 ## Sofar protocol (jurisdiction is total)

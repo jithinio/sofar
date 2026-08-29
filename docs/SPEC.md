@@ -45,6 +45,12 @@ engine-only scope law still applies during the Fable window.
   D4, Jul 2026): record events pushed to the user's OWN authenticated
   sofar-cloud repo, opt-in via `sofar login` + `sofar link`, revocable
   server-side — nothing else ever leaves the machine.
+  Launching is not calling (session-driver D1, Aug 2026): sofar MAY launch
+  the operator's OWN agent process (`claude -p`, `codex exec`, `opencode
+  run`) under the operator's own auth, which is what `sofar drive` does
+  (§Driver). That process's inference is the operator's; sofar still holds no
+  key, makes no call and sends nothing — the driver needs none of the three
+  clauses above, which is why they stand unchanged.
 - **Injection byte-stability.** For an unchanged record, the SessionStart
   status block renders byte-identically — no timestamps, counters, or other
   volatile bytes are introduced at render time (all dates in the block come
