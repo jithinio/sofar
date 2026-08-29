@@ -240,6 +240,25 @@ export interface RunStartedPayload {
    */
   context_window?: number
   max_sessions?: number
+  /**
+   * The permission surface every session in the run was launched under
+   * (session-driver 2.4, D8) — what the driver PINNED, never what the session
+   * could ultimately do: the agent's settings file is one source among the
+   * operator's own and allow rules union across them. Absent on a run whose
+   * adapter pins nothing. `model`/`effort` are recorded here so a reader can
+   * tell a run that pinned them from one that left them to whatever the
+   * operator's mutable config said that day.
+   */
+  surface?: RunSurface
+}
+
+/** What `run_started.surface` carries; the driver's own type is engine-side. */
+export interface RunSurface {
+  permission_mode: string
+  allow: string[]
+  deny?: string[]
+  model?: string
+  effort?: string
 }
 export interface HandoffPayload {
   run: string
@@ -553,6 +572,25 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     }
     if (p.max_sessions !== undefined && !(Number.isInteger(p.max_sessions) && (p.max_sessions as number) > 0)) {
       e.push('max_sessions: must be a positive integer when present')
+    }
+    // A surface with no mode and no rules records nothing while claiming to:
+    // a reader would take it as "the driver pinned something" and could not
+    // say what. Absent means ambient, which is a different and honest fact.
+    if (p.surface !== undefined) {
+      const s = p.surface as Record<string, unknown>
+      if (typeof s !== 'object' || s === null || Array.isArray(p.surface)) {
+        e.push('surface: must be an object when present')
+      } else {
+        if (!str(s.permission_mode)) e.push('surface.permission_mode: must be a non-empty string')
+        if (!(Array.isArray(s.allow) && s.allow.every(str))) {
+          e.push('surface.allow: must be an array of non-empty strings')
+        }
+        if (s.deny !== undefined && !(Array.isArray(s.deny) && s.deny.every(str))) {
+          e.push('surface.deny: must be an array of non-empty strings when present')
+        }
+        if (s.model !== undefined && !str(s.model)) e.push('surface.model: must be a non-empty string when present')
+        if (s.effort !== undefined && !str(s.effort)) e.push('surface.effort: must be a non-empty string when present')
+      }
     }
   },
   handoff(p, e) {

@@ -2,6 +2,7 @@ import { ToolError, createToolContext } from '../mcp/context'
 import { describeRun } from '../projections/templates/shared'
 import { ClaudeCodeAdapter } from '../driver/claude-code'
 import { drive, type DriveOptions } from '../driver/drive'
+import { buildSurface, SurfaceError } from '../driver/permissions'
 import type { Adapter } from '../driver/adapter'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 
@@ -31,7 +32,13 @@ export interface DriveCliOptions {
   resume?: boolean
   /** Binary the Claude Code adapter spawns (default `claude`). */
   bin?: string
-  /** Extra argv for the agent — permission flags and the pinned settings file (2.4). */
+  /** Permission surface for every session in the run (2.4). */
+  permissionMode?: string
+  allow?: string[]
+  deny?: string[]
+  /** Drop sofar's default allow-list and use only what --allow states. */
+  bareTools?: boolean
+  /** Extra argv for the agent — the operator's escape hatch past everything above. */
   agentArgs?: string[]
   /** Test seam: an adapter to drive with, instead of building the Claude Code one. */
   adapter?: Adapter
@@ -67,6 +74,17 @@ export async function runDrive(
     const thresholdPct = integer('--threshold-pct', options.thresholdPct)
     const contextWindow = integer('--context-window', options.contextWindow)
     const costCapUsd = positive('--cost-cap', options.costCap)
+    // The surface is built HERE, before anything is recorded: a bad
+    // --permission-mode is a preflight refusal with no run_started behind it,
+    // not a run that starts and dies on its first launch.
+    const surface = buildSurface({
+      ...(options.permissionMode !== undefined ? { mode: options.permissionMode } : {}),
+      ...(options.allow !== undefined ? { allow: options.allow } : {}),
+      ...(options.deny !== undefined ? { deny: options.deny } : {}),
+      ...(options.bareTools === true ? { bare: true } : {}),
+      ...(options.model !== undefined ? { model: options.model } : {}),
+      ...(options.effort !== undefined ? { effort: options.effort } : {}),
+    })
     driveOptions = {
       adapter:
         options.adapter ??
@@ -84,10 +102,11 @@ export async function runDrive(
       ...(options.model !== undefined ? { model: options.model } : {}),
       ...(options.effort !== undefined ? { effort: options.effort } : {}),
       ...(options.resume === true ? { resume: true } : {}),
+      surface,
       onProgress,
     }
   } catch (err) {
-    return fail(errMessage(err))
+    return fail(err instanceof SurfaceError ? `sofar drive: ${err.message}` : errMessage(err))
   }
 
   // Policy names are checked before the run, so a typo never reaches the

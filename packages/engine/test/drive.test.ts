@@ -458,6 +458,91 @@ describe('resume — the record is the only handover between drivers', () => {
   })
 })
 
+describe('the permission surface (2.4, D8) — a run property, a session artifact', () => {
+  const SURFACE = { permission_mode: 'acceptEdits', allow: ['mcp__sofar', 'Bash(npm test:*)'] }
+
+  it('records what the run pinned in run_started, and hands it to every launch', async () => {
+    const root = repo('surface-record')
+    const adapter = new FakeAdapter([worker(root, 'S1'), worker(root, 'S2')])
+    await drive(root, 'demo', { adapter, surface: SURFACE })
+
+    expect(state(root).runs.at(-1)?.surface).toEqual(SURFACE)
+    expect(adapter.sessions).toHaveLength(2)
+    for (const session of adapter.sessions) expect(session.request.surface).toEqual(SURFACE)
+  })
+
+  it('records nothing when nothing was pinned — ambient is a different fact from unknown', async () => {
+    const root = repo('surface-absent')
+    const adapter = new FakeAdapter([worker(root, 'S1'), worker(root, 'S2')])
+    await drive(root, 'demo', { adapter })
+
+    expect(state(root).runs.at(-1)?.surface).toBeUndefined()
+    expect(adapter.sessions[0]?.request.surface).toBeUndefined()
+  })
+
+  it('a resumed run keeps its OWN surface over the new driver flags, and says so', async () => {
+    const root = repo('surface-resume')
+    const open = '01JZ8B3V0N5B4W8XK2M9QF7TSE'
+    appendEvent(
+      logPath(root),
+      makeEvent({
+        initiative: 'demo',
+        session: 'cli',
+        type: 'run_started',
+        payload: { run: open, adapter: 'fake', policy: 'task', surface: SURFACE },
+        source: 'cli',
+        actor: 'human',
+      }),
+    )
+    const adapter = new FakeAdapter([worker(root, 'S1')])
+    const progress: string[] = []
+    const widened = { permission_mode: 'bypassPermissions', allow: ['Bash(:*)'] }
+    await drive(root, 'demo', {
+      adapter,
+      resume: true,
+      surface: widened,
+      maxSessions: 1,
+      onProgress: (line) => progress.push(line),
+    })
+
+    // The run's sessions all ran under one surface, and it is the recorded one.
+    expect(adapter.sessions[0]?.request.surface).toEqual(SURFACE)
+    expect(progress.some((l) => l.includes("keeping run") && l.includes('acceptEdits'))).toBe(true)
+  })
+
+  it('takes model and effort from the surface, so a resumed run is not half one model', async () => {
+    const root = repo('surface-routing')
+    const adapter = new FakeAdapter([worker(root, 'S1')])
+    await drive(root, 'demo', {
+      adapter,
+      maxSessions: 1,
+      model: 'flag-model',
+      effort: 'low',
+      surface: { ...SURFACE, model: 'pinned-model', effort: 'high' },
+    })
+
+    expect(adapter.sessions[0]?.request.model).toBe('pinned-model')
+    expect(adapter.sessions[0]?.request.effort).toBe('high')
+  })
+
+  it('an adapter that refuses to launch stops the run as error, never leaving it open', async () => {
+    const root = repo('surface-unverified')
+    const adapter: Adapter = {
+      name: 'fake',
+      capabilities: { usage: false, nudge: false, model: false, effort: false },
+      launch(): AgentSession {
+        throw new Error('settings file /x does not hold what was written')
+      },
+    }
+    const outcome = await drive(root, 'demo', { adapter, surface: SURFACE })
+
+    expect(outcome.stop.reason).toBe('error')
+    expect(outcome.stop.note).toContain('does not hold what was written')
+    expect(readTypes(root).filter((t) => t === 'run_stopped')).toHaveLength(1)
+    expect(state(root).runs.at(-1)?.handoffs).toHaveLength(0)
+  })
+})
+
 describe('the CLI skin', () => {
   it('prints the run the RECORD renders, and streams progress separately', async () => {
     const root = repo('cli-ok')
@@ -479,6 +564,30 @@ describe('the CLI skin', () => {
     const result = await runDrive(root, 'demo', { adapter: new FakeAdapter([worker(root, 'S1')]), cwd: other })
     expect(result.exitCode).toBe(1)
     expect(result.stderr).toContain('fork the queue')
+    expect(readTypes(root)).not.toContain('run_started')
+  })
+
+  it('always pins a surface, and the run records the rules the operator added (2.4)', async () => {
+    const root = repo('cli-surface')
+    const adapter = new FakeAdapter([worker(root, 'S1'), worker(root, 'S2')])
+    const result = await runDrive(root, 'demo', { adapter, allow: ['Bash(npm test:*)'], effort: 'high' }, () => {})
+
+    expect(result.exitCode).toBe(0)
+    const surface = state(root).runs.at(-1)?.surface
+    expect(surface?.permission_mode).toBe('acceptEdits')
+    expect(surface?.allow).toContain('mcp__sofar')
+    expect(surface?.allow).toContain('Bash(npm test:*)')
+    expect(surface?.effort).toBe('high')
+  })
+
+  it('refuses an unknown permission mode before minting a run', async () => {
+    const root = repo('cli-mode')
+    const result = await runDrive(root, 'demo', {
+      adapter: new FakeAdapter([worker(root, 'S1')]),
+      permissionMode: 'yolo',
+    })
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('--permission-mode must be one of')
     expect(readTypes(root)).not.toContain('run_started')
   })
 

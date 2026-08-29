@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { NUDGE_ENV, writeNudge, type NudgeDetail } from './nudge'
+import { writeVerifiedSettings, type PermissionSurface } from './permissions'
 import type {
   Adapter,
   AdapterCapabilities,
@@ -48,13 +49,35 @@ import type {
 export interface ClaudeCodeOptions {
   /** Binary to spawn; default `claude`, resolved on the child's PATH. */
   bin?: string
-  /**
-   * Extra argv appended after the adapter's own flags — permission mode,
-   * allowed tools, a pinned settings file (2.4). The adapter pins nothing
-   * about permissions itself.
-   */
+  /** Extra argv appended after the adapter's own flags — the operator's escape hatch. */
   args?: string[]
 }
+
+/**
+ * The Claude Code settings file for a surface (2.4, D8). Only the permission
+ * RULES go here. The MODE travels as `--permission-mode`, because a flag
+ * cannot be outranked and a settings key can: `--settings` adds a source, it
+ * does not replace the operator's, so a `defaultMode` written here would lose
+ * to a higher-precedence one and the session would run unattended in a mode
+ * nobody chose. Which is the same failure the whole task exists to close.
+ *
+ * `--setting-sources` is deliberately left alone. This repo's hooks live in
+ * project settings and its MCP server enablement in local settings; a driven
+ * session cut off from those receives no record and can call no sofar tool.
+ * So this file only ever WIDENS the operator's own configuration — which is
+ * why the record calls it what the driver pinned, never what the session can do.
+ */
+export function settingsFor(surface: PermissionSurface): Record<string, unknown> {
+  return {
+    permissions: {
+      allow: surface.allow,
+      ...(surface.deny !== undefined && surface.deny.length > 0 ? { deny: surface.deny } : {}),
+    },
+  }
+}
+
+/** Filename of the per-session settings file, inside the session's own temp dir. */
+export const SETTINGS_FILE = 'settings.json'
 
 export const CLAUDE_CODE_CAPABILITIES: AdapterCapabilities = {
   usage: true,
@@ -78,8 +101,17 @@ export function pinPrompt(request: LaunchRequest): string {
   return `${pinLine(request.initiative)}\n\n${request.prompt}`
 }
 
-/** The argv the adapter builds, exported so a test can pin it without spawning. */
-export function claudeArgs(request: LaunchRequest, options: ClaudeCodeOptions = {}): string[] {
+/**
+ * The argv the adapter builds, exported so a test can pin it without spawning.
+ * `settingsPath` is the file the session's surface was written and verified
+ * to; it is passed separately because the path is minted per session, in the
+ * constructor, while this stays a pure function of the request.
+ */
+export function claudeArgs(
+  request: LaunchRequest,
+  options: ClaudeCodeOptions = {},
+  settingsPath?: string,
+): string[] {
   return [
     '-p',
     pinPrompt(request),
@@ -88,6 +120,8 @@ export function claudeArgs(request: LaunchRequest, options: ClaudeCodeOptions = 
     '--verbose',
     ...(request.model !== undefined ? ['--model', request.model] : []),
     ...(request.effort !== undefined ? ['--effort', request.effort] : []),
+    ...(request.surface !== undefined ? ['--permission-mode', request.surface.permission_mode] : []),
+    ...(settingsPath !== undefined ? ['--settings', settingsPath] : []),
     ...(options.args ?? []),
   ]
 }
@@ -117,6 +151,8 @@ export class ClaudeCodeSession implements AgentSession {
   /** Set when the binary could not be spawned at all (ENOENT and friends). */
   spawnError: string | undefined
   readonly nudgePath: string
+  /** The per-session settings file, once a surface has been written and verified to it. */
+  readonly settingsPath: string | undefined
 
   private latest: Usage | undefined
   private readonly outputByMessage = new Map<string, number>()
@@ -126,16 +162,28 @@ export class ClaudeCodeSession implements AgentSession {
 
   constructor(request: LaunchRequest, options: ClaudeCodeOptions) {
     const env: NodeJS.ProcessEnv = { ...process.env, ...request.env }
-    const nudgeDir = mkdtempSync(join(env.TMPDIR ?? tmpdir(), 'sofar-drive-'))
-    this.nudgePath = join(nudgeDir, 'nudge')
+    const sessionDir = mkdtempSync(join(env.TMPDIR ?? tmpdir(), 'sofar-drive-'))
+    this.nudgePath = join(sessionDir, 'nudge')
     env[NUDGE_ENV] = this.nudgePath
+
+    // The surface is written and PROVEN before the spawn, every launch (D8).
+    // A throw here happens instead of the launch, which is the point: a
+    // session whose permissions could not be verified is indistinguishable
+    // from one running on the operator's ambient configuration, and an
+    // unattended run must not be unable to tell those apart.
+    if (request.surface !== undefined) {
+      this.settingsPath = join(sessionDir, SETTINGS_FILE)
+      writeVerifiedSettings(this.settingsPath, settingsFor(request.surface))
+    } else {
+      this.settingsPath = undefined
+    }
 
     // stdin is closed at once: with it open, print mode waits three seconds
     // for piped input before proceeding without it. Detached makes the child
     // a process-group leader so kill() can reap the whole tree — claude
     // spawns MCP servers and hook shims that would otherwise outlive it and
     // keep the stdout pipe open (the D10 reaping rule, applied here).
-    this.child = spawn(options.bin ?? 'claude', claudeArgs(request, options), {
+    this.child = spawn(options.bin ?? 'claude', claudeArgs(request, options, this.settingsPath), {
       cwd: request.cwd,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],

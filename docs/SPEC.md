@@ -839,8 +839,9 @@ after another, and the record is its ONLY state. Three events carry it, all
 on envelope session `cli` — a run is not a session and never registers as
 one, so it can never read as a misrouted session:
 
-- `run_started` (run, adapter, policy, threshold_pct?, max_sessions?) — the
-  run id is a ulid the driver mints; every handoff and the stop cite it.
+- `run_started` (run, adapter, policy, threshold_pct?, context_window?,
+  max_sessions?, surface?) — the run id is a ulid the driver mints; every
+  handoff and the stop cite it.
 - `handoff` (run, session_id, reason, task?, tokens?) — one session
   boundary: which session ended and why the driver moved on.
 - `run_stopped` (run, reason, note?) — why the run itself ended.
@@ -919,6 +920,51 @@ process group — claude's MCP servers and hook shims would otherwise outlive
 it holding the stdout pipe (the D10 reaping rule) — and the exit is
 reported once stdout has drained or a two-second grace has passed,
 whichever comes first.
+
+**The permission surface (2.4, D8).** Unattended is the whole problem: print
+mode has nobody to prompt, so a gated tool call does not wait, it FAILS — a
+session launched under the default permission mode cannot edit, test or
+commit, and every session in the run ends as a stall having done nothing. The
+surface is what makes a driven session able to work, and stating it is what
+keeps it from being able to do anything.
+
+It is a RUN property whose FILE is a SESSION artifact. `run_started.surface`
+records `{permission_mode, allow[], deny?, model?, effort?}` — omitted
+entirely on a run that pinned nothing, because ambient is a different fact
+from unknown — and `--resume` takes the run's recorded surface over the
+resuming driver's flags, as it already does for threshold_pct, context_window
+and max_sessions: a run whose first half could run the tests and whose second
+half could not is two runs wearing one id. The FILE is written into each
+session's own temp dir beside the nudge, read back and compared BEFORE the
+spawn; a mismatch throws instead of launching, because verification is worth
+exactly its recency and a file proven when the run started says nothing about
+the session launched two hours and six sessions later. `model`/`effort` ride
+the surface so a resumed run is not half one model, and so the record can
+tell a run that pinned them from one that left them to whatever the
+operator's mutable config said that day (drift-certification D11's defect).
+
+Mode travels as `--permission-mode`, rules travel in the file: a flag cannot
+be outranked, a settings key can, and a driven session running unattended in
+a mode nobody chose is the failure the task exists to close. The default mode
+is `acceptEdits`; `bypassPermissions` is reachable and recorded when chosen,
+never a default. The default allow-list is the protocol floor and nothing
+else — `mcp__sofar`, `Bash(sofar:*)`, and the LOCAL git verbs behind "commit
+code and record together" — because a session that cannot call those cannot
+hand off. What the PROJECT needs to prove a task done is the operator's to
+state with `--allow`: a built-in table of likely test commands is one sofar
+could not keep true, the same reason it refuses to infer a context window
+from a model name. There is no default deny — `git push` is absent from the
+allow-list, so the mode already gates it, and a default deny would be a trap
+under `bypassPermissions`, where the operator has explicitly asked for
+everything and sofar records that rather than policing it.
+
+What the surface is NOT is a sandbox. The file is one settings SOURCE among
+the operator's own and rules union across them; sofar does not narrow
+`--setting-sources`, because this repo's hooks live in project settings and
+its MCP server enablement in local settings, and a session cut off from those
+receives no record and can call no sofar tool. So the surface can only WIDEN
+what the operator's configuration already permits, and the record says what
+the driver PINNED — never what the session could ultimately do.
 
 **The threshold nudge (2.3, D4/D7).** Print mode consumes stdin as the
 prompt and has nothing to listen on afterwards, so the driver speaks to a
@@ -2401,8 +2447,12 @@ Shims contain no logic — they invoke the sofar CLI.
 - `sofar drive [slug] [--policy task|threshold] [--threshold-pct <pct>]
   [--context-window <tokens>] [--max-sessions <n>] [--max-stalls <n>]
   [--cost-cap <usd>] [--cwd <dir>] [--model <m>] [--effort <e>] [--resume]
-  [--bin <path>]` — run an initiative task-by-task through fresh headless
-  sessions (§Driver, the loop). Progress streams to STDERR while the run goes;
+  [--bin <path>] [--permission-mode <mode>] [--allow <rule...>]
+  [--deny <rule...>] [--bare-tools]` — run an initiative task-by-task through
+  fresh headless sessions (§Driver, the loop). The permission flags state the
+  run's surface (§Driver, the permission surface): `--allow` ADDS to sofar's
+  floor and `--bare-tools` drops the floor so `--allow` states the whole of
+  it. An unknown mode is refused before a run is minted. Progress streams to STDERR while the run goes;
   STDOUT carries the one `describeRun` line the record itself renders, so the
   command never restates what the log already says. Exit 0 for every stop the
   record can explain — `needs_user` and `stall` are outcomes of a working
@@ -3426,6 +3476,23 @@ stay the underlying derivation's, and exit codes are styling-independent.
   injects it without the number when the file is unreadable, injects it even
   where the record cannot be resolved, and says nothing at all when the env
   var is unset or names a file that does not exist yet.
+- **Permission surface (session-driver 2.4):** `run_started` REJECTS a surface
+  missing its mode or its allow-list, or carrying a non-string rule; a run that
+  pinned nothing records no surface at all. The default is `acceptEdits` with
+  the protocol floor — sofar's own tools and LOCAL git — and no `git push` and
+  no project test command in it; `--allow` adds to the floor, `--bare-tools`
+  replaces it, restated rules deduplicate, and an unknown `--permission-mode`
+  is exit 1 with no `run_started` in the log. The settings file carries the
+  RULES and not the mode, and adds no key but `permissions`. `writeVerifiedSettings`
+  accepts what it wrote and REFUSES a path that lies about storing it (`/dev/null`);
+  a launch whose surface cannot be proven throws, which the loop records as
+  `error` with a `run_stopped` behind it and no handoff. Each launch writes its
+  OWN file; the argv carries `--permission-mode` and `--settings <path>` before
+  the caller's argv, and neither flag appears when the run pinned nothing. Every
+  session in a run receives the run's surface, `--resume` keeps the RECORDED one
+  over the new driver's flags and says so, and model/effort come from the surface
+  when it carries them. The full status lists the rules whole; the budgeted
+  digest line does not.
 - **Close gate (commit-attribution 5.1/5.2/5.3):** a record that actually
   finished — every task and phase resolved, every phase reviewed, a final pass
   recorded, nothing appended since the write-back — closes with NO findings and

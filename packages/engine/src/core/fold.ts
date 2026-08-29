@@ -26,6 +26,7 @@ import {
   type RunPolicy,
   type RunStartedPayload,
   type RunStopReason,
+  type RunSurface,
   type RunStoppedPayload,
   type ReviewRecordedPayload,
   type ReviewScope,
@@ -218,6 +219,13 @@ export interface RunState {
   /** The window `threshold_pct` is a percentage of; present on every threshold run. */
   context_window?: number
   max_sessions?: number
+  /**
+   * The permission surface the run pinned (session-driver 2.4, D8). A
+   * resuming driver takes THIS over its own flags, the way it already takes
+   * the run's threshold and window: a run half-run under one surface and half
+   * under another is two runs wearing one id.
+   */
+  surface?: RunSurface
   /** Log order. */
   handoffs: RunHandoff[]
   stopped?: string
@@ -1315,6 +1323,7 @@ function applyEvent(
         ...(p.threshold_pct !== undefined ? { threshold_pct: p.threshold_pct } : {}),
         ...(p.context_window !== undefined ? { context_window: p.context_window } : {}),
         ...(p.max_sessions !== undefined ? { max_sessions: p.max_sessions } : {}),
+        ...(p.surface !== undefined ? { surface: p.surface } : {}),
         handoffs: [],
       })
       break

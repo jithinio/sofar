@@ -1,6 +1,7 @@
 import type { RunPolicy } from '@sofar/schema'
 import type { InitiativeState, SessionState } from '../core/fold'
 import type { NudgeDetail } from './nudge'
+import type { PermissionSurface } from './permissions'
 
 /**
  * The adapter contract (session-driver 1.3, D2/D3): how `sofar drive` reaches
@@ -62,6 +63,15 @@ export interface LaunchRequest {
   /** Routing hints from the task (3.2); an adapter whose capabilities say no ignores them. */
   model?: string
   effort?: string
+  /**
+   * The permission surface this session runs under (2.4, D8), stated
+   * generically because every headless agent has one and none of them spell
+   * it the same way. The ADAPTER renders it into its own config — a settings
+   * file for Claude Code — and proves it landed before the spawn. Absent
+   * leaves the child to whatever the operator's own configuration says, which
+   * is what a run that pinned nothing records.
+   */
+  surface?: PermissionSurface
   /** Extra environment for the child — the driver's isolation (private TMPDIR, port block). */
   env?: Record<string, string>
 }

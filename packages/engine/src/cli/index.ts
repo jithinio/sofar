@@ -339,6 +339,16 @@ program
   .option('--effort <effort>', 'effort hint passed to every launch')
   .option('--resume', 'adopt the latest run when it has no stop, instead of refusing to start')
   .option('--bin <path>', 'agent binary to spawn (default: claude)')
+  .option(
+    '--permission-mode <mode>',
+    'permission mode every session runs under (default: acceptEdits — an unattended session cannot answer a prompt)',
+  )
+  .option(
+    '--allow <rule...>',
+    "permission rules ADDED to sofar's floor, e.g. 'Bash(npm test:*)' — state what proving a task done needs here",
+  )
+  .option('--deny <rule...>', 'permission rules denied to every session in the run')
+  .option('--bare-tools', "drop sofar's default allow-list; --allow then states the whole surface")
   .option('--root <dir>', 'repo root (default: current directory)')
   .action(
     async (
@@ -355,6 +365,10 @@ program
         effort?: string
         resume?: boolean
         bin?: string
+        permissionMode?: string
+        allow?: string[]
+        deny?: string[]
+        bareTools?: boolean
         root?: string
       },
     ) => {
@@ -371,6 +385,10 @@ program
           ...(opts.effort !== undefined ? { effort: opts.effort } : {}),
           ...(opts.resume === true ? { resume: true } : {}),
           ...(opts.bin !== undefined ? { bin: opts.bin } : {}),
+          ...(opts.permissionMode !== undefined ? { permissionMode: opts.permissionMode } : {}),
+          ...(opts.allow !== undefined ? { allow: opts.allow } : {}),
+          ...(opts.deny !== undefined ? { deny: opts.deny } : {}),
+          ...(opts.bareTools === true ? { bareTools: true } : {}),
         }),
       )
     },

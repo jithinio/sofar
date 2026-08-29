@@ -4,7 +4,7 @@
 
 Goal: Automate the session handoff sofar already makes content-complete: a stateless driver (sofar drive <initiative>) that runs an initiative task-by-task through fresh agent sessions, records every handoff as events in the record, and reaches any headless agent through a three-call adapter (launch, usage, wait) — Claude Code first, a second adapter to prove the contract. The record is the queue; the driver holds no state of its own.
 
-Progress: 6/11 tasks done (54%)
+Progress: 7/11 tasks done (63%)
 
 ## Phase 1 — Contract [done] — 3/3 done
 
@@ -14,12 +14,12 @@ Progress: 6/11 tasks done (54%)
 - [x] 1.2 Handoff events in packages/schema — run_started, handoff {reason: threshold|task_done|stall|needs_user}, run_stopped — folded and rendered in sessions/*.md and the digest; unknown lines still skipped, never fatal
 - [x] 1.3 Adapter contract as a TS interface in packages/engine: launch(digest, task), usage() → tokens, wait() → {exit, wrote_back}; a fake adapter drives the tests
 
-## Phase 2 — Claude Code adapter + sofar drive [active] — 3/4 done
+## Phase 2 — Claude Code adapter + sofar drive [active] — 4/4 done
 
 - [x] 2.1 Claude Code adapter: claude -p --output-format stream-json, per-message usage (input + cache_read + cache_creation), SessionStart injection unchanged, exit and write-back detected from the record fold
 - [x] 2.2 sofar drive <initiative>: stateless loop — next task from the fold → launch → watch → record handoff; stop rules: initiative closed | next action needs the user | N sessions with no task change | cost cap; each session in its own git worktree
 - [x] 2.3 Context policy: task-scoped by default; optional threshold (config) via a PostToolUse hook that injects "ctx N% — finish the current task, write back, end your turn" as additionalContext
-- [ ] 2.4 Permission surface for unattended sessions: pinned settings file (allow-list, permission mode, effort, model) written per session and verified by reading it back — drift-certification D6/D11 discipline
+- [x] 2.4 Permission surface for unattended sessions: pinned settings file (allow-list, permission mode, effort, model) written per session and verified by reading it back — drift-certification D6/D11 discipline
 
 ## Phase 3 — Second adapter proves the contract [pending] — 0/2 done
 
@@ -32,4 +32,4 @@ Progress: 6/11 tasks done (54%)
 - [ ] 4.2 Release sofar.sh with sofar drive; SPEC §Acceptance criteria extended for the driver
 
 Active phase: Phase 2 — Claude Code adapter + sofar drive
-Next action: Do 2.4: the permission surface for unattended sessions — write a per-session settings file (allow-list, permission mode, effort, model) into the launch, pass it through ClaudeCodeOptions.args (--settings <path>), and VERIFY it by reading it back before the run proceeds, per drift-certification D6/D11. Decide first whether the file is per-run (one file, reused by every session) or per-session, and what the default allow-list is — an unattended session that cannot run `npm test` is useless, and one that can run anything is the thing 2.4 exists to prevent.
+Next action: Phase 2 is complete, so start Phase 3, task 3.1: the second adapter that proves the contract. Read the surface it now has to render — LaunchRequest.surface is stated generically and each adapter turns it into its own config, so 3.1 is the first real test of whether that generic shape survives an agent that spells permissions differently. Note two things left open by 2.4: the per-session temp dir holding the nudge and settings file is never removed, which is arguably evidence worth keeping after an unattended run but is undocumented either way; and the surface is only ever proven at the FILE level, since proving the agent resolved it would cost a model call.

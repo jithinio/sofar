@@ -105,6 +105,38 @@ describe('driver payload validation', () => {
     ).toBe(false)
   })
 
+  it('a surface must name a mode and its allow-list (2.4, D8) — half a surface records nothing while claiming to', () => {
+    const base = { run: RUN, adapter: 'claude-code', policy: 'task' as const }
+    expect(validatePayload('run_started', base)).toEqual({ ok: true })
+    expect(
+      validatePayload('run_started', {
+        ...base,
+        surface: { permission_mode: 'acceptEdits', allow: ['mcp__sofar'] },
+      }),
+    ).toEqual({ ok: true })
+
+    const noMode = validatePayload('run_started', { ...base, surface: { allow: ['mcp__sofar'] } })
+    expect(noMode.ok).toBe(false)
+    if (!noMode.ok) expect(noMode.errors.join(' ')).toContain('surface.permission_mode')
+
+    const noAllow = validatePayload('run_started', { ...base, surface: { permission_mode: 'acceptEdits' } })
+    expect(noAllow.ok).toBe(false)
+    if (!noAllow.ok) expect(noAllow.errors.join(' ')).toContain('surface.allow')
+
+    expect(
+      validatePayload('run_started', {
+        ...base,
+        surface: { permission_mode: 'acceptEdits', allow: ['mcp__sofar'], deny: [7] },
+      }).ok,
+    ).toBe(false)
+    expect(
+      validatePayload('run_started', {
+        ...base,
+        surface: { permission_mode: 'acceptEdits', allow: ['mcp__sofar'], model: '' },
+      }).ok,
+    ).toBe(false)
+  })
+
   it('a run that died of an error must say what failed', () => {
     const res = validatePayload('run_stopped', { run: RUN, reason: 'error' })
     expect(res.ok).toBe(false)
@@ -252,6 +284,34 @@ describe('render', () => {
     expect(text).toContain('Driven (1 run):')
     expect(text).toContain(`- run ${RUN} via claude-code`)
     expect(text).toContain(`session s1 — task_done, task 1.1, 61000 tokens`)
+  })
+
+  it('the full status lists the surface WHOLE, and the budgeted digest line stays out of it (2.4, D8)', () => {
+    const withSurface: Line = {
+      type: 'run_started',
+      payload: {
+        run: RUN,
+        adapter: 'claude-code',
+        policy: 'task',
+        surface: {
+          permission_mode: 'acceptEdits',
+          allow: ['mcp__sofar', 'Bash(npm test:*)'],
+          deny: ['Bash(git push:*)'],
+          effort: 'high',
+        },
+      },
+    }
+    const { state } = foldLog(log('surface-render', [withSurface, s1, s1end, h1]))
+    const text = renderFullStatus(state)
+    expect(text).toContain('  permissions: acceptEdits, effort high')
+    expect(text).toContain('    allow mcp__sofar')
+    expect(text).toContain('    allow Bash(npm test:*)')
+    expect(text).toContain('    deny Bash(git push:*)')
+    // The digest is budgeted: it says a run happened, not what it could do.
+    expect(renderStatus(state)).not.toContain('acceptEdits')
+
+    const ambient = foldLog(log('surface-none', [started, s1, s1end, h1])).state
+    expect(renderFullStatus(ambient)).not.toContain('permissions:')
   })
 
   it('sessions/<id>.md names the run that handed the session off', () => {

@@ -12,6 +12,7 @@ import type { InitiativeState, PhaseState } from '../core/fold'
 import { latestRun } from '../core/fold'
 import { createToolContext, ToolError } from '../mcp/context'
 import type { NudgeDetail } from './nudge'
+import { describeSurface, sameSurface, type PermissionSurface } from './permissions'
 import {
   policyUnavailable,
   resolveLaunchedSession,
@@ -116,9 +117,21 @@ export interface DriveOptions {
   costCapUsd?: number
   /** Directory every session is launched in; default the repo root (D6). */
   cwd?: string
-  /** Routing hints passed to every launch; per-task hints are 3.2. */
+  /**
+   * Routing hints passed to every launch; per-task hints are 3.2. A `surface`
+   * carrying its own model/effort wins over these — on a resumed run those are
+   * the values the run recorded, and one run must not be half one model.
+   */
   model?: string
   effort?: string
+  /**
+   * The permission surface every session in this run is launched under (2.4,
+   * D8). Recorded once in `run_started`; a resumed run keeps its OWN, the way
+   * it already keeps its threshold and window. Absent leaves every session to
+   * the operator's ambient configuration, and the run records that by
+   * recording nothing.
+   */
+  surface?: PermissionSurface
   /** Adopt the latest run when it has no stop, instead of refusing. */
   resume?: boolean
   /** Progress lines in order, as they happen — the CLI prints them to stderr. */
@@ -308,6 +321,10 @@ export async function drive(
     }
   }
 
+  // Run-owned, like thresholdPct and contextWindow above: stated by this
+  // driver's flags for a fresh run, taken from the record for a resumed one.
+  let surface = options.surface
+
   const cwd = resolve(options.cwd ?? rootDir)
   assertSameRecord(cwd, initiative, ctx.eventsPath(initiative))
   warnOnForeignBinding(cwd, initiative, progress)
@@ -338,6 +355,15 @@ export async function drive(
     }
     thresholdPct = last.threshold_pct ?? thresholdPct
     contextWindow = last.context_window ?? contextWindow
+    // The run's own surface wins, for the reason its threshold does (D8): a
+    // run whose first half could run `npm test` and whose second half could
+    // not is two runs wearing one id, and the record shows only the first.
+    if (last.surface !== undefined && !sameSurface(last.surface, surface)) {
+      progress(
+        `keeping run ${runId}'s recorded surface (${describeSurface(last.surface)}) over this driver's flags — start a new run to change it`,
+      )
+    }
+    surface = last.surface ?? surface
     progress(`resuming run ${runId} — ${priorSessions} handoff(s) already recorded`)
   } else {
     runId = ulid()
@@ -351,10 +377,12 @@ export async function drive(
         ...(thresholdPct !== undefined ? { threshold_pct: thresholdPct } : {}),
         ...(contextWindow !== undefined ? { context_window: contextWindow } : {}),
         ...(maxSessions !== undefined ? { max_sessions: maxSessions } : {}),
+        ...(surface !== undefined ? { surface } : {}),
       },
       { session: 'cli', source: 'cli', actor: 'human' },
     )
     progress(`run ${runId} — ${adapter.name}, ${policy} policy, in ${cwd}`)
+    if (surface !== undefined) progress(`  permissions: ${describeSurface(surface)}`)
   }
 
   const maxStalls = options.maxStalls ?? DEFAULT_MAX_STALLS
@@ -412,13 +440,19 @@ export async function drive(
       const knownSessions = new Set(state.sessions.map((s) => s.id))
       const launchedAt = new Date().toISOString()
       progress(`session ${launched + 1}: ${task.id} — ${task.title}`)
+      // model/effort come from the SURFACE when it carries them: on a resumed
+      // run those are the values the record kept, and the launch must match
+      // what `run_started` says the run pinned.
+      const model = surface?.model ?? options.model
+      const effort = surface?.effort ?? options.effort
       const session = adapter.launch({
         cwd,
         initiative,
         prompt: renderPrompt(initiative, task, policy),
         task: { id: task.id, title: task.title },
-        ...(options.model !== undefined ? { model: options.model } : {}),
-        ...(options.effort !== undefined ? { effort: options.effort } : {}),
+        ...(model !== undefined ? { model } : {}),
+        ...(effort !== undefined ? { effort } : {}),
+        ...(surface !== undefined ? { surface } : {}),
       })
       live = session
       const gauge =

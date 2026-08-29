@@ -297,6 +297,22 @@ export function renderFullStatus(state: InitiativeState): string {
     lines.push(`Driven (${plural(state.runs.length, 'run')}):`)
     for (const run of state.runs) {
       lines.push(`- ${describeRun(run)}`)
+      // The surface in FULL, and only here (session-driver 2.4, D8). The
+      // digest's Driven line is budgeted and this is the question nobody asks
+      // until months later — what were those unattended sessions allowed to
+      // do? — so it belongs on the surface that answers questions, not the one
+      // that fits in a header. Rules are listed whole: a truncated allow-list
+      // is worse than none, because it reads as complete.
+      if (run.surface !== undefined) {
+        const s = run.surface
+        const pinned = [
+          s.model !== undefined ? `model ${s.model}` : undefined,
+          s.effort !== undefined ? `effort ${s.effort}` : undefined,
+        ].filter((p): p is string => p !== undefined)
+        lines.push(`  permissions: ${s.permission_mode}${pinned.length > 0 ? `, ${pinned.join(', ')}` : ''}`)
+        for (const rule of s.allow) lines.push(`    allow ${rule}`)
+        for (const rule of s.deny ?? []) lines.push(`    deny ${rule}`)
+      }
       for (const h of run.handoffs) {
         const task = h.task !== undefined ? `, task ${h.task}` : ''
         const tokens = h.tokens !== undefined ? `, ${h.tokens} tokens` : ''
