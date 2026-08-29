@@ -29,6 +29,16 @@ export interface FakeScript {
   usage?: Usage[]
   /** Append a session_ended before exiting. */
   write_back?: boolean
+  /**
+   * Mark the launched task `done` before writing back — a session that did the
+   * work. Ignored when the launch names no task.
+   */
+  complete?: boolean
+  /**
+   * Mark the launched task `blocked` with this note before writing back — the
+   * driven agent's needs_user lever (session-driver D5).
+   */
+  block?: string
   exit?: { code: number | null; signal?: string }
   /** Whether the exit carries the session id — a transport that shows it. */
   report_session_id?: boolean
@@ -65,6 +75,28 @@ export class FakeSession implements AgentSession {
 
   async wait(): Promise<SessionExit> {
     const { script } = this
+    const taskId = this.request.task?.id
+    if (script.session_id !== undefined && taskId !== undefined) {
+      const change =
+        script.block !== undefined
+          ? { id: taskId, status: 'blocked', note: script.block }
+          : script.complete === true
+            ? { id: taskId, status: 'done' }
+            : undefined
+      if (change !== undefined) {
+        appendEvent(
+          script.logPath,
+          makeEvent({
+            initiative: script.initiative,
+            session: script.session_id,
+            type: 'task_status_changed',
+            payload: change,
+            source: 'cli',
+            actor: 'agent',
+          }),
+        )
+      }
+    }
     if (script.session_id !== undefined && script.write_back === true) {
       appendEvent(
         script.logPath,
@@ -94,19 +126,23 @@ export class FakeAdapter implements Adapter {
   readonly name = 'fake'
   readonly capabilities: AdapterCapabilities
   readonly sessions: FakeSession[] = []
+  /** One script per launch, in order; the last repeats — a driven RUN, not one session. */
+  private readonly scripts: FakeScript[]
 
-  constructor(private readonly script: FakeScript) {
+  constructor(script: FakeScript | FakeScript[]) {
+    this.scripts = Array.isArray(script) ? script : [script]
+    const first = this.scripts[0]!
     this.capabilities = {
-      usage: (script.usage?.length ?? 0) > 0,
+      usage: (first.usage?.length ?? 0) > 0,
       nudge: true,
       model: false,
       effort: false,
-      ...script.capabilities,
+      ...first.capabilities,
     }
   }
 
   launch(request: LaunchRequest): FakeSession {
-    const { script } = this
+    const script = this.scripts[Math.min(this.sessions.length, this.scripts.length - 1)]!
     if (script.session_id !== undefined) {
       appendEvent(
         script.logPath,

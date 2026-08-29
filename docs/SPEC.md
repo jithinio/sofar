@@ -884,8 +884,12 @@ with no lever, or a lever with no gauge. An adapter never reports record
 state: wrote_back is `wroteBack` over the fold (registered AND carries a
 summary), and the launched session's identity is the id the transport
 showed if the record registered it, else the one session that tool
-registered since the launch — several is ambiguity, recorded as a stall,
-never a guess.
+registered since the launch and the caller had not already folded —
+several is ambiguity, recorded as a stall, never a guess. The
+already-folded set is what makes that sound: `started` has millisecond
+resolution, so a run whose sessions land inside one millisecond would see
+every earlier session tie with the launch and read as an ambiguity that
+never happened.
 
 **Claude Code adapter (2.1, D4).** `claude -p <prompt> --output-format
 stream-json --verbose`, plus `--model` / `--effort` for routing hints and
@@ -909,6 +913,47 @@ process group — claude's MCP servers and hook shims would otherwise outlive
 it holding the stdout pipe (the D10 reaping rule) — and the exit is
 reported once stdout has drained or a two-second grace has passed,
 whichever comes first.
+
+**The loop (2.2).** Fold → next task → launch → wait → handoff, repeat. The
+next task is the one already `active` in the active phase, else its first
+`pending`, then the same in the remaining phases in plan order; `done`,
+`blocked` and `dropped` phases and tasks are skipped, and a run continues
+past a phase boundary rather than stopping at one. Stop rules, checked
+before each launch: the initiative is closed, no task is left, `max_sessions`
+launched, the adapter's reported cost has reached `--cost-cap`; and after
+each handoff: `needs_user`, N consecutive stalls (`--max-stalls`, default 2),
+an operator's ^C (`interrupted`). Anything thrown stops the run as `error`
+with the message as the note. Whatever ends it, a `run_stopped` lands behind
+it — a run with no stop is one the next driver has to ask the operator about,
+so `sofar drive` REFUSES to start over an unstopped run and offers
+`--resume`, which adopts that run id and its recorded `max_sessions` rather
+than minting a second run over the same work.
+
+**Handoff reasons come from the fold (D5).** `needs_user` is the named task
+sitting in `blocked` — the record's existing word for "wants to happen,
+cannot yet", which already requires a note, so the operator's question is
+recorded where the next reader looks; the prompt tells the session to use it,
+making the stop something the agent TRIGGERS rather than something the driver
+infers. `task_done` needs both halves of a finished handoff: the session
+wrote back AND some task reached done/dropped. Everything else is a stall,
+including a session that finished work and skipped its write-back, because
+the next session would resume from a next_action that predates it. No
+write-back prose is matched and no exit code is trusted. A launch that
+resolves to no session, or to several, is counted as a stall and carries NO
+handoff: a handoff names a session, and naming the wrong one files a run's
+history on someone else's work.
+
+**One launch directory per run (D6).** `sofar drive` creates no worktree and
+switches no branch: sessions in a run are sequential and cumulative, so a
+fresh checkout per session would discard the previous one's uncommitted work
+and its installed dependencies. Sessions launch in the repo root unless
+`--cwd` names another directory, and the driver refuses to start unless
+`<cwd>/.sofar/initiatives/<slug>/events.jsonl` resolves (realpath) to the log
+it is driving — the record is committed, so a plain worktree carries a stale
+COPY of it and a session writing there would fork the queue invisibly. It
+warns, without refusing, when that directory's branch binds elsewhere: the
+prompt still pins the writes (D4), but the child's SessionStart hook will
+inject that other record's digest.
 
 **What the driver is not (D2).** Not a session, not an agent loop, never an
 inference: it launches existing headless agents through the adapter
@@ -2325,6 +2370,14 @@ Shims contain no logic — they invoke the sofar CLI.
   only that the words are there, never that they answer the question. An
   expansion that hits the visit ceiling says so rather than presenting a partial
   answer as whole.
+- `sofar drive [slug] [--policy task] [--max-sessions <n>] [--max-stalls <n>]
+  [--cost-cap <usd>] [--cwd <dir>] [--model <m>] [--effort <e>] [--resume]
+  [--bin <path>]` — run an initiative task-by-task through fresh headless
+  sessions (§Driver, the loop). Progress streams to STDERR while the run goes;
+  STDOUT carries the one `describeRun` line the record itself renders, so the
+  command never restates what the log already says. Exit 0 for every stop the
+  record can explain — `needs_user` and `stall` are outcomes of a working
+  driver — and 1 only for `error` or a preflight that refused to start.
 - `sofar review [slug] [--final] [--phase <name>]` — print the evidence packet
   a reviewing session works from (commit-attribution 4.6, contract in §Review).
   The READ half of the loop; `sofar_review` is the write half, split
@@ -3312,6 +3365,24 @@ stay the underlying derivation's, and exit codes are styling-independent.
   stderr tail; `kill()` yields a null code and the signal; a missing binary
   is exit 127. The child receives the nudge path in `SOFAR_DRIVE_NUDGE` and
   `nudge()` creates that file.
+- **`sofar drive` loop (session-driver 2.2):** the queue is the plan — the
+  active task before the first pending, resolved and blocked tasks and
+  phases skipped, and `undefined` when nothing is left. Handoff reasons are
+  read from the fold: a blocked named task is `needs_user`, a write-back plus
+  a resolved task is `task_done`, the same work with no write-back is a
+  stall, and so is a write-back that resolved nothing. A run stops on a
+  closed initiative or an empty queue (`closed`, launching nothing), at
+  `max_sessions` and at the cost cap BEFORE the next launch, on the first
+  `needs_user`, and after N consecutive stalls with the count in the note; a
+  stall streak resets on a task_done. A launch that registers no session, or
+  registers two, files NO handoff, counts as a stall, and says which in the
+  stop note. An adapter that throws stops the run as `error` carrying the
+  message — never leaving a run open. Preflight refuses BEFORE any
+  run_started: a `--cwd` whose log for the initiative is a different file or
+  missing, a policy the adapter cannot run, the threshold policy until 2.3,
+  and an unstopped run without `--resume`; `--resume` adopts that run id
+  (one run_started in the log) and its recorded `max_sessions`. A scripted
+  fake adapter drives all of it.
 - **Close gate (commit-attribution 5.1/5.2/5.3):** a record that actually
   finished — every task and phase resolved, every phase reviewed, a final pass
   recorded, nothing appended since the write-back — closes with NO findings and

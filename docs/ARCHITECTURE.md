@@ -136,6 +136,7 @@ worse than no attribution.
 | `cli/next.ts` | `sofar next` — the single next action. |
 | `cli/list.ts` | `sofar list` — the portfolio. |
 | `cli/doctor.ts` | `sofar doctor` — the audit: records, lifecycle, split sessions, concurrency, guards, repo memory, scanners. |
+| `cli/drive.ts` | `sofar drive` — the CLI skin on the driver loop: builds the adapter, streams progress to stderr, and mirrors the run back through `describeRun`. Exit 0 for every stop the record can explain; 1 for `error` and for a preflight that refused to start. |
 | `cli/graph.ts` | `sofar graph` — cross-record queries. |
 | `cli/find.ts` | `sofar find` — traverse from a seed within a hop budget. Offers adjacency, never asserts relevance; every row cites its event. |
 | `cli/remember.ts` | `sofar remember` — promote an operational fact. |
@@ -204,6 +205,7 @@ three-call adapter and the driver never becomes an agent loop of its own.
 | --- | --- |
 | `driver/adapter.ts` | The adapter contract: `launch` → handle with `usage`/`nudge`/`kill`/`wait`, capabilities declared up front. Driver-side derivations that an adapter must never answer itself: `wroteBack` and `resolveLaunchedSession` read the fold, `policyUnavailable` refuses a threshold policy on an adapter that cannot measure or nudge. |
 | `driver/claude-code.ts` | The Claude Code adapter: `claude -p --output-format stream-json --verbose`, session id from the init line, context from the latest turn's input + cache tokens, output summed per message id, cost from the result line. Initiative pinned through the prompt; nudge delivered as a file whose path rides in `SOFAR_DRIVE_NUDGE`. |
+| `driver/drive.ts` | The `sofar drive` loop: fold → next task (active-first, then plan order) → launch → wait → handoff, until a stop rule fires. Reasons are read from the record (D5) — `needs_user` is the named task in `blocked`, `task_done` needs a write-back plus a resolved task, everything else stalls. One launch directory per run, verified by realpath to serve the same log (D6). |
 
 ---
 

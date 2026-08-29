@@ -15,6 +15,7 @@ import { runClose } from './close'
 import { runStatus, runStatusWatch } from './status'
 import { runList } from './list'
 import { runNext } from './next'
+import { runDrive } from './drive'
 import { runRelated, runWhy } from './graph'
 import { runFind } from './find'
 import { REACH_DEFAULT_HOPS, REACH_MAX_HOPS } from '../core/index-reach'
@@ -315,6 +316,53 @@ program
     }
     emit(await runPull(rootOf(opts), syncOptions(slug, opts)))
   })
+
+program
+  .command('drive [slug]')
+  .description(
+    'run an initiative task-by-task through fresh headless agent sessions: next task from the fold → launch → wait → record the handoff, until a stop rule fires (^C stops the run, not just the session)',
+  )
+  .option('--policy <policy>', 'session policy: `task` (one task per session; the default) or `threshold` (2.3)')
+  .option('--max-sessions <n>', 'stop before launching more than n sessions in this run')
+  .option('--max-stalls <n>', 'stop after n consecutive sessions with no task change (default 2)')
+  .option('--cost-cap <usd>', 'stop before the next launch once the adapter has reported this much cost')
+  .option('--cwd <dir>', 'directory to launch sessions in (default: repo root); must serve the SAME record')
+  .option('--model <model>', 'model hint passed to every launch')
+  .option('--effort <effort>', 'effort hint passed to every launch')
+  .option('--resume', 'adopt the latest run when it has no stop, instead of refusing to start')
+  .option('--bin <path>', 'agent binary to spawn (default: claude)')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action(
+    async (
+      slug: string | undefined,
+      opts: {
+        policy?: string
+        maxSessions?: string
+        maxStalls?: string
+        costCap?: string
+        cwd?: string
+        model?: string
+        effort?: string
+        resume?: boolean
+        bin?: string
+        root?: string
+      },
+    ) => {
+      emit(
+        await runDrive(rootOf(opts), slug, {
+          ...(opts.policy !== undefined ? { policy: opts.policy } : {}),
+          ...(opts.maxSessions !== undefined ? { maxSessions: opts.maxSessions } : {}),
+          ...(opts.maxStalls !== undefined ? { maxStalls: opts.maxStalls } : {}),
+          ...(opts.costCap !== undefined ? { costCap: opts.costCap } : {}),
+          ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
+          ...(opts.model !== undefined ? { model: opts.model } : {}),
+          ...(opts.effort !== undefined ? { effort: opts.effort } : {}),
+          ...(opts.resume === true ? { resume: true } : {}),
+          ...(opts.bin !== undefined ? { bin: opts.bin } : {}),
+        }),
+      )
+    },
+  )
 
 program
   .command('serve')

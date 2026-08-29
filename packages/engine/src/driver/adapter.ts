@@ -148,22 +148,33 @@ export type LaunchedSession =
  * Which record session a launch became. The adapter's word is taken when the
  * transport showed an id AND the record registered it; otherwise the
  * candidates are the sessions registered at or after the launch, by an agent
- * of the adapter's name. One candidate is the answer. Several is parallel work
- * the driver did not start, and it must not guess — a wrong guess would file
- * the handoff on someone else's session — so the ambiguity is returned as
- * such and the driver treats it as a stall.
+ * of the adapter's name, that the caller had not already seen. One candidate
+ * is the answer. Several is parallel work the driver did not start, and it
+ * must not guess — a wrong guess would file the handoff on someone else's
+ * session — so the ambiguity is returned as such and the driver treats it as
+ * a stall.
+ *
+ * `known` — the session ids the caller folded BEFORE launching — is what makes
+ * that sound. Timestamps are the weaker half of the filter: `started` has
+ * millisecond resolution, so a run whose sessions land inside the same
+ * millisecond has every earlier session tie with the launch and read as
+ * ambiguity that never happened. The set difference is exact, and the
+ * timestamp stays as the check that catches a `known` set from an older fold.
  */
 export function resolveLaunchedSession(
   state: InitiativeState,
   exit: SessionExit,
   launchedAt: string,
   tool: string,
+  known: ReadonlySet<string> = new Set(),
 ): LaunchedSession {
   if (exit.session_id !== undefined) {
     const named = state.sessions.find((s) => s.id === exit.session_id)
     if (named !== undefined) return { kind: 'found', session: named }
   }
-  const candidates = state.sessions.filter((s) => s.tool === tool && s.started >= launchedAt)
+  const candidates = state.sessions.filter(
+    (s) => s.tool === tool && s.started >= launchedAt && !known.has(s.id),
+  )
   if (candidates.length === 1) return { kind: 'found', session: candidates[0]! }
   if (candidates.length === 0) return { kind: 'none' }
   return { kind: 'ambiguous', candidates: candidates.map((s) => s.id) }
