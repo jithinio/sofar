@@ -151,8 +151,8 @@ as `<slug> M<n>`; repo-memory-capture D1) ·
 review_recorded (scope: phase|final, verdict: pass|findings|blocked,
 watermark?, phase?, findings? — a review that was actually performed;
 commit-attribution 4.4, see §Review) ·
-run_started (run, adapter, policy: task|threshold, threshold_pct? — REQUIRED
-for `threshold`, max_sessions?) · handoff (run, session_id, reason:
+run_started (run, adapter, policy: task|threshold, threshold_pct? and
+context_window? — BOTH REQUIRED for `threshold`, max_sessions?) · handoff (run, session_id, reason:
 task_done|threshold|stall|needs_user, task?, tokens?) · run_stopped (run,
 reason: closed|needs_user|stall|cost_cap|max_sessions|interrupted|error,
 note? — REQUIRED for `error`; the three driver events ride on envelope
@@ -176,7 +176,7 @@ ts}} ],
 files_touched[], task_files, drop_notes, guard_violations[ {decision, rule,
 guard, domain, subject, event_id, ts, session} ], reviews[ {id, ts, scope,
 verdict, watermark?, phase?, findings[]} ], runs[ {id, ts, adapter, policy,
-threshold_pct?, max_sessions?, handoffs[ {ts, session_id, reason, task?,
+threshold_pct?, context_window?, max_sessions?, handoffs[ {ts, session_id, reason, task?,
 tokens?} ], stopped?, stop_reason?, stop_note?} ], current: {active_phase,
 next_action, blocked_on?}, freshness, cursor: <last event id> }
 
@@ -845,12 +845,18 @@ one, so it can never read as a misrouted session:
   boundary: which session ended and why the driver moved on.
 - `run_stopped` (run, reason, note?) — why the run itself ended.
 
-**Policy (D2).** `task`: one task per session, no context sensing needed —
-identical on every agent and model, and therefore the default. `threshold`:
-pack tasks into a session until the context gauge reaches `threshold_pct`,
-then hand off at the next task boundary. `threshold_pct` is REQUIRED for it,
-because a driver resuming the run cannot guess the number the last one ran
-under.
+**Policy (D2, D7).** `task`: one task per session, no context sensing needed
+— identical on every agent and model, and therefore the default.
+`threshold`: pack tasks into a session until the context gauge reaches
+`threshold_pct` of `context_window`, then hand off at the next task
+boundary. BOTH are REQUIRED for it, because a driver resuming the run cannot
+guess the numbers the last one ran under — and a percentage with no
+denominator names no number of tokens at all, so 80% of 200k and 80% of 1M
+would be two runs wearing one id. Sofar never infers the window from a model
+name: a table it cannot keep true would mis-time every handoff silently, so
+the operator states it and the record keeps it. `--resume` therefore refuses
+to change a run's policy, and takes the run's own threshold, window and
+`max_sessions` over the resuming driver's flags.
 
 **Reasons.** handoff: `task_done` | `threshold` | `stall` (the session ended
 with no task change) | `needs_user` (its write-back names a decision only
@@ -913,6 +919,28 @@ process group — claude's MCP servers and hook shims would otherwise outlive
 it holding the stdout pipe (the D10 reaping rule) — and the exit is
 reported once stdout has drained or a two-second grace has passed,
 whichever comes first.
+
+**The threshold nudge (2.3, D4/D7).** Print mode consumes stdin as the
+prompt and has nothing to listen on afterwards, so the driver speaks to a
+RUNNING session through the filesystem: the child is launched with
+`SOFAR_DRIVE_NUDGE` naming a path, `nudge()` writes `{ts, pct?, tokens?}`
+there, and the PostToolUse hook — which already runs on every edit and every
+command — turns that file's EXISTENCE into "finish the CURRENT task now,
+then hand off: mark it done, write back, commit, end your turn, do not start
+another task". Contents are detail, not the signal: an unreadable or empty
+file still nudges, with the sentence and no number, and a hook can never
+fail a session over a half-written nudge. It is delivered BEFORE the record
+is resolved and even when it cannot be — the nudge is a fact about the
+process this session runs in, not about the record it serves — and it costs
+one env lookup in every session no driver started. The driver reads the
+gauge once immediately and then every 2s, and nudges ONCE: the file persists,
+so the hook re-injects on every later tool call by itself. The prompt differs
+by policy, and that difference is load-bearing: a `task` session is told to
+do THIS TASK ONLY, a `threshold` session to keep taking tasks until the nudge
+arrives — print mode ends the turn on its own, so telling a threshold session
+to stop after one task would make the gauge decorative. A nudged session that
+wrote back and resolved a task hands off with reason `threshold` rather than
+`task_done`: the reason names the lever that moved.
 
 **The loop (2.2).** Fold → next task → launch → wait → handoff, repeat. The
 next task is the one already `active` in the active phase, else its first
@@ -2370,7 +2398,8 @@ Shims contain no logic — they invoke the sofar CLI.
   only that the words are there, never that they answer the question. An
   expansion that hits the visit ceiling says so rather than presenting a partial
   answer as whole.
-- `sofar drive [slug] [--policy task] [--max-sessions <n>] [--max-stalls <n>]
+- `sofar drive [slug] [--policy task|threshold] [--threshold-pct <pct>]
+  [--context-window <tokens>] [--max-sessions <n>] [--max-stalls <n>]
   [--cost-cap <usd>] [--cwd <dir>] [--model <m>] [--effort <e>] [--resume]
   [--bin <path>]` — run an initiative task-by-task through fresh headless
   sessions (§Driver, the loop). Progress streams to STDERR while the run goes;
@@ -3383,6 +3412,20 @@ stay the underlying derivation's, and exit codes are styling-independent.
   and an unstopped run without `--resume`; `--resume` adopts that run id
   (one run_started in the log) and its recorded `max_sessions`. A scripted
   fake adapter drives all of it.
+- **Threshold policy (session-driver 2.3):** `run_started` REJECTS a
+  `threshold` policy missing `context_window` as it does one missing
+  `threshold_pct`, and a non-positive window; a threshold run records both and
+  the digest's run line reads `threshold 70% of 200000`. `sofar drive`
+  refuses either half alone and a percentage outside 1..100 before minting a
+  run, and `--resume` refuses to change a run's policy. The gauge nudges once
+  when context reaches the percentage, stays silent below it, and the handoff
+  it produces reads `threshold`, not `task_done`; an un-nudged session in the
+  same run still reads `task_done`. The threshold prompt tells the session to
+  keep taking tasks, the task prompt tells it to stop at one. The PostToolUse
+  hook injects the finish-and-hand-off line with the gauge the driver saw,
+  injects it without the number when the file is unreadable, injects it even
+  where the record cannot be resolved, and says nothing at all when the env
+  var is unset or names a file that does not exist yet.
 - **Close gate (commit-attribution 5.1/5.2/5.3):** a record that actually
   finished — every task and phase resolved, every phase reviewed, a final pass
   recorded, nothing appended since the write-back — closes with NO findings and

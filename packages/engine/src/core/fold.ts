@@ -215,6 +215,8 @@ export interface RunState {
   adapter: string
   policy: RunPolicy
   threshold_pct?: number
+  /** The window `threshold_pct` is a percentage of; present on every threshold run. */
+  context_window?: number
   max_sessions?: number
   /** Log order. */
   handoffs: RunHandoff[]
@@ -1311,6 +1313,7 @@ function applyEvent(
         adapter: p.adapter,
         policy: p.policy,
         ...(p.threshold_pct !== undefined ? { threshold_pct: p.threshold_pct } : {}),
+        ...(p.context_window !== undefined ? { context_window: p.context_window } : {}),
         ...(p.max_sessions !== undefined ? { max_sessions: p.max_sessions } : {}),
         handoffs: [],
       })

@@ -11,6 +11,7 @@ import {
 import type { InitiativeState, PhaseState } from '../core/fold'
 import { latestRun } from '../core/fold'
 import { createToolContext, ToolError } from '../mcp/context'
+import type { NudgeDetail } from './nudge'
 import {
   policyUnavailable,
   resolveLaunchedSession,
@@ -49,6 +50,50 @@ import {
 /** Consecutive stalls that stop a run; `--max-stalls` overrides it. */
 export const DEFAULT_MAX_STALLS = 2
 
+/**
+ * How often the threshold policy reads the gauge. Usage only moves when the
+ * agent's transport emits a turn, so polling faster buys nothing; polling
+ * slower risks nudging a session that has already filled its window.
+ */
+export const NUDGE_POLL_MS = 2_000
+
+/**
+ * Watch a running session's context and nudge it ONCE when it crosses the
+ * threshold. Returns the stop function and a `nudged()` the loop reads
+ * afterwards, because the handoff reason has to say which lever moved.
+ *
+ * Once only, deliberately: the file is created and stays, so the PostToolUse
+ * hook re-injects the instruction on every subsequent tool call anyway — a
+ * second write would change nothing but the timestamp. The timer is unref'd,
+ * so a driver waiting on nothing else can still exit.
+ */
+export function watchThreshold(
+  session: AgentSession,
+  thresholdPct: number,
+  contextWindow: number,
+  onNudge?: (detail: NudgeDetail) => void,
+): { stop: () => void; nudged: () => boolean } {
+  let fired = false
+  const read = (): void => {
+    if (fired) return
+    const tokens = session.usage()?.context_tokens
+    if (tokens === undefined) return
+    const pct = (tokens / contextWindow) * 100
+    if (pct < thresholdPct) return
+    fired = true
+    const detail: NudgeDetail = { pct, tokens }
+    session.nudge?.(detail)
+    onNudge?.(detail)
+  }
+  // Read once before waiting: a session that reports a full window from its
+  // first turn — a resumed one, or one whose prompt is already enormous —
+  // should be told at once, not one poll later.
+  read()
+  const timer = setInterval(read, NUDGE_POLL_MS)
+  timer.unref()
+  return { stop: () => clearInterval(timer), nudged: () => fired }
+}
+
 export interface DriveTask {
   /** Phase the task belongs to — reported, never recorded (the task id is the key). */
   phase: string
@@ -59,6 +104,10 @@ export interface DriveTask {
 export interface DriveOptions {
   adapter: Adapter
   policy?: RunPolicy
+  /** Percentage of `contextWindow` at which a running session is nudged; REQUIRED for `threshold`. */
+  thresholdPct?: number
+  /** Tokens the session's context window holds — the denominator; REQUIRED for `threshold`. */
+  contextWindow?: number
   /** Stop before launching session N+1 when N have been launched in this run. */
   maxSessions?: number
   /** Stop after this many CONSECUTIVE stalls (default DEFAULT_MAX_STALLS). */
@@ -155,18 +204,46 @@ export function handoffReason(
   after: InitiativeState,
   taskId: string,
   sessionId: string,
+  nudged = false,
 ): HandoffReason {
   const statuses = taskStatuses(after)
   if (statuses.get(taskId) === 'blocked') return 'needs_user'
   if (!wroteBack(after, sessionId)) return 'stall'
   for (const [id, status] of statuses) {
-    if (isResolvedTaskStatus(status) && !isResolvedTaskStatus(before.get(id) ?? 'pending')) return 'task_done'
+    if (isResolvedTaskStatus(status) && !isResolvedTaskStatus(before.get(id) ?? 'pending')) {
+      // A nudged session that then wrapped up handed off because the GAUGE
+      // said so, whatever else it finished on the way — that is what the
+      // threshold policy is, and the reason has to say which lever moved.
+      return nudged ? 'threshold' : 'task_done'
+    }
   }
   return 'stall'
 }
 
-/** The opening prompt: the task, the one-task rule, and the blocked lever (D5). */
-export function renderPrompt(initiative: string, task: DriveTask): string {
+/**
+ * The opening prompt: the task, how far to go, and the blocked lever (D5).
+ *
+ * The policy changes ONE paragraph, and it is the load-bearing one. Print mode
+ * ends the session when the turn ends, so a session that stops at its task is
+ * the `task` policy by construction; `threshold` only exists if the prompt
+ * says to keep taking tasks, and the nudge is what ends it (2.3). Telling a
+ * threshold session to stop after one task would make the gauge decorative.
+ */
+export function renderPrompt(initiative: string, task: DriveTask, policy: RunPolicy = 'task'): string {
+  const scope =
+    policy === 'threshold'
+      ? [
+          'Start with THIS task, and when it is finished take the next one from the plan',
+          'the same way — done, written back, committed — until sofar tells you the context',
+          'is nearly full. That message names a percentage and asks you to finish the',
+          'current task and hand off; when it arrives, finish that task and end your turn',
+          'without starting another.',
+        ]
+      : [
+          'Do THIS TASK ONLY, to the acceptance criteria the record names. Do not start the',
+          'next one: the driver launches a fresh session for it, and running on costs the',
+          'context that session needs.',
+        ]
   return [
     `Task ${task.id} — ${task.title}`,
     '',
@@ -174,9 +251,7 @@ export function renderPrompt(initiative: string, task: DriveTask): string {
     'goal, standing constraints, decisions, next action — is injected at session start;',
     `if you did not receive it, run \`sofar status ${initiative}\` before anything else.`,
     '',
-    'Do THIS TASK ONLY, to the acceptance criteria the record names. Do not start the',
-    'next one: the driver launches a fresh session for it, and running on costs the',
-    'context that session needs.',
+    ...scope,
     '',
     'Finish the way the protocol says: log decisions as you make them, mark the task',
     'done with sofar_update_task, write back with sofar_end_session (summary + the',
@@ -208,14 +283,29 @@ export async function drive(
 
   const unavailable = policyUnavailable(adapter.capabilities, policy)
   if (unavailable !== null) throw new ToolError('invalid_input', `sofar drive: ${unavailable}`)
-  // The threshold policy is a gauge, a lever AND the hook that reads it; the
-  // hook is 2.3. Refused here rather than in the CLI so no path can start a
-  // threshold run whose nudges reach nothing.
+  // Both halves or neither (2.3): the percentage is a percentage OF the
+  // window, and a run recording one without the other could not say what
+  // number of tokens it actually nudged at.
+  let thresholdPct: number | undefined
+  let contextWindow: number | undefined
   if (policy === 'threshold') {
-    throw new ToolError(
-      'invalid_input',
-      'sofar drive: the `threshold` policy needs the PostToolUse nudge hook (session-driver 2.3), which is not wired yet — run the default `task` policy',
-    )
+    thresholdPct = options.thresholdPct
+    contextWindow = options.contextWindow
+    if (thresholdPct === undefined || contextWindow === undefined) {
+      throw new ToolError(
+        'invalid_input',
+        'sofar drive: the `threshold` policy needs both --threshold-pct and --context-window — a percentage with no denominator names no number of tokens',
+      )
+    }
+    if (!Number.isInteger(thresholdPct) || thresholdPct < 1 || thresholdPct > 100) {
+      throw new ToolError('invalid_input', `sofar drive: --threshold-pct must be 1..100, got ${thresholdPct}`)
+    }
+    if (!Number.isInteger(contextWindow) || contextWindow < 1) {
+      throw new ToolError(
+        'invalid_input',
+        `sofar drive: --context-window must be a positive whole number of tokens, got ${contextWindow}`,
+      )
+    }
   }
 
   const cwd = resolve(options.cwd ?? rootDir)
@@ -237,6 +327,17 @@ export async function drive(
     runId = last.id
     priorSessions = last.handoffs.length
     if (last.max_sessions !== undefined) maxSessions = last.max_sessions
+    // The resumed run's own numbers win over this driver's flags: the run is
+    // one thing, and half of it nudging at 80% of 200k while the other half
+    // nudges at 80% of 1M is two runs wearing one id.
+    if (last.policy !== policy) {
+      throw new ToolError(
+        'invalid_input',
+        `sofar drive: run ${last.id} runs the \`${last.policy}\` policy; --resume cannot change it to \`${policy}\``,
+      )
+    }
+    thresholdPct = last.threshold_pct ?? thresholdPct
+    contextWindow = last.context_window ?? contextWindow
     progress(`resuming run ${runId} — ${priorSessions} handoff(s) already recorded`)
   } else {
     runId = ulid()
@@ -247,6 +348,8 @@ export async function drive(
         run: runId,
         adapter: adapter.name,
         policy,
+        ...(thresholdPct !== undefined ? { threshold_pct: thresholdPct } : {}),
+        ...(contextWindow !== undefined ? { context_window: contextWindow } : {}),
         ...(maxSessions !== undefined ? { max_sessions: maxSessions } : {}),
       },
       { session: 'cli', source: 'cli', actor: 'human' },
@@ -312,13 +415,24 @@ export async function drive(
       const session = adapter.launch({
         cwd,
         initiative,
-        prompt: renderPrompt(initiative, task),
+        prompt: renderPrompt(initiative, task, policy),
         task: { id: task.id, title: task.title },
         ...(options.model !== undefined ? { model: options.model } : {}),
         ...(options.effort !== undefined ? { effort: options.effort } : {}),
       })
       live = session
-      const exit = await session.wait()
+      const gauge =
+        policy === 'threshold' && thresholdPct !== undefined && contextWindow !== undefined
+          ? watchThreshold(session, thresholdPct, contextWindow, (detail) =>
+              progress(`  nudged at ${Math.round(detail.pct ?? 0)}% (${detail.tokens} ctx tokens)`),
+            )
+          : undefined
+      let exit
+      try {
+        exit = await session.wait()
+      } finally {
+        gauge?.stop()
+      }
       live = undefined
       cost += exit.usage?.cost_usd ?? 0
 
@@ -347,7 +461,7 @@ export async function drive(
       }
 
       const sessionId = resolved.session.id
-      const reason = handoffReason(beforeStatuses, after, task.id, sessionId)
+      const reason = handoffReason(beforeStatuses, after, task.id, sessionId, gauge?.nudged() === true)
       const tokens = exit.usage?.context_tokens
       ctx.appendAndProject(
         initiative,

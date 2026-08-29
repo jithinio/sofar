@@ -17,6 +17,7 @@ import {
   NUDGE_DRIFT_MIN,
   STOP_BLOCK_MESSAGE,
 } from '../src/cli/event'
+import { NUDGE_ENV } from '../src/driver/nudge'
 import { STATUS_CHAR_LIMIT } from '../src/projections/templates/status'
 import { callTool, connectServer, makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
 
@@ -1030,5 +1031,63 @@ describe('sofar event session-end — mechanical close marker (3.5, BD21)', () =
       stdout: '',
       stderr: '',
     })
+  })
+})
+
+describe('sofar event post-tool — the driver nudge (session-driver 2.3)', () => {
+  /** A nudge file at a temp path, with the env var pointing at it. */
+  function nudged(detail: string | null): string {
+    const fixture = fx()
+    const path = join(fixture.root, 'nudge')
+    if (detail !== null) writeFileSync(path, detail)
+    process.env[NUDGE_ENV] = path
+    return fixture.root
+  }
+
+  afterEach(() => {
+    delete process.env[NUDGE_ENV]
+  })
+
+  const edit = (root: string): string =>
+    handlePostTool(root, hookStdin({ tool_name: 'Write', tool_input: { file_path: join(root, 'a.ts') } })).stdout
+
+  it('injects the finish-and-hand-off instruction, with the gauge the driver saw', () => {
+    const root = nudged(JSON.stringify({ pct: 84.4, tokens: 168_800 }))
+    const out = JSON.parse(edit(root)) as { hookSpecificOutput: { additionalContext: string } }
+    const context = out.hookSpecificOutput.additionalContext
+    expect(context).toContain('context at 84%')
+    expect(context).toContain('168800 tokens')
+    expect(context).toContain('sofar_end_session')
+    expect(context).toContain('Do not start another task')
+  })
+
+  it('says nothing at all in a session no driver started', () => {
+    const fixture = fx()
+    expect(edit(fixture.root)).toBe('')
+  })
+
+  it('the file EXISTING is the signal — unreadable contents still nudge, without the number', () => {
+    const root = nudged('{not json')
+    const context = (JSON.parse(edit(root)) as { hookSpecificOutput: { additionalContext: string } })
+      .hookSpecificOutput.additionalContext
+    expect(context).toContain('finish the CURRENT task')
+    expect(context).not.toContain('context at')
+  })
+
+  it('an env var pointing at a file that does not exist yet is silence, not a nudge', () => {
+    const root = nudged(null)
+    expect(edit(root)).toBe('')
+  })
+
+  it('reaches a driven session even where the hook cannot resolve a record', () => {
+    const root = nudged(JSON.stringify({ pct: 90, tokens: 180_000 }))
+    // An unbound directory: resolveBound returns null and the hook records
+    // nothing — the nudge is about the process, not the record.
+    const elsewhere = join(root, 'not-a-record')
+    const out = handlePostTool(
+      elsewhere,
+      hookStdin({ tool_name: 'Bash', tool_input: { command: 'npm test' } }),
+    ).stdout
+    expect(out).toContain('finish the CURRENT task')
   })
 })

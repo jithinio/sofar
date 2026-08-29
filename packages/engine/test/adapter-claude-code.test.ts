@@ -2,13 +2,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import {
-  ClaudeCodeAdapter,
-  NUDGE_ENV,
-  claudeArgs,
-  pinLine,
-  pinPrompt,
-} from '../src/driver/claude-code'
+import { ClaudeCodeAdapter, claudeArgs, pinLine, pinPrompt } from '../src/driver/claude-code'
+import { NUDGE_ENV, readNudge } from '../src/driver/nudge'
 import type { LaunchRequest } from '../src/driver/adapter'
 
 /**

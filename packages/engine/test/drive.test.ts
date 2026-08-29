@@ -6,7 +6,7 @@ import { foldLog, type InitiativeState } from '../src/core/fold'
 import { makeEvent } from '../src/core/envelope'
 import { appendEvent } from '../src/core/log'
 import type { Adapter, AgentSession, LaunchRequest, SessionExit } from '../src/driver/adapter'
-import { drive, handoffReason, nextTask, renderPrompt } from '../src/driver/drive'
+import { drive, handoffReason, nextTask, renderPrompt, watchThreshold } from '../src/driver/drive'
 import { runDrive } from '../src/cli/drive'
 import { FakeAdapter, type FakeScript } from './helpers/fake-adapter'
 
@@ -380,10 +380,24 @@ describe('preflight — nothing is recorded until the run can actually run', () 
     expect(readTypes(root)).not.toContain('run_started')
   })
 
-  it('refuses the threshold policy until its nudge hook exists (2.3)', async () => {
+  it('refuses a threshold policy missing either half of its threshold (2.3)', async () => {
     const root = repo('threshold')
-    const adapter = new FakeAdapter([worker(root, 'S1', { usage: [{ context_tokens: 10 }] })])
-    await expect(drive(root, 'demo', { adapter, policy: 'threshold' })).rejects.toThrow(/session-driver 2\.3/)
+    const gauged = (): FakeAdapter =>
+      new FakeAdapter([worker(root, 'S1', { usage: [{ context_tokens: 10 }] })])
+    await expect(drive(root, 'demo', { adapter: gauged(), policy: 'threshold' })).rejects.toThrow(
+      /needs both --threshold-pct and --context-window/,
+    )
+    await expect(
+      drive(root, 'demo', { adapter: gauged(), policy: 'threshold', thresholdPct: 80 }),
+    ).rejects.toThrow(/needs both/)
+    await expect(
+      drive(root, 'demo', {
+        adapter: gauged(),
+        policy: 'threshold',
+        thresholdPct: 140,
+        contextWindow: 200_000,
+      }),
+    ).rejects.toThrow(/--threshold-pct must be 1\.\.100/)
     expect(readTypes(root)).not.toContain('run_started')
   })
 
@@ -499,5 +513,92 @@ describe('the CLI skin', () => {
     )
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain('stopped: needs_user')
+  })
+})
+
+describe('the threshold policy (2.3)', () => {
+  /** A session that reports `tokens` of context and ends when it is done. */
+  function gauged(root: string, id: string, tokens: number, extra: Partial<FakeScript> = {}): FakeScript {
+    return worker(root, id, { usage: [{ context_tokens: tokens, cost_usd: 0.1 }], ...extra })
+  }
+
+  it('records BOTH halves on run_started, so the run says what it nudged at', async () => {
+    const root = repo('threshold-record')
+    const adapter = new FakeAdapter([gauged(root, 'S1', 10), gauged(root, 'S2', 10)])
+    await drive(root, 'demo', { adapter, policy: 'threshold', thresholdPct: 80, contextWindow: 200_000 })
+    expect(state(root).runs.at(-1)).toMatchObject({
+      policy: 'threshold',
+      threshold_pct: 80,
+      context_window: 200_000,
+    })
+  })
+
+  it('tells the session to keep taking tasks until nudged — the task policy does the opposite', () => {
+    const task = { phase: 'P', id: '1.1', title: 'first' }
+    expect(renderPrompt('demo', task, 'threshold')).toContain('take the next one from the plan')
+    expect(renderPrompt('demo', task, 'threshold')).not.toContain('THIS TASK ONLY')
+    expect(renderPrompt('demo', task, 'task')).toContain('THIS TASK ONLY')
+  })
+
+  it('nudges once when the gauge crosses, and the handoff says `threshold`', async () => {
+    const root = repo('threshold-nudge')
+    // 170k of a 200k window is 85% — over the 80% threshold on the first read.
+    const adapter = new FakeAdapter([gauged(root, 'S1', 170_000), gauged(root, 'S2', 1_000)])
+    const outcome = await drive(root, 'demo', {
+      adapter,
+      policy: 'threshold',
+      thresholdPct: 80,
+      contextWindow: 200_000,
+    })
+    expect(adapter.sessions[0]!.nudged).toBe(1)
+    expect(adapter.sessions[1]!.nudged).toBe(0)
+    expect(outcome.handoffs.map((h) => h.reason)).toEqual(['threshold', 'task_done'])
+  })
+
+  it('the gauge stays silent below the threshold, and never fires twice', () => {
+    let tokens = 10_000
+    let nudges = 0
+    const session: AgentSession = {
+      usage: () => ({ context_tokens: tokens }),
+      nudge: () => {
+        nudges += 1
+      },
+      kill: () => {},
+      wait: async () => ({ code: 0 }),
+    }
+    const gauge = watchThreshold(session, 80, 200_000)
+    expect(gauge.nudged()).toBe(false)
+    expect(nudges).toBe(0)
+
+    tokens = 180_000
+    const hot = watchThreshold(session, 80, 200_000)
+    expect(hot.nudged()).toBe(true)
+    expect(nudges).toBe(1)
+    hot.stop()
+    gauge.stop()
+  })
+
+  it('--resume cannot change the policy a run is already running', async () => {
+    const root = repo('threshold-resume')
+    appendEvent(
+      logPath(root),
+      makeEvent({
+        initiative: 'demo',
+        session: 'cli',
+        type: 'run_started',
+        payload: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSE', adapter: 'fake', policy: 'task' },
+        source: 'cli',
+        actor: 'human',
+      }),
+    )
+    await expect(
+      drive(root, 'demo', {
+        adapter: new FakeAdapter([gauged(root, 'S1', 10)]),
+        policy: 'threshold',
+        thresholdPct: 80,
+        contextWindow: 200_000,
+        resume: true,
+      }),
+    ).rejects.toThrow(/runs the `task` policy/)
   })
 })

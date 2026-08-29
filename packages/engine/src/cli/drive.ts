@@ -20,6 +20,8 @@ import { errMessage, fail, ok, type CmdResult } from './shared'
 
 export interface DriveCliOptions {
   policy?: string
+  thresholdPct?: string
+  contextWindow?: string
   maxSessions?: string
   maxStalls?: string
   costCap?: string
@@ -62,6 +64,8 @@ export async function runDrive(
   try {
     const maxStalls = integer('--max-stalls', options.maxStalls)
     const maxSessions = integer('--max-sessions', options.maxSessions)
+    const thresholdPct = integer('--threshold-pct', options.thresholdPct)
+    const contextWindow = integer('--context-window', options.contextWindow)
     const costCapUsd = positive('--cost-cap', options.costCap)
     driveOptions = {
       adapter:
@@ -71,6 +75,8 @@ export async function runDrive(
           ...(options.agentArgs !== undefined ? { args: options.agentArgs } : {}),
         }),
       ...(options.policy !== undefined ? { policy: options.policy as DriveOptions['policy'] } : {}),
+      ...(thresholdPct !== undefined ? { thresholdPct } : {}),
+      ...(contextWindow !== undefined ? { contextWindow } : {}),
       ...(maxSessions !== undefined ? { maxSessions } : {}),
       ...(maxStalls !== undefined ? { maxStalls } : {}),
       ...(costCapUsd !== undefined ? { costCapUsd } : {}),

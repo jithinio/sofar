@@ -229,6 +229,16 @@ export interface RunStartedPayload {
   policy: RunPolicy
   /** Context percentage at which a session is told to finish and hand off; REQUIRED for `threshold`. */
   threshold_pct?: number
+  /**
+   * Tokens the session's context window holds — the DENOMINATOR
+   * `threshold_pct` is a percentage of, and REQUIRED for `threshold` for the
+   * same reason the percentage is: 80% of 200k and 80% of 1M are different
+   * runs, so a record carrying only the percentage cannot say what the last
+   * driver actually nudged at. Sofar never infers it from the model name — a
+   * model table it cannot keep true would mis-time every handoff silently —
+   * so the operator states it and the record keeps it (session-driver 2.3).
+   */
+  context_window?: number
   max_sessions?: number
 }
 export interface HandoffPayload {
@@ -525,10 +535,21 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     ) {
       e.push('threshold_pct: must be an integer from 1 to 100 when present')
     }
+    if (
+      p.context_window !== undefined &&
+      !(Number.isInteger(p.context_window) && (p.context_window as number) > 0)
+    ) {
+      e.push('context_window: must be a positive integer when present')
+    }
     // A threshold policy with no threshold cannot be replayed: the next driver
     // to pick the run up would have to guess the number this one ran under.
+    // Both halves, for one reason: a percentage with no denominator names no
+    // number of tokens at all.
     if (p.policy === 'threshold' && p.threshold_pct === undefined) {
       e.push('threshold_pct: required when policy is `threshold`')
+    }
+    if (p.policy === 'threshold' && p.context_window === undefined) {
+      e.push('context_window: required when policy is `threshold` — the percentage needs its denominator')
     }
     if (p.max_sessions !== undefined && !(Number.isInteger(p.max_sessions) && (p.max_sessions as number) > 0)) {
       e.push('max_sessions: must be a positive integer when present')

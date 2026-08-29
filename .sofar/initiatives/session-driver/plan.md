@@ -4,7 +4,7 @@
 
 Goal: Automate the session handoff sofar already makes content-complete: a stateless driver (sofar drive <initiative>) that runs an initiative task-by-task through fresh agent sessions, records every handoff as events in the record, and reaches any headless agent through a three-call adapter (launch, usage, wait) — Claude Code first, a second adapter to prove the contract. The record is the queue; the driver holds no state of its own.
 
-Progress: 5/11 tasks done (45%)
+Progress: 6/11 tasks done (54%)
 
 ## Phase 1 — Contract [done] — 3/3 done
 
@@ -14,11 +14,11 @@ Progress: 5/11 tasks done (45%)
 - [x] 1.2 Handoff events in packages/schema — run_started, handoff {reason: threshold|task_done|stall|needs_user}, run_stopped — folded and rendered in sessions/*.md and the digest; unknown lines still skipped, never fatal
 - [x] 1.3 Adapter contract as a TS interface in packages/engine: launch(digest, task), usage() → tokens, wait() → {exit, wrote_back}; a fake adapter drives the tests
 
-## Phase 2 — Claude Code adapter + sofar drive [active] — 2/4 done
+## Phase 2 — Claude Code adapter + sofar drive [active] — 3/4 done
 
 - [x] 2.1 Claude Code adapter: claude -p --output-format stream-json, per-message usage (input + cache_read + cache_creation), SessionStart injection unchanged, exit and write-back detected from the record fold
 - [x] 2.2 sofar drive <initiative>: stateless loop — next task from the fold → launch → watch → record handoff; stop rules: initiative closed | next action needs the user | N sessions with no task change | cost cap; each session in its own git worktree
-- [ ] 2.3 Context policy: task-scoped by default; optional threshold (config) via a PostToolUse hook that injects "ctx N% — finish the current task, write back, end your turn" as additionalContext
+- [x] 2.3 Context policy: task-scoped by default; optional threshold (config) via a PostToolUse hook that injects "ctx N% — finish the current task, write back, end your turn" as additionalContext
 - [ ] 2.4 Permission surface for unattended sessions: pinned settings file (allow-list, permission mode, effort, model) written per session and verified by reading it back — drift-certification D6/D11 discipline
 
 ## Phase 3 — Second adapter proves the contract [pending] — 0/2 done
@@ -32,4 +32,4 @@ Progress: 5/11 tasks done (45%)
 - [ ] 4.2 Release sofar.sh with sofar drive; SPEC §Acceptance criteria extended for the driver
 
 Active phase: Phase 2 — Claude Code adapter + sofar drive
-Next action: Do 2.3: the context policy — a PostToolUse hook that reads SOFAR_DRIVE_NUDGE and injects "ctx N% — finish the current task, write back, end your turn" as additionalContext, then lift the threshold refusal in drive.ts (it throws with a message naming 2.3) by polling usage() against a configured context window and calling nudge() once per session. Decide where the window size comes from (flag, config, or per-model table) before coding it — the adapter reports tokens but never the window.
+Next action: Do 2.4: the permission surface for unattended sessions — write a per-session settings file (allow-list, permission mode, effort, model) into the launch, pass it through ClaudeCodeOptions.args (--settings <path>), and VERIFY it by reading it back before the run proceeds, per drift-certification D6/D11. Decide first whether the file is per-run (one file, reused by every session) or per-session, and what the default allow-list is — an unattended session that cannot run `npm test` is useless, and one that can run anything is the thing 2.4 exists to prevent.

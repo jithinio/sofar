@@ -1,5 +1,6 @@
 import type { RunPolicy } from '@sofar/schema'
 import type { InitiativeState, SessionState } from '../core/fold'
+import type { NudgeDetail } from './nudge'
 
 /**
  * The adapter contract (session-driver 1.3, D2/D3): how `sofar drive` reaches
@@ -99,8 +100,11 @@ export interface SessionExit {
 export interface AgentSession {
   /** Latest usage seen; undefined until the transport shows one, or forever on an adapter without `capabilities.usage`. */
   usage(): Usage | undefined
-  /** Deliver the threshold nudge. Present only on adapters with `capabilities.nudge`. */
-  nudge?(): void
+  /**
+   * Deliver the threshold nudge, with what the driver saw when it decided to
+   * (2.3). Present only on adapters with `capabilities.nudge`.
+   */
+  nudge?(detail?: NudgeDetail): void
   /** End the session now — cost cap, max sessions, operator interrupt. */
   kill(signal?: NodeJS.Signals): void
   /** Resolves when the process has ended. Never rejects: a crash is an exit with a code. */

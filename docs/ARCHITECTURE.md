@@ -205,6 +205,7 @@ three-call adapter and the driver never becomes an agent loop of its own.
 | --- | --- |
 | `driver/adapter.ts` | The adapter contract: `launch` → handle with `usage`/`nudge`/`kill`/`wait`, capabilities declared up front. Driver-side derivations that an adapter must never answer itself: `wroteBack` and `resolveLaunchedSession` read the fold, `policyUnavailable` refuses a threshold policy on an adapter that cannot measure or nudge. |
 | `driver/claude-code.ts` | The Claude Code adapter: `claude -p --output-format stream-json --verbose`, session id from the init line, context from the latest turn's input + cache tokens, output summed per message id, cost from the result line. Initiative pinned through the prompt; nudge delivered as a file whose path rides in `SOFAR_DRIVE_NUDGE`. |
+| `driver/nudge.ts` | The threshold nudge file: the env var carrying its path, the write, the tolerant read, and the line the hook injects. Dependency-free because it sits on the PostToolUse hot path — existence is the signal, contents are detail. |
 | `driver/drive.ts` | The `sofar drive` loop: fold → next task (active-first, then plan order) → launch → wait → handoff, until a stop rule fires. Reasons are read from the record (D5) — `needs_user` is the named task in `blocked`, `task_done` needs a write-back plus a resolved task, everything else stalls. One launch directory per run, verified by realpath to serve the same log (D6). |
 
 ---

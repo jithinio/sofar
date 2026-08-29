@@ -32,6 +32,7 @@ import {
   type NeighbourRecord,
 } from '../core/index-tier1'
 import { resolvePeers, type Peer } from '../core/peers'
+import { nudgeLine, readNudge } from '../driver/nudge'
 import { redactCommand } from '../core/redact'
 import { newestEvent } from '../core/warmth'
 import {
@@ -630,8 +631,17 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
   try {
     const hook = parseHook(input)
     const session = strField(hook, 'session_id') ?? 'cli'
+
+    // The driver's threshold nudge (session-driver 2.3) — read BEFORE the
+    // record is resolved and delivered even when it cannot be: the nudge is a
+    // fact about the process this session runs in, not about the record it
+    // serves, and a driven session in a repo this hook cannot bind must still
+    // hear "wrap up". Costs one env lookup in every session no driver started.
+    const nudge = readNudge()
+    const driven = nudge === null ? [] : [nudgeLine(nudge)]
+
     const bound = resolveBound(rootDir, session)
-    if (bound === null) return { ...OK }
+    if (bound === null) return driven.length === 0 ? { ...OK } : { ...OK, stdout: postToolContext(driven) }
     const { ctx, slug } = bound
 
     const toolName = strField(hook, 'tool_name')
@@ -648,16 +658,19 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
     // unenforceable, since no event about a push is ever written for the fold
     // to test.
     let exempt = false
+    const injected = (lines: readonly string[]): HookResult =>
+      lines.length === 0 ? { ...OK } : { ...OK, stdout: postToolContext(lines) }
+
     if (toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'Write') {
       const path = strField(toolInput, 'file_path')
-      if (path === null) return { ...OK }
+      if (path === null) return injected(driven)
       type = 'file_touched'
       payload = { path, op: toolName === 'Write' ? 'write' : 'edit' }
       domain = 'path'
       subject = path
     } else if (toolName === 'Bash') {
       const cmd = strField(toolInput, 'command')
-      if (cmd === null) return { ...OK }
+      if (cmd === null) return injected(driven)
       exempt = isSelfRecordingCommand(cmd)
       type = 'command_run'
       // Redact BEFORE the append, because there is no after: the log is
@@ -671,7 +684,7 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
       // hook and the fold can never disagree about whether a rule fired.
       subject = payload.cmd as string
     } else {
-      return { ...OK }
+      return injected(driven)
     }
 
     // Before the append, never after: the notice asks what this session has
@@ -689,7 +702,9 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
       }
       ctx.appendAndProject(slug, type, payload, { session, source: 'hook' })
     }
-    return notice.length === 0 ? { ...OK } : { ...OK, stdout: postToolContext(notice) }
+    // Nudge first: it says what to do NEXT, while a guard notice comments on
+    // the edit just made.
+    return injected([...driven, ...notice])
   } catch {
     return { ...OK }
   }

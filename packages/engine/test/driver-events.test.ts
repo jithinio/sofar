@@ -71,13 +71,38 @@ const stopped: Line = {
 }
 
 describe('driver payload validation', () => {
-  it('a threshold policy must carry its threshold — the next driver cannot guess it', () => {
+  it('a threshold policy must carry BOTH halves of its threshold — a percentage with no denominator names no number of tokens (2.3)', () => {
     const res = validatePayload('run_started', { run: RUN, adapter: 'claude-code', policy: 'threshold' })
     expect(res.ok).toBe(false)
-    if (!res.ok) expect(res.errors.join(' ')).toContain('threshold_pct: required')
+    if (!res.ok) {
+      expect(res.errors.join(' ')).toContain('threshold_pct: required')
+      expect(res.errors.join(' ')).toContain('context_window: required')
+    }
+    const noWindow = validatePayload('run_started', {
+      run: RUN,
+      adapter: 'claude-code',
+      policy: 'threshold',
+      threshold_pct: 70,
+    })
+    expect(noWindow.ok).toBe(false)
     expect(
-      validatePayload('run_started', { run: RUN, adapter: 'claude-code', policy: 'threshold', threshold_pct: 70 }),
+      validatePayload('run_started', {
+        run: RUN,
+        adapter: 'claude-code',
+        policy: 'threshold',
+        threshold_pct: 70,
+        context_window: 200_000,
+      }),
     ).toEqual({ ok: true })
+    expect(
+      validatePayload('run_started', {
+        run: RUN,
+        adapter: 'claude-code',
+        policy: 'threshold',
+        threshold_pct: 70,
+        context_window: 0,
+      }).ok,
+    ).toBe(false)
   })
 
   it('a run that died of an error must say what failed', () => {
@@ -157,11 +182,23 @@ describe('fold: a run is reconstructed from its events alone', () => {
   it('latestRun is the most recent run in log order', () => {
     const second: Line = {
       type: 'run_started',
-      payload: { run: 'R2', adapter: 'opencode', policy: 'threshold', threshold_pct: 60, max_sessions: 4 },
+      payload: {
+        run: 'R2',
+        adapter: 'opencode',
+        policy: 'threshold',
+        threshold_pct: 60,
+        context_window: 400_000,
+        max_sessions: 4,
+      },
     }
     const { state } = foldLog(log('two', [started, stopped, second]))
     expect(state.runs.map((r) => r.id)).toEqual([RUN, 'R2'])
-    expect(latestRun(state)).toMatchObject({ id: 'R2', threshold_pct: 60, max_sessions: 4 })
+    expect(latestRun(state)).toMatchObject({
+      id: 'R2',
+      threshold_pct: 60,
+      context_window: 400_000,
+      max_sessions: 4,
+    })
   })
 })
 
@@ -187,10 +224,18 @@ describe('render', () => {
   it('describeRun names the threshold for a threshold policy and says running while unstopped', () => {
     const t: Line = {
       type: 'run_started',
-      payload: { run: RUN, adapter: 'claude-code', policy: 'threshold', threshold_pct: 70 },
+      payload: {
+        run: RUN,
+        adapter: 'claude-code',
+        policy: 'threshold',
+        threshold_pct: 70,
+        context_window: 200_000,
+      },
     }
     const { state } = foldLog(log('threshold', [t]))
-    expect(describeRun(latestRun(state)!)).toBe(`run ${RUN} via claude-code, threshold 70% — 0 handoffs; running`)
+    expect(describeRun(latestRun(state)!)).toBe(
+      `run ${RUN} via claude-code, threshold 70% of 200000 — 0 handoffs; running`,
+    )
   })
 
   it('the digest carries one Driven line, and a hand-run record carries none', () => {

@@ -1,8 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
+import { NUDGE_ENV, writeNudge, type NudgeDetail } from './nudge'
 import type {
   Adapter,
   AdapterCapabilities,
@@ -62,8 +63,6 @@ export const CLAUDE_CODE_CAPABILITIES: AdapterCapabilities = {
   effort: true,
 }
 
-/** Env var carrying the nudge file's path into the child; 2.3's hook reads it. */
-export const NUDGE_ENV = 'SOFAR_DRIVE_NUDGE'
 
 /** The line prepended to every prompt so the session pins itself to the record it serves. */
 export function pinLine(initiative: string): string {
@@ -243,8 +242,8 @@ export class ClaudeCodeSession implements AgentSession {
     return this.latest
   }
 
-  nudge(): void {
-    writeFileSync(this.nudgePath, `${new Date().toISOString()}\n`)
+  nudge(detail: NudgeDetail = {}): void {
+    writeNudge(this.nudgePath, detail)
   }
 
   /** Signal the whole process group; fall back to the child alone where groups are unavailable. */

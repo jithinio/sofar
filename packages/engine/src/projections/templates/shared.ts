@@ -45,7 +45,10 @@ export function describeActivity(activity: SessionActivity): string {
  * order — first seen first — so the line is a pure function of the events.
  */
 export function describeRun(run: RunState): string {
-  const policy = run.policy === 'threshold' ? `threshold ${run.threshold_pct ?? '?'}%` : 'task policy'
+  const policy =
+    run.policy === 'threshold'
+      ? `threshold ${run.threshold_pct ?? '?'}%${run.context_window !== undefined ? ` of ${run.context_window}` : ''}`
+      : 'task policy'
   const byReason = new Map<string, number>()
   for (const h of run.handoffs) byReason.set(h.reason, (byReason.get(h.reason) ?? 0) + 1)
   const breakdown = [...byReason].map(([reason, n]) => `${n} ${reason}`).join(', ')

@@ -322,7 +322,15 @@ program
   .description(
     'run an initiative task-by-task through fresh headless agent sessions: next task from the fold → launch → wait → record the handoff, until a stop rule fires (^C stops the run, not just the session)',
   )
-  .option('--policy <policy>', 'session policy: `task` (one task per session; the default) or `threshold` (2.3)')
+  .option(
+    '--policy <policy>',
+    'session policy: `task` (one task per session; the default) or `threshold` (pack tasks until the context gauge fires)',
+  )
+  .option('--threshold-pct <pct>', 'nudge the session to hand off at this % of the window; REQUIRED for --policy threshold')
+  .option(
+    '--context-window <tokens>',
+    "the window that percentage is OF; REQUIRED for --policy threshold — state your model's, sofar never guesses it",
+  )
   .option('--max-sessions <n>', 'stop before launching more than n sessions in this run')
   .option('--max-stalls <n>', 'stop after n consecutive sessions with no task change (default 2)')
   .option('--cost-cap <usd>', 'stop before the next launch once the adapter has reported this much cost')
@@ -337,6 +345,8 @@ program
       slug: string | undefined,
       opts: {
         policy?: string
+        thresholdPct?: string
+        contextWindow?: string
         maxSessions?: string
         maxStalls?: string
         costCap?: string
@@ -351,6 +361,8 @@ program
       emit(
         await runDrive(rootOf(opts), slug, {
           ...(opts.policy !== undefined ? { policy: opts.policy } : {}),
+          ...(opts.thresholdPct !== undefined ? { thresholdPct: opts.thresholdPct } : {}),
+          ...(opts.contextWindow !== undefined ? { contextWindow: opts.contextWindow } : {}),
           ...(opts.maxSessions !== undefined ? { maxSessions: opts.maxSessions } : {}),
           ...(opts.maxStalls !== undefined ? { maxStalls: opts.maxStalls } : {}),
           ...(opts.costCap !== undefined ? { costCap: opts.costCap } : {}),
