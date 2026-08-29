@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: Still item 5, faster indexing using AI, which is the only thing on this initiative that blocks work: choose the agent-emitted enrichment route, which needs no Decision, or log one superseding SPEC Architectural invariants and felt-cost D3 for the embedding route. If the Rust option is ever exercised, read speed-2 D1 first, per the escape-hatch caveat noted above.
+Next action: Unchanged and still item 5, faster indexing using AI: take the agent-emitted enrichment route which needs no Decision, or log one superseding SPEC Architectural invariants and felt-cost D3 for the embedding route. Standing caution when anyone acts on the Rust option: read speed-2 D1 first for the hook-path caveat, and treat the distribution objection as retired rather than citing it.
