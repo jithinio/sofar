@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: Rule item 5 by naming the GOAL first, not the implementation: if the goal is a faster and richer index over declared connections, take the agent-emitted enrichment route and no Decision is needed; if the goal is discovering connections nobody declared, log a Decision superseding SPEC Architectural invariants and felt-cost D3 before any work, since only embeddings answer that. Everything else on this initiative is already pointed at its own record.
+Next action: Start item 5 with the agent-emitted layer, since it needs no ruling: define the enrichment event types in packages/schema with a producer field stamped on every event, and generalise the existing declared-relevance mechanism that sofar_log_decision guard and core index-tier1 already implement. Defer the semantic producer until there are real declared links to measure it against, then log a narrowly scoped Decision permitting a model call only from an explicit opt-in command, naming SPEC Architectural invariants and felt-cost D3.
