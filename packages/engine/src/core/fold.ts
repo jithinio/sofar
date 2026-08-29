@@ -20,7 +20,13 @@ import {
   type CorrectionPayload,
   type GuardDomain,
   type DecisionLoggedPayload,
+  type HandoffPayload,
+  type HandoffReason,
   type MemoryPromotedPayload,
+  type RunPolicy,
+  type RunStartedPayload,
+  type RunStopReason,
+  type RunStoppedPayload,
   type ReviewRecordedPayload,
   type ReviewScope,
   type ReviewVerdict,
@@ -160,6 +166,12 @@ export interface SessionState {
   /** Present only when ≥1 mechanical event is attributed to this session (BD44). */
   activity?: SessionActivity
   /**
+   * The handoff that ended this session, when a driver ran it (session-driver
+   * 1.2): which run, and why the driver moved on. Absent for every session a
+   * human started by hand.
+   */
+  handoff?: { run: string; reason: HandoffReason; ts: string }
+  /**
    * Drift THIS session owes (drift-signal 1.1): mutation-class events carrying
    * its id, appended after its OWN last write-back. Same window and same kinds
    * as `freshness` — asked of one session instead of the initiative.
@@ -179,6 +191,36 @@ export interface SessionState {
    * did this session do", never "what has it not written down".
    */
   unwritten: number
+}
+
+/** One session boundary inside a run (session-driver 1.2). */
+export interface RunHandoff {
+  ts: string
+  session_id: string
+  reason: HandoffReason
+  task?: string
+  tokens?: number
+}
+
+/**
+ * One `sofar drive` run (session-driver 1.2, D2): the driver's ENTIRE state,
+ * folded from run_started / handoff / run_stopped. A driver holds nothing
+ * else, so a run that lost its driver is resumed from here by the next one.
+ * `stopped` absent means the run is still going — or its driver died without
+ * writing a stop, which is the same fact as far as the record can tell.
+ */
+export interface RunState {
+  id: string
+  ts: string
+  adapter: string
+  policy: RunPolicy
+  threshold_pct?: number
+  max_sessions?: number
+  /** Log order. */
+  handoffs: RunHandoff[]
+  stopped?: string
+  stop_reason?: RunStopReason
+  stop_note?: string
 }
 
 /** One un-absorbed note: appended after the last write-back (notes-in-digest 1.2). */
@@ -435,6 +477,12 @@ export interface InitiativeState {
    * load-bearing state rather than a history of opinions.
    */
   reviews: ReviewState[]
+  /**
+   * Driver runs, log order (session-driver 1.2). The latest is what a driver
+   * resuming this initiative reads first: still running means pick it up,
+   * stopped means start a new one and cite why the last one ended.
+   */
+  runs: RunState[]
   current: {
     active_phase: string | null
     next_action: string | null
@@ -505,10 +553,16 @@ export function emptyState(): InitiativeState {
     drop_notes: {},
     guard_violations: [],
     reviews: [],
+    runs: [],
     current: { active_phase: null, next_action: null },
     freshness: emptyFreshness(),
     cursor: null,
   }
+}
+
+/** The most recent run, or undefined when no driver has ever run this initiative. */
+export function latestRun(state: InitiativeState): RunState | undefined {
+  return state.runs.length > 0 ? state.runs[state.runs.length - 1] : undefined
 }
 
 function emptyFreshness(): FreshnessState {
@@ -773,6 +827,16 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
     case 'command_run':
       // Counted for the record, never for drift — see freshnessTotal (D1).
       counts.commands += 1
+      break
+    case 'run_started':
+    case 'handoff':
+    case 'run_stopped':
+      // Driver events are EXCLUDED from drift, deliberately (commit-attribution
+      // D18 requires the class decided here). Drift asks whether the recorded
+      // next_action is now wrong; these say how sessions were scheduled, never
+      // what the plan says, so they cannot stale it — and a driver carries no
+      // session to owe a write-back. Counting them would make every driven
+      // record read as stale the moment its driver did its job.
       break
     case 'task_status_changed':
       mutation(() => (counts.tasks += 1))
@@ -1233,6 +1297,65 @@ function applyEvent(
         ...(p.phase !== undefined ? { phase: p.phase } : {}),
         findings: p.findings ?? [],
       })
+      break
+    }
+    case 'run_started': {
+      const p = event.payload as unknown as RunStartedPayload
+      if (state.runs.some((r) => r.id === p.run)) {
+        warnings.push(`line ${lineNo}: run "${p.run}" already started — skipped`)
+        break
+      }
+      state.runs.push({
+        id: p.run,
+        ts: event.ts,
+        adapter: p.adapter,
+        policy: p.policy,
+        ...(p.threshold_pct !== undefined ? { threshold_pct: p.threshold_pct } : {}),
+        ...(p.max_sessions !== undefined ? { max_sessions: p.max_sessions } : {}),
+        handoffs: [],
+      })
+      break
+    }
+    case 'handoff': {
+      // No stub for an unknown run (the session_closed rule): the driver that
+      // mints a handoff minted its run_started first, so a handoff with no
+      // run is a misroute, and a stub would hide it.
+      const p = event.payload as unknown as HandoffPayload
+      const run = state.runs.find((r) => r.id === p.run)
+      if (!run) {
+        warnings.push(`line ${lineNo}: handoff for run "${p.run}" that never started — skipped`)
+        break
+      }
+      run.handoffs.push({
+        ts: event.ts,
+        session_id: p.session_id,
+        reason: p.reason,
+        ...(p.task !== undefined ? { task: p.task } : {}),
+        ...(p.tokens !== undefined ? { tokens: p.tokens } : {}),
+      })
+      // The session's side of the same fact, attached to REGISTERED sessions
+      // only (the attachActivity rule). The run keeps the handoff either way:
+      // it is the run's history, whoever the session turns out to be.
+      const session = state.sessions.find((s) => s.id === p.session_id)
+      if (session !== undefined) session.handoff = { run: p.run, reason: p.reason, ts: event.ts }
+      break
+    }
+    case 'run_stopped': {
+      const p = event.payload as unknown as RunStoppedPayload
+      const run = state.runs.find((r) => r.id === p.run)
+      if (!run) {
+        warnings.push(`line ${lineNo}: run "${p.run}" stopped without run_started — skipped`)
+        break
+      }
+      // First stop wins, as session_closed never overwrites an existing end: a
+      // second stop is a driver that lost track, not a new fact about the run.
+      if (run.stopped !== undefined) {
+        warnings.push(`line ${lineNo}: run "${p.run}" already stopped — skipped`)
+        break
+      }
+      run.stopped = event.ts
+      run.stop_reason = p.reason
+      if (p.note !== undefined) run.stop_note = p.note
       break
     }
     case 'session_started': {

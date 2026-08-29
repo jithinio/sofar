@@ -1,4 +1,10 @@
-import { standingRules, type DecisionState, type FreshnessState, type SessionActivity } from '../../core/fold'
+import {
+  standingRules,
+  type DecisionState,
+  type FreshnessState,
+  type RunState,
+  type SessionActivity,
+} from '../../core/fold'
 
 /**
  * Shared template pieces. Projections are generated files — the header
@@ -29,6 +35,27 @@ export function describeActivity(activity: SessionActivity): string {
     parts.push(`task changes: ${activity.task_changes.join(', ')}`)
   }
   return parts.length > 0 ? parts.join(', ') : '(no mechanical events)'
+}
+
+/**
+ * One-line rendering of a driver run (session-driver 1.2): what launched the
+ * sessions, under which policy, the handoffs by reason, and whether the run
+ * is still going. Shared by the digest (budgeted) and the uncapped status so
+ * both surfaces describe the same run the same way. Reason order is log
+ * order — first seen first — so the line is a pure function of the events.
+ */
+export function describeRun(run: RunState): string {
+  const policy = run.policy === 'threshold' ? `threshold ${run.threshold_pct ?? '?'}%` : 'task policy'
+  const byReason = new Map<string, number>()
+  for (const h of run.handoffs) byReason.set(h.reason, (byReason.get(h.reason) ?? 0) + 1)
+  const breakdown = [...byReason].map(([reason, n]) => `${n} ${reason}`).join(', ')
+  const n = run.handoffs.length
+  const handoffs = `${n} handoff${n === 1 ? '' : 's'}${breakdown.length > 0 ? ` (${breakdown})` : ''}`
+  const fate =
+    run.stop_reason !== undefined
+      ? `stopped: ${run.stop_reason}${run.stop_note !== undefined ? ` — ${run.stop_note}` : ''}`
+      : 'running'
+  return `run ${run.id} via ${run.adapter}, ${policy} — ${handoffs}; ${fate}`
 }
 
 /**

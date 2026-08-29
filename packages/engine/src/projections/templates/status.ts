@@ -1,6 +1,7 @@
 import { isClosedInitiativeStatus } from '@sofar/schema'
 import {
   freshnessTotal,
+  latestRun,
   openSessionFileConflicts,
   overlappingWritebacks,
   staleActivePhases,
@@ -15,6 +16,7 @@ import {
   clipDetect,
   describeActivity,
   describeFreshness,
+  describeRun,
   phaseFraction,
   progressText,
   standingConstraintLines,
@@ -96,6 +98,10 @@ const MAX_TASK_FILES = 8
 // or nothing overlaps, so a single-initiative repo renders exactly as before.
 const NEIGHBOUR_LINE_BUDGET = 200
 const MAX_NEIGHBOURS = 3
+// Driver line (session-driver 1.2): which run drove the recent sessions, its
+// handoffs by reason, and whether it is still going — rendered only when a
+// driver has ever run this initiative, so a hand-run record pays nothing.
+const DRIVEN_LINE_BUDGET = 300
 
 /** `1 decision` / `8 decisions` — the staleness line's convention, reused. */
 const plural = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`
@@ -284,6 +290,19 @@ export function renderFullStatus(state: InitiativeState): string {
     lines.push('')
     lines.push(`Last session (${last.tool}, ended ${last.ended ?? '?'}):`)
     lines.push(`  ${last.summary!}`)
+  }
+
+  if (state.runs.length > 0) {
+    lines.push('')
+    lines.push(`Driven (${plural(state.runs.length, 'run')}):`)
+    for (const run of state.runs) {
+      lines.push(`- ${describeRun(run)}`)
+      for (const h of run.handoffs) {
+        const task = h.task !== undefined ? `, task ${h.task}` : ''
+        const tokens = h.tokens !== undefined ? `, ${h.tokens} tokens` : ''
+        lines.push(`  - ${h.ts} session ${h.session_id} — ${h.reason}${task}${tokens}`)
+      }
+    }
   }
 
   if (state.files_touched.length > 0) {
@@ -582,6 +601,14 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
     } else {
       lines.push(`  ${summary.text}`)
     }
+    lines.push('')
+  }
+
+  // Driver line (session-driver 1.2): a resuming driver reads this before the
+  // next action — still running means pick the run up, stopped says why not.
+  const run = latestRun(state)
+  if (run !== undefined) {
+    lines.push(clip(`Driven: ${describeRun(run)}`, DRIVEN_LINE_BUDGET))
     lines.push('')
   }
 

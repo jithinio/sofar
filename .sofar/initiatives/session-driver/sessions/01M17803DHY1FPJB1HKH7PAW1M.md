@@ -6,20 +6,21 @@
 - Tool: claude-code
 - Model: claude-fable-5
 - Started: 2026-08-29T17:10:10.098Z
-- Ended: (in progress)
+- Ended: 2026-08-29T17:23:46.357Z
 
 ## Summary
 
-(none recorded — no write-back yet; derived resume point below)
+Did 1.1 and 1.2. 1.1 (commit 42ffb02): CLAUDE.md guard-rails and SPEC Architectural invariants carry D1's launch clause and the efficiency exception with its before-the-work condition. 1.2: run_started, handoff, run_stopped in packages/schema with validators (threshold policy requires threshold_pct; error stop requires a note); fold builds RunState from the events alone (no stubs, first start and first stop win, handoff attaches to the registered session, latestRun helper); drift class decided as excluded per commit-attribution D18 with the reason in recordFreshness; Driven line in the digest, run list in full status, run named in sessions md; SPEC Event types, State, new Driver section, acceptance bullet; 17 tests in driver-events.test.ts plus schema cases. Full suite 1717 pass; shim-latency and reach-index failed only under load and pass in isolation. Note for later tasks: the auto-mode classifier blocks scripted file edits and heredoc commits through Bash; the Edit tool and git commit -F on a scratchpad file work.
 
 ## Next action
 
-(none recorded)
+Do 1.3: the adapter contract as a TS interface in packages/engine (launch(digest, task), usage() tokens, wait() exit and wrote_back) with a fake adapter driving its tests; new module needs its docs/ARCHITECTURE.md line (architecture-map D1). Then Phase 2 starting with the Claude Code adapter.
 
 ## Activity (derived from mechanical events)
 
-- Derived: task changes: 1.1 → done, 1.2 → active
+- Derived: task changes: 1.1 → done, 1.2 → active, 1.2 → done
 - Commands run: 0
 - Task changes:
   - 1.1 → done
   - 1.2 → active
+  - 1.2 → done

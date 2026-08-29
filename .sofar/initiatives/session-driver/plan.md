@@ -4,12 +4,12 @@
 
 Goal: Automate the session handoff sofar already makes content-complete: a stateless driver (sofar drive <initiative>) that runs an initiative task-by-task through fresh agent sessions, records every handoff as events in the record, and reaches any headless agent through a three-call adapter (launch, usage, wait) — Claude Code first, a second adapter to prove the contract. The record is the queue; the driver holds no state of its own.
 
-Progress: 1/11 tasks done (9%)
+Progress: 2/11 tasks done (18%)
 
-## Phase 1 — Contract [active] — 1/3 done
+## Phase 1 — Contract [active] — 2/3 done
 
 - [x] 1.1 Amend the launch clause: CLAUDE.md guard-rails and SPEC §Architectural invariants read as D1 (sofar may launch the operator's own agent under the operator's auth; still no API keys, no inference, no user content off the machine)
-- [ ] 1.2 Handoff events in packages/schema — run_started, handoff {reason: threshold|task_done|stall|needs_user}, run_stopped — folded and rendered in sessions/*.md and the digest; unknown lines still skipped, never fatal (active)
+- [x] 1.2 Handoff events in packages/schema — run_started, handoff {reason: threshold|task_done|stall|needs_user}, run_stopped — folded and rendered in sessions/*.md and the digest; unknown lines still skipped, never fatal
 - [ ] 1.3 Adapter contract as a TS interface in packages/engine: launch(digest, task), usage() → tokens, wait() → {exit, wrote_back}; a fake adapter drives the tests
 
 ## Phase 2 — Claude Code adapter + sofar drive [pending] — 0/4 done
@@ -30,4 +30,4 @@ Progress: 1/11 tasks done (9%)
 - [ ] 4.2 Release sofar.sh with sofar drive; SPEC §Acceptance criteria extended for the driver
 
 Active phase: Phase 1 — Contract
-Next action: Do 1.1: amend the launch clause in CLAUDE.md guard-rails and SPEC Architectural invariants to D1's wording, one line each, so the constraint the next session reads matches the ruling; then 1.2 handoff events in packages/schema.
+Next action: Do 1.3: the adapter contract as a TS interface in packages/engine (launch(digest, task), usage() tokens, wait() exit and wrote_back) with a fake adapter driving its tests; new module needs its docs/ARCHITECTURE.md line (architecture-map D1). Then Phase 2 starting with the Claude Code adapter.

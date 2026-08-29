@@ -182,6 +182,72 @@ export interface ReviewRecordedPayload {
 }
 export interface CorrectionPayload { ref: string; reason?: string }
 
+/**
+ * Driver events (session-driver 1.2, D2). A RUN is one `sofar drive`
+ * invocation over an initiative: it launches agent sessions one after another
+ * and the record is its only state — every launch, handoff and stop is an
+ * event here, so a driver can be killed and another can pick the run up from
+ * the fold alone. The driver is NOT a session and never registers as one: its
+ * events carry envelope session "cli" and name the run in the payload, so a
+ * run is never mistaken for an unregistered (misrouted) session.
+ */
+
+/**
+ * How a run decides when a session ends. `task`: one task per session, no
+ * context sensing needed — identical on every agent and model, which is why it
+ * is the default. `threshold`: pack tasks into a session until the context
+ * gauge reaches `threshold_pct`, then hand off at the next task boundary.
+ */
+export const RUN_POLICIES = ['task', 'threshold'] as const
+export type RunPolicy = (typeof RUN_POLICIES)[number]
+
+/**
+ * Why a driven session ended and the next one starts. `stall` is a session
+ * that ended with no task change; `needs_user` is a write-back whose next
+ * action names a decision only the operator can take.
+ */
+export const HANDOFF_REASONS = ['task_done', 'threshold', 'stall', 'needs_user'] as const
+export type HandoffReason = (typeof HANDOFF_REASONS)[number]
+
+/** Why the run itself ended — the stop rules, plus the two ways a run can die. */
+export const RUN_STOP_REASONS = [
+  'closed',
+  'needs_user',
+  'stall',
+  'cost_cap',
+  'max_sessions',
+  'interrupted',
+  'error',
+] as const
+export type RunStopReason = (typeof RUN_STOP_REASONS)[number]
+
+export interface RunStartedPayload {
+  /** Run id minted by the driver (a ulid) — the key every handoff and the stop cite. */
+  run: string
+  /** Adapter name, e.g. `claude-code`: which headless agent the run launches. */
+  adapter: string
+  policy: RunPolicy
+  /** Context percentage at which a session is told to finish and hand off; REQUIRED for `threshold`. */
+  threshold_pct?: number
+  max_sessions?: number
+}
+export interface HandoffPayload {
+  run: string
+  /** The session that just ended — registered here by its own session_started. */
+  session_id: string
+  reason: HandoffReason
+  /** Task the session was working, when the driver knows it. */
+  task?: string
+  /** Context tokens the session held when it ended, when the adapter could report them. */
+  tokens?: number
+}
+export interface RunStoppedPayload {
+  run: string
+  reason: RunStopReason
+  /** What happened; REQUIRED for `error` — a run that died unexplained is one nobody can resume. */
+  note?: string
+}
+
 export interface KnownEventPayloads {
   initiative_created: InitiativeCreatedPayload
   initiative_status_changed: InitiativeStatusChangedPayload
@@ -198,6 +264,9 @@ export interface KnownEventPayloads {
   note_added: NoteAddedPayload
   memory_promoted: MemoryPromotedPayload
   review_recorded: ReviewRecordedPayload
+  run_started: RunStartedPayload
+  handoff: HandoffPayload
+  run_stopped: RunStoppedPayload
   correction: CorrectionPayload
 }
 
@@ -219,6 +288,9 @@ export const EVENT_TYPES = [
   'note_added',
   'memory_promoted',
   'review_recorded',
+  'run_started',
+  'handoff',
+  'run_stopped',
   'correction',
 ] as const satisfies readonly KnownEventType[]
 
@@ -439,6 +511,50 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     // can act on, and the next review would have no idea what to carry forward.
     if (p.verdict === 'findings' && !(Array.isArray(p.findings) && p.findings.length > 0)) {
       e.push('findings: required and non-empty when verdict is `findings`')
+    }
+  },
+  run_started(p, e) {
+    if (!str(p.run)) e.push('run: must be a non-empty string')
+    if (!str(p.adapter)) e.push('adapter: must be a non-empty string')
+    if (!(RUN_POLICIES as readonly unknown[]).includes(p.policy)) {
+      e.push(`policy: must be one of ${RUN_POLICIES.join('|')}`)
+    }
+    if (
+      p.threshold_pct !== undefined &&
+      !(Number.isInteger(p.threshold_pct) && (p.threshold_pct as number) > 0 && (p.threshold_pct as number) <= 100)
+    ) {
+      e.push('threshold_pct: must be an integer from 1 to 100 when present')
+    }
+    // A threshold policy with no threshold cannot be replayed: the next driver
+    // to pick the run up would have to guess the number this one ran under.
+    if (p.policy === 'threshold' && p.threshold_pct === undefined) {
+      e.push('threshold_pct: required when policy is `threshold`')
+    }
+    if (p.max_sessions !== undefined && !(Number.isInteger(p.max_sessions) && (p.max_sessions as number) > 0)) {
+      e.push('max_sessions: must be a positive integer when present')
+    }
+  },
+  handoff(p, e) {
+    if (!str(p.run)) e.push('run: must be a non-empty string')
+    if (!str(p.session_id)) e.push('session_id: must be a non-empty string')
+    if (!(HANDOFF_REASONS as readonly unknown[]).includes(p.reason)) {
+      e.push(`reason: must be one of ${HANDOFF_REASONS.join('|')}`)
+    }
+    if (p.task !== undefined && !str(p.task)) e.push('task: must be a non-empty string when present')
+    if (p.tokens !== undefined && !(Number.isInteger(p.tokens) && (p.tokens as number) >= 0)) {
+      e.push('tokens: must be a non-negative integer when present')
+    }
+  },
+  run_stopped(p, e) {
+    if (!str(p.run)) e.push('run: must be a non-empty string')
+    if (!(RUN_STOP_REASONS as readonly unknown[]).includes(p.reason)) {
+      e.push(`reason: must be one of ${RUN_STOP_REASONS.join('|')}`)
+    }
+    if (!optStr(p.note)) e.push('note: must be a string')
+    // A run that died unexplained is one nobody can resume — the same rule
+    // that makes a dropped task or initiative say why.
+    if (p.reason === 'error' && !str(p.note)) {
+      e.push('note: required when reason is `error` — say what failed')
     }
   },
   correction(p, e) {

@@ -35,6 +35,9 @@ const validPayloads: Record<string, Record<string, unknown>> = {
     phase: 'Phase 1',
     findings: ['4.2 emitted a two-dot range that dropped the oldest commit'],
   },
+  run_started: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSE', adapter: 'claude-code', policy: 'threshold', threshold_pct: 70 },
+  handoff: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSE', session_id: 's1', reason: 'task_done', task: '1.2', tokens: 84_000 },
+  run_stopped: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSE', reason: 'needs_user', note: 'next action names a release' },
   correction: { ref: '01JZ8B3V0N5B4W8XK2M9QF7TSD' },
 }
 
@@ -83,6 +86,16 @@ describe('validatePayload', () => {
     ['file_touched', { path: 'a.ts' }, /op/],
     ['command_run', {}, /cmd/],
     ['note_added', { text: '' }, /text/],
+    ['run_started', { adapter: 'claude-code', policy: 'task' }, /run/],
+    ['run_started', { run: 'r', adapter: 'claude-code', policy: 'vibes' }, /policy/],
+    ['run_started', { run: 'r', adapter: 'claude-code', policy: 'threshold' }, /threshold_pct: required/],
+    ['run_started', { run: 'r', adapter: 'claude-code', policy: 'threshold', threshold_pct: 130 }, /threshold_pct/],
+    ['run_started', { run: 'r', adapter: 'claude-code', policy: 'task', max_sessions: 0 }, /max_sessions/],
+    ['handoff', { run: 'r', reason: 'task_done' }, /session_id/],
+    ['handoff', { run: 'r', session_id: 's', reason: 'bored' }, /reason/],
+    ['handoff', { run: 'r', session_id: 's', reason: 'threshold', tokens: -1 }, /tokens/],
+    ['run_stopped', { run: 'r', reason: 'crashed' }, /reason/],
+    ['run_stopped', { run: 'r', reason: 'error' }, /note: required/],
     ['correction', {}, /ref/],
   ]
 

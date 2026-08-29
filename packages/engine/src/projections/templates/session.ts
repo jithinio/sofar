@@ -17,6 +17,9 @@ export function renderSession(state: InitiativeState, session: SessionState): st
   lines.push(`- Started: ${session.started}`)
   const closed = session.closed_reason !== undefined ? ` (closed: ${session.closed_reason})` : ''
   lines.push(`- Ended: ${session.ended !== undefined ? `${session.ended}${closed}` : '(in progress)'}`)
+  if (session.handoff !== undefined) {
+    lines.push(`- Driven: run ${session.handoff.run} — handed off: ${session.handoff.reason}`)
+  }
   lines.push('')
   lines.push('## Summary', '')
   if (session.summary !== undefined) {

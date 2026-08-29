@@ -149,7 +149,14 @@ memory_promoted (text — a fact its author declares repo memory, addressable
 as `<slug> M<n>`; repo-memory-capture D1) ·
 review_recorded (scope: phase|final, verdict: pass|findings|blocked,
 watermark?, phase?, findings? — a review that was actually performed;
-commit-attribution 4.4, see §Review) · correction (ref)
+commit-attribution 4.4, see §Review) ·
+run_started (run, adapter, policy: task|threshold, threshold_pct? — REQUIRED
+for `threshold`, max_sessions?) · handoff (run, session_id, reason:
+task_done|threshold|stall|needs_user, task?, tokens?) · run_stopped (run,
+reason: closed|needs_user|stall|cost_cap|max_sessions|interrupted|error,
+note? — REQUIRED for `error`; the three driver events ride on envelope
+session `cli`, since a run is not a session; session-driver 1.2, see
+§Driver) · correction (ref)
 `watermark` is review_recorded's load-bearing field, not `verdict`: it is the
 sha the review read THROUGH, and it is what makes the next review's range
 computable. That is why a review is an event and could never have been a
@@ -163,10 +170,13 @@ InitiativeState = { slug, goal, status: active|done|dropped, status_ts,
 status_note, status_overrides[], phases[ {name, status, tasks[ {id, title,
 status} ]} ], decisions[], memories[ {id, ts, text} ],
 sessions[ {id, tool, model?, started, ended?,
-summary?, next_action?, closed_reason?, activity?} ],
+summary?, next_action?, closed_reason?, activity?, handoff?: {run, reason,
+ts}} ],
 files_touched[], task_files, drop_notes, guard_violations[ {decision, rule,
 guard, domain, subject, event_id, ts, session} ], reviews[ {id, ts, scope,
-verdict, watermark?, phase?, findings[]} ], current: {active_phase,
+verdict, watermark?, phase?, findings[]} ], runs[ {id, ts, adapter, policy,
+threshold_pct?, max_sessions?, handoffs[ {ts, session_id, reason, task?,
+tokens?} ], stopped?, stop_reason?, stop_note?} ], current: {active_phase,
 next_action, blocked_on?}, freshness, cursor: <last event id> }
 
 ### Task statuses (task-drop-state D1)
@@ -820,6 +830,54 @@ and both the bare branch and the full refname silently exclude NOTHING. The
 answer becomes what THIS push put on the remote. A branch that is the only one
 on the remote subtracts nothing and every commit is genuinely new, which is
 the honest answer for a true first push.
+
+## Driver (session-driver — the record is the queue)
+A RUN is one `sofar drive <initiative>` invocation: the driver launches the
+operator's own headless agent (§Architectural invariants, D1) one session
+after another, and the record is its ONLY state. Three events carry it, all
+on envelope session `cli` — a run is not a session and never registers as
+one, so it can never read as a misrouted session:
+
+- `run_started` (run, adapter, policy, threshold_pct?, max_sessions?) — the
+  run id is a ulid the driver mints; every handoff and the stop cite it.
+- `handoff` (run, session_id, reason, task?, tokens?) — one session
+  boundary: which session ended and why the driver moved on.
+- `run_stopped` (run, reason, note?) — why the run itself ended.
+
+**Policy (D2).** `task`: one task per session, no context sensing needed —
+identical on every agent and model, and therefore the default. `threshold`:
+pack tasks into a session until the context gauge reaches `threshold_pct`,
+then hand off at the next task boundary. `threshold_pct` is REQUIRED for it,
+because a driver resuming the run cannot guess the number the last one ran
+under.
+
+**Reasons.** handoff: `task_done` | `threshold` | `stall` (the session ended
+with no task change) | `needs_user` (its write-back names a decision only
+the operator can take). stop: `closed` | `needs_user` | `stall` (N
+consecutive stalls) | `cost_cap` | `max_sessions` | `interrupted` |
+`error` — `note` is REQUIRED for `error`, the dropped-task rule: a run that
+died unexplained is one nobody can resume.
+
+**Fold.** `runs[]` in log order; latestRun is the resume point — a run with
+no stop is still going, or its driver died without writing one, which is
+the same fact as far as the record can tell. No stubs: a handoff or stop
+for a run that never started is skipped with a warning (the session_closed
+rule); a duplicate start or a second stop is skipped and the first kept. A
+handoff attaches to the REGISTERED session it names (the attachActivity
+rule) and stays on the run either way. Driver events are EXCLUDED from
+drift (commit-attribution D18, reason stated in recordFreshness beside
+command_run's): they say how sessions were scheduled, never what the plan
+says, so they cannot stale the next action.
+
+**Render.** The digest carries one budgeted `Driven:` line for the latest
+run — adapter, policy, handoffs by reason in log order, running or stopped
+and why; a record no driver ever ran renders byte-identically to before.
+`sofar status` lists every run and every handoff; sessions/<id>.md names
+the run that handed the session off.
+
+**What the driver is not (D2).** Not a session, not an agent loop, never an
+inference: it launches existing headless agents through the adapter
+contract (launch, usage, wait) and writes nothing but these events.
 
 ## Review (commit-attribution — phase boundaries, watermark ranges, gates nothing)
 Closing an initiative was an unconditional append: nothing rechecked that the
@@ -3188,6 +3246,17 @@ stay the underlying derivation's, and exit codes are styling-independent.
   `sofar review` renders the active phase, EXCLUDES another initiative's
   commits from the range, starts at the watermark once a review has run, and
   fails clearly on a phase name that does not exist.
+- **Driver events (session-driver 1.2):** `run_started` REJECTS a `threshold`
+  policy with no `threshold_pct`; `run_stopped` REJECTS an `error` with no
+  note. The fold reconstructs a run completely from its events, skips a
+  handoff or stop for a run that never started (warning, no stub), keeps the
+  first of a duplicate start or a second stop, attaches a handoff to the
+  registered session it names and keeps it on the run when the session is
+  unregistered. Driver events after a write-back leave freshnessTotal and
+  the session's `unwritten` at zero. The digest carries one `Driven:` line
+  for the latest run and none for a record no driver ever ran; `sofar
+  status` lists every run and handoff; sessions/<id>.md names the run that
+  handed the session off.
 - **Close gate (commit-attribution 5.1/5.2/5.3):** a record that actually
   finished — every task and phase resolved, every phase reviewed, a final pass
   recorded, nothing appended since the write-back — closes with NO findings and
