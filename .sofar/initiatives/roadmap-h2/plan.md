@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: Rule on item 5, faster indexing using AI, before any work starts on it: either take the agent-emitted enrichment route, which needs no Decision because sofar still never calls a model, or log a Decision explicitly superseding SPEC Architectural invariants and felt-cost D3 for the embedding route, before the work and never after, per the guard-rail amendment in session-driver D1. Items 1 through 4 need nothing from this initiative and should be pursued in their own records.
+Next action: Still item 5, faster indexing using AI, which is the only thing on this initiative that blocks work: choose the agent-emitted enrichment route, which needs no Decision, or log one superseding SPEC Architectural invariants and felt-cost D3 for the embedding route. If the Rust option is ever exercised, read speed-2 D1 first, per the escape-hatch caveat noted above.
