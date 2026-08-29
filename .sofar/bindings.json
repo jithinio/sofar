@@ -1,5 +1,5 @@
 {
-  "main": "drift-certification",
+  "main": "session-driver",
   "peer-messaging": "peer-messaging",
   "cross-initiative-conflicts": "cross-initiative-conflicts"
 }
