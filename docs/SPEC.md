@@ -21,6 +21,7 @@ sofar/                   # workspace root: toolchain devDeps, shared tsconfig
       src/projections/   # generator.ts + templates/ (plan.md, decisions.md,
                          # status)
       src/hooks/         # shim script sources, installed to .claude/hooks/
+      src/driver/        # adapter contract + `sofar drive` — §Driver
       test/
   CLAUDE.md              # protocol — repo root so cold sessions auto-load
                          # it (BD34); points at docs/SPEC.md
@@ -874,6 +875,17 @@ run — adapter, policy, handoffs by reason in log order, running or stopped
 and why; a record no driver ever ran renders byte-identically to before.
 `sofar status` lists every run and every handoff; sessions/<id>.md names
 the run that handed the session off.
+
+**Adapter (D3).** A process wrapper and nothing more: `launch(request)` →
+a handle with `usage()`, optional `nudge()`, `kill()`, `wait()`;
+capabilities {usage, nudge, model, effort} are declared up front and the
+threshold policy is REFUSED on an adapter lacking usage or nudge — a gauge
+with no lever, or a lever with no gauge. An adapter never reports record
+state: wrote_back is `wroteBack` over the fold (registered AND carries a
+summary), and the launched session's identity is the id the transport
+showed if the record registered it, else the one session that tool
+registered since the launch — several is ambiguity, recorded as a stall,
+never a guess.
 
 **What the driver is not (D2).** Not a session, not an agent loop, never an
 inference: it launches existing headless agents through the adapter
@@ -3257,6 +3269,15 @@ stay the underlying derivation's, and exit codes are styling-independent.
   for the latest run and none for a record no driver ever ran; `sofar
   status` lists every run and handoff; sessions/<id>.md names the run that
   handed the session off.
+- **Adapter contract (session-driver 1.3):** the task policy is available on
+  every adapter; the threshold policy is refused on one lacking usage or
+  nudge, naming the missing half. `wroteBack` is false while a session runs,
+  true once its session_ended is in the log, and false for an exit-0 session
+  that never wrote back. `resolveLaunchedSession` takes a transport-shown id
+  the record registered, otherwise diffs the fold by tool and launch time,
+  ignores sessions registered before the launch or by other tools, reports
+  none when nothing registered, and REFUSES to choose between two
+  candidates. A scripted fake adapter drives all of it.
 - **Close gate (commit-attribution 5.1/5.2/5.3):** a record that actually
   finished — every task and phase resolved, every phase reviewed, a final pass
   recorded, nothing appended since the write-back — closes with NO findings and

@@ -1,0 +1,170 @@
+import type { RunPolicy } from '@sofar/schema'
+import type { InitiativeState, SessionState } from '../core/fold'
+
+/**
+ * The adapter contract (session-driver 1.3, D2/D3): how `sofar drive` reaches
+ * a headless agent. Three calls — launch, usage, wait — and nothing else,
+ * because the record is the queue and the driver holds no state: everything
+ * an adapter cannot answer, the fold answers.
+ *
+ * What an adapter IS: a process wrapper. It starts the operator's OWN agent
+ * (D1: under the operator's auth, never sofar's), reads what that agent's
+ * transport happens to show — a session id in a stream, token usage in a
+ * result line — and reports the exit. What it is NOT: a judge of record
+ * state. Whether a session wrote back is a fact about events.jsonl, and an
+ * adapter claiming it would be asserting record state it never checked — the
+ * same shape as the conflict line that asserted liveness it never tested
+ * (3c909f0). `wroteBack` below asks the fold instead (D3).
+ *
+ * Two of the three calls are OPTIONAL in effect, and the capabilities say
+ * which: `usage()` may never return a number (fx reports none), and a session
+ * may have no way to be nudged. The threshold policy needs both; the task
+ * policy needs neither, which is why it is the default — it runs on every
+ * adapter identically.
+ */
+
+/** What an adapter can do, declared up front so the driver picks a policy it can run. */
+export interface AdapterCapabilities {
+  /**
+   * `usage()` can return numbers. Without it the threshold policy is
+   * unavailable and handoff reason `threshold` never occurs on this adapter —
+   * only task_done / stall / needs_user.
+   */
+  usage: boolean
+  /**
+   * The adapter can tell a RUNNING session to finish the current task, write
+   * back and end its turn — the threshold nudge. Claude Code delivers it as
+   * hook additionalContext; an agent with no such channel cannot be packed.
+   */
+  nudge: boolean
+  /** `launch()` honours a `model` hint (per-task routing, 3.2). */
+  model: boolean
+  /** `launch()` honours an `effort` hint. */
+  effort: boolean
+}
+
+/** One launch: everything the driver knows that the session should start with. */
+export interface LaunchRequest {
+  /** Absolute path the session works in — its own worktree under the driver (2.2). */
+  cwd: string
+  /**
+   * The record the session serves. The agent's own hooks and MCP tools find
+   * the record from `cwd`; the slug is passed so the adapter can pin the
+   * session to it explicitly (bindings move, and a driven session must never
+   * write into whatever record the branch happens to name).
+   */
+  initiative: string
+  /** The opening prompt — the driver renders it from the record digest and the task. */
+  prompt: string
+  /** The task this session is for, when the policy names one; absent leaves it to the record's next action. */
+  task?: { id: string; title: string }
+  /** Routing hints from the task (3.2); an adapter whose capabilities say no ignores them. */
+  model?: string
+  effort?: string
+  /** Extra environment for the child — the driver's isolation (private TMPDIR, port block). */
+  env?: Record<string, string>
+}
+
+/** Token accounting as the agent's transport reports it. */
+export interface Usage {
+  /**
+   * Context tokens the session holds right now — for Claude Code, the latest
+   * turn's input + cache_read + cache_creation. This is the number the
+   * threshold policy compares against `threshold_pct` of the model's window.
+   */
+  context_tokens: number
+  /** Cumulative output tokens, when reported. */
+  output_tokens?: number
+  /** Cost in USD, when the agent reports it (Claude Code's result line does). */
+  cost_usd?: number
+}
+
+/** How the agent process ended. */
+export interface SessionExit {
+  /** Process exit code; null when a signal ended it. */
+  code: number | null
+  signal?: string
+  /**
+   * The record session id the adapter saw the agent register, when its
+   * transport shows one (Claude Code prints it in its init message). Absent
+   * means the transport was silent and the driver resolves the session by
+   * diffing the fold — see `resolveLaunchedSession`.
+   */
+  session_id?: string
+  /** The last usage the adapter saw, when it saw any. */
+  usage?: Usage
+}
+
+/** A launched session: the handle the driver watches until it ends. */
+export interface AgentSession {
+  /** Latest usage seen; undefined until the transport shows one, or forever on an adapter without `capabilities.usage`. */
+  usage(): Usage | undefined
+  /** Deliver the threshold nudge. Present only on adapters with `capabilities.nudge`. */
+  nudge?(): void
+  /** End the session now — cost cap, max sessions, operator interrupt. */
+  kill(signal?: NodeJS.Signals): void
+  /** Resolves when the process has ended. Never rejects: a crash is an exit with a code. */
+  wait(): Promise<SessionExit>
+}
+
+export interface Adapter {
+  /** Stable name, recorded in `run_started.adapter` and matched against `session_started.tool`. */
+  readonly name: string
+  readonly capabilities: AdapterCapabilities
+  launch(request: LaunchRequest): AgentSession
+}
+
+/**
+ * Why `policy` cannot run on an adapter with these capabilities, or null when
+ * it can. The task policy runs everywhere; the threshold policy needs usage
+ * to measure and a nudge to act on the measurement — one without the other is
+ * a gauge with no lever, or a lever with no gauge.
+ */
+export function policyUnavailable(caps: AdapterCapabilities, policy: RunPolicy): string | null {
+  if (policy === 'task') return null
+  const missing: string[] = []
+  if (!caps.usage) missing.push('does not report usage')
+  if (!caps.nudge) missing.push('cannot nudge a running session')
+  if (missing.length === 0) return null
+  return `threshold policy needs an adapter that reports usage and can nudge; this one ${missing.join(' and ')}`
+}
+
+/**
+ * wrote_back, from the record (D3): the session is registered in this log and
+ * carries a write-back. A session_closed alone is an end without a write-back;
+ * a session the log never registered wrote back nowhere the driver can see.
+ */
+export function wroteBack(state: InitiativeState, sessionId: string): boolean {
+  const session = state.sessions.find((s) => s.id === sessionId)
+  return session !== undefined && session.summary !== undefined
+}
+
+export type LaunchedSession =
+  | { kind: 'found'; session: SessionState }
+  | { kind: 'none' }
+  | { kind: 'ambiguous'; candidates: string[] }
+
+/**
+ * Which record session a launch became. The adapter's word is taken when the
+ * transport showed an id AND the record registered it; otherwise the
+ * candidates are the sessions registered at or after the launch, by an agent
+ * of the adapter's name. One candidate is the answer. Several is parallel work
+ * the driver did not start, and it must not guess — a wrong guess would file
+ * the handoff on someone else's session — so the ambiguity is returned as
+ * such and the driver treats it as a stall.
+ */
+export function resolveLaunchedSession(
+  state: InitiativeState,
+  exit: SessionExit,
+  launchedAt: string,
+  tool: string,
+): LaunchedSession {
+  if (exit.session_id !== undefined) {
+    const named = state.sessions.find((s) => s.id === exit.session_id)
+    if (named !== undefined) return { kind: 'found', session: named }
+  }
+  const candidates = state.sessions.filter((s) => s.tool === tool && s.started >= launchedAt)
+  if (candidates.length === 1) return { kind: 'found', session: candidates[0]! }
+  if (candidates.length === 0) return { kind: 'none' }
+  return { kind: 'ambiguous', candidates: candidates.map((s) => s.id) }
+}

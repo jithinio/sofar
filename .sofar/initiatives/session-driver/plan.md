@@ -4,15 +4,17 @@
 
 Goal: Automate the session handoff sofar already makes content-complete: a stateless driver (sofar drive <initiative>) that runs an initiative task-by-task through fresh agent sessions, records every handoff as events in the record, and reaches any headless agent through a three-call adapter (launch, usage, wait) — Claude Code first, a second adapter to prove the contract. The record is the queue; the driver holds no state of its own.
 
-Progress: 2/11 tasks done (18%)
+Progress: 3/11 tasks done (27%)
 
-## Phase 1 — Contract [active] — 2/3 done
+## Phase 1 — Contract [done] — 3/3 done
+
+> Launch clause amended (1.1), driver events in schema and fold (1.2), adapter contract with fake adapter (1.3). Commits 42ffb02, bacbb86, and the 1.3 commit.
 
 - [x] 1.1 Amend the launch clause: CLAUDE.md guard-rails and SPEC §Architectural invariants read as D1 (sofar may launch the operator's own agent under the operator's auth; still no API keys, no inference, no user content off the machine)
 - [x] 1.2 Handoff events in packages/schema — run_started, handoff {reason: threshold|task_done|stall|needs_user}, run_stopped — folded and rendered in sessions/*.md and the digest; unknown lines still skipped, never fatal
-- [ ] 1.3 Adapter contract as a TS interface in packages/engine: launch(digest, task), usage() → tokens, wait() → {exit, wrote_back}; a fake adapter drives the tests
+- [x] 1.3 Adapter contract as a TS interface in packages/engine: launch(digest, task), usage() → tokens, wait() → {exit, wrote_back}; a fake adapter drives the tests
 
-## Phase 2 — Claude Code adapter + sofar drive [pending] — 0/4 done
+## Phase 2 — Claude Code adapter + sofar drive [active] — 0/4 done
 
 - [ ] 2.1 Claude Code adapter: claude -p --output-format stream-json, per-message usage (input + cache_read + cache_creation), SessionStart injection unchanged, exit and write-back detected from the record fold
 - [ ] 2.2 sofar drive <initiative>: stateless loop — next task from the fold → launch → watch → record handoff; stop rules: initiative closed | next action needs the user | N sessions with no task change | cost cap; each session in its own git worktree
@@ -29,5 +31,5 @@ Progress: 2/11 tasks done (18%)
 - [ ] 4.1 Drive one real initiative end to end unattended; publish sessions, handoffs by reason, tokens versus the manual baseline, and operator minutes
 - [ ] 4.2 Release sofar.sh with sofar drive; SPEC §Acceptance criteria extended for the driver
 
-Active phase: Phase 1 — Contract
-Next action: Do 1.3: the adapter contract as a TS interface in packages/engine (launch(digest, task), usage() tokens, wait() exit and wrote_back) with a fake adapter driving its tests; new module needs its docs/ARCHITECTURE.md line (architecture-map D1). Then Phase 2 starting with the Claude Code adapter.
+Active phase: Phase 2 — Claude Code adapter + sofar drive
+Next action: Do 2.1: the Claude Code adapter in packages/engine/src/driver/claude-code.ts implementing the contract with claude in print mode and stream-json output: parse the init message for the session id, sum input plus cache_read plus cache_creation per assistant message for usage(), read cost from the result line, pin the initiative via the prompt, and give it an ARCHITECTURE.md line. Test it against a stubbed claude binary on PATH, never the real one.

@@ -192,6 +192,18 @@ The engine ships the **client only**. No service code lives here.
 
 `core/types.d.ts` holds ambient type declarations.
 
+### 7. Driver — the record as queue
+
+`sofar drive <initiative>` runs an initiative task-by-task through fresh
+agent sessions (session-driver, SPEC §Driver). The driver holds no state:
+every launch, handoff and stop is an event, so a driver that dies is
+replaced by the next one reading the fold. Agents are reached through a
+three-call adapter and the driver never becomes an agent loop of its own.
+
+| module | role |
+| --- | --- |
+| `driver/adapter.ts` | The adapter contract: `launch` → handle with `usage`/`nudge`/`kill`/`wait`, capabilities declared up front. Driver-side derivations that an adapter must never answer itself: `wroteBack` and `resolveLaunchedSession` read the fold, `policyUnavailable` refuses a threshold policy on an adapter that cannot measure or nudge. |
+
 ---
 
 ## Invariants
