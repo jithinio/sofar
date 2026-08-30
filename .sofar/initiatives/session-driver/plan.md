@@ -28,12 +28,11 @@ Progress: 11/11 tasks done (100%)
 - [x] 3.1 Second adapter (codex exec --json or opencode run, whichever is installed) with the usage fallback for agents that report none — the contract is proven when sofar drive runs unchanged against it
 - [x] 3.2 Per-task routing: model/effort hints on a task, driver picks the adapter per task; sofar itself still never infers
 
-## Phase 4 — Proof + release [active] — 2/2 done
+## Phase 4 — Proof + release [done] — 2/2 done
 
-> 4.1 done — the proof run's numbers are published in the record. 4.2 remains: release with `sofar drive` and extend SPEC §Acceptance criteria for the driver.
+> 4.1 proved the driver on a real unattended run and 4.2 shipped it: sofar.sh 0.30.0 is published (dist.shasum matches the local pack byte for byte), a clean install reports 0.30.0 and carries drive, and the global at ~/.local is upgraded so this repo stops dogfooding 0.29.0.
 
 - [x] 4.1 Drive one real initiative end to end unattended; publish sessions, handoffs by reason, tokens versus the manual baseline, and operator minutes
 - [x] 4.2 Release sofar.sh with sofar drive; SPEC §Acceptance criteria extended for the driver
 
-Active phase: Phase 4 — Proof + release
-Next action: Hand the user `! npm publish -w sofar.sh` — they run it (OTP plus the permission classifier). Then upgrade the global install with `npm install -g --prefix ~/.local sofar.sh@latest`, since this repo's hooks and .mcp.json exec the global binary and would otherwise dogfood a stale engine, and confirm the installed version reports 0.30.0 and carries drive. After that, close session-driver.
+Next action: Run the close review: `sofar review session-driver --final`, work the packet (note it warns its commit walk hit the 200-commit ceiling, so review in smaller ranges with a watermark part-way rather than trusting the listed range to be complete), record the verdict, then `sofar close session-driver`. Weigh two open items in it: the record-index reach flake, which needs its own initiative, and D14's deferred budgets-in-the-record.
