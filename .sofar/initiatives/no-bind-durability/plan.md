@@ -4,12 +4,12 @@
 
 Goal: sofar new <slug> --no-bind states that the current branch must NOT be routed to the new initiative, but binding-follows-session D1's write-back rebind honours that only on an UNBOUND branch: a branch bound elsewhere is moved onto the new record by its first write-back, silently undoing the flag the operator set. Close the gap with a fourth guard derived from bindings.json alone — a write-back never routes a branch to an initiative that appears nowhere in bindings.json — so --no-bind survives the write-back and an explicit sofar switch retracts it. Narrow by construction: no schema change, no new event, resolution untouched.
 
-Progress: 1/3 tasks done (33%)
+Progress: 2/3 tasks done (66%)
 
-## Phase 1 — Guard + contract [pending] — 1/3 done
+## Phase 1 — Guard + contract [pending] — 2/3 done
 
 - [x] 1.1 Fourth guard in rebindBranch (packages/engine/src/mcp/end-session.ts) per D1: read bindings.json once and skip the rebind when the write-back's slug is not among its values, with a comment saying why it is a fact and not an inference. Tests in packages/engine/test/binding-follows-session.test.ts: a branch bound to alpha is NOT moved by a write-back into a beta that no branch has ever been bound to; after a bind exists for beta the write-back moves it as before (the retraction); and the existing cases stay green. Done when npm test passes.
-- [ ] 1.2 docs/SPEC.md: state the fourth guard in the SAME passage that already carries the write-back rebind and its three guards, naming the retraction rule (sofar switch puts the slug in the table and the rebind resumes). Contract text only — no code in this task. Done when the passage names all four guards and npm test still passes.
+- [x] 1.2 docs/SPEC.md: state the fourth guard in the SAME passage that already carries the write-back rebind and its three guards, naming the retraction rule (sofar switch puts the slug in the table and the rebind resumes). Contract text only — no code in this task. Done when the passage names all four guards and npm test still passes.
 - [ ] 1.3 Gates: npm run typecheck and npm test both clean from the repo root, and git diff shows only end-session.ts, binding-follows-session.test.ts and docs/SPEC.md touched. Done when both commands pass and the diff is confined to those three files.
 
-Next action: Task 1.2: state the fourth guard in docs/SPEC.md, in the same passage that already carries the write-back rebind and its three guards, naming the retraction rule — and decide there whether to state the consequence in the note above (a rebind can leave the slug it moved AWAY from absent from the table, so only sofar switch routes back).
+Next action: Task 1.3: run npm run typecheck and npm test from the repo root and confirm the diff is confined to end-session.ts, binding-follows-session.test.ts and docs/SPEC.md — the first two are already committed at 37c731f, so treat the gate as the whole initiative diff, and read M1 before judging a single reach-index failure.

@@ -1591,8 +1591,9 @@ also collides with a sofar-cloud-internal package).
 - sofar_end_session({session_id, summary, next_action}) → {ok, event_id,
   parallel_writebacks?, rebound?}  # the write-back. `rebound` names the
   branch binding this write-back moved ({branch, from, to}), omitted when
-  none moved — the rebind contract and its three guards are stated with the
-  session-before-branch precedence below (binding-follows-session D1).
+  none moved — the rebind contract and its four guards are stated with the
+  session-before-branch precedence below (binding-follows-session D1,
+  no-bind-durability D1).
   `parallel_writebacks` carries
   overlappingWritebacks(state, session_id) computed AFTER the append — the
   concurrent sessions whose next action differs from the one just written —
@@ -1795,11 +1796,28 @@ it never moves the binding. Write-back time rather than re-home time because
 a re-home is not always durable intent — a session may re-home into a CLOSED
 record purely to read it — and because bindings.json is committed, so moving
 it inside the write-back gets it committed with the record rather than left
-as trailing dirt. Three guards: MOVE-ONLY, so a branch with no binding stays
+as trailing dirt. Four guards: MOVE-ONLY, so a branch with no binding stays
 unbound (`sofar new --no-bind` is a deliberate "do not route this branch");
-never onto a closed or dropped record; and best-effort (BD22) — a detached
-HEAD, an absent or malformed bindings.json, any throw leaves the write-back
-untouched, since a routing convenience must never be able to fail a wrap-up.
+TABLE MEMBERSHIP, so a write-back never routes a branch to an initiative that
+appears NOWHERE among bindings.json's values (no-bind-durability D1); never
+onto a closed or dropped record; and best-effort (BD22) — a detached HEAD, an
+absent or malformed bindings.json, any throw leaves the write-back untouched,
+since a routing convenience must never be able to fail a wrap-up.
+MOVE-ONLY alone honours `--no-bind` only on an UNBOUND branch: a branch bound
+elsewhere was moved onto the new record by its first write-back, silently
+undoing the flag the operator had just set. Membership is a fact the OPERATOR
+wrote — `sofar new` without `--no-bind`, or `sofar switch` — never an
+inference from where work landed, so the rebind MOVES a binding between
+initiatives already routed to and introducing one to the routing table stays
+`sofar new`/`sofar switch`'s job, never end_session's. Retraction is that same
+fact: `sofar switch <slug>` puts the slug in the table, and from then on the
+rebind treats it like any other. The guard reads the table, so it is symmetric
+in a way worth stating — a move can leave the slug it moved AWAY from absent
+(that branch was the last one bound to it), and thereafter only an explicit
+`sofar switch` routes back. That is the price of deriving the operator's
+intent from bindings.json alone rather than persisting a `--no-bind` flag in
+the log, and it is the intended direction: forgetting a route is recoverable
+with one command, while re-creating one the operator declined is not.
 With several sessions on one branch the last to write back wins; that cannot
 tear a running peer, which resolves through its own home and only ever takes
 the binding as a seed candidate, and session-orientation's recent-work notice
