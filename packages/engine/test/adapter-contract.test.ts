@@ -47,7 +47,7 @@ function script(logPath: string, extra: Partial<FakeScript> = {}): FakeScript {
 
 const request = { cwd: '/tmp/nowhere', initiative: 'demo', prompt: 'do the next task', task: { id: '1.1', title: 'T' } }
 
-const ALL = { usage: true, nudge: true, model: true, effort: true }
+const ALL = { usage: true, nudge: true, model: true, effort: true, permission_rules: true, cost: true }
 
 describe('policyUnavailable', () => {
   it('the task policy runs on every adapter', () => {

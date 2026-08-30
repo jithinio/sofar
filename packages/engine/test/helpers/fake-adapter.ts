@@ -137,6 +137,8 @@ export class FakeAdapter implements Adapter {
       nudge: true,
       model: false,
       effort: false,
+      permission_rules: true,
+      cost: true,
       ...first.capabilities,
     }
   }

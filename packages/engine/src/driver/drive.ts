@@ -14,6 +14,7 @@ import { createToolContext, ToolError } from '../mcp/context'
 import type { NudgeDetail } from './nudge'
 import { describeSurface, sameSurface, type PermissionSurface } from './permissions'
 import {
+  inertOptions,
   policyUnavailable,
   resolveLaunchedSession,
   wroteBack,
@@ -383,6 +384,17 @@ export async function drive(
     )
     progress(`run ${runId} — ${adapter.name}, ${policy} policy, in ${cwd}`)
     if (surface !== undefined) progress(`  permissions: ${describeSurface(surface)}`)
+  }
+
+  // What this adapter cannot honour, said BEFORE the first launch (D9). A
+  // resumed run says it too: the flags are this driver's, and an operator who
+  // set an inert one should hear it from the driver rather than from a run
+  // that never stopped.
+  for (const line of inertOptions(adapter.capabilities, {
+    ...(surface !== undefined ? { surface } : {}),
+    ...(options.costCapUsd !== undefined ? { costCapUsd: options.costCapUsd } : {}),
+  })) {
+    progress(`warning: ${line}`)
   }
 
   const maxStalls = options.maxStalls ?? DEFAULT_MAX_STALLS

@@ -1,6 +1,7 @@
 import { ToolError, createToolContext } from '../mcp/context'
 import { describeRun } from '../projections/templates/shared'
 import { ClaudeCodeAdapter } from '../driver/claude-code'
+import { CodexAdapter } from '../driver/codex'
 import { drive, type DriveOptions } from '../driver/drive'
 import { buildSurface, SurfaceError } from '../driver/permissions'
 import type { Adapter } from '../driver/adapter'
@@ -30,7 +31,9 @@ export interface DriveCliOptions {
   model?: string
   effort?: string
   resume?: boolean
-  /** Binary the Claude Code adapter spawns (default `claude`). */
+  /** Which agent to drive: `claude-code` (default) or `codex` (3.1). */
+  agent?: string
+  /** Binary the adapter spawns (default: the agent's own name). */
   bin?: string
   /** Permission surface for every session in the run (2.4). */
   permissionMode?: string
@@ -61,6 +64,24 @@ function integer(name: string, raw: string | undefined): number | undefined {
   return value
 }
 
+/**
+ * The adapter named by `--agent`. Adding one here is the whole cost of a new
+ * agent (3.1): the loop takes an `Adapter` and asks it nothing an adapter
+ * cannot answer, so the CLI is the only place that knows the names.
+ */
+export const AGENTS = ['claude-code', 'codex'] as const
+
+function buildAdapter(options: DriveCliOptions): Adapter {
+  const agent = options.agent ?? 'claude-code'
+  const shared = {
+    ...(options.bin !== undefined ? { bin: options.bin } : {}),
+    ...(options.agentArgs !== undefined ? { args: options.agentArgs } : {}),
+  }
+  if (agent === 'claude-code') return new ClaudeCodeAdapter(shared)
+  if (agent === 'codex') return new CodexAdapter(shared)
+  throw new ToolError('invalid_input', `sofar drive: --agent must be one of ${AGENTS.join('|')}, got "${agent}"`)
+}
+
 export async function runDrive(
   rootDir: string,
   slug: string | undefined,
@@ -86,12 +107,7 @@ export async function runDrive(
       ...(options.effort !== undefined ? { effort: options.effort } : {}),
     })
     driveOptions = {
-      adapter:
-        options.adapter ??
-        new ClaudeCodeAdapter({
-          ...(options.bin !== undefined ? { bin: options.bin } : {}),
-          ...(options.agentArgs !== undefined ? { args: options.agentArgs } : {}),
-        }),
+      adapter: options.adapter ?? buildAdapter(options),
       ...(options.policy !== undefined ? { policy: options.policy as DriveOptions['policy'] } : {}),
       ...(thresholdPct !== undefined ? { thresholdPct } : {}),
       ...(contextWindow !== undefined ? { contextWindow } : {}),

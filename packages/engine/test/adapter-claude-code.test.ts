@@ -242,8 +242,15 @@ describe('nudge', () => {
     await session.wait()
   })
 
-  it('declares every capability: usage, nudge, model, effort', () => {
-    expect(new ClaudeCodeAdapter().capabilities).toEqual({ usage: true, nudge: true, model: true, effort: true })
+  it('declares every capability — Claude Code is the adapter that can do all of it', () => {
+    expect(new ClaudeCodeAdapter().capabilities).toEqual({
+      usage: true,
+      nudge: true,
+      model: true,
+      effort: true,
+      permission_rules: true,
+      cost: true,
+    })
     expect(new ClaudeCodeAdapter().name).toBe('claude-code')
   })
 })

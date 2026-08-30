@@ -280,7 +280,7 @@ describe('the loop', () => {
     let launches = 0
     const twins: Adapter = {
       name: 'fake',
-      capabilities: { usage: false, nudge: false, model: false, effort: false },
+      capabilities: { usage: false, nudge: false, model: false, effort: false, permission_rules: true, cost: true },
       launch(_request: LaunchRequest): AgentSession {
         launches += 1
         for (const id of [`A${launches}`, `B${launches}`]) {
@@ -347,7 +347,7 @@ describe('the loop', () => {
     const root = repo('error')
     const broken: Adapter = {
       name: 'fake',
-      capabilities: { usage: false, nudge: false, model: false, effort: false },
+      capabilities: { usage: false, nudge: false, model: false, effort: false, permission_rules: true, cost: true },
       launch(): AgentSession {
         throw new Error('claude: command not found')
       },
@@ -529,7 +529,7 @@ describe('the permission surface (2.4, D8) — a run property, a session artifac
     const root = repo('surface-unverified')
     const adapter: Adapter = {
       name: 'fake',
-      capabilities: { usage: false, nudge: false, model: false, effort: false },
+      capabilities: { usage: false, nudge: false, model: false, effort: false, permission_rules: true, cost: true },
       launch(): AgentSession {
         throw new Error('settings file /x does not hold what was written')
       },
@@ -606,7 +606,7 @@ describe('the CLI skin', () => {
     const broken = repo('cli-error')
     const thrower: Adapter = {
       name: 'fake',
-      capabilities: { usage: false, nudge: false, model: false, effort: false },
+      capabilities: { usage: false, nudge: false, model: false, effort: false, permission_rules: true, cost: true },
       launch(): AgentSession {
         throw new Error('spawn failed')
       },

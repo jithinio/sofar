@@ -338,7 +338,8 @@ program
   .option('--model <model>', 'model hint passed to every launch')
   .option('--effort <effort>', 'effort hint passed to every launch')
   .option('--resume', 'adopt the latest run when it has no stop, instead of refusing to start')
-  .option('--bin <path>', 'agent binary to spawn (default: claude)')
+  .option('--agent <name>', 'which headless agent to drive: claude-code (default) or codex')
+  .option('--bin <path>', "agent binary to spawn (default: the agent's own name)")
   .option(
     '--permission-mode <mode>',
     'permission mode every session runs under (default: acceptEdits — an unattended session cannot answer a prompt)',
@@ -364,6 +365,7 @@ program
         model?: string
         effort?: string
         resume?: boolean
+        agent?: string
         bin?: string
         permissionMode?: string
         allow?: string[]
@@ -384,6 +386,7 @@ program
           ...(opts.model !== undefined ? { model: opts.model } : {}),
           ...(opts.effort !== undefined ? { effort: opts.effort } : {}),
           ...(opts.resume === true ? { resume: true } : {}),
+          ...(opts.agent !== undefined ? { agent: opts.agent } : {}),
           ...(opts.bin !== undefined ? { bin: opts.bin } : {}),
           ...(opts.permissionMode !== undefined ? { permissionMode: opts.permissionMode } : {}),
           ...(opts.allow !== undefined ? { allow: opts.allow } : {}),

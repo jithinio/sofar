@@ -883,11 +883,18 @@ and why; a record no driver ever ran renders byte-identically to before.
 `sofar status` lists every run and every handoff; sessions/<id>.md names
 the run that handed the session off.
 
-**Adapter (D3).** A process wrapper and nothing more: `launch(request)` →
+**Adapter (D3, D9).** A process wrapper and nothing more: `launch(request)` →
 a handle with `usage()`, optional `nudge()`, `kill()`, `wait()`;
-capabilities {usage, nudge, model, effort} are declared up front and the
-threshold policy is REFUSED on an adapter lacking usage or nudge — a gauge
-with no lever, or a lever with no gauge. An adapter never reports record
+capabilities {usage, nudge, model, effort, permission_rules, cost} are
+declared up front and the threshold policy is REFUSED on an adapter lacking
+usage or nudge — a gauge with no lever, or a lever with no gauge. The last
+two declare what the adapter CANNOT do, and the driver states the
+consequence on the progress stream BEFORE the first launch: an agent with no
+per-tool rules (`permission_rules: false`) never receives the surface's
+allow/deny, only its mode, and an agent whose transport reports no money
+(`cost: false`) leaves `--cost-cap` inert. Both are silent traps otherwise —
+a recorded allow-list that had no effect is the overstatement D8 forbids, and
+a cost cap that cannot fire is worse than no cap at all. An adapter never reports record
 state: wrote_back is `wroteBack` over the fold (registered AND carries a
 summary), and the launched session's identity is the id the transport
 showed if the record registered it, else the one session that tool
@@ -987,6 +994,41 @@ arrives — print mode ends the turn on its own, so telling a threshold session
 to stop after one task would make the gauge decorative. A nudged session that
 wrote back and resolved a task hands off with reason `threshold` rather than
 `task_done`: the reason names the lever that moved.
+
+**The codex adapter (3.1, D9).** `codex exec --json`, verified against
+codex-cli 0.136.0: `{"type":"thread.started","thread_id"}`, `turn.started`,
+`{"type":"turn.completed","usage":{input_tokens, cached_input_tokens,
+output_tokens, reasoning_output_tokens}}`, `{"type":"turn.failed","error":
+{"message"}}` and a bare `{"type":"error","message"}`; `item.*` lines carry
+the work and are skipped, because what a session DID is read from the record.
+Stdin is closed at spawn — codex otherwise prints "Reading additional input
+from stdin" and waits, even with a prompt on the command line.
+
+It is the second adapter, and it proves the contract by fitting BADLY. An
+adapter written from the agent the contract was designed around shows only
+that the contract describes that agent; codex disagrees on every axis, and
+`sofar drive` runs against it unchanged anyway. Four capabilities are false.
+Usage arrives with `turn.completed`, i.e. after the session has ended, so
+`usage()` returns undefined forever and the threshold policy is refused —
+the final numbers ride `SessionExit` instead, where a post-mortem cannot be
+mistaken for a gauge. There is no channel into a running exec, so no nudge.
+Codex's permission vocabulary is a sandbox enum, not rules: the surface's
+MODE maps (`acceptEdits`/`default`/`dontAsk` → `workspace-write`,
+`bypassPermissions` → `danger-full-access`, `plan` → `read-only`, always with
+`approval_policy=never` because an unattended session cannot answer an
+approval prompt), its rules do not, and a mode with no codex meaning throws
+instead of launching under one nobody chose. Nothing reports cost.
+
+Two things it does differently. The session id is ASSIGNED, not observed: the
+adapter mints it and writes it into the pin line, because codex runs no sofar
+hook to inject one — and `resolveLaunchedSession` still believes it only
+because the record registered it (D3), so a session that ignored the
+instruction falls through to the tool-and-time diff. And codex carries no
+sofar MCP server, so the pin line hands over the CLI dialect
+(`sofar event append <slug> --session <id> --source codex --type …`) with the
+payload keys spelled out, `task_status_changed` above all: the key is `id`,
+not `task_id`, and a session told otherwise stalls silently having done the
+work.
 
 **The loop (2.2).** Fold → next task → launch → wait → handoff, repeat. The
 next task is the one already `active` in the active phase, else its first
@@ -2447,8 +2489,8 @@ Shims contain no logic — they invoke the sofar CLI.
 - `sofar drive [slug] [--policy task|threshold] [--threshold-pct <pct>]
   [--context-window <tokens>] [--max-sessions <n>] [--max-stalls <n>]
   [--cost-cap <usd>] [--cwd <dir>] [--model <m>] [--effort <e>] [--resume]
-  [--bin <path>] [--permission-mode <mode>] [--allow <rule...>]
-  [--deny <rule...>] [--bare-tools]` — run an initiative task-by-task through
+  [--agent claude-code|codex] [--bin <path>] [--permission-mode <mode>]
+  [--allow <rule...>] [--deny <rule...>] [--bare-tools]` — run an initiative task-by-task through
   fresh headless sessions (§Driver, the loop). The permission flags state the
   run's surface (§Driver, the permission surface): `--allow` ADDS to sofar's
   floor and `--bare-tools` drops the floor so `--allow` states the whole of
@@ -3493,6 +3535,27 @@ stay the underlying derivation's, and exit codes are styling-independent.
   over the new driver's flags and says so, and model/effort come from the surface
   when it carries them. The full status lists the rules whole; the budgeted
   digest line does not.
+- **Codex adapter (session-driver 3.1):** tested against a stubbed `codex`,
+  never the real one, replaying line shapes captured from codex-cli 0.136.0.
+  It declares `usage`, `nudge`, `permission_rules` and `cost` all false;
+  `policyUnavailable` refuses the threshold policy naming both missing halves,
+  and `inertOptions` says the allow/deny rules do not reach it and that
+  `--cost-cap` can never fire — and says nothing when nothing is inert. Each
+  permission mode maps to a sandbox with `approval_policy="never"`, an
+  unmappable mode throws instead of launching, and the argv carries the mode
+  but not the rules. The argv asks for `--json`, skips the git check, routes
+  `-m` and `model_reasoning_effort`, and puts the prompt LAST. The pin line
+  hands over the assigned session id, the CLI dialect, and `{"tool":"codex"}`.
+  `thread_id` is kept for diagnostics and never reported as the record session
+  id; the exit carries the ASSIGNED id, the final usage from `turn.completed`
+  while `usage()` stays undefined throughout, the stderr tail on a bad exit,
+  127 for a missing binary, and skips an unparseable or unknown line. And the
+  PROOF: `sofar drive` runs unchanged against it — a stub that reads its
+  session id and task id out of the prompt and writes the record with the CLI
+  dialect produces a `task_done` handoff naming the session codex registered,
+  a clean fold with no warnings, tokens from `turn.completed`, and a run that
+  ends `closed`; the same stub marking the task `blocked` produces
+  `needs_user` and stops the run.
 - **Close gate (commit-attribution 5.1/5.2/5.3):** a record that actually
   finished — every task and phase resolved, every phase reviewed, a final pass
   recorded, nothing appended since the write-back — closes with NO findings and

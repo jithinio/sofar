@@ -43,6 +43,44 @@ export interface AdapterCapabilities {
   model: boolean
   /** `launch()` honours an `effort` hint. */
   effort: boolean
+  /**
+   * The agent can express PER-TOOL permission rules, so a surface's `allow`
+   * and `deny` reach it (2.4). False for an agent whose permission vocabulary
+   * is a mode and nothing finer — codex speaks a sandbox enum and an approval
+   * policy — and the driver then says so before the run, because a recorded
+   * allow-list that had no effect is the overstatement D8 forbids.
+   */
+  permission_rules: boolean
+  /**
+   * The transport reports cost, so `--cost-cap` can fire. False leaves the cap
+   * inert, which on an unattended run is worse than having no cap at all — so
+   * the driver states it rather than letting the operator find out from a bill
+   * (D9).
+   */
+  cost: boolean
+}
+
+/**
+ * What this adapter cannot honour about `options`, as lines for the run's
+ * progress stream (D9). Empty when nothing is inert. Stated BEFORE the first
+ * launch: an operator who set a flag that cannot work should learn it from the
+ * driver, not from an unattended run that never stopped.
+ */
+export function inertOptions(
+  caps: AdapterCapabilities,
+  options: { surface?: PermissionSurface; costCapUsd?: number },
+): string[] {
+  const lines: string[] = []
+  const rules = (options.surface?.allow.length ?? 0) + (options.surface?.deny?.length ?? 0)
+  if (!caps.permission_rules && rules > 0) {
+    lines.push(
+      `this adapter has no per-tool permission rules, so the ${rules} allow/deny rule(s) this run records do NOT reach it — only the mode does`,
+    )
+  }
+  if (!caps.cost && options.costCapUsd !== undefined) {
+    lines.push('this adapter reports no cost, so --cost-cap can never fire on this run')
+  }
+  return lines
 }
 
 /** One launch: everything the driver knows that the session should start with. */

@@ -4,7 +4,7 @@
 
 Goal: Automate the session handoff sofar already makes content-complete: a stateless driver (sofar drive <initiative>) that runs an initiative task-by-task through fresh agent sessions, records every handoff as events in the record, and reaches any headless agent through a three-call adapter (launch, usage, wait) — Claude Code first, a second adapter to prove the contract. The record is the queue; the driver holds no state of its own.
 
-Progress: 7/11 tasks done (63%)
+Progress: 8/11 tasks done (72%)
 
 ## Phase 1 — Contract [done] — 3/3 done
 
@@ -14,16 +14,16 @@ Progress: 7/11 tasks done (63%)
 - [x] 1.2 Handoff events in packages/schema — run_started, handoff {reason: threshold|task_done|stall|needs_user}, run_stopped — folded and rendered in sessions/*.md and the digest; unknown lines still skipped, never fatal
 - [x] 1.3 Adapter contract as a TS interface in packages/engine: launch(digest, task), usage() → tokens, wait() → {exit, wrote_back}; a fake adapter drives the tests
 
-## Phase 2 — Claude Code adapter + sofar drive [active] — 4/4 done
+## Phase 2 — Claude Code adapter + sofar drive [done] — 4/4 done
 
 - [x] 2.1 Claude Code adapter: claude -p --output-format stream-json, per-message usage (input + cache_read + cache_creation), SessionStart injection unchanged, exit and write-back detected from the record fold
 - [x] 2.2 sofar drive <initiative>: stateless loop — next task from the fold → launch → watch → record handoff; stop rules: initiative closed | next action needs the user | N sessions with no task change | cost cap; each session in its own git worktree
 - [x] 2.3 Context policy: task-scoped by default; optional threshold (config) via a PostToolUse hook that injects "ctx N% — finish the current task, write back, end your turn" as additionalContext
 - [x] 2.4 Permission surface for unattended sessions: pinned settings file (allow-list, permission mode, effort, model) written per session and verified by reading it back — drift-certification D6/D11 discipline
 
-## Phase 3 — Second adapter proves the contract [pending] — 0/2 done
+## Phase 3 — Second adapter proves the contract [pending] — 1/2 done
 
-- [ ] 3.1 Second adapter (codex exec --json or opencode run, whichever is installed) with the usage fallback for agents that report none — the contract is proven when sofar drive runs unchanged against it
+- [x] 3.1 Second adapter (codex exec --json or opencode run, whichever is installed) with the usage fallback for agents that report none — the contract is proven when sofar drive runs unchanged against it
 - [ ] 3.2 Per-task routing: model/effort hints on a task, driver picks the adapter per task; sofar itself still never infers
 
 ## Phase 4 — Proof + release [pending] — 0/2 done
@@ -31,5 +31,4 @@ Progress: 7/11 tasks done (63%)
 - [ ] 4.1 Drive one real initiative end to end unattended; publish sessions, handoffs by reason, tokens versus the manual baseline, and operator minutes
 - [ ] 4.2 Release sofar.sh with sofar drive; SPEC §Acceptance criteria extended for the driver
 
-Active phase: Phase 2 — Claude Code adapter + sofar drive
-Next action: Phase 2 is complete, so start Phase 3, task 3.1: the second adapter that proves the contract. Read the surface it now has to render — LaunchRequest.surface is stated generically and each adapter turns it into its own config, so 3.1 is the first real test of whether that generic shape survives an agent that spells permissions differently. Note two things left open by 2.4: the per-session temp dir holding the nudge and settings file is never removed, which is arguably evidence worth keeping after an unattended run but is undocumented either way; and the surface is only ever proven at the FILE level, since proving the agent resolved it would cost a model call.
+Next action: Do 3.2: per-task routing — model and effort hints on a task, and the driver picking the adapter per task. Two things 3.1 leaves ready for it: DriveOptions already prefers the surface's model/effort over the flags, so per-task hints have to decide whether they beat the run's recorded surface or lose to it (they should lose, or a resumed run is not one run); and AGENTS in cli/drive.ts is now the only place that knows adapter names, so per-task adapter selection belongs there rather than in the loop. Note also that the codex pin line duplicates renderPrompt's protocol paragraph in CLI-dialect form — if a third adapter needs the same, that translation wants to move out of the adapter.

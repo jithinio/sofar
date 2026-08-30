@@ -84,6 +84,8 @@ export const CLAUDE_CODE_CAPABILITIES: AdapterCapabilities = {
   nudge: true,
   model: true,
   effort: true,
+  permission_rules: true,
+  cost: true,
 }
 
 
