@@ -140,6 +140,7 @@ and the result still reads correctly.
 | `sofar why <path>` | Every task, session and decision behind a file, across all initiatives |
 | `sofar related <task-id>` | Tasks that worked on the same files, ranked by shared paths |
 | `sofar review [name]` | The evidence a reviewer needs before a phase closes: what changed, what was claimed, and the rules the work had to keep (`--final` for the close-time pass) |
+| `sofar drive [name]` | Work the plan unattended: a fresh agent session per task, each handoff recorded, until a task needs you or the work runs out |
 | `sofar remember <text>` | Keep an operational fact — a release command, a failure mode — where later sessions will find it |
 | `sofar statusline --install` | Put the status line in Claude Code's status bar — this repo, or `--user` for every project (`--uninstall` takes it back off) |
 | `sofar doctor` | Check the setup and the record for problems |
@@ -187,6 +188,28 @@ The full detail stays on disk for when it is needed. Decisions and the
 approaches they ruled out are the one thing never cut.
 
 ## Optional extras
+
+**Working unattended.** `sofar drive` takes the plan you already have and
+works it: next task from the record, a fresh agent session for it, wait,
+write down what changed, repeat. Sessions do not share a context window, so
+the tenth task starts as clean as the first — the record is the handover,
+which is the same thing it does for you between your own sessions.
+
+```bash
+sofar drive --allow 'Bash(npm test:*)' --session-timeout 900 --cost-cap 20
+```
+
+It stops when a task needs you and says which — that is a session marking
+its task blocked with the question, not a guess about what it meant — and
+otherwise when the work runs out, two sessions in a row get nowhere, or a
+limit you set is reached. Everything it did is in the record afterwards:
+which session took which task, why each one ended, what it cost.
+
+Two things to know before you leave it running. It launches *your* agent
+under *your* login, so what a session may do is your own configuration plus
+the rules you pass — `--allow` widens, and sofar cannot narrow. And
+`--cost-cap` and `--max-sessions` bound one run of the command; if you
+resume an interrupted run, they start counting again, and it tells you so.
 
 **Status line.** `sofar statusline --install` puts task progress, context
 fill and cache health in Claude Code's status bar, in one command and in

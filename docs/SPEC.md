@@ -3716,3 +3716,36 @@ stay the underlying derivation's, and exit codes are styling-independent.
   ref and no commits at all, and announces once. The review packet asks, at both
   scopes, whether any decision names work no task implements — the question that
   would have caught commit-attribution D13.
+- **Driver (session-driver):** `sofar drive` runs an initiative task-by-task
+  through fresh headless sessions, and every decision it takes is a fact about
+  the record. A launch resolves to exactly ONE session — the id the transport
+  showed if the log registered it, else the one session that tool registered
+  since the launch that the driver had not already folded — and several
+  candidates record a stall rather than a guess, filing no handoff for a
+  session the driver cannot name. Reasons come from the fold and nowhere else:
+  `needs_user` is the named task sitting in `blocked`, `task_done` needs BOTH a
+  write-back and a task actually resolved, and no prose is matched and no exit
+  code trusted. The permission surface is written, read back and compared at
+  EVERY launch — a mismatch refuses the launch rather than running under a
+  surface nobody checked — and `run_started.surface` is what `--resume` takes
+  over the resuming driver's flags, as it also refuses to change the run's
+  policy. Whatever ends a run, a `run_stopped` lands behind its `run_started`:
+  an interrupt, a stall streak, a cost cap, and a throw whose message is empty,
+  whose note that payload requires. Preflight refuses BEFORE minting a run and
+  leaves nothing to unwind — a launch directory whose log for the initiative is
+  not the one being driven, a queued task routing to an agent the run cannot
+  reach or that cannot run its policy, a `threshold` missing either half of its
+  threshold, an unknown permission mode. A session outliving `--session-timeout`
+  is signalled, SIGKILLed after a grace and finally given up on, and its handoff
+  reason is still the fold's; a second ^C escalates rather than orphaning the
+  run; each launch's temp dir is gone once its exit settles. What an adapter
+  cannot honour is stated before the first launch (D9), and `threshold` is
+  refused outright on an adapter with no gauge or no lever — which is why
+  `codex`, with usage, nudge, permission_rules and cost all false, runs the same
+  loop unchanged. `--cost-cap` and `--max-sessions` bound one DRIVER: a resumed
+  run restarts the cap and counts its budget from recorded handoffs alone, and
+  says both before its first launch. A record no driver ever ran renders
+  byte-identically to before. Proved unattended on a real initiative (4.1): 3
+  sessions, 3 `task_done` handoffs, 0 stalls, 0 unresolved, stopped `closed`, in
+  10.8 minutes for $4.38 — 2.44M billed tokens per task against 5.80M for the
+  closest manual comparator on the same files.

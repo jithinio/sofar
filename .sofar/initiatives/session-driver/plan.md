@@ -4,7 +4,7 @@
 
 Goal: Automate the session handoff sofar already makes content-complete: a stateless driver (sofar drive <initiative>) that runs an initiative task-by-task through fresh agent sessions, records every handoff as events in the record, and reaches any headless agent through a three-call adapter (launch, usage, wait) — Claude Code first, a second adapter to prove the contract. The record is the queue; the driver holds no state of its own.
 
-Progress: 10/11 tasks done (90%)
+Progress: 11/11 tasks done (100%)
 
 ## Phase 1 — Contract [done] — 3/3 done
 
@@ -28,12 +28,12 @@ Progress: 10/11 tasks done (90%)
 - [x] 3.1 Second adapter (codex exec --json or opencode run, whichever is installed) with the usage fallback for agents that report none — the contract is proven when sofar drive runs unchanged against it
 - [x] 3.2 Per-task routing: model/effort hints on a task, driver picks the adapter per task; sofar itself still never infers
 
-## Phase 4 — Proof + release [active] — 1/2 done
+## Phase 4 — Proof + release [active] — 2/2 done
 
 > 4.1 done — the proof run's numbers are published in the record. 4.2 remains: release with `sofar drive` and extend SPEC §Acceptance criteria for the driver.
 
 - [x] 4.1 Drive one real initiative end to end unattended; publish sessions, handoffs by reason, tokens versus the manual baseline, and operator minutes
-- [ ] 4.2 Release sofar.sh with sofar drive; SPEC §Acceptance criteria extended for the driver
+- [x] 4.2 Release sofar.sh with sofar drive; SPEC §Acceptance criteria extended for the driver
 
 Active phase: Phase 4 — Proof + release
 Next action: Do 4.2: release with the driver and extend the SPEC acceptance criteria for it, naming what 4.1 exercised plus what this review added — a bounded wait, a guaranteed stop note, and budgets that bound a driver rather than a run.
