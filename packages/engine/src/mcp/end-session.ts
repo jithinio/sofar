@@ -88,12 +88,23 @@ export interface BranchRebound {
  * committed, so moving it inside the write-back means it is committed with the
  * record rather than left as trailing dirt after it.
  *
- * Three guards, in order of how quietly they fail:
+ * Four guards, in order of how quietly they fail:
  *  - MOVE-ONLY. A branch with no binding stays unbound, because `sofar new
  *    --no-bind` is a deliberate "do not route this branch" and a fresh session
  *    on an unbound branch already gets a block telling it to switch.
  *  - Never onto a CLOSED or dropped record — pointing new sessions at a
  *    finished one is the mistake closedBanner exists to name.
+ *  - Never INTRODUCES a slug to the routing table (no-bind-durability D1). The
+ *    rebind moves a branch BETWEEN initiatives the operator has already routed
+ *    to; a slug appearing nowhere among bindings.json's values is one no branch
+ *    was ever pointed at, and `sofar new --no-bind` is precisely how that state
+ *    is created on purpose — so move-only alone honoured the flag on an unbound
+ *    branch and quietly undid it on a bound one. Membership is a FACT the
+ *    operator wrote, with `sofar new` or `sofar switch`, in the same file the
+ *    move-only guard has already read — not an inference from where work
+ *    happened to land, which is the class binding-follows-session D1 rejected.
+ *    `sofar switch` is therefore the retraction: it puts the slug in the table,
+ *    and the rebind resumes.
  *  - Best-effort throughout (BD22): a detached HEAD, an absent or malformed
  *    bindings.json, any throw at all leaves the write-back exactly as it was.
  *    A routing convenience must never be able to fail a wrap-up.
@@ -106,10 +117,12 @@ function rebindBranch(
   try {
     const branch = currentBranch(ctx.rootDir)
     if (branch === null) return undefined
-    const from = readBindingsFile(ctx.bindingsPath)[branch]
+    const bindings = readBindingsFile(ctx.bindingsPath)
+    const from = bindings[branch]
     if (typeof from !== 'string' || from.length === 0) return undefined // move-only
     if (from === slug) return undefined
     if (isClosedInitiativeStatus(state.status)) return undefined
+    if (!Object.values(bindings).includes(slug)) return undefined // never introduces
     if (!writeBinding(ctx.bindingsPath, branch, slug)) return undefined
     return { branch, from, to: slug }
   } catch {

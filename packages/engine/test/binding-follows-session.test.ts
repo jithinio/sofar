@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
+import { writeBinding } from '../src/core/bindings'
 import { makeEvent } from '../src/core/envelope'
 import { appendEvent } from '../src/core/log'
 import { handleSessionStart } from '../src/cli/event'
@@ -57,12 +58,23 @@ function emit(
 }
 
 /**
+ * The other branches of the fixture repo, bound so that BOTH records are in
+ * the routing table. The fourth guard (no-bind-durability 1.1) only ever moves
+ * a branch between slugs the operator has already routed to, so a fixture
+ * where beta appeared nowhere would silently exercise that guard instead of
+ * the three these cases were written for.
+ */
+const OTHERS = { 'wip/alpha': 'alpha', 'wip/beta': 'beta' }
+
+/**
  * main → alpha, a peer registered in alpha, and MINE registered in beta — the
  * shape after a re-home, which is exactly when the binding is stale.
  * `bindings` is written verbatim so a test can hand in an absent or malformed
  * file without a second helper.
  */
-function repo(bindings: string | null = `${JSON.stringify({ main: 'alpha' }, null, 2)}\n`): {
+function repo(
+  bindings: string | null = `${JSON.stringify({ main: 'alpha', ...OTHERS }, null, 2)}\n`,
+): {
   root: string
   sofar: string
 } {
@@ -101,7 +113,7 @@ describe('the branch binding follows the write-back (binding-follows-session 1.3
     const { root, sofar } = repo()
     const result = wrapUp(root, 'MINE')
 
-    expect(readBindings(sofar)).toEqual({ main: 'beta' })
+    expect(readBindings(sofar)).toEqual({ main: 'beta', ...OTHERS })
     // Reported, because an inspectable mechanism must be legible at the moment
     // it acts — that is the whole reason a binding beat an inference (D1).
     expect(result.rebound).toEqual({ branch: 'main', from: 'alpha', to: 'beta' })
@@ -126,7 +138,7 @@ describe('the branch binding follows the write-back (binding-follows-session 1.3
     const { root, sofar } = repo()
     const result = wrapUp(root, 'PEER') // PEER's home IS alpha
 
-    expect(readBindings(sofar)).toEqual({ main: 'alpha' })
+    expect(readBindings(sofar)).toEqual({ main: 'alpha', ...OTHERS })
     // Omitted rather than reported as a no-op: presence is the signal, the
     // same shape parallel_writebacks uses.
     expect(result.rebound).toBeUndefined()
@@ -153,7 +165,7 @@ describe('the branch binding follows the write-back (binding-follows-session 1.3
     // The write-back still lands in beta — a closed record is where this
     // session lived, and its wrap-up belongs there. Only the ROUTING of future
     // sessions is withheld.
-    expect(readBindings(sofar)).toEqual({ main: 'alpha' })
+    expect(readBindings(sofar)).toEqual({ main: 'alpha', ...OTHERS })
     expect(result.rebound).toBeUndefined()
     expect(result.ok).toBe(true)
   })
@@ -173,7 +185,7 @@ describe('the branch binding follows the write-back (binding-follows-session 1.3
   it('cannot pull a live peer off its own record', () => {
     const { root, sofar } = repo()
     wrapUp(root, 'MINE')
-    expect(readBindings(sofar)).toEqual({ main: 'beta' })
+    expect(readBindings(sofar)).toEqual({ main: 'beta', ...OTHERS })
 
     // The peer resolves through its own home, which the moved binding only
     // ever SEEDS (mcp/context.ts:194) — so a rebind under a running session is
@@ -198,7 +210,7 @@ describe('the branch binding follows the write-back (binding-follows-session 1.3
 
     startSession(ctx, { tool: 'claude-code', session_id: 'STRAY', initiative: 'beta' })
     // Re-homing alone still touches nothing — the property rehome.test.ts pins.
-    expect(readBindings(sofar)).toEqual({ main: 'alpha' })
+    expect(readBindings(sofar)).toEqual({ main: 'alpha', ...OTHERS })
 
     // It is the WRITE-BACK that makes the move durable, which is why the bind
     // lives here and not in start_session: a re-home is not always a statement
@@ -209,5 +221,50 @@ describe('the branch binding follows the write-back (binding-follows-session 1.3
       from: 'alpha',
       to: 'beta',
     })
+  })
+})
+
+/**
+ * no-bind-durability 1.1 — the fourth guard.
+ *
+ * `sofar new beta --no-bind` states that THIS branch must not be routed to the
+ * new record. Move-only honoured that on an unbound branch and nowhere else: a
+ * branch already bound to alpha was moved onto beta by the first write-back,
+ * so the flag survived exactly until the session that set it wrapped up.
+ *
+ * The guard is derived from bindings.json alone (D1): the rebind moves a
+ * branch between initiatives the operator has already routed to, and putting a
+ * NEW slug in the routing table stays the operator's act — `sofar new` without
+ * the flag, or `sofar switch`. Nothing here reads the flag itself, which is
+ * why no event and no schema field were needed to hold it.
+ */
+describe('a write-back never introduces an initiative to the routing table (no-bind-durability 1.1)', () => {
+  /** `sofar new beta --no-bind` from main: beta exists, no branch points at it. */
+  const noBind = `${JSON.stringify({ main: 'alpha' }, null, 2)}\n`
+
+  it('leaves --no-bind standing on a branch that is bound elsewhere', () => {
+    const { root, sofar } = repo(noBind)
+    const result = wrapUp(root, 'MINE')
+
+    expect(readBindings(sofar)).toEqual({ main: 'alpha' })
+    expect(result.rebound).toBeUndefined()
+    // The write-back itself still lands in beta and still succeeds — only the
+    // ROUTING of future sessions is withheld, the same shape the closed-record
+    // guard takes.
+    expect(result.ok).toBe(true)
+    expect(record(root, 'SOMEONE-ELSE')).toContain('alpha')
+  })
+
+  it('resumes the move once an explicit bind puts beta in the table', () => {
+    const { root, sofar } = repo(noBind)
+    // The retraction. `sofar switch` on any branch goes through this same
+    // writer, and saying beta is a record this repo routes to is all it takes:
+    // the guard reads membership, not which branch supplied it.
+    writeBinding(join(sofar, 'bindings.json'), 'wip/beta', 'beta')
+
+    const result = wrapUp(root, 'MINE')
+
+    expect(readBindings(sofar)).toEqual({ main: 'beta', 'wip/beta': 'beta' })
+    expect(result.rebound).toEqual({ branch: 'main', from: 'alpha', to: 'beta' })
   })
 })
