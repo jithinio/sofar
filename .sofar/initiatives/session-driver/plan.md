@@ -4,7 +4,7 @@
 
 Goal: Automate the session handoff sofar already makes content-complete: a stateless driver (sofar drive <initiative>) that runs an initiative task-by-task through fresh agent sessions, records every handoff as events in the record, and reaches any headless agent through a three-call adapter (launch, usage, wait) — Claude Code first, a second adapter to prove the contract. The record is the queue; the driver holds no state of its own.
 
-Progress: 9/11 tasks done (81%)
+Progress: 10/11 tasks done (90%)
 
 ## Phase 1 — Contract [done] — 3/3 done
 
@@ -21,14 +21,19 @@ Progress: 9/11 tasks done (81%)
 - [x] 2.3 Context policy: task-scoped by default; optional threshold (config) via a PostToolUse hook that injects "ctx N% — finish the current task, write back, end your turn" as additionalContext
 - [x] 2.4 Permission surface for unattended sessions: pinned settings file (allow-list, permission mode, effort, model) written per session and verified by reading it back — drift-certification D6/D11 discipline
 
-## Phase 3 — Second adapter proves the contract [pending] — 2/2 done
+## Phase 3 — Second adapter proves the contract [done] — 2/2 done
+
+> 3.1 and 3.2 both done; the codex adapter and per-task routing landed in a5dcf5a and 0149158.
 
 - [x] 3.1 Second adapter (codex exec --json or opencode run, whichever is installed) with the usage fallback for agents that report none — the contract is proven when sofar drive runs unchanged against it
 - [x] 3.2 Per-task routing: model/effort hints on a task, driver picks the adapter per task; sofar itself still never infers
 
-## Phase 4 — Proof + release [pending] — 0/2 done
+## Phase 4 — Proof + release [active] — 1/2 done
 
-- [ ] 4.1 Drive one real initiative end to end unattended; publish sessions, handoffs by reason, tokens versus the manual baseline, and operator minutes
+> 4.1 done — the proof run's numbers are published in the record. 4.2 remains: release with `sofar drive` and extend SPEC §Acceptance criteria for the driver.
+
+- [x] 4.1 Drive one real initiative end to end unattended; publish sessions, handoffs by reason, tokens versus the manual baseline, and operator minutes
 - [ ] 4.2 Release sofar.sh with sofar drive; SPEC §Acceptance criteria extended for the driver
 
-Next action: Do 4.1: drive one real initiative end to end unattended and publish the numbers — sessions, handoffs by reason, tokens versus the manual baseline, operator minutes. Pick a small real initiative in this repo, run it with the task policy first (it needs no gauge and runs identically on every adapter), and give the run an allow-list carrying this repo's own proof commands, since the protocol floor deliberately excludes npm test and a session that cannot prove a task done stalls. Two things 3.2 leaves ready: the run is now readable after the fact from the progress stream alone, and per-task routing means the proof run can put one task on codex without a second run.
+Active phase: Phase 4 — Proof + release
+Next action: Do 4.2: release with the driver and extend SPEC Acceptance criteria for it, naming what 4.1 exercised rather than restating the design — every launch resolving to exactly one session, reasons read from the fold, a surface written and read back per launch, a stop the record explains. Two things outside it: the three driven commits are unpushed and carry only this run, and no-bind-durability is complete but unreleased, noted on binding-follows-session 3.2. Close that initiative only after main is rebound elsewhere.
