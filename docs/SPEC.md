@@ -860,6 +860,32 @@ the operator states it and the record keeps it. `--resume` therefore refuses
 to change a run's policy, and takes the run's own threshold, window and
 `max_sessions` over the resuming driver's flags.
 
+**The hang guard.** `--session-timeout <seconds>` bounds ONE launch: a session
+that has not ended by the deadline is signalled, SIGKILLed after a grace, and
+finally given up on — the driver synthesises an exit rather than waiting on a
+`wait()` a wedged grandchild may never settle, because an unattended run must
+have no state it can sit in indefinitely. Absent, the driver waits forever,
+which is the right default for an agent doing real work and the reason the
+timeout is stated rather than guessed. A per-DRIVER knob like `--max-stalls`
+and not a run property, so it is not recorded and a resumed run takes the
+resuming driver's. Only the WAIT is bounded: the handoff reason is still read
+from the fold (D5), since a session killed on the clock may well have
+finished its task and written back before its process wedged. The first ^C
+ends the run politely and a second escalates to SIGKILL — which unblocks the
+wait, so the run still gets its `run_stopped`, rather than killing the driver
+and orphaning it.
+
+**Budgets a resume cannot carry (D9).** `--cost-cap` and `--max-sessions`
+count THIS driver's launches. `run_started` holds the threshold, the window,
+the session budget and the surface, so those survive a resume — but what an
+earlier driver SPENT is not an event, and a launch that resolved to no
+session files no handoff (D3), so neither counter can be seeded from the
+fold: a resumed run's cap starts again from zero, and its session budget is
+counted from recorded handoffs alone. The driver states both on the progress
+stream before the first launch, for the reason it states an inert cap at
+all — a cap that quietly restarts is the same silent trap as one that cannot
+fire.
+
 **Reasons.** handoff: `task_done` | `threshold` | `stall` (the session ended
 with no task change) | `needs_user` (its write-back names a decision only
 the operator can take). stop: `closed` | `needs_user` | `stall` (N
@@ -927,7 +953,10 @@ a rejection. The child is spawned detached and `kill()` signals its whole
 process group — claude's MCP servers and hook shims would otherwise outlive
 it holding the stdout pipe (the D10 reaping rule) — and the exit is
 reported once stdout has drained or a two-second grace has passed,
-whichever comes first.
+whichever comes first. The session's temp dir — the nudge file and the
+settings — is removed at that same moment: the child is gone by every path
+that reaches it, the surface is in `run_started` rather than only in that
+file, and an unattended run is precisely the thing that makes many launches.
 
 **The permission surface (2.4, D8).** Unattended is the whole problem: print
 mode has nobody to prompt, so a gated tool call does not wait, it FAILS — a
@@ -2524,13 +2553,22 @@ Shims contain no logic — they invoke the sofar CLI.
   answer as whole.
 - `sofar drive [slug] [--policy task|threshold] [--threshold-pct <pct>]
   [--context-window <tokens>] [--max-sessions <n>] [--max-stalls <n>]
-  [--cost-cap <usd>] [--cwd <dir>] [--model <m>] [--effort <e>] [--resume]
-  [--agent claude-code|codex] [--bin <path>] [--permission-mode <mode>]
+  [--cost-cap <usd>] [--session-timeout <seconds>] [--cwd <dir>] [--model <m>]
+  [--effort <e>] [--resume]
+  [--agent claude-code|codex] [--bin <path>] [--agent-arg <arg>]
+  [--permission-mode <mode>]
   [--allow <rule...>] [--deny <rule...>] [--bare-tools]` — run an initiative task-by-task through
   fresh headless sessions (§Driver, the loop). The permission flags state the
   run's surface (§Driver, the permission surface): `--allow` ADDS to sofar's
   floor and `--bare-tools` drops the floor so `--allow` states the whole of
-  it. An unknown mode is refused before a run is minted. Progress streams to STDERR while the run goes;
+  it. An unknown mode is refused before a run is minted; the modes sofar
+  accepts are the ones the agent does, since the driver builds the child's
+  argv and a mode sofar refuses is one no operator can reach. `--session-timeout`
+  is the hang guard (§Driver, the hang guard). `--agent-arg` repeats once per
+  argument and appends verbatim to the argv of the agent `--agent` NAMED — the
+  escape hatch past sofar's own flags, so its vocabulary falling behind an
+  agent's is an inconvenience rather than a wall, and it lands LAST so the
+  operator overrides sofar and never the reverse. Progress streams to STDERR while the run goes;
   STDOUT carries the one `describeRun` line the record itself renders, so the
   command never restates what the log already says. Exit 0 for every stop the
   record can explain — `needs_user` and `stall` are outcomes of a working

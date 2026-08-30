@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
@@ -155,6 +155,8 @@ export class ClaudeCodeSession implements AgentSession {
   readonly nudgePath: string
   /** The per-session settings file, once a surface has been written and verified to it. */
   readonly settingsPath: string | undefined
+  /** The session's own temp dir, holding the nudge file and the settings; removed once the child is gone. */
+  readonly sessionDir: string
 
   private latest: Usage | undefined
   private readonly outputByMessage = new Map<string, number>()
@@ -165,6 +167,7 @@ export class ClaudeCodeSession implements AgentSession {
   constructor(request: LaunchRequest, options: ClaudeCodeOptions) {
     const env: NodeJS.ProcessEnv = { ...process.env, ...request.env }
     const sessionDir = mkdtempSync(join(env.TMPDIR ?? tmpdir(), 'sofar-drive-'))
+    this.sessionDir = sessionDir
     this.nudgePath = join(sessionDir, 'nudge')
     env[NUDGE_ENV] = this.nudgePath
 
@@ -204,6 +207,19 @@ export class ClaudeCodeSession implements AgentSession {
       const settle = (code: number | null, signal: NodeJS.Signals | null): void => {
         if (settled) return
         settled = true
+        // The child is gone by every path that reaches here, so the dir has
+        // no reader left: the nudge was for a session that has ended, and the
+        // surface it held is in `run_started` where D8 requires it, never
+        // only in this file. Leaving it would litter one dir per LAUNCH, and
+        // an unattended run is exactly the thing that makes many launches.
+        // Cleanup never costs the caller its exit — a dir that will not go is
+        // a tidiness problem, and reporting it as a failed session would be a
+        // lie about the run.
+        try {
+          rmSync(this.sessionDir, { recursive: true, force: true })
+        } catch {
+          // Left behind; the run is unaffected.
+        }
         resolve({
           code,
           ...(signal !== null ? { signal } : {}),

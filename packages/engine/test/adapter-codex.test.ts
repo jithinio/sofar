@@ -13,7 +13,7 @@ import {
   SANDBOX_BY_MODE,
 } from '../src/driver/codex'
 import { inertOptions, policyUnavailable, resolveLaunchedSession } from '../src/driver/adapter'
-import { buildSurface } from '../src/driver/permissions'
+import { buildSurface, PERMISSION_MODES } from '../src/driver/permissions'
 import { drive } from '../src/driver/drive'
 import { makeEvent } from '../src/core/envelope'
 import { appendEvent } from '../src/core/log'
@@ -142,8 +142,12 @@ describe('the surface, in codex vocabulary', () => {
     ])
     expect(codexPermissionArgs(buildSurface({ mode: 'bypassPermissions' }))[1]).toBe('danger-full-access')
     expect(codexPermissionArgs(buildSurface({ mode: 'plan' }))[1]).toBe('read-only')
-    // Every mode sofar can state has a codex meaning; none is left to a guess.
-    for (const mode of Object.keys(SANDBOX_BY_MODE)) {
+    // Every mode sofar can STATE has a codex meaning; none is left to a guess.
+    // Read from PERMISSION_MODES, not from the codex map: iterating the map
+    // would only prove the map maps itself, and the drift that matters is a
+    // mode the operator can pass which codex then refuses at launch.
+    expect(Object.keys(SANDBOX_BY_MODE).sort()).toEqual([...PERMISSION_MODES].sort())
+    for (const mode of PERMISSION_MODES) {
       expect(() => codexPermissionArgs({ permission_mode: mode, allow: [] })).not.toThrow()
     }
   })

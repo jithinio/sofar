@@ -334,6 +334,10 @@ program
   .option('--max-sessions <n>', 'stop before launching more than n sessions in this run')
   .option('--max-stalls <n>', 'stop after n consecutive sessions with no task change (default 2)')
   .option('--cost-cap <usd>', 'stop before the next launch once the adapter has reported this much cost')
+  .option(
+    '--session-timeout <seconds>',
+    'kill a session that has not ended in this long (default: wait forever) — an unattended run should state it',
+  )
   .option('--cwd <dir>', 'directory to launch sessions in (default: repo root); must serve the SAME record')
   .option('--model <model>', "model for every launch — outranks any task's own route hint")
   .option('--effort <effort>', "effort for every launch — outranks any task's own route hint")
@@ -343,6 +347,11 @@ program
     'default headless agent: claude-code (default) or codex — a task whose plan entry carries route.agent is launched with THAT one instead',
   )
   .option('--bin <path>', "agent binary to spawn (default: the agent's own name)")
+  .option(
+    '--agent-arg <arg>',
+    "extra argv for the agent named by --agent, repeat once per argument (e.g. --agent-arg=--debug) — the escape hatch past sofar's own flags",
+    (arg: string, acc: string[] | undefined) => [...(acc ?? []), arg],
+  )
   .option(
     '--permission-mode <mode>',
     'permission mode every session runs under (default: acceptEdits — an unattended session cannot answer a prompt)',
@@ -364,12 +373,14 @@ program
         maxSessions?: string
         maxStalls?: string
         costCap?: string
+        sessionTimeout?: string
         cwd?: string
         model?: string
         effort?: string
         resume?: boolean
         agent?: string
         bin?: string
+        agentArg?: string[]
         permissionMode?: string
         allow?: string[]
         deny?: string[]
@@ -385,12 +396,14 @@ program
           ...(opts.maxSessions !== undefined ? { maxSessions: opts.maxSessions } : {}),
           ...(opts.maxStalls !== undefined ? { maxStalls: opts.maxStalls } : {}),
           ...(opts.costCap !== undefined ? { costCap: opts.costCap } : {}),
+          ...(opts.sessionTimeout !== undefined ? { sessionTimeout: opts.sessionTimeout } : {}),
           ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
           ...(opts.model !== undefined ? { model: opts.model } : {}),
           ...(opts.effort !== undefined ? { effort: opts.effort } : {}),
           ...(opts.resume === true ? { resume: true } : {}),
           ...(opts.agent !== undefined ? { agent: opts.agent } : {}),
           ...(opts.bin !== undefined ? { bin: opts.bin } : {}),
+          ...(opts.agentArg !== undefined ? { agentArgs: opts.agentArg } : {}),
           ...(opts.permissionMode !== undefined ? { permissionMode: opts.permissionMode } : {}),
           ...(opts.allow !== undefined ? { allow: opts.allow } : {}),
           ...(opts.deny !== undefined ? { deny: opts.deny } : {}),

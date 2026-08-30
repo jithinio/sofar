@@ -88,13 +88,17 @@ export const CODEX_CAPABILITIES: AdapterCapabilities = {
  * Generic permission mode → codex sandbox. Approval is `never` in every case,
  * not because every mode means it but because an unattended session cannot
  * answer an approval prompt: the same fact that makes `default` unusable for
- * Claude Code print mode collapses codex's approval axis entirely. `default`
- * and `acceptEdits` therefore land in the same place, which is honest — codex
- * has no "ask about commands but not edits" state under automation.
+ * Claude Code print mode collapses codex's approval axis entirely. `default`,
+ * `auto`, `manual` and `acceptEdits` therefore land in the same place, which
+ * is honest — codex has no "ask about commands but not edits" state under
+ * automation, so the four modes that differ only in WHAT they ask about
+ * cannot differ here.
  */
 export const SANDBOX_BY_MODE: Readonly<Record<string, string>> = {
   default: 'workspace-write',
   acceptEdits: 'workspace-write',
+  auto: 'workspace-write',
+  manual: 'workspace-write',
   dontAsk: 'workspace-write',
   bypassPermissions: 'danger-full-access',
   plan: 'read-only',

@@ -21,6 +21,7 @@ import {
   wroteBack,
   type Adapter,
   type AgentSession,
+  type SessionExit,
 } from './adapter'
 import { previewRoutes, resolveRoute, RouteError, type RoutingOptions } from './routing'
 
@@ -60,6 +61,56 @@ export const DEFAULT_MAX_STALLS = 2
  * slower risks nudging a session that has already filled its window.
  */
 export const NUDGE_POLL_MS = 2_000
+
+/** How long a signalled session gets to exit on its own before SIGKILL. */
+export const KILL_GRACE_MS = 10_000
+/** How long the driver waits for an exit after SIGKILL before it stops waiting at all. */
+export const REAP_GRACE_MS = 5_000
+
+/**
+ * Wait for a session, bounded (the hang guard). Without `timeoutMs` this is
+ * `session.wait()` and nothing else — the default, deliberately: a task's
+ * honest duration is the operator's to know, and a driver that guessed one
+ * would kill sessions that were working.
+ *
+ * With it, a session that has not ended by the deadline is signalled, SIGKILLed
+ * after a grace, and finally given up on — the driver synthesises an exit
+ * rather than waiting forever on a `wait()` that a wedged grandchild may never
+ * settle. That last step is the whole point: an unattended run must have no
+ * state it can sit in indefinitely.
+ *
+ * Only the WAIT is bounded. The handoff reason is still read from the fold
+ * (D5): a session killed on the clock may well have finished its task and
+ * written back before its process wedged, and an exit is not a reason.
+ */
+export interface WaitBounds {
+  /** Kill the session when it has not ended in this long; absent waits forever. */
+  timeoutMs?: number
+  /** SIGTERM → SIGKILL grace (default KILL_GRACE_MS). */
+  killGraceMs?: number
+  /** SIGKILL → stop waiting grace (default REAP_GRACE_MS). */
+  reapGraceMs?: number
+  onEscalate?: (line: string) => void
+}
+
+export async function awaitSession(session: AgentSession, bounds: WaitBounds = {}): Promise<SessionExit> {
+  const { timeoutMs } = bounds
+  if (timeoutMs === undefined) return session.wait()
+  const escalate = bounds.onEscalate ?? ((): void => {})
+  const exit = session.wait()
+  const after = (ms: number): Promise<'timeout'> =>
+    new Promise((resolve) => setTimeout(() => resolve('timeout'), ms).unref())
+
+  if ((await Promise.race([exit, after(timeoutMs)])) !== 'timeout') return exit
+  escalate(`  no exit after ${Math.round(timeoutMs / 1000)}s — signalling the session`)
+  session.kill('SIGTERM')
+  if ((await Promise.race([exit, after(bounds.killGraceMs ?? KILL_GRACE_MS)])) !== 'timeout') return exit
+  escalate('  still running — SIGKILL')
+  session.kill('SIGKILL')
+  if ((await Promise.race([exit, after(bounds.reapGraceMs ?? REAP_GRACE_MS)])) !== 'timeout') return exit
+  escalate('  no exit after SIGKILL — the driver stops waiting and reads the record instead')
+  return { code: null, signal: 'SIGKILL' }
+}
 
 /**
  * Watch a running session's context and nudge it ONCE when it crosses the
@@ -126,6 +177,15 @@ export interface DriveOptions {
   maxSessions?: number
   /** Stop after this many CONSECUTIVE stalls (default DEFAULT_MAX_STALLS). */
   maxStalls?: number
+  /**
+   * Kill a session that has not ended within this many milliseconds (the hang
+   * guard). Absent means wait forever, which is the right default for an agent
+   * doing real work and the wrong one for an agent that has wedged — so an
+   * unattended run should state it. A per-DRIVER knob like `maxStalls`, not a
+   * run property: it bounds one launch rather than describing the run, so it
+   * is not recorded and a resumed run takes the resuming driver's.
+   */
+  sessionTimeoutMs?: number
   /** Stop before the next launch once the run's reported cost reaches this. */
   costCapUsd?: number
   /** Directory every session is launched in; default the repo root (D6). */
@@ -405,6 +465,23 @@ export async function drive(
     }
     surface = last.surface ?? surface
     opening.push(`resuming run ${last.id} — ${priorSessions} handoff(s) already recorded`)
+    // The two budgets the RECORD cannot carry, said before the run rather
+    // than discovered from a bill (D9). `threshold_pct`, `context_window`,
+    // `max_sessions` and `surface` all survive a resume because `run_started`
+    // holds them; what the earlier driver SPENT and how many of its launches
+    // resolved to nobody are not events, so neither counter can be seeded
+    // from the fold. A cap that quietly starts again from zero is the same
+    // silent trap as one that cannot fire at all.
+    if (options.costCapUsd !== undefined) {
+      opening.push(
+        `warning: --cost-cap $${options.costCapUsd.toFixed(2)} counts only THIS driver's launches — what run ${last.id} already spent is not in the record, so the cap starts again from zero`,
+      )
+    }
+    if (maxSessions !== undefined) {
+      opening.push(
+        `warning: run ${last.id}'s ${maxSessions}-session budget is counted from its ${priorSessions} recorded handoff(s) — launches that resolved to no session file no handoff (D3), so a run that stalled that way has already spent more of the budget than the record can show`,
+      )
+    }
   }
   const runId = resuming ? last.id : ulid()
   if (!resuming) {
@@ -484,10 +561,22 @@ export async function drive(
   // and the run stops as `interrupted` so the next driver knows a human ended
   // it rather than a rule.
   let interrupted = false
+  let signals = 0
   let live: AgentSession | undefined
   const onSignal = (): void => {
     interrupted = true
-    live?.kill()
+    signals += 1
+    // The first ^C ends the run politely. A second is the operator saying they
+    // will not wait, and it escalates to SIGKILL rather than killing the
+    // DRIVER: an operator who cannot get out without orphaning the run would
+    // leave a run with no stop, which is the one thing the next driver cannot
+    // read. SIGKILL unblocks the wait, so the run still gets its stop.
+    if (signals === 1) {
+      live?.kill()
+      progress('interrupted — signalling the session; ^C again to kill it outright')
+    } else {
+      live?.kill('SIGKILL')
+    }
   }
   process.on('SIGINT', onSignal)
   process.on('SIGTERM', onSignal)
@@ -559,7 +648,10 @@ export async function drive(
           : undefined
       let exit
       try {
-        exit = await session.wait()
+        exit = await awaitSession(session, {
+          ...(options.sessionTimeoutMs !== undefined ? { timeoutMs: options.sessionTimeoutMs } : {}),
+          onEscalate: progress,
+        })
       } finally {
         gauge?.stop()
       }
@@ -623,7 +715,7 @@ export async function drive(
       }
     }
   } catch (err) {
-    stop = { reason: 'error', note: err instanceof Error ? err.message : String(err) }
+    stop = { reason: 'error', note: errorNote(err) }
   } finally {
     process.removeListener('SIGINT', onSignal)
     process.removeListener('SIGTERM', onSignal)
@@ -646,6 +738,22 @@ export async function drive(
     cost_usd: cost,
     stop: ended,
   }
+}
+
+/**
+ * What a thrown value says, in a form `run_stopped` can actually carry.
+ *
+ * `note` is REQUIRED for reason `error` and the validator refuses an empty
+ * one, so an Error whose message is blank would cost the run its STOP: the
+ * append throws, `drive` throws with it, and the log keeps a `run_started`
+ * that nothing closes — the exact outcome the catch around the loop exists
+ * to prevent, reached through the catch itself. The fallback names the thrown
+ * value's own type, which is the only thing left to say about it.
+ */
+function errorNote(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err)
+  if (message.trim().length > 0) return message
+  return `the run ended on a thrown ${err instanceof Error ? err.name : typeof err} carrying no message`
 }
 
 /**

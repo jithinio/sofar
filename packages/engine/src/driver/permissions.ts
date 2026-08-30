@@ -27,8 +27,31 @@ import { readFileSync, writeFileSync } from 'node:fs'
  * says what sofar pinned; it never claims what the session could ultimately do.
  */
 
-/** Permission modes Claude Code accepts; the driver's default is `acceptEdits`. */
-export const PERMISSION_MODES = ['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk'] as const
+/**
+ * Permission modes Claude Code accepts; the driver's default is `acceptEdits`.
+ *
+ * Checked against 2.1.251, whose own `--permission-mode` advertises
+ * `acceptEdits | auto | bypassPermissions | manual | dontAsk | plan`. `auto`
+ * and `manual` are the two the list here used to be missing, and a mode sofar
+ * refuses is a mode no operator can reach: the driver builds the child's argv,
+ * so this list is the whole vocabulary. `default` stays because the binary
+ * still accepts it — it is simply no longer advertised, and a run recorded
+ * under it must remain resumable.
+ *
+ * The list is validated where the operator STATES a mode and trusted where the
+ * record REPLAYS one (`PermissionSurface.permission_mode` is a plain string
+ * for exactly that reason), so a build that falls behind the binary again
+ * refuses new runs rather than refusing to resume old ones.
+ */
+export const PERMISSION_MODES = [
+  'default',
+  'acceptEdits',
+  'auto',
+  'manual',
+  'bypassPermissions',
+  'plan',
+  'dontAsk',
+] as const
 export type PermissionMode = (typeof PERMISSION_MODES)[number]
 
 /**

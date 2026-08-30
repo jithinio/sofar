@@ -36,4 +36,4 @@ Progress: 10/11 tasks done (90%)
 - [ ] 4.2 Release sofar.sh with sofar drive; SPEC §Acceptance criteria extended for the driver
 
 Active phase: Phase 4 — Proof + release
-Next action: Do 4.2: release with the driver and extend SPEC Acceptance criteria for it, naming what 4.1 exercised rather than restating the design — every launch resolving to exactly one session, reasons read from the fold, a surface written and read back per launch, a stop the record explains. Two things outside it: the three driven commits are unpushed and carry only this run, and no-bind-durability is complete but unreleased, noted on binding-follows-session 3.2. Close that initiative only after main is rebound elsewhere.
+Next action: Do 4.2: release with the driver and extend the SPEC acceptance criteria for it, naming what 4.1 exercised plus what this review added — a bounded wait, a guaranteed stop note, and budgets that bound a driver rather than a run.

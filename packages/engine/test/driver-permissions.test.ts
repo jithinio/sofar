@@ -80,6 +80,16 @@ describe('the floor', () => {
     expect(() => buildSurface({ mode: 'bypassPermissions' })).not.toThrow()
   })
 
+  it('carries every mode the binary accepts — a mode sofar refuses is one no operator can reach', () => {
+    // Claude Code 2.1.251 advertises acceptEdits | auto | bypassPermissions |
+    // manual | dontAsk | plan, and still accepts the unadvertised `default`.
+    // The driver builds the child's argv, so this list is the whole vocabulary.
+    for (const mode of ['default', 'acceptEdits', 'auto', 'manual', 'bypassPermissions', 'plan', 'dontAsk']) {
+      expect(() => buildSurface({ mode })).not.toThrow()
+      expect(buildSurface({ mode }).permission_mode).toBe(mode)
+    }
+  })
+
   it('compares surfaces by what they pin, which is what --resume asks', () => {
     const a = buildSurface({ allow: ['Bash(npm test:*)'] })
     expect(sameSurface(a, buildSurface({ allow: ['Bash(npm test:*)'] }))).toBe(true)

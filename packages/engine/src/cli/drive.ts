@@ -27,6 +27,8 @@ export interface DriveCliOptions {
   maxSessions?: string
   maxStalls?: string
   costCap?: string
+  /** Seconds a single session may run before the driver kills it (the hang guard). */
+  sessionTimeout?: string
   cwd?: string
   model?: string
   effort?: string
@@ -41,7 +43,12 @@ export interface DriveCliOptions {
   deny?: string[]
   /** Drop sofar's default allow-list and use only what --allow states. */
   bareTools?: boolean
-  /** Extra argv for the agent — the operator's escape hatch past everything above. */
+  /**
+   * Extra argv appended to the agent's own flags — the operator's escape hatch
+   * past everything above, and the reason sofar's flag vocabulary falling
+   * behind an agent's is an inconvenience rather than a wall. Reaches the
+   * agent `--agent` NAMED and no other, for the reason `--bin` does.
+   */
   agentArgs?: string[]
   /** Test seam: an adapter to drive with, instead of building the Claude Code one. */
   adapter?: Adapter
@@ -120,6 +127,7 @@ export async function runDrive(
     const thresholdPct = integer('--threshold-pct', options.thresholdPct)
     const contextWindow = integer('--context-window', options.contextWindow)
     const costCapUsd = positive('--cost-cap', options.costCap)
+    const sessionTimeoutSec = positive('--session-timeout', options.sessionTimeout)
     // The surface is built HERE, before anything is recorded: a bad
     // --permission-mode is a preflight refusal with no run_started behind it,
     // not a run that starts and dies on its first launch.
@@ -141,6 +149,7 @@ export async function runDrive(
       ...(maxSessions !== undefined ? { maxSessions } : {}),
       ...(maxStalls !== undefined ? { maxStalls } : {}),
       ...(costCapUsd !== undefined ? { costCapUsd } : {}),
+      ...(sessionTimeoutSec !== undefined ? { sessionTimeoutMs: sessionTimeoutSec * 1_000 } : {}),
       ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
       ...(options.model !== undefined ? { model: options.model } : {}),
       ...(options.effort !== undefined ? { effort: options.effort } : {}),

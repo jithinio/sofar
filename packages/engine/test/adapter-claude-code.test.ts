@@ -242,6 +242,28 @@ describe('nudge', () => {
     await session.wait()
   })
 
+  it('removes the session temp dir once the child is gone — one launch must not leave one dir', async () => {
+    const c = cell('tmp-cleanup')
+    const session = new ClaudeCodeAdapter().launch(
+      c.request({ surface: { permission_mode: 'acceptEdits', allow: ['mcp__sofar'] } }),
+    )
+    expect(existsSync(session.sessionDir)).toBe(true)
+    expect(session.settingsPath).toBeDefined()
+    expect(existsSync(session.settingsPath!)).toBe(true)
+    await session.wait()
+    // The surface lives in `run_started` where D8 puts it, so the file has no
+    // reader left; an unattended run is exactly what makes many launches.
+    expect(existsSync(session.sessionDir)).toBe(false)
+  })
+
+  it('a spawn failure cleans up too — the dir outlives nothing', async () => {
+    const c = cell('tmp-cleanup-enoent')
+    const session = new ClaudeCodeAdapter({ bin: join(c.root, 'nope') }).launch(c.request())
+    const exit = await session.wait()
+    expect(exit.code).toBe(127)
+    expect(existsSync(session.sessionDir)).toBe(false)
+  })
+
   it('declares every capability — Claude Code is the adapter that can do all of it', () => {
     expect(new ClaudeCodeAdapter().capabilities).toEqual({
       usage: true,

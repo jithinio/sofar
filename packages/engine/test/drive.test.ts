@@ -6,7 +6,14 @@ import { foldLog, type InitiativeState } from '../src/core/fold'
 import { makeEvent } from '../src/core/envelope'
 import { appendEvent } from '../src/core/log'
 import type { Adapter, AgentSession, LaunchRequest, SessionExit } from '../src/driver/adapter'
-import { drive, handoffReason, nextTask, renderPrompt, watchThreshold } from '../src/driver/drive'
+import {
+  awaitSession,
+  drive,
+  handoffReason,
+  nextTask,
+  renderPrompt,
+  watchThreshold,
+} from '../src/driver/drive'
 import { buildSurface } from '../src/driver/permissions'
 import { runDrive } from '../src/cli/drive'
 import { FakeAdapter, type FakeScript } from './helpers/fake-adapter'
@@ -359,6 +366,121 @@ describe('the loop', () => {
     expect(run?.stop_reason).toBe('error')
     expect(run?.stop_note).toContain('command not found')
   })
+
+  it('a throw carrying no message still stops the run — `note` is required for `error`', async () => {
+    const root = repo('error-blank')
+    const broken: Adapter = {
+      name: 'fake',
+      capabilities: { usage: false, nudge: false, model: false, effort: false, permission_rules: true, cost: true },
+      launch(): AgentSession {
+        throw new Error('')
+      },
+    }
+    // Without a note the run_stopped payload is refused, `drive` throws with
+    // it, and the log keeps a run_started nothing closes — the one outcome
+    // the catch around the loop exists to prevent, reached through the catch.
+    const outcome = await drive(root, 'demo', { adapter: broken })
+    expect(outcome.stop.reason).toBe('error')
+    expect(readTypes(root)).toContain('run_stopped')
+    const run = state(root).runs.at(-1)
+    expect(run?.stopped).toBeDefined()
+    expect(run?.stop_note).toContain('no message')
+  })
+})
+
+describe('the hang guard — an unattended run must have no state it can sit in', () => {
+  /** A session that never ends on its own; `release` settles it. */
+  function wedged(): { session: AgentSession; kills: string[]; release: (exit: SessionExit) => void } {
+    const kills: string[] = []
+    let release: (exit: SessionExit) => void = () => {}
+    const exit = new Promise<SessionExit>((resolve) => {
+      release = resolve
+    })
+    return {
+      kills,
+      release: (e) => release(e),
+      session: {
+        usage: () => undefined,
+        kill: (signal = 'SIGTERM') => kills.push(signal),
+        wait: () => exit,
+      },
+    }
+  }
+
+  it('waits forever with no timeout — a task’s honest duration is the operator’s to know', async () => {
+    const w = wedged()
+    setTimeout(() => w.release({ code: 0 }), 5)
+    await expect(awaitSession(w.session)).resolves.toEqual({ code: 0 })
+    expect(w.kills).toEqual([])
+  })
+
+  it('returns the exit untouched when the session ends inside the timeout', async () => {
+    const w = wedged()
+    setTimeout(() => w.release({ code: 0, session_id: 'S' }), 5)
+    await expect(awaitSession(w.session, { timeoutMs: 5_000 })).resolves.toEqual({ code: 0, session_id: 'S' })
+    expect(w.kills).toEqual([])
+  })
+
+  it('signals a session that overruns, and takes its own exit once it comes', async () => {
+    const w = wedged()
+    const lines: string[] = []
+    setTimeout(() => w.release({ code: null, signal: 'SIGTERM' }), 20)
+    const exit = await awaitSession(w.session, {
+      timeoutMs: 1,
+      killGraceMs: 500,
+      onEscalate: (line) => lines.push(line),
+    })
+    expect(w.kills).toEqual(['SIGTERM'])
+    expect(exit).toEqual({ code: null, signal: 'SIGTERM' })
+    expect(lines.join('\n')).toContain('signalling the session')
+  })
+
+  it('escalates to SIGKILL and finally stops waiting — a wedged grandchild cannot hold the driver', async () => {
+    const w = wedged()
+    const lines: string[] = []
+    const exit = await awaitSession(w.session, {
+      timeoutMs: 1,
+      killGraceMs: 1,
+      reapGraceMs: 1,
+      onEscalate: (line) => lines.push(line),
+    })
+    expect(w.kills).toEqual(['SIGTERM', 'SIGKILL'])
+    // Synthesised: the record, not the exit, says what the session achieved.
+    expect(exit).toEqual({ code: null, signal: 'SIGKILL' })
+    expect(lines.join('\n')).toContain('stops waiting and reads the record instead')
+  })
+
+  it('a killed session still hands off on what the RECORD shows, never on the exit (D5)', async () => {
+    const root = repo('timeout-loop')
+    // The session does its task and writes back, then wedges — its process
+    // outlives its work, which is exactly the case an exit code would misread.
+    const adapter = new FakeAdapter([worker(root, 'T1'), worker(root, 'T2')])
+    const original = adapter.launch.bind(adapter)
+    adapter.launch = (request) => {
+      const session = original(request)
+      const done = session.wait.bind(session)
+      let settled: SessionExit | undefined
+      session.wait = async () => {
+        settled ??= await done()
+        // Ends only once the driver signals it.
+        return new Promise<SessionExit>((resolve) => {
+          const poll = setInterval(() => {
+            if (session.killed !== undefined) {
+              clearInterval(poll)
+              resolve({ code: null, signal: session.killed })
+            }
+          }, 2)
+          poll.unref()
+        })
+      }
+      return session
+    }
+    const outcome = await drive(root, 'demo', { adapter, sessionTimeoutMs: 20, maxSessions: 1 })
+    expect(adapter.sessions[0]?.killed).toBe('SIGTERM')
+    // The fold says the task was done and written back, so the handoff does too.
+    expect(outcome.handoffs.map((h) => h.reason)).toEqual(['task_done'])
+    expect(state(root).runs.at(-1)?.stop_reason).toBe('max_sessions')
+  })
 })
 
 describe('preflight — nothing is recorded until the run can actually run', () => {
@@ -542,6 +664,35 @@ describe('resume — the record is the only handover between drivers', () => {
     expect(outcome.stop.reason).toBe('max_sessions')
     expect(state(root).runs.at(-1)?.handoffs.map((h) => h.session_id)).toEqual(['S1'])
   })
+
+  it('says which budgets the record cannot carry across a resume, before the first launch (D9)', async () => {
+    const root = repo('resume-budgets')
+    const open = '01JZ8B3V0N5B4W8XK2M9QF7TSF'
+    appendEvent(
+      logPath(root),
+      makeEvent({
+        initiative: 'demo',
+        session: 'cli',
+        type: 'run_started',
+        payload: { run: open, adapter: 'fake', policy: 'task', max_sessions: 2 },
+        source: 'cli',
+        actor: 'human',
+      }),
+    )
+    const lines: string[] = []
+    await drive(root, 'demo', {
+      adapter: new FakeAdapter([worker(root, 'R1'), worker(root, 'R2')]),
+      resume: true,
+      costCapUsd: 5,
+      onProgress: (line) => lines.push(line),
+    })
+    // Both counters are this DRIVER's, not the run's: what the last one spent
+    // and how many of its launches resolved to nobody are not events.
+    const opening = lines.join('\n')
+    expect(opening).toContain('--cost-cap $5.00 counts only THIS driver')
+    expect(opening).toContain('starts again from zero')
+    expect(opening).toContain('file no handoff')
+  })
 })
 
 describe('the permission surface (2.4, D8) — a run property, a session artifact', () => {
@@ -686,6 +837,41 @@ describe('the CLI skin', () => {
     expect(result.exitCode).toBe(1)
     expect(result.stderr).toContain('--max-sessions must be a positive number')
     expect(readTypes(root)).not.toContain('run_started')
+  })
+
+  it('takes --session-timeout in SECONDS and hands the loop milliseconds', async () => {
+    const root = repo('cli-timeout')
+    const result = await runDrive(root, 'demo', {
+      adapter: new FakeAdapter([worker(root, 'S1'), worker(root, 'S2')]),
+      sessionTimeout: '0.03',
+    }, () => {})
+    // Sessions that end at once are untouched by the guard; what is pinned
+    // here is that the flag parses and reaches the loop.
+    expect(result.exitCode).toBe(0)
+    expect(state(root).runs.at(-1)?.handoffs).toHaveLength(2)
+
+    const bad = await runDrive(root, 'demo', {
+      adapter: new FakeAdapter([worker(root, 'S3')]),
+      sessionTimeout: 'soon',
+    })
+    expect(bad.exitCode).toBe(1)
+    expect(bad.stderr).toContain('--session-timeout must be a positive number')
+  })
+
+  it('--agent-arg reaches the agent it names — the escape hatch has a door', async () => {
+    const root = repo('cli-agent-arg')
+    const out = join(root, 'out')
+    mkdirSync(out)
+    const bin = join(root, 'stub-claude')
+    writeFileSync(bin, `#!/bin/sh\nprintf '%s\\n' "$@" > "${join(out, 'argv')}"\nexit 0\n`, { mode: 0o755 })
+    // The stub registers no session, so the launch is unresolved and one
+    // stall stops the run — all this needs is the argv the agent was given.
+    await runDrive(root, 'demo', { bin, agentArgs: ['--debug', '--foo=bar'], maxStalls: '1' }, () => {})
+    const argv = readFileSync(join(out, 'argv'), 'utf8').split('\n')
+    expect(argv).toContain('--debug')
+    expect(argv).toContain('--foo=bar')
+    // Last, after sofar's own flags: the operator overrides, never the reverse.
+    expect(argv.indexOf('--debug')).toBeGreaterThan(argv.indexOf('--permission-mode'))
   })
 
   it('a run that ends in `error` is exit 1; one that ends in needs_user is not', async () => {
