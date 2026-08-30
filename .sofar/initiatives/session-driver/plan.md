@@ -36,4 +36,4 @@ Progress: 11/11 tasks done (100%)
 - [x] 4.2 Release sofar.sh with sofar drive; SPEC §Acceptance criteria extended for the driver
 
 Active phase: Phase 4 — Proof + release
-Next action: Do 4.2: release with the driver and extend the SPEC acceptance criteria for it, naming what 4.1 exercised plus what this review added — a bounded wait, a guaranteed stop note, and budgets that bound a driver rather than a run.
+Next action: Hand the user `! npm publish -w sofar.sh` — they run it (OTP plus the permission classifier). Then upgrade the global install with `npm install -g --prefix ~/.local sofar.sh@latest`, since this repo's hooks and .mcp.json exec the global binary and would otherwise dogfood a stale engine, and confirm the installed version reports 0.30.0 and carries drive. After that, close session-driver.
