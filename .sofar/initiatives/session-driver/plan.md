@@ -4,7 +4,7 @@
 
 Goal: Automate the session handoff sofar already makes content-complete: a stateless driver (sofar drive <initiative>) that runs an initiative task-by-task through fresh agent sessions, records every handoff as events in the record, and reaches any headless agent through a three-call adapter (launch, usage, wait) — Claude Code first, a second adapter to prove the contract. The record is the queue; the driver holds no state of its own.
 
-Progress: 8/11 tasks done (72%)
+Progress: 9/11 tasks done (81%)
 
 ## Phase 1 — Contract [done] — 3/3 done
 
@@ -21,14 +21,14 @@ Progress: 8/11 tasks done (72%)
 - [x] 2.3 Context policy: task-scoped by default; optional threshold (config) via a PostToolUse hook that injects "ctx N% — finish the current task, write back, end your turn" as additionalContext
 - [x] 2.4 Permission surface for unattended sessions: pinned settings file (allow-list, permission mode, effort, model) written per session and verified by reading it back — drift-certification D6/D11 discipline
 
-## Phase 3 — Second adapter proves the contract [pending] — 1/2 done
+## Phase 3 — Second adapter proves the contract [pending] — 2/2 done
 
 - [x] 3.1 Second adapter (codex exec --json or opencode run, whichever is installed) with the usage fallback for agents that report none — the contract is proven when sofar drive runs unchanged against it
-- [ ] 3.2 Per-task routing: model/effort hints on a task, driver picks the adapter per task; sofar itself still never infers
+- [x] 3.2 Per-task routing: model/effort hints on a task, driver picks the adapter per task; sofar itself still never infers
 
 ## Phase 4 — Proof + release [pending] — 0/2 done
 
 - [ ] 4.1 Drive one real initiative end to end unattended; publish sessions, handoffs by reason, tokens versus the manual baseline, and operator minutes
 - [ ] 4.2 Release sofar.sh with sofar drive; SPEC §Acceptance criteria extended for the driver
 
-Next action: Do 3.2: per-task routing — model and effort hints on a task, and the driver picking the adapter per task. Two things 3.1 leaves ready for it: DriveOptions already prefers the surface's model/effort over the flags, so per-task hints have to decide whether they beat the run's recorded surface or lose to it (they should lose, or a resumed run is not one run); and AGENTS in cli/drive.ts is now the only place that knows adapter names, so per-task adapter selection belongs there rather than in the loop. Note also that the codex pin line duplicates renderPrompt's protocol paragraph in CLI-dialect form — if a third adapter needs the same, that translation wants to move out of the adapter.
+Next action: Do 4.1: drive one real initiative end to end unattended and publish the numbers — sessions, handoffs by reason, tokens versus the manual baseline, operator minutes. Pick a small real initiative in this repo, run it with the task policy first (it needs no gauge and runs identically on every adapter), and give the run an allow-list carrying this repo's own proof commands, since the protocol floor deliberately excludes npm test and a session that cannot prove a task done stalls. Two things 3.2 leaves ready: the run is now readable after the fact from the progress stream alone, and per-task routing means the proof run can put one task on codex without a second run.

@@ -169,7 +169,8 @@ hat, and the next review would have nothing to carry forward.
 ## State (result of fold)
 InitiativeState = { slug, goal, status: active|done|dropped, status_ts,
 status_note, status_overrides[], phases[ {name, status, tasks[ {id, title,
-status} ]} ], decisions[], memories[ {id, ts, text} ],
+status, route?: {agent?, model?, effort?}} ]} ], decisions[],
+memories[ {id, ts, text} ],
 sessions[ {id, tool, model?, started, ended?,
 summary?, next_action?, closed_reason?, activity?, handoff?: {run, reason,
 ts}} ],
@@ -1071,6 +1072,21 @@ warns, without refusing, when that directory's branch binds elsewhere: the
 prompt still pins the writes (D4), but the child's SessionStart hook will
 inject that other record's digest.
 
+**Per-task routing (3.2, D10).** A plan task may carry
+`route {agent?, model?, effort?}`, and the driver resolves it at every launch.
+The RUN outranks it: the model/effort `run_started.surface` recorded, or the
+driver's own `--model`/`--effort`, win, and the hint fills only what the run
+left open — a run whose second half ran a model its own record does not name
+is two runs wearing one id (D8's rule, arriving through the plan). A hint that
+lost, or that its target adapter cannot honour, is STATED on the progress
+stream before the first launch rather than dropped (D9). `route.agent` is the
+one field with no middle setting: a run that cannot reach the named adapter,
+or whose policy that adapter cannot run — `threshold` on one with no gauge —
+REFUSES before `run_started`, never falls back to the default agent. Nothing
+new is recorded: the plan carries the hint, `session_started` carries the tool
+and model that actually ran, and a third copy would be the one that goes
+stale (D3).
+
 **What the driver is not (D2).** Not a session, not an agent loop, never an
 inference: it launches existing headless agents through the adapter
 contract (launch, usage, wait) and writes nothing but these events.
@@ -1632,7 +1648,9 @@ also collides with a sofar-cloud-internal package).
   # guard fails payload validation and appends nothing. Warns, never blocks.
 - sofar_update_plan({initiative?, plan}) → ok   # full-structure replace;
   an omitted status means `pending`, NOT unchanged — restate every status
-  you intend to keep, and expect a fold warning if a resolved one is dropped
+  you intend to keep, and expect a fold warning if a resolved one is dropped.
+  A task may carry `route {agent?, model?, effort?}` for `sofar drive` (3.2),
+  and it survives exactly as long as the plan restates it
 - sofar_add_note({initiative?, text}) → ok
 - sofar_remember({initiative?, text}) → ok   # promote a fact to repo memory
   (repo-memory-capture D1): operational knowledge that is NOT a decision — a
@@ -3556,6 +3574,21 @@ stay the underlying derivation's, and exit codes are styling-independent.
   a clean fold with no warnings, tokens from `turn.completed`, and a run that
   ends `closed`; the same stub marking the task `blocked` produces
   `needs_user` and stops the run.
+- **Per-task routing (session-driver 3.2):** a plan task carries
+  `route {agent?, model?, effort?}` — validated strictly (a non-object route,
+  or an empty agent/model/effort, rejects the payload), folded onto the task,
+  rendered in plan.md beside it, and dropped when the next full-replace plan
+  omits it, exactly as a status is. The run outranks it: a pinned model or
+  effort reaches the launch and the losing hint is stated once, a hint agreeing
+  with the pin says nothing, and a hint the target adapter cannot honour is
+  stated too. `route.agent` launches the named adapter, resolves the run's own
+  agent to the run's own adapter, and REFUSES — before any `run_started`, and
+  naming what the run can launch — an agent the run cannot reach or one that
+  cannot run the run's policy, however far down the queue the task sits. The
+  routed session's handoff resolves against the ROUTED adapter's name, the run
+  still records the default adapter, and the progress stream names the routed
+  agent on that session's line and repeats a routed adapter's inert options
+  once, naming the tasks they reach.
 - **Close gate (commit-attribution 5.1/5.2/5.3):** a record that actually
   finished — every task and phase resolved, every phase reviewed, a final pass
   recorded, nothing appended since the write-back — closes with NO findings and

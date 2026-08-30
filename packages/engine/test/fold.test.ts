@@ -294,6 +294,24 @@ describe('foldLines', () => {
     expect(state.current.active_phase).toBe('Only phase')
   })
 
+  it("carries a task's route through the fold, and drops it when the next plan omits it (3.2)", () => {
+    const events = storyline()
+    const phases = [
+      { name: 'Only phase', status: 'active', tasks: [{ id: '1.1', title: 'T', route: { agent: 'codex' } }] },
+    ]
+    const routed = ev('plan_updated', { plan: { goal: 'g', phases } })
+    const { state } = foldLines(lines([...events, routed]))
+    expect(state.phases[0]?.tasks[0]?.route).toEqual({ agent: 'codex' })
+
+    // A full replace is a full replace: the route lives exactly as long as the
+    // plan restates it, the same rule a status follows.
+    const bare = ev('plan_updated', {
+      plan: { goal: 'g', phases: [{ name: 'Only phase', status: 'active', tasks: [{ id: '1.1', title: 'T' }] }] },
+    })
+    const after = foldLines(lines([...events, routed, bare])).state
+    expect(after.phases[0]?.tasks[0]?.route).toBeUndefined()
+  })
+
   it('warns and skips duplicate task_added ids', () => {
     const events = storyline() // mint before `dup` — replay is id order (13.1)
     const dup = ev('task_added', { phase: 'Phase 2 — MCP server', id: '1.1', title: 'Duplicate' })

@@ -57,10 +57,34 @@ export function isClosedInitiativeStatus(s: string): boolean {
   return (CLOSED_INITIATIVE_STATUSES as readonly string[]).includes(s)
 }
 
+/**
+ * Where a task wants to be run (session-driver 3.2, D10). Hints, not orders:
+ * anything the RUN states — the model/effort `run_started.surface` recorded,
+ * or the driver's own flags — wins over them, because a run whose second half
+ * ran a different model than its record names is two runs wearing one id.
+ * What the run leaves open, the task fills.
+ *
+ * `agent` names an ADAPTER (`claude-code`, `codex`), and it is the one field
+ * the driver cannot honour halfway: a run that cannot reach the named agent,
+ * or whose policy that agent cannot run, refuses to start rather than falling
+ * back to the default one.
+ *
+ * Nothing else records the route: the plan carries the hint and the launched
+ * session's own `session_started` carries the tool and model it actually ran,
+ * so a third copy on the handoff would be the one that goes stale (D3).
+ */
+export interface TaskRoute {
+  /** Adapter name the driver must launch this task with. */
+  agent?: string
+  model?: string
+  effort?: string
+}
+
 export interface PlanTaskInput {
   id: string
   title: string
   status?: TaskStatus
+  route?: TaskRoute
 }
 
 export interface PlanPhaseInput {
@@ -357,6 +381,24 @@ function initiativeStatus(v: unknown): v is InitiativeStatus {
   return typeof v === 'string' && (INITIATIVE_STATUSES as readonly string[]).includes(v)
 }
 
+/**
+ * A task's routing hint (3.2). Validated strictly, unlike a task STATUS: a
+ * status is an enum a newer engine can extend, so an unknown one is coerced
+ * rather than allowed to reject the plan (D2), while a route carries no enum
+ * at all — an agent name is a free string the DRIVER resolves, and a field of
+ * the wrong type here can only come from a broken writer.
+ */
+function validateRoute(route: unknown, path: string, errors: string[]): void {
+  if (route === undefined) return
+  if (!isObj(route)) {
+    errors.push(`${path}: must be an object`)
+    return
+  }
+  for (const key of ['agent', 'model', 'effort'] as const) {
+    if (!optNonEmptyStr(route[key])) errors.push(`${path}.${key}: must be a non-empty string when present`)
+  }
+}
+
 function validatePlan(plan: unknown, errors: string[]): void {
   if (!isObj(plan)) {
     errors.push('plan: must be an object')
@@ -390,6 +432,7 @@ function validatePlan(plan: unknown, errors: string[]): void {
       if (!optTaskStatus(task.status)) {
         errors.push(`plan.phases[${pi}].tasks[${ti}].status: must be one of ${TASK_STATUSES.join('|')}`)
       }
+      validateRoute(task.route, `plan.phases[${pi}].tasks[${ti}].route`, errors)
     })
   })
 }

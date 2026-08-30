@@ -273,12 +273,35 @@ const initiativeProp = {
   description: 'Initiative slug ([a-z0-9-]+); omit to resolve from the current git branch.',
 }
 
+/** Routing hints (session-driver 3.2) — what the run leaves open, the task fills. */
+const taskRouteSchema = {
+  type: 'object',
+  properties: {
+    agent: {
+      type: 'string',
+      minLength: 1,
+      description:
+        'Adapter `sofar drive` must launch this task with (e.g. `claude-code`, `codex`). A run ' +
+        'that cannot reach it refuses to start rather than using its default agent.',
+    },
+    model: { type: 'string', minLength: 1 },
+    effort: { type: 'string', minLength: 1 },
+  },
+  additionalProperties: false,
+}
+
 const planTaskSchema = {
   type: 'object',
   properties: {
     id: { type: 'string', minLength: 1 },
     title: { type: 'string', minLength: 1 },
     status: { enum: [...TASK_STATUSES] },
+    route: {
+      ...taskRouteSchema,
+      description:
+        'Optional routing hints for `sofar drive` (agent/model/effort). Hints only: what the ' +
+        'run itself pinned wins, and the task fills what the run left open.',
+    },
   },
   required: ['id', 'title'],
   additionalProperties: false,

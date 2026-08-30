@@ -335,10 +335,13 @@ program
   .option('--max-stalls <n>', 'stop after n consecutive sessions with no task change (default 2)')
   .option('--cost-cap <usd>', 'stop before the next launch once the adapter has reported this much cost')
   .option('--cwd <dir>', 'directory to launch sessions in (default: repo root); must serve the SAME record')
-  .option('--model <model>', 'model hint passed to every launch')
-  .option('--effort <effort>', 'effort hint passed to every launch')
+  .option('--model <model>', "model for every launch — outranks any task's own route hint")
+  .option('--effort <effort>', "effort for every launch — outranks any task's own route hint")
   .option('--resume', 'adopt the latest run when it has no stop, instead of refusing to start')
-  .option('--agent <name>', 'which headless agent to drive: claude-code (default) or codex')
+  .option(
+    '--agent <name>',
+    'default headless agent: claude-code (default) or codex — a task whose plan entry carries route.agent is launched with THAT one instead',
+  )
   .option('--bin <path>', "agent binary to spawn (default: the agent's own name)")
   .option(
     '--permission-mode <mode>',

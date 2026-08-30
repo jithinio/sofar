@@ -7,6 +7,7 @@ import {
   type HandoffReason,
   type RunPolicy,
   type RunStopReason,
+  type TaskRoute,
 } from '@sofar/schema'
 import type { InitiativeState, PhaseState } from '../core/fold'
 import { latestRun } from '../core/fold'
@@ -21,6 +22,7 @@ import {
   type Adapter,
   type AgentSession,
 } from './adapter'
+import { previewRoutes, resolveRoute, RouteError, type RoutingOptions } from './routing'
 
 /**
  * `sofar drive <initiative>` (session-driver 2.2, D2): the loop, and nothing
@@ -101,10 +103,20 @@ export interface DriveTask {
   phase: string
   id: string
   title: string
+  /** Where the plan says this task wants to run (3.2); resolved by `resolveRoute`. */
+  route?: TaskRoute
 }
 
 export interface DriveOptions {
+  /** The run's default adapter, recorded in `run_started.adapter`. */
   adapter: Adapter
+  /**
+   * Adapters a task's `route.agent` may name (3.2), by name. The CLI builds
+   * this from the one list of agent names it owns; the loop never learns a
+   * name, it only looks one up. A route naming anything absent here refuses
+   * the run rather than falling back to `adapter` (D10).
+   */
+  agents?: ReadonlyMap<string, Adapter>
   policy?: RunPolicy
   /** Percentage of `contextWindow` at which a running session is nudged; REQUIRED for `threshold`. */
   thresholdPct?: number
@@ -119,9 +131,10 @@ export interface DriveOptions {
   /** Directory every session is launched in; default the repo root (D6). */
   cwd?: string
   /**
-   * Routing hints passed to every launch; per-task hints are 3.2. A `surface`
-   * carrying its own model/effort wins over these — on a resumed run those are
-   * the values the run recorded, and one run must not be half one model.
+   * Routing hints for the whole run. A `surface` carrying its own model/effort
+   * wins over these — on a resumed run those are the values the run recorded,
+   * and one run must not be half one model. Both outrank a task's own `route`
+   * (3.2, D10): what the run states, the task cannot take back.
    */
   model?: string
   effort?: string
@@ -177,13 +190,35 @@ export interface DriveOutcome {
  * onto it would burn a session re-discovering that.
  */
 export function nextTask(state: InitiativeState): DriveTask | undefined {
+  return queuedTasks(state)[0]
+}
+
+/**
+ * Every task this run could still reach, in the order it would reach them —
+ * `nextTask` is the head of this list, by construction rather than by a second
+ * traversal that could disagree with it. The routing preview walks the whole
+ * queue (3.2), because a run refuses to start on a route it cannot honour and
+ * the task carrying it may be five sessions away.
+ */
+export function queuedTasks(state: InitiativeState): DriveTask[] {
+  const queued: DriveTask[] = []
   for (const phase of orderedPhases(state)) {
     if (phase.status !== 'pending' && phase.status !== 'active') continue
-    const task =
-      phase.tasks.find((t) => t.status === 'active') ?? phase.tasks.find((t) => t.status === 'pending')
-    if (task !== undefined) return { phase: phase.name, id: task.id, title: task.title }
+    // Active before pending WITHIN the phase, so the head of this list is the
+    // task the loop would take next even when an earlier sibling is pending.
+    for (const status of ['active', 'pending'] as const) {
+      for (const task of phase.tasks) {
+        if (task.status !== status) continue
+        queued.push({
+          phase: phase.name,
+          id: task.id,
+          title: task.title,
+          ...(task.route !== undefined ? { route: task.route } : {}),
+        })
+      }
+    }
   }
-  return undefined
+  return queued
 }
 
 function orderedPhases(state: InitiativeState): PhaseState[] {
@@ -332,17 +367,21 @@ export async function drive(
 
   const before0 = ctx.foldState(initiative)
   const last = latestRun(before0)
-  let runId: string
+  const resuming = last !== undefined && last.stopped === undefined
   let priorSessions = 0
   let maxSessions = options.maxSessions
-  if (last !== undefined && last.stopped === undefined) {
+  // Progress lines held until the run is CERTAIN to start. Everything below
+  // can still refuse — a route this run cannot reach refuses last (3.2) — and
+  // an operator told "run <id> — claude-code, task policy" by a driver that
+  // then declined to start would have been told about a run that never was.
+  const opening: string[] = []
+  if (resuming) {
     if (options.resume !== true) {
       throw new ToolError(
         'invalid_input',
         `sofar drive: run ${last.id} on "${initiative}" has no stop — either a driver is still running it or one died mid-run, and the record cannot tell which. Re-run with --resume to pick it up.`,
       )
     }
-    runId = last.id
     priorSessions = last.handoffs.length
     if (last.max_sessions !== undefined) maxSessions = last.max_sessions
     // The resumed run's own numbers win over this driver's flags: the run is
@@ -360,14 +399,62 @@ export async function drive(
     // run whose first half could run `npm test` and whose second half could
     // not is two runs wearing one id, and the record shows only the first.
     if (last.surface !== undefined && !sameSurface(last.surface, surface)) {
-      progress(
-        `keeping run ${runId}'s recorded surface (${describeSurface(last.surface)}) over this driver's flags — start a new run to change it`,
+      opening.push(
+        `keeping run ${last.id}'s recorded surface (${describeSurface(last.surface)}) over this driver's flags — start a new run to change it`,
       )
     }
     surface = last.surface ?? surface
-    progress(`resuming run ${runId} — ${priorSessions} handoff(s) already recorded`)
-  } else {
-    runId = ulid()
+    opening.push(`resuming run ${last.id} — ${priorSessions} handoff(s) already recorded`)
+  }
+  const runId = resuming ? last.id : ulid()
+  if (!resuming) {
+    opening.push(`run ${runId} — ${adapter.name}, ${policy} policy, in ${cwd}`)
+    if (surface !== undefined) opening.push(`  permissions: ${describeSurface(surface)}`)
+  }
+
+  // Everything a launch needs to know about WHERE a task runs (3.2): the
+  // default adapter, the ones a task may name, and what the run has pinned.
+  // Built once, from the surface as it now stands — which on a resumed run is
+  // the record's, not this driver's flags.
+  const routing: RoutingOptions = {
+    adapter,
+    policy,
+    ...(options.agents !== undefined ? { agents: options.agents } : {}),
+    ...(surface !== undefined ? { surface } : {}),
+    ...(options.model !== undefined ? { model: options.model } : {}),
+    ...(options.effort !== undefined ? { effort: options.effort } : {}),
+    ...(options.costCapUsd !== undefined ? { costCapUsd: options.costCapUsd } : {}),
+  }
+  // What this adapter cannot honour, said BEFORE the first launch (D9). A
+  // resumed run says it too: the flags are this driver's, and an operator who
+  // set an inert one should hear it from the driver rather than from a run
+  // that never stopped.
+  for (const line of inertOptions(adapter.capabilities, {
+    ...(surface !== undefined ? { surface } : {}),
+    ...(options.costCapUsd !== undefined ? { costCapUsd: options.costCapUsd } : {}),
+    ...(options.model !== undefined ? { model: options.model } : {}),
+    ...(options.effort !== undefined ? { effort: options.effort } : {}),
+  })) {
+    opening.push(`warning: ${line}`)
+  }
+  // Every queued task's route, resolved before anything is recorded (3.2,
+  // D10). This THROWS on a route the run cannot honour, which is why it runs
+  // ahead of the run_started append: a refusal leaves no run behind it.
+  const stated = new Set<string>()
+  try {
+    for (const line of previewRoutes(queuedTasks(before0), routing)) {
+      stated.add(line)
+      opening.push(`warning: ${line}`)
+    }
+  } catch (err) {
+    // A refusal, wearing the command's name. Inside the loop the same throw
+    // stops the run with the same sentence; here nothing has been recorded, so
+    // it is a preflight error like a bad --permission-mode.
+    if (err instanceof RouteError) throw new ToolError('invalid_input', `sofar drive: ${err.message}`)
+    throw err
+  }
+
+  if (!resuming) {
     ctx.appendAndProject(
       initiative,
       'run_started',
@@ -382,20 +469,8 @@ export async function drive(
       },
       { session: 'cli', source: 'cli', actor: 'human' },
     )
-    progress(`run ${runId} — ${adapter.name}, ${policy} policy, in ${cwd}`)
-    if (surface !== undefined) progress(`  permissions: ${describeSurface(surface)}`)
   }
-
-  // What this adapter cannot honour, said BEFORE the first launch (D9). A
-  // resumed run says it too: the flags are this driver's, and an operator who
-  // set an inert one should hear it from the driver rather than from a run
-  // that never stopped.
-  for (const line of inertOptions(adapter.capabilities, {
-    ...(surface !== undefined ? { surface } : {}),
-    ...(options.costCapUsd !== undefined ? { costCapUsd: options.costCapUsd } : {}),
-  })) {
-    progress(`warning: ${line}`)
-  }
+  for (const line of opening) progress(line)
 
   const maxStalls = options.maxStalls ?? DEFAULT_MAX_STALLS
   const handoffs: DriveHandoff[] = []
@@ -451,19 +526,28 @@ export async function drive(
       // resolution (below), where a millisecond timestamp is only the coarse one.
       const knownSessions = new Set(state.sessions.map((s) => s.id))
       const launchedAt = new Date().toISOString()
-      progress(`session ${launched + 1}: ${task.id} — ${task.title}`)
-      // model/effort come from the SURFACE when it carries them: on a resumed
-      // run those are the values the record kept, and the launch must match
-      // what `run_started` says the run pinned.
-      const model = surface?.model ?? options.model
-      const effort = surface?.effort ?? options.effort
-      const session = adapter.launch({
+      // Where this task runs (3.2): the run's pins first, the task's route for
+      // what the run left open. A route the run cannot reach THROWS, and the
+      // catch below stops the run with that sentence rather than launching the
+      // task on the default agent (D10). A hint the preview already stated is
+      // not restated; one on a task the plan grew mid-run is.
+      const route = resolveRoute(task.id, task.route, routing)
+      for (const line of route.inert) {
+        if (stated.has(line)) continue
+        stated.add(line)
+        progress(`warning: ${line}`)
+      }
+      const routed = route.adapter
+      progress(
+        `session ${launched + 1}: ${task.id} — ${task.title}${routed !== adapter ? ` via ${routed.name}` : ''}`,
+      )
+      const session = routed.launch({
         cwd,
         initiative,
         prompt: renderPrompt(initiative, task, policy),
         task: { id: task.id, title: task.title },
-        ...(model !== undefined ? { model } : {}),
-        ...(effort !== undefined ? { effort } : {}),
+        ...(route.model !== undefined ? { model: route.model } : {}),
+        ...(route.effort !== undefined ? { effort: route.effort } : {}),
         ...(surface !== undefined ? { surface } : {}),
       })
       live = session
@@ -483,7 +567,7 @@ export async function drive(
       cost += exit.usage?.cost_usd ?? 0
 
       const after = ctx.foldState(initiative)
-      const resolved = resolveLaunchedSession(after, exit, launchedAt, adapter.name, knownSessions)
+      const resolved = resolveLaunchedSession(after, exit, launchedAt, routed.name, knownSessions)
       if (resolved.kind !== 'found') {
         // No session to name, so no handoff to file (D3). It still counts as a
         // launch and as a stall — the queue did not move and the next one is
@@ -492,8 +576,8 @@ export async function drive(
         stalls += 1
         const why =
           resolved.kind === 'ambiguous'
-            ? `${resolved.candidates.length} sessions registered by ${adapter.name} since the launch (${resolved.candidates.join(', ')}) — the driver does not guess which was its own`
-            : `no session registered by ${adapter.name} since the launch (exit ${exit.code ?? exit.signal ?? 'unknown'})`
+            ? `${resolved.candidates.length} sessions registered by ${routed.name} since the launch (${resolved.candidates.join(', ')}) — the driver does not guess which was its own`
+            : `no session registered by ${routed.name} since the launch (exit ${exit.code ?? exit.signal ?? 'unknown'})`
         progress(`  unresolved: ${why}`)
         if (interrupted) {
           stop = { reason: 'interrupted', note: why }

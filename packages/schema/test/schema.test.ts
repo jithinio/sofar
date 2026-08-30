@@ -11,7 +11,10 @@ const validPayloads: Record<string, Record<string, unknown>> = {
         {
           name: 'Phase 1',
           status: 'active',
-          tasks: [{ id: '1.1', title: 'Scaffold', status: 'done' }],
+          tasks: [
+            { id: '1.1', title: 'Scaffold', status: 'done' },
+            { id: '1.2', title: 'Port it', route: { agent: 'codex', model: 'gpt-5', effort: 'high' } },
+          ],
         },
         { name: 'Phase 2', tasks: [] },
       ],
@@ -80,6 +83,10 @@ describe('validatePayload', () => {
     ['plan_updated', { plan: { phases: 'nope' } }, /phases/],
     ['plan_updated', { plan: { phases: [{ name: '', tasks: [] }] } }, /name/],
     ['plan_updated', { plan: { phases: [{ name: 'P', tasks: [{ id: '1', title: 'T', status: 'wip' }] }] } }, /status/],
+    // A task's routing hint (session-driver 3.2): typed strictly, because
+    // unlike a status it carries no enum a newer engine could extend.
+    ['plan_updated', { plan: { phases: [{ name: 'P', tasks: [{ id: '1', title: 'T', route: 'codex' }] }] } }, /route: must be an object/],
+    ['plan_updated', { plan: { phases: [{ name: 'P', tasks: [{ id: '1', title: 'T', route: { agent: '' } }] }] } }, /route\.agent/],
     ['phase_status_changed', { phase: 'P', status: 'started' }, /status/],
     ['task_added', { phase: 'P', id: '', title: 'T' }, /id/],
     ['task_status_changed', { id: '1.1', status: 'finished' }, /status/],

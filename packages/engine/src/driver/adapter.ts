@@ -68,7 +68,7 @@ export interface AdapterCapabilities {
  */
 export function inertOptions(
   caps: AdapterCapabilities,
-  options: { surface?: PermissionSurface; costCapUsd?: number },
+  options: { surface?: PermissionSurface; costCapUsd?: number; model?: string; effort?: string },
 ): string[] {
   const lines: string[] = []
   const rules = (options.surface?.allow.length ?? 0) + (options.surface?.deny?.length ?? 0)
@@ -79,6 +79,18 @@ export function inertOptions(
   }
   if (!caps.cost && options.costCapUsd !== undefined) {
     lines.push('this adapter reports no cost, so --cost-cap can never fire on this run')
+  }
+  // The routing pair (3.2). A run that PINNED a model — recorded in
+  // `run_started.surface`, and therefore readable months later as what the run
+  // ran under — against an adapter that cannot take one is the same silent
+  // trap as an allow-list that never arrives.
+  const model = options.model ?? options.surface?.model
+  if (!caps.model && model !== undefined) {
+    lines.push(`this adapter honours no model hint, so \`${model}\` never reaches its sessions`)
+  }
+  const effort = options.effort ?? options.surface?.effort
+  if (!caps.effort && effort !== undefined) {
+    lines.push(`this adapter honours no effort hint, so \`${effort}\` never reaches its sessions`)
   }
   return lines
 }

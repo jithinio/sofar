@@ -43,6 +43,7 @@ import {
   type SessionEndedPayload,
   type SessionStartedPayload,
   type TaskAddedPayload,
+  type TaskRoute,
   type TaskStatus,
   type TaskStatusChangedPayload,
 } from '@sofar/schema'
@@ -64,6 +65,12 @@ export interface TaskState {
   id: string
   title: string
   status: TaskStatus
+  /**
+   * Where this task wants to be run (session-driver 3.2). Carried straight
+   * through from the plan: `sofar drive` reads it, and like every other field
+   * of a full-replace plan it survives only as long as the plan restates it.
+   */
+  route?: TaskRoute
 }
 
 export interface PhaseState {
@@ -1233,6 +1240,7 @@ function applyEvent(
           id: task.id,
           title: task.title,
           status: task.status ?? 'pending',
+          ...(task.route !== undefined ? { route: task.route } : {}),
         })),
       }))
       break

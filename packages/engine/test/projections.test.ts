@@ -104,6 +104,16 @@ describe('projection templates (v0 seam — BD14)', () => {
     expect(md.endsWith('\n')).toBe(true)
   })
 
+  it('renderPlan shows a task\'s route, so an operator can see where the driver will send it (3.2)', () => {
+    const base = populatedState()
+    base.phases[0]!.tasks[1]!.route = { agent: 'codex', model: 'gpt-5', effort: 'high' }
+    base.phases[0]!.tasks[0]!.route = { model: 'haiku' }
+    const md = renderPlan(base)
+    expect(md).toContain('- [ ] 1.2 active task (active) — route: codex, model gpt-5, effort high')
+    expect(md).toContain('- [x] 1.1 done task — route: model haiku')
+    expect(md).toContain('- [ ] 1.3 blocked task (blocked)\n')
+  })
+
   it('renderPlan and renderDecisions handle an empty state', () => {
     const plan = renderPlan(emptyState())
     expect(plan).toContain('(unnamed initiative)')

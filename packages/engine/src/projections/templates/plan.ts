@@ -1,4 +1,4 @@
-import type { InitiativeState } from '../../core/fold'
+import type { InitiativeState, TaskState } from '../../core/fold'
 import { GENERATED_HEADER, doc, phaseFraction, progressText, taskProgress } from './shared'
 
 /**
@@ -28,7 +28,7 @@ export function renderPlan(state: InitiativeState): string {
         task.status === 'active' || task.status === 'blocked' || task.status === 'dropped'
           ? ` (${task.status})`
           : ''
-      lines.push(`- [${box}] ${task.id} ${task.title}${suffix}`)
+      lines.push(`- [${box}] ${task.id} ${task.title}${suffix}${routeSuffix(task)}`)
     }
     lines.push('')
   }
@@ -38,4 +38,20 @@ export function renderPlan(state: InitiativeState): string {
   if (state.current.blocked_on !== undefined) lines.push(`Blocked on: ${state.current.blocked_on}`)
 
   return doc(lines)
+}
+
+/**
+ * The task's routing hint (session-driver 3.2), where the task itself is read.
+ * A route that renders nowhere is a route the operator cannot see the driver
+ * obeying — and since the run's own pins beat it, seeing the hint is half of
+ * knowing why a session ran the model it did.
+ */
+function routeSuffix(task: TaskState): string {
+  const route = task.route
+  if (route === undefined) return ''
+  const parts: string[] = []
+  if (route.agent !== undefined) parts.push(route.agent)
+  if (route.model !== undefined) parts.push(`model ${route.model}`)
+  if (route.effort !== undefined) parts.push(`effort ${route.effort}`)
+  return parts.length > 0 ? ` — route: ${parts.join(', ')}` : ''
 }

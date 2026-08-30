@@ -65,21 +65,46 @@ function integer(name: string, raw: string | undefined): number | undefined {
 }
 
 /**
- * The adapter named by `--agent`. Adding one here is the whole cost of a new
- * agent (3.1): the loop takes an `Adapter` and asks it nothing an adapter
- * cannot answer, so the CLI is the only place that knows the names.
+ * Every agent this build can launch. Adding one here is the whole cost of a
+ * new agent (3.1): the loop takes an `Adapter` and asks it nothing an adapter
+ * cannot answer, so the CLI is the only place that knows the names — and
+ * per-task routing (3.2) is a lookup in THIS list rather than a second one.
  */
 export const AGENTS = ['claude-code', 'codex'] as const
 
-function buildAdapter(options: DriveCliOptions): Adapter {
-  const agent = options.agent ?? 'claude-code'
-  const shared = {
-    ...(options.bin !== undefined ? { bin: options.bin } : {}),
-    ...(options.agentArgs !== undefined ? { args: options.agentArgs } : {}),
-  }
-  if (agent === 'claude-code') return new ClaudeCodeAdapter(shared)
-  if (agent === 'codex') return new CodexAdapter(shared)
+type AgentOptions = { bin?: string; args?: string[] }
+
+function adapterNamed(agent: string, options: AgentOptions): Adapter {
+  if (agent === 'claude-code') return new ClaudeCodeAdapter(options)
+  if (agent === 'codex') return new CodexAdapter(options)
   throw new ToolError('invalid_input', `sofar drive: --agent must be one of ${AGENTS.join('|')}, got "${agent}"`)
+}
+
+/**
+ * The run's default adapter and everything a task may route to.
+ *
+ * `--bin` and `--agent-args` reach the agent `--agent` NAMED and no other: an
+ * operator who points `--bin` at a wrapper script meant one binary, and
+ * handing the same path to a routed codex session would launch the wrong
+ * program under a name the record would still spell "codex". Routed adapters
+ * therefore take their own defaults, and the default adapter is the SAME
+ * instance in both places so a route back to it is the run's own adapter
+ * rather than a second copy of it.
+ */
+function buildAgents(options: DriveCliOptions): { adapter: Adapter; agents: Map<string, Adapter> } {
+  const agent = options.agent ?? 'claude-code'
+  const adapter =
+    options.adapter ??
+    adapterNamed(agent, {
+      ...(options.bin !== undefined ? { bin: options.bin } : {}),
+      ...(options.agentArgs !== undefined ? { args: options.agentArgs } : {}),
+    })
+  const agents = new Map<string, Adapter>([[adapter.name, adapter]])
+  for (const name of AGENTS) {
+    if (agents.has(name)) continue
+    agents.set(name, adapterNamed(name, {}))
+  }
+  return { adapter, agents }
 }
 
 export async function runDrive(
@@ -106,8 +131,10 @@ export async function runDrive(
       ...(options.model !== undefined ? { model: options.model } : {}),
       ...(options.effort !== undefined ? { effort: options.effort } : {}),
     })
+    const { adapter, agents } = buildAgents(options)
     driveOptions = {
-      adapter: options.adapter ?? buildAdapter(options),
+      adapter,
+      agents,
       ...(options.policy !== undefined ? { policy: options.policy as DriveOptions['policy'] } : {}),
       ...(thresholdPct !== undefined ? { thresholdPct } : {}),
       ...(contextWindow !== undefined ? { contextWindow } : {}),

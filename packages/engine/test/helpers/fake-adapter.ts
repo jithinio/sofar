@@ -123,13 +123,19 @@ export class FakeSession implements AgentSession {
 }
 
 export class FakeAdapter implements Adapter {
-  readonly name = 'fake'
+  /**
+   * `fake` unless a test names it. The name is load-bearing in two places —
+   * `session_started.tool` below and `resolveLaunchedSession` — so a routing
+   * test that wants a SECOND agent has to give it a second name (3.2).
+   */
+  readonly name: string
   readonly capabilities: AdapterCapabilities
   readonly sessions: FakeSession[] = []
   /** One script per launch, in order; the last repeats — a driven RUN, not one session. */
   private readonly scripts: FakeScript[]
 
-  constructor(script: FakeScript | FakeScript[]) {
+  constructor(script: FakeScript | FakeScript[], name = 'fake') {
+    this.name = name
     this.scripts = Array.isArray(script) ? script : [script]
     const first = this.scripts[0]!
     this.capabilities = {

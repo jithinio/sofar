@@ -7,6 +7,7 @@ import { makeEvent } from '../src/core/envelope'
 import { appendEvent } from '../src/core/log'
 import type { Adapter, AgentSession, LaunchRequest, SessionExit } from '../src/driver/adapter'
 import { drive, handoffReason, nextTask, renderPrompt, watchThreshold } from '../src/driver/drive'
+import { buildSurface } from '../src/driver/permissions'
 import { runDrive } from '../src/cli/drive'
 import { FakeAdapter, type FakeScript } from './helpers/fake-adapter'
 
@@ -406,6 +407,91 @@ describe('preflight — nothing is recorded until the run can actually run', () 
     const adapter = new FakeAdapter([worker(root, 'S1')]) // no usage → no threshold
     await expect(drive(root, 'demo', { adapter, policy: 'threshold' })).rejects.toThrow(/does not report usage/)
     expect(readTypes(root)).not.toContain('run_started')
+  })
+})
+
+describe('per-task routing (3.2, D10) — the plan says where, the run says what', () => {
+  /** Two tasks; the second one asks for a different agent. */
+  const ROUTED = {
+    plan: {
+      goal: 'g',
+      phases: [
+        {
+          name: 'Phase 1',
+          status: 'active',
+          tasks: [
+            { id: '1.1', title: 'first', status: 'pending' },
+            { id: '1.2', title: 'second', status: 'pending', route: { agent: 'other', model: 'haiku' } },
+          ],
+        },
+      ],
+    },
+  }
+
+  it('launches the routed task on the named agent and the rest on the default one', async () => {
+    const root = repo('routed', [{ type: 'plan_updated', payload: ROUTED }])
+    const fake = new FakeAdapter([worker(root, 'S1')])
+    const other = new FakeAdapter([worker(root, 'S2')], 'other')
+    const outcome = await drive(root, 'demo', { adapter: fake, agents: new Map([['other', other]]) })
+
+    expect(fake.sessions.map((s) => s.request.task?.id)).toEqual(['1.1'])
+    expect(other.sessions.map((s) => s.request.task?.id)).toEqual(['1.2'])
+    // The hint fills what the run left open, and the handoff resolves against
+    // the ROUTED adapter's name — S2 registered itself as `other`.
+    expect(other.sessions[0]!.request.model).toBe('haiku')
+    expect(outcome.handoffs.map((h) => [h.session_id, h.task])).toEqual([
+      ['S1', '1.1'],
+      ['S2', '1.2'],
+    ])
+    expect(outcome.stop.reason).toBe('closed')
+    // The run records the DEFAULT adapter; what actually ran each task is the
+    // session's own tool, which is where the fold already keeps it (D3).
+    expect(state(root).runs.at(-1)?.adapter).toBe('fake')
+    expect(state(root).sessions.map((s) => [s.id, s.tool])).toEqual([
+      ['S1', 'fake'],
+      ['S2', 'other'],
+    ])
+  })
+
+  it('names the routed agent on the progress line, so an unattended run is readable after the fact', async () => {
+    const root = repo('routed-progress', [{ type: 'plan_updated', payload: ROUTED }])
+    const lines: string[] = []
+    await drive(root, 'demo', {
+      adapter: new FakeAdapter([worker(root, 'S1')]),
+      agents: new Map([['other', new FakeAdapter([worker(root, 'S2')], 'other')]]),
+      onProgress: (line) => lines.push(line),
+    })
+    expect(lines).toContain('session 1: 1.1 — first')
+    expect(lines).toContain('session 2: 1.2 — second via other')
+  })
+
+  it('refuses before run_started when a queued task routes to an agent the run cannot reach', async () => {
+    const root = repo('unreachable', [{ type: 'plan_updated', payload: ROUTED }])
+    const fake = new FakeAdapter([worker(root, 'S1')])
+    await expect(drive(root, 'demo', { adapter: fake })).rejects.toThrow(
+      /task 1\.2 routes to agent "other", which this run cannot reach/,
+    )
+    // The refusal is a preflight, not a run that dies on its second session:
+    // nothing is recorded and the FIRST task never runs either.
+    expect(readTypes(root)).not.toContain('run_started')
+    expect(fake.sessions).toHaveLength(0)
+  })
+
+  it("keeps the run's pinned model over the task's, and says so before the first launch (D9)", async () => {
+    const root = repo('pin-wins', [{ type: 'plan_updated', payload: ROUTED }])
+    const lines: string[] = []
+    const other = new FakeAdapter([worker(root, 'S2')], 'other')
+    await drive(root, 'demo', {
+      adapter: new FakeAdapter([worker(root, 'S1')]),
+      agents: new Map([['other', other]]),
+      surface: buildSurface({ model: 'opus' }),
+      onProgress: (line) => lines.push(line),
+    })
+    expect(other.sessions[0]!.request.model).toBe('opus')
+    const warning = lines.find((l) => l.includes('1.2 hints model haiku'))
+    expect(warning).toContain("the run's pin wins")
+    // Stated BEFORE the run's first session line, which is the whole point.
+    expect(lines.indexOf(warning!)).toBeLessThan(lines.findIndex((l) => l.startsWith('session 1:')))
   })
 })
 
