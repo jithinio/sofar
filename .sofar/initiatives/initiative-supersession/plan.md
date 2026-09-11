@@ -29,4 +29,4 @@ Progress: 11/11 tasks done (100%)
 - [x] 4.1 SPEC: §Initiative statuses gains Superseding; event types, InitiativeState, CLI new/close, MCP tool, graph edges, acceptance criteria updated; README table
 - [x] 4.2 Tests: schema, fold, close/new CLI, MCP tool, closeout, banner/status/list/doctor, graph and reach edges; existing INITIATIVE_STATUSES pins updated
 
-Next action: Commit code and record together, push, then decide on release (0.31.0 — schema gained a status and a field). Known pre-existing flake: reach-index.test 'prints the matched words' fails under the full parallel run when D1/D2 land in the same ms (tie-break picks D2); passes in isolation.
+Next action: User runs `! npm publish -w sofar.sh` (OTP + classifier), then verify with `npm view sofar.sh version` and `sofar upgrade --check`; then close initiative-supersession as done.
