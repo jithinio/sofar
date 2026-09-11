@@ -29,4 +29,4 @@ Progress: 11/11 tasks done (100%)
 - [x] 4.1 SPEC: §Initiative statuses gains Superseding; event types, InitiativeState, CLI new/close, MCP tool, graph edges, acceptance criteria updated; README table
 - [x] 4.2 Tests: schema, fold, close/new CLI, MCP tool, closeout, banner/status/list/doctor, graph and reach edges; existing INITIATIVE_STATUSES pins updated
 
-Next action: User runs `! npm publish -w sofar.sh` (OTP + classifier), then verify with `npm view sofar.sh version` and `sofar upgrade --check`; then close initiative-supersession as done.
+Next action: Nothing open. If a review is wanted after the fact, `sofar review initiative-supersession --final` still works on a closed record.
