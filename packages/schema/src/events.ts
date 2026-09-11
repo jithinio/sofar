@@ -35,9 +35,19 @@ export type PhaseStatus = (typeof PHASE_STATUSES)[number]
  *
  * `active` is the default for every log that carries no status event, so an
  * initiative written before this existed folds exactly as it always did.
+ *
+ * `superseded` (initiative-supersession D1) is the third closed word, and the
+ * one that carries a pointer: the work did not finish here and was not
+ * abandoned — it CONTINUES in `successor`. It is a status rather than a new
+ * event type so every reader that already asks "is this closed" (list, next,
+ * doctor, the SessionStart banner, the statusline) treats it correctly for
+ * free, and only the surfaces that can say WHERE it went need to learn more.
  */
-export const INITIATIVE_STATUSES = ['active', 'done', 'dropped'] as const
+export const INITIATIVE_STATUSES = ['active', 'done', 'dropped', 'superseded'] as const
 export type InitiativeStatus = (typeof INITIATIVE_STATUSES)[number]
+
+/** The slug shape, shared with tool-inputs (which re-exports it as SLUG_RE). */
+export const INITIATIVE_SLUG_RE = /^[a-z0-9-]+$/
 
 /** Terminal statuses: no work remains, whether or not anything was built. */
 export const RESOLVED_TASK_STATUSES: readonly TaskStatus[] = ['done', 'dropped']
@@ -51,7 +61,7 @@ export function isResolvedTaskStatus(s: string): boolean {
  * tasks call "resolved" — it matches the command that gets there (`sofar
  * close`), so the vocabulary the user types is the vocabulary the code uses.
  */
-export const CLOSED_INITIATIVE_STATUSES: readonly InitiativeStatus[] = ['done', 'dropped']
+export const CLOSED_INITIATIVE_STATUSES: readonly InitiativeStatus[] = ['done', 'dropped', 'superseded']
 
 export function isClosedInitiativeStatus(s: string): boolean {
   return (CLOSED_INITIATIVE_STATUSES as readonly string[]).includes(s)
@@ -120,6 +130,14 @@ export interface InitiativeStatusChangedPayload {
   status: InitiativeStatus
   note?: string
   overrides?: string[]
+  /**
+   * The slug this record continues in. REQUIRED for `superseded` and rejected
+   * on every other status — a successor on a `done` record is a contradiction
+   * the validator refuses rather than one the fold has to interpret. Recorded
+   * ONLY here, on the predecessor (initiative-supersession D1): the successor's
+   * side is derived at read time, never written on the successor.
+   */
+  successor?: string
 }
 export interface PlanUpdatedPayload { plan: PlanStructure }
 /**
@@ -501,6 +519,16 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     // task-drop-state D3: a drop with no stated reason reads as forgotten.
     if (p.status === 'dropped' && !str(p.note)) {
       e.push('note: required when status is "dropped" — say why it was abandoned')
+    }
+    // initiative-supersession D1: the pointer IS the status. Without it a
+    // superseded record points nowhere; with it on any other status the
+    // record says two things at once.
+    if (p.status === 'superseded') {
+      if (!(str(p.successor) && INITIATIVE_SLUG_RE.test(p.successor))) {
+        e.push('successor: required when status is "superseded" — the slug the work continues in ([a-z0-9-]+)')
+      }
+    } else if (p.successor !== undefined) {
+      e.push('successor: only allowed when status is "superseded"')
     }
     if (p.overrides !== undefined && !(Array.isArray(p.overrides) && p.overrides.every(str))) {
       e.push('overrides: must be an array of non-empty strings when present')

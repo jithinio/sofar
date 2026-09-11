@@ -1,6 +1,7 @@
 import type {
   DecisionLoggedPayload,
   FileTouchedPayload,
+  InitiativeStatusChangedPayload,
   NoteAddedPayload,
   PlanUpdatedPayload,
   TaskAddedPayload,
@@ -129,6 +130,12 @@ interface SlugReachState {
   files: Record<string, Record<string, [string, string, number]>>
   /** Task ids the FINAL plan holds — citation targets only, never nodes. */
   tasks: string[]
+  /**
+   * [successor slug, event id, ts] of the superseded status IN FORCE, else
+   * null (initiative-supersession D1). The event is the citation for the
+   * edge in BOTH directions, since the successor's log records nothing.
+   */
+  successor: [string, string, string] | null
 }
 
 interface ReachDisk {
@@ -142,7 +149,13 @@ function isReachDisk(v: unknown): v is ReachDisk {
   return r.version === INDEX_SCHEMA_VERSION && typeof r.initiatives === 'object' && r.initiatives !== null
 }
 
-const emptyReach = (): SlugReachState => ({ decisions: [], notes: [], files: {}, tasks: [] })
+const emptyReach = (): SlugReachState => ({
+  decisions: [],
+  notes: [],
+  files: {},
+  tasks: [],
+  successor: null,
+})
 
 function cloneReach(state: SlugReachState): SlugReachState {
   const files: Record<string, Record<string, [string, string, number]>> = {}
@@ -160,6 +173,9 @@ function cloneReach(state: SlugReachState): SlugReachState {
     notes: state.notes.map((n) => ({ ...n, terms: { ...n.terms } })),
     files,
     tasks: [...state.tasks],
+    // Absent on a file written before the field existed — the version stamp
+    // cold-starts those, but a reader that copies must not mint `undefined`.
+    successor: state.successor === null || state.successor === undefined ? null : [...state.successor],
   }
 }
 
@@ -250,6 +266,16 @@ function applyReach(state: SlugReachState, event: IndexedEvent): void {
       if (!state.tasks.includes(p.id)) state.tasks.push(p.id)
       return
     }
+    case 'initiative_status_changed': {
+      // The fold's rule (initiative-supersession D1): the successor describes
+      // the status IN FORCE, so any other status event clears it.
+      const p = event.payload as unknown as InitiativeStatusChangedPayload
+      state.successor =
+        p.status === 'superseded' && typeof p.successor === 'string'
+          ? [p.successor, event.id, event.ts]
+          : null
+      return
+    }
     default:
       return
   }
@@ -273,7 +299,19 @@ export interface ReachNode {
   ordinal?: number
 }
 
-export type ReachEdgeKind = 'touched' | 'decided' | 'noted' | 'cites' | 'cited_by'
+export type ReachEdgeKind =
+  | 'touched'
+  | 'decided'
+  | 'noted'
+  | 'cites'
+  | 'cited_by'
+  /**
+   * initiative -> initiative, held on `contents` ONLY (initiative-supersession
+   * 3.3): a seed record names where it went and what it took over, and a
+   * traversal still never continues THROUGH an initiative.
+   */
+  | 'superseded_by'
+  | 'supersedes'
 
 export interface ReachEdge {
   kind: ReachEdgeKind
@@ -418,6 +456,22 @@ export function reachView(states: Record<string, SlugReachState>): ReachIndex {
     }
 
     contents.set(slug, [...held, ...seen.values()])
+  }
+
+  // Supersession, both ways, on `contents` alone (initiative-supersession
+  // D1/3.3). Derived from the PREDECESSOR's status event and cited by it in
+  // both directions — the successor's record holds nothing about this, so
+  // there is nothing else to cite. Bound now, like a citation: whether the
+  // successor exists is a repo-wide fact that changes.
+  for (const slug of Object.keys(states).sort()) {
+    const successor = states[slug]!.successor
+    if (successor === null || successor === undefined) continue
+    const [target, eventId, ts] = successor
+    const targetId = initiativeNodeId(target)
+    if (!nodes.has(targetId)) continue
+    const stamp = { initiative: slug, event_id: eventId, ts }
+    contents.get(slug)?.push({ kind: 'superseded_by', to: targetId, ...stamp })
+    contents.get(target)?.push({ kind: 'supersedes', to: initiativeNodeId(slug), ...stamp })
   }
 
   linkCitations(states, decisions, nodes, link)
@@ -830,11 +884,16 @@ function initiativeHits(
   isSeed: ReadonlySet<string>,
 ): ReachHit[] {
   const best = new Map<string, ReachHit>()
+  // A record reached DIRECTLY — over a supersession edge — is already a hit
+  // and cites its own edge; synthesizing a second entry from its members
+  // would list it twice.
+  const direct = new Set(hits.filter((hit) => hit.kind === 'initiative').map((hit) => hit.id))
   for (const hit of hits) {
+    if (hit.kind === 'initiative') continue
     const slug = hit.initiative !== '' ? hit.initiative : hit.via.initiative
     if (slug === '') continue
     const id = initiativeNodeId(slug)
-    if (isSeed.has(id) || !index.nodes.has(id)) continue
+    if (isSeed.has(id) || direct.has(id) || !index.nodes.has(id)) continue
     const existing = best.get(id)
     if (
       existing === undefined ||

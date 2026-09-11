@@ -103,6 +103,8 @@ export type GraphEdgeKind =
   | 'noted'
   | 'worked'
   | 'cites'
+  /** initiative -> initiative: the predecessor's `successor` (initiative-supersession 3.3). */
+  | 'superseded_by'
 
 export interface GraphEdge {
   kind: GraphEdgeKind

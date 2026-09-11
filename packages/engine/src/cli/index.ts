@@ -92,9 +92,19 @@ program
   .description('create an initiative and bind the current branch to it')
   .option('--goal <text>', 'initiative goal recorded in initiative_created')
   .option('--no-bind', 'skip binding the current branch in .sofar/bindings.json')
+  .option(
+    '--supersedes <slugs>',
+    'comma-separated initiatives this one continues: each is closed as `superseded` by the new slug once it exists',
+  )
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action((slug: string, opts: { goal?: string; bind?: boolean; root?: string }) => {
-    emit(runNew(rootOf(opts), slug, { ...(opts.goal !== undefined ? { goal: opts.goal } : {}), bind: opts.bind !== false }))
+  .action((slug: string, opts: { goal?: string; bind?: boolean; supersedes?: string; root?: string }) => {
+    emit(
+      runNew(rootOf(opts), slug, {
+        ...(opts.goal !== undefined ? { goal: opts.goal } : {}),
+        bind: opts.bind !== false,
+        ...(opts.supersedes !== undefined ? { supersedes: opts.supersedes.split(',') } : {}),
+      }),
+    )
   })
 
 program
@@ -108,19 +118,29 @@ program
 program
   .command('close [slug]')
   .description(
-    'close an initiative: record it done (or --drop it, with a reason) and unbind every branch pointing at it',
+    'close an initiative: record it done (or --drop it, with a reason; or --superseded-by the record it continues in) and unbind every branch pointing at it',
   )
   .option('--drop', 'close as `dropped` (abandoned) rather than `done` — requires --reason')
   .option('--reason <text>', 'why it closed; REQUIRED for --drop')
+  .option(
+    '--superseded-by <slug>',
+    'close as `superseded`: the work continues in <slug>, which must already exist — the pointer every surface then follows',
+  )
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action((slug: string | undefined, opts: { drop?: boolean; reason?: string; root?: string }) => {
-    emit(
-      runClose(rootOf(opts), slug, {
-        drop: opts.drop === true,
-        ...(opts.reason !== undefined ? { reason: opts.reason } : {}),
-      }),
-    )
-  })
+  .action(
+    (
+      slug: string | undefined,
+      opts: { drop?: boolean; reason?: string; supersededBy?: string; root?: string },
+    ) => {
+      emit(
+        runClose(rootOf(opts), slug, {
+          drop: opts.drop === true,
+          ...(opts.reason !== undefined ? { reason: opts.reason } : {}),
+          ...(opts.supersededBy !== undefined ? { supersededBy: opts.supersededBy } : {}),
+        }),
+      )
+    },
+  )
 
 program
   .command('adopt <legacy-file> [slug]')

@@ -201,6 +201,8 @@ describe('listing renders', () => {
       status: 'active' as const,
       status_note: null,
       status_ts: null,
+      successor: null,
+      supersedes: [],
       ...overrides,
     }
   }

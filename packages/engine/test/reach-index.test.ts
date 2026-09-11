@@ -162,6 +162,8 @@ describe('3.4 traversal — every result cites the event behind its edge', () =>
         noted: 'note_added',
         cites: 'decision_logged',
         cited_by: 'decision_logged',
+        superseded_by: 'initiative_status_changed',
+        supersedes: 'initiative_status_changed',
       }[hit.via.kind]
       expect(cited!.type).toBe(expected)
     }

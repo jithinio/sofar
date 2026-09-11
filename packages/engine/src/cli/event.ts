@@ -505,6 +505,19 @@ export function closedBanner(state: InitiativeState): string | null {
               ]
             : []),
         ]
+  // A superseded record names its successor as the FIRST move
+  // (initiative-supersession 3.1): the work is not finished, it is elsewhere,
+  // and reopening this one would fork it. `sofar new` is not offered — the
+  // new record already exists.
+  if (state.successor !== null) {
+    return [
+      `⚠ ${state.slug} is CLOSED (${state.status} by ${state.successor}${when})${why}`,
+      ...overridden,
+      `No branch is bound to it. The work continues in ${state.successor}: switch there with`,
+      `\`sofar switch ${state.successor}\`. Close-out notes and write-back still belong here,`,
+      `but new work goes to the successor; \`sofar switch ${state.slug}\` would reopen this one instead.`,
+    ].join('\n')
+  }
   return [
     `⚠ ${state.slug} is CLOSED (${state.status}${when})${why}`,
     ...overridden,

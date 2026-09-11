@@ -431,6 +431,20 @@ export function buildGraph(rootDir: string): RecordGraph {
   citeEdges.sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : a.to < b.to ? -1 : 1))
   edges.push(...citeEdges)
 
+  // --- `superseded_by`: structural, from the predecessor's folded status
+  // (initiative-supersession D1). Second pass for the same reason as `cites`:
+  // the successor may be any initiative, and only one that exists on this
+  // checkout is an edge — a missing one is doctor's finding, not a node.
+  for (const { slug, state } of perInitiative) {
+    if (state.successor === null) continue
+    const target = initiativeNodeId(state.successor)
+    if (!nodes.has(target)) {
+      warnings.push(`${slug}: superseded by "${state.successor}", which is not a record here — no edge`)
+      continue
+    }
+    edges.push({ kind: 'superseded_by', from: initiativeNodeId(slug), to: target, initiative: slug })
+  }
+
   const outgoing = new Map<string, GraphEdge[]>()
   const incoming = new Map<string, GraphEdge[]>()
   for (const edge of edges) {

@@ -3,7 +3,7 @@ import type { InitiativeStatus } from '@sofar/schema'
 import { BindingsAbort } from '../core/bindings'
 import { applyClose } from '../mcp/close-initiative'
 import { createToolContext, ToolError } from '../mcp/context'
-import { renderConfirmation, renderFailure } from './new'
+import { CLI_ACTOR, renderConfirmation, renderFailure, SLUG_RE } from './new'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 import { type Caps, stderrCaps, stdoutCaps } from './ui'
 
@@ -35,6 +35,12 @@ export interface CloseOptions {
   drop?: boolean
   /** Reason. REQUIRED for a drop (task-drop-state D3). */
   reason?: string
+  /**
+   * --superseded-by <slug> → `superseded`: the work continues in that record
+   * (initiative-supersession 2.2). Exclusive with --drop; the reason is
+   * optional because the successor IS the reason.
+   */
+  supersededBy?: string
 }
 
 export function runClose(
@@ -45,7 +51,25 @@ export function runClose(
   errCaps: Caps = stderrCaps(),
 ): CmdResult {
   const ctx = createToolContext(rootDir)
-  const status: InitiativeStatus = options.drop === true ? 'dropped' : 'done'
+  const successor = options.supersededBy?.trim()
+  if (successor !== undefined && options.drop === true) {
+    return fail(
+      renderFailure(
+        'sofar close: --drop and --superseded-by say different things — abandoned, or continued elsewhere; pass one',
+        errCaps,
+      ),
+    )
+  }
+  if (successor !== undefined && !SLUG_RE.test(successor)) {
+    return fail(
+      renderFailure(
+        `sofar close: --superseded-by "${successor}" is not a slug — lowercase letters, digits, and hyphens only ([a-z0-9-]+)`,
+        errCaps,
+      ),
+    )
+  }
+  const status: InitiativeStatus =
+    successor !== undefined ? 'superseded' : options.drop === true ? 'dropped' : 'done'
   const reason = options.reason?.trim() ?? ''
 
   // A drop is the one close that records something was NOT delivered
@@ -78,11 +102,12 @@ export function runClose(
 
   const report: string[] = []
   try {
-    const { event_id, unbound, overrides } = applyClose(ctx, resolved, status, reason)
+    const { event_id, unbound, overrides } = applyClose(ctx, resolved, status, reason, successor, CLI_ACTOR)
+    const where = successor === undefined ? '' : ` by ${successor}`
     report.push(
       event_id === null
-        ? `${resolved} is already ${status} — no second event appended`
-        : `closed ${resolved} as ${status}${reason.length > 0 ? ` — ${reason}` : ''}`,
+        ? `${resolved} is already ${status}${where} — no second event appended`
+        : `closed ${resolved} as ${status}${where}${reason.length > 0 ? ` — ${reason}` : ''}`,
     )
     // The audit refuses nothing (5.2), so this is not a warning the user can
     // clear by re-running — it is what the log now says, read back to them at
@@ -101,6 +126,9 @@ export function runClose(
         ? 'no branch was bound to it'
         : `unbound ${unbound.length === 1 ? 'branch' : 'branches'} ${unbound.map((b) => `"${b}"`).join(', ')}`,
     )
+    // The successor is where the work goes on, so it is the move named first;
+    // reopening is still possible and still named, because it is still true.
+    if (successor !== undefined) report.push(`the work continues there: sofar switch ${successor}`)
     report.push(`reopen it by working on it again: sofar switch ${resolved}`)
   } catch (err) {
     if (err instanceof BindingsAbort || err instanceof ToolError) {

@@ -180,7 +180,11 @@ export function renderFullStatus(state: InitiativeState): string {
   if (isClosedInitiativeStatus(state.status)) {
     const when = state.status_ts === null ? '' : ` ${state.status_ts}`
     const why = state.status_note === null ? '' : ` — ${state.status_note}`
-    lines.push(`Status: ${state.status}${when}${why}`)
+    // A superseded record's first fact is WHERE it continues
+    // (initiative-supersession 3.1); the word alone would send the reader to
+    // the log to find out.
+    const where = state.successor === null ? '' : ` by ${state.successor}`
+    lines.push(`Status: ${state.status}${where}${when}${why}`)
     // What the close-time audit found and the closer went ahead over
     // (commit-attribution 5.2). Uncapped here like every other terminal
     // surface, and never omitted: rendering it forever IS the mechanism, since

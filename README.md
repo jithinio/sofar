@@ -131,9 +131,9 @@ and the result still reads correctly.
 | Command | What it does |
 | --- | --- |
 | `sofar init` | Set up the record here and connect your tools |
-| `sofar new <name>` | Start a piece of work and tie it to the current branch |
+| `sofar new <name>` | Start a piece of work and tie it to the current branch — `--supersedes <a>,<b>` when it takes over earlier initiatives, which are closed pointing here |
 | `sofar switch <name>` | Point the current branch at a different initiative (reopens it if it was closed) |
-| `sofar close [name]` | Mark work finished — or `--drop --reason <why>` if it was abandoned — and take every branch off it |
+| `sofar close [name]` | Mark work finished — `--drop --reason <why>` if it was abandoned, `--superseded-by <name>` if it continues in another initiative — and take every branch off it |
 | `sofar status` | Goal, progress, phases, next action (`--watch` for live) |
 | `sofar list` | One line per initiative |
 | `sofar next` | The next action for every initiative |

@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync } from 'node:fs'
 import { createToolContext, currentBranch, ToolError } from '../mcp/context'
+import { applyClose } from '../mcp/close-initiative'
 import { BindingsAbort, writeBinding } from '../core/bindings'
 import { isClosedInitiativeStatus } from '@sofar/schema'
 import { SLUG_RE } from '@sofar/schema/tool-inputs'
@@ -29,10 +30,20 @@ export const DEFAULT_GOAL = '(goal not recorded yet — set one with sofar_updat
 const NO_BRANCH_HINT =
   'not inside a git repo (or HEAD is detached), so there is no branch to bind'
 
+/** CLI-created events carry the human directing the CLI (BD26). */
+export const CLI_ACTOR = { session: 'cli', source: 'cli', actor: 'human' } as const
+
 export interface NewOptions {
   goal?: string
   /** commander --no-bind → bind: false; default true. */
   bind?: boolean
+  /**
+   * --supersedes <a>,<b>: records this one continues (initiative-supersession
+   * 2.3). Each is checked BEFORE anything is created, then closed as
+   * `superseded` by the new slug after it exists — one ordinary close per
+   * predecessor, so the log reads exactly as if they had been run by hand.
+   */
+  supersedes?: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -89,6 +100,31 @@ export function runNew(
     )
   }
 
+  // Every predecessor is checked BEFORE anything is created, for the same
+  // reason as the branch below: a refusal must leave the repo untouched.
+  const supersedes = [...new Set((options.supersedes ?? []).map((s) => s.trim()).filter((s) => s.length > 0))]
+  for (const predecessor of supersedes) {
+    if (!SLUG_RE.test(predecessor)) {
+      return fail(
+        renderFailure(
+          `sofar new: --supersedes "${predecessor}" is not a slug — lowercase letters, digits, and hyphens only ([a-z0-9-]+)`,
+          errCaps,
+        ),
+      )
+    }
+    if (predecessor === slug) {
+      return fail(renderFailure(`sofar new: "${slug}" cannot supersede itself`, errCaps))
+    }
+    if (!existsSync(ctx.initiativeDir(predecessor))) {
+      return fail(
+        renderFailure(
+          `sofar new: --supersedes "${predecessor}" not found under .sofar/initiatives/ — nothing created`,
+          errCaps,
+        ),
+      )
+    }
+  }
+
   // Resolve the branch BEFORE creating anything, so a bind failure leaves
   // the repo untouched.
   const bind = options.bind !== false
@@ -119,6 +155,20 @@ export function runNew(
       mkdirSync(ctx.sofarDir, { recursive: true })
       writeBinding(ctx.bindingsPath, branch, slug)
       report.push(`bound branch "${branch}" → ${slug}`)
+    }
+    // Bind first, close second: closing unbinds every branch on a
+    // predecessor (initiative-lifecycle D1), and this branch has already
+    // moved to the new record, so the order leaves it pointing at live work.
+    for (const predecessor of supersedes) {
+      const { unbound, overrides } = applyClose(ctx, predecessor, 'superseded', undefined, slug, CLI_ACTOR)
+      report.push(
+        `closed ${predecessor} as superseded by ${slug}` +
+          (unbound.length > 0 ? ` (unbound ${unbound.map((b) => `"${b}"`).join(', ')})` : ''),
+      )
+      if (overrides.length > 0) {
+        report.push(`  ${predecessor} closed with ${overrides.length} finding(s) OVERRIDDEN — recorded on the event:`)
+        for (const finding of overrides) report.push(`    ${finding}`)
+      }
     }
   } catch (err) {
     if (err instanceof BindingsAbort || err instanceof ToolError) {

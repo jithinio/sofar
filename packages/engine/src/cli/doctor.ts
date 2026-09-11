@@ -514,6 +514,17 @@ function auditLifecycle(rootDir: string, folded: Folded[]): Section {
           hint: `a new session on that branch would land on finished work — re-run \`sofar close ${slug}\` (idempotent) or \`sofar switch ${slug}\` to reopen it`,
         })
       }
+      // A successor is a pointer into the record layout, and the layout can
+      // move under it: a rename, a deleted directory, a slug that never
+      // existed on this checkout (initiative-supersession 3.2). Close checks
+      // it at write time; this is the read-time check for everything after.
+      if (state.successor !== null && !folded.some((f) => f.slug === state.successor)) {
+        findings.push({
+          level: 'warn',
+          text: `${slug}: superseded by "${state.successor}", which does not exist under .sofar/initiatives/`,
+          hint: `every surface points resumption at a record that is not there — re-close it naming the right one: \`sofar close ${slug} --superseded-by <slug>\``,
+        })
+      }
       continue
     }
 

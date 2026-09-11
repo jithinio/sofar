@@ -10,6 +10,7 @@
  */
 
 import {
+  INITIATIVE_SLUG_RE,
   TASK_STATUSES,
   PHASE_STATUSES,
   REVIEW_SCOPES,
@@ -36,7 +37,7 @@ import {
  * boundary too is what closes the write path (see engine mcp/context.ts, which
  * asserts containment as well — belt and braces, since this regex is the belt).
  */
-export const SLUG_RE = /^[a-z0-9-]+$/
+export const SLUG_RE = INITIATIVE_SLUG_RE
 
 /** Shared message so every tool rejects a bad slug in the same words. */
 export const SLUG_ERROR =
@@ -159,8 +160,10 @@ export interface RememberArgs {
 export interface CloseInitiativeArgs {
   initiative?: string
   /** Terminal status only — reopening is a binding act (`sofar switch`). */
-  status: 'done' | 'dropped'
+  status: 'done' | 'dropped' | 'superseded'
   note?: string
+  /** The slug the work continues in. REQUIRED for `superseded`, rejected otherwise. */
+  successor?: string
 }
 
 /**
@@ -510,13 +513,19 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       initiative: initiativeProp,
       status: {
         type: 'string',
-        enum: ['done', 'dropped'],
+        enum: ['done', 'dropped', 'superseded'],
         description:
-          '`done` = the goal was met. `dropped` = abandoned; requires `note`. Reopen by working on it again (`sofar switch <slug>`).',
+          '`done` = the goal was met. `dropped` = abandoned; requires `note`. `superseded` = the work continues in another initiative; requires `successor`. Reopen by working on it again (`sofar switch <slug>`).',
       },
       note: {
         type: 'string',
         description: 'Why. REQUIRED for `dropped` — an initiative abandoned with no reason reads as forgotten.',
+      },
+      successor: {
+        type: 'string',
+        pattern: INITIATIVE_SLUG_RE.source,
+        description:
+          'The initiative the work continues in. REQUIRED for `superseded`, rejected on any other status. Must already exist — create it first (`sofar new`). Recorded on THIS record only; the successor never carries a reverse pointer.',
       },
     },
     required: ['status'],
@@ -611,7 +620,7 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_close_initiative',
     description:
-      'Close an initiative: record that it is finished (`done`) or abandoned (`dropped`, which requires a reason), and unbind every branch pointing at it. This session keeps working in it until it ends; a NEW session on the unbound branch is told to start or switch instead of landing on finished work. Reopening happens by working on it again — `sofar switch <slug>`.',
+      'Close an initiative: record that it is finished (`done`), abandoned (`dropped`, which requires a reason), or continued elsewhere (`superseded`, which requires the `successor` slug and makes the pointer an edge every surface follows), and unbind every branch pointing at it. This session keeps working in it until it ends; a NEW session on the unbound branch is told to start or switch instead of landing on finished work. Reopening happens by working on it again — `sofar switch <slug>`.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_close_initiative,
   },
   {
@@ -696,14 +705,23 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
   },
   sofar_close_initiative(a, e) {
     if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
-    if (a.status !== 'done' && a.status !== 'dropped') {
-      e.push('status: must be one of done|dropped')
+    if (a.status !== 'done' && a.status !== 'dropped' && a.status !== 'superseded') {
+      e.push('status: must be one of done|dropped|superseded')
     }
     if (!optStr(a.note)) e.push('note: must be a string')
     // Same rule as a dropped task (task-drop-state D3), one level up: nothing
     // else in the record explains why a whole initiative was abandoned.
     if (a.status === 'dropped' && !str(a.note)) {
       e.push('note: required when status is "dropped" — say why it was abandoned')
+    }
+    // initiative-supersession D1: the successor is the pointer, and the only
+    // status that has one.
+    if (a.status === 'superseded') {
+      if (!(str(a.successor) && SLUG_RE.test(a.successor))) {
+        e.push('successor: required when status is "superseded" — the slug the work continues in ([a-z0-9-]+)')
+      }
+    } else if (a.successor !== undefined) {
+      e.push('successor: only allowed when status is "superseded"')
     }
   },
   sofar_log_decision(a, e) {

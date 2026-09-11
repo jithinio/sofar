@@ -43,6 +43,13 @@ export interface InitiativeListEntry {
   status_note: string | null
   /** ts the current status was set; null while never set. */
   status_ts: string | null
+  /** Where a `superseded` record continues; null for every other status. */
+  successor: string | null
+  /**
+   * Records that name THIS one as their successor, sorted — derived from
+   * their status events, never recorded here (initiative-supersession D1).
+   */
+  supersedes: string[]
 }
 
 export interface InitiativeListing {
@@ -135,6 +142,8 @@ export function listInitiatives(rootDir: string): InitiativeListing {
       status: 'active',
       status_note: null,
       status_ts: null,
+      successor: null,
+      supersedes: [],
     }
     const logPath = join(initiativesDir, slug, 'events.jsonl')
     if (existsSync(logPath)) {
@@ -157,12 +166,22 @@ export function listInitiatives(rootDir: string): InitiativeListing {
         entry.status = state.status
         entry.status_note = state.status_note
         entry.status_ts = state.status_ts
+        entry.successor = state.successor
       } catch (err) {
         warnings.push(`${slug}: failed to read events.jsonl — listed without detail (${errMessage(err)})`)
       }
     }
     entries.push(entry)
   }
+
+  // The reverse of supersession, derived here because the listing is the one
+  // surface that has every record in hand (initiative-supersession D1).
+  const bySlug = new Map(entries.map((entry) => [entry.slug, entry]))
+  for (const entry of entries) {
+    if (entry.successor === null) continue
+    bySlug.get(entry.successor)?.supersedes.push(entry.slug)
+  }
+  for (const entry of entries) entry.supersedes.sort()
 
   entries.sort((a, b) => {
     // Closed records sink below every open one (initiative-lifecycle 4.2).

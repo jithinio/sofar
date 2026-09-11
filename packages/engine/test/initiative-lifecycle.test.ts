@@ -97,10 +97,11 @@ const stateOf = (root: string, slug: string): InitiativeState =>
   foldLog(join(root, '.sofar', 'initiatives', slug, 'events.jsonl')).state
 
 describe('initiative status schema (2.1)', () => {
-  it('has exactly the two terminal words tasks and phases use, plus active', () => {
-    expect([...INITIATIVE_STATUSES]).toEqual(['active', 'done', 'dropped'])
+  it('has the two terminal words tasks and phases use, plus active and superseded', () => {
+    expect([...INITIATIVE_STATUSES]).toEqual(['active', 'done', 'dropped', 'superseded'])
     expect(isClosedInitiativeStatus('done')).toBe(true)
     expect(isClosedInitiativeStatus('dropped')).toBe(true)
+    expect(isClosedInitiativeStatus('superseded')).toBe(true)
     expect(isClosedInitiativeStatus('active')).toBe(false)
     // `blocked` is deliberately NOT an initiative status — blocked tasks say it.
     expect(isClosedInitiativeStatus('blocked')).toBe(false)

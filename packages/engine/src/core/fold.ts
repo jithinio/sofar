@@ -456,6 +456,13 @@ export interface InitiativeState {
    * complaint about a closure the record has since undone.
    */
   status_overrides: string[]
+  /**
+   * The slug this record continues in — non-null only while the status in
+   * force is `superseded` (initiative-supersession D1). Cleared by any other
+   * status event on status_note's rule, so a reopened record points nowhere.
+   * The successor's own record never carries the reverse: it is derived.
+   */
+  successor: string | null
   phases: PhaseState[]
   decisions: DecisionState[]
   /**
@@ -561,6 +568,7 @@ export function emptyState(): InitiativeState {
     status_ts: null,
     status_note: null,
     status_overrides: [],
+    successor: null,
     phases: [],
     decisions: [],
     memories: [],
@@ -1228,6 +1236,9 @@ function applyEvent(
       state.status_ts = event.ts
       state.status_note = p.note ?? null
       state.status_overrides = p.overrides ?? []
+      // The validator already refuses a successor on any other status, so
+      // this is the same "describe the status IN FORCE" rule as the note.
+      state.successor = p.status === 'superseded' && p.successor !== undefined ? p.successor : null
       break
     }
     case 'plan_updated': {

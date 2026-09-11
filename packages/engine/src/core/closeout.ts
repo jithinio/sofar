@@ -75,7 +75,11 @@ export function closeoutFindings(
   status: InitiativeStatus,
 ): CloseFinding[] {
   const findings: CloseFinding[] = []
-  const dropping = status === 'dropped'
+  // Superseding asks the drop question (initiative-supersession 2.4): the
+  // pending work is expected to have moved to the successor, so only a task
+  // left ACTIVE — half-built here, and not necessarily picked up there — is
+  // worth naming.
+  const dropping = status === 'dropped' || status === 'superseded'
 
   const tasks = state.phases.flatMap((phase) => phase.tasks)
   const outstanding = dropping
@@ -84,9 +88,12 @@ export function closeoutFindings(
   if (outstanding.length > 0) {
     findings.push({
       kind: 'tasks_outstanding',
-      text: dropping
-        ? `${plural(outstanding.length, 'task')} left ACTIVE — half-built work abandoned in place: ${name(outstanding.map((t) => t.id))}`
-        : `${plural(outstanding.length, 'task')} never resolved: ${name(outstanding.map((t) => `${t.id} (${t.status})`))}`,
+      text:
+        status === 'superseded'
+          ? `${plural(outstanding.length, 'task')} left ACTIVE — half-built work not carried into the successor: ${name(outstanding.map((t) => t.id))}`
+          : dropping
+            ? `${plural(outstanding.length, 'task')} left ACTIVE — half-built work abandoned in place: ${name(outstanding.map((t) => t.id))}`
+            : `${plural(outstanding.length, 'task')} never resolved: ${name(outstanding.map((t) => `${t.id} (${t.status})`))}`,
     })
   }
 

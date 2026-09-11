@@ -92,6 +92,11 @@ const TITLES: Record<ReachHit['kind'], string> = {
  * ends up reported as having been touched by a file.
  */
 function viaPhrase(hit: ReachHit, from: string): string {
+  // Supersession is the one edge between two RECORDS, and it reads from the
+  // record the reader started at: this hit is where the seed went, or what
+  // the seed took over.
+  if (hit.via.kind === 'superseded_by') return `where ${from} continues`
+  if (hit.via.kind === 'supersedes') return `continued by ${from}`
   // Hop 1 of an initiative seed is containment, not an edge between two things
   // that met: the record simply holds this.
   if (hit.via.from.startsWith('initiative:')) return `recorded in ${from}`

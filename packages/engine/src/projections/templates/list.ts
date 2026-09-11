@@ -36,8 +36,13 @@ function entryLine(entry: InitiativeListEntry): string {
     `${entry.tasks_done}/${entry.tasks_total} tasks (${pct(entry.tasks_done, entry.tasks_total)})`,
   ]
   if (entry.active_phase !== null && !closed) parts.push(`active: ${entry.active_phase}`)
-  // A closed record has no next action; its reason is what a reader wants.
+  // What this record took over, named on the live side too: the successor is
+  // where a reader lands, and the predecessors are where its history is.
+  if (entry.supersedes.length > 0) parts.push(`supersedes: ${entry.supersedes.join(', ')}`)
+  // A closed record has no next action; its reason is what a reader wants —
+  // and for a superseded one, where the work went.
   if (closed) {
+    if (entry.successor !== null) parts.push(`continues in: ${entry.successor}`)
     if (entry.status_note !== null) parts.push(`why: ${entry.status_note}`)
   } else if (entry.next_action !== null) {
     parts.push(`next: ${entry.next_action}`)

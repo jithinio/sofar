@@ -128,9 +128,11 @@ minting-machine truth.
 
 ## Event types (payload schemas in packages/schema/ — the swappable part)
 initiative_created · initiative_status_changed (status:
-active|done|dropped, note? — note REQUIRED for `dropped`;
+active|done|dropped|superseded, note? — note REQUIRED for `dropped`;
 initiative-lifecycle 2.1 — overrides? — what the close-time audit found still
-outstanding when the close went ahead anyway; commit-attribution 5.2, see
+outstanding when the close went ahead anyway; commit-attribution 5.2 —
+successor? — the slug the work continues in, REQUIRED for `superseded` and
+rejected on every other status; initiative-supersession D1, see
 §Initiative statuses) · plan_updated (full plan structure) ·
 phase_status_changed (phase, status: pending|active|done|blocked|dropped,
 note? — REQUIRED for `dropped`; the note explains the CURRENT status and is
@@ -167,8 +169,9 @@ while recording nothing anyone can act on is a rubber stamp wearing the wrong
 hat, and the next review would have nothing to carry forward.
 
 ## State (result of fold)
-InitiativeState = { slug, goal, status: active|done|dropped, status_ts,
-status_note, status_overrides[], phases[ {name, status, tasks[ {id, title,
+InitiativeState = { slug, goal, status: active|done|dropped|superseded, status_ts,
+status_note, status_overrides[], successor (slug while `superseded` is in
+force, else null), phases[ {name, status, tasks[ {id, title,
 status, route?: {agent?, model?, effort?}} ]} ], decisions[],
 memories[ {id, ts, text} ],
 sessions[ {id, tool, model?, started, ended?,
@@ -208,13 +211,45 @@ is excluded from the digest's itemized phase list.
 task discards it. `sofar_update_task` REJECTS a drop with no note (D3), and
 doctor warns when a drop's reason cites no decision.
 
-### Initiative statuses (initiative-lifecycle 2.1, D1, D3)
+### Initiative statuses (initiative-lifecycle 2.1, D1, D3; initiative-supersession D1)
 An initiative carries the same two terminal words as tasks and phases:
 `active` (the default — a log with no initiative_status_changed event folds
 exactly as it always did), `done` (finished) and `dropped` (abandoned, and a
 note is REQUIRED — unlike a dropped task there is no sibling work left to
-infer the reason from). `blocked` is deliberately absent: a blocked
-initiative is still active work, which its blocked TASKS already say.
+infer the reason from) — plus one of its own, `superseded` (the work
+CONTINUES in another record, named by `successor`). `blocked` is deliberately
+absent: a blocked initiative is still active work, which its blocked TASKS
+already say.
+
+**Superseding (initiative-supersession D1).** sofar has no merge: copying
+events into a third record would carry every envelope's old slug (the
+misroute signature record-integrity 2.1 warns about), collide task ids, and
+need a renumbering the append-only log forbids. What a merge actually needs
+from the record is the EDGE — "this stopped, it goes on there" — and prose
+cannot be one (a bare slug in a note is not a citation; §Record graph). So
+supersession is a status carrying a pointer: `initiative_status_changed
+{status: superseded, successor: <slug>}`, appended by `sofar close <old>
+--superseded-by <new>` / `sofar_close_initiative({status: "superseded",
+successor})`, or by `sofar new <new> --supersedes <old>,<older>` (create,
+bind, then one ordinary superseded close per predecessor — the log reads
+exactly as if they had been run by hand). The successor MUST exist under
+.sofar/initiatives/ and must not be the record closing — refused at write
+time, and a successor that later goes missing is a doctor finding. `note` is
+optional: the successor is the reason. Recorded ONCE, on the predecessor;
+the successor's log holds nothing, and every reverse view derives from that
+one field: the listing's `supersedes: a, b` on the successor's line, the
+graph's `superseded_by` edge, and the reach index's `superseded_by` /
+`supersedes` contents edges (both cite the predecessor's close event, since
+there is no other event to cite). `successor` follows status_note's rule —
+it describes the status IN FORCE, so reopening clears it, and re-pointing at
+a different successor is a change that appends (idempotency is on the whole
+fact, not the word). The close-time audit asks the DROP question of a
+superseded record (pending work is expected to have moved; a task left
+ACTIVE is named as "not carried into the successor"). Surfaces: `sofar
+status` says `Status: superseded by <successor>`; `sofar list` tags
+`[superseded]` and adds `continues in: <successor>`; the SessionStart CLOSED
+banner names `sofar switch <successor>` as the first move and does NOT offer
+`sofar new`, since the new record already exists.
 
 Closed-ness is DERIVED (`isClosedInitiativeStatus`), never stored as a second
 flag that could disagree with the status it summarises. `status_ts` and
@@ -539,6 +574,8 @@ occurrence (exactly ONE edge per sourcing event; carries event_id + ts)
   worked      task       -> file       file_touched x every task ACTIVE then
 derived from decision prose (closed lexical grammar; no event_id)
   cites       decision   -> decision | task
+structural (predecessor's folded `successor`; no event_id; initiative-supersession D1)
+  superseded_by  initiative -> initiative   only when the successor is a record here
 ```
 Occurrence edges are multi-edges by design: they are NOT deduped into
 pairs. Losing the per-event grain would make the consolidation in Phase 4
@@ -1708,8 +1745,10 @@ also collides with a sofar-cloud-internal package).
   the event and returned here because the close went ahead anyway (5.2) — empty
   when it found nothing, and likewise on the idempotent path, where no event is
   appended and there is no close to audit; status is
-  `done`|`dropped` only — reopening is a binding act (`sofar switch`) — and
-  `dropped` REQUIRES a note. Appends initiative_status_changed, then removes
+  `done`|`dropped`|`superseded` only — reopening is a binding act (`sofar
+  switch`) — `dropped` REQUIRES a note, and `superseded` REQUIRES `successor`
+  (an existing slug, not this one; initiative-supersession D1) while
+  `successor` on any other status is invalid_input. Appends initiative_status_changed, then removes
   every branch binding pointing at the slug; `event_id` is null when it was
   already at that status (idempotent, no second event). Resolves to the
   ACTIVE session's pinned initiative like every other write tool.
@@ -2453,15 +2492,22 @@ Shims contain no logic — they invoke the sofar CLI.
   blank line), preserving all user content; .sofar/ is kept with a notice
   unless --purge deletes it (--purge alone may also delete files the run
   emptied — the byte-clean round-trip). Idempotent (added Phase 8, BD45).
-- `sofar new <slug> [--goal]` / `sofar switch <slug>` — create/select
-  initiative; bind current branch in bindings.json. `switch` onto a CLOSED
-  slug reopens it (§Initiative statuses, D3): appends status `active`,
-  announces the revival, then binds.
-- `sofar close [slug] [--drop] [--reason <text>]` — record the initiative
-  terminal (`done`, or `dropped` which REQUIRES `--reason`) and remove every
+- `sofar new <slug> [--goal] [--supersedes <a>,<b>]` / `sofar switch <slug>`
+  — create/select initiative; bind current branch in bindings.json. `switch`
+  onto a CLOSED slug reopens it (§Initiative statuses, D3): appends status
+  `active`, announces the revival, then binds. `--supersedes` names the
+  records this one continues: every one is checked BEFORE anything is
+  created (must exist, must not be the new slug), then after create-and-bind
+  each is closed as `superseded` by the new slug — bind first so the branch
+  ends on live work, since closing unbinds (§Initiative statuses).
+- `sofar close [slug] [--drop] [--reason <text>] [--superseded-by <slug>]` —
+  record the initiative terminal (`done`; `dropped`, which REQUIRES
+  `--reason`; or `superseded`, which names the existing record the work
+  continues in — exclusive with `--drop`, reason optional) and remove every
   bindings.json entry pointing at it (§Initiative statuses, D1). Slug
   resolves from the branch when omitted. Idempotent: already at that status
-  appends nothing and still unbinds, so re-running repairs a stale binding.
+  appends nothing and still unbinds, so re-running repairs a stale binding;
+  a superseded record re-pointed at a DIFFERENT successor appends.
   Prints whatever the close-time audit found, headed `closed with N finding(s)
   OVERRIDDEN — recorded on the event and rendered from here on` — read back at
   the one moment the closer can still act, and NOT a warning that re-running
@@ -2529,7 +2575,11 @@ Shims contain no logic — they invoke the sofar CLI.
 - `sofar find <seed> [--hops <n>] [--initiative <slug>]` — traverse the reach
   index out from a seed and report what is within the budget, grouped by kind
   (initiatives, decisions, notes, files, sessions), each row citing the event
-  id that produced its edge (record-index 3.4). Seeds resolve LITERALLY FIRST,
+  id that produced its edge (record-index 3.4). An initiative seed's hop-1
+  set also holds where it continues (`where <old> continues`) and what it
+  took over (`continued by <new>`), both citing the predecessor's close event
+  and neither traversed through (initiative-supersession 3.3; record-index
+  D12 stands). Seeds resolve LITERALLY FIRST,
   in a fixed order — node id, initiative slug, decision handle (`<slug> D<n>`,
   `<slug>#D<n>`, or `D<n>` with `--initiative`), session id, then path across
   checkouts. A query denoting NONE of those is treated as a question and matched
@@ -3286,8 +3336,9 @@ stay the underlying derivation's, and exit codes are styling-independent.
 - **Initiative lifecycle (initiative-lifecycle):** a log with NO
   initiative_status_changed folds to `active` with null status_ts/status_note,
   so an un-closed record is unchanged; the payload validator refuses a
-  `dropped` with no note (D3) and a status outside active|done|dropped; an
-  invalid status event is skipped with a warning, leaving the record active.
+  `dropped` with no note (D3) and a status outside
+  active|done|dropped|superseded; an invalid status event is skipped with a
+  warning, leaving the record active.
   `sofar close` appends the event and removes EVERY bindings.json entry
   pointing at the slug while leaving other initiatives' bindings intact;
   running it twice appends exactly one event and still leaves no binding (so
@@ -3309,6 +3360,36 @@ stay the underlying derivation's, and exit codes are styling-independent.
   with a warning, replay continues past it, the line is never rewritten, and a
   removed binding degrades rather than corrupting — no old-engine path
   re-creates a binding, so a close cannot be silently undone.
+- **Initiative supersession (initiative-supersession):** `superseded` is a
+  closed status; the payload validator refuses it without a slug-shaped
+  `successor` and refuses `successor` on any other status; the fold carries
+  `successor` while superseded is in force, null otherwise, and reopening
+  clears it; an invalid superseded event is skipped with a warning leaving
+  the record active. `sofar close --superseded-by <slug>` appends the
+  successor, unbinds, and names `sofar switch <successor>`; it refuses a
+  successor that is not a record, the record itself, a non-slug, and
+  `--drop` alongside — each changing nothing; the same successor twice
+  appends nothing while a different one appends. `sofar new --supersedes
+  a,b` creates, binds the branch to the NEW record, then closes each
+  predecessor as superseded by it with cli/human envelopes, and refuses
+  before creating anything when a predecessor is missing or is the new slug;
+  each predecessor's close audit is printed and recorded, and a task left
+  ACTIVE is named as not carried into the successor. `sofar_close_initiative`
+  accepts `{status: "superseded", successor}` and returns unknown_initiative
+  for a successor that is not a record. `sofar status` renders `Status:
+  superseded by <successor>`; the listing carries `successor` on the
+  predecessor and a derived, sorted `supersedes` on the successor, rendered
+  as `continues in:` / `supersedes:`; the CLOSED banner names the successor
+  switch first and omits `sofar new`; a `done` record's banner and status
+  are unchanged. Doctor warns when a successor is not under
+  .sofar/initiatives/ and is quiet when it is. buildGraph carries exactly one
+  structural `superseded_by` edge per superseded record whose successor
+  exists, and a warning instead of an edge when it does not. The reach index
+  reaches each record from the other at one hop, citing the predecessor's
+  close event in both directions, never continues through either (nothing
+  inside the successor is reachable from the predecessor), lists a directly
+  reached record once, and drops the edge on the refresh after a reopen;
+  `sofar find` phrases it as `where <old> continues` / `continued by <new>`.
 - **Write-time collision report (writeback-collisions 1.2):** two overlapping
   sessions on one initiative each call sofar_end_session with a DIFFERENT
   next action; the FIRST caller gets a bare `{ok, event_id}` (nothing to
