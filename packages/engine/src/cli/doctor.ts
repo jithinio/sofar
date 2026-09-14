@@ -169,7 +169,21 @@ function auditAttribution(rootDir: string, findings: Finding[]): void {
   // Where git will actually look, which is not always `<common>/hooks`: a repo
   // using husky or lefthook points core.hooksPath elsewhere, and checking the
   // default would report attribution off while a hand-installed hook works.
-  const hook = join(effectiveHooksDir(rootDir, dir).dir, 'prepare-commit-msg')
+  const hooks = effectiveHooksDir(rootDir, dir)
+  const hook = join(hooks.dir, 'prepare-commit-msg')
+  // A configured path that is not there is not "no hook": git skips a missing
+  // hooksPath silently, so EVERY hook is off, and `sofar init` cannot help
+  // because it will not write outside <common>/hooks. Found in the field
+  // (splen 2026-09-14, push-ping-reach 1.2): a repo moved from brillo kept an
+  // absolute path to its old home and lost attribution for two days.
+  if (hooks.configured !== null && !existsSync(hooks.dir)) {
+    findings.push({
+      level: 'warn',
+      text: `commit attribution off — core.hooksPath is ${hooks.configured}, which does not exist, so git runs no hooks at all`,
+      hint: 'a moved or renamed repo keeps an absolute hooksPath to its old home: `git config --unset core.hooksPath` (or point it at a real directory), then run `sofar init`',
+    })
+    return
+  }
   if (!existsSync(hook)) {
     findings.push({
       level: 'warn',

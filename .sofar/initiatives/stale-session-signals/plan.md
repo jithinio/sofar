@@ -23,4 +23,4 @@ Progress: 5/5 tasks done (100%)
 
 - [x] 4.1 SPEC §Hooks, §Review and §Acceptance criteria, including what each signal does on a host with no live-session registry.
 
-Next action: Bump and publish: cut the version carrying these signals, then the user runs `npm publish -w sofar.sh` — until it is installed, no session sees any of this, which is the very staleness Phase 2 reports.
+Next action: User decides: fix splen core.hooksPath, and whether to ping written-back live peers.

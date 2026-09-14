@@ -113,4 +113,16 @@ describe('doctor asks where git actually looks', () => {
     })
     expect(runDoctor(root).stdout).not.toContain('commit attribution off')
   })
+
+  it('names a core.hooksPath that does not exist — git then runs no hooks at all', () => {
+    // splen 2026-09-14: the repo moved from brillo, the absolute hooksPath still
+    // named the old home, and doctor said only "no prepare-commit-msg hook" —
+    // pointing at `sofar init`, which cannot fix it.
+    const root = repo('hookspath-gone')
+    const gone = join(root, '..', `moved-away-${Date.now()}`, '.git', 'hooks')
+    execFileSync('git', ['config', 'core.hooksPath', gone], { cwd: root, stdio: 'ignore' })
+    const out = runDoctor(root).stdout
+    expect(out).toContain(`core.hooksPath is ${gone}, which does not exist`)
+    expect(out).toContain('git config --unset core.hooksPath')
+  })
 })

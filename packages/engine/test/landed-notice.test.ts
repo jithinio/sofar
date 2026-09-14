@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -347,7 +347,7 @@ describe('the push ping — other records that rode along (D13, 1.1/1.2)', () =>
   // plan was rewritten twice without it and the initiative closed over it.
   // D11 stands: this notifies nobody. It hands over the ADDRESS, so an agent
   // can, which is the only thing that bridges two processes here.
-  function registry(entries: { sessionId: string; name: string }[]): void {
+  function registry(entries: { sessionId: string; name: string; pid?: number }[]): void {
     const root = mkdtempSync(join(tmpdir(), 'sofar-landed-registry-'))
     roots.push(root)
     const dir = join(root, 'sessions')
@@ -355,7 +355,7 @@ describe('the push ping — other records that rode along (D13, 1.1/1.2)', () =>
     // The registry filters on process liveness (peers.ts `alive`), so the
     // entries must carry a pid that really exists — this test process.
     entries.forEach((e, i) => {
-      const pid = process.pid
+      const pid = e.pid ?? process.pid
       writeFileSync(
         join(dir, `${pid}-${i}.json`),
         JSON.stringify({
@@ -370,18 +370,32 @@ describe('the push ping — other records that rode along (D13, 1.1/1.2)', () =>
     vi.stubEnv('CLAUDE_CONFIG_DIR', root)
   }
 
-  /** Register an OPEN session on another initiative, so Tier 0 sees it. */
-  function otherRecord(root: string, otherSlug: string, session: string): void {
+  /**
+   * Register a session on another initiative, so Tier 0 sees it — OPEN by
+   * default, or already written back.
+   */
+  function otherRecord(root: string, otherSlug: string, session: string, { wroteBack = false } = {}): void {
     const dir = join(root, '.sofar', 'initiatives', otherSlug)
     mkdirSync(dir, { recursive: true })
     const log = join(dir, 'events.jsonl')
     writeFileSync(log, '')
-    for (const event of [
+    const events = [
       makeEvent({ initiative: otherSlug, session, type: 'initiative_created', payload: { goal: 'g' }, source: 'cli', actor: 'agent' }),
       makeEvent({ initiative: otherSlug, session, type: 'session_started', payload: { tool: 'claude-code' }, source: 'hook', actor: 'agent' }),
-    ]) {
-      appendEvent(log, event)
+    ]
+    if (wroteBack) {
+      events.push(
+        makeEvent({
+          initiative: otherSlug,
+          session,
+          type: 'session_ended',
+          payload: { session_id: session, summary: 'committed', next_action: 'push' },
+          source: 'claude-code',
+          actor: 'agent',
+        }),
+      )
     }
+    for (const event of events) appendEvent(log, event)
   }
 
   it('names the other record and the address that can reach it', () => {
@@ -417,6 +431,33 @@ describe('the push ping — other records that rode along (D13, 1.1/1.2)', () =>
     const { root } = repo('ping-noopen')
     registry([{ sessionId: 'sess-sibling', name: 'sofar-42' }])
     commit(root, 'theirs', 'sibling') // no log, so no open session
+    orient(root)
+    siblingPush(root)
+    expect(prompt(root)).not.toContain('also carried')
+  })
+
+  it('names a sibling that already WROTE BACK while its window is still live', () => {
+    // push-ping-reach D1, found in splen: both peers finished, committed and
+    // wrote back, then a third session pushed. Open-only reach named nobody,
+    // in the one flow where "your work shipped" is the news that matters.
+    const { root } = repo('ping-wroteback')
+    otherRecord(root, 'sibling', 'sess-sibling', { wroteBack: true })
+    registry([{ sessionId: 'sess-sibling', name: 'splen-c0' }])
+    commit(root, 'theirs', 'sibling')
+    orient(root)
+    siblingPush(root)
+    const line = prompt(root).split('\n').find((l) => l.includes('also carried'))
+    expect(line).toContain('sibling (live as "splen-c0")')
+  })
+
+  it('stays silent for a written-back sibling whose process has exited', () => {
+    // The registry is the liveness gate, not the record: a file left behind by
+    // a session that is gone must not become an address nobody reads.
+    const { pid } = spawnSync('true')
+    const { root } = repo('ping-wroteback-gone')
+    otherRecord(root, 'sibling', 'sess-sibling', { wroteBack: true })
+    registry([{ sessionId: 'sess-sibling', name: 'splen-c0', pid }])
+    commit(root, 'theirs', 'sibling')
     orient(root)
     siblingPush(root)
     expect(prompt(root)).not.toContain('also carried')

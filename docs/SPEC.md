@@ -2125,9 +2125,13 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   prompting learns nothing until it is. So this hands the reader the ADDRESS and
   the send stays an act by an agent, which is the only thing that bridges two
   processes here. Tier 0 is REFRESHED rather than read (an index nobody
-  maintains reports an empty open set, and empty is indistinguishable from
-  "nobody to tell"), the caller's own session is excluded, and the line is
-  SILENT when no live-session registry resolves a name — the address is the
+  maintains reports an empty set, and empty is indistinguishable from "nobody
+  to tell"), the caller's own session is excluded, and REACH is every session
+  the carried record knows, open OR already written back (push-ping-reach D1):
+  finish, commit, write back and let a sibling push is the ordinary flow, and an
+  open-only filter named nobody in exactly that case. The registry is the
+  liveness gate, so a written-back session that has since exited stays unnamed.
+  The line is SILENT when no live-session registry resolves a name — the address is the
   whole actionable content, so a host without one renders nothing rather than a
   line it cannot act on. That silence is not a gap in coverage: every host still
   learns its OWN shipping state from the ref-gated read, which is exactly why
@@ -2331,7 +2335,11 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   hooks dir stated explicitly, and refusing it installs nothing for no reason
   (found in the field on 0.26.0). Compared by realpath, so a symlinked checkout
   does not read as a different place. doctor asks the same question, or a
-  hand-installed hook under a husky path reads as attribution being off; a hook we did not
+  hand-installed hook under a husky path reads as attribution being off. A
+  configured path that does NOT EXIST is its own doctor finding, naming the path:
+  git skips a missing hooksPath silently, so every hook is off, and init cannot
+  repair it — the typical cause is a moved or renamed repo whose absolute path
+  still names its old home (push-ping-reach 1.2). A hook we did not
   write is left BYTE-IDENTICAL and reported as skipped, with the one line to
   add by hand; our own older copy is kept current, identified by the marker
   string `sofar prepare-commit-msg shim`. `sofar uninit` mirrors it and removes
@@ -3784,13 +3792,17 @@ stay the underlying derivation's, and exit codes are styling-independent.
   resolves to its own `<common>/hooks` — spelled absolutely or relatively —
   gets the hook installed, and a hook placed in that directory demonstrably
   fires; a path pointing elsewhere is still skipped, naming that directory's
-  `prepare-commit-msg` and the line to add; and doctor reports attribution as
-  live when the hook sits under a configured path rather than the default.
+  `prepare-commit-msg` and the line to add; doctor reports attribution as
+  live when the hook sits under a configured path rather than the default; and
+  doctor names a configured path that does not exist, with the unset fix,
+  rather than reporting a missing hook `sofar init` cannot install.
 - **Stale-session signals (stale-session-signals):** a push carrying another
   record's commits names that record and the address its live session answers
   to, fires once on the same movement mark as the landed line, reports both
-  halves when a push carries this record and another, and is SILENT when no
-  registry resolves a name or the other record has no open session. The engine
+  halves when a push carries this record and another, names a sibling that has
+  already written back while its window is still live (push-ping-reach D1), and
+  is SILENT when no registry resolves a name, when the only sibling that wrote
+  back has exited, or when the other record has no session at all. The engine
   transition reports the version a session started with when the binary changes
   under it, says nothing on a first look or while it holds still, survives a ref
   look in between (which must carry it forward, not blank it), answers with no

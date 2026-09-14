@@ -124,6 +124,41 @@ function apply(sessions: Record<string, string[] | null>, ev: IndexedEvent): voi
  * whole log rather than merging into state that may already be wrong.
  */
 export function refreshTier0(sofarDir: string): Tier0Session[] {
+  return flatten(refreshDisk(sofarDir))
+}
+
+/** One session a record knows, open or finished. */
+export interface Tier0Known {
+  session: string
+  initiative: string
+  open: boolean
+}
+
+/**
+ * Every session each record has registered, finished ones included — the
+ * same refresh as refreshTier0, without the open filter.
+ *
+ * The finished entries are already on disk (see Tier0Disk), so this costs
+ * nothing extra to answer. It exists for the push ping (push-ping-reach D1):
+ * a session that wrote back and is still running is exactly the window that
+ * wants to hear its work shipped, and "open" is the wrong filter for it.
+ * Liveness is not this module's question — the caller asks the host registry.
+ */
+export function refreshTier0Known(sofarDir: string): Tier0Known[] {
+  const disk = refreshDisk(sofarDir)
+  const out: Tier0Known[] = []
+  for (const [initiative, sessions] of Object.entries(disk.initiatives)) {
+    for (const [session, files] of Object.entries(sessions)) {
+      out.push({ session, initiative, open: files !== null })
+    }
+  }
+  out.sort((a, b) =>
+    a.initiative === b.initiative ? a.session.localeCompare(b.session) : a.initiative.localeCompare(b.initiative),
+  )
+  return out
+}
+
+function refreshDisk(sofarDir: string): Tier0Disk {
   const prior = readIndexFile<Tier0Disk>(sofarDir, TIER0_FILE, isTier0Disk)
   const { states, changed } = passOverRecord<Record<string, string[] | null>>(
     sofarDir,
@@ -134,7 +169,7 @@ export function refreshTier0(sofarDir: string): Tier0Session[] {
 
   const next: Tier0Disk = { version: INDEX_SCHEMA_VERSION, initiatives: states }
   if (changed) writeIndexFile(sofarDir, TIER0_FILE, next)
-  return flatten(next)
+  return next
 }
 
 /** Read Tier 0 without refreshing. Null when there is nothing usable on disk. */

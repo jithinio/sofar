@@ -21,7 +21,7 @@ import { version as ENGINE_VERSION } from '../../package.json'
 
 /** Commits walked for the SessionStart shipping notice — bounded per D6. */
 const SHIPPING_WINDOW = 30
-import { refreshTier0 } from '../core/index-tier0'
+import { refreshTier0, refreshTier0Known } from '../core/index-tier0'
 import {
   guardsForSubject,
   lastTouch,
@@ -1116,20 +1116,26 @@ function othersLanded(
   if (slugs.length === 0) return null
 
   // Tier 0 is REFRESHED rather than read, the same reason the conflict lines
-  // refresh it: an index nobody maintains reports an empty open set, and empty
-  // is indistinguishable from "nobody is there to tell".
-  let open: { session: string; initiative: string }[]
+  // refresh it: an index nobody maintains reports an empty set, and empty is
+  // indistinguishable from "nobody is there to tell".
+  //
+  // Every session the record KNOWS, not just the open ones (push-ping-reach
+  // D1). Finish, commit, write back, let a sibling push: that is the ordinary
+  // flow, and it left the ping with nobody to name in the field (splen,
+  // 2026-09-14). The registry below is the liveness gate — a written-back
+  // session that has since exited resolves to no peer and stays unnamed.
+  let known: { session: string; initiative: string }[]
   try {
-    open = refreshTier0(sofarDir).filter(
+    known = refreshTier0Known(sofarDir).filter(
       (row) => slugs.includes(row.initiative) && row.session !== sessionId,
     )
   } catch {
     return null
   }
-  if (open.length === 0) return null
+  if (known.length === 0) return null
 
-  const peers = resolvePeers([...new Set(open.map((row) => row.session))])
-  const reachable = open
+  const peers = resolvePeers([...new Set(known.map((row) => row.session))])
+  const reachable = known
     .map((row) => ({ row, peer: peers.get(row.session) }))
     .filter((entry): entry is { row: typeof entry.row; peer: Peer } => entry.peer !== undefined)
   if (reachable.length === 0) return null // no transport — say nothing
