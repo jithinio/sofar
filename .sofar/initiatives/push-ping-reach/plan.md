@@ -12,4 +12,4 @@ Progress: 3/3 tasks done (100%)
 - [x] 1.2 doctor: when core.hooksPath is configured but the directory does not exist, name that path and say git runs no hooks, with the unset or repoint fix. Test pins it.
 - [x] 1.3 SPEC §Hooks and §Acceptance criteria updated for both; typecheck and the full suite green.
 
-Next action: Release so splen sessions get the ping fix; user runs npm publish.
+Next action: User runs npm publish -w sofar.sh; then verify 0.31.1 on npm.
