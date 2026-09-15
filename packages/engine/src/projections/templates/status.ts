@@ -320,7 +320,8 @@ export function renderFullStatus(state: InitiativeState): string {
       for (const h of run.handoffs) {
         const task = h.task !== undefined ? `, task ${h.task}` : ''
         const tokens = h.tokens !== undefined ? `, ${h.tokens} tokens` : ''
-        lines.push(`  - ${h.ts} session ${h.session_id} — ${h.reason}${task}${tokens}`)
+        const detail = h.detail !== undefined ? ` (${h.detail})` : ''
+        lines.push(`  - ${h.ts} session ${h.session_id} — ${h.reason}${task}${tokens}${detail}`)
       }
     }
   }

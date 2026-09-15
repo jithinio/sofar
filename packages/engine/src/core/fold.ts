@@ -183,7 +183,7 @@ export interface SessionState {
    * 1.2): which run, and why the driver moved on. Absent for every session a
    * human started by hand.
    */
-  handoff?: { run: string; reason: HandoffReason; ts: string }
+  handoff?: { run: string; reason: HandoffReason; ts: string; detail?: string }
   /**
    * Drift THIS session owes (drift-signal 1.1): mutation-class events carrying
    * its id, appended after its OWN last write-back. Same window and same kinds
@@ -213,6 +213,8 @@ export interface RunHandoff {
   reason: HandoffReason
   task?: string
   tokens?: number
+  /** How the process ended, on stalls and unclean exits (r1-fixes D9). */
+  detail?: string
 }
 
 /**
@@ -1393,12 +1395,20 @@ function applyEvent(
         reason: p.reason,
         ...(p.task !== undefined ? { task: p.task } : {}),
         ...(p.tokens !== undefined ? { tokens: p.tokens } : {}),
+        ...(p.detail !== undefined ? { detail: p.detail } : {}),
       })
       // The session's side of the same fact, attached to REGISTERED sessions
       // only (the attachActivity rule). The run keeps the handoff either way:
       // it is the run's history, whoever the session turns out to be.
       const session = state.sessions.find((s) => s.id === p.session_id)
-      if (session !== undefined) session.handoff = { run: p.run, reason: p.reason, ts: event.ts }
+      if (session !== undefined) {
+        session.handoff = {
+          run: p.run,
+          reason: p.reason,
+          ts: event.ts,
+          ...(p.detail !== undefined ? { detail: p.detail } : {}),
+        }
+      }
       break
     }
     case 'run_stopped': {

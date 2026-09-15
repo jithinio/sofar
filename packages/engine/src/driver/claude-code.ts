@@ -227,6 +227,8 @@ export class ClaudeCodeSession implements AgentSession {
           ...(signal !== null ? { signal } : {}),
           ...(this.sessionId !== undefined ? { session_id: this.sessionId } : {}),
           ...(this.latest !== undefined ? { usage: this.latest } : {}),
+          ...(this.stderrTail.trim() !== '' ? { stderr_tail: this.stderrTail } : {}),
+          ...(this.spawnError !== undefined ? { spawn_error: this.spawnError } : {}),
         })
       }
       // Settle when the process has exited AND stdout has been drained, so

@@ -199,6 +199,14 @@ export interface SessionExit {
   session_id?: string
   /** The last usage the adapter saw, when it saw any. */
   usage?: Usage
+  /**
+   * What the agent wrote to stderr, last few KB (r1-fixes 1.6, D9) — the
+   * one place a logged-out agent, a broken hook or a crashed MCP server says
+   * so. Present when anything was written; the driver quotes its last line.
+   */
+  stderr_tail?: string
+  /** Set when the binary could not be spawned at all (ENOENT and friends) — the exit code is synthetic then. */
+  spawn_error?: string
 }
 
 /** A launched session: the handle the driver watches until it ends. */

@@ -163,7 +163,8 @@ watermark?, phase?, findings? — a review that was actually performed;
 commit-attribution 4.4, see §Review) ·
 run_started (run, adapter, policy: task|threshold, threshold_pct? and
 context_window? — BOTH REQUIRED for `threshold`, max_sessions?) · handoff (run, session_id, reason:
-task_done|threshold|stall|needs_user, task?, tokens?) · run_stopped (run,
+task_done|threshold|stall|needs_user, task?, tokens?, detail? — how the
+process ended, on stalls and unclean exits, r1-fixes D9) · run_stopped (run,
 reason: closed|needs_user|stall|cost_cap|max_sessions|interrupted|error,
 note? — REQUIRED for `error`; the three driver events ride on envelope
 session `cli`, since a run is not a session; session-driver 1.2, see
@@ -941,6 +942,19 @@ the operator can take). stop: `closed` | `needs_user` | `stall` (N
 consecutive stalls) | `cost_cap` | `max_sessions` | `interrupted` |
 `error` — `note` is REQUIRED for `error`, the dropped-task rule: a run that
 died unexplained is one nobody can resume.
+
+**Diagnostics (r1-fixes 1.6, D9).** The adapter's exit record carries
+`stderr_tail` (the last few KB the agent wrote to stderr) and `spawn_error`
+(when the binary never ran), and the driver renders them as ONE line —
+`exit <code>` or `killed by <signal>`, `could not spawn: …`, `stderr: <last
+non-empty line, ANSI stripped, clipped to its last 240 chars>`. That line is
+(a) on the progress line of every unresolved launch and every stall handoff,
+(b) the `detail` of a handoff whose reason is `stall` or whose exit was not
+clean (non-zero, or a spawn error) — a clean `task_done` carries none, and
+(c) in the run_stopped note of a stall stop as `last: …`, so a resumed
+driver and a reader of the record see WHY, not just that the queue did not
+move. Diagnostic only: `reason` is still read from the fold (D5) and no
+exit code or stderr text is trusted to classify anything.
 
 **Fold.** `runs[]` in log order; latestRun is the resume point — a run with
 no stop is still going, or its driver died without writing one, which is
@@ -2828,6 +2842,8 @@ Shims contain no logic — they invoke the sofar CLI.
   command never restates what the log already says. Exit 0 for every stop the
   record can explain — `needs_user` and `stall` are outcomes of a working
   driver — and 1 only for `error` or a preflight that refused to start.
+  Every stall names its cause on the progress line and in the record — the
+  Diagnostics paragraph of §Driver (session-driver — the record is the queue).
 - `sofar review [slug] [--final] [--phase <name>]` — print the evidence packet
   a reviewing session works from (commit-attribution 4.6, contract in §Review).
   The READ half of the loop; `sofar_review` is the write half, split

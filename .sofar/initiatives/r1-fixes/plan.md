@@ -4,18 +4,20 @@
 
 Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
 
-Progress: 5/19 tasks done (26%)
+Progress: 6/19 tasks done (31%)
 
-## Phase 1 — Wave 1: correctness and quick wins [active] — 5/6 done
+## Phase 1 — Wave 1: correctness and quick wins [done] — 6/6 done
+
+> All six wave-1 fixes shipped on r1-fixes (1.1 a4fc090…1.6), each with its predicted gain and ablation arm in its task note (D5).
 
 - [x] 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split sessions.
 - [x] 1.2 Session registration race: make hook registration idempotent under parallel hooks (event.ts:713-715; Cursor fires hooks in parallel). PREDICT: 0 duplicate session_started in round-2 cursor cells.
 - [x] 1.3 CLI agents: `sofar event types` payload reference; plan, phase and goal lines plus 'one initiative per project/roadmap' in the AGENTS block (init.ts:572-631); accept any --source (envelope.ts:17). PREDICT: Codex S1 −13 tool calls; Codex and Cursor make a project initiative WITH a plan in ≥2/3 reps.
 - [x] 1.4 Formatter defence: doctor check and fix for Biome (plus Prettier and markdownlint hazards); write .mcp.json in a formatter-friendly shape (init.ts:1118). PREDICT: agent edits to biome.json or .mcp.json reformatting 3/7 → 0.
 - [x] 1.5 stdin/file input for `sofar remember` and `sofar event --payload`, quoted-heredoc examples, `remember --supersedes`. PREDICT: shell-mangling corrections → 0.
-- [ ] 1.6 Drive diagnostics: carry the adapter's stderr tail, failure or spawn error into the stall note (drive.ts:776, adapter exit record). PREDICT: every launch failure names its cause.
+- [x] 1.6 Drive diagnostics: carry the adapter's stderr tail, failure or spawn error into the stall note (drive.ts:776, adapter exit record). PREDICT: every launch failure names its cause.
 
-## Phase 2 — Wave 2: less bookkeeping, leaner context [pending] — 0/6 done
+## Phase 2 — Wave 2: less bookkeeping, leaner context [active] — 0/6 done
 
 - [ ] 2.1 Next D/M ids in the digest; drop the standing-constraint echo from update_task responses; batch task updates into end_session; MCP server instructions to load core tools in one ToolSearch. PREDICT: sofar share of tool calls 32–38% → ≤20%, −3 to −5 turns per session.
 - [ ] 2.2 Deduplicate the digest (rejected approaches vs decision `over` text; constraints vs rules), index-first ≤6k chars with details on demand. PREDICT: S2+ digest −25% chars, no C2/C3 loss.
@@ -37,6 +39,6 @@ Progress: 5/19 tasks done (26%)
 - [ ] 4.3 Hand the release candidate to bench-refresh round 2, with the quick-work addendum chain frozen before it runs; attribute overlapping predicted gains by ablation, never by summing them (bench-refresh D20)
 - [ ] 4.4 Stable npm publish by the run owner, only after round-2 evidence passes the D19 held-out lead-margin gate (bench-refresh D20)
 
-Active phase: Phase 1 — Wave 1: correctness and quick wins
-Next action: Commit 1.5, then start r1-fixes 1.6 (drive diagnostics: carry the adapter's stderr tail, failure or spawn error into the stall note, drive.ts:776); Phase 1 closes after it.
+Active phase: Phase 2 — Wave 2: less bookkeeping, leaner context
+Next action: Commit 1.6, then start r1-fixes 2.1 (next D/M ids in the digest; drop the standing-constraint echo from update_task responses; batch task updates into end_session; server instructions) — read its full title in plan.md and state its predicted gain before building.
 Blocked on: task 2.5: Blocked on self-improve 1.1/1.2 (self-improve D1, relayed by peer sofar-05). Outcome capture has one owner: self-improve 1.2 defines the outcome payload schema (packages/schema/src only) and a private local store that events.jsonl, git, export and sync never read. 2.5 consumes it and defines none of its own.; task 3.1: Audit blocker (bench-refresh D20, relayed by peer sofar-05): needs a persisted, restart-safe verification contract that invalidates on changed inputs before it is built.; task 3.2: Audit blocker (bench-refresh D20, relayed by peer sofar-05): valid_until must not use wall clock in replay, and must never age out standing rules. Contract first.

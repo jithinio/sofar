@@ -323,6 +323,13 @@ export interface HandoffPayload {
   task?: string
   /** Context tokens the session held when it ended, when the adapter could report them. */
   tokens?: number
+  /**
+   * How the agent process ended, when that is worth knowing (r1-fixes 1.6,
+   * D9): the exit code or signal, a spawn error, the last stderr line. Set
+   * on stalls and on any unclean exit; never consulted for `reason`, which
+   * the driver reads from the fold alone (session-driver D5).
+   */
+  detail?: string
 }
 export interface RunStoppedPayload {
   run: string
@@ -700,6 +707,7 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (p.tokens !== undefined && !(Number.isInteger(p.tokens) && (p.tokens as number) >= 0)) {
       e.push('tokens: must be a non-negative integer when present')
     }
+    if (p.detail !== undefined && !str(p.detail)) e.push('detail: must be a non-empty string when present')
   },
   run_stopped(p, e) {
     if (!str(p.run)) e.push('run: must be a non-empty string')
@@ -874,7 +882,7 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
   handoff: {
     writer: 'driver',
     summary: 'a driven session ended and the next one starts',
-    fields: `run, session_id, reason: ${HANDOFF_REASONS.join('|')}, task?, tokens?`,
+    fields: `run, session_id, reason: ${HANDOFF_REASONS.join('|')}, task?, tokens?, detail? (how the process ended: exit, spawn error, last stderr line)`,
     example: { run: '01J00000000000000000000000', session_id: 's1', reason: 'task_done', task: '1.1' },
   },
   run_stopped: {

@@ -52,6 +52,44 @@ import { previewRoutes, resolveRoute, RouteError, type RoutingOptions } from './
  * until that directory's log for the initiative IS the log it is driving.
  */
 
+/** The longest stderr line a note quotes; the END is kept, since the cause comes last. */
+const STDERR_LINE_MAX = 240
+
+/**
+ * One line on how the agent process ended (r1-fixes 1.6, D9): the exit code
+ * or signal, the spawn error when the binary never ran, and the last
+ * non-empty stderr line — where a logged-out agent, a missing binary and a
+ * crashed hook each say what happened, which round 1's bare `exit 1` never
+ * did. Diagnostic only: the handoff reason still comes from the fold (D5).
+ */
+export function describeExit(exit: SessionExit): string {
+  const how =
+    exit.code !== null ? `exit ${exit.code}` : exit.signal !== undefined ? `killed by ${exit.signal}` : 'exit unknown'
+  const parts = [how]
+  if (exit.spawn_error !== undefined) parts.push(`could not spawn: ${exit.spawn_error}`)
+  const line = lastStderrLine(exit.stderr_tail)
+  if (line !== undefined) parts.push(`stderr: ${line}`)
+  return parts.join('; ')
+}
+
+function lastStderrLine(tail: string | undefined): string | undefined {
+  if (tail === undefined) return undefined
+  const lines = tail
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+  const last = lines[lines.length - 1]
+  if (last === undefined) return undefined
+  return last.length > STDERR_LINE_MAX ? `…${last.slice(-STDERR_LINE_MAX)}` : last
+}
+
+/** A clean exit: code 0 and nothing went wrong spawning it. */
+function cleanExit(exit: SessionExit): boolean {
+  return exit.code === 0 && exit.spawn_error === undefined
+}
+
 /** Consecutive stalls that stop a run; `--max-stalls` overrides it. */
 export const DEFAULT_MAX_STALLS = 2
 
@@ -285,6 +323,8 @@ export interface DriveHandoff {
   reason: HandoffReason
   task: string
   tokens?: number
+  /** How the process ended, on stalls and unclean exits (D9). */
+  detail?: string
 }
 
 export interface DriveOutcome {
@@ -625,6 +665,8 @@ export async function drive(
   const handoffs: DriveHandoff[] = []
   let unresolved = 0
   let stalls = 0
+  /** The last stall's session and how its process ended — what a stall stop names (D9). */
+  let lastStall: string | undefined
   let cost = 0
   let stop: { reason: RunStopReason; note?: string } | undefined
 
@@ -773,7 +815,7 @@ export async function drive(
         const why =
           resolved.kind === 'ambiguous'
             ? `${resolved.candidates.length} sessions registered by ${routed.name} since the launch (${resolved.candidates.join(', ')}) — the driver does not guess which was its own`
-            : `no session registered by ${routed.name} since the launch (exit ${exit.code ?? exit.signal ?? 'unknown'})`
+            : `no session registered by ${routed.name} since the launch (${describeExit(exit)})`
         progress(`  unresolved: ${why}`)
         if (interrupted) {
           stop = interruptedStop(why)
@@ -789,6 +831,10 @@ export async function drive(
       const sessionId = resolved.session.id
       const reason = handoffReason(beforeStatuses, after, task.id, sessionId, gauge?.nudged() === true)
       const tokens = exit.usage?.context_tokens
+      // How the process ended travels with the handoff when it is worth
+      // reading — a stall, or any exit that was not clean (D9). A clean
+      // task_done says nothing a reader needs.
+      const detail = reason === 'stall' || !cleanExit(exit) ? describeExit(exit) : undefined
       ctx.appendAndProject(
         initiative,
         'handoff',
@@ -798,12 +844,22 @@ export async function drive(
           reason,
           task: task.id,
           ...(tokens !== undefined ? { tokens } : {}),
+          ...(detail !== undefined ? { detail } : {}),
         },
         { session: 'cli', source: 'cli', actor: 'human' },
       )
-      handoffs.push({ session_id: sessionId, reason, task: task.id, ...(tokens !== undefined ? { tokens } : {}) })
-      progress(`  ${reason} — session ${sessionId}${tokens !== undefined ? `, ${tokens} ctx tokens` : ''}`)
+      handoffs.push({
+        session_id: sessionId,
+        reason,
+        task: task.id,
+        ...(tokens !== undefined ? { tokens } : {}),
+        ...(detail !== undefined ? { detail } : {}),
+      })
+      progress(
+        `  ${reason} — session ${sessionId}${tokens !== undefined ? `, ${tokens} ctx tokens` : ''}${detail !== undefined ? ` (${detail})` : ''}`,
+      )
       stalls = reason === 'stall' ? stalls + 1 : 0
+      lastStall = reason === 'stall' ? `session ${sessionId} — ${describeExit(exit)}` : undefined
 
       if (interrupted) {
         stop = interruptedStop()
@@ -814,7 +870,10 @@ export async function drive(
         break
       }
       if (stalls >= maxStalls) {
-        stop = { reason: 'stall', note: `${stalls} consecutive sessions with no task change` }
+        stop = {
+          reason: 'stall',
+          note: `${stalls} consecutive sessions with no task change${lastStall !== undefined ? `; last: ${lastStall}` : ''}`,
+        }
         break
       }
     }
