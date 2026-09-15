@@ -1640,6 +1640,25 @@ which names this test.
 aggregate count — never its content. When rows have expired, a consumer
 reports evidence unavailable; it never reconstructs it.
 
+**Signal availability (self-improve 1.3).** Every signal the improvement
+loop may ever consume is listed ONCE, in code (`core/signals.ts`), with the
+question it answers, what it is derived from (record, diagnostics, git,
+index, none), its CEILING — `capturable`, `partial` (derivable with a stated
+blind spot) or `unavailable` (nothing in this design observes it) — the
+reason the ceiling is what it is, and what the clone must have wired for it
+(the PostToolUse, PostToolUseFailure or SessionStart shim in
+`.claude/settings.json`; a diagnostics store that is not refused; a driven
+run). The live layer degrades the ceiling against the actual clone, so a
+signal is `capturable` only when both agree. A consumer asks this map before
+it reports a number, and prints UNKNOWN — never zero, never "no failures" —
+for anything not capturable. Sixteen signals today; four are unavailable by
+design and say why: read-only tool calls (the matcher never sees them),
+memory USE (only "no observed citation" is derivable, and that is not
+"unused"), historical digest bytes (a re-render is a simulation) and hook
+latency (not instrumented). `sofar diagnostics --signals` renders the map for
+this clone, `--json` the machine form; the id set is pinned by test so the
+Phase 2 detector cannot consume a signal the map does not name.
+
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
 events not already present (dedupe by id — idempotent). Per-initiative
@@ -2842,12 +2861,14 @@ Shims contain no logic — they invoke the sofar CLI.
 - `sofar export [slug] [--since <id>]` / `sofar import <file|-> [slug]`
   — per-initiative NDJSON over the §Cursor primitive; slug resolves like
   status (explicit wins, else branch binding) (extended Phase 4, BD28)
-- `sofar diagnostics [--purge] [--json]` — the one human window onto the
-  private store (§Diagnostics store): where it is for this clone, rows and
-  bytes per initiative and per kind, the retention rule. Counts and paths
-  ONLY, never row contents — a row can carry redacted error text, and a
+- `sofar diagnostics [--purge] [--signals] [--json]` — the one human window
+  onto the private store (§Diagnostics store): where it is for this clone,
+  rows and bytes per initiative and per kind, the retention rule. Counts and
+  paths ONLY, never row contents — a row can carry redacted error text, and a
   summary surface must not become a second way to read it. `--purge` deletes
-  the clone's store; `--json` is the machine form (self-improve 1.2).
+  the clone's store; `--signals` renders the signal availability map — each
+  promised signal with its status here, its blind spot and what is missing;
+  `--json` is the machine form (self-improve 1.2, 1.3).
 - `sofar login` / `sofar link` / `sofar push` / `sofar pull [--watch]`
   — the v2 sync client against api.sofar.sh; full contract in
   §Sync client (sync-client, Jul 2026).
@@ -4084,3 +4105,13 @@ stay the underlying derivation's, and exit codes are styling-independent.
   row and renders byte-identically with the store populated; an MCP typed
   rejection writes an `mcp_call` row and appends nothing; `sofar diagnostics`
   prints counts and paths, never contents, and `--purge` removes the store.
+- **Signal availability (self-improve 1.3):** `core/signals.ts` names every
+  signal the loop may consume with a ceiling and a reason; with every
+  requirement met each signal's status equals its ceiling and four remain
+  unavailable by design; unwiring the PostToolUseFailure shim makes
+  `tool_failure` and `error_text` unavailable naming that shim; a refused
+  store makes every diagnostics-sourced signal unavailable; the environment
+  read from a fresh fixture shows no hooks, after `sofar init` all three, and
+  `XDG_STATE_HOME` inside the repo shows the store refused; `sofar
+  diagnostics --signals` renders all sixteen byte-plain with what is missing,
+  and `--json` carries the environment and the list.

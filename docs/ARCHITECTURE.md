@@ -69,6 +69,7 @@ Three consequences run through every design decision in the codebase:
 | `core/cursor.ts` | Export/import cursors: the entire sync interface. |
 | `core/state-dir.ts` | Per-clone state OUTSIDE the repo: `$XDG_STATE_HOME/sofar`, keyed by a hash of the clone's real path. Shared by sync cursors and the diagnostics store. |
 | `core/diagnostics.ts` | The private diagnostics store (self-improve D3): append-only rows per initiative under the clone's state dir, 90-day retention, byte cap, best-effort writes that never recurse, refused outright if the path would land inside the repo. A third class — not truth, not derived. |
+| `core/signals.ts` | The signal availability map (self-improve 1.3): every signal the improvement loop may consume, with its ceiling (capturable / partial / unavailable), the blind spot behind it, and what the clone must have wired for it — a consumer prints UNKNOWN for anything else. |
 | `core/peers.ts` | Resolves a Claude Code session id to the name its `SendMessage` addresses, from the host's own registry. Best-effort; absent means no address. |
 
 ### 3. Index — derived, local, incremental
@@ -147,7 +148,7 @@ worse than no attribution.
 | `cli/statusline.ts` | `sofar statusline` — the one-line host status. Resolves session-first. |
 | `cli/serve.ts` | `sofar serve` — localhost JSON state server. |
 | `cli/transfer.ts` | `sofar export` / `sofar import`. |
-| `cli/diagnostics.ts` | `sofar diagnostics` — where the private store is and how much sits in it; `--purge` deletes it. Counts only, never row contents. |
+| `cli/diagnostics.ts` | `sofar diagnostics` — where the private store is and how much sits in it; `--purge` deletes it; `--signals` renders the availability map. Counts only, never row contents. |
 | `cli/adopt.ts` | `sofar adopt` — migrate a legacy prose record. |
 | `cli/cloud.ts` | `sofar login` / `link` / `push` / `pull`. |
 | `cli/scanners.ts` | Host-config scanners (e.g. emitted stylesheet directives). |

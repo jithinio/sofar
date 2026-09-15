@@ -255,12 +255,14 @@ program
     'show the private diagnostics store for this clone (path, rows per initiative and kind) — lives outside the repo, never exported or synced; --purge deletes it',
   )
   .option('--purge', 'delete every diagnostics row recorded for this clone')
+  .option('--signals', 'print the signal availability map: what the loop may measure here, and what it must report as UNKNOWN')
   .option('--json', 'machine-readable output')
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action((opts: { purge?: boolean; json?: boolean; root?: string }) => {
+  .action((opts: { purge?: boolean; signals?: boolean; json?: boolean; root?: string }) => {
     emit(
       runDiagnostics(rootOf(opts), {
         ...(opts.purge !== undefined ? { purge: opts.purge } : {}),
+        ...(opts.signals !== undefined ? { signals: opts.signals } : {}),
         ...(opts.json !== undefined ? { json: opts.json } : {}),
       }),
     )

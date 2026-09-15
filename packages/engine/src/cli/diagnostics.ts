@@ -1,4 +1,5 @@
 import { diagnosticsStats, purgeDiagnostics } from '../core/diagnostics'
+import { readSignalEnvironment, renderSignals, signalAvailability } from '../core/signals'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 
 /**
@@ -10,9 +11,17 @@ import { errMessage, fail, ok, type CmdResult } from './shared'
  */
 export function runDiagnostics(
   rootDir: string,
-  options: { purge?: boolean; json?: boolean } = {},
+  options: { purge?: boolean; json?: boolean; signals?: boolean } = {},
 ): CmdResult {
   try {
+    if (options.signals === true) {
+      // The availability map (self-improve 1.3): what a consumer may report as
+      // a number here, and what it must print as UNKNOWN.
+      const environment = readSignalEnvironment(rootDir)
+      const signals = signalAvailability(environment)
+      if (options.json === true) return ok(`${JSON.stringify({ environment, signals })}\n`)
+      return ok(renderSignals(signals))
+    }
     if (options.purge === true) {
       const removed = purgeDiagnostics(rootDir)
       if (options.json === true) return ok(`${JSON.stringify({ purged: removed })}\n`)

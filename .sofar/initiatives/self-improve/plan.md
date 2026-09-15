@@ -4,13 +4,15 @@
 
 Goal: A small, trustworthy improvement process whose every change has inspectable benefit, cost, evidence and reversal path (self-improve D1). Developer-side first: benchmark → loss study → bounded fix → held-out proof, beating an equal-budget direct-fix baseline net of full cost. In-product local adaptation only after repeated wins; private diagnostics never enter events.jsonl, git, export or sync.
 
-Progress: 2/14 tasks done (14%)
+Progress: 3/14 tasks done (21%)
 
-## Phase 1 — Evidence contracts and capture [active] — 2/3 done
+## Phase 1 — Evidence contracts and capture [done] — 3/3 done
+
+> D2/D3 contracts, capture (1.2) and the availability map (1.3) landed; full suite green except a pre-existing intermittent in reach-index 3.5 unrelated to this work.
 
 - [x] 1.1 Gating Decisions before code: (a) outcome payload schema only in packages/schema/src; (b) diagnostics storage boundary: a separate local gitignored store that the exporter and sync never read, enforced by tests at the export boundary
 - [x] 1.2 Outcome capture, single owner (r1-fixes 2.5 consumes it): tool exit status and is_error, PostToolUseFailure, MCP typed-error rejections, and memory-usage signals, written to the private store where they are diagnostics
-- [ ] 1.3 Signal availability map: every promised signal marked capturable or UNKNOWN with its reason (e.g. sofar and git commands are hook-exempt per record-hygiene D1); consumers report unknown, never guess
+- [x] 1.3 Signal availability map: every promised signal marked capturable or UNKNOWN with its reason (e.g. sofar and git commands are hook-exempt per record-hygiene D1); consumers report unknown, never guess
 
 ## Phase 2 — Detector (propose-only) [pending] — 0/3 done
 
@@ -32,5 +34,4 @@ Progress: 2/14 tasks done (14%)
 - [ ] 4.3 Public standing snapshot (downloads, stars, listings) reported separately and never used as a technical gate
 - [ ] 4.4 Expand autonomy, including any in-product local adaptation, only after 3 consecutive cycles beat the direct-fix baseline on unseen work
 
-Active phase: Phase 1 — Evidence contracts and capture
-Next action: 1.3: signal availability map — every promised signal marked capturable or UNKNOWN with reason (exit on success is host-dependent; Read/Grep never observed; memory use = injection bytes + citations only).
+Next action: Phase 2: 2.1 `sofar tune --dry-run` — detect only signals the map calls capturable (duplicate session starts, tool failures, exempt-command share, injection bytes), print UNKNOWN for the rest, read-only, deterministic output.
