@@ -2248,6 +2248,32 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   summary/next_action overwritten, freshness reset, Stop passes once any
   exists). Best-effort (BD22): every failure path is silence, never a
   blocked prompt.
+  RELEVANT LESSONS (r1-fixes 3.3, D16): the same shim reads the payload's
+  `prompt` (first 2,000 chars) and BM25-ranks it — core/lexicon.ts
+  rankLexical, the `sofar find` ranker, no model — against THIS
+  initiative's lessons: every decision's full prose (chose + over +
+  because; the LAST 200 decisions), rendered as its `over`, plus every
+  driver handoff with reason `stall` that carries a `detail` (the stderr
+  tail, r1-fixes D9), rendered as that detail. At most 2 lines, each
+  `sofar: ruled out before — [D<n>] <over> (matched: <the prompt's own
+  words, strongest first>; full text in decisions.md)` clipped to 320
+  chars, and a failure line carries `[session <id> (stall)]` in place of the
+  handle. A lesson renders only when it shares ≥2 distinct prompt terms AND
+  scores ≥1.5, and the second only when it scores ≥0.6× the first — so one
+  common word is never a match, `continue`/`yes` render nothing, and a
+  runner-up that shares two common words is dropped. A YOUNG record (fewer
+  than 5 lessons) has no rare terms for BM25 to weight — with one document
+  every term is in every document — so there the score floor is replaced by
+  a stricter count: ≥3 shared prompt terms, no floor. Placed directly after
+  the guard crossings and before the conflict hazard: a guard says work
+  already done crossed a rule, this says the intent just typed was ruled
+  out before — a claim about the RECORD, never that the prompt is wrong,
+  since a decision can be revisited and the line makes that a choice rather
+  than a lapse. In-process from the fold the hook already holds — no file
+  read beyond the log (D6) — measured 1.2–1.5 ms per prompt on a 16-decision
+  record; the top hit was the re-proposed decision on every probe. A payload
+  without `prompt` renders no line. Stateless, best-effort: silence on any
+  failure.
   The same shim also emits the PARALLEL-WRAP line (record-integrity 4.2),
   independently of the drift nudge — both may appear, newest first. It fires
   when another session in this initiative ENDED with a real write-back
@@ -3454,6 +3480,16 @@ stay the underlying derivation's, and exit codes are styling-independent.
   chars on a two-session lane. A closed lane discards hook events and the
   notice names `sofar switch quick`; `sofar new quick` is refused; the
   statusline renders a lane-caught session as `quick`.
+- **Relevant lessons (r1-fixes 3.3):** with three decisions folded, a prompt
+  that re-proposes the second's rejected approach in the subject's words
+  renders `sofar: ruled out before — [D2] <its over> (matched: …)` first
+  among the prompt hook's lines after any guard crossing and before a
+  concurrent-edit conflict line; a stall handoff's detail matches on its
+  words and renders as `[session <id> (stall)]`; `continue`, a prompt
+  sharing one common word, and a payload with no `prompt` field render no
+  lessons line; a runner-up under 0.6× the top score is dropped; an
+  unregistered session gets nothing; the line clips at 320 chars; and the
+  hook appends nothing.
 - **Repo memory capture:** `sofar remember <text>` and `sofar_remember`
   append memory_promoted and report the `<slug> M<n>` handle; ordinals follow
   log order; `memory.md` appears only once something is promoted; empty text

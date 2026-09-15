@@ -4,6 +4,7 @@ import { readBindingsFile } from '../core/bindings'
 import { currentBranch } from '../core/git'
 import { ensureIndexDir } from '../core/index-store'
 import { QUICK_LANE, QUICK_LANE_GOAL } from '../core/lane'
+import { relevantLessons, type Lesson } from '../core/lessons'
 import { withFileLock } from '../core/lock'
 import type { Command } from 'commander'
 import {
@@ -997,6 +998,25 @@ export const PEER_LINE_BUDGET = 300
 /** Peers named in full on the peer line before it falls back to a count. */
 export const PEER_MAX_NAMES = 3
 
+/** Character budget per relevant-lesson line (r1-fixes 3.3, D16). */
+export const LESSON_LINE_BUDGET = 320
+
+/**
+ * The lessons a prompt re-proposes (r1-fixes 3.3, D16), one line each: the
+ * handle, what was ruled out, and the prompt's own words that matched — so
+ * the reader can see why, and disagree. Wording is a claim about the RECORD
+ * ("ruled out before"), never about the prompt being wrong: a decision can be
+ * revisited, and the line's job is to make that a choice rather than a lapse.
+ */
+export function lessonLines(lessons: readonly Lesson[]): string[] {
+  return lessons.map((l) =>
+    clipTo(
+      `sofar: ruled out before — [${l.handle}] ${l.text} (matched: ${l.terms.join(', ')}; full text in decisions.md)`,
+      LESSON_LINE_BUDGET,
+    ),
+  )
+}
+
 function clipTo(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, Math.max(0, max - 1))}…`
 }
@@ -1755,7 +1775,8 @@ function reachablePeerLine(others: string[]): string | null {
 
 export function handleUserPrompt(rootDir: string, input: string): HookResult {
   try {
-    const sessionId = strField(parseHook(input), 'session_id')
+    const hook = parseHook(input)
+    const sessionId = strField(hook, 'session_id')
     if (sessionId === null) return { ...OK }
 
     const bound = resolveBound(rootDir, sessionId)
@@ -1800,6 +1821,13 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     // constraint, and it is the surface the mechanical tier actually reaches
     // an agent through — a Stop-only warning would arrive after the fact
     // (D3), and a non-blocking Stop exit is not fed back to the model at all.
+    // Between the crossed rules and the live hazard (r1-fixes 3.3, D16): a
+    // guard says work already done crossed a rule; this says the intent just
+    // typed was ruled out before. Both are about the record's constraints,
+    // and both outrank news about siblings. Read from the prompt text the
+    // host passes; a payload without one renders nothing.
+    const prompt = strField(hook, 'prompt')
+    if (prompt !== null) lines.unshift(...lessonLines(relevantLessons(state, prompt)))
     lines.unshift(...guardViolationLines(sessionGuardViolations(state, sessionId, me.ended), rootDir))
 
     const wrap = parallelWrapLine(state, sessionId)

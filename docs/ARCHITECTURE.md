@@ -84,6 +84,7 @@ synced, and any absence, staleness, or corruption falls back to reading the logs
 | `core/index-tier1.ts` | **Keyed tier.** Declared relevance (which decisions guard this path) and derived relevance (who else touched it, from which initiative). |
 | `core/index-reach.ts` | **Reach tier.** What `sofar find` traverses: decisions, notes, files, sessions and citation edges, each carrying the event id that produced it. Read only when asked, so it can afford prose the hot tiers cannot. |
 | `core/lexicon.ts` | Turns a question into seeds when nothing denotes it: tokenize, fold plurals and tenses, rank by IDF. No model, and every match returns the words that carried it. |
+| `core/lessons.ts` | Relevant lessons at the prompt (r1-fixes 3.3, D16): BM25-ranks the prompt against this initiative's decisions and stall handoffs with the lexicon's ranker, in-process from the fold — no model, no file read, two lines at most. |
 
 ### 4. Projections — state rendered to disk
 
@@ -112,7 +113,7 @@ silence, never a broken session.
 | hook | what it does |
 | --- | --- |
 | SessionStart | Injects the record — goal, progress, next action, decisions, standing constraints, rejected approaches, repo memory. |
-| UserPromptSubmit | Live hazards first: file conflicts, reachable peers, crossed guards, parallel wrap-ups, git state, drift nudge. |
+| UserPromptSubmit | Crossed guards and the lessons the prompt re-proposes first (D16), then live hazards: file conflicts, reachable peers, parallel wrap-ups, git state, drift nudge. |
 | PostToolUse | Captures file touches and commands as events. The point-of-use guard fires here. On an unbound branch it creates the quick lane (`quick`) on the first edit and captures there (D14). |
 | Stop | Blocks a session that owes a write-back — never in the quick lane, which has no write-back. |
 | SessionEnd | Closes the session. |

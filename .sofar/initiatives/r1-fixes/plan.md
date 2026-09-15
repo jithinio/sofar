@@ -4,7 +4,7 @@
 
 Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
 
-Progress: 11/19 tasks done (57%)
+Progress: 12/19 tasks done (63%)
 
 ## Phase 1 — Wave 1: correctness and quick wins [done] — 6/6 done
 
@@ -26,11 +26,11 @@ Progress: 11/19 tasks done (57%)
 - [ ] 2.5 Automatic capture through hooks: commits (task-id prefix), test pass/fail, files, errors recorded deterministically from PostToolUse/Stop; the model logs only why. PREDICT: sofar MCP/CLI calls per session −40%. (blocked)
 - [x] 2.6 Quick-work lane: ad-hoc fixes land in a standing per-repo maintenance record with no `sofar new`/plan ceremony, auto-captured by hooks, plus one line of why only when a decision was made; promote to an initiative when it grows. PREDICT: overhead ratio on 1–3 minute fixes ≤ 15% of task tokens with the fix recalled later.
 
-## Phase 3 — Wave 3: new capabilities [pending] — 0/3 done
+## Phase 3 — Wave 3: new capabilities [pending] — 1/3 done
 
 - [ ] 3.1 Verification-gated drive: run the task's acceptance command before accepting task_done; failures go into the next handoff. PREDICT: drive final pass rate +5 pts over round-1 drive. (blocked)
 - [ ] 3.2 Decision counters plus supersession/valid_until so stale decisions leave the digest without a model. PREDICT: C3 no worse at −10% digest. (blocked)
-- [ ] 3.3 Relevant-lessons injection: keyword/BM25 match of rejected approaches and past failures at UserPromptSubmit, no model. PREDICT: C3 +5 pts.
+- [x] 3.3 Relevant-lessons injection: keyword/BM25 match of rejected approaches and past failures at UserPromptSubmit, no model. PREDICT: C3 +5 pts.
 
 ## Phase 4 — Release [pending] — 0/4 done
 
@@ -40,5 +40,5 @@ Progress: 11/19 tasks done (57%)
 - [ ] 4.4 Stable npm publish by the run owner, only after round-2 evidence passes the D19 held-out lead-margin gate (bench-refresh D20)
 
 Active phase: Phase 2 — Wave 2: less bookkeeping, leaner context
-Next action: Start r1-fixes 3.3 (relevant-lessons injection at UserPromptSubmit: keyword/BM25 match of rejected approaches and past failures, no model; PREDICT C3 +5 pts) — state the predicted gain and its ablation arm as D16 before building; 3.1 and 3.2 stay blocked.
+Next action: Start Phase 4: r1-fixes 4.1 — fold round 1's own loss-study rows (bench-refresh 4.1) into the plan as added tasks, each with a predicted gain, via sofar_update_plan; 2.5, 3.1 and 3.2 stay blocked on their audit contracts.
 Blocked on: task 2.5: Blocked on self-improve 1.1/1.2 (self-improve D1, relayed by peer sofar-05). Outcome capture has one owner: self-improve 1.2 defines the outcome payload schema (packages/schema/src only) and a private local store that events.jsonl, git, export and sync never read. 2.5 consumes it and defines none of its own.; task 3.1: Audit blocker (bench-refresh D20, relayed by peer sofar-05): needs a persisted, restart-safe verification contract that invalidates on changed inputs before it is built.; task 3.2: Audit blocker (bench-refresh D20, relayed by peer sofar-05): valid_until must not use wall clock in replay, and must never age out standing rules. Contract first.
