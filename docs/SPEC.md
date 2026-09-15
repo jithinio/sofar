@@ -1659,6 +1659,49 @@ latency (not instrumented). `sofar diagnostics --signals` renders the map for
 this clone, `--json` the machine form; the id set is pinned by test so the
 Phase 2 detector cannot consume a signal the map does not name.
 
+## Tune (self-improve — detection only; dry-run is the only mode)
+`sofar tune [slug|--all] --dry-run [--json]` reads the RAW logs and the
+private store (§Diagnostics store), runs a detector for each signal the
+availability map allows on this clone, and prints a report. Nothing else. No
+event is appended, no row is written, no file under `.sofar/` or the store
+changes; `--dry-run` is REQUIRED on the command line and the command refuses
+without it, so a reader of a shell history never wonders whether an
+invocation applied something. A mode that persists or applies, if one ever
+exists (self-improve 2.3), is a separate, differently named surface.
+
+**Three rules, from the audit (S1, S3, S5).** (1) A detector runs ONLY for a
+signal the map does not call `unavailable` here; every other signal is
+reported UNKNOWN with the map's reason and what is missing — a count is never
+printed for a signal nobody observes, and UNKNOWN is never zero. (2) Every
+finding cites immutable evidence: event ids, or `row:` + the first 16 hex of
+the sha256 of a row's stored line — never prose, never a re-derivation.
+(3) A detector states its coverage — the denominator, the event types, the
+rows — and, when partial, the map's blind spot on the same block, and it
+never labels a cause: a correction is a correction, not "shell mangling"; an
+edit to `biome.json` is an edit, not "friction".
+
+**Detectors (2.1).** Over the record: `duplicate_session_starts` (raw
+session_started lines per session id — the fold hides exactly these),
+`corrections` (each with its target when the target is in the same log),
+`stalls` (handoff and run_stopped with reason `stall`, driven runs only),
+`formatter_friction` (file_touched whose basename is a formatter or MCP
+config name), `tool_failure` (command_run / file_touched with `ok: false`,
+grouped by leading token or path; events without `ok` are counted neither
+way). Over the store: `mcp_rejections` (mcp_call rows with `ok: false`, by
+tool and code), `bookkeeping_share` (exempt commands plus sofar MCP calls
+over the observed calls — an UPPER bound), `injection_bytes` (SessionStart
+rows: median and max chars, repo memory max). Everything else in the map is
+UNKNOWN by construction.
+
+**Deterministic and replayable.** The detectors are pure over their inputs —
+no filesystem, no clock, no randomness — so the same inputs render the same
+bytes, the JSON report is version-stamped (`version: 1`) and carries the
+corpus behind every count (events read per initiative, rows read, the
+highest event id as the cutoff), and a run against the same log prefix
+reproduces the report. The plain rendering caps evidence at ten ids per
+finding (`+N more`); the JSON carries them all. Both are byte-plain
+(§CLI UI).
+
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
 events not already present (dedupe by id — idempotent). Per-initiative
@@ -2861,6 +2904,12 @@ Shims contain no logic — they invoke the sofar CLI.
 - `sofar export [slug] [--since <id>]` / `sofar import <file|-> [slug]`
   — per-initiative NDJSON over the §Cursor primitive; slug resolves like
   status (explicit wins, else branch binding) (extended Phase 4, BD28)
+- `sofar tune [slug|--all] --dry-run [--json]` — detection only (§Tune,
+  self-improve 2.1): run the detectors the signal availability map allows on
+  this clone over the raw logs and the private store, cite event ids and row
+  hashes, state coverage and blind spots, print UNKNOWN — never zero — for
+  every signal this clone cannot observe. `--dry-run` is required and the
+  only mode; the command refuses without it and writes nothing.
 - `sofar diagnostics [--purge] [--signals] [--json]` — the one human window
   onto the private store (§Diagnostics store): where it is for this clone,
   rows and bytes per initiative and per kind, the retention rule. Counts and
@@ -4115,3 +4164,19 @@ stay the underlying derivation's, and exit codes are styling-independent.
   `XDG_STATE_HOME` inside the repo shows the store refused; `sofar
   diagnostics --signals` renders all sixteen byte-plain with what is missing,
   and `--json` carries the environment and the list.
+- **Tune (self-improve 2.1):** `sofar tune` without `--dry-run` exits 1 and
+  changes nothing; with it, two runs over the same logs and store leave
+  `.sofar/` and the store byte-identical and print identical output with no
+  timestamp in it; the report names every signal in the availability map,
+  each with a detector block or UNKNOWN carrying the map's reason; a signal
+  the clone cannot observe (the failure shim unwired, the store refused) is
+  UNKNOWN naming what is missing even when the log holds matching events;
+  `duplicate_session_starts` cites every raw registration of a session,
+  `corrections` cites the correction and its target and names no cause,
+  `stalls` reads only `stall` reasons, `formatter_friction` counts config-file
+  edits by path, `tool_failure` groups `ok: false` by leading token or path
+  and counts events without `ok` neither way; `mcp_rejections`,
+  `bookkeeping_share` and `injection_bytes` cite row hashes and the share is
+  stated as an upper bound; `--all` spans every initiative; the plain
+  rendering is byte-plain, caps evidence at ten with `+N more`, and equals the
+  pure renderer over the JSON report.

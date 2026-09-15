@@ -4,7 +4,7 @@
 
 Goal: A small, trustworthy improvement process whose every change has inspectable benefit, cost, evidence and reversal path (self-improve D1). Developer-side first: benchmark → loss study → bounded fix → held-out proof, beating an equal-budget direct-fix baseline net of full cost. In-product local adaptation only after repeated wins; private diagnostics never enter events.jsonl, git, export or sync.
 
-Progress: 3/14 tasks done (21%)
+Progress: 4/14 tasks done (28%)
 
 ## Phase 1 — Evidence contracts and capture [done] — 3/3 done
 
@@ -14,9 +14,9 @@ Progress: 3/14 tasks done (21%)
 - [x] 1.2 Outcome capture, single owner (r1-fixes 2.5 consumes it): tool exit status and is_error, PostToolUseFailure, MCP typed-error rejections, and memory-usage signals, written to the private store where they are diagnostics
 - [x] 1.3 Signal availability map: every promised signal marked capturable or UNKNOWN with its reason (e.g. sofar and git commands are hook-exempt per record-hygiene D1); consumers report unknown, never guess
 
-## Phase 2 — Detector (propose-only) [pending] — 0/3 done
+## Phase 2 — Detector (propose-only) [active] — 1/3 done
 
-- [ ] 2.1 `sofar tune --dry-run` detects only well-supported failure types (duplicate session starts, corrections, stalls, formatter friction) and prints unknown for the rest
+- [x] 2.1 `sofar tune --dry-run` detects only well-supported failure types (duplicate session starts, corrections, stalls, formatter friction) and prints unknown for the rest
 - [ ] 2.2 Precision and recall against the manual smoke and round-1 loss-study rows before any suggestion is trusted
 - [ ] 2.3 Suggestions only: approval bound to an exact candidate hash, stale applications rejected, rejection and reversal history kept; offline replay limited to context-size and information-preservation checks
 
@@ -34,4 +34,5 @@ Progress: 3/14 tasks done (21%)
 - [ ] 4.3 Public standing snapshot (downloads, stars, listings) reported separately and never used as a technical gate
 - [ ] 4.4 Expand autonomy, including any in-product local adaptation, only after 3 consecutive cycles beat the direct-fix baseline on unseen work
 
-Next action: Phase 2: 2.1 `sofar tune --dry-run` — detect only signals the map calls capturable (duplicate session starts, tool failures, exempt-command share, injection bytes), print UNKNOWN for the rest, read-only, deterministic output.
+Active phase: Phase 2 — Detector (propose-only)
+Next action: 2.2: precision/recall of the detectors against labeled corpora — replay `detect` over this repo's own logs (manual smoke) and the bench-refresh round-1 loss-study rows; freeze labels first; report per detector with counts; rediscovery of the seven smoke rows is regression coverage, not validation.

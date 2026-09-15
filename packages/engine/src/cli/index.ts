@@ -24,6 +24,7 @@ import { registerStatuslineCommand } from './statusline'
 import { startServer, renderServeBanner, DEFAULT_PORT } from './serve'
 import { runExport, runImport } from './transfer'
 import { runDiagnostics } from './diagnostics'
+import { runTune } from './tune'
 import { runLogin, runLink, runPush, runPull, runPullWatch } from './cloud'
 import { runUpgrade } from './upgrade'
 import { runCheckStatus, runRefresh, withUpdateNotice } from './update-check'
@@ -263,6 +264,26 @@ program
       runDiagnostics(rootOf(opts), {
         ...(opts.purge !== undefined ? { purge: opts.purge } : {}),
         ...(opts.signals !== undefined ? { signals: opts.signals } : {}),
+        ...(opts.json !== undefined ? { json: opts.json } : {}),
+      }),
+    )
+  })
+
+program
+  .command('tune [slug]')
+  .description(
+    'detect well-supported failure patterns in the record and the private diagnostics store, citing event ids and row hashes; prints UNKNOWN for every signal this clone cannot observe. Detection only — nothing is proposed or applied',
+  )
+  .option('--dry-run', 'REQUIRED: the only mode that exists — read, detect, report')
+  .option('--all', 'every initiative under .sofar/initiatives/ (default: the resolved one)')
+  .option('--json', 'machine-readable report (version-stamped, deterministic for the same inputs)')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action((slug: string | undefined, opts: { dryRun?: boolean; all?: boolean; json?: boolean; root?: string }) => {
+    emit(
+      runTune(rootOf(opts), {
+        ...(slug !== undefined ? { slug } : {}),
+        ...(opts.dryRun !== undefined ? { dryRun: opts.dryRun } : {}),
+        ...(opts.all !== undefined ? { all: opts.all } : {}),
         ...(opts.json !== undefined ? { json: opts.json } : {}),
       }),
     )
