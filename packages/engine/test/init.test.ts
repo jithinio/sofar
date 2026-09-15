@@ -15,12 +15,14 @@ import { afterAll, describe, expect, it } from 'vitest'
 import {
   AGENTS_PROTOCOL_BLOCK,
   AGENTS_PROTOCOL_BLOCK_V3,
+  AGENTS_PROTOCOL_BLOCK_V4,
   classifyProtocolBlock,
   GITATTRIBUTES_LINE,
   hookCommand,
   PROTOCOL_BLOCK,
   PROTOCOL_BLOCK_V1,
   PROTOCOL_BLOCK_V4,
+  PROTOCOL_BLOCK_V5,
   PROTOCOL_START,
   PROTOCOL_END,
   REPO_MD_STUB,
@@ -661,7 +663,7 @@ describe('re-homing instruction (session-orientation 1.1)', () => {
   it('reports the previous block as stale rather than customized', () => {
     const root = freshRepo()
     runInit(root) // full wiring, so the only finding under test is the block
-    writeFileSync(join(root, 'CLAUDE.md'), PROTOCOL_BLOCK_V4, 'utf8')
+    writeFileSync(join(root, 'CLAUDE.md'), PROTOCOL_BLOCK_V5, 'utf8')
     const r = runDoctor(root)
     expect(r.stdout).toContain('CLAUDE.md protocol block is from an older sofar')
     expect(r.stdout).toContain('run `sofar init` to refresh it')
@@ -670,8 +672,8 @@ describe('re-homing instruction (session-orientation 1.1)', () => {
 
   it('refreshes a repo sitting on the immediately-previous block', () => {
     const root = freshRepo()
-    writeFileSync(join(root, 'CLAUDE.md'), `# My repo\n\nMy own notes.\n\n${PROTOCOL_BLOCK_V4}`, 'utf8')
-    writeFileSync(join(root, 'AGENTS.md'), AGENTS_PROTOCOL_BLOCK_V3, 'utf8')
+    writeFileSync(join(root, 'CLAUDE.md'), `# My repo\n\nMy own notes.\n\n${PROTOCOL_BLOCK_V5}`, 'utf8')
+    writeFileSync(join(root, 'AGENTS.md'), AGENTS_PROTOCOL_BLOCK_V4, 'utf8')
     const result = runInit(root)
     expect(result.stdout).toContain('updated CLAUDE.md (protocol block refreshed)')
     expect(result.stdout).toContain('updated AGENTS.md (protocol block refreshed)')
@@ -679,6 +681,7 @@ describe('re-homing instruction (session-orientation 1.1)', () => {
     const claude = readFileSync(join(root, 'CLAUDE.md'), 'utf8')
     expect(claude.startsWith('# My repo\n\nMy own notes.\n\n')).toBe(true)
     expect(claude).toContain('- RE-HOME the moment')
+    expect(claude).toContain('sofar drive <slug> --detach')
     expect(claude.split(PROTOCOL_START).length - 1).toBe(1)
     expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe(AGENTS_PROTOCOL_BLOCK)
   })

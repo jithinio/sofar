@@ -54,6 +54,14 @@ Session loop (every write is one `sofar event append` call):
   it is diagnosed, a convention every later session needs is NOT a decision.
   Promote it the moment you learn it with `sofar remember "<fact>"`, or it
   lives only in your own context and dies with the session.
+- DRIVING: when the operator asks for the work to run under sofar drive
+  ("run this in sofar drive"), write back FIRST (the session_ended append
+  below) — the run's first session resumes from your next_action — then
+  start it with `sofar drive <slug> --detach`, adding `--allow` for what
+  proving a task needs (the test command) and `--session-timeout`. Relay
+  what it prints: the run id, every warning, how to stop it. Do not append
+  to that record again while the run goes. `sofar drive <slug> --stop`
+  ends it. A sandbox with no network cannot host a run.
 - BEFORE FINISHING (MANDATORY): write back —
   `sofar event append <slug> --type session_ended --session <session-id> --source <tool> --payload '{"summary":"<what happened>","next_action":"<single next step>"}'`
   A session that skips this abandons its state and the next session starts blind.

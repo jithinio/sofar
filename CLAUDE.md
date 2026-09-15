@@ -102,6 +102,13 @@ Session loop:
   diagnosed, a convention every later session needs. Promote it with
   `sofar_remember` the moment you learn it, or it lives only in your own
   context and dies with the session.
+- DRIVING: when the operator asks for the work to run under sofar drive
+  ("run this in sofar drive"), write back FIRST with `sofar_end_session`
+  — the run's first session resumes from your next action — then start it
+  with `sofar drive <slug> --detach`, adding `--allow` for what proving
+  a task needs (the test command) and `--session-timeout`. Relay what it
+  prints: the run id, every warning, how to stop it. Do not write to that
+  record again while the run goes. `sofar drive <slug> --stop` ends it.
 - BEFORE FINISHING: write back with `sofar_end_session` (summary +
   next action). The Stop hook blocks sessions that skip this.
 - ORDER MATTERS: write back BEFORE the final commit, then commit code and
