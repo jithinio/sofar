@@ -4,12 +4,12 @@
 
 Goal: Move sofar's hot path to a native Rust core incrementally (rust-core D1): contract first, then sofar-core in Rust behind the same CLI and hook contract, integrated with TypeScript fallback, shipped as prebuilt binaries, and proven as its own benchmark arm that shrinks no held-out lead margin (bench-refresh D19). After parity, new hot-path code is Rust-only.
 
-Progress: 0/15 tasks done (0%)
+Progress: 1/15 tasks done (6%)
 
-## Phase 1 — Contract [active] — 0/3 done
+## Phase 1 — Contract [active] — 1/3 done
 
-- [ ] 1.1 Inventory the hot-path surface from docs/SPEC.md and engine code: every hook's stdin/stdout/exit behaviour, CLI commands in scope (event append, status, statusline), env vars, files written, event envelope and projection outputs. List every SPEC gap found.
-- [ ] 1.2 Black-box conformance suite in the TS repo: runs an implementation binary against golden fixtures (real records including this repo's 9.7 MB log, calib and smoke cells, corrupt and unknown lines, concurrent appends) and compares stdout, exit codes and record bytes. Green on TypeScript first.
+- [x] 1.1 Inventory the hot-path surface from docs/SPEC.md and engine code: every hook's stdin/stdout/exit behaviour, CLI commands in scope (event append, status, statusline), env vars, files written, event envelope and projection outputs. List every SPEC gap found.
+- [ ] 1.2 Black-box conformance suite in the TS repo: runs an implementation binary against golden fixtures (real records including this repo's 9.7 MB log, calib and smoke cells, corrupt and unknown lines, concurrent appends) and compares stdout, exit codes and record bytes. Green on TypeScript first. (active)
 - [ ] 1.3 Perf baseline harness: hook p50/p95 cold start and fold/digest latency at 10, 100 and 1,000 initiatives and 1–10 MB records, TypeScript numbers recorded as the target to beat
 
 ## Phase 2 — Rust core [pending] — 0/6 done
@@ -34,4 +34,4 @@ Progress: 0/15 tasks done (0%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: In ~/IO/sofar-rust-core: rust-core 1.1 inventory hot-path surface from SPEC and engine
+Next action: Get the run owner's rulings on docs/HOTPATH.md §Open decisions O1–O6 (collation, update spawn, identity spawn, styled status, commit-trailer scope, SOFAR_NOW), then build the 1.2 black-box conformance suite in packages/engine/test against the built CLI.
