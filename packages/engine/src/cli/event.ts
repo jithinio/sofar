@@ -1,7 +1,14 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import type { Command } from 'commander'
-import { isClosedInitiativeStatus, type GuardDomain } from '@sofar/schema'
+import {
+  EVENT_TYPE_REFERENCE,
+  EVENT_TYPES,
+  isClosedInitiativeStatus,
+  isKnownEventType,
+  type GuardDomain,
+  type KnownEventType,
+} from '@sofar/schema'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
 import { crossConflictsFromOpenSessions, type CrossFileConflict } from '../core/cross-conflicts'
 import {
@@ -41,6 +48,7 @@ import {
   initiativeSlugs,
   registrationIn,
   resolveSessionFirst,
+  toSource,
   ToolError,
   type ResolvedVia,
   type ToolContext,
@@ -1744,7 +1752,7 @@ export interface AppendArgs {
   payload: string
   /** Envelope session id (dialect callers reuse one id all session). */
   session: string
-  /** Envelope source — must name a SOURCES member. */
+  /** Agent name; recorded as the envelope source when it names a SOURCES member, else `cli`. */
   source: string
   /** Envelope actor — must name an ACTORS member. */
   actor: string
@@ -1765,9 +1773,16 @@ export interface AppendArgs {
  */
 export function runAppend(rootDir: string, args: AppendArgs): HookResult {
   try {
-    if (!(SOURCES as readonly string[]).includes(args.source)) {
-      throw new ToolError('invalid_input', `--source must be one of: ${SOURCES.join('|')}`)
-    }
+    // Any --source is accepted (r1-fixes 1.3). Refusing names outside SOURCES
+    // cost every agent not on that list a failed append and a retry — Cursor
+    // first of all, told by the protocol block to put its own name there. The
+    // name is NOT written into the envelope, though: SOURCES is part of
+    // envelope v1 validation, and a log line whose source an older engine does
+    // not know is skipped by that engine's fold as corrupt. So an unknown name
+    // records as `cli` — the mapping sofar_start_session has always applied
+    // (toSource) — and the tool's own name survives in session_started's
+    // `tool`, which is where every reader already looks for it.
+    const source: Source = toSource(args.source)
     if (!(ACTORS as readonly string[]).includes(args.actor)) {
       throw new ToolError('invalid_input', `--actor must be one of: ${ACTORS.join('|')}`)
     }
@@ -1797,7 +1812,7 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
     // call changed nothing so the agent does not retry.
     if (args.type === 'session_started' && args.session !== 'cli') {
       const appended = ctx.registerSession(slug, args.session, payload, {
-        source: args.source as Source,
+        source,
         actor: args.actor as Actor,
       })
       const body =
@@ -1814,7 +1829,7 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
     // any write — invalid type/payload throws here with zero appends.
     const event = ctx.appendAndProject(slug, args.type, payload, {
       session: args.session,
-      source: args.source as Source,
+      source,
       actor: args.actor as Actor,
     })
     return { exitCode: 0, stdout: `${JSON.stringify({ ok: true, event_id: event.id })}\n`, stderr: '' }
@@ -1825,6 +1840,65 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
         : { code: 'io_error', message: err instanceof Error ? err.message : String(err) }
     return { exitCode: 1, stdout: '', stderr: `${JSON.stringify(shape)}\n` }
   }
+}
+
+// ---------------------------------------------------------------------------
+// `sofar event types` — the payload reference for the CLI dialect (r1-fixes 1.3).
+// ---------------------------------------------------------------------------
+
+/**
+ * Print EVENT_TYPE_REFERENCE (packages/schema) — every payload shape an
+ * MCP-less agent can append, with a validating example, grouped by who
+ * writes it. The protocol block names five payloads inline and points here
+ * for the rest, which is what keeps the block (paid every session) short
+ * while the reference (paid when needed) is complete.
+ *
+ * Byte-plain (cli-ui D1): the reader is an agent. With a type it prints that
+ * one entry; `--json` prints the reference itself. An unknown type exits 1
+ * with the typed-error JSON, like `append`, naming the known types.
+ */
+export function runEventTypes(type?: string, opts: { json?: boolean } = {}): HookResult {
+  if (type !== undefined && !isKnownEventType(type)) {
+    const err = new ToolError('unknown_event', `unknown event type: ${type}`, [
+      `known types: ${EVENT_TYPES.join(', ')}`,
+    ])
+    return { exitCode: 1, stdout: '', stderr: `${JSON.stringify(err.toShape())}\n` }
+  }
+  if (opts.json === true) {
+    const body = type !== undefined ? { [type]: EVENT_TYPE_REFERENCE[type] } : EVENT_TYPE_REFERENCE
+    return { exitCode: 0, stdout: `${JSON.stringify(body, null, 2)}\n`, stderr: '' }
+  }
+  const detail = (t: KnownEventType): string[] => {
+    const ref = EVENT_TYPE_REFERENCE[t]
+    return [
+      `${t} — ${ref.summary}`,
+      `  fields:  ${ref.fields}`,
+      ...(ref.writer === 'command' || ref.writer === 'agent'
+        ? ref.via !== undefined
+          ? [`  ${ref.writer === 'command' ? 'use:     ' : 'note:    '}${ref.via}`]
+          : []
+        : [`  written by the ${ref.writer === 'hook' ? 'hooks' : 'sofar drive'} — never append it yourself`]),
+      `  example: --payload '${JSON.stringify(ref.example)}'`,
+    ]
+  }
+  if (type !== undefined) return { exitCode: 0, stdout: `${detail(type).join('\n')}\n`, stderr: '' }
+
+  const of = (writer: string): KnownEventType[] =>
+    EVENT_TYPES.filter((t) => EVENT_TYPE_REFERENCE[t].writer === writer)
+  const lines = [
+    "Payloads for: sofar event append <slug> --type <type> --session <id> --source <tool> --payload '<json>'",
+    'Grammar: name = required, name? = optional, a|b = one of. Single-quote the JSON.',
+    '',
+    'APPEND THESE YOURSELF',
+    ...of('agent').flatMap((t) => [...detail(t), '']),
+    'APPENDED BY A COMMAND — run the command instead (`sofar event types <type>` for fields)',
+    ...of('command').map((t) => `  ${t} → ${EVENT_TYPE_REFERENCE[t].via ?? ''}`),
+    '',
+    'WRITTEN FOR YOU — never append',
+    `  hooks: ${of('hook').join(', ')}`,
+    `  sofar drive: ${of('driver').join(', ')}`,
+  ]
+  return { exitCode: 0, stdout: `${lines.join('\n')}\n`, stderr: '' }
 }
 
 // ---------------------------------------------------------------------------
@@ -1906,7 +1980,7 @@ export function registerEventCommand(program: Command): void {
     .requiredOption('--type <event_type>', 'event type (SPEC §Event types)')
     .requiredOption('--payload <json>', 'event payload as a JSON object string')
     .option('--session <id>', 'session id recorded on the envelope (reuse one id all session)', 'cli')
-    .option('--source <source>', `envelope source: ${SOURCES.join('|')}`, 'cli')
+    .option('--source <tool>', `your agent's name (any; recorded as the envelope source when one of ${SOURCES.join('|')}, else cli)`, 'cli')
     .option('--actor <actor>', `envelope actor: ${ACTORS.join('|')}`, 'agent')
     .option('--root <dir>', 'repo root containing .sofar/ (default: current directory)')
     .action(
@@ -1926,6 +2000,16 @@ export function registerEventCommand(program: Command): void {
         )
       },
     )
+
+  event
+    .command('types [type]')
+    .description(
+      'payload reference for `event append`: every event type, its fields, a validating example, and who writes it',
+    )
+    .option('--json', 'print the reference as JSON')
+    .action((type: string | undefined, opts: { json?: boolean }) => {
+      mirror(runEventTypes(type, opts))
+    })
 
   for (const { name, description, handler } of SUBCOMMANDS) {
     event

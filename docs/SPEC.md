@@ -116,6 +116,13 @@ keeps its bytes in place and only fresh serializations (push wire,
 export, pull appends) carry the sorted form. Pull writes the canonical
 form of the PARSED event, never raw wire bytes — a non-canonical server
 can never poison a local log.
+Mixed-version rule for `source` (r1-fixes 1.3): the enum is CLOSED, because
+every reader validates it and an older engine's fold skips an envelope whose
+source it does not know as corrupt. Writers therefore never widen it
+per-caller: an agent name outside the enum is recorded as `cli`, and the
+tool's identity travels in session_started's `tool`. Adding a member is an
+envelope change that needs its own Decision and a release every reader of
+a shared record has already taken.
 `user` (team-readiness T1, Jul 12) is OPTIONAL author identity: stamped when
 the event is minted, from `git config user.email`, and omitted whenever that
 is unavailable — the identity lookup must NEVER fail an append. Strictly
@@ -2481,7 +2488,16 @@ Shims contain no logic — they invoke the sofar CLI.
   MUST include: (a) all work state lives in sofar records — never in tool
   memory or scratch files; (b) work matching no existing initiative requires
   creating one (sofar new) before proceeding; (c) bindings resolve which
-  record a session serves. [Field finding, Jul 4: singular-record protocol
+  record a session serves. The AGENTS.md block additionally carries
+  (r1-fixes 1.3): `sofar new <slug> --goal` with ONE initiative per project
+  or roadmap (features and roadmap items are its phases and tasks); a PLAN
+  step with a plan_updated example and the full-replace rule, before the
+  first edit; phase_status_changed beside task_status_changed; `--source
+  <tool>` for any agent; and a pointer to `sofar event types` for every
+  other payload. Every payload the block shows is pinned by test to
+  validate (enum placeholders read as their first option). [Round-1
+  finding, Sep 15: Cursor named its initiative after one roadmap item with
+  no plan, and Codex discovered payload shapes by trial.] [Field finding, Jul 4: singular-record protocol
   caused a second initiative's state to leak into Claude Code native memory
   + a scratch dir — jurisdiction must be total, not per-file.]
   With `--statusline`, init also merges the rent-meter wiring
@@ -2768,14 +2784,30 @@ Shims contain no logic — they invoke the sofar CLI.
 - `sofar event <subcommand>` — append-side surface: session-start,
   post-tool, stop, session-end are internal subcommands for the hook shims;
   `event append --type <event_type> --payload <json-object> [--session <id>]
-  [--source <source>] [--actor <actor>] [slug]` is the convention-dialect
+  [--source <tool>] [--actor <actor>] [slug]` is the convention-dialect
   surface for MCP-less tools — validate payload, append ONE event,
   regenerate projections, print {ok, event_id} JSON; any failure exits 1
   with the typed-error JSON and appends nothing (added Phase 5, BD30; slug
   resolves like status). A `session_started` for a session (other than
   "cli") already registered in that record appends nothing and prints
   {ok: true, event_id: <the standing registration's id>, already_started:
-  true}; the payload is still validated first (r1-fixes 1.2).
+  true}; the payload is still validated first (r1-fixes 1.2). `--source`
+  takes ANY agent name (r1-fixes 1.3): a name in the envelope source enum
+  is recorded as itself, any other is recorded as `cli` — the same mapping
+  sofar_start_session applies to its `tool` — so the tool's own name lives
+  in session_started's `tool`, never in the envelope (see §Event envelope,
+  mixed-version rule). `--actor` stays validated.
+  `event types [type] [--json]` (r1-fixes 1.3) prints the payload reference
+  from packages/schema (EVENT_TYPE_REFERENCE): for every event type its
+  fields, a validating example as `--payload '<json>'`, and who writes it —
+  agent-written types in full; command-written ones (initiative_created,
+  initiative_status_changed, memory_promoted, run_stop_requested) as the
+  command to run instead; hook- and driver-written ones fenced as never to
+  be appended by hand. Byte-plain. One type prints that entry; `--json`
+  prints the reference object; an unknown type exits 1 with the
+  `unknown_event` typed-error JSON naming the known types. Every example is
+  pinned by test to pass validatePayload and to append through `event
+  append`.
 - `sofar statusline` (felt-cost 3.1/3.2, D4; identity segments D6; styling
   D7/D8) — the rent-meter, wired as Claude Code's statusLine command. Reads
   statusline JSON from stdin, prints ONE line: `<model> · <dir> ·
@@ -4005,3 +4037,20 @@ stay the underlying derivation's, and exit codes are styling-independent.
   still appends there. The lock runs its section unlocked after its wait or
   when it cannot be created, breaks a stale lock at once, releases on throw,
   and never deletes a lock it no longer owns.
+- **CLI dialect (r1-fixes 1.3):** EVENT_TYPE_REFERENCE has an entry for
+  every event type, every example validates and contains no single quote,
+  and every field a validator requires is named in `fields`. `sofar event
+  types` prints every agent-written type with an example that appends
+  through `event append` exit 0, lists command-written types with their
+  command, fences hook/driver types; one type, `--json` and an unknown type
+  (exit 1, `unknown_event`) behave as specified. `event append --source
+  cursor` exits 0 and records envelope source `cli` (a member of the 0.32.0
+  enum) with `tool: "cursor"` in the payload; a listed source records as
+  itself; an invalid actor is still refused. The AGENTS.md block names
+  `--goal`, one initiative per project or roadmap, plan_updated with the
+  full-replace rule, phase_status_changed and `sofar event types`; every
+  payload it shows validates; the shipped 0.32.0 block is in the ledger
+  (classified stale, refreshed by init, reported by doctor); following the
+  block end to end — new with a goal, start twice, plan, task and phase
+  status, write-back, as `--source cursor` — folds to the goal, both phases
+  with their statuses and one written-back session, with no warnings.

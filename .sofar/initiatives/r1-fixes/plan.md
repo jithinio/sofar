@@ -4,13 +4,13 @@
 
 Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
 
-Progress: 2/18 tasks done (11%)
+Progress: 3/19 tasks done (15%)
 
-## Phase 1 — Wave 1: correctness and quick wins [active] — 2/6 done
+## Phase 1 — Wave 1: correctness and quick wins [active] — 3/6 done
 
 - [x] 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split sessions.
 - [x] 1.2 Session registration race: make hook registration idempotent under parallel hooks (event.ts:713-715; Cursor fires hooks in parallel). PREDICT: 0 duplicate session_started in round-2 cursor cells.
-- [ ] 1.3 CLI agents: `sofar event types` payload reference; plan, phase and goal lines plus 'one initiative per project/roadmap' in the AGENTS block (init.ts:572-631); accept any --source (envelope.ts:17). PREDICT: Codex S1 −13 tool calls; Codex and Cursor make a project initiative WITH a plan in ≥2/3 reps.
+- [x] 1.3 CLI agents: `sofar event types` payload reference; plan, phase and goal lines plus 'one initiative per project/roadmap' in the AGENTS block (init.ts:572-631); accept any --source (envelope.ts:17). PREDICT: Codex S1 −13 tool calls; Codex and Cursor make a project initiative WITH a plan in ≥2/3 reps.
 - [ ] 1.4 Formatter defence: doctor check and fix for Biome (plus Prettier and markdownlint hazards); write .mcp.json in a formatter-friendly shape (init.ts:1118). PREDICT: agent edits to biome.json or .mcp.json reformatting 3/7 → 0.
 - [ ] 1.5 stdin/file input for `sofar remember` and `sofar event --payload`, quoted-heredoc examples, `remember --supersedes`. PREDICT: shell-mangling corrections → 0.
 - [ ] 1.6 Drive diagnostics: carry the adapter's stderr tail, failure or spawn error into the stall note (drive.ts:776, adapter exit record). PREDICT: every launch failure names its cause.
@@ -21,20 +21,22 @@ Progress: 2/18 tasks done (11%)
 - [ ] 2.2 Deduplicate the digest (rejected approaches vs decision `over` text; constraints vs rules), index-first ≤6k chars with details on demand. PREDICT: S2+ digest −25% chars, no C2/C3 loss.
 - [ ] 2.3 Cache-stable layout: static prefix first, no volatile values at the top, changing reminders late via UserPromptSubmit. PREDICT: cache-creation tokens per session −15%.
 - [ ] 2.4 Tool surface: trim descriptions (repeated `initiative` text in ~10 tools); review, close and find CLI-first. PREDICT: MCP schemas 14.8k → ≤8k chars.
-- [ ] 2.5 Automatic capture through hooks: commits (task-id prefix), test pass/fail, files, errors recorded deterministically from PostToolUse/Stop; the model logs only why. PREDICT: sofar MCP/CLI calls per session −40%.
+- [ ] 2.5 Automatic capture through hooks: commits (task-id prefix), test pass/fail, files, errors recorded deterministically from PostToolUse/Stop; the model logs only why. PREDICT: sofar MCP/CLI calls per session −40%. (blocked)
 - [ ] 2.6 Quick-work lane: ad-hoc fixes land in a standing per-repo maintenance record with no `sofar new`/plan ceremony, auto-captured by hooks, plus one line of why only when a decision was made; promote to an initiative when it grows. PREDICT: overhead ratio on 1–3 minute fixes ≤ 15% of task tokens with the fix recalled later.
 
 ## Phase 3 — Wave 3: new capabilities [pending] — 0/3 done
 
-- [ ] 3.1 Verification-gated drive: run the task's acceptance command before accepting task_done; failures go into the next handoff. PREDICT: drive final pass rate +5 pts over round-1 drive.
-- [ ] 3.2 Decision counters plus supersession/valid_until so stale decisions leave the digest without a model. PREDICT: C3 no worse at −10% digest.
+- [ ] 3.1 Verification-gated drive: run the task's acceptance command before accepting task_done; failures go into the next handoff. PREDICT: drive final pass rate +5 pts over round-1 drive. (blocked)
+- [ ] 3.2 Decision counters plus supersession/valid_until so stale decisions leave the digest without a model. PREDICT: C3 no worse at −10% digest. (blocked)
 - [ ] 3.3 Relevant-lessons injection: keyword/BM25 match of rejected approaches and past failures at UserPromptSubmit, no model. PREDICT: C3 +5 pts.
 
-## Phase 4 — Release [pending] — 0/3 done
+## Phase 4 — Release [pending] — 0/4 done
 
 - [ ] 4.1 Fold in round 1's own loss-study rows (bench-refresh 4.1) as added tasks, each with a predicted gain
-- [ ] 4.2 Release candidate: full test suite, SPEC acceptance criteria, then the run owner publishes to npm
-- [ ] 4.3 Hand the release to bench-refresh round 2, with the quick-work addendum chain frozen before it runs
+- [ ] 4.2 Release candidate: full test suite and SPEC acceptance criteria, published ONLY as a local pinned build or the npm `next` tag — no stable publish (bench-refresh D20)
+- [ ] 4.3 Hand the release candidate to bench-refresh round 2, with the quick-work addendum chain frozen before it runs; attribute overlapping predicted gains by ablation, never by summing them (bench-refresh D20)
+- [ ] 4.4 Stable npm publish by the run owner, only after round-2 evidence passes the D19 held-out lead-margin gate (bench-refresh D20)
 
 Active phase: Phase 1 — Wave 1: correctness and quick wins
-Next action: Start r1-fixes 1.3 (CLI agents: event types, AGENTS block plan lines, any --source)
+Next action: Start r1-fixes 1.4 (formatter defence: Biome/Prettier doctor check, formatter-friendly .mcp.json)
+Blocked on: task 2.5: Audit blocker (bench-refresh D20, relayed by peer sofar-05): auto commit capture conflicts with SPEC commit attribution (commits derived from git; git/sofar commands hook-exempt, record-hygiene D1) and overlaps self-improve 1.2. Define one shared outcome-capture schema and owner first.; task 3.1: Audit blocker (bench-refresh D20, relayed by peer sofar-05): needs a persisted, restart-safe verification contract that invalidates on changed inputs before it is built.; task 3.2: Audit blocker (bench-refresh D20, relayed by peer sofar-05): valid_until must not use wall clock in replay, and must never age out standing rules. Contract first.

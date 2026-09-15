@@ -23,7 +23,10 @@ the whole loop with the `sofar` CLI — no MCP support is required.
    files, ad-hoc notes, or a message from another session. If it is worth
    keeping, it goes in the record.
 2. Work that matches no existing initiative requires creating one first:
-   run `sofar new <slug>` before proceeding.
+   run `sofar new <slug> --goal "<one line>"` before proceeding, then
+   append its plan (PLAN below). One initiative per project or roadmap —
+   its features and roadmap items are phases and tasks inside it, never
+   initiatives of their own.
 3. Bindings (`.sofar/bindings.json`) resolve which record a session
    serves — the current git branch selects the initiative.
 
@@ -43,13 +46,19 @@ Session loop (every write is one `sofar event append` call):
   re-homing on this path. `sofar remember` takes the same record as
   `--initiative <slug>`, and follows the branch without it.
 - START: pick one unique session id, reuse it for every append this
-  session, and register it:
-  `sofar event append <slug> --type session_started --session <session-id> --source opencode --payload '{"tool":"opencode"}'`
-  (put your tool's name in --source and the payload).
+  session, and register it (repeating it is a harmless no-op):
+  `sofar event append <slug> --type session_started --session <session-id> --source <tool> --payload '{"tool":"<tool>"}'`
+  (<tool> is your agent's name — codex, cursor, opencode; any name works).
+- PLAN: a new initiative gets its plan before the first edit, and a plan
+  is replanned the same way when phases or tasks change. plan_updated is
+  a FULL replace — resend every phase and task, with statuses, each time:
+  `sofar event append <slug> --session <session-id> --source <tool> --type plan_updated --payload '{"plan":{"goal":"<goal>","phases":[{"name":"Phase 1 — <name>","status":"active","tasks":[{"id":"1.1","title":"<task>","status":"pending"}]}]}}'`
 - DURING: log work as it happens with `sofar event append <slug> --session <session-id> --source <tool>` plus:
-  task status:  `--type task_status_changed --payload '{"id":"<task-id>","status":"pending|active|done|blocked"}'`
+  task status:  `--type task_status_changed --payload '{"id":"<task-id>","status":"pending|active|done|blocked|dropped"}'`
+  phase status: `--type phase_status_changed --payload '{"phase":"<phase name as in the plan>","status":"active|done"}'`
   decisions:    `--type decision_logged --payload '{"chose":"...","over":"...","because":"..."}'`
   notes:        `--type note_added --payload '{"text":"..."}'`
+  Every other event type, its fields and who writes it: `sofar event types`.
 - DURING, for operational facts: a release command, a failure mode and how
   it is diagnosed, a convention every later session needs is NOT a decision.
   Promote it the moment you learn it with `sofar remember "<fact>"`, or it

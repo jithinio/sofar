@@ -708,6 +708,182 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
 }
 
 /**
+ * Who appends an event type — what a CLI-dialect agent writes by hand, and
+ * what it must leave alone (r1-fixes 1.3). `command` types have a CLI command
+ * that appends them with the bookkeeping done; `hook` and `driver` types are
+ * mechanical, and an agent appending one forges a fact it did not observe.
+ */
+export const EVENT_WRITERS = ['agent', 'command', 'hook', 'driver'] as const
+export type EventWriter = (typeof EVENT_WRITERS)[number]
+
+export interface EventTypeReference {
+  writer: EventWriter
+  /** The command that appends it (`command`), or what to run around it. */
+  via?: string
+  /** One line: what the event records. */
+  summary: string
+  /** Field grammar: `name` required, `name?` optional, `a|b` an enum, rules in parens. */
+  fields: string
+  /** A payload that VALIDATES — the suite pins every one against validatePayload. */
+  example: Obj
+}
+
+/**
+ * The payload reference `sofar event types` prints (r1-fixes 1.3).
+ *
+ * The AGENTS.md dialect showed payloads for five event types and left the
+ * rest to discovery, so MCP-less agents spent tool calls reading source or
+ * appending until validation stopped refusing — plan_updated, a nested full
+ * replace, most of all. It lives HERE because payload shapes live only in
+ * this package (CLAUDE.md guard-rails): a reference kept beside the engine
+ * would be a second copy of the schema, free to drift from the validators.
+ * Drift is still possible in `fields` prose, so enums interpolate the same
+ * constants the validators read, and every `example` is validated by test.
+ * Keyed by KnownEventType, so a new event type does not compile without one.
+ */
+export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = {
+  initiative_created: {
+    writer: 'command',
+    via: 'sofar new <slug> --goal "<one line>"',
+    summary: 'a new initiative and its goal — one per project or roadmap, not per feature',
+    fields: 'slug ([a-z0-9-]+), goal',
+    example: { slug: 'my-project', goal: 'Ship the booking flow' },
+  },
+  initiative_status_changed: {
+    writer: 'command',
+    via: 'sofar close [slug] [--drop --reason <why> | --superseded-by <slug>]; sofar switch <slug> reopens',
+    summary: 'the initiative closed or reopened',
+    fields: `status: ${INITIATIVE_STATUSES.join('|')}, note? (required for dropped), successor? (required for superseded, else rejected), overrides?: string[]`,
+    example: { status: 'done', note: 'all phases shipped' },
+  },
+  plan_updated: {
+    writer: 'agent',
+    summary: 'the WHOLE plan — a full replace: resend every phase and task each time, or the omitted ones vanish',
+    fields: `plan: {goal?, phases: [{name, status?: ${PHASE_STATUSES.join('|')}, tasks: [{id, title, status?: ${TASK_STATUSES.join('|')}, route?: {agent?, model?, effort?}}]}]}`,
+    example: {
+      plan: {
+        goal: 'Ship the booking flow',
+        phases: [
+          {
+            name: 'Phase 1 — Data model',
+            status: 'active',
+            tasks: [
+              { id: '1.1', title: 'Schema and migrations', status: 'active' },
+              { id: '1.2', title: 'Repository layer', status: 'pending' },
+            ],
+          },
+        ],
+      },
+    },
+  },
+  phase_status_changed: {
+    writer: 'agent',
+    summary: 'one phase changed status (name it exactly as in the plan)',
+    fields: `phase, status: ${PHASE_STATUSES.join('|')}, note? (say why when dropped)`,
+    example: { phase: 'Phase 1 — Data model', status: 'done' },
+  },
+  task_added: {
+    writer: 'agent',
+    summary: 'one task appended to an existing phase, without resending the plan',
+    fields: `phase, id, title, status?: ${TASK_STATUSES.join('|')}`,
+    example: { phase: 'Phase 1 — Data model', id: '1.3', title: 'Seed data', status: 'pending' },
+  },
+  task_status_changed: {
+    writer: 'agent',
+    summary: 'one task changed status',
+    fields: `id, status: ${TASK_STATUSES.join('|')}, note? (say why when blocked or dropped)`,
+    example: { id: '1.1', status: 'done' },
+  },
+  decision_logged: {
+    writer: 'agent',
+    summary: 'a design decision: what was chosen, over what, and why',
+    fields: 'chose, over, because, rule? (one imperative every later session must obey), guard? (path:<globs> or cmd:<globs>; only with rule)',
+    example: { chose: 'SQLite via better-sqlite3', over: 'Postgres', because: 'single-user local app, zero ops' },
+  },
+  session_started: {
+    writer: 'agent',
+    summary: 'register your session id — once; a repeat is a no-op',
+    fields: 'tool (your agent name), model?',
+    example: { tool: 'codex', model: 'gpt-5.6-sol' },
+  },
+  session_ended: {
+    writer: 'agent',
+    summary: 'the write-back the next session reads first — MANDATORY before finishing',
+    fields: 'summary, next_action (the single next step)',
+    example: { summary: 'Phase 1 done; tests pass', next_action: 'Start 2.1: booking API' },
+  },
+  session_closed: {
+    writer: 'hook',
+    summary: 'mechanical close from the SessionEnd hook',
+    fields: 'reason',
+    example: { reason: 'exit' },
+  },
+  file_touched: {
+    writer: 'hook',
+    summary: 'a file edit captured by the PostToolUse hook',
+    fields: 'path, op',
+    example: { path: 'src/app.ts', op: 'edit' },
+  },
+  command_run: {
+    writer: 'hook',
+    summary: 'a shell command captured by the PostToolUse hook',
+    fields: 'cmd',
+    example: { cmd: 'npm test' },
+  },
+  note_added: {
+    writer: 'agent',
+    summary: 'free-form context for later sessions (findings, measurements, caveats)',
+    fields: 'text',
+    example: { text: 'Hidden tests expect 422 on validation errors, not 400.' },
+  },
+  memory_promoted: {
+    writer: 'command',
+    via: 'sofar remember "<fact>" [--initiative <slug>]',
+    summary: 'an operational fact for repo memory (a release command, a failure mode) — not a decision',
+    fields: 'text',
+    example: { text: 'Run `bun test` from the repo root; per-package runs miss the setup file.' },
+  },
+  review_recorded: {
+    writer: 'agent',
+    via: 'sofar review [slug] prints the packet; append this after performing the review',
+    summary: 'a review that was actually performed',
+    fields: `scope: ${REVIEW_SCOPES.join('|')}, verdict: ${REVIEW_VERDICTS.join('|')}, watermark? (sha read through), phase?, findings?: string[] (required, non-empty, for findings)`,
+    example: { scope: 'phase', verdict: 'pass', phase: 'Phase 1 — Data model', watermark: 'abc1234' },
+  },
+  run_started: {
+    writer: 'driver',
+    summary: 'a sofar drive run began',
+    fields: `run, adapter, policy: ${RUN_POLICIES.join('|')}, threshold_pct? and context_window? (both required for threshold), max_sessions?, surface?`,
+    example: { run: '01J00000000000000000000000', adapter: 'codex', policy: 'task' },
+  },
+  handoff: {
+    writer: 'driver',
+    summary: 'a driven session ended and the next one starts',
+    fields: `run, session_id, reason: ${HANDOFF_REASONS.join('|')}, task?, tokens?`,
+    example: { run: '01J00000000000000000000000', session_id: 's1', reason: 'task_done', task: '1.1' },
+  },
+  run_stopped: {
+    writer: 'driver',
+    summary: 'a sofar drive run ended',
+    fields: `run, reason: ${RUN_STOP_REASONS.join('|')}, note? (required for error)`,
+    example: { run: '01J00000000000000000000000', reason: 'closed' },
+  },
+  run_stop_requested: {
+    writer: 'command',
+    via: 'sofar drive <slug> --stop',
+    summary: 'a request for a running drive to stop',
+    fields: 'run',
+    example: { run: '01J00000000000000000000000' },
+  },
+  correction: {
+    writer: 'agent',
+    summary: 'voids one earlier event by id (append the corrected event fresh after it)',
+    fields: 'ref (the bad event id), reason?',
+    example: { ref: '01J00000000000000000000000', reason: 'wrong task id' },
+  },
+}
+
+/**
  * Validate a payload against its event type's schema. Unknown types are
  * rejected here; the fold treats them as skip-with-warning, and the MCP
  * tools treat them as typed errors.
