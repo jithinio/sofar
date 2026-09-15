@@ -3954,3 +3954,25 @@ stay the underlying derivation's, and exit codes are styling-independent.
   and handed off `task_done` ($0.06); a `--stop` sent while session 2 was
   starting was acknowledged in 11s with the run `interrupted`, that launch
   unresolved (exit 143) and no process left behind.
+- **Rust core, contract (rust-core, Phase 1):** the hot-path surface is
+  pinned from OUTSIDE the process. docs/HOTPATH.md inventories every hook,
+  `event append`, `statusline` and `status` by argv, stdin, env, files,
+  subprocesses, stdout, stderr and exit code, names the JavaScript text
+  semantics the bytes depend on, and lists every gap between this document
+  and the code. A black-box conformance suite
+  (packages/engine/test/conformance) drives an implementation BINARY
+  through that surface and compares stdout, stderr, exit codes and the
+  bytes left under `.sofar/` against goldens recorded from the TypeScript
+  CLI built exactly as shipped: this repository's own 55-initiative record
+  frozen at a commit, four benchmark-cell records, and synthetic records
+  covering corrupt, torn, unknown and out-of-order lines, UTF-16 clip
+  edges, budget overflow, guarded decisions, closed, superseded, unbound
+  and absent records, and the argv grammar the fast path owns. Only
+  run-minted ulids and timestamps, the relative-age labels and scratch
+  paths are masked, each by shape; fixture bytes never are. Every
+  `events.jsonl` a case touches must still start with its fixture bytes
+  (append-only, never rewritten), and N processes appending through the
+  CLI at once leave every line intact and none lost. The suite is green on
+  the TypeScript engine, runs against any other implementation via
+  `SOFAR_CONFORMANCE_BIN`, and goldens are re-recorded only from the
+  TypeScript reference, never from a candidate.

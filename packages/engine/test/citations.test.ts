@@ -46,13 +46,14 @@ const TARGET_DOCS: Record<string, string> = {
   FORMAT: 'docs/FORMAT.md',
   CLAUDE: 'CLAUDE.md',
   'opencode-adapter': 'docs/opencode-adapter.md',
+  HOTPATH: 'docs/HOTPATH.md',
 }
 
 /** `SPEC §CLI`, `FORMAT.md §5.5`, `docs/opencode-adapter.md §3` — the handle names the document. */
 const HANDLE = new RegExp(`\\b(${Object.keys(TARGET_DOCS).join('|')})(?:\\.md)?\\b[^§]{0,4}$`, 'i')
 
 /** Hand-written files scanned for citations. */
-const SCAN_DOCS = ['docs/SPEC.md', 'docs/FORMAT.md', 'docs/opencode-adapter.md', 'CLAUDE.md']
+const SCAN_DOCS = ['docs/SPEC.md', 'docs/FORMAT.md', 'docs/opencode-adapter.md', 'docs/HOTPATH.md', 'CLAUDE.md']
 
 /** Source roots scanned for citations (comments). dist/ is generated — never scanned. */
 const SCAN_ROOTS = [
@@ -165,7 +166,13 @@ function citations(): { refs: Ref[]; unclosed: Ref[] } {
       // The handle sticks until another one appears: a wrapped comment writes
       // `SPEC §Record graph,` on one line and a bare `§Acceptance criteria` on
       // the next, and both mean SPEC.
-      let doc = file.endsWith('FORMAT.md') ? 'FORMAT' : file.endsWith('CLAUDE.md') ? 'CLAUDE' : 'SPEC'
+      let doc = file.endsWith('FORMAT.md')
+        ? 'FORMAT'
+        : file.endsWith('CLAUDE.md')
+          ? 'CLAUDE'
+          : file.endsWith('HOTPATH.md')
+            ? 'HOTPATH'
+            : 'SPEC'
       for (const m of line.matchAll(CITATION)) {
         const before = line.slice(0, m.index)
         if (EXTERNAL.test(before)) continue

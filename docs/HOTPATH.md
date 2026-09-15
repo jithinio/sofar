@@ -175,7 +175,7 @@ Logic, in order:
    domain `cmd`, subject = the REDACTED cmd; `exempt =
    isSelfRecordingCommand(RAW command)`. Any other tool or missing field →
    nudge-only output.
-4. Guard notice computed BEFORE the append (§Guards on the hot path).
+4. Guard notice computed BEFORE the append (guards paragraph in §Fold).
 5. Unless exempt: fold; if `session !== 'cli'` and not registered → append
    `session_started {tool: 'claude-code'}` with `{session, source: 'hook'}`
    (actor `agent`); then append the event. Each append regenerates
@@ -436,7 +436,7 @@ session's `unwritten`, else `unattributed_mutations`); `command_run` counts
 Guards (`recordGuardViolations`): for file_touched (domain path, subject
 path) / command_run (domain cmd, subject cmd), test every decision logged
 BEFORE this event that has both `rule` and `guard`; compiled specs cached;
-dedupe key `<decisionIndex> <session> <subject>`; cap 100.
+dedupe key `<decisionIndex> NUL <session> NUL <subject>` (U+0000 separators); cap 100.
 Grammar and matching: `packages/schema/src/guards.ts` (`path:` anchored
 `(?:^|/)<body>$`, trailing `/` → `/**`, `*` → `[^/]*`, `**/` → `(?:.*/)?`,
 `**` → `.*`, `?` → `[^/]`; `cmd:` unanchored, `*` → `.*`, `?` → `.`;
@@ -463,8 +463,8 @@ session}.ts` — short, port verbatim.
 ## Status block (`renderStatus`) and full status
 
 `renderStatus(state, opts)` is the SessionStart injection and the
-`get_state` digest; byte-stable for an unchanged record (SPEC §Architectural
-invariants). Section order: `# Sofar status: <slug>` · `Session: <id> —
+`get_state` digest; byte-stable for an unchanged record
+(SPEC §Architectural invariants). Section order: `# Sofar status: <slug>` · `Session: <id> —
 when calling sofar_start_session, pass this as session_id.` · `Git: <b> @
 <head> — <sync>` · `Goal:` · standing constraints · `Progress:` · `Active
 phase:` / `Current task:` (+ `  files: …`) / `Next task:` · `Next action:`
@@ -574,7 +574,7 @@ core must reproduce the JS semantics, NOT the Rust defaults:
   U+2000–U+200A, U+2028, U+2029, U+202F, U+205F, U+3000.
 - P3 Regex classes in `redact.ts`, `guards.ts`, `shellSegments`,
   `matchRecordedPaths`, the statusline model regex are JS NON-unicode mode:
-  `\b`/`\w` are ASCII, `.` excludes `\n \r    `, `i` flag uses
+  `\b`/`\w` are ASCII, `.` excludes `\n \r U+2028 U+2029`, `i` flag uses
   simple case folding.
 - P4 Sorting: `parsed.sort` by id and `compareCodePoints` are code-point
   order, BUT conflicts, cross-conflict holders, Tier 0 flattening, peers'
@@ -597,21 +597,21 @@ core must reproduce the JS semantics, NOT the Rust defaults:
 
 Found while inventorying; each needs either a SPEC edit or a Decision
 before rust-core 1.2 can pin it:
-- G1 §Derived index says `INDEX_SCHEMA_VERSION (4)`; the code writes 5.
-- G2 §Hooks names THREE different lines as "FIRST" on UserPromptSubmit
+- G1 SPEC §Derived index says `INDEX_SCHEMA_VERSION (4)`; the code writes 5.
+- G2 SPEC §Hooks names THREE different lines as "FIRST" on UserPromptSubmit
   (guard crossings "rendered first", the file-conflict line "FIRST, ahead
   of parallel-wrap", the engine-changed line "FIRST of all"). The code's
   actual order is §Per-command contract, user-prompt (guards, conflicts,
   peer, wrap, engine, landed, ping, push, nudge). SPEC must state one order.
-- G3 §Hooks, SessionStart: the preface composition order (recent-work,
+- G3 SPEC §Hooks, SessionStart: the preface composition order (recent-work,
   closed banner, cold-resume advisory, shipping notice, then the block) is
   only partially stated; the closed banner's position and the `\n\n` joiner
   are unspecified.
-- G4 §Hooks/§CLI never state that "chars" means UTF-16 code units (P1) nor
+- G4 SPEC §Hooks/§CLI never state that "chars" means UTF-16 code units (P1) nor
   any of P2–P9. SPEC §Event envelope's "exactly as JSON.stringify emits
   them" is the only text-semantics pin that exists.
 - G5 `sofar event append` failure output stream (stderr) is unspecified in
-  §CLI; success stream (stdout) is implied.
+  SPEC §CLI; success stream (stdout) is implied.
 - G6 SessionEnd's default `reason` (`unknown`) and the `""`-is-absent rule
   for every hook field are unspecified.
 - G7 Two `Date.now()` reads (recent-work labels, cold-resume advisory)
@@ -619,30 +619,42 @@ before rust-core 1.2 can pin it:
   BLOCK only. A conformance suite needs an injectable clock — no env var or
   flag exists for it.
 - G8 `makeEvent` spawns `git` on every appending hook process; SPEC
-  §Commit attribution's "no subprocess on the hot path" law names
+  SPEC §Commit attribution's "no subprocess on the hot path" law names
   core/git.ts and attribution, not identity. Either an exemption or a
   file-read implementation of `user.email` (with git's precedence) must be
   written down.
 - G9 The `file_touched.op` vocabulary (`edit`|`write`, MultiEdit → `edit`)
-  is not in §Event types.
+  is not in SPEC §Event types.
 - G10 The statusline's update-segment SIDE EFFECT (cache claim write +
-  detached `node cli.js` spawn) is described under §Update check but
-  §CLI's statusline entry calls it "a CACHE READ, never a network call" —
+  detached `node cli.js` spawn) is described under SPEC §Update check, but
+  SPEC §CLI's statusline entry calls it "a CACHE READ, never a network call" —
   true of the network, false of the write and spawn.
 - G11 `sofar status` styled output (`cli/ui/layout.ts`, `text.ts`) is
-  described in §CLI UI by rules, not bytes; there is no plain-vs-styled
+  described in SPEC §CLI UI by rules, not bytes; there is no plain-vs-styled
   parity anchor other than "plain is byte-identical to renderFullStatus".
 - G12 The fast-path argv grammar (which shapes `runFast` owns, `--root=`
   form, fall-through) exists only in code comments (speed-2 T1).
 - G13 `unboundNotice`'s text and its `≤10 slugs` cap are documented under
-  initiative-lifecycle in prose spread across §MCP tools; §Hooks does not
-  mention that SessionStart prints it.
+  initiative-lifecycle in prose spread across SPEC §MCP tools, and SPEC §Hooks
+  does not mention that SessionStart prints it.
 - G14 `homeInitiative`'s mtime-pruning rule (`mtimeMs >= Date.parse(ts)`,
   failures keep the log) is a correctness-affecting optimisation absent
   from SPEC §Hooks/§State.
 - G15 Peer registry file shape (`{sessionId, name, cwd, pid}`), the
   128-file scan cap, and `kill(pid, 0)` liveness are code-only
   (peer-messaging notes them as undocumented host behaviour).
+
+## Conformance suite (rust-core 1.2)
+
+`packages/engine/test/conformance` drives an implementation binary through
+everything above and compares it against goldens recorded from the built
+TypeScript CLI (README there: layout, masks, tags, re-recording). Cases are
+tagged with the open decisions their bytes depend on (`O2`, `O4`, `O5`) and
+with `full-cli` for argv shapes the fast path hands to commander, so a ruling
+flips a tag rather than rewriting a case. G7 is handled by masking (rust-core
+D4): run-minted ulids and timestamps and the relative-age labels are masked
+by shape, and goldens are recorded only after the fixture horizon (newest
+fixture event + the cold-resume gap) so time-gated lines cannot flip.
 
 ## Open decisions (for the run owner)
 
@@ -664,4 +676,6 @@ before rust-core 1.2 can pin it:
   and reuses `homeInitiative`) or explicitly out.
 - O6 Clock injection (G7): add a `SOFAR_NOW` override (test-only,
   documented) so 1.2 can compare session-start bytes exactly, or have the
-  suite mask the two time-dependent lines.
+  suite mask the two time-dependent lines. 1.2 shipped with masking
+  (rust-core D4, §Conformance suite); a `SOFAR_NOW` override remains
+  possible and would only shrink the mask list.
