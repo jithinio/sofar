@@ -261,40 +261,11 @@ ${PROTOCOL_END}
 `
 
 /**
- * The BD19 total-jurisdiction protocol block. Clauses (a)–(c) are contract
- * (SPEC §CLI): record-only state, \`sofar new\` before unmatched work,
- * bindings resolve the record — plus the read-orient/write-back loop.
- *
- * Clause 1 names messages from other sessions (peer-messaging 3.1). Claude
- * Code sessions can message each other, and such a message is text between
- * two live sessions — "never conversation history or files" — that collapses
- * to a one-line row and dies with the session that heard it. Transport, never
- * storage: a finding that arrives that way is work state entering through a
- * channel the record cannot see, which is the first genuine hole in total
- * jurisdiction. Naming the channel is the whole fix, because the clause's
- * existing instruction already says what to do about it.
- *
- * START names RE-HOMING (session-orientation 1.1). The mechanism has always
- * been there — an explicit \`initiative\` on \`sofar_start_session\` beats the
- * branch (start-session.ts) and every surface follows the session's home
- * (resolveSessionFirst) — but nothing TOLD an agent to use it, so an agent
- * whose work moved to another record adopted the branch's initiative and
- * stayed mis-homed for its whole life. Not a cosmetic miss: \`sofar_end_session\`
- * is the ONE write tool that takes no \`initiative\`, so a mis-homed session
- * can route every decision correctly by hand and still file its write-back —
- * the event the next session reads first — in the wrong record.
- *
- * The rule of thumb is the load-bearing half: an \`initiative\` arg routes ONE
- * write, re-homing moves the SESSION. Without it the natural reading is that
- * per-call targeting is sufficient, which is exactly the failure.
- *
- * DRIVING (in-session-drive 2.4, D1) is how an operator's "run this in sofar
- * drive" becomes a run: every agent has a shell, none outlives an unattended
- * run, so the clause names --detach. The write-back comes FIRST because a
- * write-back filed after the run starts becomes the next action a driven
- * session resumes from; --detach refuses the other order when it can see it.
+ * The block before r1-fixes 2.1 (D10): every task change went through
+ * sofar_update_task and the write-back carried none; the START line did not
+ * yet name the next D/M ids the digest now ends with.
  */
-export const PROTOCOL_BLOCK = `${PROTOCOL_START}
+export const PROTOCOL_BLOCK_V6 = `${PROTOCOL_START}
 ## Sofar protocol (jurisdiction is total)
 
 This repo's work memory lives in sofar records under \`.sofar/\`.
@@ -345,6 +316,94 @@ Session loop:
 ${PROTOCOL_END}
 `
 
+/**
+ * The BD19 total-jurisdiction protocol block. Clauses (a)–(c) are contract
+ * (SPEC §CLI): record-only state, \`sofar new\` before unmatched work,
+ * bindings resolve the record — plus the read-orient/write-back loop.
+ *
+ * Clause 1 names messages from other sessions (peer-messaging 3.1). Claude
+ * Code sessions can message each other, and such a message is text between
+ * two live sessions — "never conversation history or files" — that collapses
+ * to a one-line row and dies with the session that heard it. Transport, never
+ * storage: a finding that arrives that way is work state entering through a
+ * channel the record cannot see, which is the first genuine hole in total
+ * jurisdiction. Naming the channel is the whole fix, because the clause's
+ * existing instruction already says what to do about it.
+ *
+ * START names RE-HOMING (session-orientation 1.1). The mechanism has always
+ * been there — an explicit \`initiative\` on \`sofar_start_session\` beats the
+ * branch (start-session.ts) and every surface follows the session's home
+ * (resolveSessionFirst) — but nothing TOLD an agent to use it, so an agent
+ * whose work moved to another record adopted the branch's initiative and
+ * stayed mis-homed for its whole life. Not a cosmetic miss: \`sofar_end_session\`
+ * is the ONE write tool that takes no \`initiative\`, so a mis-homed session
+ * can route every decision correctly by hand and still file its write-back —
+ * the event the next session reads first — in the wrong record.
+ *
+ * The rule of thumb is the load-bearing half: an \`initiative\` arg routes ONE
+ * write, re-homing moves the SESSION. Without it the natural reading is that
+ * per-call targeting is sufficient, which is exactly the failure.
+ *
+ * DRIVING (in-session-drive 2.4, D1) is how an operator's "run this in sofar
+ * drive" becomes a run: every agent has a shell, none outlives an unattended
+ * run, so the clause names --detach. The write-back comes FIRST because a
+ * write-back filed after the run starts becomes the next action a driven
+ * session resumes from; --detach refuses the other order when it can see it.
+ */
+export const PROTOCOL_BLOCK = `${PROTOCOL_START}
+## Sofar protocol (jurisdiction is total)
+
+This repo's work memory lives in sofar records under \`.sofar/\`.
+1. ALL work state lives in sofar records — never in tool memory, scratch
+   files, ad-hoc notes, or a message from another session. If it is worth
+   keeping, it goes in the record.
+2. Work that matches no existing initiative requires creating one first:
+   run \`sofar new <slug>\` before proceeding.
+3. Bindings (\`.sofar/bindings.json\`) resolve which record a session
+   serves — the current git branch selects the initiative.
+
+Session loop:
+- START: the SessionStart hook has ALREADY injected the record above —
+  goal, progress, next action, decisions, rejected approaches, and the
+  next D/M ids (cite the decision you are about to log by that id). Do not
+  call \`sofar_get_state\` to re-read it: that digest is the same
+  projection rendered with fewer fields, so it can only tell you less.
+  Reach for it only when the injected block is missing or truncated, or
+  to read a DIFFERENT initiative.
+  Do still call \`sofar_start_session\`, passing the \`session_id\` from the
+  injected context line ("Session: <id> — …"). It is not bookkeeping: it
+  pins which record your writes land in — without it they follow the
+  branch binding, which moves mid-session — and attaches them to YOUR
+  session rather than minting a separate id that orphans the
+  hook-registered one.
+- RE-HOME the moment the work turns out to belong to a DIFFERENT record
+  than the one injected: call \`sofar_start_session\` again with that
+  \`initiative\` (plus the same \`session_id\`). Passing \`initiative\` to any
+  other tool routes ONE write; re-homing moves the SESSION. That
+  distinction is the whole point — \`sofar_end_session\` takes no
+  \`initiative\` and always follows the home, so a session that only ever
+  targets writes one at a time still files its write-back, the event the
+  next session reads first, in the wrong record.
+- DURING: log decisions (\`sofar_log_decision\`) as they happen, and task
+  status changes with \`sofar_update_task\` — or, when several land together
+  at wrap-up, in \`sofar_end_session\`'s \`tasks\`. An operational fact you learn is
+  NOT a decision — a release command, a failure mode and how it is
+  diagnosed, a convention every later session needs. Promote it with
+  \`sofar_remember\` the moment you learn it, or it lives only in your own
+  context and dies with the session.
+- DRIVING: when the operator asks for the work to run under sofar drive
+  ("run this in sofar drive"), write back FIRST with \`sofar_end_session\`
+  — the run's first session resumes from your next action — then start it
+  with \`sofar drive <slug> --detach\`, adding \`--allow\` for what proving
+  a task needs (the test command) and \`--session-timeout\`. Relay what it
+  prints: the run id, every warning, how to stop it. Do not write to that
+  record again while the run goes. \`sofar drive <slug> --stop\` ends it.
+- BEFORE FINISHING: write back with \`sofar_end_session\` (summary +
+  next action, plus any task status changes not yet logged, in \`tasks\`).
+  The Stop hook blocks sessions that skip this.
+${PROTOCOL_END}
+`
+
 /** Superseded CLAUDE.md blocks, oldest first. */
 export const SHIPPED_PROTOCOL_BLOCKS: readonly string[] = [
   PROTOCOL_BLOCK_V1,
@@ -352,6 +411,7 @@ export const SHIPPED_PROTOCOL_BLOCKS: readonly string[] = [
   PROTOCOL_BLOCK_V3,
   PROTOCOL_BLOCK_V4,
   PROTOCOL_BLOCK_V5,
+  PROTOCOL_BLOCK_V6,
 ]
 
 /**

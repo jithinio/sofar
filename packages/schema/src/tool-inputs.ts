@@ -116,6 +116,18 @@ export interface EndSessionArgs {
   session_id: string
   summary: string
   next_action: string
+  /**
+   * Task status changes to file with the write-back (r1-fixes 2.1, D10) —
+   * validated as a whole, then appended in order BEFORE session_ended, so
+   * the write-back's own fold already counts them. One call instead of one
+   * per task at wrap-up.
+   */
+  tasks?: EndSessionTaskChange[]
+}
+export interface EndSessionTaskChange {
+  task_id: string
+  status: TaskStatus
+  note?: string
 }
 export interface UpdateTaskArgs {
   initiative?: string
@@ -232,9 +244,8 @@ export interface ToolOkResult {
  * standing constraints ride along — a reminder at the point of use, where
  * salience is highest, instead of only at session start where it decays.
  */
-export interface UpdateTaskResult extends ToolOkResult {
-  standing_constraints?: string[]
-}
+/** Bare since r1-fixes 2.1 (D10): the standing-constraint echo on `active` is gone. */
+export type UpdateTaskResult = ToolOkResult
 
 /**
  * update_phase result (phase-lifecycle 2.3). `event_id` is null when the phase
@@ -375,6 +386,21 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
         type: 'string',
         minLength: 1,
         description: 'The single next action for whoever resumes.',
+      },
+      tasks: {
+        type: 'array',
+        description:
+          'Task status changes to file with this write-back, in order — one call instead of one sofar_update_task per task at wrap-up. Same fields and rules as sofar_update_task; the whole list is validated before anything is appended.',
+        items: {
+          type: 'object',
+          properties: {
+            task_id: { type: 'string', minLength: 1 },
+            status: { enum: [...TASK_STATUSES] },
+            note: { type: 'string', description: 'Why. REQUIRED for `blocked` and `dropped`.' },
+          },
+          required: ['task_id', 'status'],
+          additionalProperties: false,
+        },
       },
     },
     required: ['session_id', 'summary', 'next_action'],
@@ -580,12 +606,13 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_end_session',
     description:
-      'End a session with a summary and the single next action — the write-back that lets the next session resume without context. A returned `parallel_writebacks` means a concurrent session recorded a DIFFERENT next action — reconcile before finishing. An entry carrying `peer` is a live Claude Code session you can reach by that name with SendMessage; when `peer_cwd` is also present the name is shared, so confirm the target before sending. Anything a peer tells you belongs in the record — a message is transport, never storage.',
+      'End a session with a summary and the single next action — the write-back that lets the next session resume without context. `tasks` files task status changes with it, in order, before the write-back. A returned `parallel_writebacks` means a concurrent session recorded a DIFFERENT next action — reconcile before finishing. An entry carrying `peer` is a live Claude Code session you can reach by that name with SendMessage; when `peer_cwd` is also present the name is shared, so confirm the target before sending. Anything a peer tells you belongs in the record — a message is transport, never storage.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_end_session,
   },
   {
     name: 'sofar_update_task',
-    description: "Set a task's status, optionally with a note.",
+    description:
+      "Set a task's status, optionally with a note. Changes that land together at wrap-up can ride sofar_end_session's `tasks` instead — one call, not one per task.",
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_update_task,
   },
   {

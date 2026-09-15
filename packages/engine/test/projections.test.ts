@@ -596,6 +596,17 @@ describe('standing constraints — verbatim render contract (drift-hardening 2.1
     expect(renderFullStatus(populatedState())).not.toContain('Read-back:')
   })
 
+  it('names the next D/M ids just before the read-back — digest-only, absent on a record with neither (r1-fixes 2.1, D10)', () => {
+    const state = populatedState()
+    const status = renderStatus(state)
+    const line = `Next ids: D${state.decisions.length + 1} (decision), M${state.memories.length + 1} (memory)`
+    expect(status).toContain(line)
+    expect(status.indexOf('Next ids:')).toBeGreaterThan(status.indexOf('Recent decisions'))
+    expect(status.indexOf('Next ids:')).toBeLessThan(status.indexOf('Read-back:'))
+    expect(renderStatus(emptyState())).not.toContain('Next ids:')
+    expect(renderFullStatus(state)).not.toContain('Next ids:')
+  })
+
   it('decisions.md leads a ruled decision with its rule (2.2)', () => {
     const state = populatedState()
     state.decisions = [decision(1, 'Never do the thing.')]

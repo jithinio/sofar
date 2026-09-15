@@ -707,6 +707,15 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
     lines.push('')
   }
 
+  // Next handles (r1-fixes 2.1, D10): what the decision or memory this
+  // session is about to log will be called, so it can be cited in the same
+  // turn — no fold, no get_state, no `sofar find` to learn it. Digest-only,
+  // like the read-back line below, and only once the record has any: a fresh
+  // record's D1/M1 needs no line.
+  if (state.decisions.length > 0 || state.memories.length > 0) {
+    lines.push(`Next ids: D${state.decisions.length + 1} (decision), M${state.memories.length + 1} (memory)`, '')
+  }
+
   // Read-back protocol (drift-hardening 3.1): the LAST content line — the
   // final thing read before the session starts acting is the instruction to
   // prove it parsed the record. A misread restated out loud is drift caught

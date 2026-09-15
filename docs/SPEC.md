@@ -1705,6 +1705,18 @@ stays private and unpublished (D13: one stewarded npm name; the bare name
 also collides with a sofar-cloud-internal package).
 
 ## MCP tools (server name: sofar)
+
+**Server instructions (r1-fixes 2.1, D10).** The server declares MCP
+`instructions` at initialize — SERVER_INSTRUCTIONS in mcp/server.ts, which
+Claude Code renders into the agent's system prompt. Three sentences, under
+900 chars: the record is already injected by the SessionStart hook so
+sofar_get_state is not re-read; a client that defers tools loads the CORE
+five (start_session, update_task, log_decision, remember, end_session) in
+ONE ToolSearch `select:` call and the rest on demand; start_session comes
+first with the injected session id, decisions and facts are logged as they
+happen, task changes at wrap-up ride end_session's `tasks`, and every
+session ends with end_session. The protocol block carries the loop itself;
+instructions ride every initialize, so they stay short.
 - sofar_get_state({initiative?, view?}) → progressive disclosure (token-opt):
   view "digest" (DEFAULT) returns the summary-dense orientation projection as
   text (goal, active/next task, next action, phase summary, last-session
@@ -1736,7 +1748,12 @@ also collides with a sofar-cloud-internal package).
   reach for it only when the injected block is missing or truncated (both
   share STATUS_CHAR_LIMIT) or when reading a DIFFERENT initiative. This does
   NOT extend to sofar_start_session, which must still be called — see its
-  entry below. The AGENTS.md dialect keeps its orient-first step: MCP-less
+  entry below. The digest ends its decisions block with `Next ids: D<n+1>
+  (decision), M<m+1> (memory)` (r1-fixes 2.1, D10) — the handles the next
+  decision_logged and memory_promoted will get, so a session cites what it
+  is about to log without a fold, a get_state or a `sofar find`; digest-only
+  like the read-back line, and rendered only once the record holds a
+  decision or a memory (a fresh record's D1/M1 needs no line). The AGENTS.md dialect keeps its orient-first step: MCP-less
   tools have no hook injection for it to be redundant with.
 - sofar_start_session({initiative?, tool, model?, session_id?}) →
   {session_id} — session_id (from the SessionStart context "Session:" line)
@@ -1765,8 +1782,16 @@ also collides with a sofar-cloud-internal package).
   task changes from the session (sessions/<id>.md loses them; the Stop
   write-back linkage breaks). That is the record-integrity misroute class,
   and the side-index workaround for it is already rejected.
-- sofar_end_session({session_id, summary, next_action}) → {ok, event_id,
-  parallel_writebacks?, rebound?}  # the write-back. `rebound` names the
+- sofar_end_session({session_id, summary, next_action, tasks?}) → {ok,
+  event_id, tasks_applied?, parallel_writebacks?, rebound?}  # the write-back.
+  `tasks` (r1-fixes 2.1, D10) is an ordered list of {task_id, status, note?}
+  — sofar_update_task's fields and rules — validated AS A WHOLE before any
+  append (one bad entry files nothing, not the good ones and not the
+  write-back: `invalid_input` naming the entry), then appended in order under
+  the session BEFORE session_ended, so the fold the write-back is read by
+  already counts them (task_done needs both halves, session-driver D5).
+  `tasks_applied` is present iff `tasks` was passed; without it the result is
+  byte-identical to before. `rebound` names the
   branch binding this write-back moved ({branch, from, to}), omitted when
   none moved — the rebind contract and its four guards are stated with the
   session-before-branch precedence below (binding-follows-session D1,
@@ -1796,8 +1821,12 @@ also collides with a sofar-cloud-internal package).
   ParallelWriteback — who is reachable is a fact about live host processes,
   and folding it in would make one log fold differently on two machines.
 - sofar_update_task({initiative?, task_id, status, note?}) → ok
-  # status=active also returns standing_constraints (drift-hardening 4.1):
-  # the [D<n>]-tagged rules, resurfaced at the point of use
+  # bare {ok, event_id} on EVERY status (r1-fixes 2.1, D10). The
+  # standing-constraint echo on `active` (drift-hardening 4.1) is gone:
+  # it repeated the [D<n>] lines the session already holds from SessionStart,
+  # ~600 chars per activation, while the point-of-use GUARD (§Hooks) is the
+  # half that enforces. Changes landing at wrap-up ride sofar_end_session's
+  # `tasks` — one call, not one per task.
 - sofar_update_phase({initiative?, phase, status, note?})
   → {ok, event_id, tasks_done, tasks_total}   # phase-lifecycle D2, 2.2/2.3.
   Appends phase_status_changed. Phase status is WRITTEN, never derived from
@@ -3294,6 +3323,18 @@ stay the underlying derivation's, and exit codes are styling-independent.
   a handle naming no memory or an already-superseded one fails with no
   append; the MCP tool accepts the same field. The AGENTS.md block shows the
   heredoc form and `--supersedes`, and every payload it shows validates.
+- **Less bookkeeping (r1-fixes 2.1):** sofar_update_task answers bare
+  {ok, event_id} on `active` with a standing rule in the record;
+  sofar_end_session with `tasks` appends the changes in order under the
+  session before session_ended, returns `tasks_applied`, and folds to the
+  new statuses; one invalid entry appends nothing (log byte-identical,
+  `invalid_input`); without `tasks` the result shape is unchanged. The
+  digest carries `Next ids: D<n+1> (decision), M<m+1> (memory)` after the
+  decisions block and before the read-back, absent on an empty record and
+  on the terminal render. The server's initialize `instructions` equal
+  SERVER_INSTRUCTIONS, name the one-call core-tool load and the no-reread
+  rule, and stay under 900 chars; the CLAUDE.md block says task changes may
+  ride the write-back.
 - **Repo memory capture:** `sofar remember <text>` and `sofar_remember`
   append memory_promoted and report the `<slug> M<n>` handle; ordinals follow
   log order; `memory.md` appears only once something is promoted; empty text

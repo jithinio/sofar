@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { TOOL_INPUT_SCHEMAS, TOOL_NAMES, type ToolName } from '@sofar/schema/tool-inputs'
-import { createSofarServer, SERVER_NAME } from '../src/mcp/server'
+import { createSofarServer, CORE_TOOLS, SERVER_INSTRUCTIONS, SERVER_NAME } from '../src/mcp/server'
+import { PROTOCOL_BLOCK } from '../src/cli/init'
 import { foldLog, type InitiativeState } from '../src/core/fold'
 import { GENERATED_HEADER } from '../src/projections/templates/shared'
 import { handlePostTool } from '../src/cli/event'
@@ -135,7 +136,7 @@ describe('MCP tools round-trip (2.2)', () => {
     await client.close()
   })
 
-  it('update_task → active resurfaces standing constraints at the point of use (drift-hardening 4.1)', async () => {
+  it('update_task answers bare {ok, event_id} on every status — the constraint echo is gone (r1-fixes 2.1, D10)', async () => {
     const fixture = makeRepoFixture()
     const { client } = await connectServer(fixture.root)
     await callTool(client, 'sofar_start_session', { tool: 'claude-code' })
@@ -155,9 +156,10 @@ describe('MCP tools round-trip (2.2)', () => {
       { task_id: '1.1', status: 'active' },
     )
     expect(active.isError).toBe(false)
-    expect(active.body.standing_constraints).toEqual(['[D1] Never do the thing.'])
+    // The rule is still in the record (and the digest, and the guard hook);
+    // the response no longer repeats it.
+    expect(active.body).toEqual({ ok: true, event_id: expect.any(String) })
 
-    // only the point of USE gets the reminder — a completion does not
     const done = await callTool<{ ok: boolean; standing_constraints?: string[] }>(
       client,
       'sofar_update_task',
@@ -424,5 +426,92 @@ describe('get_state progressive disclosure — digest default vs view:full (toke
     expect(body.errors.join('\n')).toContain('view: must be one of')
     expect(existsSync(fixture.eventsPath)).toBe(false)
     await client.close()
+  })
+})
+
+describe('less bookkeeping (r1-fixes 2.1, D10)', () => {
+  it('end_session files `tasks` in order, under the session, before the write-back', async () => {
+    const fixture = makeRepoFixture()
+    const { client } = await connectServer(fixture.root)
+    const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', { tool: 'claude-code' })
+    const sid = started.body.session_id
+    await callTool(client, 'sofar_update_plan', {
+      plan: {
+        goal: 'g',
+        phases: [{ name: 'Phase 1', status: 'active', tasks: [{ id: '1.1', title: 'a' }, { id: '1.2', title: 'b' }] }],
+      },
+    })
+    const ended = await callTool<{ ok: boolean; event_id: string; tasks_applied?: number }>(client, 'sofar_end_session', {
+      session_id: sid,
+      summary: 'did two',
+      next_action: 'next',
+      tasks: [
+        { task_id: '1.1', status: 'active' },
+        { task_id: '1.1', status: 'done' },
+        { task_id: '1.2', status: 'blocked', note: 'waits on 1.3' },
+      ],
+    })
+    expect(ended.isError).toBe(false)
+    expect(ended.body.tasks_applied).toBe(3)
+
+    const lines = readFileSync(fixture.eventsPath, 'utf8')
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as { type: string; session: string; payload: Record<string, unknown> })
+    const tail = lines.slice(-4)
+    expect(tail.map((l) => l.type)).toEqual(['task_status_changed', 'task_status_changed', 'task_status_changed', 'session_ended'])
+    expect(tail.map((l) => l.session)).toEqual([sid, sid, sid, sid])
+    expect(tail[2]!.payload).toEqual({ id: '1.2', status: 'blocked', note: 'waits on 1.3' })
+    const state = foldLog(fixture.eventsPath).state
+    expect(state.phases[0]!.tasks.map((t) => [t.id, t.status])).toEqual([['1.1', 'done'], ['1.2', 'blocked']])
+    expect(state.sessions.find((s) => s.id === sid)?.summary).toBe('did two')
+    await client.close()
+  })
+
+  it('one bad `tasks` entry appends nothing — not the good ones, not the write-back', async () => {
+    const fixture = makeRepoFixture()
+    const { client } = await connectServer(fixture.root)
+    const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', { tool: 'claude-code' })
+    const before = readFileSync(fixture.eventsPath, 'utf8')
+    const ended = await callTool<{ code: string; message: string }>(client, 'sofar_end_session', {
+      session_id: started.body.session_id,
+      summary: 's',
+      next_action: 'n',
+      tasks: [
+        { task_id: '1.1', status: 'done' },
+        { task_id: '1.2', status: 'nope' },
+      ],
+    })
+    expect(ended.isError).toBe(true)
+    expect(ended.body.code).toBe('invalid_input')
+    expect(readFileSync(fixture.eventsPath, 'utf8')).toBe(before)
+
+    const bare = await callTool<{ ok: boolean; tasks_applied?: number }>(client, 'sofar_end_session', {
+      session_id: started.body.session_id,
+      summary: 's',
+      next_action: 'n',
+    })
+    expect(bare.isError).toBe(false)
+    expect(bare.body.tasks_applied).toBeUndefined() // shape unchanged when `tasks` is not passed
+    await client.close()
+  })
+
+  it('the server declares instructions: one ToolSearch for the core tools, no get_state re-read', async () => {
+    const fixture = makeRepoFixture()
+    const { client } = await connectServer(fixture.root)
+    const instructions = client.getInstructions()
+    expect(instructions).toBe(SERVER_INSTRUCTIONS)
+    expect(instructions).toContain('ONE ToolSearch')
+    expect(instructions).toContain(`select:${CORE_TOOLS.map((t) => `mcp__sofar__${t}`).join(',')}`)
+    expect(instructions).toContain('do not call sofar_get_state')
+    for (const tool of CORE_TOOLS) expect(TOOL_NAMES).toContain(tool)
+    expect(instructions!.length).toBeLessThan(900)
+    await client.close()
+  })
+
+  it('the CLAUDE.md block says task changes may ride the write-back and names the next ids', () => {
+    expect(PROTOCOL_BLOCK).toContain("in `sofar_end_session`'s `tasks`")
+    expect(PROTOCOL_BLOCK).toContain('plus any task status changes not yet logged, in `tasks`')
+    expect(PROTOCOL_BLOCK).toContain('next D/M ids')
   })
 })

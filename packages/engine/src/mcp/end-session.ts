@@ -1,10 +1,10 @@
-import { isClosedInitiativeStatus } from '@sofar/schema'
+import { isClosedInitiativeStatus, validatePayload } from '@sofar/schema'
 import type { EndSessionArgs, ToolOkResult } from '@sofar/schema/tool-inputs'
 import { readBindingsFile, writeBinding } from '../core/bindings'
 import { overlappingWritebacks, type ParallelWriteback } from '../core/fold'
 import { currentBranch } from '../core/git'
 import { resolvePeers } from '../core/peers'
-import { homeInitiative, type ToolContext } from './context'
+import { homeInitiative, ToolError, type ToolContext } from './context'
 
 /**
  * A colliding write-back, plus how to reach the session that wrote it
@@ -47,6 +47,8 @@ export interface EndSessionResult extends ToolOkResult {
   parallel_writebacks?: ParallelWritebackPeer[]
   /** The branch binding this write-back moved. Omitted when nothing moved. */
   rebound?: BranchRebound
+  /** How many `tasks` entries were filed ahead of the write-back; present iff `tasks` was passed. */
+  tasks_applied?: number
 }
 
 /**
@@ -190,6 +192,26 @@ export function endSession(ctx: ToolContext, args: EndSessionArgs): EndSessionRe
   const endsActive = active !== null && active.id === args.session_id
   const slug = endsActive ? active.initiative : resolveWriteBackHome(ctx, args.session_id)
 
+  // Batched task changes (r1-fixes 2.1, D10): the whole list is validated
+  // first so one bad entry appends nothing — a write-back is the last thing a
+  // session does, and a half-filed batch under it would be the worst place
+  // for a partial failure. Then applied in order, BEFORE session_ended, so the
+  // fold the write-back is read by already counts them (task_done needs both
+  // halves, session-driver D5).
+  const changes = (args.tasks ?? []).map((t) => ({
+    id: t.task_id,
+    status: t.status,
+    ...(t.note !== undefined ? { note: t.note } : {}),
+  }))
+  changes.forEach((payload, i) => {
+    const check = validatePayload('task_status_changed', payload)
+    if (!check.ok) {
+      throw new ToolError('invalid_input', `tasks[${i}] (${payload.id}): ${check.errors.join('; ')}`)
+    }
+  })
+  for (const payload of changes) ctx.appendAndProject(slug, 'task_status_changed', payload)
+  const applied = args.tasks !== undefined ? { tasks_applied: changes.length } : {}
+
   const event = ctx.appendAndProject(slug, 'session_ended', {
     session_id: args.session_id,
     summary: args.summary,
@@ -214,7 +236,7 @@ export function endSession(ctx: ToolContext, args: EndSessionArgs): EndSessionRe
   const bound = rebound === undefined ? {} : { rebound }
 
   const parallel = overlappingWritebacks(state, args.session_id)
-  if (parallel.length === 0) return { ok: true, event_id: event.id, ...bound }
+  if (parallel.length === 0) return { ok: true, event_id: event.id, ...applied, ...bound }
 
   // Reconciling used to mean leaving a note and hoping the other session read
   // it at its next orientation. Where the host knows the colliding session as
@@ -228,5 +250,5 @@ export function endSession(ctx: ToolContext, args: EndSessionArgs): EndSessionRe
     if (peer === undefined) return p
     return peer.ambiguous ? { ...p, peer: peer.name, peer_cwd: peer.cwd } : { ...p, peer: peer.name }
   })
-  return { ok: true, event_id: event.id, parallel_writebacks: withPeers, ...bound }
+  return { ok: true, event_id: event.id, ...applied, parallel_writebacks: withPeers, ...bound }
 }

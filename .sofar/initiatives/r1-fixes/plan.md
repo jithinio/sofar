@@ -4,7 +4,7 @@
 
 Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
 
-Progress: 6/19 tasks done (31%)
+Progress: 7/19 tasks done (36%)
 
 ## Phase 1 — Wave 1: correctness and quick wins [done] — 6/6 done
 
@@ -17,9 +17,9 @@ Progress: 6/19 tasks done (31%)
 - [x] 1.5 stdin/file input for `sofar remember` and `sofar event --payload`, quoted-heredoc examples, `remember --supersedes`. PREDICT: shell-mangling corrections → 0.
 - [x] 1.6 Drive diagnostics: carry the adapter's stderr tail, failure or spawn error into the stall note (drive.ts:776, adapter exit record). PREDICT: every launch failure names its cause.
 
-## Phase 2 — Wave 2: less bookkeeping, leaner context [active] — 0/6 done
+## Phase 2 — Wave 2: less bookkeeping, leaner context [active] — 1/6 done
 
-- [ ] 2.1 Next D/M ids in the digest; drop the standing-constraint echo from update_task responses; batch task updates into end_session; MCP server instructions to load core tools in one ToolSearch. PREDICT: sofar share of tool calls 32–38% → ≤20%, −3 to −5 turns per session.
+- [x] 2.1 Next D/M ids in the digest; drop the standing-constraint echo from update_task responses; batch task updates into end_session; MCP server instructions to load core tools in one ToolSearch. PREDICT: sofar share of tool calls 32–38% → ≤20%, −3 to −5 turns per session.
 - [ ] 2.2 Deduplicate the digest (rejected approaches vs decision `over` text; constraints vs rules), index-first ≤6k chars with details on demand. PREDICT: S2+ digest −25% chars, no C2/C3 loss.
 - [ ] 2.3 Cache-stable layout: static prefix first, no volatile values at the top, changing reminders late via UserPromptSubmit. PREDICT: cache-creation tokens per session −15%.
 - [ ] 2.4 Tool surface: trim descriptions (repeated `initiative` text in ~10 tools); review, close and find CLI-first. PREDICT: MCP schemas 14.8k → ≤8k chars.
@@ -40,5 +40,5 @@ Progress: 6/19 tasks done (31%)
 - [ ] 4.4 Stable npm publish by the run owner, only after round-2 evidence passes the D19 held-out lead-margin gate (bench-refresh D20)
 
 Active phase: Phase 2 — Wave 2: less bookkeeping, leaner context
-Next action: Commit 1.6, then start r1-fixes 2.1 (next D/M ids in the digest; drop the standing-constraint echo from update_task responses; batch task updates into end_session; server instructions) — read its full title in plan.md and state its predicted gain before building.
+Next action: Commit 2.1, then start r1-fixes 2.2 (deduplicate the digest: rejected approaches vs decision `over` text, constraints vs rules; index-first ≤6k chars with details on demand) — measure the current S2+ digest size first so the −25% prediction has a baseline.
 Blocked on: task 2.5: Blocked on self-improve 1.1/1.2 (self-improve D1, relayed by peer sofar-05). Outcome capture has one owner: self-improve 1.2 defines the outcome payload schema (packages/schema/src only) and a private local store that events.jsonl, git, export and sync never read. 2.5 consumes it and defines none of its own.; task 3.1: Audit blocker (bench-refresh D20, relayed by peer sofar-05): needs a persisted, restart-safe verification contract that invalidates on changed inputs before it is built.; task 3.2: Audit blocker (bench-refresh D20, relayed by peer sofar-05): valid_until must not use wall clock in replay, and must never age out standing rules. Contract first.

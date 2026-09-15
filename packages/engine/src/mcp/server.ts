@@ -47,6 +47,30 @@ export const SERVER_NAME = 'sofar'
 // manifest's version.
 export const SERVER_VERSION = version
 
+/** The five tools a session needs; the rest load on demand. */
+export const CORE_TOOLS = [
+  'sofar_start_session',
+  'sofar_update_task',
+  'sofar_log_decision',
+  'sofar_remember',
+  'sofar_end_session',
+] as const
+
+/**
+ * Server instructions (MCP initialize; r1-fixes 2.1, D10) — the client shows
+ * them in the agent's system prompt. Round 1 spent one ToolSearch per
+ * deferred tool and a get_state per session re-reading what the SessionStart
+ * hook had already injected; the three sentences below name the one-call
+ * load and the no-reread rule, and say where task changes may ride. Kept
+ * short on purpose: the protocol block carries the loop, and instructions
+ * ride every initialize.
+ */
+export const SERVER_INSTRUCTIONS = [
+  "sofar keeps this repo's work record. The SessionStart hook already injected it (goal, next action, decisions, rejected approaches, next D/M ids): do not call sofar_get_state to re-read it.",
+  `If these tools are deferred, load the core set in ONE ToolSearch call: "select:${CORE_TOOLS.map((t) => `mcp__sofar__${t}`).join(',')}". Load the others only when needed.`,
+  'Call sofar_start_session first, with the session_id from the injected "Session:" line. Log decisions and remembered facts as they happen; task status changes that land at wrap-up ride sofar_end_session\'s `tasks`. Always finish with sofar_end_session.',
+].join('\n')
+
 const handlers: { [K in ToolName]: (ctx: ToolContext, args: ToolArgs[K]) => unknown } = {
   sofar_get_state: getState,
   sofar_start_session: startSession,
@@ -98,7 +122,7 @@ export function createSofarServer(options: CreateSofarServerOptions = {}): Sofar
 
   const server = new Server(
     { name: SERVER_NAME, version: SERVER_VERSION },
-    { capabilities: { tools: {} } },
+    { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
   )
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
