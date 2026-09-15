@@ -126,6 +126,51 @@ export interface LaunchRequest {
   env?: Record<string, string>
 }
 
+/**
+ * The CALLING agent's session-scoped environment (in-session-drive D3): what a
+ * `sofar drive` started from inside an agent's shell would otherwise hand
+ * every session it launches. Measured on Claude Code 2.1.272 from inside a live
+ * session — a child `claude -p` resets its own session id, pid, socket,
+ * entrypoint and attended flag, but inherits the parent's bridge session (its
+ * remote conversation) and CLAUDE_EFFORT, an effort the run's surface never
+ * recorded (D8). The codex names were read from the 0.136.0 binary.
+ *
+ * A NAMED list, never a prefix strip: CLAUDE_CONFIG_DIR, the Bedrock/Vertex
+ * switches, ANTHROPIC_* and CODEX_HOME route the operator's own auth (D1). The
+ * list can fall behind an agent release, so the probe is in D3 to be rerun.
+ */
+export const CALLER_SESSION_ENV: readonly string[] = [
+  'CLAUDECODE',
+  'CLAUDE_CODE_SESSION_ID',
+  'CLAUDE_CODE_BRIDGE_SESSION_ID',
+  'CLAUDE_CODE_MESSAGING_SOCKET',
+  'CLAUDE_CODE_MESSAGING_TOKEN',
+  'CLAUDE_CODE_CHILD_SESSION',
+  'CLAUDE_CODE_SESSION_ATTENDED',
+  'CLAUDE_CODE_ENTRYPOINT',
+  'CLAUDE_CODE_EXECPATH',
+  'CLAUDE_PID',
+  'CLAUDE_EFFORT',
+  'CODEX_SANDBOX',
+  'CODEX_SANDBOX_NETWORK_DISABLED',
+  'CODEX_THREAD_ID',
+]
+
+/**
+ * A launched session's environment: the driver's own, minus the calling
+ * agent's session-scoped variables, plus whatever the request states. The
+ * request is applied LAST, so a driver or test that sets one of the listed
+ * names on purpose still gets it.
+ */
+export function launchEnv(
+  extra: Record<string, string> | undefined,
+  base: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...base }
+  for (const name of CALLER_SESSION_ENV) delete env[name]
+  return { ...env, ...extra }
+}
+
 /** Token accounting as the agent's transport reports it. */
 export interface Usage {
   /**

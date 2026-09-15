@@ -26,6 +26,7 @@ printf '%s\\n' "$@" > "$STUB_OUT/argv"
 pwd > "$STUB_OUT/cwd"
 printf '%s' "$${NUDGE_ENV}" > "$STUB_OUT/nudge"
 printf '%s' "$FOO" > "$STUB_OUT/foo"
+env > "$STUB_OUT/env"
 if [ -n "$STUB_STREAM" ]; then cat "$STUB_STREAM"; fi
 if [ -n "$STUB_STDERR" ]; then echo "$STUB_STDERR" >&2; fi
 if [ -n "$STUB_SLEEP" ]; then sleep "$STUB_SLEEP"; fi
@@ -145,6 +146,32 @@ describe('spawn', () => {
     const argv = readFileSync(join(c.out, 'argv'), 'utf8').split('\n')
     expect(argv[0]).toBe('-p')
     expect(argv).toContain('stream-json')
+  })
+
+  it("launches without the calling agent's session identity, keeping its auth routing (in-session-drive D3)", async () => {
+    const c = cell('caller-env')
+    const inherited = {
+      CLAUDECODE: '1',
+      CLAUDE_CODE_SESSION_ID: 'parent-session',
+      CLAUDE_CODE_BRIDGE_SESSION_ID: 'session_parent',
+      CLAUDE_EFFORT: 'xhigh',
+      CLAUDE_CONFIG_DIR: '/operator/claude',
+    }
+    const saved = Object.fromEntries(Object.keys(inherited).map((k) => [k, process.env[k]]))
+    Object.assign(process.env, inherited)
+    try {
+      await new ClaudeCodeAdapter().launch(c.request({ env: { STUB_STREAM: withStream(c, [init, result]) } })).wait()
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k]
+        else process.env[k] = v
+      }
+    }
+    const env = readFileSync(join(c.out, 'env'), 'utf8').split('\n')
+    for (const name of ['CLAUDECODE', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_BRIDGE_SESSION_ID', 'CLAUDE_EFFORT']) {
+      expect(env.some((line) => line.startsWith(`${name}=`))).toBe(false)
+    }
+    expect(env).toContain('CLAUDE_CONFIG_DIR=/operator/claude')
   })
 
   it('honours the bin option instead of PATH', async () => {

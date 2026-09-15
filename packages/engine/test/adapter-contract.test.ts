@@ -5,7 +5,13 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { foldLog } from '../src/core/fold'
 import { makeEvent } from '../src/core/envelope'
 import { appendEvent } from '../src/core/log'
-import { policyUnavailable, resolveLaunchedSession, wroteBack } from '../src/driver/adapter'
+import {
+  CALLER_SESSION_ENV,
+  launchEnv,
+  policyUnavailable,
+  resolveLaunchedSession,
+  wroteBack,
+} from '../src/driver/adapter'
 import { FakeAdapter, type FakeScript } from './helpers/fake-adapter'
 
 /**
@@ -48,6 +54,49 @@ function script(logPath: string, extra: Partial<FakeScript> = {}): FakeScript {
 const request = { cwd: '/tmp/nowhere', initiative: 'demo', prompt: 'do the next task', task: { id: '1.1', title: 'T' } }
 
 const ALL = { usage: true, nudge: true, model: true, effort: true, permission_rules: true, cost: true }
+
+describe('launchEnv (in-session-drive D3)', () => {
+  const caller = {
+    PATH: '/bin',
+    CLAUDECODE: '1',
+    CLAUDE_CODE_SESSION_ID: 'parent',
+    CLAUDE_CODE_BRIDGE_SESSION_ID: 'session_parent',
+    CLAUDE_EFFORT: 'xhigh',
+    CODEX_SANDBOX: 'seatbelt',
+    CODEX_SANDBOX_NETWORK_DISABLED: '1',
+    CODEX_THREAD_ID: 't1',
+    CLAUDE_CONFIG_DIR: '/operator/claude',
+    CLAUDE_CODE_USE_BEDROCK: '1',
+    ANTHROPIC_BASE_URL: 'https://proxy.example',
+    CODEX_HOME: '/operator/codex',
+  }
+
+  it("drops every listed session-scoped variable of the calling agent", () => {
+    const env = launchEnv(undefined, caller)
+    for (const name of CALLER_SESSION_ENV) expect(env[name]).toBeUndefined()
+    expect(env.PATH).toBe('/bin')
+  })
+
+  it("keeps the variables that route the operator's own auth and installation (D1)", () => {
+    const env = launchEnv(undefined, caller)
+    expect(env.CLAUDE_CONFIG_DIR).toBe('/operator/claude')
+    expect(env.CLAUDE_CODE_USE_BEDROCK).toBe('1')
+    expect(env.ANTHROPIC_BASE_URL).toBe('https://proxy.example')
+    expect(env.CODEX_HOME).toBe('/operator/codex')
+  })
+
+  it('applies the request env last, so a deliberate value survives', () => {
+    const env = launchEnv({ CLAUDE_EFFORT: 'low', FOO: 'bar' }, caller)
+    expect(env.CLAUDE_EFFORT).toBe('low')
+    expect(env.FOO).toBe('bar')
+  })
+
+  it('never mutates the environment it was given', () => {
+    const base = { ...caller }
+    launchEnv(undefined, base)
+    expect(base).toEqual(caller)
+  })
+})
 
 describe('policyUnavailable', () => {
   it('the task policy runs on every adapter', () => {

@@ -10,6 +10,7 @@ import type {
   SessionExit,
   Usage,
 } from './adapter'
+import { launchEnv } from './adapter'
 
 /**
  * The codex adapter (session-driver 3.1, D9): `codex exec --json`, one JSON
@@ -215,7 +216,8 @@ export class CodexSession implements AgentSession {
 
   constructor(request: LaunchRequest, options: CodexOptions) {
     this.sessionId = randomUUID()
-    const env: NodeJS.ProcessEnv = { ...process.env, ...request.env }
+    // Never the calling agent's session identity (in-session-drive D3).
+    const env = launchEnv(request.env)
 
     // stdin is closed at once, verified: with it piped, codex prints "Reading
     // additional input from stdin" and waits, even when a prompt was given on

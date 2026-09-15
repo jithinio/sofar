@@ -159,7 +159,8 @@ task_done|threshold|stall|needs_user, task?, tokens?) · run_stopped (run,
 reason: closed|needs_user|stall|cost_cap|max_sessions|interrupted|error,
 note? — REQUIRED for `error`; the three driver events ride on envelope
 session `cli`, since a run is not a session; session-driver 1.2, see
-§Driver) · correction (ref)
+§Driver) · run_stop_requested (run — an operator asking a driver to end its
+run from outside it; in-session-drive D2, see §Driver) · correction (ref)
 `watermark` is review_recorded's load-bearing field, not `verdict`: it is the
 sha the review read THROUGH, and it is what makes the next review's range
 computable. That is why a review is an event and could never have been a
@@ -873,9 +874,9 @@ the honest answer for a true first push.
 ## Driver (session-driver — the record is the queue)
 A RUN is one `sofar drive <initiative>` invocation: the driver launches the
 operator's own headless agent (§Architectural invariants, D1) one session
-after another, and the record is its ONLY state. Three events carry it, all
-on envelope session `cli` — a run is not a session and never registers as
-one, so it can never read as a misrouted session:
+after another, and the record is its ONLY state. Three events carry it, and a
+fourth asks it to end, all on envelope session `cli` — a run is not a session
+and never registers as one, so it can never read as a misrouted session:
 
 - `run_started` (run, adapter, policy, threshold_pct?, context_window?,
   max_sessions?, surface?) — the run id is a ulid the driver mints; every
@@ -883,6 +884,9 @@ one, so it can never read as a misrouted session:
 - `handoff` (run, session_id, reason, task?, tokens?) — one session
   boundary: which session ended and why the driver moved on.
 - `run_stopped` (run, reason, note?) — why the run itself ended.
+- `run_stop_requested` (run) — `sofar drive --stop` asking the driver of that
+  run to end it (in-session-drive D2). A request, never a stop: only the
+  driver writes `run_stopped`.
 
 **Policy (D2, D7).** `task`: one task per session, no context sensing needed
 — identical on every agent and model, and therefore the default.
@@ -1152,6 +1156,84 @@ REFUSES before `run_started`, never falls back to the default agent. Nothing
 new is recorded: the plan carries the hint, `session_started` carries the tool
 and model that actually ran, and a third copy would be the one that goes
 stale (D3).
+
+**Starting a run from inside a session (in-session-drive D1).** An operator
+talking to an agent — Claude Code, Cursor, Codex — says "run this in sofar
+drive", and the agent starts the run through its own shell with
+`sofar drive --detach`. Nothing else is portable: every one of those agents
+has a shell, none shares a process lifetime with an unattended run (a
+foreground tool call times out, a background one dies with the session, and
+an MCP server is the agent's own child), and codex carries no sofar MCP
+server at all.
+
+`--detach` re-spawns the same command as a detached process — its own
+process group and session, stdin closed, stdout and stderr to a log file in
+the OS temp dir — and keeps an IPC channel open ONLY until the child's run is
+certain to start: the moment the loop would print its opening lines. The
+caller then prints those lines — the run id, and every D9 warning — with the
+log path and the stop command, disconnects, and exits 0. A child that exits
+first (a preflight refusal) makes the caller print the log and exit 1, so a
+refusal reaches the agent that asked for the run rather than a file nobody
+reads; a child that neither starts nor exits within 60s is reported as not
+confirmed, exit 1, with the log path. A warning stated only to a log file is
+exactly the silent trap D9 forbids, which is why the handshake waits for the
+opening rather than returning on spawn.
+
+`--detach` REFUSES, before spawning:
+- while the CALLING session is registered on the driven initiative with no
+  write-back. The caller is named by `CLAUDE_CODE_SESSION_ID`; an agent that
+  exports no session id cannot be checked and is not refused. The race is
+  real: a caller that writes back after the run starts files the newest
+  next_action, and the second driven session resumes from THAT instead of
+  the first one's. So the order is write back, then detach — the run's first
+  session opens on the caller's handoff, which is the point.
+- while the caller reports a sandbox with no network
+  (`CODEX_SANDBOX_NETWORK_DISABLED=1`): a detached process inherits its
+  parent's sandbox, and every session it launched would fail to reach its
+  model and stall.
+
+A FOREGROUND `sofar drive` whose environment says it runs inside an agent's
+shell (`CLAUDECODE`, `CODEX_SANDBOX`, `CODEX_THREAD_ID`) warns on its
+progress stream that the agent's command timeout will end the driver and
+names `--detach`; it does not refuse, since an operator may have raised that
+timeout.
+
+**Stopping a run from outside it (in-session-drive D2).** A detached driver
+has no terminal, so ^C cannot reach it, and whatever replaces ^C must not be
+state the driver holds — no pid in the record (a machine-local number in a
+committed log, and a reused one signals a stranger), no pid file beside it.
+`sofar drive [slug] --stop` appends `run_stop_requested` for the latest run
+with no stop, refusing when there is none, and then watches the fold for up to
+30s: a `run_stopped` for that run is reported with its reason; none is
+reported as requested-but-unacknowledged, which is what a request to a driver
+that already died looks like (`--resume` adopts such a run; a later request
+can then stop it). The driver honours a request as it honours ^C, with the
+same two steps: the FIRST signals the live session and ends the run
+`interrupted` once the handoff is read, the SECOND escalates to SIGKILL. It
+reads requests from the fold before every launch, and during a session from a
+2s poll that watches the log's size and folds only when the log has grown —
+driven sessions write on every tool call, so a fold per tick would cost
+more than the session it watches. A request counts only when its envelope
+`ts` is at or after the moment this driver took the run, so one left behind
+for a dead driver cannot stop the `--resume` that follows it. The stop's
+note says a request ended the run rather than a signal.
+
+**Clean launch environment (in-session-drive D3).** A session is launched
+without the CALLING agent's session-scoped environment. Measured on Claude
+Code 2.1.272 from inside a live session, a child `claude -p` resets its own
+session id, pid, messaging socket, entrypoint and attended flag, but inherits
+`CLAUDE_CODE_BRIDGE_SESSION_ID` — the parent's remote conversation — and
+`CLAUDE_EFFORT`, an effort `run_started.surface` does not record (D8). Both
+adapters therefore delete one named list before spawning: `CLAUDECODE`,
+`CLAUDE_CODE_SESSION_ID`, `CLAUDE_CODE_BRIDGE_SESSION_ID`,
+`CLAUDE_CODE_MESSAGING_SOCKET`, `CLAUDE_CODE_MESSAGING_TOKEN`,
+`CLAUDE_CODE_CHILD_SESSION`, `CLAUDE_CODE_SESSION_ATTENDED`,
+`CLAUDE_CODE_ENTRYPOINT`, `CLAUDE_CODE_EXECPATH`, `CLAUDE_PID`,
+`CLAUDE_EFFORT`, `CODEX_SANDBOX`, `CODEX_SANDBOX_NETWORK_DISABLED`,
+`CODEX_THREAD_ID`. Never a prefix strip: `CLAUDE_CONFIG_DIR`, the Bedrock and
+Vertex switches, `ANTHROPIC_*` and `CODEX_HOME` route the operator's own auth
+(D1) and pass through untouched. Variables the driver itself sets
+(`SOFAR_DRIVE_NUDGE`) are applied after the deletion.
 
 **What the driver is not (D2).** Not a session, not an agent loop, never an
 inference: it launches existing headless agents through the adapter
@@ -2615,8 +2697,12 @@ Shims contain no logic — they invoke the sofar CLI.
   [--effort <e>] [--resume]
   [--agent claude-code|codex] [--bin <path>] [--agent-arg <arg>]
   [--permission-mode <mode>]
-  [--allow <rule...>] [--deny <rule...>] [--bare-tools]` — run an initiative task-by-task through
-  fresh headless sessions (§Driver, the loop). The permission flags state the
+  [--allow <rule...>] [--deny <rule...>] [--bare-tools] [--detach] [--stop]` — run an initiative task-by-task through
+  fresh headless sessions (§Driver, the loop). `--detach` starts the run as a
+  process that outlives the shell that asked for it, returning once the run is
+  certain to start; `--stop` asks the latest unstopped run's driver to end it
+  and takes no other flag but `--root` (§Driver, starting a run from inside a
+  session). The permission flags state the
   run's surface (§Driver, the permission surface): `--allow` ADDS to sofar's
   floor and `--bare-tools` drops the floor so `--allow` states the whole of
   it. An unknown mode is refused before a run is minted; the modes sofar
@@ -3842,3 +3928,24 @@ stay the underlying derivation's, and exit codes are styling-independent.
   sessions, 3 `task_done` handoffs, 0 stalls, 0 unresolved, stopped `closed`, in
   10.8 minutes for $4.38 — 2.44M billed tokens per task against 5.80M for the
   closest manual comparator on the same files.
+- **In-session drive (in-session-drive):** a run can be started from inside
+  an agent session and outlives it. `sofar drive --detach` returns only once
+  the detached child's run is certain to start, printing the run id, every
+  D9 warning, the log path and the stop command; a child that refuses
+  preflight makes it exit 1 with that refusal on its own output, and nothing
+  is recorded. It refuses before spawning while the calling session
+  (`CLAUDE_CODE_SESSION_ID`) is registered on the initiative with no
+  write-back, and while the caller reports no network
+  (`CODEX_SANDBOX_NETWORK_DISABLED=1`); a foreground drive inside an agent's
+  shell warns and names `--detach`. `run_stop_requested` REJECTS an empty
+  run; the fold skips a request for a run that never started (warning, no
+  stub) and counts requests per run; the digest's `Driven:` line and `sofar
+  status` show a requested stop on a run with no stop. `sofar drive --stop`
+  refuses when no run is unstopped and otherwise appends one request and
+  reports the `run_stopped` that follows, or that none followed. The driver
+  honours a request between sessions and during one: the first signals the
+  live session and stops the run `interrupted` with a note naming the
+  request, the second escalates to SIGKILL, and a request older than the
+  driver's own adoption of the run is ignored. Both adapters launch with the
+  calling agent's session-scoped variables deleted and its auth variables
+  intact. Proved from inside a live Claude Code session (3.1).

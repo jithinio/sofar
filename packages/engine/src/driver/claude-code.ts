@@ -13,6 +13,7 @@ import type {
   SessionExit,
   Usage,
 } from './adapter'
+import { launchEnv } from './adapter'
 
 /**
  * The Claude Code adapter (session-driver 2.1): `claude -p` in print mode
@@ -165,7 +166,8 @@ export class ClaudeCodeSession implements AgentSession {
   private readonly child: ChildProcess
 
   constructor(request: LaunchRequest, options: ClaudeCodeOptions) {
-    const env: NodeJS.ProcessEnv = { ...process.env, ...request.env }
+    // Never the calling agent's session identity (in-session-drive D3).
+    const env = launchEnv(request.env)
     const sessionDir = mkdtempSync(join(env.TMPDIR ?? tmpdir(), 'sofar-drive-'))
     this.sessionDir = sessionDir
     this.nudgePath = join(sessionDir, 'nudge')
