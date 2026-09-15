@@ -205,6 +205,14 @@ otherwise when the work runs out, two sessions in a row get nowhere, or a
 limit you set is reached. Everything it did is in the record afterwards:
 which session took which task, why each one ended, what it cost.
 
+You can also start it without leaving the agent you are talking to. Tell
+Claude Code, Cursor or Codex "run this in sofar drive": the protocol block
+has it write back first, then run `sofar drive --detach`, which starts the
+run in the background and returns as soon as it has started, with the
+run id, any warnings, and where to follow it. The run keeps going when
+that session ends. `sofar drive --stop`, from any shell or session, ends
+it.
+
 Two things to know before you leave it running. It launches *your* agent
 under *your* login, so what a session may do is your own configuration plus
 the rules you pass — `--allow` widens, and sofar cannot narrow. And

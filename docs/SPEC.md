@@ -3949,4 +3949,8 @@ stay the underlying derivation's, and exit codes are styling-independent.
   request, the second escalates to SIGKILL, and a request older than the
   driver's own adoption of the run is ignored. Both adapters launch with the
   calling agent's session-scoped variables deleted and its auth variables
-  intact. Proved from inside a live Claude Code session (3.1).
+  intact. Proved from inside a live Claude Code session (3.1): `--detach`
+  returned in 0.13s with the run line; a real haiku session finished task 1.1
+  and handed off `task_done` ($0.06); a `--stop` sent while session 2 was
+  starting was acknowledged in 11s with the run `interrupted`, that launch
+  unresolved (exit 143) and no process left behind.
