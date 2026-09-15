@@ -54,7 +54,7 @@ import {
   type ToolContext,
 } from '../mcp/context'
 import { enforceStatusLimit, renderStatus, sessionIdLine } from '../projections/templates/status'
-import { REPO_MD_STUB } from './shared'
+import { REPO_MD_STUB, readInput } from './shared'
 
 /**
  * `sofar event <subcommand>` — the internal surface hook shims call
@@ -1887,7 +1887,8 @@ export function runEventTypes(type?: string, opts: { json?: boolean } = {}): Hoo
     EVENT_TYPES.filter((t) => EVENT_TYPE_REFERENCE[t].writer === writer)
   const lines = [
     "Payloads for: sofar event append <slug> --type <type> --session <id> --source <tool> --payload '<json>'",
-    'Grammar: name = required, name? = optional, a|b = one of. Single-quote the JSON.',
+    'Grammar: name = required, name? = optional, a|b = one of. Single-quote the JSON —',
+    "or skip the shell: --payload - <<'EOF' with the JSON on the next lines then EOF (any quote survives), or --payload @<file>.",
     '',
     'APPEND THESE YOURSELF',
     ...of('agent').flatMap((t) => [...detail(t), '']),
@@ -1978,20 +1979,31 @@ export function registerEventCommand(program: Command): void {
       'append one validated event and regenerate projections — the convention-dialect surface for tools without MCP (prints {ok, event_id} JSON)',
     )
     .requiredOption('--type <event_type>', 'event type (SPEC §Event types)')
-    .requiredOption('--payload <json>', 'event payload as a JSON object string')
+    .option('--payload <json>', 'event payload as a JSON object: inline, `-` for stdin (quoted heredoc — quotes and newlines survive), or @<file>; omitted with stdin piped reads stdin')
     .option('--session <id>', 'session id recorded on the envelope (reuse one id all session)', 'cli')
     .option('--source <tool>', `your agent's name (any; recorded as the envelope source when one of ${SOURCES.join('|')}, else cli)`, 'cli')
     .option('--actor <actor>', `envelope actor: ${ACTORS.join('|')}`, 'agent')
     .option('--root <dir>', 'repo root containing .sofar/ (default: current directory)')
     .action(
-      (
+      async (
         slug: string | undefined,
-        opts: { type: string; payload: string; session: string; source: string; actor: string; root?: string },
+        opts: { type: string; payload?: string; session: string; source: string; actor: string; root?: string },
       ) => {
+        // r1-fixes 1.5 (D8): the payload may arrive on stdin or from a file —
+        // the shell-proof forms — so it is resolved here, before the handler.
+        const input = await readInput(opts.payload, '--payload')
+        if (!input.ok) {
+          mirror({
+            exitCode: 1,
+            stdout: '',
+            stderr: `${JSON.stringify({ code: 'invalid_input', message: input.error })}\n`,
+          })
+          return
+        }
         mirror(
           runAppend(resolve(opts.root ?? process.cwd()), {
             type: opts.type,
-            payload: opts.payload,
+            payload: input.text,
             session: opts.session,
             source: opts.source,
             actor: opts.actor,

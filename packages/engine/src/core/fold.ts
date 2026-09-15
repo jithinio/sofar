@@ -147,6 +147,10 @@ export interface MemoryState {
   id: string
   ts: string
   text: string
+  /** Qualified handle of the memory this one replaces (r1-fixes D8). */
+  supersedes?: string
+  /** Qualified handle of the later memory IN THIS RECORD that replaced this one. */
+  superseded_by?: string
 }
 
 /**
@@ -1321,7 +1325,23 @@ function applyEvent(
     }
     case 'memory_promoted': {
       const p = event.payload as unknown as MemoryPromotedPayload
-      state.memories.push({ id: event.id, ts: event.ts, text: p.text })
+      state.memories.push({
+        id: event.id,
+        ts: event.ts,
+        text: p.text,
+        ...(p.supersedes !== undefined ? { supersedes: p.supersedes } : {}),
+      })
+      // Retire the replaced memory when it lives in this record: ordinals are
+      // log order, so `M<n>` with n at or below the count already promoted is
+      // resolvable here and now. A handle in another record is left to the
+      // cross-record readers (doctor folds every log).
+      if (p.supersedes !== undefined) {
+        const m = /^([a-z0-9-]+) M([1-9][0-9]*)$/.exec(p.supersedes)
+        const n = m === null ? 0 : Number.parseInt(m[2]!, 10)
+        if (m !== null && m[1] === event.initiative && n < state.memories.length) {
+          state.memories[n - 1]!.superseded_by = `${event.initiative} M${state.memories.length}`
+        }
+      }
       break
     }
     case 'review_recorded': {

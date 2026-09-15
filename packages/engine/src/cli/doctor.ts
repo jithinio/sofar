@@ -724,12 +724,22 @@ function auditRepoMemory(rootDir: string, folded: Folded[]): Section {
   // repo-wide scope its author knew at capture time. Observation cannot reach
   // it — a fact that was never written down produces no citation behaviour to
   // read — so promotion is what puts it in front of this axis at all.
+  // A superseded memory (r1-fixes D8) is retired: its successor is what
+  // repo.md should name, so the old handle stops being reported. Resolved
+  // across every folded record here, since a supersession may cross records.
+  const retired = new Set(
+    folded.flatMap(({ state }) =>
+      (state?.memories ?? []).flatMap((memory) => (memory.supersedes !== undefined ? [memory.supersedes] : [])),
+    ),
+  )
   const promoted = folded.flatMap(({ slug, state }) =>
-    (state?.memories ?? []).map((memory, index) => ({
-      slug,
-      ordinal: index + 1,
-      text: memory.text,
-    })),
+    (state?.memories ?? [])
+      .map((memory, index) => ({
+        slug,
+        ordinal: index + 1,
+        text: memory.text,
+      }))
+      .filter((memory) => !retired.has(`${memory.slug} M${memory.ordinal}`)),
   )
 
   if (general.length === 0 && promoted.length === 0) {

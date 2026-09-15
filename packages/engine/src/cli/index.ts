@@ -27,7 +27,7 @@ import { runLogin, runLink, runPush, runPull, runPullWatch } from './cloud'
 import { runUpgrade } from './upgrade'
 import { runCheckStatus, runRefresh, withUpdateNotice } from './update-check'
 import { writeAutoUpgrade } from './user-config'
-import { emit, fail, ok, readAllStdin } from './shared'
+import { emit, fail, ok, readAllStdin, readInput } from './shared'
 
 const program = new Command()
 
@@ -227,14 +227,25 @@ program
   })
 
 program
-  .command('remember <text>')
+  .command('remember [text]')
   .description(
-    'promote an operational fact to repo memory — a release command, a failure mode, a convention future sessions must know; recorded as <slug> M<n> for .sofar/repo.md to name',
+    'promote an operational fact to repo memory — a release command, a failure mode, a convention future sessions must know; recorded as <slug> M<n> for .sofar/repo.md to name. Text inline, `-` for stdin (quoted heredoc), or @<file>',
   )
+  .option('--supersedes <handle>', 'the memory this fact replaces — `M<n>` in the target initiative or the qualified `<slug> M<n>`; the old one is retired, never edited')
   .option('--initiative <slug>', 'initiative to record it under (default: the branch-bound one)')
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action((text: string, opts: { initiative?: string; root?: string }) => {
-    emit(runRemember(rootOf(opts), text, opts.initiative !== undefined ? { initiative: opts.initiative } : {}))
+  .action(async (text: string | undefined, opts: { supersedes?: string; initiative?: string; root?: string }) => {
+    const input = await readInput(text, 'the text')
+    if (!input.ok) {
+      emit(fail(`sofar remember: ${input.error}`))
+      return
+    }
+    emit(
+      runRemember(rootOf(opts), input.text, {
+        ...(opts.initiative !== undefined ? { initiative: opts.initiative } : {}),
+        ...(opts.supersedes !== undefined ? { supersedes: opts.supersedes } : {}),
+      }),
+    )
   })
 
 program

@@ -141,7 +141,7 @@ and the result still reads correctly.
 | `sofar related <task-id>` | Tasks that worked on the same files, ranked by shared paths |
 | `sofar review [name]` | The evidence a reviewer needs before a phase closes: what changed, what was claimed, and the rules the work had to keep (`--final` for the close-time pass) |
 | `sofar drive [name]` | Work the plan unattended: a fresh agent session per task, each handoff recorded, until a task needs you or the work runs out |
-| `sofar remember <text>` | Keep an operational fact — a release command, a failure mode — where later sessions will find it |
+| `sofar remember <text>` | Keep an operational fact — a release command, a failure mode — where later sessions will find it. `-` reads stdin (a quoted heredoc keeps every quote), `@<file>` a file; `--supersedes <slug> M<n>` replaces an outdated one |
 | `sofar statusline --install` | Put the status line in Claude Code's status bar — this repo, or `--user` for every project (`--uninstall` takes it back off) |
 | `sofar doctor` | Check the setup and the record for problems |
 | `sofar upgrade` | Update sofar itself — sofar tells you when there is something to update to |
@@ -156,7 +156,7 @@ Less often needed:
 | `sofar serve` | Local server with the record as JSON |
 | `sofar mcp` | The MCP server, which `init` already registers |
 | `sofar statusline` | Renders the line itself — Claude Code calls this, you don't |
-| `sofar event append` | Write one entry by hand |
+| `sofar event append` | Write one entry by hand; `--payload -` reads the JSON from stdin, `--payload @<file>` from a file |
 | `sofar commit-trailer` | Stamps a commit with the initiative that made it — the git hook calls this, you don't |
 | `sofar adopt <file>` | Bring an older, hand written project log into sofar |
 | `sofar uninit` | Undo `init` |

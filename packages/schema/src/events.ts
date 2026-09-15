@@ -188,7 +188,19 @@ export interface NoteAddedPayload { text: string }
  * repo-general from citation behaviour, because nothing derives a fact that was
  * never written down (repo-memory-capture D1).
  */
-export interface MemoryPromotedPayload { text: string }
+export interface MemoryPromotedPayload {
+  text: string
+  /**
+   * The QUALIFIED handle `<slug> M<n>` of the memory this one replaces
+   * (r1-fixes 1.5, D8). Facts go stale; the record is append-only, so the
+   * replacement is a new promotion that names the old one, and readers
+   * (memory.md, doctor's repo-memory axis) retire the old handle.
+   */
+  supersedes?: string
+}
+
+/** A qualified memory handle: `<slug> M<n>`. */
+export const MEMORY_HANDLE_RE = /^([a-z0-9-]+) M([1-9][0-9]*)$/
 
 /** What a review concluded. `blocked` means it could not be performed at all. */
 export const REVIEW_VERDICTS = ['pass', 'findings', 'blocked'] as const
@@ -600,6 +612,9 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
   },
   memory_promoted(p, e) {
     if (!str(p.text)) e.push('text: must be a non-empty string')
+    if (p.supersedes !== undefined && !(str(p.supersedes) && MEMORY_HANDLE_RE.test(p.supersedes as string))) {
+      e.push('supersedes: must be a qualified memory handle `<slug> M<n>` when present')
+    }
   },
   review_recorded(p, e) {
     if (!(REVIEW_SCOPES as readonly unknown[]).includes(p.scope)) {
@@ -838,9 +853,9 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
   },
   memory_promoted: {
     writer: 'command',
-    via: 'sofar remember "<fact>" [--initiative <slug>]',
+    via: 'sofar remember "<fact>" [--supersedes "<slug> M<n>"] [--initiative <slug>]  (or `sofar remember -` with the text on stdin, `sofar remember @<file>`)',
     summary: 'an operational fact for repo memory (a release command, a failure mode) — not a decision',
-    fields: 'text',
+    fields: 'text, supersedes? (qualified handle `<slug> M<n>` of the fact this one replaces)',
     example: { text: 'Run `bun test` from the repo root; per-package runs miss the setup file.' },
   },
   review_recorded: {

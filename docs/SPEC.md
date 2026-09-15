@@ -155,8 +155,9 @@ session_started (tool, model?) · session_ended (summary, next_action) ·
 session_closed (reason — mechanical close from the SessionEnd hook; never
 carries summary/next_action, added Phase 3, BD21) ·
 file_touched (path, op) · command_run (cmd) · note_added ·
-memory_promoted (text — a fact its author declares repo memory, addressable
-as `<slug> M<n>`; repo-memory-capture D1) ·
+memory_promoted (text, supersedes? — a fact its author declares repo memory,
+addressable as `<slug> M<n>`; `supersedes` names the qualified handle of the
+fact it replaces, r1-fixes D8; repo-memory-capture D1) ·
 review_recorded (scope: phase|final, verdict: pass|findings|blocked,
 watermark?, phase?, findings? — a review that was actually performed;
 commit-attribution 4.4, see §Review) ·
@@ -1815,13 +1816,21 @@ also collides with a sofar-cloud-internal package).
   A task may carry `route {agent?, model?, effort?}` for `sofar drive` (3.2),
   and it survives exactly as long as the plan restates it
 - sofar_add_note({initiative?, text}) → ok
-- sofar_remember({initiative?, text}) → ok   # promote a fact to repo memory
+- sofar_remember({initiative?, text, supersedes?}) → ok   # promote a fact to repo memory
   (repo-memory-capture D1): operational knowledge that is NOT a decision — a
   release command, a failure mode — whose repo-wide scope is known when it is
   learned and which no citation behaviour can surface, because nothing derives
   a fact that was never written down. Appends memory_promoted, addressable as
   `<slug> M<n>`; the destination .sofar/repo.md stays hand-written, and doctor
-  reports the promotion until repo.md names that handle.
+  reports the promotion until repo.md names that handle. `supersedes`
+  (r1-fixes 1.5, D8) names the memory this fact replaces — `M<n>` in the
+  target initiative or the qualified `<slug> M<n>` — and must name an
+  existing, not-yet-superseded memory or the call fails before any append;
+  the payload stores the QUALIFIED handle. The fold marks the old memory
+  `superseded_by` when it lives in the same record; memory.md strikes it and
+  names the successor; doctor's repo-memory axis retires it across every
+  record and reports the successor instead. History is append-only — nothing
+  is edited or removed.
 - sofar_review({initiative?, scope, verdict, watermark?, phase?, findings?})
   → {ok, event_id}   # record a review that was actually performed
   (commit-attribution 4.4, §Review). `watermark` is the load-bearing field,
@@ -2855,7 +2864,13 @@ Shims contain no logic — they invoke the sofar CLI.
   is recorded as itself, any other is recorded as `cli` — the same mapping
   sofar_start_session applies to its `tool` — so the tool's own name lives
   in session_started's `tool`, never in the envelope (see §Event envelope,
-  mixed-version rule). `--actor` stays validated.
+  mixed-version rule). `--actor` stays validated. `--payload` takes the JSON
+  three ways (r1-fixes 1.5, D8): inline as before; `-` to read stdin, the
+  quoted-heredoc form (`--payload - <<'EOF' … EOF`) under which every byte
+  survives the shell — the AGENTS.md block shows it; `@<path>` to read a
+  file. Omitted with stdin piped, stdin is read; omitted on a terminal is
+  `invalid_input` naming all three forms. Resolution happens before the
+  handler, so validation and the typed-error contract are unchanged.
   `event types [type] [--json]` (r1-fixes 1.3) prints the payload reference
   from packages/schema (EVENT_TYPE_REFERENCE): for every event type its
   fields, a validating example as `--payload '<json>'`, and who writes it —
@@ -2867,6 +2882,15 @@ Shims contain no logic — they invoke the sofar CLI.
   `unknown_event` typed-error JSON naming the known types. Every example is
   pinned by test to pass validatePayload and to append through `event
   append`.
+- `sofar remember [text] [--supersedes <handle>] [--initiative <slug>]`
+  (repo-memory-capture D1; input forms and supersession r1-fixes 1.5, D8) —
+  append memory_promoted and print the `<slug> M<n>` handle repo.md must
+  name. `text` inline, `-` for stdin (quoted heredoc), or `@<path>`; omitted
+  with stdin piped reads stdin, omitted on a terminal fails naming the forms;
+  empty text is refused. `--supersedes` resolves like the MCP tool's field
+  (`M<n>` against the target initiative, or qualified), fails before any
+  append when the handle names nothing or an already-superseded memory, and
+  the confirmation names the retired handle.
 - `sofar statusline` (felt-cost 3.1/3.2, D4; identity segments D6; styling
   D7/D8) — the rent-meter, wired as Claude Code's statusLine command. Reads
   statusline JSON from stdin, prints ONE line: `<model> · <dir> ·
@@ -3243,6 +3267,17 @@ stay the underlying derivation's, and exit codes are styling-independent.
   an unregistered session before its first real event (lazy registration,
   record-hygiene D2 — SessionStart alone leaves the log untouched, so a
   session that did nothing leaves no trace).
+- **Shell-safe input and supersession (r1-fixes 1.5):** `sofar event append
+  --payload -` and `sofar remember -` read stdin, so a payload or fact holding
+  apostrophes, double quotes and newlines appends byte-exact from a quoted
+  heredoc; `@<file>` reads a file; the value omitted with stdin piped reads
+  stdin, and omitted on a terminal fails naming the three forms (append:
+  `invalid_input` JSON, nothing appended). `sofar remember --supersedes M1`
+  (or `alpha M1`) records the qualified handle, memory.md strikes M1 naming
+  its successor, doctor stops reporting M1 and reports the successor;
+  a handle naming no memory or an already-superseded one fails with no
+  append; the MCP tool accepts the same field. The AGENTS.md block shows the
+  heredoc form and `--supersedes`, and every payload it shows validates.
 - **Repo memory capture:** `sofar remember <text>` and `sofar_remember`
   append memory_promoted and report the `<slug> M<n>` handle; ordinals follow
   log order; `memory.md` appears only once something is promoted; empty text

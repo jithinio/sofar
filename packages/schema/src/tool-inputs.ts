@@ -156,6 +156,8 @@ export interface AddNoteArgs {
 export interface RememberArgs {
   initiative?: string
   text: string
+  /** Memory this fact replaces: `M<n>` (in the target initiative) or the qualified `<slug> M<n>`. */
+  supersedes?: string
 }
 export interface CloseInitiativeArgs {
   initiative?: string
@@ -471,6 +473,12 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
     properties: {
       initiative: initiativeProp,
       text: { type: 'string', minLength: 1 },
+      supersedes: {
+        type: 'string',
+        pattern: '^(?:[a-z0-9-]+ )?M[1-9][0-9]*$',
+        description:
+          'The memory this fact replaces, when an earlier promotion is now wrong or outdated: `M<n>` in the target initiative, or the qualified `<slug> M<n>`. The old handle is retired (struck in memory.md, no longer reported by doctor); history stays append-only.',
+      },
     },
     required: ['text'],
     additionalProperties: false,
