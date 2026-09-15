@@ -58,6 +58,16 @@ engine-only scope law still applies during the Fable window.
   from event data). Pinned by regression test (felt-cost 1.2). Any
   cache-cost play built on this must cite token-optimization's rejected
   "leading with prompt caching" as an informed re-test (felt-cost D2).
+  Restated precisely by r1-fixes 2.3 (D12), which is that re-test: the
+  block is ordered by VOLATILITY — a static head (title, goal, standing
+  constraints, repo memory, phases), then record state (progress, tasks,
+  next action, drift, last session, driver, the decision index, next ids),
+  then a volatile tail (adjacent records, the `Session:` line, the `Git:`
+  line, the hook notices), then the read-back and footer. For identical
+  state and options minus the per-session inputs (session id, git, notices),
+  two renders are byte-identical up to the tail. Measured on this repo's
+  records before D12, consecutive sessions shared 0.8% of the block — the
+  title — because the session id was line 3; after, 39.5%.
 
 ## Record layout (what the engine manages inside a user repo)
 ```
@@ -448,8 +458,9 @@ commit-graph walk, because this runs inside the 100ms shim budget (speed
 T2) — so the answer is "same or different", not an ahead/behind count. In
 a shared checkout every session sees one .git, so a push by any of them
 updates the origin ref for all of them at once. Best-effort: null renders
-nothing. The status block carries it as one `Git:` line above Goal, and the
-UserPromptSubmit shim emits it as its own unconditional line (4.4).
+nothing. The status block carries it as one `Git:` line in its volatile
+tail beside the `Session:` line (r1-fixes 2.3, D12 — above Goal before), and
+the UserPromptSubmit shim emits it as its own unconditional line (4.4).
 Its honest limit is the TIP. In a shared worktree that tip belongs to whoever
 committed last, so refs alone can never say whether THIS record's work
 shipped — only whether the branch is level with origin. §Commit attribution
@@ -2088,10 +2099,12 @@ initiatives:` suffix, or a `sofar new` hint when none exist
 
 ## Hooks (installed by `sofar init` as standalone scripts in .claude/hooks/)
 - SessionStart shim → `sofar event session-start` then prints the status
-  projection to stdout (context injection). The block opens with a
+  projection to stdout (context injection). The block carries a
   `Session: <id> — when calling sofar_start_session, pass this as
-  session_id.` line carrying the session id from the hook payload
-  (adopt-by-id, Phase 7, BD43). This shim APPENDS NOTHING: registration is
+  session_id.` line with the session id from the hook payload
+  (adopt-by-id, Phase 7, BD43) — in the volatile tail since r1-fixes 2.3
+  (D12), after the decision index and before the read-back, because it is
+  the one line that differs between every pair of sessions. This shim APPENDS NOTHING: registration is
   LAZY (record-hygiene D2) — a session enters the log on its first real
   event, via sofar_start_session's unknown-id branch or the first
   PostToolUse append. A session that only reads and exits is never
@@ -2129,17 +2142,23 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   at bytes/4), ONE advisory line precedes the block naming the estimated
   re-warm cost and the fresh-start alternative. Best-effort: any failure
   (missing transcript, empty log, unparseable ts) renders no advisory,
-  never an error. The advisory composes AROUND the status block — never
-  inside renderStatus (byte-stability, §Architectural invariants) — and the
-  composed output is re-capped to the same hard limit.
+  never an error. The advisory is a per-session NOTICE: since r1-fixes 2.3
+  (D12) it rides into renderStatus as `notices` and renders in the volatile
+  tail, after the `Git:` line and before the read-back — never interleaved
+  with the state-derived sections (byte-stability,
+  §Architectural invariants) — and the whole block is capped to the same
+  hard limit, the rejected ledger yielding first.
   Recent work elsewhere (session-orientation 2.1/2.2): when this session's
   record was resolved BY THE BRANCH — not by the session's own home — and
   some OTHER initiative's log carries a strictly newer last event, ONE
-  budgeted line (≤480 chars) LEADS the composed output, naming that
-  initiative, both records' last-event ages, and the single
-  sofar_start_session call that re-homes. It leads because every other part
-  of the output describes the bound record and this line questions whether
-  the bound record is the right one at all. Resolution itself is UNCHANGED,
+  budgeted line (≤480 chars) is the FIRST of the tail notices (r1-fixes 2.3,
+  D12; it led the whole output before), naming that initiative, both
+  records' last-event ages, and the single sofar_start_session call that
+  re-homes. It comes first among the notices because every other part of the
+  output describes the bound record and this line questions whether the
+  bound record is the right one at all; it no longer leads the output
+  because it changes every session and, as the first bytes, denied every
+  session a cached prefix. Resolution itself is UNCHANGED,
   and deliberately so: the same resolution routes every hook write, and
   "most recently active" is a repo-wide fact that may be a PARALLEL
   session's work, so the block names the candidate and the session decides
@@ -2151,9 +2170,10 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   work in progress. Recency comes from each log's TAIL (§State, warmth):
   O(1) in log size, ~0.03ms per initiative and 1.7ms across 38, never a
   fold and never filesystem mtime.
-  ADJACENT RECORDS (record-index 3.3) — the priming line, rendered last in
-  the current-situation block (after concurrent edits) because it is the only
-  entry there that is not about this record: `Adjacent records — N decisions
+  ADJACENT RECORDS (record-index 3.3) — the priming line, rendered first in
+  the volatile tail (r1-fixes 2.3, D12; it closed the current-situation block
+  before) because it is the only entry that is not about this record and it
+  moves whenever another record works: `Adjacent records — N decisions
   across M other initiative(s) that have worked this one's files, densest
   first:`, then up to 3 `- <slug> — N shared file(s), N decision(s)` lines,
   then `…and N more. Adjacency, not aboutness — offered as worth reading,
@@ -2176,8 +2196,10 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   or nothing overlaps, so a single-initiative repo renders byte-identically
   to before it existed, and best-effort per BD22: a failure here costs the
   line only.
-  Per-initiative SHIPPING notice (commit-attribution 3.2): composed around
-  the status block, ONE line, and only when there is something to act on —
+  Per-initiative SHIPPING notice (commit-attribution 3.2): a tail notice
+  of the status block (r1-fixes 2.3, D12 — it was composed around the block
+  before, and on an unpushed branch it was the first byte of every session's
+  injection), ONE line, and only when there is something to act on —
   `sofar: N of this record's commit(s) are NOT on origin yet …`, or
   `sofar: N commit(s) of this record are unverified — origin not fetched …`
   when the upstream ref is missing and the answer is honestly `unknown`.
@@ -3365,6 +3387,20 @@ stay the underlying derivation's, and exit codes are styling-independent.
   a 1,200-char summary and repo memory at budget the block stays ≤10,000
   chars with NO truncation marker, the ledger carrying the `…and N more`
   pointer, and `Next ids` plus the read-back rendering after it.
+- **Cache-stable layout (r1-fixes 2.3):** renderStatus orders its sections
+  static head → record state → volatile tail → read-back → footer: Goal
+  before Standing constraints before Repo memory before Phases before
+  Progress; Next ids before Adjacent records before `Session:` before
+  `Git:` before the notices before Read-back. Two renders of the same state
+  with different session id, sha and notices are byte-identical up to the
+  `Session:` line, and a render with no per-session inputs shares that
+  prefix too. The SessionStart hook passes its notices (recent work
+  elsewhere first, then closed banner, cold-resume advisory, shipping) as
+  `notices`; the hook output starts with `# Sofar status:` even when every
+  notice fires, and on a heavy record (24 rules, 33 decisions, summary at
+  budget, repo memory at budget, 780 chars of notices) the block stays
+  ≤10,000 chars with no truncation marker, every notice present, the ledger
+  carrying the `…and N more` pointer and the read-back after it.
 - **Repo memory capture:** `sofar remember <text>` and `sofar_remember`
   append memory_promoted and report the `<slug> M<n>` handle; ordinals follow
   log order; `memory.md` appears only once something is promoted; empty text

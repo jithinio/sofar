@@ -626,32 +626,29 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     // which OTHER records have worked these files. Derived here rather than in
     // renderStatus, which is handed a folded state and cannot reach the index.
     const neighbours = adjacentRecords(ctx.sofarDir, slug)
+    // The per-session notices — recent work elsewhere, the closed banner, the
+    // cold-resume advisory, shipping — once led the output as a preface. Since
+    // r1-fixes 2.3 (D12) they ride INTO renderStatus as `notices` and land in
+    // its volatile tail: they change every session (a sha count, an age), and
+    // as the first bytes they denied every session a cached prefix. Order is
+    // unchanged — the recent-work line still comes first among them
+    // (session-orientation 2.2). The block's state-derived sections stay
+    // byte-stable for an unchanged record (felt-cost 1.2): the tail is
+    // appended after them, never interleaved.
+    const notices = [
+      recentWorkElsewhereNotice(ctx.sofarDir, slug, via),
+      closedBanner(state),
+      advisory,
+      shippingNotice(rootDir, slug),
+    ].filter((p): p is string => p !== null)
     const status = renderStatus(state, {
       ...(repoMemory !== null ? { repoMemory } : {}),
       ...(sessionId !== null ? { sessionId } : {}),
       ...(git !== null ? { git } : {}),
       ...(neighbours.length > 0 ? { neighbours } : {}),
+      ...(notices.length > 0 ? { notices } : {}),
     })
-    // Both the closed banner and the cold-resume advisory compose AROUND the
-    // status block, never inside it — the block's byte-stability is pinned
-    // (felt-cost 1.2), and the composed output is re-capped so the injection
-    // contract stays ≤10,000 chars.
-    // The recent-work line leads (session-orientation 2.2): every other part of
-    // this output describes the bound record, and that line questions whether
-    // the bound record is the right one at all — read after them it arrives too
-    // late to change how they were read.
-    const preface = [
-      recentWorkElsewhereNotice(ctx.sofarDir, slug, via),
-      closedBanner(state),
-      advisory,
-      shippingNotice(rootDir, slug),
-    ]
-      .filter((p) => p !== null)
-      .join('\n\n')
-    return {
-      ...OK,
-      stdout: preface.length === 0 ? status : enforceStatusLimit(`${preface}\n\n${status}`),
-    }
+    return { ...OK, stdout: status }
   } catch {
     return { ...OK }
   }

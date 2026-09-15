@@ -46,6 +46,18 @@ function populatedState(): InitiativeState {
   return state
 }
 
+/** A decision fixture for the D12 layout test — with or without a rule. */
+function decisionWithRule(i: number, rule?: string): InitiativeState['decisions'][number] {
+  return {
+    id: `01ARZ3NDEKTSV4RRFFQ69G5${String(i).padStart(3, '0')}`,
+    ts: '2026-08-01T00:00:00.000Z',
+    chose: `choice ${i}`,
+    over: `alternative ${i}`,
+    because: `reason ${i}`,
+    ...(rule !== undefined ? { rule } : {}),
+  }
+}
+
 /** Large synthetic initiative (acceptance: status must stay ≤10k chars). */
 function largeState(): InitiativeState {
   const state = emptyState()
@@ -491,13 +503,15 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     expect(status).toContain('summary 29')
   })
 
-  it('repo memory (6.5, BD40): section lands after the current block, before the phase tree, formatting kept', () => {
+  it('repo memory (6.5, BD40): section lands in the static head — after the goal, before the phase tree — formatting kept', () => {
     const memory = 'Run npm test before committing.\nNever push to main directly.'
     const status = renderStatus(populatedState(), { repoMemory: memory })
     expect(status).toContain('Repo memory (.sofar/repo.md):')
     expect(status).toContain(memory) // multi-line content preserved verbatim
-    expect(status.indexOf('Repo memory')).toBeGreaterThan(status.indexOf('Next action:'))
+    // D12: static head — rarer to change than any state-derived section
+    expect(status.indexOf('Repo memory')).toBeGreaterThan(status.indexOf('Goal:'))
     expect(status.indexOf('Repo memory')).toBeLessThan(status.indexOf('Phases:'))
+    expect(status.indexOf('Phases:')).toBeLessThan(status.indexOf('Progress:'))
   })
 
   it('repo memory is clipped to its own budget with a marker; missing/blank omits the section', () => {
@@ -586,12 +600,14 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     expect(renderStatus(fresh)).toContain('derived: 1 file (src/a.ts)')
   })
 
-  it('session id line (7.1, BD43): lands right under the title, clipped, cap intact', () => {
+  it('session id line (7.1, BD43): lands in the volatile tail — after the decisions, before the read-back — clipped, cap intact', () => {
     const status = renderStatus(populatedState(), { sessionId: 'claude-sess-42' })
     expect(status).toContain(
       'Session: claude-sess-42 — when calling sofar_start_session, pass this as session_id.',
     )
-    expect(status.indexOf('Session: claude-sess-42')).toBeLessThan(status.indexOf('Goal:'))
+    // D12: per-session by definition, so it is the last thing that changes
+    expect(status.indexOf('Session: claude-sess-42')).toBeGreaterThan(status.indexOf('Next ids:'))
+    expect(status.indexOf('Session: claude-sess-42')).toBeLessThan(status.indexOf('Read-back:'))
 
     // hostile external ids never blow the section, and the block omits the
     // line entirely when no id is known
@@ -696,6 +712,85 @@ describe('standing constraints — verbatim render contract (drift-hardening 2.1
     // nothing to restate → no protocol line; agent-only: never on the terminal surface
     expect(renderStatus(emptyState())).not.toContain('Read-back:')
     expect(renderFullStatus(populatedState())).not.toContain('Read-back:')
+  })
+
+  it('cache-stable layout (r1-fixes 2.3, D12): static head, record state, volatile tail; notices ride the tail; heavy record keeps the tail', () => {
+    const state = populatedState()
+    state.decisions = [decisionWithRule(1, 'Never do the thing.'), decisionWithRule(2)]
+    state.sessions = [
+      { id: 'sess-0', tool: 'claude-code', unwritten: 0, started: '2026-07-05T00:00:00.000Z', ended: '2026-07-05T01:00:00.000Z', summary: 'wired it', next_action: 'finish 1.2' },
+    ]
+    const git = { branch: 'main', head: 'abc1234', headFull: 'a'.repeat(40), upstream: null, upstreamFull: null, synced: false }
+    const status = renderStatus(state, {
+      repoMemory: 'Run npm test.',
+      sessionId: 'sess-a',
+      git: git as never,
+      neighbours: [{ initiative: 'other', paths: 2, decisions: 3 }] as never,
+      notices: ['⚠ Cold resume: ~2h since this record\'s last event', '', 'sofar: 3 commit(s) of this record are unverified'],
+    })
+    const at = (s: string) => status.indexOf(s)
+    // 1. static head
+    expect(at('Goal:')).toBeLessThan(at('Standing constraints'))
+    expect(at('Standing constraints')).toBeLessThan(at('Repo memory'))
+    expect(at('Repo memory')).toBeLessThan(at('Phases:'))
+    // 2. record state
+    expect(at('Phases:')).toBeLessThan(at('Progress:'))
+    expect(at('Progress:')).toBeLessThan(at('Next action:'))
+    expect(at('Next action:')).toBeLessThan(at('Last session'))
+    expect(at('Last session')).toBeLessThan(at('Recent decisions'))
+    expect(at('Recent decisions')).toBeLessThan(at('Next ids:'))
+    // 3. volatile tail, in this order, then the read-back and footer
+    expect(at('Next ids:')).toBeLessThan(at('Adjacent records'))
+    expect(at('Adjacent records')).toBeLessThan(at('Session: sess-a'))
+    expect(at('Session: sess-a')).toBeLessThan(at('Git: main @ abc1234'))
+    expect(at('Git: main @ abc1234')).toBeLessThan(at('⚠ Cold resume:'))
+    expect(at('⚠ Cold resume:')).toBeLessThan(at('sofar: 3 commit(s)'))
+    expect(at('sofar: 3 commit(s)')).toBeLessThan(at('Read-back:'))
+    expect(at('Read-back:')).toBeLessThan(at('(generated by sofar'))
+    // blank notices are dropped, non-blank ones render as given
+    expect(status).not.toMatch(/\n\n\n/)
+
+    // Byte-stability across sessions (felt-cost 1.2, restated by D12): same
+    // state, a different session id, sha and notice → identical up to the tail.
+    const other = renderStatus(state, {
+      repoMemory: 'Run npm test.',
+      sessionId: 'sess-b',
+      git: { ...git, head: 'def5678' } as never,
+      neighbours: [{ initiative: 'other', paths: 2, decisions: 3 }] as never,
+      notices: ['sofar: 4 commit(s) of this record are unverified'],
+    })
+    const tailStart = status.indexOf('Session: sess-a')
+    expect(other.startsWith(status.slice(0, tailStart))).toBe(true)
+    // and without any per-session input at all the head is the same bytes
+    expect(renderStatus(state, { repoMemory: 'Run npm test.' }).startsWith(status.slice(0, status.indexOf('Adjacent records')))).toBe(true)
+
+    // Heavy record: the ledger yields to the measured tail, so a long notice
+    // never pushes the read-back past the cap.
+    const heavy = populatedState()
+    heavy.goal = 'G'.repeat(600)
+    heavy.decisions = Array.from({ length: 33 }, (_, i) => ({
+      id: `01ARZ3NDEKTSV4RRFFQ69G5F${String(i + 1).padStart(2, '0')}`,
+      ts: '2026-07-03T00:00:00.000Z',
+      chose: `choice ${i + 1} ${'c'.repeat(300)}`,
+      over: `alternative ${i + 1} ${'o'.repeat(200)}`,
+      because: 'why',
+      ...(i < 24 ? { rule: `Rule ${i + 1} — ${'r'.repeat(60)} end.` } : {}),
+    }))
+    heavy.sessions = [
+      { id: 'sess-1', tool: 'claude-code', unwritten: 0, started: '2026-07-05T00:00:00.000Z', ended: '2026-07-05T01:00:00.000Z', summary: 's'.repeat(1_200), next_action: 'go' },
+    ]
+    heavy.current = { active_phase: 'Phase 1', next_action: 'n'.repeat(500), blocked_on: 'b'.repeat(500) }
+    const out = renderStatus(heavy, {
+      repoMemory: 'R'.repeat(1_500),
+      sessionId: 'sess-1',
+      git: git as never,
+      notices: ['N'.repeat(480), 'M'.repeat(300)],
+    })
+    expect(out.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
+    expect(out).not.toContain(STATUS_TRUNCATION_MARKER)
+    expect(out).toContain('N'.repeat(480))
+    expect(out).toContain('Read-back:')
+    expect(out).toMatch(/- …and \d+ more \(see decisions\.md\)/)
   })
 
   it('names the next D/M ids just before the read-back — digest-only, absent on a record with neither (r1-fixes 2.1, D10)', () => {

@@ -69,10 +69,11 @@ const MAX_DECISIONS = 5
 // as decisions accumulate, and never a byte the window already paid for.
 const REJECTED_OVER_LINE_BUDGET = 90
 const REJECTED_LEDGER_BUDGET = 2_800
-// What the ledger leaves under the hard cap for the lines after it: the
-// ledger's own overflow pointer, `Next ids`, the read-back line and the
-// footer (~330 chars at their longest), so the protocol tail always renders
-// when everything above the ledger fits.
+// What the ledger leaves under the hard cap for the fixed lines after it: its
+// own overflow pointer, `Next ids`, the read-back line and the footer (~330
+// chars at their longest). The variable tail (adjacency, session, git,
+// notices — D12) is measured, not estimated, so the protocol tail always
+// renders when everything above the ledger fits.
 const PROTOCOL_TAIL_RESERVE = 400
 // Standing-constraints ledger (drift-hardening 2.1): rules render VERBATIM —
 // budget pressure drops whole entries with a pointer, never clips inside a
@@ -399,6 +400,15 @@ export interface StatusOptions {
    * to before this existed.
    */
   neighbours?: readonly NeighbourRecord[]
+  /**
+   * Per-session notices the SessionStart hook used to compose as a preface
+   * (r1-fixes 2.3, D12): recent work elsewhere, the closed banner, the
+   * cold-resume advisory, the shipping notice — each already budgeted by
+   * its builder. Rendered in the volatile tail, after the session and git
+   * lines and before the read-back, so a block that led with them shares
+   * no cached prefix with the previous session's. Blank entries are dropped.
+   */
+  notices?: readonly string[]
 }
 
 /**
@@ -414,25 +424,18 @@ export function sessionIdLine(sessionId: string | null | undefined): string | nu
 }
 
 export function renderStatus(state: InitiativeState, options?: StatusOptions): string {
+  // Layout is ordered by VOLATILITY (r1-fixes 2.3, D12): prompt caching
+  // matches prefixes, so bytes that never change between sessions of the same
+  // record come first and bytes that change every session come last. Before
+  // D12 the per-session `Session:` line was line 3 and every consecutive pair
+  // of sessions shared 0.8% of the block — the title. Three segments:
+  //   1. static head — title, goal, standing constraints, repo memory, phases;
+  //   2. record state — progress, tasks, next action, drift, last session,
+  //      driver, decisions, next ids;
+  //   3. volatile tail — adjacency, session id, git, hook notices;
+  // then the read-back and footer, last as before.
   const lines: string[] = []
   lines.push(`# Sofar status: ${state.slug || '(unnamed initiative)'}`, '')
-
-  // Session identity (task 7.1, BD43) — near the top, before everything else:
-  // this is the id the agent must hand back to sofar_start_session.
-  const idLine = sessionIdLine(options?.sessionId)
-  if (idLine !== null) lines.push(idLine, '')
-
-  // Git state (record-integrity 4.1): one derived line, never an event.
-  const git = options?.git
-  if (git !== undefined) {
-    const sync =
-      git.upstream === null
-        ? 'no origin ref — never pushed'
-        : git.synced
-          ? `in sync with origin/${git.branch}`
-          : `differs from origin/${git.branch} (${git.upstream}) — unpushed work`
-    lines.push(`Git: ${clip(`${git.branch} @ ${git.head} — ${sync}`, GOAL_BUDGET)}`, '')
-  }
 
   lines.push(`Goal: ${state.goal ? clip(state.goal, GOAL_BUDGET) : '(none recorded)'}`, '')
 
@@ -442,6 +445,55 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   const standing = standingConstraintLines(state.decisions, STANDING_LEDGER_BUDGET)
   if (standing.length > 0) {
     lines.push(...standing, '')
+  }
+
+  // Repo memory (task 6.5, BD40): hand-written repo-scoped notes with their
+  // own budget. In the static head since D12 — it changes when a human edits
+  // the file, which is rarer than any state-derived section below.
+  const repoMemory = options?.repoMemory?.trim() ?? ''
+  if (repoMemory.length > 0) {
+    lines.push('Repo memory (.sofar/repo.md):')
+    lines.push(clipBlockDetect(repoMemory, REPO_MEMORY_CHAR_BUDGET, REPO_MEMORY_TRUNCATION_MARKER).text)
+    lines.push('')
+  }
+
+  // Compact phase tree (statuses + per-phase progress), count-capped. Done
+  // phases collapse into one trailing line (task 6.2, token-opt): their
+  // per-phase detail carries little resume value (plan.md keeps it), the
+  // saving grows as an initiative ages, and the freed slots let more open
+  // phases fit under the cap. Names keep only their leading "Phase N"
+  // segment (text before " — "); names without that convention pass whole.
+  const stalePhases = staleActivePhases(state)
+  const staleNames = new Set(stalePhases.map((p) => p.name))
+  if (state.phases.length > 0) {
+    // A dropped phase is resolved, not open — leaving it in the itemized
+    // list is the exact false "queued work" signal this initiative exists
+    // to kill, and it would burn a capped slot to do it.
+    const open = state.phases.filter((p) => p.status !== 'done' && p.status !== 'dropped')
+    const donePhases = state.phases.filter((p) => p.status === 'done')
+    const droppedPhases = state.phases.filter((p) => p.status === 'dropped')
+    // Stale-phase marker (staleness-detection 2.2): stale phases are never
+    // 'done', so every one of them lives in the itemized open list.
+    lines.push('Phases:')
+    for (const phase of open.slice(0, MAX_PHASE_LINES)) {
+      lines.push(
+        `- ${clip(phase.name, PHASE_LINE_BUDGET)} ${phaseMark(phase, staleNames)} ${phaseFraction(taskProgress([phase]))}`,
+      )
+    }
+    if (open.length > MAX_PHASE_LINES) {
+      lines.push(`- …and ${open.length - MAX_PHASE_LINES} more phases (see plan.md)`)
+    }
+    if (donePhases.length > 0) {
+      const p = taskProgress(donePhases)
+      const names = donePhases.map((ph) => ph.name.split(' — ')[0]!).join(', ')
+      lines.push(clip(`- done: ${names} (${p.done}/${p.total} tasks)`, DONE_PHASES_LINE_BUDGET))
+    }
+    if (droppedPhases.length > 0) {
+      const p = taskProgress(droppedPhases)
+      const names = droppedPhases.map((ph) => ph.name.split(' — ')[0]!).join(', ')
+      lines.push(clip(`- dropped: ${names} (${p.total} tasks)`, DONE_PHASES_LINE_BUDGET))
+    }
+    lines.push('')
   }
 
   // Progress + active phase.
@@ -539,92 +591,7 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
       lines.push(`- …and ${conflicts.length - MAX_CONFLICT_LINES} more (run sofar doctor)`)
     }
   }
-
-  // Adjacent records (record-index 3.3) — the priming line, last in this block
-  // because it is the only entry that is not about THIS record: the ones above
-  // report what has happened to your work, this one reports where else your
-  // work has company.
-  //
-  // A COUNT, never a capability blurb. An offer ("you can search the record")
-  // is ignored, because nothing in it says there is anything to find; a number
-  // and three names create the intent to look, which is the whole mechanism
-  // this layer is for. Nothing here tells the agent what to do about it.
-  //
-  // D2 is in the wording, not just the doc: this is DERIVED relevance, so the
-  // header says adjacency and the closing clause says offered-not-binding. The
-  // record knows these initiatives worked the same files; it does not know
-  // their decisions are ABOUT those files, and the line must not imply it.
-  const neighbours = options?.neighbours ?? []
-  if (neighbours.length > 0) {
-    const named = neighbours.slice(0, MAX_NEIGHBOURS)
-    // The header carries the READABLE total, not just the initiative count.
-    // Ranking is by shared files — the direct edge, and the honest answer to
-    // who is on your ground — which can put a record holding one decision at
-    // the top. Leading with the decision total means the intent to look is
-    // already created by the time the reader gets there.
-    const decisions = neighbours.reduce((sum, n) => sum + n.decisions, 0)
-    lines.push(
-      `Adjacent records — ${plural(decisions, 'decision')} across ` +
-        `${plural(neighbours.length, 'other initiative')} that have worked this one's files, densest first:`,
-    )
-    for (const n of named) {
-      lines.push(
-        `- ${clip(`${n.initiative} — ${plural(n.paths, 'shared file')}, ${plural(n.decisions, 'decision')}`, NEIGHBOUR_LINE_BUDGET)}`,
-      )
-    }
-    const rest = neighbours.length - named.length
-    lines.push(
-      `${rest > 0 ? `…and ${rest} more. ` : ''}Adjacency, not aboutness — offered as worth reading, never as a rule.`,
-    )
-  }
   lines.push('')
-
-  // Repo memory (task 6.5, BD40): hand-written repo-scoped notes, surfaced
-  // after the goal/current sections with their own budget.
-  const repoMemory = options?.repoMemory?.trim() ?? ''
-  if (repoMemory.length > 0) {
-    lines.push('Repo memory (.sofar/repo.md):')
-    lines.push(clipBlockDetect(repoMemory, REPO_MEMORY_CHAR_BUDGET, REPO_MEMORY_TRUNCATION_MARKER).text)
-    lines.push('')
-  }
-
-  // Compact phase tree (statuses + per-phase progress), count-capped. Done
-  // phases collapse into one trailing line (task 6.2, token-opt): their
-  // per-phase detail carries little resume value (plan.md keeps it), the
-  // saving grows as an initiative ages, and the freed slots let more open
-  // phases fit under the cap. Names keep only their leading "Phase N"
-  // segment (text before " — "); names without that convention pass whole.
-  if (state.phases.length > 0) {
-    // A dropped phase is resolved, not open — leaving it in the itemized
-    // list is the exact false "queued work" signal this initiative exists
-    // to kill, and it would burn a capped slot to do it.
-    const open = state.phases.filter((p) => p.status !== 'done' && p.status !== 'dropped')
-    const donePhases = state.phases.filter((p) => p.status === 'done')
-    const droppedPhases = state.phases.filter((p) => p.status === 'dropped')
-    // Stale-phase marker (staleness-detection 2.2): stale phases are never
-    // 'done', so every one of them lives in the itemized open list.
-    const staleNames = new Set(staleActivePhases(state).map((p) => p.name))
-    lines.push('Phases:')
-    for (const phase of open.slice(0, MAX_PHASE_LINES)) {
-      lines.push(
-        `- ${clip(phase.name, PHASE_LINE_BUDGET)} ${phaseMark(phase, staleNames)} ${phaseFraction(taskProgress([phase]))}`,
-      )
-    }
-    if (open.length > MAX_PHASE_LINES) {
-      lines.push(`- …and ${open.length - MAX_PHASE_LINES} more phases (see plan.md)`)
-    }
-    if (donePhases.length > 0) {
-      const p = taskProgress(donePhases)
-      const names = donePhases.map((ph) => ph.name.split(' — ')[0]!).join(', ')
-      lines.push(clip(`- done: ${names} (${p.done}/${p.total} tasks)`, DONE_PHASES_LINE_BUDGET))
-    }
-    if (droppedPhases.length > 0) {
-      const p = taskProgress(droppedPhases)
-      const names = droppedPhases.map((ph) => ph.name.split(' — ')[0]!).join(', ')
-      lines.push(clip(`- dropped: ${names} (${p.total} tasks)`, DONE_PHASES_LINE_BUDGET))
-    }
-    lines.push('')
-  }
 
   // Last written-back session. When the budget cuts the summary (1.3
   // detection), the pointer to the full text rides INSIDE the budget
@@ -684,6 +651,76 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
     lines.push('')
   }
 
+  // The volatile tail is built BEFORE the decision index so the ledger's cap
+  // reserve can count its real length (D12): the tail renders after the
+  // ledger, and the ledger is the section that yields.
+  const tail: string[] = []
+
+  // Adjacent records (record-index 3.3) — the priming line, first in the
+  // tail: it is the only entry that is not about THIS record — the sections
+  // above report what has happened to your work, this one reports where else
+  // your work has company — and it moves whenever ANOTHER record works.
+  //
+  // A COUNT, never a capability blurb. An offer ("you can search the record")
+  // is ignored, because nothing in it says there is anything to find; a number
+  // and three names create the intent to look, which is the whole mechanism
+  // this layer is for. Nothing here tells the agent what to do about it.
+  //
+  // D2 is in the wording, not just the doc: this is DERIVED relevance, so the
+  // header says adjacency and the closing clause says offered-not-binding. The
+  // record knows these initiatives worked the same files; it does not know
+  // their decisions are ABOUT those files, and the line must not imply it.
+  const neighbours = options?.neighbours ?? []
+  if (neighbours.length > 0) {
+    const named = neighbours.slice(0, MAX_NEIGHBOURS)
+    // The header carries the READABLE total, not just the initiative count.
+    // Ranking is by shared files — the direct edge, and the honest answer to
+    // who is on your ground — which can put a record holding one decision at
+    // the top. Leading with the decision total means the intent to look is
+    // already created by the time the reader gets there.
+    const decisions = neighbours.reduce((sum, n) => sum + n.decisions, 0)
+    tail.push(
+      `Adjacent records — ${plural(decisions, 'decision')} across ` +
+        `${plural(neighbours.length, 'other initiative')} that have worked this one's files, densest first:`,
+    )
+    for (const n of named) {
+      tail.push(
+        `- ${clip(`${n.initiative} — ${plural(n.paths, 'shared file')}, ${plural(n.decisions, 'decision')}`, NEIGHBOUR_LINE_BUDGET)}`,
+      )
+    }
+    const rest = neighbours.length - named.length
+    tail.push(
+      `${rest > 0 ? `…and ${rest} more. ` : ''}Adjacency, not aboutness — offered as worth reading, never as a rule.`,
+    )
+    tail.push('')
+  }
+
+  // Session identity (task 7.1, BD43): the id the agent must hand back to
+  // sofar_start_session. Per-session by definition, so it sits in the tail.
+  const idLine = sessionIdLine(options?.sessionId)
+  if (idLine !== null) tail.push(idLine)
+
+  // Git state (record-integrity 4.1): one derived line, never an event. The
+  // sha moves with every commit, so it sits beside the session line.
+  const git = options?.git
+  if (git !== undefined) {
+    const sync =
+      git.upstream === null
+        ? 'no origin ref — never pushed'
+        : git.synced
+          ? `in sync with origin/${git.branch}`
+          : `differs from origin/${git.branch} (${git.upstream}) — unpushed work`
+    tail.push(`Git: ${clip(`${git.branch} @ ${git.head} — ${sync}`, GOAL_BUDGET)}`)
+  }
+  if (idLine !== null || git !== undefined) tail.push('')
+
+  // Hook notices (D12): recent work elsewhere, closed banner, cold-resume
+  // advisory, shipping — the caller's per-session lines, once a preface and
+  // now the last content before the read-back. Each is already budgeted by
+  // its builder; they are rendered as given, blank-line separated.
+  const notices = (options?.notices ?? []).filter((n) => n.trim().length > 0)
+  for (const notice of notices) tail.push(notice, '')
+
   // Decision index (r1-fixes 2.2, D11) — index-first, handle-first. Two
   // blocks that never repeat a byte of each other: the recent window carries
   // `[D<n>] <date> <chose> — over <over>` with the fields clipped SEPARATELY,
@@ -722,16 +759,17 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
       .filter((d) => hasRealAlternative(d.over))
     if (rejected.length > 0) {
       lines.push(`Earlier rejected approaches — do NOT re-propose (${rejected.length} older):`)
-      // The ledger is the last budgeted section before the protocol tail
-      // (Next ids, read-back, footer), so it is the one that yields to the
-      // hard cap: it takes the smaller of its own budget and what the cap
-      // leaves once the tail is reserved. Before D11 a heavy record (24
-      // verbatim rules, 28 older decisions) rendered at exactly 10,000 chars
-      // and enforceStatusLimit cut the tail — the two lines the session is
-      // meant to read last. Pure function of the state: byte-stable.
+      // The ledger is the last budgeted section before the tail (Next ids,
+      // adjacency, session, git, notices, read-back, footer), so it is the
+      // one that yields to the hard cap: it takes the smaller of its own
+      // budget and what the cap leaves once the tail is reserved. Before
+      // D11 a heavy record (24 verbatim rules, 28 older decisions) rendered
+      // at exactly 10,000 chars and enforceStatusLimit cut the tail — the
+      // two lines the session is meant to read last. Pure function of the
+      // inputs: byte-stable.
       const ledgerBudget = Math.min(
         REJECTED_LEDGER_BUDGET,
-        STATUS_CHAR_LIMIT - lines.join('\n').length - PROTOCOL_TAIL_RESERVE,
+        STATUS_CHAR_LIMIT - lines.join('\n').length - tail.join('\n').length - PROTOCOL_TAIL_RESERVE,
       )
       let used = 0
       let shown = 0
@@ -757,6 +795,8 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   if (state.decisions.length > 0 || state.memories.length > 0) {
     lines.push(`Next ids: D${state.decisions.length + 1} (decision), M${state.memories.length + 1} (memory)`, '')
   }
+
+  lines.push(...tail)
 
   // Read-back protocol (drift-hardening 3.1): the LAST content line — the
   // final thing read before the session starts acting is the instruction to
