@@ -5,12 +5,218 @@
 - Initiative: self-improve
 - Tool: codex
 - Started: 2026-09-15T15:53:43.733Z
-- Ended: (in progress)
+- Ended: 2026-09-15T16:00:46.836Z
 
 ## Summary
 
-(none recorded — session did not write back)
+# self-improve: architecture, research and competitive audit
+Date: 2026-09-15. Audit only. Recommendations are not adopted Decisions.
+
+## Verdict
+Keep the initiative, but strengthen the evidence and control contracts before implementation. L1 is presently a deterministic diagnostic/proposal system, L2 is an agent-assisted patch-and-evaluate loop, and L3 is a release evaluation process. Calling the whole system zero-model or autonomously self-improving would overstate the plan: L2 uses the operator's agent and inference budget, and changes remain subject to human review.
+
+The most valuable potential advantage is a low-overhead, inspectable improvement process that detects real failures, proposes bounded changes, measures their net benefit on unseen work, and retains the evidence needed to reject or reverse them. Neither automatic harness search nor local event-sourced memory alone establishes novelty.
+
+Scope: all 11 initiative tasks, its current record, dependencies on r1-fixes and bench-refresh, targeted reads of schema, hooks, MCP, exports/sync, indexes, driver and permission contracts, and primary research. Main baseline: 8b4c33c. The implementation worktree's self-improve plan also showed 0/11; no gating Decisions were recorded. No tune/improve CLI implementation was found in the inspected main source. The live r1-fixes worktree was at 9d86222 when inventoried; its implementation was not changed or certified here.
+
+Verification: ran existing cursor.test.ts and client-push.test.ts against main; 25/25 tests passed. These tests check existing event export/import and local mock-cloud sync behavior. They do not test an unimplemented self-improvement loop. No model runs, benchmark cells, candidate launches or publication were performed.
+
+## S1 — The proposed miner cannot measure several promised signals from the existing log
+Affected: 1.2, 2.1, 2.2.
+
+Observed code:
+- packages/schema/src/events.ts: CommandRunPayload contains only cmd, FileTouchedPayload contains path/op, and memory promotion contains text. These do not carry tool result, cost, render exposure or a reliable memory-use signal.
+- packages/engine/src/cli/event.ts: handlePostTool recognizes Edit/MultiEdit/Write/Bash; self-recording git/sofar commands are exempt; unrecognized tools return without recording.
+- packages/engine/src/mcp/server.ts: typed rejections return an error result; no outcome event is appended in the catch.
+- packages/engine/src/core/index-reach.ts: references are citations found in recorded prose, not proof that an agent read or relied on a memory.
+- driver/drive.ts: launches without an attributable registered session can stall without a handoff event. Counting handoff events does not recover all attempts or all stalls.
+
+Consequences:
+| Proposed signal | What can be established now | Required interpretation |
+|---|---|---|
+| Duplicate session starts | Raw event lines can show duplicate starts; fold intentionally removes them from reconstructed sessions. | Inspect valid raw events with correction semantics and classify duplicates separately from corrupt data. |
+| Corrections | Correction events and targets are observable. | A correction is not automatically shell mangling, waste, or a defect; changing a legitimate prior decision is different. |
+| Stalls | Recorded handoffs/run stops provide some evidence. | Report coverage and unresolved launch gaps; do not equate missing handoffs with successful or absent work. |
+| Sofar share of commands/tool calls | Sofar shell commands are intentionally excluded, and MCP/read-only calls are not a complete denominator. | Cannot estimate total bookkeeping share from command_run alone. |
+| Historical digest bytes | Today's renderer can render old event prefixes. | That is a simulated digest, not necessarily what the historical agent saw. Historical renderer version, external repo memory, session identity and Git inputs may be missing. |
+| Memories never referenced | Some explicit textual citations may be detectable. | Label as no observed citation, never as unused/useless. An agent can follow an injected rule without citing it. |
+
+Define an observability contract before mining: host/tool version, engine version, record/session identity, attempt/tool-call identity, success/error/unknown, capture capability and coverage, and the immutable evidence behind a detector result. Normalize supported adapters and return unavailable for unsupported signals. Do not infer memory usefulness from frequency alone or delete rare standing rules.
+
+Evidence collection must not create another bookkeeping tax. Bound payload size, avoid transcripts by default, coalesce where the host supports it, and measure hook latency, bytes written and model-visible overhead. Share the outcome schema with r1-fixes 2.5 rather than building two collectors.
+
+## S2 — Local-only evidence and durable record truth need different storage contracts
+Affected: 1.1, 1.2, 2.1, 2.3.
+
+Confirmed: core/cursor.ts exportEvents includes every envelope-valid event. client/push.ts pushStream exports that stream and filters only by cursor, not privacy classification. A new diagnostics event in initiative events.jsonl therefore reaches the sync/export path. Gitignore does not prevent this.
+
+The existing .sofar/.index design is disposable derived data: deleting it must not change answers. New raw observations that exist nowhere else cannot be put there while claiming they are rebuildable. Conversely, keeping all raw diagnostics in a local-only store creates a limit on cross-machine replay: a shared proposal may have only a sanitized summary or evidence fingerprint, not its full supporting observations.
+
+Before coding, choose and document:
+1. Which facts are durable, shareable initiative events.
+2. Which raw diagnostics are private, never exported or synced, with explicit retention/deletion rules.
+3. Which caches are fully rebuildable.
+4. What sanitized evidence is retained for a proposal after local diagnostics expire.
+5. Whether every proposal consumer can verify its evidence, or must report evidence unavailable.
+
+A local append-only diagnostic journal, excluded at the actual export/sync boundaries, is one possible design; it requires a scoped exception to the current all-work-state-in-record protocol if it becomes additional truth. Do not create an unacknowledged second source of truth. Keep all new event payload schemas within packages/schema/src.
+
+Redact error text, tool arguments and paths as appropriate before durable storage. is_error and exit code alone are not authoritative semantic test outcomes. Diagnostic recording failure must not turn a successful user operation into a failure or recursively generate an unbounded stream of diagnostic errors. Explicitly test no-write-on-invalid-input behavior if MCP rejection capture changes it.
+
+## S3 — Offline replay is not an improvement experiment
+Affected: 2.2, 2.3, 3.3.
+
+Replaying an event prefix can validate deterministic rendering, size, preserved constraints, retrieval ranking and compatibility. It cannot establish that a different digest would cause fewer model turns, fewer decision violations or better code, because changing context changes the agent's subsequent actions. Reusing the original successful trajectory assumes the answer.
+
+Split evidence into:
+- Mechanical replay: same versioned inputs, deterministic output; all essential rules and provenance preserved; byte/token budgets and ranking checks.
+- Behavioral evaluation: fresh agent sessions given the candidate, against fixed tasks and evaluator, measuring outcomes, full cost and intervention rate.
+- Transfer evaluation: previously unseen tasks, preferably additional project/agent families, with the candidate frozen.
+
+Avoid hindsight: replay each candidate only against evidence available before the session being simulated. Reconstruct corrected events and historical state carefully; do not use later memories, later test results or today's repo.md as though they were available then.
+
+Rediscovering the same seven smoke/calibration examples that inspired detector rules is a useful regression test, not independent precision/recall validation. Use a labeled corpus of held-out logs from distinct sessions/projects, negative cases and unknown-coverage cases; freeze labels before testing. Report precision and recall per detector, with counts and confidence/coverage. Fewer false alerts is often more valuable than a single pooled score.
+
+## S4 — Evaluator protection is weaker than the goal requires
+Affected: 3.1, 3.2, 3.3.
+
+A checksum and a final diff review do not make an evaluator independent:
+- The candidate may read hidden tasks without changing them.
+- A test script, package configuration, import path, fixture loader, scoring parser or environment variable can change how an unchanged test file behaves.
+- A candidate can modify and restore a file before the final diff.
+- A log can claim tests ran even when no evaluator ran.
+- The candidate itself may be the sofar binary currently supervising the experiment, allowing it to change how its own result is interpreted.
+
+The driver permission file is explicitly not a sandbox: permissions can be widened by the operator's other settings. A read-only file owned by the same writable environment is not a sufficient isolation claim.
+
+Use a frozen supervisor and evaluator outside the candidate's write/control surface. Pin candidate code, evaluator/config/dependency identity and evaluation inputs; run evaluation independently against a fresh candidate artifact. Separate task instructions that an agent must see from hidden answers/tests it must not see. Capture exit/result artifacts through the trusted runner; do not trust agent-written score summaries.
+
+Protect the whole measurement path, not just hidden-tests/*.ts. Run a known-passing and a deliberately wrong control to verify the evaluator detects success and failure. Deliberately test score forgery, wrapper changes, missing tests, altered fixtures and an attempted hidden-data read using isolated fixtures, not the live held-out benchmark.
+
+No new process isolation framework is assumed by this audit. Pick a mechanism that can actually enforce the stated access boundaries, and describe remaining limits honestly.
+
+## S5 — Proposal adoption, rollback and experiments lack a complete lifecycle
+Affected: 2.3, 3.1.
+
+The goal says proposed, not applied, but task 2.3 also says before going live without specifying how approval, application and reversion occur. Distinguish a proposal from an active policy.
+
+A useful candidate record identifies:
+- evidence IDs and cutoff, detector/version and coverage;
+- target scope: engine version, host, initiative/repo, and settings allowed to change;
+- baseline configuration/code fingerprint;
+- one bounded change, predicted metric/direction/magnitude, falsifier and evaluation budget;
+- candidate/evaluator identities and observed results;
+- proposed/evaluated/rejected/approved/applied/reverted/superseded status.
+
+Use append-only transitions and immutable references. Approval binds to the exact evaluated candidate, not a prose description or a mutable branch name. Refuse stale apply when the target baseline changed. Reversion changes current policy using a new event; it does not erase history or undo code side effects already produced while that policy was active.
+
+Repeated tune calls should not keep emitting the same proposal into every digest. Define dry-run as non-mutating, with an explicit persistence action or clearly named separate command. Rate-limit display, cap active suggestions, suppress previously rejected equivalent proposals until evidence materially changes, and expire stale baselines explicitly.
+
+Hysteresis means using different thresholds for adopting versus undoing a setting to avoid oscillation. It still needs minimum evidence, cooldowns and scope rules. Tune one variable at a time initially, then test interactions; otherwise the loop cannot attribute a gain or explain a regression.
+
+Freeze the protected floor: log integrity, session routing, explicit standing constraints, evaluator integrity, permissions and release policy must not be silently weakened because a proxy metric gets cheaper. No automatic increase in authority belongs in the tuning whitelist.
+
+## S6 — Worktree ownership, budgets and stopping need outer-loop guarantees
+Affected: 3.1, 3.3.
+
+docs/SPEC.md, Driver, requires one launch directory per run; drive creates no worktree and checks that its working directory uses the same initiative log. Therefore improve can prepare and own a worktree, then invoke drive inside it; drive should not silently acquire worktree-management behavior. Specify how experiment history in that worktree is reconciled back without losing either append-only history.
+
+Pin the supervisor binary, candidate binary/artifact, model/effort and tool environment separately. Do not swap the installed sofar executable under a running benchmark or under the supervisor. Preserve concurrent user changes and never force-clean an unrelated checkout. Handle two improve requests for the same evidence, a lost process, a stale baseline and a partially completed candidate.
+
+Current drive --cost-cap restarts from zero on resume; max-sessions reconstructs from recorded handoffs and misses unattributed launches. Some adapters report no cost, and a per-session timeout is optional. These are documented limits, not suitable outer-loop budget guarantees.
+
+Record a finite experiment budget across every launch, retry, resume and evaluator run; include unattributed failures and unavailable-cost cases. Use available enforceable attempt/time/token bounds with explicit limitations where cost cannot be measured. Bound no-progress retries and candidate count. Stop on exhausted evidence/budget, invariant failure, unavailable verification, repeated no gain, operator stop, or required human judgment. The correct result can be no useful proposal.
+
+Measure amortized value: if search/evaluation/review costs S and the candidate saves d per future task, the simple break-even is S/d tasks for positive d. Include unsuccessful attempts in S. A loop that spends more than its likely future benefit can be technically successful and commercially poor.
+
+## S7 — The release gate needs statistical and lifecycle design
+Affected: 4.1, 4.2.
+
+D19 is an existing owner rule and remains unchanged by this audit. It needs a formal measurement contract:
+- State metric direction and unit; cheaper/fewer violations are lower-is-better.
+- Report absolute outcomes and margins. A preserved negative margin still means sofar is behind.
+- Report win, parity, loss or inconclusive with per-rep data and uncertainty.
+- A missing/failed competitor run is unavailable, not zero performance.
+- Correctness/integrity regressions cannot disappear inside an average gain.
+- C6/C7/C8 currently require their deferred addenda; do not mark unmeasured claims as passing.
+- Define a noise-floor arm as repeated identical baseline configuration under the same run conditions, not a deliberately weak baseline.
+- Treat the full task chain/independent project as the replication unit where sessions/tests are correlated. Three repetitions are initial evidence, not an automatic five-point certification.
+- Comparing the observed best of many competitors introduces selection effects; freeze the comparison set and analysis before the runs.
+
+Re-pin competitors at each round boundary, keep them fixed within the round, and rerun the old sofar baseline against that SAME new snapshot. Otherwise competitor/model updates confound the measured improvement from self-improve.
+
+Separate tuning, candidate selection/validation, and release-only held-out evaluation. Repeatedly looking at chain B and fixing failures against it makes it training feedback, even if its files are read-only. Once its feedback steers a candidate, retire it as unseen for subsequent claims or apply an explicitly designed holdout-reuse method. A controlled fresh-holdout schedule is simpler for an initial release.
+
+Any tolerance/non-inferiority interpretation of D19's literal no-shrinking requirement requires an explicit owner Decision. The audit recommends formalizing the rule, not bypassing it. Benchmark results inform a stable-release promotion after testing; they do not retrospectively justify publication.
+
+## S8 — A fair improvement-loop baseline is missing
+Affected: 3.3, 4.1.
+
+One manually guided cycle is a feasibility demonstration. It cannot prove sustained self-improvement or superiority to a human engineer. If the candidate agent can read the already-implemented r1-fixes patch, comparing its result to that same human-built fix tests reproduction, not independent discovery.
+
+Evaluate on a frozen loss packet and baseline, with the comparator patch hidden until assessment. Match feedback and total search budget. Useful controls:
+1. No change to sofar, rerun to estimate variance.
+2. A human using the same loss evidence under a declared effort budget.
+3. The same agent fixing the loss directly without the miner/improve orchestration.
+4. A simple fixed candidate search or extra task attempts under comparable inference/feedback budgets, with selection performed without hidden-answer access.
+
+Track useful patch yield, confirmed held-out improvement per search budget, time to reviewed patch, review effort, false improvement rate and total regressions. Preserve rejected candidates and their reasons. Demonstrate more than one cycle on different failure classes before claiming that the loop keeps improving itself.
+
+## S9 — Public standing is an outcome to observe, not the optimization target
+Affected: 4.3.
+
+Downloads, stars, listings and mentions can reflect publicity, bots, packaging changes and seasonality rather than product quality. They cannot reasonably be guaranteed to rise after every technical release. Keep a separate descriptive report and do not use these metrics to reward code changes or to override quality gates.
+
+Define package/repository identities, source URLs, exact observation windows/time zones, deduplication, missing-data/rate-limit handling and collector version. Fetch failures must not look like popularity declines. Registry presence is categorical; total stars are cumulative; weekly downloads are a flow. Do not average them into an invented industry score.
+
+Reading public metrics is network activity even though it is not telemetry emission. Keep the collector explicit and opt-in/outside the default local engine path; document any change to current network-use contracts. Local diagnostic contents or repo paths must never be sent as search/query parameters. Public standing does not measure private user retention; do not imply it does.
+
+## Task-by-task disposition
+
+| Task | Recommendation | Evidence required before completion |
+|---|---|---|
+| 1.1 Gating Decisions | Expand to cover truth/storage boundaries, privacy/export policy, experiment authority and data lifetime. | Written contracts precede new schema/code; explicit distinction between durable evidence and disposable caches. |
+| 1.2 Capture outcomes | Build once with r1-fixes 2.5, using capability-aware normalization. | Realistic host fixtures, success/error/unknown, dedupe, crash/truncated data, no recursive capture, redaction, bounded overhead and export exclusion. |
+| 2.1 tune dry-run | Start with signals the data actually supports. | Deterministic versioned detector output, immutable evidence references, coverage/unavailable flags, read-only behavior, bounded large-log work. |
+| 2.2 Miner precision/recall | Keep rediscovery as regression coverage; add independent validation. | Labeled held-out logs, negative/ambiguous cases and per-detector counts; no semantic-cause claims unsupported by evidence. |
+| 2.3 Reversible proposals | Specify proposal lifecycle and separate replay from behavioral proof. | No-op repeat runs, stale apply rejection, exact candidate approval, bounded display, stable replay, safe reversal, protected constraints and interaction checks. |
+| 3.1 improve controller | Proceed after acceptance, isolation and budget contracts. | One owned worktree/experiment, frozen supervisor, durable attempts/budget, replayable results, no auto-merge, no peer-state clobber, stop/restart recovery. |
+| 3.2 Evaluator protection | Broaden from checksum/diff checks to independently controlled evaluation. | Whole measurement path pinned; candidate cannot write evaluator/results or read hidden answers; known-good/bad controls and tampering fixtures. |
+| 3.3 First cycle | Call it a pilot; make the baseline independent. | Same initial evidence and budget, comparator solution hidden, full unsuccessful-search cost counted; fresh-task transfer and more cycles before broad claims. |
+| 4.1 Lead scoreboard | Formalize D19 rather than assume three reps settle it. | Metric direction, absolute and relative results, variance, missing-arm handling, all claimed addenda, frozen candidate and untouched holdout. |
+| 4.2 Re-pin competitors | Keep, with same-round old-sofar control. | Exact versions/config/model/effort; native-state isolation; direct memory competitors for product claims and improvement-loop baselines for algorithm claims. |
+| 4.3 Standing snapshot | Keep as a separate descriptive benchmark-owner report. | Public-source provenance, consistent windows, failures distinguished from decline, no diagnostic egress and no causal leadership claim. |
+
+## Research and novelty assessment
+Primary sources checked 2026-09-15. Findings below summarize their stated results and scope, not independent validation of every experiment.
+
+- Meta-Harness already searches harness code using experimental feedback. Automatic outer-loop harness improvement is established research, not unique to sofar. [Meta-Harness](https://arxiv.org/abs/2603.28052).
+- LangChain's Better Harness explicitly treats evaluation data as training data for harness optimization and calls for train/test separation. Borrow the feedback discipline; do not treat repeated score chasing as a release proof. [Better Harness](https://www.langchain.com/blog/better-harness-a-recipe-for-harness-hill-climbing-with-evals).
+- Karpathy's autoresearch restricts the editable surface and separates fixed evaluation/preparation code from the candidate training code. That is a useful experiment design example, not a ready-made software quality metric or a guarantee of isolation. [autoresearch](https://github.com/karpathy/autoresearch).
+- Sakana's DGM documents fake successful tool logs and modification of markers used by a reward detector. This specifically supports independent evaluator/result capture and preserving the experiment lineage. Its reported gains do not predict gains for sofar. [DGM](https://sakana.ai/dgm/).
+- Rethinking the Evaluation of Harness Evolution for Agents compares harness evolution with simpler search under comparable inference and feedback budgets and reports limited generalization in its studied setting. It is a direct reason to add matched-budget controls and held-out transfer. The audit does not generalize this into a claim that self-improvement never works. [Paper, revised 2026-08-27](https://arxiv.org/abs/2607.12227).
+- Self-Harness reports held-out improvements for bounded self-edits with a fixed evaluator/model setup. Together with the preceding evaluation critique, this shows that outcomes depend on protocol and task/model scope; the label self-improvement is not evidence. [Self-Harness](https://arxiv.org/abs/2606.09498).
+- Safe Harness Self-Evolution is a September 2026 theoretical preprint separating candidate generation from finite-data certification. Its analysis explains why more candidates need not help when evaluation is the bottleneck and why one successful update does not guarantee another. It is theoretical support for bounded search and explicit no-gain outcomes, not a production guarantee. [Preprint](https://arxiv.org/abs/2609.08175).
+- Repeated adaptive access can overfit a holdout set even when the underlying samples never change. This supports separating candidate-development feedback from release evaluation and tracking holdout exposure. [Generalization in Adaptive Data Analysis and Holdout Reuse](https://arxiv.org/abs/1506.02629).
+
+The earlier r1-fixes audit identified Beads, PROJECTMEM, OpenMemory and Letta as relevant product comparators. For this initiative, add comparison against improvement METHODS, not just memory products: direct repair by the same agent and matched-budget simple search are necessary to show the miner/controller adds value.
+
+## Recommended build order and first proof
+1. Write the shared outcome/storage/authority contracts with r1-fixes.
+2. Build a small local miner for duplicate starts, precisely classified tool failures and attributable stalls; keep unsupported measures unavailable.
+3. Validate detectors on independent logs and keep suggestions in shadow mode, with no automatic policy changes.
+4. Define durable proposal application, independent verification, frozen supervisor and experiment budgets.
+5. Run a bounded pilot on one independently chosen loss, then a second distinct loss. Preserve human review.
+6. Compare against matched-budget baselines, test fresh-task transfer, and only then connect it to a stable-release gate.
+7. Keep public standing in a separate report.
+
+Suggested acceptance targets must be frozen before building/running; this audit does not invent numerical expected gains. The present self-improve tasks contain few explicit measurable predictions despite the wider improvement program's D10 discipline. Each capability needs a defined success metric, baseline, falsifier and budget, including the ability to report insufficient evidence.
+
+The first convincing deliverable is not an agent endlessly rewriting sofar. It is a small, repeatable demonstration that a recorded failure led to an independently verified improvement on new work, at lower total cost than a simpler repair process, with a complete rejection/reversion trail.
+
+## Handoff
+No code, plan statuses, standing Decisions, benchmark freezes, installs or release actions changed. Audit findings are stored in the main checkout's self-improve record; reconcile this history through the normal append-only process if implementation proceeds in a separate worktree. Do not reinterpret the findings as owner approval for new authority, new storage contracts or a relaxed D19 gate.
 
 ## Next action
 
-(none recorded)
+Review audit S1–S9 and settle the shared outcome/storage, independent-evaluator, proposal-lifecycle and durable-budget contracts before implementing self-improve.
