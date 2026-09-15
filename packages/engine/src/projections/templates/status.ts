@@ -10,6 +10,7 @@ import {
 } from '../../core/fold'
 import type { GitState } from '../../core/git'
 import type { NeighbourRecord } from '../../core/index-tier1'
+import { LANE_RECENT_SESSIONS, QUICK_LANE } from '../../core/lane'
 import {
   clip,
   clipBlockDetect,
@@ -409,7 +410,23 @@ export interface StatusOptions {
    * no cached prefix with the previous session's. Blank entries are dropped.
    */
   notices?: readonly string[]
+  /**
+   * Render as the quick-work lane (r1-fixes 2.6, D14): the same template
+   * minus every section that presumes a plan or a write-back — no phases,
+   * progress, next action, staleness, blocked line, derived-resume or
+   * unwritten-session warnings, no read-back — plus three lines saying how
+   * the lane works and a recent-quick-work list in place of the last-session
+   * block. Decisions render as always: they are the "why" the lane recalls.
+   */
+  lane?: boolean
 }
+
+/** How the lane works — static, so it sits in the cached head (D12). */
+const LANE_HOW_LINES = [
+  'This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.',
+  '- Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.',
+  '- Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.',
+]
 
 /**
  * The adopt-by-id line (task 7.1, BD43), or null for a missing/blank id.
@@ -435,9 +452,11 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   //   3. volatile tail — adjacency, session id, git, hook notices;
   // then the read-back and footer, last as before.
   const lines: string[] = []
-  lines.push(`# Sofar status: ${state.slug || '(unnamed initiative)'}`, '')
+  const lane = options?.lane === true
+  lines.push(lane ? `# Sofar: quick-work lane (${state.slug || QUICK_LANE})` : `# Sofar status: ${state.slug || '(unnamed initiative)'}`, '')
 
   lines.push(`Goal: ${state.goal ? clip(state.goal, GOAL_BUDGET) : '(none recorded)'}`, '')
+  if (lane) lines.push(...LANE_HOW_LINES, '')
 
   // Standing constraints (drift-hardening 2.1): the normative frame, directly
   // under the goal — what every session must obey before it reads any detail.
@@ -465,7 +484,7 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   // segment (text before " — "); names without that convention pass whole.
   const stalePhases = staleActivePhases(state)
   const staleNames = new Set(stalePhases.map((p) => p.name))
-  if (state.phases.length > 0) {
+  if (!lane && state.phases.length > 0) {
     // A dropped phase is resolved, not open — leaving it in the itemized
     // list is the exact false "queued work" signal this initiative exists
     // to kill, and it would burn a capped slot to do it.
@@ -496,12 +515,13 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
     lines.push('')
   }
 
-  // Progress + active phase.
-  lines.push(
+  // Progress + active phase. The lane has neither (D14): its sections start
+  // at the concurrent-edit warning, the one plan-free hazard below.
+  if (!lane) lines.push(
     `Progress: ${progressText(taskProgress(state.phases))} across ${state.phases.length} phase(s)`,
   )
 
-  const active = state.phases.find((p) => p.name === state.current.active_phase)
+  const active = lane ? undefined : state.phases.find((p) => p.name === state.current.active_phase)
   if (active !== undefined) {
     lines.push(
       `Active phase: ${clip(active.name, PHASE_LINE_BUDGET)} — ${phaseFraction(taskProgress([active]))} tasks done`,
@@ -520,11 +540,11 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
     if (next !== undefined) {
       lines.push(`Next task: ${clip(`${next.id} ${next.title}`, TASK_LINE_BUDGET)}`)
     }
-  } else {
+  } else if (!lane) {
     lines.push('Active phase: (none)')
   }
 
-  if (state.current.next_action !== null) {
+  if (!lane && state.current.next_action !== null) {
     lines.push(`Next action: ${clip(state.current.next_action, NEXT_ACTION_BUDGET)}`)
   }
 
@@ -532,7 +552,7 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   // last-writer-wins — when concurrent sessions wrapped with DIFFERENT next
   // actions, the losers are parallel threads the resuming agent must see,
   // directly under the scalar that swallowed them.
-  const parallel = overlappingWritebacks(state)
+  const parallel = lane ? [] : overlappingWritebacks(state)
   if (parallel.length > 0) {
     lines.push(
       `⚠ Parallel write-backs — ${parallel.length} overlapping session(s) also recorded a next action:`,
@@ -550,7 +570,7 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   // should distrust it in proportion. Rendered only when drift exists and
   // something ever wrote back (no write-back → no next_action to stale).
   const drift = freshnessTotal(state.freshness)
-  if (drift > 0 && state.freshness.last_writeback_ts !== null) {
+  if (!lane && drift > 0 && state.freshness.last_writeback_ts !== null) {
     lines.push(
       clip(
         `⚠ next action may be stale: ${drift} event${drift === 1 ? '' : 's'} since write-back (${describeFreshness(state.freshness.events_since_writeback)})`,
@@ -575,7 +595,7 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
     }
   }
 
-  if (state.current.blocked_on !== undefined) {
+  if (!lane && state.current.blocked_on !== undefined) {
     lines.push(`Blocked on: ${clip(state.current.blocked_on, BLOCKED_BUDGET)}`)
   }
 
@@ -591,7 +611,9 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
       lines.push(`- …and ${conflicts.length - MAX_CONFLICT_LINES} more (run sofar doctor)`)
     }
   }
-  lines.push('')
+  // The lane renders nothing above this point past the how-lines' own blank
+  // unless a conflict fired, so the separator would double up (D14).
+  if (!lane || conflicts.length > 0) lines.push('')
 
   // Last written-back session. When the budget cuts the summary (1.3
   // detection), the pointer to the full text rides INSIDE the budget
@@ -620,7 +642,24 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
 
   // Derived resume fallback (task 7.2, BD44): a newer session that worked
   // but never wrote back still leaves a usable resume point.
-  const unwritten = lastUnwrittenWithActivity(state.sessions)
+  // The lane's sessions never write back by design (D14), so the derived
+  // resume line and the unwritten-sibling warning — both of which say a
+  // write-back is missing — would fire on every one of them. In their place:
+  // a count and the last few sessions' mechanical activity, newest first,
+  // which is what "what was done here lately" honestly reduces to.
+  if (lane && state.sessions.length > 0) {
+    const worked = state.sessions.filter((s) => s.activity !== undefined).reverse()
+    const since = state.sessions[0]?.started.slice(0, 10)
+    lines.push(
+      `Recent quick work (${plural(state.sessions.length, 'session')}, ${plural(state.decisions.length, 'decision')}` +
+        `${since !== undefined ? ` since ${since}` : ''}${worked.length > LANE_RECENT_SESSIONS ? `; last ${LANE_RECENT_SESSIONS}` : ''}):`,
+    )
+    for (const s of worked.slice(0, LANE_RECENT_SESSIONS)) {
+      lines.push(`- ${clip(`${s.started.slice(0, 10)} ${s.tool} — ${describeActivity(s.activity!)}`, DERIVED_SESSION_BUDGET)}`)
+    }
+    lines.push('')
+  }
+  const unwritten = lane ? undefined : lastUnwrittenWithActivity(state.sessions)
   if (unwritten !== undefined) {
     const fate = unwritten.ended !== undefined ? 'ended without write-back' : 'open, no write-back yet'
     const closed = unwritten.closed_reason !== undefined ? `, closed: ${unwritten.closed_reason}` : ''
@@ -637,7 +676,7 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   // Every OTHER unwritten session (record-integrity 4.3): the derived line
   // above names one, and with parallel sessions the rest used to vanish —
   // a single write-back was enough to hide them all. One budgeted line.
-  const allUnwritten = unwrittenSessions(state.sessions)
+  const allUnwritten = lane ? [] : unwrittenSessions(state.sessions)
   const others = allUnwritten.filter((s) => s.id !== unwritten?.id)
   if (others.length > 0) {
     const named = others.slice(0, UNWRITTEN_SIBLING_CAP).map((s) => clip(s.id, SESSION_ID_BUDGET))
@@ -804,7 +843,7 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   // at zero cost; aviation read-back, applied to resume. Digest-only (agent
   // protocol, not terminal furniture) and rendered only when the record has
   // something to restate, so empty records stay byte-identical.
-  if (state.current.next_action !== null || standing.length > 0) {
+  if (!lane && (state.current.next_action !== null || standing.length > 0)) {
     lines.push(
       'Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.',
       '',

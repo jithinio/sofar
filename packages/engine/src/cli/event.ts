@@ -1,5 +1,10 @@
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
+import { readBindingsFile } from '../core/bindings'
+import { currentBranch } from '../core/git'
+import { ensureIndexDir } from '../core/index-store'
+import { QUICK_LANE, QUICK_LANE_GOAL } from '../core/lane'
+import { withFileLock } from '../core/lock'
 import type { Command } from 'commander'
 import {
   EVENT_TYPE_REFERENCE,
@@ -258,6 +263,66 @@ function resolveBound(
 }
 
 /**
+ * Whether the quick lane (r1-fixes 2.6, D14) can catch this repo's unbound
+ * work: `ready` — it exists and is open, or can be created; `closed` — it was
+ * closed on purpose, so it is off and the hooks discard as before; `none` —
+ * this repo cannot hold one (no .sofar/, a detached HEAD with no branch to be
+ * unbound, or a branch that IS bound, to a record that is missing or
+ * unreadable — a broken binding is not an unbound branch).
+ */
+export function laneAvailability(rootDir: string): 'ready' | 'closed' | 'none' {
+  try {
+    const ctx = createToolContext(rootDir)
+    if (!existsSync(ctx.sofarDir)) return 'none'
+    const branch = currentBranch(rootDir)
+    if (branch === null) return 'none'
+    if (readBindingsFile(ctx.bindingsPath)[branch] !== undefined) return 'none'
+    if (!existsSync(ctx.initiativeDir(QUICK_LANE))) return 'ready'
+    return isClosedInitiativeStatus(ctx.foldState(QUICK_LANE).status) ? 'closed' : 'ready'
+  } catch {
+    return 'none'
+  }
+}
+
+/**
+ * Create the lane on the first captured edit (D14). Returns true when the lane
+ * exists afterwards, false when this repo cannot hold one. Never at
+ * SessionStart: that path appends nothing (record-hygiene D2), and a lane
+ * that only ever gets read is a lane nobody used. Under a lock for the same
+ * reason registration is (r1-fixes 1.2): hosts that fire hooks in parallel
+ * would otherwise mint one initiative_created per process. Degrades to
+ * unlocked like every lock here — the fold reads a duplicate create as a
+ * harmless repeat of the same slug and goal.
+ */
+function ensureLane(rootDir: string): boolean {
+  if (laneAvailability(rootDir) !== 'ready') return false
+  try {
+    const ctx = createToolContext(rootDir)
+    const create = (): void => {
+      if (existsSync(ctx.eventsPath(QUICK_LANE))) return
+      mkdirSync(ctx.initiativeDir(QUICK_LANE), { recursive: true })
+      ctx.appendAndProject(
+        QUICK_LANE,
+        'initiative_created',
+        { slug: QUICK_LANE, goal: QUICK_LANE_GOAL },
+        { session: 'cli', source: 'hook' },
+      )
+    }
+    let lockPath: string | null = null
+    try {
+      lockPath = join(ensureIndexDir(ctx.sofarDir), 'locks', `${QUICK_LANE}.create.lock`)
+    } catch {
+      lockPath = null
+    }
+    if (lockPath === null) create()
+    else withFileLock(lockPath, create)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Repo memory (task 6.5, BD40) — .sofar/repo.md is hand-written
  * repo-scoped memory (SPEC §Record layout). Surfaced in the SessionStart
  * context only when it says something: missing, unreadable, empty, or still
@@ -397,17 +462,42 @@ export function unboundNotice(rootDir: string, sessionId: string | null = null):
     if (!existsSync(sofarDir)) return ''
     const idLine = sessionIdLine(sessionId)
     const head = (title: string): string[] => [title, '', ...(idLine !== null ? [idLine, ''] : [])]
+    // The quick lane (r1-fixes 2.6, D14): when it can catch this work, the
+    // notice says so and the ceremony becomes optional — a one-off fix needs
+    // nothing, a decision needs one line, a project still needs its record.
+    // Wording avoids the exact "sofar_start_session with the session_id
+    // above" phrase, which belongs to the create → adopt → plan moves.
+    const lane = laneAvailability(rootDir)
+    const decisionAsk = `Made a decision? sofar_start_session${idLine !== null ? ' (session_id above)' : ''} then sofar_log_decision — one line of why.`
+    const captured = [
+      `Edits here are captured in the quick-work lane (\`${QUICK_LANE}\`, created by the first`,
+      'edit) — enough for a one-off fix: no sofar new, no plan, no write-back.',
+      decisionAsk,
+      '',
+    ]
+    const discarded =
+      lane === 'closed'
+        ? [
+            `The quick-work lane (\`${QUICK_LANE}\`) is closed, so nothing you do here is recorded —`,
+            `hook events are discarded, not queued. \`sofar switch ${QUICK_LANE}\` reopens it; otherwise:`,
+            '',
+          ]
+        : [
+            'Nothing resolves for this session, so nothing you do here is recorded —',
+            'hook events are discarded, not queued. Fix it before working:',
+            '',
+          ]
     const slugs = initiativeSlugs(sofarDir)
     if (slugs.length === 0) {
       return enforceStatusLimit(
         [
           ...head('# Sofar: no initiative yet'),
-          'This repo carries a sofar record but no initiative, so nothing you do is',
-          'recorded yet — hook events are discarded, not queued. Before the work:',
-          '',
+          'This repo carries a sofar record but no initiative.',
+          ...(lane === 'ready' ? captured : discarded),
+          'Project-sized work needs its own record, before the first edit:',
           '  1. sofar new <slug> --goal "<one line>"   one initiative for the project or roadmap, not per feature',
           `  2. sofar_start_session${idLine !== null ? ' with the session_id above' : ''}`,
-          '  3. sofar_update_plan                        phases and tasks, before the first edit',
+          '  3. sofar_update_plan                        phases and tasks',
         ].join('\n'),
       )
     }
@@ -417,9 +507,7 @@ export function unboundNotice(rootDir: string, sessionId: string | null = null):
     return enforceStatusLimit(
       [
         ...head('# Sofar: this branch is not bound to an initiative'),
-        'No record resolves for this session, so nothing you do here is being',
-        'recorded — hook events are discarded, not queued. Fix it before working:',
-        '',
+        ...(lane === 'ready' ? captured : discarded),
         `  sofar switch <slug>   work on an existing record (${listed}${more})`,
         '  sofar new <slug>      start a new one (work that matches no existing record)',
         '',
@@ -641,12 +729,15 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
       advisory,
       shippingNotice(rootDir, slug),
     ].filter((p): p is string => p !== null)
+    // The quick lane renders its own lean block (r1-fixes 2.6, D14): the same
+    // template, minus every section that presumes a plan or a write-back.
     const status = renderStatus(state, {
       ...(repoMemory !== null ? { repoMemory } : {}),
       ...(sessionId !== null ? { sessionId } : {}),
       ...(git !== null ? { git } : {}),
       ...(neighbours.length > 0 ? { neighbours } : {}),
       ...(notices.length > 0 ? { notices } : {}),
+      ...(slug === QUICK_LANE ? { lane: true } : {}),
     })
     return { ...OK, stdout: status }
   } catch {
@@ -684,7 +775,12 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
     const nudge = readNudge()
     const driven = nudge === null ? [] : [nudgeLine(nudge)]
 
-    const bound = resolveBound(rootDir, session)
+    // Nothing resolves → the quick lane (r1-fixes 2.6, D14), created here on
+    // the first captured edit. Resolution is re-run rather than assumed: the
+    // lane is a FALLBACK inside resolveInitiative, and this hook must route
+    // exactly as every other surface does.
+    let bound = resolveBound(rootDir, session)
+    if (bound === null && ensureLane(rootDir)) bound = resolveBound(rootDir, session)
     if (bound === null) return driven.length === 0 ? { ...OK } : { ...OK, stdout: postToolContext(driven) }
     const { ctx, slug } = bound
 
@@ -797,6 +893,11 @@ export function handleStop(
     const bound = resolveBound(rootDir, sessionId)
     if (bound === null) return { ...OK }
     const { ctx, slug } = bound
+
+    // The quick lane has no write-back (r1-fixes 2.6, D14): the commit is the
+    // summary, the decision line is the why, and a gate here would be the
+    // ceremony the lane exists to remove.
+    if (slug === QUICK_LANE) return { ...OK }
 
     const state = ctx.foldState(slug)
     const session = state.sessions.find((s) => s.id === sessionId)
@@ -1723,7 +1824,9 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     // line asks THIS session to act, and the initiative-wide total nagged a
     // session that had just written back, for a sibling's edits it could not
     // speak to.
-    const debt = sessionDebt(state, me)
+    // Silent in the quick lane (r1-fixes 2.6, D14): there is no write-back to
+    // nudge toward, and the Stop gate the line warns about never fires there.
+    const debt = slug === QUICK_LANE ? 0 : sessionDebt(state, me)
     if (debt >= NUDGE_DRIFT_MIN) {
       lines.push(
         `sofar: ${debt} unwritten events in THIS session — if the current batch of work ` +

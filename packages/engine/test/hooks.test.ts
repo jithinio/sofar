@@ -168,7 +168,7 @@ describe('sofar event session-start — context injection only, lazy registratio
     expect(existsSync(fixture.eventsPath)).toBe(false)
   })
 
-  it('unbound branch → exit 0, nothing appended', () => {
+  it('unbound branch → exit 0, nothing appended (the quick lane catches the WORK, never a read — quick-lane.test.ts)', () => {
     const fixture = fx({ bind: false })
     const result = handleSessionStart(fixture.root, hookStdin({}))
     expect(result.exitCode).toBe(0)
@@ -510,11 +510,20 @@ describe('sofar event post-tool — mechanical file/command events (3.3)', () =>
     expect(events[0]).toMatchObject({ type: 'command_run', session: 'cli', source: 'hook' })
   })
 
-  it('unbound repo → exit 0, nothing appended (BD22)', () => {
+  it('unbound branch → exit 0, nothing appended to the unbound record (the quick lane takes it — r1-fixes 2.6, quick-lane.test.ts)', () => {
     const fixture = fx({ bind: false })
     const result = handlePostTool(fixture.root, postToolStdin('Edit', { file_path: '/x.ts' }))
     expect(result).toEqual({ exitCode: 0, stdout: '', stderr: '' })
     expect(existsSync(fixture.eventsPath)).toBe(false)
+    expect(existsSync(join(fixture.root, '.sofar', 'initiatives', 'quick', 'events.jsonl'))).toBe(true)
+  })
+
+  it('a repo with no record at all → exit 0, nothing created (BD22)', () => {
+    const fixture = fx({ bind: false })
+    rmSync(join(fixture.root, '.sofar'), { recursive: true, force: true })
+    const result = handlePostTool(fixture.root, postToolStdin('Edit', { file_path: '/x.ts' }))
+    expect(result).toEqual({ exitCode: 0, stdout: '', stderr: '' })
+    expect(existsSync(join(fixture.root, '.sofar'))).toBe(false)
   })
 })
 

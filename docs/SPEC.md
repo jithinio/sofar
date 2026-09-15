@@ -2047,13 +2047,60 @@ against a ~55 ms statusline — which is why the mechanism stays a derivation
 over the truth logs rather than a persisted pin that could desync (D1) and
 would need stale-pin cleanup.
 When NEITHER a session pin nor a branch binding resolves (initiative-lifecycle
-D4), hooks still drop the event silently and exit 0 — lazily binding would
-recreate the misrouting record-integrity 1.2 fixed, and would let a hook
-silently undo a close. The drop is per-event but the CONDITION is
+D4), resolution FALLS BACK TO THE QUICK-WORK LANE (r1-fixes 2.6, D14) — and
+only when the lane cannot catch the work do hooks still drop the event
+silently and exit 0. Lazily BINDING would recreate the misrouting
+record-integrity 1.2 fixed, and would let a hook silently undo a close; the
+lane does neither, see below. The drop is per-event but the CONDITION is
 per-session, so it is named ONCE where the agent reads: SessionStart injects
 an unbound notice naming `sofar switch` / `sofar new`, and the statusline
 renders `unbound`. Both are scoped to repos that carry a record — a repo
-sofar has never touched is unchanged. "Carries a record" means `.sofar/`
+sofar has never touched is unchanged.
+**Quick-work lane (r1-fixes 2.6, D14, D15).** The reserved slug `quick` is
+the standing per-repo record ad-hoc work lands in with no ceremony. It is a
+FALLBACK, never a binding and never a home: (1) `resolveInitiative` answers
+`quick` for a branch bound to nothing when `.sofar/initiatives/quick/`
+exists and is open — every surface that resolves (hooks, MCP tools, CLI,
+statusline, commit trailer) inherits it; bindings.json is never written for
+it, so `sofar new`/`switch` move the branch off the lane with nothing to
+undo. (2) The PostToolUse hook CREATES the lane on the first captured edit
+of an unbound branch — mkdir plus `initiative_created` {slug: quick, goal:
+the fixed lane goal}, envelope session `cli`, source `hook`, under a lock
+keyed `quick.create` for the same reason registration is locked (r1-fixes
+1.2) — never at SessionStart, which appends nothing (record-hygiene D2). No
+lane is created for a repo without `.sofar/`, a detached HEAD, or a branch
+that IS bound to a missing or unreadable record (a broken binding is not an
+unbound branch). (3) CATCH BASIN (D15, the one carve-out of record-integrity
+D9): `homeInitiative` skips a registration in `quick` whenever a real slug
+is preferred, so a session whose first edits landed in the lane follows the
+branch the moment `sofar new`/`switch` binds it — registered anew there,
+its lane events left behind as history — and a session homed in a real
+record that lands on an unbound branch stays home; the lane never catches
+it. With no preference the lane is a home like any other, so the commit
+trailer stamps `Sofar-Initiative: quick` on a lane session's commits. (4) NO
+CEREMONY: the Stop gate exits 0 for `quick` whatever the session owes, the
+UserPromptSubmit write-back nudge is silent there, and the SessionStart
+block is `renderStatus(state, {lane: true})` — title `# Sofar: quick-work
+lane (quick)`, the fixed goal, three how-it-works lines (hooks capture here,
+no sofar new/plan/write-back; a decision is sofar_start_session then
+sofar_log_decision, one line of why; project-sized work is `sofar new`), then
+the plan-free sections only: repo memory, concurrent-edit warning, `Recent
+quick work (N sessions, M decisions since <date>; last 5):` with one line
+per session (`<date> <tool> — <activity>`) in place of the last-session and
+unwritten-session lines, the decision index and Next ids as always (the
+decisions ARE what the lane recalls), adjacency, `Session:`, `Git:`, the
+notices, and NO read-back. Phases, progress, active/next task, next action,
+staleness, blocked and parallel-write-back lines never render. (5) The
+unbound notice, when the lane can catch the work, says so — edits are
+captured in `quick`, no sofar new/plan/write-back, the decision ask — and
+still names the project moves (`sofar new`/`switch`, the three-step
+zero-initiative variant); when the lane is CLOSED (`sofar close quick`) it
+says the lane is off and that `sofar switch quick` reopens it, and hooks
+discard as they did before the lane existed. (6) `sofar new quick` refuses:
+the lane creates itself. The statusline renders a lane-caught session as the
+dim slug `quick` with no progress pie. Promotion is `sofar new <slug>` —
+nothing carries over; adjacency already links the lane's decisions to a
+record that works the same files. "Carries a record" means `.sofar/`
 exists, not that an initiative does (r1-fixes 1.1): a freshly initialised
 repo with NO initiative gets its own variant, `# Sofar: no initiative yet`,
 naming three moves in order — `sofar new <slug> --goal` (one initiative for
@@ -2753,7 +2800,9 @@ Shims contain no logic — they invoke the sofar CLI.
   records this one continues: every one is checked BEFORE anything is
   created (must exist, must not be the new slug), then after create-and-bind
   each is closed as `superseded` by the new slug — bind first so the branch
-  ends on live work, since closing unbinds (§Initiative statuses).
+  ends on live work, since closing unbinds (§Initiative statuses). `sofar new
+  quick` refuses: `quick` is the quick-work lane (§Hooks), which creates
+  itself on the first edit of an unbound branch.
 - `sofar close [slug] [--drop] [--reason <text>] [--superseded-by <slug>]` —
   record the initiative terminal (`done`; `dropped`, which REQUIRES
   `--reason`; or `superseded`, which names the existing record the work
@@ -3382,6 +3431,29 @@ stay the underlying derivation's, and exit codes are styling-independent.
   budget, repo memory at budget, 780 chars of notices) the block stays
   ≤10,000 chars with no truncation marker, every notice present, the ledger
   carrying the `…and N more` pointer and the read-back after it.
+- **Quick-work lane (r1-fixes 2.6):** on a branch bound to nothing, the first
+  PostToolUse edit creates `.sofar/initiatives/quick/` — `initiative_created`
+  (session `cli`, source `hook`, the fixed goal), then the session's
+  registration and its `file_touched` — and bindings.json is never written;
+  a second edit reuses it (one create, one registration). No lane for a repo
+  without `.sofar/`, a detached HEAD, or a branch bound to a missing record.
+  Once it exists, `resolveInitiative`, `resolveSessionFirst` (via `lane`),
+  sofar_start_session and the commit trailer all answer `quick`; a branch
+  explicitly bound to `quick` resolves via `branch`. A session registered in
+  the lane follows the branch after `sofar new <slug>` binds it — one session
+  in the new record, its earlier edits left in the lane — and a session homed
+  in a real record whose branch loses its binding stays home with no lane
+  created. Stop exits 0 for a lane session owing more than the nudge
+  threshold; the prompt hook prints no debt line. SessionStart before the
+  first edit renders the unbound notice naming the lane, the decision ask,
+  `sofar switch`/`new` and the `Session:` line, creating nothing; on the lane
+  it renders `# Sofar: quick-work lane (quick)`, the how-it-works lines,
+  `Recent quick work (N sessions, M decisions since <date>):` with per-session
+  activity, the decision index and Next ids, and none of Progress, Active
+  phase, Next action, Read-back or the unwritten-session lines — under 2,500
+  chars on a two-session lane. A closed lane discards hook events and the
+  notice names `sofar switch quick`; `sofar new quick` is refused; the
+  statusline renders a lane-caught session as `quick`.
 - **Repo memory capture:** `sofar remember <text>` and `sofar_remember`
   append memory_promoted and report the `<slug> M<n>` handle; ordinals follow
   log order; `memory.md` appears only once something is promoted; empty text

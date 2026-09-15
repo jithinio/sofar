@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
-import { validatePayload, isKnownEventType } from '@sofar/schema'
+import { validatePayload, isClosedInitiativeStatus, isKnownEventType } from '@sofar/schema'
 import type { ToolErrorCode, ToolErrorShape } from '@sofar/schema/tool-inputs'
 import { makeEvent, SOURCES, type Actor, type EventEnvelope, type Source } from '../core/envelope'
 import { appendEvent } from '../core/log'
 import { foldLog, emptyState, type InitiativeState } from '../core/fold'
 import { currentBranch } from '../core/git'
 import { ensureIndexDir } from '../core/index-store'
+import { QUICK_LANE } from '../core/lane'
 import { initiativeSlugs } from '../core/listing'
 import { withFileLock } from '../core/lock'
 import { regenerateProjections } from '../projections/generator'
@@ -198,8 +199,17 @@ export function homeInitiative(
     }
   }
 
+  // Catch-basin rule (r1-fixes 2.6, D14): a registration in the quick lane
+  // never beats a real slug. A session that began as quick work and then ran
+  // `sofar new` is registered in the lane and preferred elsewhere; letting the
+  // lane win would pin it there for life — the exact tear this scan exists to
+  // prevent, reintroduced by the fallback. With no preference (an unbound
+  // branch) the lane is a home like any other, so the trailer and the hooks
+  // still find a lane session.
+  const skipLane = preferred != null && preferred !== QUICK_LANE
   for (const slug of initiativeSlugs(sofarDir)) {
     if (slug === preferred) continue // already read above
+    if (skipLane && slug === QUICK_LANE) continue
     const path = eventsPathFor(slug)
     // Only a STRICTLY later registration can displace the candidate, so a log
     // that cannot hold one is never opened.
@@ -213,8 +223,12 @@ export function homeInitiative(
   return home
 }
 
-/** How a resolution was reached — the surfaces render the two differently. */
-export type ResolvedVia = 'session' | 'branch'
+/**
+ * How a resolution was reached — the surfaces render each differently.
+ * `lane` is the branch path answering `quick` by fallback (r1-fixes 2.6):
+ * bound to nothing, caught by the lane.
+ */
+export type ResolvedVia = 'session' | 'branch' | 'lane'
 
 export interface ResolvedInitiative {
   slug: string
@@ -252,12 +266,14 @@ export function resolveSessionFirst(
   } catch {
     branchSlug = null // unbound/detached — a registered session may still answer
   }
+  const branchVia = (): ResolvedVia =>
+    branchSlug === QUICK_LANE && ctx.laneFallback() ? 'lane' : 'branch'
   if (sessionId != null && sessionId.length > 0) {
     const home = homeInitiative(ctx.sofarDir, sessionId, branchSlug)
-    if (home !== null) return { slug: home, via: home === branchSlug ? 'branch' : 'session' }
+    if (home !== null) return { slug: home, via: home === branchSlug ? branchVia() : 'session' }
   }
   if (branchSlug === null) return null
-  return { slug: branchSlug, via: 'branch' }
+  return { slug: branchSlug, via: branchVia() }
 }
 
 /**
@@ -296,8 +312,18 @@ export interface ToolContext {
   session: SessionBox
   initiativeDir(slug: string): string
   eventsPath(slug: string): string
-  /** Explicit arg wins; else current branch → bindings.json; else typed error. */
+  /**
+   * Explicit arg wins; else current branch → bindings.json; else the quick
+   * lane when it exists and is open (r1-fixes 2.6, D14); else typed error.
+   */
   resolveInitiative(explicit?: string): string
+  /**
+   * True when resolveInitiative() would answer `quick` BY FALLBACK — the
+   * current branch is bound to nothing and the lane is open. False when a
+   * branch is explicitly bound to `quick` (`sofar switch quick`): that is a
+   * binding like any other, and the surfaces word it as one.
+   */
+  laneFallback(): boolean
   /**
    * Write-tool resolution (task 12.1, BD58): explicit arg wins; else the
    * ACTIVE session's pinned initiative; else branch → bindings.json. Pinning
@@ -383,6 +409,27 @@ export function createToolContext(rootDir: string): ToolContext {
     }
   }
 
+  /** The lane exists and is not closed — the only state in which it is a fallback. */
+  function laneOpen(): boolean {
+    if (!existsSync(initiativeDir(QUICK_LANE))) return false
+    try {
+      return !isClosedInitiativeStatus(foldState(QUICK_LANE).status)
+    } catch {
+      return false
+    }
+  }
+
+  function laneFallback(): boolean {
+    const branch = currentBranch(rootDir)
+    if (branch === null) return false
+    try {
+      if (readBindings()[branch] !== undefined) return false
+    } catch {
+      return false
+    }
+    return laneOpen()
+  }
+
   function resolveInitiative(explicit?: string): string {
     let slug: string
     if (explicit !== undefined) {
@@ -397,12 +444,20 @@ export function createToolContext(rootDir: string): ToolContext {
       }
       const bound = readBindings()[branch]
       if (bound === undefined) {
-        throw new ToolError(
-          'unknown_initiative',
-          `no initiative bound to branch "${branch}" in .sofar/bindings.json — pass \`initiative\` explicitly or bind the branch; ${knownInitiatives(sofarDir)}`,
-        )
+        // The quick-work lane (r1-fixes 2.6, D14): an unbound branch resolves
+        // to `quick` when the lane exists and is open. A fallback, not a
+        // binding — bindings.json is untouched, so `sofar new`/`switch` move
+        // the branch off the lane with nothing to undo. A closed lane is off.
+        if (!laneOpen()) {
+          throw new ToolError(
+            'unknown_initiative',
+            `no initiative bound to branch "${branch}" in .sofar/bindings.json — pass \`initiative\` explicitly or bind the branch; ${knownInitiatives(sofarDir)}`,
+          )
+        }
+        slug = QUICK_LANE
+      } else {
+        slug = bound
       }
-      slug = bound
     }
     assertContained(slug)
     if (!existsSync(initiativeDir(slug))) {
@@ -533,6 +588,7 @@ export function createToolContext(rootDir: string): ToolContext {
     initiativeDir,
     eventsPath,
     resolveInitiative,
+    laneFallback,
     resolveWriteInitiative,
     foldState,
     appendAndProject,

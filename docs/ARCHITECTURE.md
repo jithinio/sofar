@@ -48,6 +48,7 @@ Three consequences run through every design decision in the codebase:
 | `core/atomic.ts` | `writeFileAtomic` — temp + rename, so readers never see a torn file. |
 | `core/lock.ts` | `withFileLock` — exclusive-create mutex for short check-then-append sections (session registration). Degrades to unlocked rather than blocking a hook; lock files live in the self-ignoring `.index/`. |
 | `core/redact.ts` | Secret redaction on captured commands before they reach the log. |
+| `core/lane.ts` | The quick-work lane's constants (r1-fixes 2.6, D14): the reserved slug `quick` an unbound branch falls back to, its fixed goal, and the block's recent-session cap. A fallback, never a binding and never a home. |
 | `core/identity.ts` | Optional `user` stamp from git config. `identity.browser.ts` is the browser build. |
 
 ### 2. Derivation — pure functions of the log
@@ -112,8 +113,8 @@ silence, never a broken session.
 | --- | --- |
 | SessionStart | Injects the record — goal, progress, next action, decisions, standing constraints, rejected approaches, repo memory. |
 | UserPromptSubmit | Live hazards first: file conflicts, reachable peers, crossed guards, parallel wrap-ups, git state, drift nudge. |
-| PostToolUse | Captures file touches and commands as events. The point-of-use guard fires here. |
-| Stop | Blocks a session that owes a write-back. |
+| PostToolUse | Captures file touches and commands as events. The point-of-use guard fires here. On an unbound branch it creates the quick lane (`quick`) on the first edit and captures there (D14). |
+| Stop | Blocks a session that owes a write-back — never in the quick lane, which has no write-back. |
 | SessionEnd | Closes the session. |
 
 A sixth shim, `hooks/prepare-commit-msg.sh`, is a **git** hook rather than a
