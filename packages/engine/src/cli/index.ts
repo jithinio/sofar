@@ -77,9 +77,12 @@ program
 program
   .command('doctor')
   .description(
-    'audit this repo: wiring integrity, record health, and tree-wide scanner hazards (Tailwind v4 ingesting .sofar); --fix inserts the @source not exclusion',
+    'audit this repo: wiring integrity, record health, and tree-wide tool hazards (Tailwind v4, Biome, Prettier, markdownlint reaching .sofar); --fix writes each tool\'s .sofar exclusion',
   )
-  .option('--fix', 'apply the safe scanner fix (insert `@source not "…/.sofar"` after the tailwindcss import)')
+  .option(
+    '--fix',
+    'apply the safe fixes: insert `@source not "…/.sofar"` after the tailwindcss import; add the .sofar exclusion to biome.json, .prettierignore, .markdownlintignore',
+  )
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((opts: { fix?: boolean; root?: string }) => {
     // withUpdateNotice touches stderr only — doctor's exit code is its verdict

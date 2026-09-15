@@ -2517,7 +2517,36 @@ Shims contain no logic — they invoke the sofar CLI.
   the scanner would ingest committed `.sofar/` records; the hint points at
   `sofar doctor --fix` (added Phase 10, D-P10). The statusline hint, when
   both fire, prints before it — the scanner hint keeps the final slot.
-- `sofar doctor [--fix]` — audit a host repo across seven axes: (1) wiring
+  Between them sits the FORMATTER hint (r1-fixes 1.4, r1-fixes D7): when
+  Biome, Prettier or markdownlint is present and would still reach into
+  `.sofar/`, init names each tool, points at `sofar doctor --fix`, and shows
+  the hand-edit line per tool; silent once every detected tool excludes the
+  record.
+  The JSON init writes — `.mcp.json` and `.claude/settings.json` — takes the
+  SHAPE THE HOST'S FORMATTER WOULD PRINT (r1-fixes D7): indent and line width
+  resolved from biome.json(c) (when Biome would format the file: present,
+  formatter on, file not excluded; `json.formatter` over `formatter`, then
+  .editorconfig when `useEditorconfig` is on — Biome 2's default — then
+  Biome's own tab/2/80), else the Prettier config (`.prettierrc*`,
+  `prettier.config.*`, the package.json `prettier` key or dependency; JSON
+  and flat-YAML configs are read, script configs fall back to defaults, with
+  .editorconfig underneath as Prettier itself reads it), else `.editorconfig`
+  alone; objects always expanded, an array of scalars on one line while it
+  fits and one-per-line once it overflows — Prettier's exact output, and
+  Biome's under its defaults once the indent is a tab (verified against
+  biome 2.5 and prettier 3). A formatting pass over the repo therefore leaves
+  both files byte-identical instead of churning them into the agent's next
+  commit (round 1: 3/7 runs). With NO formatter configured the plain
+  `JSON.stringify(v, null, 2)` form sofar has always written is kept: there
+  is nothing to satisfy, and matching a formatter that never runs would only
+  break the Phase 8 promise that user content round-trips init → uninit
+  byte-identically. With one configured, that promise is the formatter's to
+  keep — its shape is the only stable one, and it would rewrite the user's
+  file the same way on its next pass. `sofar uninit`, the statusline installer
+  and doctor's JSON fixes rewrite in the same shape; a file OUTSIDE the repo
+  (the personal `~/.claude/settings.json`) always takes the plain form, since
+  no repo formatter runs on it.
+- `sofar doctor [--fix]` — audit a host repo across eight axes: (1) wiring
   integrity (init's shims/settings/.mcp.json/protocol blocks intact), plus the
   ATTRIBUTION check (commit-attribution 2.4), which is deliberately EMPIRICAL
   rather than diagnostic: it asks whether the last 20 commits actually carry
@@ -2591,14 +2620,44 @@ Shims contain no logic — they invoke the sofar CLI.
   §Record layout and sofar never generates or rewrites it, so both the curation
   and the SessionStart token budget stay the author's (record-graph 3.3);
   (7) scanner hazards (Tailwind v4 entry stylesheet lacking a
-  `@source not` exclusion for `.sofar`). Record-health, concurrency and
+  `@source not` exclusion for `.sofar`); (8) formatter hazards (r1-fixes 1.4,
+  r1-fixes D7) — Biome, Prettier and markdownlint each process the whole tree
+  by default, so a committed `.sofar/` (generated markdown and JSON nobody
+  hand-edits) turns `biome check`, `prettier --check` and markdownlint red and
+  sends the agent off to patch the tool's config. One finding per detected
+  tool, in a fixed order: Biome (`biome.json`/`biome.jsonc`, or the
+  `@biomejs/biome` dependency alone), Prettier (any `.prettierrc*` or
+  `prettier.config.*`, the package.json `prettier` key or dependency),
+  markdownlint (its config files or the `markdownlint-cli`/`markdownlint-cli2`
+  dependency). A tool that already keeps `.sofar` out is OK — for Biome, any
+  `files.includes` negation reaching it, an `includes` list whose positive
+  patterns never reach it, or a `files.ignore` entry; for Prettier and
+  markdownlint-cli, a `.prettierignore`/`.markdownlintignore` line in any
+  spelling (`.sofar`, `.sofar/`, `/.sofar`, `**/.sofar`, `.sofar/**`); for
+  markdownlint-cli2, an `ignores` pattern in its config — otherwise FAIL.
+  Absent altogether is one OK line. Record-health, concurrency and
   repo-memory findings
   are WARN (surfaced, non-fatal); exit 1 only when a FAIL-level finding remains,
-  0 on a clean repo. `--fix` performs the one deterministic, safe repair:
+  0 on a clean repo. `--fix` performs only deterministic, safe repairs: (a)
   inserting `@source not "<path-relative-to-stylesheet>/.sofar";` after the
-  `@import "tailwindcss"` line in each unprotected entry (idempotent); it never
-  touches wiring (re-run init) or record prose (added Phase 10, D-P10; deepened
-  Phase 11, D-P11). The repair is VERSION-GATED (scanner-version-gate D1):
+  `@import "tailwindcss"` line in each unprotected entry (idempotent); (b)
+  writing each formatter's documented exclusion — Biome 2 `"!**/.sofar"`
+  appended to `files.includes` (created as `["**", "!**/.sofar"]` when
+  absent), Biome 1 `".sofar"` appended to `files.ignore`, `.sofar/` appended
+  to `.prettierignore` / `.markdownlintignore` (created when absent),
+  `"**/.sofar/**"` appended to a markdownlint-cli2 `ignores` (the `.jsonc`
+  config created when only the dependency is present) — each idempotent, the
+  JSON ones rewritten in the host formatter's own shape so the fix is itself
+  formatter-clean. The Biome dialect is decided by the INSTALLED
+  `node_modules/@biomejs/biome` version first, then the config's `$schema`
+  URL, then the declared range's floor, then the config's own shape; unknown
+  → withheld. WITHHELD, with the exact line named in the hint and nothing
+  written: a config that is not plain JSON (comments or trailing commas —
+  parsed for the audit, never re-serialized, the refusal init applies to user
+  JSON it cannot round-trip), a YAML or script markdownlint-cli2 config, a
+  Biome dependency with no config file, an unknown Biome major. It never
+  touches wiring (re-run init) or record prose (added Phase 10, D-P10;
+  deepened Phase 11, D-P11). The scanner repair is VERSION-GATED (scanner-version-gate D1):
   `@source not` landed in Tailwind 4.1 and parses as an unquoted path before it
   ("Error: `@source` paths must be quoted"), so `--fix` writes only when the
   version that will build is KNOWN to be >= 4.1 — the version installed under
@@ -3226,6 +3285,22 @@ stay the underlying derivation's, and exit codes are styling-independent.
   (exit 0); `sofar doctor --fix` inserts the correct stylesheet-relative
   `@source not` path after the import and is idempotent (a second run changes
   no bytes).
+- **Formatter defence (r1-fixes 1.4):** under a `biome.json`, `sofar init`
+  writes `.mcp.json` byte-identical to what `biome format` prints for it
+  (tabs, `"args": ["mcp"]` on one line) and a second init changes nothing;
+  under a Prettier config it writes Prettier's exact output; with no
+  formatter configured it writes the plain `JSON.stringify` form; a merged
+  `.mcp.json` keeps the user's servers in the same shape; `sofar uninit`
+  rewrites in it. `sofar doctor` flags Biome, Prettier and markdownlint
+  reaching `.sofar` (exit 1) and passes each once excluded, in any accepted
+  spelling; `--fix` writes `files.includes` (Biome 2, appending to an existing
+  list) or `files.ignore` (Biome 1, the installed binary deciding over
+  `$schema`), `.prettierignore`, `.markdownlintignore` or a cli2 `ignores`,
+  each idempotent (a second `--fix` applies nothing and changes no bytes);
+  a `biome.jsonc` with comments, an unknown Biome major, a dependency-only
+  Biome and a YAML cli2 config are FAIL with the line named and the file
+  byte-intact. The init hint names each open tool and prints before the
+  scanner hint; it is silent once every tool excludes the record.
 - **Version gate (scanner-version-gate):** on a host whose Tailwind predates
   4.1, `--fix` leaves every stylesheet byte-identical, still exits 1, and its
   hint names both the installed version and a scan-base directive that is

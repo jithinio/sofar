@@ -136,7 +136,7 @@ worse than no attribution.
 | `cli/status.ts` | `sofar status` — the digest. |
 | `cli/next.ts` | `sofar next` — the single next action. |
 | `cli/list.ts` | `sofar list` — the portfolio. |
-| `cli/doctor.ts` | `sofar doctor` — the audit: records, lifecycle, split sessions, concurrency, guards, repo memory, scanners. |
+| `cli/doctor.ts` | `sofar doctor` — the audit: records, lifecycle, split sessions, concurrency, guards, repo memory, scanners, formatters. |
 | `cli/drive.ts` | `sofar drive` — the CLI skin on the driver loop: builds the adapter, streams progress to stderr, and mirrors the run back through `describeRun`. Exit 0 for every stop the record can explain; 1 for `error` and for a preflight that refused to start. `--detach` re-spawns the command detached and answers its caller over IPC once the run is certain to start; `--stop` appends `run_stop_requested` and watches for the stop (in-session-drive D1/D2). |
 | `cli/graph.ts` | `sofar graph` — cross-record queries. |
 | `cli/find.ts` | `sofar find` — traverse from a seed within a hop budget. Offers adjacency, never asserts relevance; every row cites its event. |
@@ -147,6 +147,7 @@ worse than no attribution.
 | `cli/adopt.ts` | `sofar adopt` — migrate a legacy prose record. |
 | `cli/cloud.ts` | `sofar login` / `link` / `push` / `pull`. |
 | `cli/scanners.ts` | Host-config scanners (e.g. emitted stylesheet directives). |
+| `cli/formatters.ts` | Host formatter defence: the JSON shape init writes (Biome/Prettier/.editorconfig), and the Biome/Prettier/markdownlint `.sofar` exclusions doctor audits and `--fix` writes. |
 | `cli/upgrade.ts`, `cli/update-check.ts` | Version checks and self-upgrade. |
 | `cli/boot.ts`, `cli/fast.ts`, `cli/shared.ts` | Startup path, fast path, shared helpers. |
 | `cli/user-config.ts` | User-level config. |

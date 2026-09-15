@@ -9,10 +9,11 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { effectiveHooksDir } from '../core/attribution'
 import { commonGitDir } from '../core/git'
 import { mcpRegistration } from '../mcp/register'
+import { detectFormatterHazards, hostShapedJSON } from './formatters'
 import { detectTailwindV4, SOURCE_NOT_SINCE } from './scanners'
 import { fail, ok, REPO_MD_STUB, type CmdResult } from './shared'
 import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui'
@@ -39,7 +40,12 @@ export const GIT_HOOK_MARKER = 'sofar prepare-commit-msg shim'
  * Hand-written files are sacred: repo.md is never overwritten; CLAUDE.md
  * outside (and inside) the markers is never touched once the block exists;
  * settings.json/.mcp.json are merged, never clobbered — unparseable JSON in
- * either aborts with exit 1 rather than risking user config.
+ * either aborts with exit 1 rather than risking user config. Both are written
+ * in the shape the host's own formatter would print (r1-fixes 1.4, D7:
+ * biome.json(c) > Prettier config > .editorconfig, short arrays on one
+ * line; the plain 2-space form when none is configured), so a Biome or
+ * Prettier pass over the repo leaves them byte-identical instead of churning
+ * them into the agent's next commit.
  *
  * Shim TEXT ships inside the bundle (esbuild `loader: {'.sh': 'text'}`) —
  * only dist/ is published, so init never reads src/hooks/ at runtime.
@@ -860,7 +866,7 @@ export function installStatusline(
 
   settings.statusLine = STATUSLINE_SETTINGS_ENTRY
   mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(path, stableJSON(settings))
+  writeFileSync(path, stableJSON(rootDir, path, settings))
   return { status: 'wired', path }
 }
 
@@ -888,7 +894,7 @@ export function uninstallStatusline(
   }
 
   delete settings.statusLine
-  writeFileSync(path, stableJSON(settings))
+  writeFileSync(path, stableJSON(rootDir, path, settings))
   return { status: 'removed', path }
 }
 
@@ -964,8 +970,17 @@ function readJSONObject(path: string, label: string): Obj {
   return decoded
 }
 
-function stableJSON(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`
+/**
+ * JSON in the host formatter's shape for a file under rootDir (r1-fixes D7),
+ * the plain 2-space form when no formatter is configured; a file outside the
+ * repo — the personal ~/.claude/settings.json — is nobody's formatter's
+ * business and always takes the plain form.
+ */
+function stableJSON(rootDir: string, path: string, value: unknown): string {
+  const rel = relative(rootDir, path)
+  const inside = rel !== '' && !rel.startsWith('..') && !isAbsolute(rel)
+  if (!inside) return `${JSON.stringify(value, null, 2)}\n`
+  return hostShapedJSON(rootDir, rel.split('\\').join('/'), value)
 }
 
 // ---------------------------------------------------------------------------
@@ -1168,7 +1183,7 @@ function mergeSettings(
     return { statuslineAbsent }
   }
   settings.hooks = hooks
-  report.push(`${writeIfChanged(path, stableJSON(settings))} .claude/settings.json${statuslineNote}`)
+  report.push(`${writeIfChanged(path, stableJSON(rootDir, path, settings))} .claude/settings.json${statuslineNote}`)
   return { statuslineAbsent }
 }
 
@@ -1187,7 +1202,7 @@ function mergeMcpJson(rootDir: string, report: string[]): void {
   }
   servers.sofar = mcpRegistration().mcpServers.sofar
   config.mcpServers = servers
-  report.push(`${writeIfChanged(path, stableJSON(config))} .mcp.json`)
+  report.push(`${writeIfChanged(path, stableJSON(rootDir, path, config))} .mcp.json`)
 }
 
 /**
@@ -1360,6 +1375,12 @@ export function runInit(
   if (!statusline && statuslineAbsent && !userStatuslineWired(options.home)) {
     lines.push('', STATUSLINE_HINT)
   }
+  // Formatter defence (r1-fixes 1.4, D7): a formatter or linter that will
+  // process .sofar/ gets the same treatment as the scanner below — init only
+  // names it, `sofar doctor --fix` writes each tool's exclusion. Before the
+  // scanner hint, which keeps the final slot (SPEC §CLI).
+  const formatters = formatterHint(rootDir)
+  if (formatters !== null) lines.push('', formatters)
   // Scanner defense (task 10.1, D-P10): if a tree-wide class scanner will
   // ingest .sofar/, raise the exclusion hint as the FINAL output. init only
   // flags it; `sofar doctor --fix` does the precise, path-aware insert.
@@ -1384,6 +1405,27 @@ export const STATUSLINE_HINT = [
   '  (a project statusLine shadows a personal ~/.claude/settings.json one —',
   '  skip this if you prefer yours)',
 ].join('\n')
+
+/**
+ * The formatter hint (r1-fixes 1.4) — printed when Biome, Prettier or
+ * markdownlint is present and would still reach into .sofar/. Like the
+ * scanner hint it names the fix and the hand-edit shape; unstyled for the
+ * same reason. Null when every detected tool already excludes the record.
+ */
+function formatterHint(rootDir: string): string | null {
+  const open = detectFormatterHazards(rootDir).filter((h) => !h.excluded)
+  if (open.length === 0) return null
+  const names = open.map((h) => h.label.replace(/ \(.*\)$/, ''))
+  const lines = [
+    `note: ${names.join(', ')} detected — ${open.length === 1 ? 'it' : 'they'} will process .sofar/ records`,
+    '  (generated files nobody hand-edits), so checks go red on them and every',
+    '  formatting pass rewrites the record. Keep it out of reach:',
+    '    run `sofar doctor --fix`',
+    '  or by hand:',
+  ]
+  for (const h of open) lines.push(`    ${h.file}: add ${h.directive}`)
+  return lines.join('\n')
+}
 
 /**
  * The Tailwind-v4 scanner hint (task 10.1) — printed as init's final output

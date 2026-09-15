@@ -17,6 +17,7 @@ import {
   PROTOCOL_START,
   SHIMS,
 } from './init'
+import { hostShapedJSON } from './formatters'
 import { fail, ok, type CmdResult } from './shared'
 import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui'
 
@@ -79,9 +80,9 @@ function readJSONObject(path: string, label: string): Obj {
   return decoded
 }
 
-/** init's stable JSON form — rewriting with the same form preserves bytes. */
-function stableJSON(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`
+/** init's stable JSON form (the host formatter's shape, plain 2-space without one) — rewriting with the same form preserves bytes. */
+function stableJSON(rootDir: string, rel: string, value: unknown): string {
+  return hostShapedJSON(rootDir, rel, value)
 }
 
 /** A settings command is ours iff it points at one of the five shim paths. */
@@ -183,7 +184,7 @@ function stripSettings(rootDir: string, purge: boolean, report: string[]): boole
     report.push(`removed .claude/settings.json (nothing left after ${what})`)
     return true
   }
-  writeFileSync(path, stableJSON(settings), 'utf8')
+  writeFileSync(path, stableJSON(rootDir, '.claude/settings.json', settings), 'utf8')
   report.push(`updated .claude/settings.json (${what})`)
   return false
 }
@@ -201,7 +202,7 @@ function stripMcp(rootDir: string, purge: boolean, report: string[]): void {
     report.push('removed .mcp.json (nothing left after sofar server entry removed)')
     return
   }
-  writeFileSync(path, stableJSON(config), 'utf8')
+  writeFileSync(path, stableJSON(rootDir, '.mcp.json', config), 'utf8')
   report.push('updated .mcp.json (sofar server entry removed)')
 }
 

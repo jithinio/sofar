@@ -65,7 +65,7 @@ function tailwindRange(pkg: Obj): string | undefined {
  * integers. A missing or wildcard minor reads as 0 (`^4`, `4.x` → [4, 0]), so
  * an open range never argues for a feature its floor cannot deliver.
  */
-function lowerBound(spec: string): [number, number] | null {
+export function lowerBound(spec: string): [number, number] | null {
   const m = /^[\s^~>=<v]*(\d+)(?:\.(\d+))?/.exec(spec.trim())
   if (m === null) return null
   return [Number.parseInt(m[1]!, 10), m[2] === undefined ? 0 : Number.parseInt(m[2], 10)]

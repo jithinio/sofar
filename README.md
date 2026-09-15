@@ -278,6 +278,17 @@ what Tailwind scans in the first place:
 @import "tailwindcss" source("./");
 ```
 
+**Biome, Prettier, markdownlint.** Each formats or lints the whole tree by
+default, and `.sofar/` is generated — so their checks go red on files nobody
+hand-edits. `sofar doctor` names whichever you use, and `sofar doctor --fix`
+writes each tool's own exclusion: `"!**/.sofar"` in `files.includes` for Biome
+2 (`".sofar"` in `files.ignore` for Biome 1), `.sofar/` in `.prettierignore`
+and `.markdownlintignore`, `"**/.sofar/**"` in a markdownlint-cli2 `ignores`.
+A config with comments is left alone and the line to add is printed instead.
+`sofar init` also writes `.mcp.json` and `.claude/settings.json` in the shape
+your formatter would print (Biome's tabs, Prettier's widths, `.editorconfig`),
+so a formatting pass never rewrites them.
+
 The same goes for any tool that scans your whole tree: point it away from
 `.sofar/`.
 
