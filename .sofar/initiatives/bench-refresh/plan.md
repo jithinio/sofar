@@ -66,4 +66,4 @@ Progress: 2/22 tasks done (9%)
 - [ ] 6.3 Replace stale public claims: one-pager R04 figures, install name @alignlabs/sofar, "adds nothing to your bill" next to --cost-cap
 
 Active phase: Phase 1 — Claim + round design
-Next action: r1-fixes 1.1: create r1-fixes worktree, then empty-repo SessionStart hint
+Next action: User rules on Rust gate; r1-fixes wave 1 continues in the worktree session

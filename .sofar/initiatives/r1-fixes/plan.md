@@ -37,3 +37,4 @@ Progress: 0/18 tasks done (0%)
 - [ ] 4.3 Hand the release to bench-refresh round 2, with the quick-work addendum chain frozen before it runs
 
 Active phase: Phase 1 — Wave 1: correctness and quick wins
+Next action: Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
