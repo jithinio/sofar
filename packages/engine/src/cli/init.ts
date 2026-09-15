@@ -19,6 +19,7 @@ import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui
 import sessionStartShim from '../hooks/session-start.sh'
 import userPromptSubmitShim from '../hooks/user-prompt-submit.sh'
 import postToolUseShim from '../hooks/post-tool-use.sh'
+import postToolUseFailureShim from '../hooks/post-tool-use-failure.sh'
 import stopShim from '../hooks/stop.sh'
 import sessionEndShim from '../hooks/session-end.sh'
 import prepareCommitMsgShim from '../hooks/prepare-commit-msg.sh'
@@ -822,7 +823,7 @@ export function uninstallStatusline(
 
 interface ShimSpec {
   file: string
-  event: 'SessionStart' | 'UserPromptSubmit' | 'PostToolUse' | 'Stop' | 'SessionEnd'
+  event: 'SessionStart' | 'UserPromptSubmit' | 'PostToolUse' | 'PostToolUseFailure' | 'Stop' | 'SessionEnd'
   matcher?: string
   text: string
 }
@@ -836,6 +837,12 @@ export const SHIMS: readonly ShimSpec[] = [
     event: 'PostToolUse',
     matcher: 'Edit|Write|MultiEdit|Bash',
     text: postToolUseShim,
+  },
+  {
+    file: 'post-tool-use-failure.sh',
+    event: 'PostToolUseFailure',
+    matcher: 'Edit|Write|MultiEdit|Bash',
+    text: postToolUseFailureShim,
   },
   { file: 'stop.sh', event: 'Stop', text: stopShim },
   { file: 'session-end.sh', event: 'SessionEnd', text: sessionEndShim },

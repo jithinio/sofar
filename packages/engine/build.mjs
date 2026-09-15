@@ -109,6 +109,7 @@ execFileSync(join('..', '..', 'node_modules', '.bin', 'tsc'), ['-p', 'tsconfig.d
 
 const SCHEMA_TARGETS = {
   '@sofar/schema/tool-inputs': join('dist', 'types', 'schema', 'src', 'tool-inputs'),
+  '@sofar/schema/diagnostics': join('dist', 'types', 'schema', 'src', 'diagnostics'),
   '@sofar/schema': join('dist', 'types', 'schema', 'src', 'events'),
 }
 

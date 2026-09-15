@@ -245,7 +245,7 @@ describe('hook routing follows the session home (1.2)', () => {
     const alpha = logEvents(f.eventsPath).filter((e) => e.type === 'command_run')
     const beta = logEvents(betaLog)
     expect(alpha).toHaveLength(1)
-    expect(alpha[0]!.payload).toEqual({ cmd: 'npm test' })
+    expect(alpha[0]!.payload).toEqual({ cmd: 'npm test', ok: true })
     expect(beta).toHaveLength(0) // the misroute this initiative exists to stop
   })
 

@@ -179,8 +179,17 @@ export interface SessionEndedPayload { session_id?: string; summary: string; nex
  * mechanical close must never clobber them during fold.
  */
 export interface SessionClosedPayload { reason: string }
-export interface FileTouchedPayload { path: string; op: string }
-export interface CommandRunPayload { cmd: string }
+/**
+ * Mechanical outcome fields (self-improve D2): OPTIONAL, additive, and the
+ * ONLY outcome facts the durable record carries. `ok` is what the host said
+ * about the call — PostToolUse fires only on success, PostToolUseFailure only
+ * on failure — and `exit` is the process status when the host supplies one as
+ * a number. Absent means UNKNOWN (an engine or host that predates capture),
+ * never success. Everything richer — error text, output, timing — is a
+ * diagnostics row (src/diagnostics.ts), never a payload field.
+ */
+export interface FileTouchedPayload { path: string; op: string; ok?: boolean }
+export interface CommandRunPayload { cmd: string; ok?: boolean; exit?: number }
 export interface NoteAddedPayload { text: string }
 /**
  * A fact its author declares repo memory — operational knowledge that is not a
@@ -591,9 +600,14 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
   file_touched(p, e) {
     if (!str(p.path)) e.push('path: must be a non-empty string')
     if (!str(p.op)) e.push('op: must be a non-empty string')
+    if (p.ok !== undefined && typeof p.ok !== 'boolean') e.push('ok: must be a boolean')
   },
   command_run(p, e) {
     if (!str(p.cmd)) e.push('cmd: must be a non-empty string')
+    if (p.ok !== undefined && typeof p.ok !== 'boolean') e.push('ok: must be a boolean')
+    if (p.exit !== undefined && !(typeof p.exit === 'number' && Number.isInteger(p.exit))) {
+      e.push('exit: must be an integer')
+    }
   },
   note_added(p, e) {
     if (!str(p.text)) e.push('text: must be a non-empty string')

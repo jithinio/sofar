@@ -43,6 +43,7 @@ Three consequences run through every design decision in the codebase:
 | `schema/src/events.ts` | Event payload shapes. The **only** place payload schema lives. |
 | `schema/src/guards.ts` | Guard grammar (`path:`/`cmd:` globs) and matching. |
 | `schema/src/tool-inputs.ts` | MCP tool input schemas and descriptions. |
+| `schema/src/diagnostics.ts` | Private diagnostics ROW shape (self-improve D2) — structurally never an event envelope; kinds disjoint from event types. |
 | `core/envelope.ts` | Envelope v1: mint, validate, canonical field order. |
 | `core/log.ts` | `appendEvent` — O_APPEND, one line, never partial. Canonical serialization. |
 | `core/atomic.ts` | `writeFileAtomic` — temp + rename, so readers never see a torn file. |
@@ -66,6 +67,8 @@ Three consequences run through every design decision in the codebase:
 | `core/shipwatch.ts` | Per-session `origin/<branch>` marks in the derived index — the free ref-movement gate that lets the per-prompt path pay for `attribution.ts`'s walk only when a push actually happened (3.4, D11). Edge-triggered: marking is what stops a transition being announced twice. |
 | `core/closeout.ts` | The mechanical audit run at close (5.1) — outstanding tasks, unresolved phases, done tasks with no file evidence, unaddressed guard crossings, drift since the write-back, unreviewed phases. Refuses nothing: the findings ride on the close event so an override is recorded rather than prevented (5.2). |
 | `core/cursor.ts` | Export/import cursors: the entire sync interface. |
+| `core/state-dir.ts` | Per-clone state OUTSIDE the repo: `$XDG_STATE_HOME/sofar`, keyed by a hash of the clone's real path. Shared by sync cursors and the diagnostics store. |
+| `core/diagnostics.ts` | The private diagnostics store (self-improve D3): append-only rows per initiative under the clone's state dir, 90-day retention, byte cap, best-effort writes that never recurse, refused outright if the path would land inside the repo. A third class — not truth, not derived. |
 | `core/peers.ts` | Resolves a Claude Code session id to the name its `SendMessage` addresses, from the host's own registry. Best-effort; absent means no address. |
 
 ### 3. Index — derived, local, incremental
@@ -103,7 +106,7 @@ Regenerated on every append. Never hand-edited.
 ### 5. Surfaces — how agents and humans reach the record
 
 **Hooks** — installed by `sofar init` as shims in `.claude/hooks/`. Each is
-four lines; the CLI owns behaviour. All five run on the user's critical path
+four lines; the CLI owns behaviour. All six run on the user's critical path
 under a **100ms end-to-end budget**, and all are best-effort: a failure is
 silence, never a broken session.
 
@@ -111,14 +114,15 @@ silence, never a broken session.
 | --- | --- |
 | SessionStart | Injects the record — goal, progress, next action, decisions, standing constraints, rejected approaches, repo memory. |
 | UserPromptSubmit | Live hazards first: file conflicts, reachable peers, crossed guards, parallel wrap-ups, git state, drift nudge. |
-| PostToolUse | Captures file touches and commands as events. The point-of-use guard fires here. |
+| PostToolUse | Captures file touches and commands as events (`ok: true`). The point-of-use guard fires here. A `tool_outcome` diagnostics row goes to the private store — including for the self-recording commands the record exempts. |
+| PostToolUseFailure | The failed half: the same mechanical event with `ok: false` (and `exit` when the host gives one), and a `tool_failure` row carrying the redacted, clipped error text the record must never hold. |
 | Stop | Blocks a session that owes a write-back. |
 | SessionEnd | Closes the session. |
 
-A sixth shim, `hooks/prepare-commit-msg.sh`, is a **git** hook rather than a
+A seventh shim, `hooks/prepare-commit-msg.sh`, is a **git** hook rather than a
 Claude Code one — installed into `.git/hooks/` and never clobbering an existing
 file. It stamps `Sofar-Initiative:` onto the commit message (D5). It cannot
-`exec` like the five above: it runs inside `git commit`, so it guards on the
+`exec` like the six above: it runs inside `git commit`, so it guards on the
 binary existing and exits 0 unconditionally — a hook that can abort a commit is
 worse than no attribution.
 
@@ -143,6 +147,7 @@ worse than no attribution.
 | `cli/statusline.ts` | `sofar statusline` — the one-line host status. Resolves session-first. |
 | `cli/serve.ts` | `sofar serve` — localhost JSON state server. |
 | `cli/transfer.ts` | `sofar export` / `sofar import`. |
+| `cli/diagnostics.ts` | `sofar diagnostics` — where the private store is and how much sits in it; `--purge` deletes it. Counts only, never row contents. |
 | `cli/adopt.ts` | `sofar adopt` — migrate a legacy prose record. |
 | `cli/cloud.ts` | `sofar login` / `link` / `push` / `pull`. |
 | `cli/scanners.ts` | Host-config scanners (e.g. emitted stylesheet directives). |

@@ -65,6 +65,8 @@ engine-only scope law still applies during the Fable window.
   repo.md                      # repo-scoped memory (hand-written, NOT generated)
   bindings.json                # { "<git-branch-or-worktree>": "<slug>" }
   .index/                      # DERIVED, local, gitignored — §Derived index
+                               # private diagnostics live OUTSIDE the repo,
+                               #   under the XDG state dir — §Diagnostics store
   initiatives/<slug>/
     events.jsonl               # TRUTH — append-only
     plan.md                    # generated projection
@@ -147,7 +149,12 @@ alongside `rule`; see §Decision guards, drift-hardening D3) ·
 session_started (tool, model?) · session_ended (summary, next_action) ·
 session_closed (reason — mechanical close from the SessionEnd hook; never
 carries summary/next_action, added Phase 3, BD21) ·
-file_touched (path, op) · command_run (cmd) · note_added ·
+file_touched (path, op, ok?) · command_run (cmd, ok?, exit?) — `ok` is what the
+HOST said about the call (PostToolUse fires only on success, PostToolUseFailure
+only on failure) and `exit` the process status when the host supplies a number;
+both OPTIONAL and additive, absent means UNKNOWN, never success; they are the
+ONLY outcome facts the record carries, everything richer is a private row
+(self-improve D2, see §Diagnostics store) · note_added ·
 memory_promoted (text — a fact its author declares repo memory, addressable
 as `<slug> M<n>`; repo-memory-capture D1) ·
 review_recorded (scope: phase|final, verdict: pass|findings|blocked,
@@ -1555,6 +1562,84 @@ entries are clean of reach and lexicon code. Same rule as §Record graph's
 exclusion of `core/graph.ts`, for the same reason and one layer down: the
 declared half is what a shim may afford, and it is sized so that it is.
 
+## Diagnostics store (self-improve — private, local, never truth)
+A THIRD class of data next to events.jsonl (truth) and §Derived index
+(derived, disposable): raw observations about tool calls, hook firings and
+MCP calls that exist nowhere else and are NOT rebuildable, kept OUTSIDE the
+repo. It exists because the record cannot hold them — every envelope-valid
+event is exported and synced (§Cursor primitive, §Sync client) and events.jsonl
+is committed, so error text, output sizes and call counts in the record would
+be error text in every clone forever — and .index cannot hold them either,
+because §Derived index's first rule is that every file there may be deleted
+and rebuilt with no loss. Adopted as self-improve D2 (the shape) and D3 (the
+boundary) on 2026-09-15; the schema half lives in
+`packages/schema/src/diagnostics.ts`, the store in `core/diagnostics.ts`.
+
+**Where.** `$XDG_STATE_HOME/sofar/diagnostics/<clone-key>/<initiative>.jsonl`
+(default `~/.local/state/sofar/…`), plus one `meta.json` per clone. The clone
+key is the same 32-hex sha256 of the clone's real path that names the sync
+cursor file (sync-client D2's storage triad; `core/state-dir.ts`), so a
+worktree is its own clone and two checkouts never share a file. Never under
+`.sofar/`, never under the clone root, and not by convention: `diagnosticsDir`
+compares the resolved directory against the repo root with symlinks resolved
+on BOTH sides and returns null — every writer goes silent — if
+`XDG_STATE_HOME` would put it inside. A path outside the clone is
+uncommittable, unpackable and unexportable by construction; a `.gitignore`
+would have been one file away from failing.
+
+**What a row is.** `{d: 1, ts, engine, host?: {tool, version?}, clone,
+initiative, session, kind, data}` — and, deliberately, NOT an event: no `v`,
+no ulid `id`, no `type`, no `payload`, no `source`, no `actor`, so
+`validateEnvelope` rejects a row on six fields at once and an import stream
+that somehow carries one appends nothing. `kind` is one of `tool_outcome`
+(a PostToolUse-class report: tool, ok, exit, leading command token, exempt,
+interrupted, output bytes), `tool_failure` (PostToolUseFailure: tool, redacted
+error clipped to 512 characters, interrupt), `mcp_call` (every sofar MCP call
+the server handled, success or typed rejection: tool, ok, code, ms) and
+`injection` (what a hook put in front of the model: hook, bytes, memory
+bytes) — a set that shares no member with the event types, pinned by test.
+Rows are validated against the schema before the append; the engine never
+widens the shape. Redaction precedes storage: command text only through the
+same redactor as `cmd`; error text clipped and redacted; no tool arguments,
+no transcripts.
+
+**Who writes.** The PostToolUse and PostToolUseFailure shims (§Hooks), the
+SessionStart shim (an `injection` row sized to its stdout), and the MCP
+server itself — the PostToolUse matcher never sees `mcp__sofar__*` calls, so
+the server counts its own, which is the MCP half of the bookkeeping
+denominator. The record-hygiene D1 exemption does NOT reach the store: a
+self-recording git or sofar command appends no event and still gets a row,
+because the exemption protects the tree from self-dirtying appends and the
+store is outside the tree. Coverage is bounded and said so: hooks fire only
+on Edit|Write|MultiEdit|Bash, Read/Grep/other tools are never observed, and
+a consumer must report what it cannot see as unknown (self-improve 1.3).
+
+**Best-effort, never recursive (BD22).** A failed row write returns false,
+fails no tool call, appends no event and is not itself recorded as a
+diagnostic. An MCP typed rejection writes a row and still appends nothing to
+the record — no-write-on-invalid-input is pinned. Nothing the fold, the
+projections or the SessionStart block depends on reads the store, so the
+block's byte-stability (felt-cost 1.2) holds with a store full of rows.
+
+**Retention.** Rows older than 90 days are dropped by a sweep that runs at
+most once a day per clone (remembered in `meta.json`); a row file over 8 MiB
+is compacted — expired rows first, then the oldest — until it fits in half
+the cap. The hot path pays one stat per write. `sofar diagnostics --purge`
+deletes the clone's store. Deleting the repo strands its store until the
+sweep or a purge; that cost is accepted for a path no `git add -f` can reach.
+
+**The boundary is a test, not a promise.** With a store seeded with a
+sentinel, `exportEvents`, `exportNDJSON`, `sofar export`, `pushStream` (every
+request body) and `pullStream` (the imported log and the untouched store) are
+each asserted to move zero bytes of it, and a row write in a real git repo is
+asserted to leave `git status --porcelain --ignored` empty. Editing
+`core/cursor.ts`, `client/push.ts` or `client/pull.ts` crosses the D3 guard,
+which names this test.
+
+**What the record may hold about a row.** Its id, a content hash or an
+aggregate count — never its content. When rows have expired, a consumer
+reports evidence unavailable; it never reconstructs it.
+
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
 events not already present (dedupe by id — idempotent). Per-initiative
@@ -2368,6 +2453,27 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   Best-effort per BD22 and D1: any failure yields no notice, never an error and
   never a wrong answer — a missing, stale or corrupt index rebuilds and answers
   correctly, more slowly.
+  OUTCOME (self-improve 1.2, D2): the event carries `ok: true` — the host fired
+  PostToolUse, which it does only for a call that succeeded — and `exit` when
+  `tool_response.exit_code` is a number. The same call also writes ONE
+  `tool_outcome` row to the private store (§Diagnostics store): tool name,
+  ok/exit, the command's leading token, output size — and it is written for
+  the EXEMPT commands too, because the exemption protects the tree from
+  self-dirtying appends and the store is outside the tree. That row is how the
+  bookkeeping share of git/sofar commands becomes countable at all.
+- PostToolUseFailure shim (matcher: Edit|Write|MultiEdit|Bash) → `sofar event
+  post-tool-failure`: the half the record never saw. Claude Code fires
+  PostToolUse only for a call that succeeded, so before this shim a failing
+  `npm test` left NO trace — the record showed every command that passed and
+  none that failed. The shim appends the SAME mechanical event the success
+  path would have — command_run / file_touched, same exemption, same lazy
+  registration — with `ok: false` and, for Bash, the host's structured
+  `exit_code`. The error text (`stderr`, then the host's one-line `error`)
+  goes ONLY to a `tool_failure` row in the private store, passed through the
+  same redaction as `cmd` and clipped to 512 characters: a stderr tail carries
+  paths and secrets, and the record is committed and synced. No guard notice
+  and no stdout: the notice comments on an edit just made, and this call made
+  none. Best-effort per BD22: every failure path is exit 0 and silence.
 - Stop shim → reads stdin JSON; if stop_hook_active is true → exit 0
   (loop guard). Else if no session_ended event exists for this session_id
   AND gate-relevant drift is nonzero → exit 2 with stderr: "Write back to
@@ -2736,11 +2842,18 @@ Shims contain no logic — they invoke the sofar CLI.
 - `sofar export [slug] [--since <id>]` / `sofar import <file|-> [slug]`
   — per-initiative NDJSON over the §Cursor primitive; slug resolves like
   status (explicit wins, else branch binding) (extended Phase 4, BD28)
+- `sofar diagnostics [--purge] [--json]` — the one human window onto the
+  private store (§Diagnostics store): where it is for this clone, rows and
+  bytes per initiative and per kind, the retention rule. Counts and paths
+  ONLY, never row contents — a row can carry redacted error text, and a
+  summary surface must not become a second way to read it. `--purge` deletes
+  the clone's store; `--json` is the machine form (self-improve 1.2).
 - `sofar login` / `sofar link` / `sofar push` / `sofar pull [--watch]`
   — the v2 sync client against api.sofar.sh; full contract in
   §Sync client (sync-client, Jul 2026).
 - `sofar event <subcommand>` — append-side surface: session-start,
-  post-tool, stop, session-end are internal subcommands for the hook shims;
+  post-tool, post-tool-failure, stop, session-end are internal subcommands for
+  the hook shims;
   `event append --type <event_type> --payload <json-object> [--session <id>]
   [--source <source>] [--actor <actor>] [slug]` is the convention-dialect
   surface for MCP-less tools — validate payload, append ONE event,
@@ -3954,3 +4067,20 @@ stay the underlying derivation's, and exit codes are styling-independent.
   and handed off `task_done` ($0.06); a `--stop` sent while session 2 was
   starting was acknowledged in 11s with the run `interrupted`, that launch
   unresolved (exit 143) and no process left behind.
+- **Diagnostics store (self-improve 1.2):** a diagnostics row fails
+  `validateEnvelope` and an import stream carrying one appends nothing; the
+  store resolves under the XDG state dir keyed by the same clone hash as the
+  sync cursors, and is REFUSED (every writer silent, nothing created) when
+  `XDG_STATE_HOME` would place it inside the repo; a row write in a real git
+  repo leaves `git status --porcelain --ignored` empty; with a sentinel row in
+  the store, `exportEvents`, `exportNDJSON`, `sofar export`, `pushStream` and
+  `pullStream` move zero bytes of it; rows past 90 days are swept and a file
+  over the byte cap compacts to half; `PostToolUse` appends `command_run` /
+  `file_touched` with `ok: true` (and `exit` when the host gives a number) plus
+  a `tool_outcome` row, including for exempt commands, which still append no
+  event; `PostToolUseFailure` appends the same event with `ok: false` and the
+  structured exit code while the error text lands ONLY in a `tool_failure` row,
+  redacted and clipped to 512 characters; `SessionStart` writes an `injection`
+  row and renders byte-identically with the store populated; an MCP typed
+  rejection writes an `mcp_call` row and appends nothing; `sofar diagnostics`
+  prints counts and paths, never contents, and `--purge` removes the store.
