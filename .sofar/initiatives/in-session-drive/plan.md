@@ -4,16 +4,16 @@
 
 Goal: An operator can tell any agent session (Claude Code, Cursor, Codex) to run the initiative under sofar drive, and the run starts from there: detached from the calling agent so its tool timeout and exit cannot kill it, launching clean child sessions that inherit none of the caller's agent identity, stoppable without a terminal, and with the calling session handing off to the run so it is never mistaken for a driven session.
 
-Progress: 2/7 tasks done (28%)
+Progress: 3/7 tasks done (42%)
 
 ## Phase 1 — Contract [active] — 1/1 done
 
 - [x] 1.1 SPEC §Driver gains in-session start: --detach, the caller handoff guard, clean launch env, run_stop_requested + --stop; acceptance entry
 
-## Phase 2 — Build [pending] — 1/4 done
+## Phase 2 — Build [pending] — 2/4 done
 
 - [x] 2.1 Clean launch env: both adapters drop the calling agent's session-scoped variables, never auth/config ones; tests
-- [ ] 2.2 run_stop_requested event + `sofar drive --stop`: the driver honours a request between sessions and during one (second request escalates); fold, render, tests
+- [x] 2.2 run_stop_requested event + `sofar drive --stop`: the driver honours a request between sessions and during one (second request escalates); fold, render, tests
 - [ ] 2.3 `sofar drive --detach`: self-respawn detached with a log file, IPC started-handshake so preflight refusals and D9 warnings reach the caller; caller write-back guard; no-network sandbox refusal; in-agent foreground warning; tests
 - [ ] 2.4 Protocol block (CLAUDE.md + AGENTS.md) maps "run this in sofar drive" to write back → sofar drive --detach, and "stop the drive" to --stop; previous block kept as a shipped version
 

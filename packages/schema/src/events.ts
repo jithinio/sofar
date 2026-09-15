@@ -318,6 +318,15 @@ export interface RunStoppedPayload {
   /** What happened; REQUIRED for `error` — a run that died unexplained is one nobody can resume. */
   note?: string
 }
+/**
+ * An operator asking the driver of `run` to end it from OUTSIDE the driver
+ * (in-session-drive D2) — `sofar drive --stop`, for a detached driver no ^C can
+ * reach. A request, never a stop: only the driver writes `run_stopped`, after
+ * reading the handoff of the session it signalled.
+ */
+export interface RunStopRequestedPayload {
+  run: string
+}
 
 export interface KnownEventPayloads {
   initiative_created: InitiativeCreatedPayload
@@ -338,6 +347,7 @@ export interface KnownEventPayloads {
   run_started: RunStartedPayload
   handoff: HandoffPayload
   run_stopped: RunStoppedPayload
+  run_stop_requested: RunStopRequestedPayload
   correction: CorrectionPayload
 }
 
@@ -362,6 +372,7 @@ export const EVENT_TYPES = [
   'run_started',
   'handoff',
   'run_stopped',
+  'run_stop_requested',
   'correction',
 ] as const satisfies readonly KnownEventType[]
 
@@ -686,6 +697,9 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (p.reason === 'error' && !str(p.note)) {
       e.push('note: required when reason is `error` — say what failed')
     }
+  },
+  run_stop_requested(p, e) {
+    if (!str(p.run)) e.push('run: must be a non-empty string')
   },
   correction(p, e) {
     if (!str(p.ref)) e.push('ref: must be a non-empty string (target event id)')

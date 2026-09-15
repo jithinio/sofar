@@ -12,10 +12,11 @@ import {
   handoffReason,
   nextTask,
   renderPrompt,
+  STOP_REQUEST_NOTE,
   watchThreshold,
 } from '../src/driver/drive'
 import { buildSurface } from '../src/driver/permissions'
-import { runDrive } from '../src/cli/drive'
+import { runDrive, runDriveStop } from '../src/cli/drive'
 import { FakeAdapter, type FakeScript } from './helpers/fake-adapter'
 
 /**
@@ -981,5 +982,242 @@ describe('the threshold policy (2.3)', () => {
         resume: true,
       }),
     ).rejects.toThrow(/runs the `task` policy/)
+  })
+})
+
+describe('stopping a run from outside its driver (in-session-drive D2)', () => {
+  function requestStop(root: string, run: string): void {
+    appendEvent(
+      logPath(root),
+      makeEvent({
+        initiative: 'demo',
+        session: 'cli',
+        type: 'run_stop_requested',
+        payload: { run },
+        source: 'cli',
+        actor: 'human',
+      }),
+    )
+  }
+  const runningId = (root: string): string => state(root).runs.at(-1)!.id
+
+  /**
+   * An adapter whose sessions do their work, then stay alive until the driver
+   * signals them with one of `endsOn` — the shape of a real agent a request has
+   * to interrupt. `whileRunning` runs once the session is waiting.
+   */
+  function lingering(
+    root: string,
+    endsOn: NodeJS.Signals[],
+    whileRunning: (session: number) => void,
+  ): FakeAdapter {
+    const adapter = new FakeAdapter([worker(root, 'L1'), worker(root, 'L2'), worker(root, 'L3')])
+    const original = adapter.launch.bind(adapter)
+    adapter.launch = (request) => {
+      const session = original(request)
+      const done = session.wait.bind(session)
+      const signals: NodeJS.Signals[] = []
+      const kill = session.kill.bind(session)
+      session.kill = (signal: NodeJS.Signals = 'SIGTERM') => {
+        signals.push(signal)
+        kill(signal)
+      }
+      session.wait = async () => {
+        await done()
+        whileRunning(adapter.sessions.length)
+        return new Promise<SessionExit>((resolve) => {
+          const poll = setInterval(() => {
+            const hit = signals.find((sig) => endsOn.includes(sig))
+            if (hit !== undefined) {
+              clearInterval(poll)
+              resolve({ code: null, signal: hit })
+            }
+          }, 2)
+          poll.unref()
+        })
+      }
+      return session
+    }
+    return adapter
+  }
+
+  it('a request between sessions ends the run before the next launch, and the stop says a request did it', async () => {
+    const root = repo('stop-between')
+    const adapter = new FakeAdapter([worker(root, 'B1'), worker(root, 'B2')])
+    const original = adapter.launch.bind(adapter)
+    adapter.launch = (request) => {
+      const session = original(request)
+      const done = session.wait.bind(session)
+      session.wait = async () => {
+        const exit = await done()
+        requestStop(root, runningId(root))
+        return exit
+      }
+      return session
+    }
+    const lines: string[] = []
+    // A poll slower than the session: the loop's own fold must catch it.
+    const outcome = await drive(root, 'demo', { adapter, stopPollMs: 60_000, onProgress: (l) => lines.push(l) })
+    expect(adapter.sessions).toHaveLength(1)
+    expect(outcome.handoffs.map((h) => h.reason)).toEqual(['task_done'])
+    expect(outcome.stop).toEqual({ reason: 'interrupted', note: STOP_REQUEST_NOTE })
+    expect(state(root).runs.at(-1)?.stop_note).toBe(STOP_REQUEST_NOTE)
+    expect(lines.join('\n')).toContain('stop requested — ending the run before the next launch')
+  })
+
+  it('a request during a session signals it, still reads its handoff from the record, and stops the run', async () => {
+    const root = repo('stop-during')
+    const adapter = lingering(root, ['SIGTERM'], () => requestStop(root, runningId(root)))
+    const outcome = await drive(root, 'demo', { adapter, stopPollMs: 5 })
+    expect(adapter.sessions).toHaveLength(1)
+    expect(adapter.sessions[0]?.killed).toBe('SIGTERM')
+    expect(outcome.handoffs.map((h) => h.reason)).toEqual(['task_done'])
+    expect(outcome.stop.reason).toBe('interrupted')
+    expect(outcome.stop.note).toBe(STOP_REQUEST_NOTE)
+  })
+
+  it('a second request escalates to SIGKILL, as a second ^C does', async () => {
+    const root = repo('stop-escalate')
+    let asked = 0
+    const adapter = lingering(root, ['SIGKILL'], () => {
+      requestStop(root, runningId(root))
+      const again = setInterval(() => {
+        if (adapter.sessions[0]?.killed === 'SIGTERM' && asked === 0) {
+          asked += 1
+          requestStop(root, runningId(root))
+          clearInterval(again)
+        }
+      }, 2)
+      again.unref()
+    })
+    const outcome = await drive(root, 'demo', { adapter, stopPollMs: 5 })
+    expect(adapter.sessions[0]?.killed).toBe('SIGKILL')
+    expect(outcome.stop.reason).toBe('interrupted')
+    expect(state(root).runs.at(-1)?.stop_requests).toHaveLength(2)
+  })
+
+  it('a request left for a driver that died does not stop the --resume that adopts its run', async () => {
+    const root = repo('stop-stale')
+    const open = '01JZ8B3V0N5B4W8XK2M9QF7TSG'
+    appendEvent(
+      logPath(root),
+      makeEvent({
+        initiative: 'demo',
+        session: 'cli',
+        type: 'run_started',
+        payload: { run: open, adapter: 'fake', policy: 'task' },
+        source: 'cli',
+        actor: 'human',
+      }),
+    )
+    requestStop(root, open)
+    await new Promise((r) => setTimeout(r, 5))
+    const adapter = new FakeAdapter([worker(root, 'R1'), worker(root, 'R2')])
+    const outcome = await drive(root, 'demo', { adapter, resume: true, stopPollMs: 5 })
+    expect(outcome.run).toBe(open)
+    expect(adapter.sessions).toHaveLength(2)
+    expect(outcome.stop.reason).toBe('closed')
+  })
+
+  it('onStarted fires once, with the run id, after the opening lines — what --detach answers its caller with', async () => {
+    const root = repo('on-started')
+    const events: string[] = []
+    const outcome = await drive(root, 'demo', {
+      adapter: new FakeAdapter([worker(root, 'O1'), worker(root, 'O2')]),
+      costCapUsd: 5,
+      onProgress: (l) => events.push(`progress: ${l}`),
+      onStarted: (run) => events.push(`started: ${run}`),
+    })
+    const startedAt = events.indexOf(`started: ${outcome.run}`)
+    expect(startedAt).toBeGreaterThan(0)
+    expect(events.filter((e) => e.startsWith('started:'))).toHaveLength(1)
+    expect(events.slice(0, startedAt).join('\n')).toContain(`run ${outcome.run}`)
+    expect(events.slice(startedAt + 1).some((e) => e.includes('session 1:'))).toBe(true)
+  })
+
+  it('onStarted never fires for a run that refused preflight', async () => {
+    const root = repo('on-started-refused')
+    let fired = false
+    await expect(
+      drive(root, 'demo', {
+        adapter: new FakeAdapter(worker(root, 'X1')),
+        policy: 'threshold',
+        onStarted: () => (fired = true),
+      }),
+    ).rejects.toThrow()
+    expect(fired).toBe(false)
+  })
+})
+
+describe('sofar drive --stop (in-session-drive D2)', () => {
+  it('refuses on a record no driver ever ran, and on a run that already stopped', async () => {
+    const root = repo('stop-cli-none')
+    const never = await runDriveStop(root, 'demo', { waitMs: 0 })
+    expect(never.exitCode).toBe(1)
+    expect(never.stderr).toContain('never been driven')
+    await drive(root, 'demo', { adapter: new FakeAdapter([worker(root, 'N1'), worker(root, 'N2')]) })
+    const ended = await runDriveStop(root, 'demo', { waitMs: 0 })
+    expect(ended.exitCode).toBe(1)
+    expect(ended.stderr).toContain('already ended')
+    expect(readTypes(root)).not.toContain('run_stop_requested')
+  })
+
+  it("appends ONE request and reports the driver's stop once it lands", async () => {
+    const root = repo('stop-cli-ack')
+    const open = '01JZ8B3V0N5B4W8XK2M9QF7TSH'
+    appendEvent(
+      logPath(root),
+      makeEvent({
+        initiative: 'demo',
+        session: 'cli',
+        type: 'run_started',
+        payload: { run: open, adapter: 'fake', policy: 'task' },
+        source: 'cli',
+        actor: 'human',
+      }),
+    )
+    // The driver's side, played by hand: it sees the request and stops.
+    const driver = setInterval(() => {
+      if (readTypes(root).includes('run_stop_requested')) {
+        clearInterval(driver)
+        appendEvent(
+          logPath(root),
+          makeEvent({
+            initiative: 'demo',
+            session: 'cli',
+            type: 'run_stopped',
+            payload: { run: open, reason: 'interrupted', note: STOP_REQUEST_NOTE },
+            source: 'cli',
+            actor: 'human',
+          }),
+        )
+      }
+    }, 2)
+    const res = await runDriveStop(root, 'demo', { waitMs: 2_000, pollMs: 5 })
+    clearInterval(driver)
+    expect(res.exitCode).toBe(0)
+    expect(res.stdout).toContain(`run ${open}`)
+    expect(res.stdout).toContain('stopped: interrupted')
+    expect(readTypes(root).filter((t) => t === 'run_stop_requested')).toHaveLength(1)
+  })
+
+  it('says plainly when no driver acknowledged, and how to recover a run whose driver died', async () => {
+    const root = repo('stop-cli-dead')
+    appendEvent(
+      logPath(root),
+      makeEvent({
+        initiative: 'demo',
+        session: 'cli',
+        type: 'run_started',
+        payload: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSJ', adapter: 'fake', policy: 'task' },
+        source: 'cli',
+        actor: 'human',
+      }),
+    )
+    const res = await runDriveStop(root, 'demo', { waitMs: 20, pollMs: 5 })
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toContain('no run_stopped within')
+    expect(res.stderr).toContain('--resume')
+    expect(state(root).runs.at(-1)?.stop_requests).toHaveLength(1)
   })
 })

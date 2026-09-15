@@ -1,4 +1,4 @@
-import { existsSync, realpathSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readSync, realpathSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { ulid } from 'ulid'
 import {
@@ -61,6 +61,66 @@ export const DEFAULT_MAX_STALLS = 2
  * slower risks nudging a session that has already filled its window.
  */
 export const NUDGE_POLL_MS = 2_000
+
+/**
+ * How often a driver waiting on a session looks for `sofar drive --stop`
+ * (in-session-drive D2). A request is an operator who has already decided, so
+ * seconds matter more than they do for the gauge, and a tick is a stat.
+ */
+export const STOP_POLL_MS = 2_000
+
+/** The bytes a stop request's line must contain — the byte scan's only question. */
+const STOP_REQUEST_MARKER = '"run_stop_requested"'
+
+/**
+ * Watch the log for a stop request while a session runs (in-session-drive D2).
+ *
+ * Cheap by construction: a tick stats the log, reads only the bytes appended
+ * since the last one, and calls `onRequest` only when those bytes name a stop
+ * request. Driven sessions write on every tool call, so a fold per tick would
+ * cost more than the session being watched. The scan decides nothing — the
+ * caller folds and counts — it only says when the fold is worth asking.
+ */
+export function watchStopRequests(
+  path: string,
+  from: number,
+  onRequest: () => void,
+  intervalMs: number = STOP_POLL_MS,
+): () => void {
+  let offset = from
+  // The marker can straddle two reads; carrying its length back covers that.
+  let carry = ''
+  const tick = (): void => {
+    let size: number
+    try {
+      size = statSync(path).size
+    } catch {
+      return
+    }
+    if (size <= offset) {
+      offset = size
+      return
+    }
+    const fd = openSync(path, 'r')
+    let text: string
+    try {
+      const bytes = Buffer.alloc(size - offset)
+      readSync(fd, bytes, 0, bytes.length, offset)
+      text = carry + bytes.toString('utf8')
+    } finally {
+      closeSync(fd)
+    }
+    offset = size
+    carry = text.slice(-STOP_REQUEST_MARKER.length)
+    if (text.includes(STOP_REQUEST_MARKER)) onRequest()
+  }
+  const timer = setInterval(tick, intervalMs)
+  timer.unref()
+  return () => clearInterval(timer)
+}
+
+/** What an interrupted run's stop says when a request, not a signal, ended it. */
+export const STOP_REQUEST_NOTE = 'stop requested with `sofar drive --stop`'
 
 /** How long a signalled session gets to exit on its own before SIGKILL. */
 export const KILL_GRACE_MS = 10_000
@@ -208,6 +268,14 @@ export interface DriveOptions {
   surface?: PermissionSurface
   /** Adopt the latest run when it has no stop, instead of refusing. */
   resume?: boolean
+  /** Test seam: how often a waiting driver looks for a stop request (default STOP_POLL_MS). */
+  stopPollMs?: number
+  /**
+   * Called once the run is CERTAIN to start — after run_started (or the
+   * adoption of a resumed run) and after every opening line has been
+   * reported. `--detach` answers its caller here (in-session-drive D1).
+   */
+  onStarted?: (run: string) => void
   /** Progress lines in order, as they happen — the CLI prints them to stderr. */
   onProgress?: (line: string) => void
 }
@@ -484,6 +552,9 @@ export async function drive(
     }
   }
   const runId = resuming ? last.id : ulid()
+  // Requests older than this belong to a driver that is gone (in-session-drive
+  // D2): one left for a driver that died must not stop the --resume after it.
+  const adoptedAt = new Date().toISOString()
   if (!resuming) {
     opening.push(`run ${runId} — ${adapter.name}, ${policy} policy, in ${cwd}`)
     if (surface !== undefined) opening.push(`  permissions: ${describeSurface(surface)}`)
@@ -548,6 +619,7 @@ export async function drive(
     )
   }
   for (const line of opening) progress(line)
+  options.onStarted?.(runId)
 
   const maxStalls = options.maxStalls ?? DEFAULT_MAX_STALLS
   const handoffs: DriveHandoff[] = []
@@ -562,32 +634,57 @@ export async function drive(
   // it rather than a rule.
   let interrupted = false
   let signals = 0
+  // Set when a `sofar drive --stop` request, rather than a signal, ended the
+  // run (in-session-drive D2) — the stop's note says which.
+  let requested = false
+  let honoured = 0
   let live: AgentSession | undefined
-  const onSignal = (): void => {
+  const interrupt = (via: 'signal' | 'request'): void => {
     interrupted = true
+    if (via === 'request') requested = true
     signals += 1
     // The first ^C ends the run politely. A second is the operator saying they
     // will not wait, and it escalates to SIGKILL rather than killing the
     // DRIVER: an operator who cannot get out without orphaning the run would
     // leave a run with no stop, which is the one thing the next driver cannot
-    // read. SIGKILL unblocks the wait, so the run still gets its stop.
+    // read. SIGKILL unblocks the wait, so the run still gets its stop. A stop
+    // request is the same two steps, for a driver no ^C can reach.
     if (signals === 1) {
       live?.kill()
-      progress('interrupted — signalling the session; ^C again to kill it outright')
+      const again = via === 'signal' ? '^C again' : 'request again'
+      progress(
+        `${via === 'signal' ? 'interrupted' : 'stop requested'} — ${live !== undefined ? `signalling the session; ${again} to kill it outright` : 'ending the run before the next launch'}`,
+      )
     } else {
       live?.kill('SIGKILL')
     }
   }
+  const onSignal = (): void => interrupt('signal')
+  /** Honour every request the fold shows for this run since this driver took it. */
+  const takeRequests = (folded: InitiativeState): void => {
+    const run = folded.runs.find((r) => r.id === runId)
+    const count = run?.stop_requests.filter((ts) => ts >= adoptedAt).length ?? 0
+    for (; honoured < count; honoured += 1) interrupt('request')
+  }
+  const interruptedStop = (why?: string): { reason: RunStopReason; note?: string } => {
+    const note = [requested ? STOP_REQUEST_NOTE : undefined, why].filter((x) => x !== undefined).join('; ')
+    return { reason: 'interrupted', ...(note.length > 0 ? { note } : {}) }
+  }
+  const eventsPath = ctx.eventsPath(initiative)
   process.on('SIGINT', onSignal)
   process.on('SIGTERM', onSignal)
 
   try {
     for (;;) {
+      // Where the request watch starts reading: taken BEFORE the fold, so a
+      // request landing between the two is seen by both, and counted once.
+      const watchFrom = existsSync(eventsPath) ? statSync(eventsPath).size : 0
+      const state = ctx.foldState(initiative)
+      takeRequests(state)
       if (interrupted) {
-        stop = { reason: 'interrupted' }
+        stop = interruptedStop()
         break
       }
-      const state = ctx.foldState(initiative)
       if (isClosedInitiativeStatus(state.status)) {
         stop = { reason: 'closed', note: `initiative is ${state.status}` }
         break
@@ -640,6 +737,12 @@ export async function drive(
         ...(surface !== undefined ? { surface } : {}),
       })
       live = session
+      const unwatch = watchStopRequests(
+        eventsPath,
+        watchFrom,
+        () => takeRequests(ctx.foldState(initiative)),
+        options.stopPollMs,
+      )
       const gauge =
         policy === 'threshold' && thresholdPct !== undefined && contextWindow !== undefined
           ? watchThreshold(session, thresholdPct, contextWindow, (detail) =>
@@ -654,6 +757,7 @@ export async function drive(
         })
       } finally {
         gauge?.stop()
+        unwatch()
       }
       live = undefined
       cost += exit.usage?.cost_usd ?? 0
@@ -672,7 +776,7 @@ export async function drive(
             : `no session registered by ${routed.name} since the launch (exit ${exit.code ?? exit.signal ?? 'unknown'})`
         progress(`  unresolved: ${why}`)
         if (interrupted) {
-          stop = { reason: 'interrupted', note: why }
+          stop = interruptedStop(why)
           break
         }
         if (stalls >= maxStalls) {
@@ -702,7 +806,7 @@ export async function drive(
       stalls = reason === 'stall' ? stalls + 1 : 0
 
       if (interrupted) {
-        stop = { reason: 'interrupted' }
+        stop = interruptedStop()
         break
       }
       if (reason === 'needs_user') {

@@ -15,7 +15,7 @@ import { runClose } from './close'
 import { runStatus, runStatusWatch } from './status'
 import { runList } from './list'
 import { runNext } from './next'
-import { runDrive } from './drive'
+import { runDrive, runDriveStop } from './drive'
 import { runRelated, runWhy } from './graph'
 import { runFind } from './find'
 import { REACH_DEFAULT_HOPS, REACH_MAX_HOPS } from '../core/index-reach'
@@ -382,6 +382,10 @@ program
   )
   .option('--deny <rule...>', 'permission rules denied to every session in the run')
   .option('--bare-tools', "drop sofar's default allow-list; --allow then states the whole surface")
+  .option(
+    '--stop',
+    "ask the latest unstopped run's driver to end it (a second --stop kills its session outright) — how a detached run is stopped",
+  )
   .option('--root <dir>', 'repo root (default: current directory)')
   .action(
     async (
@@ -405,9 +409,21 @@ program
         allow?: string[]
         deny?: string[]
         bareTools?: boolean
+        stop?: boolean
         root?: string
       },
     ) => {
+      if (opts.stop === true) {
+        // A stop names a run, not a way to run one: a flag beside it would read
+        // as honoured and be ignored.
+        const extra = Object.keys(opts).filter((k) => k !== 'stop' && k !== 'root')
+        if (extra.length > 0) {
+          emit(fail(`sofar drive --stop takes no other flag but --root (got ${extra.map((k) => `--${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`).join(', ')})`))
+          return
+        }
+        emit(await runDriveStop(rootOf(opts), slug))
+        return
+      }
       emit(
         await runDrive(rootOf(opts), slug, {
           ...(opts.policy !== undefined ? { policy: opts.policy } : {}),

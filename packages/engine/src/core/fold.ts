@@ -28,6 +28,7 @@ import {
   type RunStopReason,
   type RunSurface,
   type RunStoppedPayload,
+  type RunStopRequestedPayload,
   type ReviewRecordedPayload,
   type ReviewScope,
   type ReviewVerdict,
@@ -235,6 +236,13 @@ export interface RunState {
   surface?: RunSurface
   /** Log order. */
   handoffs: RunHandoff[]
+  /**
+   * When `sofar drive --stop` asked this run's driver to end it (in-session-drive
+   * D2), log order. Envelope timestamps, because a driver honours only the
+   * requests made after it took the run — one left behind for a driver that
+   * died must not stop the `--resume` that follows it.
+   */
+  stop_requests: string[]
   stopped?: string
   stop_reason?: RunStopReason
   stop_note?: string
@@ -856,6 +864,7 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
     case 'run_started':
     case 'handoff':
     case 'run_stopped':
+    case 'run_stop_requested':
       // Driver events are EXCLUDED from drift, deliberately (commit-attribution
       // D18 requires the class decided here). Drift asks whether the recorded
       // next_action is now wrong; these say how sessions were scheduled, never
@@ -1344,6 +1353,7 @@ function applyEvent(
         ...(p.max_sessions !== undefined ? { max_sessions: p.max_sessions } : {}),
         ...(p.surface !== undefined ? { surface: p.surface } : {}),
         handoffs: [],
+        stop_requests: [],
       })
       break
     }
@@ -1387,6 +1397,20 @@ function applyEvent(
       run.stopped = event.ts
       run.stop_reason = p.reason
       if (p.note !== undefined) run.stop_note = p.note
+      break
+    }
+    case 'run_stop_requested': {
+      // No stub, as for a handoff: `--stop` names a run it found in this fold,
+      // so a request for a run that never started is a misroute. A request
+      // that lands after the stop is kept — a --stop racing a natural end is
+      // still something an operator did.
+      const p = event.payload as unknown as RunStopRequestedPayload
+      const run = state.runs.find((r) => r.id === p.run)
+      if (!run) {
+        warnings.push(`line ${lineNo}: stop requested for run "${p.run}" that never started — skipped`)
+        break
+      }
+      run.stop_requests.push(event.ts)
       break
     }
     case 'session_started': {

@@ -57,7 +57,9 @@ export function describeRun(run: RunState): string {
   const fate =
     run.stop_reason !== undefined
       ? `stopped: ${run.stop_reason}${run.stop_note !== undefined ? ` — ${run.stop_note}` : ''}`
-      : 'running'
+      : run.stop_requests.length > 0
+        ? `running — stop requested${run.stop_requests.length > 1 ? ` ${run.stop_requests.length} times` : ''}, not yet stopped`
+        : 'running'
   return `run ${run.id} via ${run.adapter}, ${policy} — ${handoffs}; ${fate}`
 }
 

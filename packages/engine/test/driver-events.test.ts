@@ -322,3 +322,47 @@ describe('render', () => {
     expect(renderSession(manual, manual.sessions[0]!)).not.toContain('Driven')
   })
 })
+
+describe('run_stop_requested (in-session-drive D2) — a request, never a stop', () => {
+  const request: Line = { type: 'run_stop_requested', payload: { run: RUN } }
+
+  it('rejects a request that names no run', () => {
+    const res = validatePayload('run_stop_requested', {})
+    expect(res.ok).toBe(false)
+    expect(validatePayload('run_stop_requested', { run: RUN }).ok).toBe(true)
+  })
+
+  it('folds each request onto its run, in log order, and stops nothing by itself', () => {
+    const { state, warnings } = foldLog(log('requested', [started, s1, request, request]))
+    expect(warnings).toEqual([])
+    const run = latestRun(state)!
+    expect(run.stop_requests).toEqual([expect.any(String), expect.any(String)])
+    expect(run.stopped).toBeUndefined()
+  })
+
+  it('a request for a run that never started is skipped with a warning — no stub run', () => {
+    const { state, warnings } = foldLog(log('orphan-request', [request]))
+    expect(state.runs).toEqual([])
+    expect(warnings.join('\n')).toContain(`stop requested for run "${RUN}" that never started`)
+  })
+
+  it('a request after the write-back does not stale the next action', () => {
+    const { state } = foldLog(log('request-drift', [started, s1, s1end, h1, request]))
+    expect(freshnessTotal(state.freshness)).toBe(0)
+  })
+
+  it('the digest and the full status say a stop was requested on a run that has not stopped', () => {
+    const { state } = foldLog(log('request-render', [started, h1, request]))
+    const line = `run ${RUN} via claude-code, task policy — 1 handoff (1 task_done); running — stop requested, not yet stopped`
+    expect(describeRun(latestRun(state)!)).toBe(line)
+    expect(renderStatus(state)).toContain(`Driven: ${line}`)
+    expect(renderFullStatus(state)).toContain(line)
+    const twice = foldLog(log('request-twice', [started, request, request])).state
+    expect(describeRun(latestRun(twice)!)).toContain('stop requested 2 times')
+  })
+
+  it('once the run stops, the stop is the fate the render states', () => {
+    const { state } = foldLog(log('request-stopped', [started, request, stopped]))
+    expect(describeRun(latestRun(state)!)).toContain('stopped: needs_user')
+  })
+})

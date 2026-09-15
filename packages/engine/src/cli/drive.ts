@@ -1,4 +1,5 @@
 import { ToolError, createToolContext } from '../mcp/context'
+import { latestRun } from '../core/fold'
 import { describeRun } from '../projections/templates/shared'
 import { ClaudeCodeAdapter } from '../driver/claude-code'
 import { CodexAdapter } from '../driver/codex'
@@ -185,4 +186,70 @@ export async function runDrive(
   if (outcome.cost_usd > 0) lines.push(`cost reported by the adapter: $${outcome.cost_usd.toFixed(2)}`)
   const stdout = `${lines.join('\n')}\n`
   return outcome.stop.reason === 'error' ? { exitCode: 1, stdout, stderr: '' } : ok(stdout)
+}
+
+/** How long `--stop` watches for the driver's `run_stopped` before reporting none came. */
+export const STOP_WAIT_MS = 30_000
+
+export interface DriveStopOptions {
+  /** Test seam: how long to watch for the stop (default STOP_WAIT_MS). */
+  waitMs?: number
+  /** Test seam: how often to look (default 500ms). */
+  pollMs?: number
+}
+
+/**
+ * `sofar drive [slug] --stop` (in-session-drive D2): ask the driver of the
+ * latest unstopped run to end it, through the record — the one channel a
+ * detached driver, which no ^C can reach, is already reading. It REQUESTS;
+ * only the driver writes `run_stopped`, after reading the handoff of the
+ * session it signalled. So the command watches for that stop and says what it
+ * saw: the stop with its reason, or that none came — which is also exactly
+ * what a request to a driver that already died looks like, and the command
+ * says so rather than guessing which it was.
+ */
+export async function runDriveStop(
+  rootDir: string,
+  slug: string | undefined,
+  options: DriveStopOptions = {},
+): Promise<CmdResult> {
+  let initiative: string
+  let runId: string
+  let requests: number
+  const ctx = createToolContext(rootDir)
+  try {
+    initiative = ctx.resolveInitiative(slug)
+    const run = latestRun(ctx.foldState(initiative))
+    if (run === undefined) return fail(`sofar drive --stop: "${initiative}" has never been driven — nothing to stop`)
+    if (run.stopped !== undefined) {
+      return fail(`sofar drive --stop: nothing to stop — the latest run on "${initiative}" already ended (${describeRun(run)})`)
+    }
+    runId = run.id
+    requests = run.stop_requests.length + 1
+    ctx.appendAndProject(initiative, 'run_stop_requested', { run: runId }, { session: 'cli', source: 'cli', actor: 'human' })
+  } catch (err) {
+    return fail(errMessage(err))
+  }
+
+  const deadline = Date.now() + (options.waitMs ?? STOP_WAIT_MS)
+  for (;;) {
+    const run = ctx.foldState(initiative).runs.find((r) => r.id === runId)
+    if (run?.stopped !== undefined) return ok(`${describeRun(run)}\n`)
+    if (Date.now() >= deadline) break
+    await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? 500))
+  }
+  const escalation =
+    requests > 1
+      ? 'this was a repeat request, which kills the session outright'
+      : 'a second `--stop` kills the session outright'
+  return {
+    exitCode: 1,
+    stdout: '',
+    stderr: [
+      `sofar drive --stop: stop requested for run ${runId}, but no run_stopped within ${Math.round((options.waitMs ?? STOP_WAIT_MS) / 1000)}s.`,
+      `A driver waiting on a session signals it and stops once the session exits; ${escalation}.`,
+      `If no driver is running this run, it will never acknowledge — \`sofar drive ${initiative} --resume\` adopts the run, and a --stop after that ends it.`,
+      '',
+    ].join('\n'),
+  }
 }

@@ -1211,9 +1211,10 @@ can then stop it). The driver honours a request as it honours ^C, with the
 same two steps: the FIRST signals the live session and ends the run
 `interrupted` once the handoff is read, the SECOND escalates to SIGKILL. It
 reads requests from the fold before every launch, and during a session from a
-2s poll that watches the log's size and folds only when the log has grown —
-driven sessions write on every tool call, so a fold per tick would cost
-more than the session it watches. A request counts only when its envelope
+2s poll that reads only the bytes appended since its last tick and folds only
+when those bytes name a stop request — driven sessions write on every tool
+call, so a fold per tick, or even per growth, would cost more than the session
+it watches. The byte scan decides nothing; the fold counts the requests. A request counts only when its envelope
 `ts` is at or after the moment this driver took the run, so one left behind
 for a dead driver cannot stop the `--resume` that follows it. The stop's
 note says a request ended the run rather than a signal.

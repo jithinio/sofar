@@ -47,6 +47,7 @@ const validPayloads: Record<string, Record<string, unknown>> = {
   },
   handoff: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSE', session_id: 's1', reason: 'task_done', task: '1.2', tokens: 84_000 },
   run_stopped: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSE', reason: 'needs_user', note: 'next action names a release' },
+  run_stop_requested: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSE' },
   correction: { ref: '01JZ8B3V0N5B4W8XK2M9QF7TSD' },
 }
 
@@ -114,6 +115,7 @@ describe('validatePayload', () => {
     ['handoff', { run: 'r', session_id: 's', reason: 'threshold', tokens: -1 }, /tokens/],
     ['run_stopped', { run: 'r', reason: 'crashed' }, /reason/],
     ['run_stopped', { run: 'r', reason: 'error' }, /note: required/],
+    ['run_stop_requested', {}, /run/],
     ['correction', {}, /ref/],
   ]
 
