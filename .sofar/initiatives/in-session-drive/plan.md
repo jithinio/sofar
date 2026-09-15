@@ -17,9 +17,9 @@ Progress: 7/7 tasks done (100%)
 - [x] 2.3 `sofar drive --detach`: self-respawn detached with a log file, IPC started-handshake so preflight refusals and D9 warnings reach the caller; caller write-back guard; no-network sandbox refusal; in-agent foreground warning; tests
 - [x] 2.4 Protocol block (CLAUDE.md + AGENTS.md) maps "run this in sofar drive" to write back → sofar drive --detach, and "stop the drive" to --stop; previous block kept as a shipped version
 
-## Phase 3 — Proof + release [pending] — 2/2 done
+## Phase 3 — Proof + release [done] — 2/2 done
 
 - [x] 3.1 Proof: from inside a live Claude Code session, detach a real run on a throwaway initiative, watch it hand off, stop one with --stop; record the numbers
 - [x] 3.2 README + release staged for the user to publish
 
-Next action: User runs npm publish -w sofar.sh for 0.32.0; then verify on npm, upgrade the global install, close Phase 3.
+Next action: Optional: sofar review in-session-drive --final (closed without phase or final review).
