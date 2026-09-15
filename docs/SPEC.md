@@ -1369,6 +1369,10 @@ rests on.
   reach.json          # TIER 1 REACH — clipped prose, citation handles, terms
   shipwatch.json      # NOT A TIER — per-session origin/<branch> marks
                       #   (commit-attribution 3.4); own version, no cursor
+  locks/              # NOT A TIER — transient registration locks
+                      #   (r1-fixes 1.2), <slug>.<sha256(session)>.lock,
+                      #   removed on release; a crash leaves one that goes
+                      #   stale in 10s
 ```
 
 **Three rules, and they are the whole safety argument (record-index D1).**
@@ -1715,8 +1719,10 @@ also collides with a sofar-cloud-internal package).
 - sofar_start_session({initiative?, tool, model?, session_id?}) →
   {session_id} — session_id (from the SessionStart context "Session:" line)
   adopts exactly that session, OPEN OR ENDED; an unknown id is registered
-  via session_started; omitted → mint a fresh ulid. No open-session
-  heuristic (adopt-by-id, Phase 7, BD43).
+  via session_started (idempotently, under the registration lock, so a hook
+  registering the same id in between makes this adoption — r1-fixes 1.2);
+  omitted → mint a fresh ulid. No open-session heuristic (adopt-by-id,
+  Phase 7, BD43).
   Adopting an ended id is pin-only (record-integrity 5.1): no append, and
   `ended`/`summary` are left standing as history. It used to be a typed
   invalid_input on the principle that a finished identity is never resumed
@@ -2304,6 +2310,18 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   preceded by a session_started for an unregistered session (lazy
   registration, record-hygiene D2; envelope session "cli" is never
   registered).
+  REGISTRATION IS IDEMPOTENT PER (initiative, session) (r1-fixes 1.2): a
+  log holds at most one session_started per session, whichever path
+  registers it — this hook, sofar_start_session's unknown-id branch, or
+  `sofar event append --type session_started`. A session that looks
+  unregistered is re-checked by a fresh fold under a cross-process lock in
+  `.sofar/.index/locks/` (§Derived index), held across the append, so hosts
+  that fire hooks in parallel (Cursor) register once and every racing
+  event lands after the registration. Already-registered sessions never
+  touch the lock. The lock DEGRADES rather than blocks: after 2s of waiting,
+  or when it cannot be created, the section runs unlocked (BD22 — the worst
+  case is the duplicate the fold already skips). A registration in ANOTHER
+  initiative is a different key, so re-homing is unchanged.
   SELF-RECORDING COMMANDS ARE EXEMPT (record-hygiene D1): a Bash command
   whose every shell segment leads with `git` or `sofar` appends NOTHING.
   Both keep their own ledger — git its history, sofar the record itself —
@@ -2754,7 +2772,10 @@ Shims contain no logic — they invoke the sofar CLI.
   surface for MCP-less tools — validate payload, append ONE event,
   regenerate projections, print {ok, event_id} JSON; any failure exits 1
   with the typed-error JSON and appends nothing (added Phase 5, BD30; slug
-  resolves like status).
+  resolves like status). A `session_started` for a session (other than
+  "cli") already registered in that record appends nothing and prints
+  {ok: true, event_id: <the standing registration's id>, already_started:
+  true}; the payload is still validated first (r1-fixes 1.2).
 - `sofar statusline` (felt-cost 3.1/3.2, D4; identity segments D6; styling
   D7/D8) — the rent-meter, wired as Claude Code's statusLine command. Reads
   statusline JSON from stdin, prints ONE line: `<model> · <dir> ·
@@ -3972,3 +3993,15 @@ stay the underlying derivation's, and exit codes are styling-independent.
   the moves (new, start with the id, then a hook-recorded edit) leaves
   exactly one session in the new record and no fold warnings; a repo with no
   `.sofar/` still injects nothing.
+- **Registration is idempotent (r1-fixes 1.2):** 12 concurrent `sofar event
+  post-tool` processes carrying one new session id leave exactly one
+  session_started and all 12 file_touched events, every one after the
+  registration, no `already started` fold warning and no lock file behind
+  (the unfixed engine left 12 starts). Hook-then-sofar_start_session with the
+  same id appends one start. `sofar event append --type session_started`
+  re-run for a registered session exits 0, appends nothing and prints the
+  standing event id with `already_started: true`, while an invalid payload
+  on a repeat is still refused. Registering one id in a second initiative
+  still appends there. The lock runs its section unlocked after its wait or
+  when it cannot be created, breaks a stale lock at once, releases on throw,
+  and never deletes a lock it no longer owns.

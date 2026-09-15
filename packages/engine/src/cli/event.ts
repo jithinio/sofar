@@ -39,6 +39,7 @@ import {
   createToolContext,
   homeInitiative,
   initiativeSlugs,
+  registrationIn,
   resolveSessionFirst,
   ToolError,
   type ResolvedVia,
@@ -733,11 +734,11 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
       // Lazy registration: one fold to see whether this session is already in
       // the log — the same read the Stop and UserPromptSubmit shims already do
       // on every invocation, and it only precedes an append that folds anyway.
+      // A new session re-checks under a lock (r1-fixes 1.2): hosts that fire
+      // hooks in parallel (Cursor) otherwise registered it once per process.
       // "cli" is never a session identity (the fold skips it), so it is never
       // registered.
-      if (session !== 'cli' && !ctx.foldState(slug).sessions.some((s) => s.id === session)) {
-        ctx.appendAndProject(slug, 'session_started', { tool: HOOK_TOOL }, { session, source: 'hook' })
-      }
+      if (session !== 'cli') ctx.registerSession(slug, session, { tool: HOOK_TOOL }, { source: 'hook' })
       ctx.appendAndProject(slug, type, payload, { session, source: 'hook' })
     }
     // Nudge first: it says what to do NEXT, while a guard notice comments on
@@ -1789,6 +1790,26 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
 
     const ctx = createToolContext(rootDir)
     const slug = ctx.resolveInitiative(args.slug)
+    // A repeat start is a no-op, not a second line (r1-fixes 1.2): the dialect
+    // has agents register by hand, and they re-run the command — round 1 found
+    // one Cursor session registered 4 times. Same {ok, event_id} contract,
+    // naming the registration that already stands, plus a flag that says the
+    // call changed nothing so the agent does not retry.
+    if (args.type === 'session_started' && args.session !== 'cli') {
+      const appended = ctx.registerSession(slug, args.session, payload, {
+        source: args.source as Source,
+        actor: args.actor as Actor,
+      })
+      const body =
+        appended !== null
+          ? { ok: true, event_id: appended.id }
+          : {
+              ok: true,
+              event_id: registrationIn(ctx.eventsPath(slug), args.session)?.id ?? null,
+              already_started: true,
+            }
+      return { exitCode: 0, stdout: `${JSON.stringify(body)}\n`, stderr: '' }
+    }
     // appendAndProject validates the payload against its type's schema BEFORE
     // any write — invalid type/payload throws here with zero appends.
     const event = ctx.appendAndProject(slug, args.type, payload, {

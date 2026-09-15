@@ -46,6 +46,7 @@ Three consequences run through every design decision in the codebase:
 | `core/envelope.ts` | Envelope v1: mint, validate, canonical field order. |
 | `core/log.ts` | `appendEvent` — O_APPEND, one line, never partial. Canonical serialization. |
 | `core/atomic.ts` | `writeFileAtomic` — temp + rename, so readers never see a torn file. |
+| `core/lock.ts` | `withFileLock` — exclusive-create mutex for short check-then-append sections (session registration). Degrades to unlocked rather than blocking a hook; lock files live in the self-ignoring `.index/`. |
 | `core/redact.ts` | Secret redaction on captured commands before they reach the log. |
 | `core/identity.ts` | Optional `user` stamp from git config. `identity.browser.ts` is the browser build. |
 

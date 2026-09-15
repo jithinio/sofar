@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
 import { validatePayload, isKnownEventType } from '@sofar/schema'
@@ -6,7 +7,9 @@ import { makeEvent, SOURCES, type Actor, type EventEnvelope, type Source } from 
 import { appendEvent } from '../core/log'
 import { foldLog, emptyState, type InitiativeState } from '../core/fold'
 import { currentBranch } from '../core/git'
+import { ensureIndexDir } from '../core/index-store'
 import { initiativeSlugs } from '../core/listing'
+import { withFileLock } from '../core/lock'
 import { regenerateProjections } from '../projections/generator'
 
 // Branch → initiative resolution reads git; the reader itself lives in core/
@@ -81,11 +84,11 @@ export function toSource(tool: string | undefined): Source {
 export { initiativeSlugs }
 
 /**
- * ts of this log's session_started for `sessionId`, or null. The substring
- * pre-filter matters: the overwhelmingly common answer is "not here", and it
- * is reached without parsing a single line.
+ * This log's first session_started for `sessionId` ({id, ts}), or null. The
+ * substring pre-filter matters: the overwhelmingly common answer is "not
+ * here", and it is reached without parsing a single line.
  */
-function registeredAt(logPath: string, sessionId: string): string | null {
+export function registrationIn(logPath: string, sessionId: string): { id: string; ts: string } | null {
   let text: string
   try {
     text = readFileSync(logPath, 'utf8')
@@ -103,14 +106,18 @@ function registeredAt(logPath: string, sessionId: string): string | null {
         (event as Record<string, unknown>).type === 'session_started' &&
         (event as Record<string, unknown>).session === sessionId
       ) {
-        const ts = (event as Record<string, unknown>).ts
-        if (typeof ts === 'string') return ts
+        const { id, ts } = event as Record<string, unknown>
+        if (typeof id === 'string' && typeof ts === 'string') return { id, ts }
       }
     } catch {
       // torn/corrupt line — same tolerance as the fold, never fatal
     }
   }
   return null
+}
+
+function registeredAt(logPath: string, sessionId: string): string | null {
+  return registrationIn(logPath, sessionId)?.ts ?? null
 }
 
 /**
@@ -307,6 +314,18 @@ export interface ToolContext {
     payload: Record<string, unknown>,
     options?: AppendOptions,
   ): EventEnvelope
+  /**
+   * Idempotent session_started (r1-fixes 1.2): appends through
+   * appendAndProject only when `session` is not yet registered in this log,
+   * deciding under a cross-process lock. Returns the appended event, or null
+   * when a registration already stands. Every registration path uses it.
+   */
+  registerSession(
+    slug: string,
+    session: string,
+    payload: Record<string, unknown>,
+    options?: Omit<AppendOptions, 'session'>,
+  ): EventEnvelope | null
 }
 
 export function createToolContext(rootDir: string): ToolContext {
@@ -459,6 +478,53 @@ export function createToolContext(rootDir: string): ToolContext {
     return event
   }
 
+  /**
+   * Registration was a check-then-append on three paths — the PostToolUse
+   * hook, sofar_start_session's unknown-id branch, and `sofar event append
+   * --type session_started` (which had no check at all) — so any two writers
+   * that read before either appended both registered. The fold tolerates the
+   * duplicate by skipping it, but warns on every read forever and the line
+   * never leaves the committed log. Round 1 found 4 for one Cursor session.
+   *
+   * Double-checked: the unlocked fold answers the common case (already
+   * registered — every event after a session's first) without touching the
+   * lock, and only an apparently-new session re-checks under it. The re-check
+   * must be a fresh fold, and it is: foldState reads the log every call.
+   * Holding the lock across the append also orders the loser's own event
+   * AFTER the winner's session_started, so no hook event lands ahead of its
+   * registration.
+   *
+   * Scoped per (initiative, session): different sessions never contend, and
+   * a session registering in a second initiative (a deliberate re-home) is a
+   * different key — a per-log registration is what "home" is derived from
+   * (record-integrity D9), so this dedupes within a log and never across.
+   * Validation runs first so a repeat start with a bad payload is refused
+   * exactly as a first one would be.
+   */
+  function registerSession(
+    slug: string,
+    sessionId: string,
+    payload: Record<string, unknown>,
+    options?: Omit<AppendOptions, 'session'>,
+  ): EventEnvelope | null {
+    const check = validatePayload('session_started', payload)
+    if (!check.ok) {
+      throw new ToolError('invalid_input', 'refusing to append invalid session_started payload', check.errors)
+    }
+    const registered = (): boolean => foldState(slug).sessions.some((s) => s.id === sessionId)
+    if (registered()) return null
+    const section = (): EventEnvelope | null =>
+      registered() ? null : appendAndProject(slug, 'session_started', payload, { ...options, session: sessionId })
+    let lockPath: string
+    try {
+      const key = createHash('sha256').update(sessionId).digest('hex').slice(0, 24)
+      lockPath = join(ensureIndexDir(sofarDir), 'locks', `${slug}.${key}.lock`)
+    } catch {
+      return section() // no index dir to lock in — degrade to unlocked, as withFileLock does
+    }
+    return withFileLock(lockPath, section)
+  }
+
   return {
     rootDir,
     sofarDir,
@@ -470,5 +536,6 @@ export function createToolContext(rootDir: string): ToolContext {
     resolveWriteInitiative,
     foldState,
     appendAndProject,
+    registerSession,
   }
 }
