@@ -1672,7 +1672,16 @@ exists (self-improve 2.3), is a separate, differently named surface.
 **Three rules, from the audit (S1, S3, S5).** (1) A detector runs ONLY for a
 signal the map does not call `unavailable` here; every other signal is
 reported UNKNOWN with the map's reason and what is missing — a count is never
-printed for a signal nobody observes, and UNKNOWN is never zero. (2) Every
+printed for a signal nobody observes, and UNKNOWN is never zero. The map
+degrades against the clone; the CORPUS gate (self-improve 2.2) degrades
+against the log: a detector whose source only a hook, the store or a driver
+produces — `stalls` (a run_started, handoff or run_stopped), `formatter_friction`
+(a file_touched), `tool_failure` (a command_run or file_touched carrying `ok`),
+and the three store detectors (a row of their kind) — is UNKNOWN, `not observed
+in this corpus: …`, unless the logs and rows read show that source at least
+once. Detectors over events sofar writes itself (`session_started`,
+`correction`) are not gated. Which detectors may feed suggestions is decided
+by the 2.2 precision protocol, not by this report. (2) Every
 finding cites immutable evidence: event ids, or `row:` + the first 16 hex of
 the sha256 of a row's stored line — never prose, never a re-derivation.
 (3) A detector states its coverage — the denominator, the event types, the

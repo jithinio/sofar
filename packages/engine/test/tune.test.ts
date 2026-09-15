@@ -138,6 +138,39 @@ describe('the contract', () => {
     expect(detector(wired, 'tool_failure').status).toBe('capturable')
     expect(detector(wired, 'tool_failure').count).toBe(1)
   })
+
+  it('a signal whose source the CORPUS never shows is UNKNOWN even on a wired clone — never a zero (2.2)', () => {
+    // Every requirement met: hooks wired, store usable. But nothing a hook,
+    // the store or a driver writes is in this log — the shape of a Codex repo
+    // carrying Claude settings, or a log from before capture.
+    const fixture = fx()
+    wireHooks(fixture.root)
+    ev(fixture, 'session_started', { tool: 'codex' }, 's1')
+    ev(fixture, 'command_run', { cmd: 'npm test' }, 's1')
+    const report = json(fixture)
+    const gated: Record<string, string> = {
+      stalls: 'no driven run',
+      formatter_friction: 'no file_touched event',
+      tool_failure: 'no command_run / file_touched carrying ok',
+      mcp_rejections: 'no mcp_call row',
+      bookkeeping_share: 'no tool_outcome or mcp_call row',
+      injection_bytes: 'no injection row',
+    }
+    for (const [id, needs] of Object.entries(gated)) {
+      const d = detector(report, id)
+      expect(d.status, id).toBe('unknown')
+      expect(d.count, id).toBeUndefined()
+      expect(d.coverage, id).toMatch(new RegExp(`^not observed in this corpus: ${needs}`))
+    }
+    // Events sofar writes itself need no gate: a zero there is a real zero.
+    expect(detector(report, 'duplicate_session_starts').count).toBe(0)
+    expect(detector(report, 'corrections').count).toBe(0)
+    // One observation of the source opens the gate.
+    ev(fixture, 'file_touched', { path: '/repo/src/a.ts', op: 'edit', ok: true }, 's1')
+    const opened = json(fixture)
+    expect(detector(opened, 'formatter_friction').count).toBe(0)
+    expect(detector(opened, 'tool_failure').count).toBe(0)
+  })
 })
 
 describe('record detectors', () => {

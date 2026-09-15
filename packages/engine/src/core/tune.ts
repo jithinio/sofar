@@ -335,6 +335,41 @@ const detectors: Record<string, Detector> = {
 /** Signals a detector exists for, in map order — the rest are UNKNOWN by construction. */
 export const TUNE_DETECTOR_SIGNALS: readonly string[] = Object.keys(detectors)
 
+const anyEvent = (inputs: TuneInputs, test: (e: EventEnvelope) => boolean): boolean => {
+  for (const events of inputs.events.values()) if (events.some(test)) return true
+  return false
+}
+const anyRow = (inputs: TuneInputs, kinds: readonly string[]): boolean => inputs.rows.some((r) => kinds.includes(r.kind))
+
+/**
+ * The CORPUS half of rule 1 (self-improve 2.2). The map degrades against the
+ * clone — settings text, store path — but a clone can pass that and still hold
+ * a log no hook, store or driver ever wrote to: a Codex repo carries Claude's
+ * settings file and fires none of it; a log written by an engine before
+ * capture has no `ok` field and no row. Replayed over 13 real units, the
+ * ungated detectors printed a number on every one of them. So a detector whose
+ * source only a hook, the store or a driven run produces runs only when the
+ * corpus shows that source at least once; otherwise it is UNKNOWN. Detectors
+ * over events sofar writes itself (session_started, correction) need no gate.
+ */
+const CORPUS_SOURCES: Readonly<Record<string, { needs: string; seen: (inputs: TuneInputs) => boolean }>> = {
+  stalls: {
+    needs: 'no driven run (run_started, handoff or run_stopped)',
+    seen: (i) => anyEvent(i, (e) => e.type === 'run_started' || e.type === 'handoff' || e.type === 'run_stopped'),
+  },
+  formatter_friction: {
+    needs: 'no file_touched event — the host never fired the edit hook',
+    seen: (i) => anyEvent(i, (e) => e.type === 'file_touched'),
+  },
+  tool_failure: {
+    needs: 'no command_run / file_touched carrying ok — written before capture',
+    seen: (i) => anyEvent(i, (e) => (e.type === 'command_run' || e.type === 'file_touched') && 'ok' in (e.payload as object)),
+  },
+  mcp_rejections: { needs: 'no mcp_call row', seen: (i) => anyRow(i, ['mcp_call']) },
+  bookkeeping_share: { needs: 'no tool_outcome or mcp_call row', seen: (i) => anyRow(i, ['tool_outcome', 'mcp_call']) },
+  injection_bytes: { needs: 'no injection row', seen: (i) => anyRow(i, ['injection']) },
+}
+
 /** Run every detector the map allows; report everything else UNKNOWN. Pure. */
 export function detect(inputs: TuneInputs): TuneReport {
   const initiatives = [...inputs.events.keys()].sort(byId)
@@ -357,6 +392,10 @@ export function detect(inputs: TuneInputs): TuneReport {
             : `not observable on this clone: missing ${signal.missing.join(', ')}`,
         blind_spot: signal.reason,
       }
+    }
+    const source = CORPUS_SOURCES[signal.id]
+    if (source !== undefined && !source.seen(inputs)) {
+      return { signal: signal.id, status: 'unknown', coverage: `not observed in this corpus: ${source.needs}`, blind_spot: signal.reason }
     }
     return { signal: signal.id, status: signal.status, ...detector(inputs, signal), blind_spot: signal.reason }
   })
