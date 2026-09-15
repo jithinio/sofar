@@ -4,11 +4,11 @@
 
 Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
 
-Progress: 0/18 tasks done (0%)
+Progress: 1/18 tasks done (5%)
 
-## Phase 1 — Wave 1: correctness and quick wins [active] — 0/6 done
+## Phase 1 — Wave 1: correctness and quick wins [active] — 1/6 done
 
-- [ ] 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split sessions.
+- [x] 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split sessions.
 - [ ] 1.2 Session registration race: make hook registration idempotent under parallel hooks (event.ts:713-715; Cursor fires hooks in parallel). PREDICT: 0 duplicate session_started in round-2 cursor cells.
 - [ ] 1.3 CLI agents: `sofar event types` payload reference; plan, phase and goal lines plus 'one initiative per project/roadmap' in the AGENTS block (init.ts:572-631); accept any --source (envelope.ts:17). PREDICT: Codex S1 −13 tool calls; Codex and Cursor make a project initiative WITH a plan in ≥2/3 reps.
 - [ ] 1.4 Formatter defence: doctor check and fix for Biome (plus Prettier and markdownlint hazards); write .mcp.json in a formatter-friendly shape (init.ts:1118). PREDICT: agent edits to biome.json or .mcp.json reformatting 3/7 → 0.

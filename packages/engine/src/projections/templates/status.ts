@@ -389,19 +389,26 @@ export interface StatusOptions {
   neighbours?: readonly NeighbourRecord[]
 }
 
+/**
+ * The adopt-by-id line (task 7.1, BD43), or null for a missing/blank id.
+ * Exported because the unbound notice carries the same line (r1-fixes 1.1):
+ * a session that has no record YET is exactly the one about to register,
+ * and one wording is what keeps the two surfaces from teaching different ids.
+ */
+export function sessionIdLine(sessionId: string | null | undefined): string | null {
+  const id = sessionId?.trim() ?? ''
+  if (id.length === 0) return null
+  return `Session: ${clip(id, SESSION_ID_BUDGET)} — when calling sofar_start_session, pass this as session_id.`
+}
+
 export function renderStatus(state: InitiativeState, options?: StatusOptions): string {
   const lines: string[] = []
   lines.push(`# Sofar status: ${state.slug || '(unnamed initiative)'}`, '')
 
   // Session identity (task 7.1, BD43) — near the top, before everything else:
   // this is the id the agent must hand back to sofar_start_session.
-  const sessionId = options?.sessionId?.trim() ?? ''
-  if (sessionId.length > 0) {
-    lines.push(
-      `Session: ${clip(sessionId, SESSION_ID_BUDGET)} — when calling sofar_start_session, pass this as session_id.`,
-      '',
-    )
-  }
+  const idLine = sessionIdLine(options?.sessionId)
+  if (idLine !== null) lines.push(idLine, '')
 
   // Git state (record-integrity 4.1): one derived line, never an event.
   const git = options?.git

@@ -1,5 +1,6 @@
 {
   "main": "session-driver",
   "peer-messaging": "peer-messaging",
-  "cross-initiative-conflicts": "cross-initiative-conflicts"
+  "cross-initiative-conflicts": "cross-initiative-conflicts",
+  "r1-fixes": "r1-fixes"
 }

@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import type { Command } from 'commander'
 import { isClosedInitiativeStatus, type GuardDomain } from '@sofar/schema'
@@ -44,7 +44,7 @@ import {
   type ResolvedVia,
   type ToolContext,
 } from '../mcp/context'
-import { enforceStatusLimit, renderStatus } from '../projections/templates/status'
+import { enforceStatusLimit, renderStatus, sessionIdLine } from '../projections/templates/status'
 import { REPO_MD_STUB } from './shared'
 
 /**
@@ -371,25 +371,50 @@ function coldResumeAdvisory(hook: Obj, eventsPath: string): string | null {
  * nothing, exactly as before. Slugs come from the directory listing — no
  * folds, because this runs inside the shim's 100ms budget and `sofar list` is
  * the surface that ranks and marks them.
+ *
+ * "Carries a record" means `.sofar/` exists, NOT that an initiative does
+ * (r1-fixes 1.1). A freshly `sofar init`-ed repo has no initiative yet, and
+ * gating on slugs made its first session — the one that has to create the
+ * record — the only session that got nothing at all: no Session id, no hint.
+ * Round-1 Claude S1 cells injected 0 chars and paid for it in turns: probe
+ * the state tool, discover `sofar new`, then call sofar_start_session with no
+ * id, which mints a SECOND identity beside the hook-registered one (a split
+ * session the Stop gate then blocks). The id line and the three moves in
+ * order — create, adopt, plan — are what those turns were spent finding.
  */
-export function unboundNotice(rootDir: string): string {
+export function unboundNotice(rootDir: string, sessionId: string | null = null): string {
   try {
-    const slugs = initiativeSlugs(join(rootDir, '.sofar'))
-    if (slugs.length === 0) return ''
+    const sofarDir = join(rootDir, '.sofar')
+    if (!existsSync(sofarDir)) return ''
+    const idLine = sessionIdLine(sessionId)
+    const head = (title: string): string[] => [title, '', ...(idLine !== null ? [idLine, ''] : [])]
+    const slugs = initiativeSlugs(sofarDir)
+    if (slugs.length === 0) {
+      return enforceStatusLimit(
+        [
+          ...head('# Sofar: no initiative yet'),
+          'This repo carries a sofar record but no initiative, so nothing you do is',
+          'recorded yet — hook events are discarded, not queued. Before the work:',
+          '',
+          '  1. sofar new <slug> --goal "<one line>"   one initiative for the project or roadmap, not per feature',
+          `  2. sofar_start_session${idLine !== null ? ' with the session_id above' : ''}`,
+          '  3. sofar_update_plan                        phases and tasks, before the first edit',
+        ].join('\n'),
+      )
+    }
     const MAX_LISTED = 10
     const listed = slugs.slice(0, MAX_LISTED).join(', ')
     const more = slugs.length > MAX_LISTED ? `, …+${slugs.length - MAX_LISTED} more` : ''
     return enforceStatusLimit(
       [
-        '# Sofar: this branch is not bound to an initiative',
-        '',
+        ...head('# Sofar: this branch is not bound to an initiative'),
         'No record resolves for this session, so nothing you do here is being',
         'recorded — hook events are discarded, not queued. Fix it before working:',
         '',
         `  sofar switch <slug>   work on an existing record (${listed}${more})`,
         '  sofar new <slug>      start a new one (work that matches no existing record)',
         '',
-        'Then call sofar_start_session. `sofar list` shows progress and marks closed records.',
+        `Then call sofar_start_session${idLine !== null ? ' with the session_id above' : ''}. \`sofar list\` shows progress and marks closed records.`,
       ].join('\n'),
     )
   } catch {
@@ -562,7 +587,7 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     const hook = parseHook(input)
     const sessionId = strField(hook, 'session_id')
     const bound = resolveBound(rootDir, sessionId)
-    if (bound === null) return { ...OK, stdout: unboundNotice(rootDir) }
+    if (bound === null) return { ...OK, stdout: unboundNotice(rootDir, sessionId) }
     const { ctx, slug, via } = bound
 
     // The gap is measured to the prior session's last event; with lazy

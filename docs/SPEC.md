@@ -1989,7 +1989,15 @@ silently undo a close. The drop is per-event but the CONDITION is
 per-session, so it is named ONCE where the agent reads: SessionStart injects
 an unbound notice naming `sofar switch` / `sofar new`, and the statusline
 renders `unbound`. Both are scoped to repos that carry a record — a repo
-sofar has never touched is unchanged.
+sofar has never touched is unchanged. "Carries a record" means `.sofar/`
+exists, not that an initiative does (r1-fixes 1.1): a freshly initialised
+repo with NO initiative gets its own variant, `# Sofar: no initiative yet`,
+naming three moves in order — `sofar new <slug> --goal` (one initiative for
+the project or roadmap), sofar_start_session with the injected id,
+sofar_update_plan. Both variants carry the status block's `Session: <id>`
+line when the hook payload has an id, because the session with no record
+yet is the one about to register, and without the id it mints a second
+identity beside the hook-registered one. The notice still appends nothing.
 unknown_initiative errors — from any tool or CLI command that resolves a
 slug (explicit or branch-bound) — carry a count-capped (10) `available
 initiatives:` suffix, or a `sofar new` hint when none exist
@@ -3954,3 +3962,13 @@ stay the underlying derivation's, and exit codes are styling-independent.
   and handed off `task_done` ($0.06); a `--stop` sent while session 2 was
   starting was acknowledged in 11s with the run `interrupted`, that launch
   unresolved (exit 143) and no process left behind.
+- **First session (r1-fixes 1.1):** SessionStart in a repo that carries
+  `.sofar/` but no initiative injects `# Sofar: no initiative yet` with the
+  hook payload's `Session: <id>` line (byte-identical to the status block's)
+  and the moves `sofar new <slug> --goal`, sofar_start_session with that id,
+  sofar_update_plan, in that order and under 700 chars; it appends nothing.
+  With no id in the payload the moves render without naming one. The
+  unbound notice for a repo WITH records carries the same id line. Following
+  the moves (new, start with the id, then a hook-recorded edit) leaves
+  exactly one session in the new record and no fold warnings; a repo with no
+  `.sofar/` still injects nothing.

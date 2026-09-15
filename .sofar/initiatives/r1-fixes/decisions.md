@@ -2,4 +2,4 @@
 
 # Decisions: r1-fixes
 
-(no decisions logged yet)
+- 2026-09-15T15:39:56.392Z — chose **1.1: gate the SessionStart unbound notice on .sofar/ existing (not on ≥1 initiative); add a zero-initiative variant (new --goal → start_session with id → update_plan) and the status block's Session line to both variants, via a shared sessionIdLine()** over (a) auto-creating a default initiative at first SessionStart; (b) keeping the slug gate and relying on the unknown_initiative error's `sofar new` hint; (c) putting the hint in the CLAUDE.md protocol block because Round-1 Claude S1 injected 0 chars and spent turns probing, then minted a 2nd session id beside the hook's. (a) is lazy binding, which initiative-lifecycle D4 rejects and would name the record before the agent knows the project; (b) costs the probe turns the fix exists to remove and still gives no id; (c) is paid every session in every repo, while the notice renders only when nothing resolves. Output stays <700 chars and appends nothing (record-hygiene D2).
