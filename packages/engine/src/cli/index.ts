@@ -15,7 +15,7 @@ import { runClose } from './close'
 import { runStatus, runStatusWatch } from './status'
 import { runList } from './list'
 import { runNext } from './next'
-import { runDrive, runDriveStop } from './drive'
+import { detachedStartNotifier, runDrive, runDriveDetached, runDriveStop } from './drive'
 import { runRelated, runWhy } from './graph'
 import { runFind } from './find'
 import { REACH_DEFAULT_HOPS, REACH_MAX_HOPS } from '../core/index-reach'
@@ -383,6 +383,10 @@ program
   .option('--deny <rule...>', 'permission rules denied to every session in the run')
   .option('--bare-tools', "drop sofar's default allow-list; --allow then states the whole surface")
   .option(
+    '--detach',
+    "start the run as a process that outlives this shell — how an agent session starts one; returns once the run is certain to start",
+  )
+  .option(
     '--stop',
     "ask the latest unstopped run's driver to end it (a second --stop kills its session outright) — how a detached run is stopped",
   )
@@ -409,6 +413,7 @@ program
         allow?: string[]
         deny?: string[]
         bareTools?: boolean
+        detach?: boolean
         stop?: boolean
         root?: string
       },
@@ -424,6 +429,11 @@ program
         emit(await runDriveStop(rootOf(opts), slug))
         return
       }
+      if (opts.detach === true) {
+        emit(await runDriveDetached(rootOf(opts), slug, { argv: process.argv.slice(2) }))
+        return
+      }
+      const onStarted = detachedStartNotifier()
       emit(
         await runDrive(rootOf(opts), slug, {
           ...(opts.policy !== undefined ? { policy: opts.policy } : {}),
@@ -444,6 +454,7 @@ program
           ...(opts.allow !== undefined ? { allow: opts.allow } : {}),
           ...(opts.deny !== undefined ? { deny: opts.deny } : {}),
           ...(opts.bareTools === true ? { bareTools: true } : {}),
+          ...(onStarted !== undefined ? { onStarted } : {}),
         }),
       )
     },

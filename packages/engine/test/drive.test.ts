@@ -796,6 +796,17 @@ describe('the CLI skin', () => {
     expect(result.stdout.trimEnd().split('\n')).toHaveLength(1)
   })
 
+  it("warns a foreground run inside an agent's shell that the agent's timeout will end it, and names --detach (in-session-drive D1)", async () => {
+    const inside: string[] = []
+    const root = repo('cli-in-agent')
+    await runDrive(root, 'demo', { adapter: new FakeAdapter([worker(root, 'A1'), worker(root, 'A2')]), env: { CLAUDECODE: '1' } }, (l) => inside.push(l))
+    expect(inside.join('\n')).toContain('`sofar drive --detach`')
+    const terminal: string[] = []
+    const root2 = repo('cli-in-terminal')
+    await runDrive(root2, 'demo', { adapter: new FakeAdapter([worker(root2, 'T1'), worker(root2, 'T2')]), env: {} }, (l) => terminal.push(l))
+    expect(terminal.join('\n')).not.toContain('--detach')
+  })
+
   it('a preflight refusal is exit 1 with the reason, and no run in the log', async () => {
     const root = repo('cli-refuse')
     const other = repo('cli-refuse-other')
