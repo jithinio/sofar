@@ -1720,8 +1720,8 @@ instructions ride every initialize, so they stay short.
 - sofar_get_state({initiative?, view?}) → progressive disclosure (token-opt):
   view "digest" (DEFAULT) returns the summary-dense orientation projection as
   text (goal, active/next task, next action, phase summary, last-session
-  resume, recent decisions WITH rationale — the compaction-proof orient, ~1k
-  tok, rationale kept first-class); view "full" returns the complete folded
+  resume, and a handle-first decision index — the compaction-proof orient,
+  ~1k tok); view "full" returns the complete folded
   InitiativeState (re-injectable in full, architecture Open-Q#5). Resolves
   initiative from bindings.json + current branch when omitted; neither view
   appends. The digest shares renderStatus with the SessionStart block, so it
@@ -1753,7 +1753,25 @@ instructions ride every initialize, so they stay short.
   decision_logged and memory_promoted will get, so a session cites what it
   is about to log without a fold, a get_state or a `sofar find`; digest-only
   like the read-back line, and rendered only once the record holds a
-  decision or a memory (a fresh record's D1/M1 needs no line). The AGENTS.md dialect keeps its orient-first step: MCP-less
+  decision or a memory (a fresh record's D1/M1 needs no line).
+  Decision index (r1-fixes 2.2, D11) — index-first, nothing rendered twice:
+  `Recent decisions (<N> | last 5 of <N>; full text in decisions.md):` then
+  one line per decision in the last-5 window, `- [D<n>] <date> <chose ≤120>
+  — over <over ≤90>` — fields clipped SEPARATELY so the rejected alternative
+  survives however long `chose` runs; `because` is on demand in decisions.md
+  (the old 280-char `chose … over … — because` concatenation clipped inside
+  `chose` on every real record, so the rationale it promised was already
+  absent); a placeholder over (`(no alternative recorded)`) renders no over
+  clause. A decision whose rule rendered in Standing constraints above is
+  marked `(rule above)` with a 60-char chose — the rule IS its operative
+  content, and the index does not restate it. Then `Earlier rejected
+  approaches — do NOT re-propose (<K> older):` lists `- [D<n>] <over ≤90>`
+  for decisions OUTSIDE the window only (real alternatives only), so no
+  `over` text appears twice and a record of ≤5 decisions has no ledger. The
+  ledger is the section that yields to the hard cap: its budget is the
+  smaller of 2,800 chars and what the 10,000-char limit leaves after a
+  400-char reserve for the protocol tail, so `Next ids`, the read-back line
+  and the footer render whenever everything above the ledger fits. The AGENTS.md dialect keeps its orient-first step: MCP-less
   tools have no hook injection for it to be redundant with.
 - sofar_start_session({initiative?, tool, model?, session_id?}) →
   {session_id} — session_id (from the SessionStart context "Session:" line)
@@ -3335,6 +3353,18 @@ stay the underlying derivation's, and exit codes are styling-independent.
   SERVER_INSTRUCTIONS, name the one-call core-tool load and the no-reread
   rule, and stay under 900 chars; the CLAUDE.md block says task changes may
   ride the write-back.
+- **Digest dedupe (r1-fixes 2.2):** renderStatus renders every decision's
+  `over` at most once: the recent window carries `[D<n>] <date> <chose>
+  — over <over>` with chose and over clipped separately (120/90), `because`
+  absent (decisions.md), a placeholder over rendering no clause; the
+  `Earlier rejected approaches — do NOT re-propose (K older)` ledger holds
+  only decisions outside the window and is absent for ≤5 decisions; a
+  decision whose rule rendered in Standing constraints shows `(rule above)`
+  and a shorter line than an unruled one, and a rule the standing budget
+  dropped shows no marker; on a record of 24 verbatim rules, 33 decisions,
+  a 1,200-char summary and repo memory at budget the block stays ≤10,000
+  chars with NO truncation marker, the ledger carrying the `…and N more`
+  pointer, and `Next ids` plus the read-back rendering after it.
 - **Repo memory capture:** `sofar remember <text>` and `sofar_remember`
   append memory_promoted and report the `<slug> M<n>` handle; ordinals follow
   log order; `memory.md` appears only once something is promoted; empty text

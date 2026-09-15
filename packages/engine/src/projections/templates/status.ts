@@ -56,13 +56,24 @@ const MAX_PHASE_LINES = 12
 const DONE_PHASES_LINE_BUDGET = 220
 const SESSION_SUMMARY_BUDGET = 1_200
 const DERIVED_SESSION_BUDGET = 600
-const DECISION_LINE_BUDGET = 280
+// Decision index (r1-fixes 2.2, D11): the recent window clips `chose` and
+// `over` separately so the rejected alternative survives a long `chose`;
+// `because` is on demand (decisions.md). A decision whose rule renders in
+// Standing constraints gets the short chose budget — the rule is its content.
+const DECISION_CHOSE_BUDGET = 120
+const DECISION_RULED_CHOSE_BUDGET = 60
 const MAX_DECISIONS = 5
-// Rejected-approaches ledger (D-ledger, Phase-3 validated): breadth of "what
-// NOT to re-propose" that the last-5 recent window drops — over-only, heavily
-// clipped, so it stays compact even as decisions accumulate.
+// Rejected-approaches ledger (D-ledger, Phase-3 validated; scoped by D11 to
+// decisions OLDER than the recent window): breadth of "what NOT to re-propose"
+// that the window drops — over-only, heavily clipped, so it stays compact even
+// as decisions accumulate, and never a byte the window already paid for.
 const REJECTED_OVER_LINE_BUDGET = 90
 const REJECTED_LEDGER_BUDGET = 2_800
+// What the ledger leaves under the hard cap for the lines after it: the
+// ledger's own overflow pointer, `Next ids`, the read-back line and the
+// footer (~330 chars at their longest), so the protocol tail always renders
+// when everything above the ledger fits.
+const PROTOCOL_TAIL_RESERVE = 400
 // Standing-constraints ledger (drift-hardening 2.1): rules render VERBATIM —
 // budget pressure drops whole entries with a pointer, never clips inside a
 // rule. Section renders near the top, so the enforceStatusLimit tail cut can
@@ -673,36 +684,67 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
     lines.push('')
   }
 
-  // Recent decisions, one line each, newest last.
+  // Decision index (r1-fixes 2.2, D11) — index-first, handle-first. Two
+  // blocks that never repeat a byte of each other: the recent window carries
+  // `[D<n>] <date> <chose> — over <over>` with the fields clipped SEPARATELY,
+  // so `over` (the C3 half — what not to re-propose) survives however long
+  // `chose` runs; the older decisions carry `over` only, as the rejected
+  // ledger always did. `because` lives in decisions.md, named in the header:
+  // on every real record the old 280-char concatenation clipped inside
+  // `chose`, so the rationale it promised was already absent while the same
+  // `over` text was paid twice (once here, once in the ledger). A decision
+  // whose rule rendered in Standing constraints above is marked `(rule above)`
+  // and gets the short chose budget — the rule IS its operative content, and
+  // the index stops restating it (constraints vs rules).
   if (state.decisions.length > 0) {
     const recent = state.decisions.slice(-MAX_DECISIONS)
-    const skipped = state.decisions.length - recent.length
-    lines.push(`Recent decisions${skipped > 0 ? ` (last ${recent.length} of ${state.decisions.length})` : ''}:`)
-    for (const d of recent) {
-      lines.push(`- ${clip(`${d.ts.slice(0, 10)} chose ${d.chose} over ${d.over} — ${d.because}`, DECISION_LINE_BUDGET)}`)
-    }
-    lines.push('')
-  }
+    const olderCount = state.decisions.length - recent.length
+    const shownRules = new Set(
+      standing.map((line) => /^- \[D(\d+)\]/.exec(line)?.[1]).filter((n): n is string => n !== undefined),
+    )
+    const window = olderCount > 0 ? `last ${recent.length} of ${state.decisions.length}` : `${state.decisions.length}`
+    lines.push(`Recent decisions (${window}; full text in decisions.md):`)
+    recent.forEach((d, i) => {
+      const ordinal = olderCount + i + 1
+      const ruled = d.rule !== undefined && shownRules.has(String(ordinal))
+      const chose = clip(d.chose, ruled ? DECISION_RULED_CHOSE_BUDGET : DECISION_CHOSE_BUDGET)
+      const over = hasRealAlternative(d.over) ? ` — over ${clip(d.over, REJECTED_OVER_LINE_BUDGET)}` : ''
+      lines.push(`- [D${ordinal}] ${d.ts.slice(0, 10)}${ruled ? ' (rule above)' : ''} ${chose}${over}`)
+    })
 
-  // Rejected-approaches ledger (D-ledger, Phase-3 validated): the `over` clause
-  // of every decision with a real alternative — the breadth of "what NOT to
-  // re-propose" that the last-5 window (and its 280-char clip) drop. Over-only;
-  // the `because` lives in decisions.md / get_state view:"full". This closes the
-  // M4 (dead-end recurrence) gap the resume ablation found in the bare digest.
-  const rejected = state.decisions.filter((d) => hasRealAlternative(d.over))
-  if (rejected.length > 0) {
-    lines.push(`Rejected approaches — do NOT re-propose (${rejected.length}):`)
-    let used = 0
-    let shown = 0
-    for (const d of rejected) {
-      const line = `- ${clip(d.over, REJECTED_OVER_LINE_BUDGET)}`
-      if (used + line.length + 1 > REJECTED_LEDGER_BUDGET) break
-      lines.push(line)
-      used += line.length + 1
-      shown++
-    }
-    if (shown < rejected.length) {
-      lines.push(`- …and ${rejected.length - shown} more (see decisions.md)`)
+    // Older rejected approaches (D-ledger, Phase-3 validated; scoped by D11):
+    // the `over` of every decision OUTSIDE the recent window that recorded a
+    // real alternative — the breadth of "what NOT to re-propose" the window
+    // drops. A record of ≤5 decisions has nothing older and renders no ledger.
+    const rejected = state.decisions
+      .slice(0, olderCount)
+      .map((d, i) => ({ ordinal: i + 1, over: d.over }))
+      .filter((d) => hasRealAlternative(d.over))
+    if (rejected.length > 0) {
+      lines.push(`Earlier rejected approaches — do NOT re-propose (${rejected.length} older):`)
+      // The ledger is the last budgeted section before the protocol tail
+      // (Next ids, read-back, footer), so it is the one that yields to the
+      // hard cap: it takes the smaller of its own budget and what the cap
+      // leaves once the tail is reserved. Before D11 a heavy record (24
+      // verbatim rules, 28 older decisions) rendered at exactly 10,000 chars
+      // and enforceStatusLimit cut the tail — the two lines the session is
+      // meant to read last. Pure function of the state: byte-stable.
+      const ledgerBudget = Math.min(
+        REJECTED_LEDGER_BUDGET,
+        STATUS_CHAR_LIMIT - lines.join('\n').length - PROTOCOL_TAIL_RESERVE,
+      )
+      let used = 0
+      let shown = 0
+      for (const d of rejected) {
+        const line = `- [D${d.ordinal}] ${clip(d.over, REJECTED_OVER_LINE_BUDGET)}`
+        if (used + line.length + 1 > ledgerBudget) break
+        lines.push(line)
+        used += line.length + 1
+        shown++
+      }
+      if (shown < rejected.length) {
+        lines.push(`- …and ${rejected.length - shown} more (see decisions.md)`)
+      }
     }
     lines.push('')
   }

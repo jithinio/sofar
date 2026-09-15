@@ -377,16 +377,19 @@ describe('get_state progressive disclosure — digest default vs view:full (toke
     return { fixture, client }
   }
 
-  it('default view returns the summary-dense digest with rationale surfaced (not the raw fold)', async () => {
+  it('default view returns the summary-dense digest with the decision index (not the raw fold)', async () => {
     const { client } = await seeded()
     const { isError, text } = await callToolText(client, 'sofar_get_state', {})
     expect(isError).toBe(false)
     // It is the status projection (text), not a JSON dump of the state.
     expect(text.startsWith('# Sofar status:')).toBe(true)
     expect(text).toContain('Goal: ship the widget')
-    // The rationale "muscle" stays first-class: the rejected approach AND why.
-    expect(text).toContain('postgres') // what was rejected (M4 dead-end guard)
-    expect(text).toContain('zero ops overhead') // why
+    // Handle-first index (r1-fixes 2.2, D11): what was chosen and what was
+    // rejected (M4 dead-end guard) on one citable line; the why is on demand.
+    expect(text).toContain('- [D1] ')
+    expect(text).toContain('sqlite — over postgres')
+    expect(text).toContain('full text in decisions.md')
+    expect(text).not.toContain('zero ops overhead')
     // Digest is bounded (SessionStart budget applies to the projection).
     expect(text.length).toBeLessThanOrEqual(10_000)
     await client.close()
