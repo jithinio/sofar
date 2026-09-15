@@ -3975,4 +3975,12 @@ stay the underlying derivation's, and exit codes are styling-independent.
   CLI at once leave every line intact and none lost. The suite is green on
   the TypeScript engine, runs against any other implementation via
   `SOFAR_CONFORMANCE_BIN`, and goldens are re-recorded only from the
-  TypeScript reference, never from a candidate.
+  TypeScript reference, never from a candidate. The perf baseline
+  (packages/engine/test/conformance/perf) times the same binary the same
+  way — one process per hook, spawn to exit — on every hook, the
+  statusline and plain `status` at 10, 100 and 1,000 initiatives with a
+  1 MB and a 10 MB bound log, on this repository's record and on a root
+  with no record, reporting p50 and p95 by nearest rank; the TypeScript
+  numbers are checked in as the target, a candidate run prints its ratio
+  to that target per cell, and the gate fails a candidate whose p50 or
+  p95 exceeds the target anywhere.

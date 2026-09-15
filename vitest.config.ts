@@ -31,7 +31,11 @@ export default defineConfig({
         test: {
           name: 'unit',
           sequence: { groupOrder: 0 },
-          exclude: ['**/node_modules/**', 'packages/engine/test/shim-latency.test.ts'],
+          exclude: [
+            '**/node_modules/**',
+            'packages/engine/test/shim-latency.test.ts',
+            'packages/engine/test/conformance/perf/**',
+          ],
         },
       },
       {
@@ -41,6 +45,21 @@ export default defineConfig({
           sequence: { groupOrder: 1 },
           include: ['packages/engine/test/shim-latency.test.ts'],
           fileParallelism: false,
+        },
+      },
+      // The perf baseline (rust-core 1.3) spawns ~1,200 processes and
+      // generates 30 MB of records; it is skipped unless SOFAR_PERF=1
+      // (`npm run perf`), and runs alone so no other worker competes for
+      // the cores it is timing.
+      {
+        plugins: [shAsText()],
+        test: {
+          name: 'perf',
+          sequence: { groupOrder: 2 },
+          include: ['packages/engine/test/conformance/perf/perf.test.ts'],
+          fileParallelism: false,
+          testTimeout: 1_800_000,
+          hookTimeout: 600_000,
         },
       },
     ],

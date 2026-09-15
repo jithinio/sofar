@@ -4,13 +4,13 @@
 
 Goal: Move sofar's hot path to a native Rust core incrementally (rust-core D1): contract first, then sofar-core in Rust behind the same CLI and hook contract, integrated with TypeScript fallback, shipped as prebuilt binaries, and proven as its own benchmark arm that shrinks no held-out lead margin (bench-refresh D19). After parity, new hot-path code is Rust-only.
 
-Progress: 2/15 tasks done (13%)
+Progress: 3/15 tasks done (20%)
 
-## Phase 1 — Contract [active] — 2/3 done
+## Phase 1 — Contract [active] — 3/3 done
 
 - [x] 1.1 Inventory the hot-path surface from docs/SPEC.md and engine code: every hook's stdin/stdout/exit behaviour, CLI commands in scope (event append, status, statusline), env vars, files written, event envelope and projection outputs. List every SPEC gap found.
 - [x] 1.2 Black-box conformance suite in the TS repo: runs an implementation binary against golden fixtures (real records including this repo's 9.7 MB log, calib and smoke cells, corrupt and unknown lines, concurrent appends) and compares stdout, exit codes and record bytes. Green on TypeScript first.
-- [ ] 1.3 Perf baseline harness: hook p50/p95 cold start and fold/digest latency at 10, 100 and 1,000 initiatives and 1–10 MB records, TypeScript numbers recorded as the target to beat
+- [x] 1.3 Perf baseline harness: hook p50/p95 cold start and fold/digest latency at 10, 100 and 1,000 initiatives and 1–10 MB records, TypeScript numbers recorded as the target to beat
 
 ## Phase 2 — Rust core [pending] — 0/6 done
 
@@ -34,4 +34,4 @@ Progress: 2/15 tasks done (13%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: Build 1.3 (perf baseline harness: hook p50/p95 cold start and fold/digest latency at 10/100/1,000 initiatives and 1–10 MB records, TS numbers recorded as the target), reusing the conformance fixtures and the built-CLI runner; get the run owner's O1–O5 rulings and the verdicts on the 9 Rust research notes before 2.1.
+Next action: Get the run owner's O1–O5 rulings (docs/HOTPATH.md §Open decisions) and verdicts on the 9 Rust research notes, then start 2.1 (Cargo workspace crates/sofar-core, schema codegen from packages/schema/src) per D3: consult current stable Rust docs first.

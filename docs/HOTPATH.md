@@ -656,6 +656,44 @@ D4): run-minted ulids and timestamps and the relative-age labels are masked
 by shape, and goldens are recorded only after the fixture horizon (newest
 fixture event + the cold-resume gap) so time-gated lines cannot flip.
 
+## Perf baseline (rust-core 1.3)
+
+`packages/engine/test/conformance/perf` (README there) times the same
+implementation binary the conformance suite drives, one process per hook,
+spawn to exit, p50 / p95 by nearest rank over 20 spawns. The recorded
+TypeScript numbers in `perf/baseline.typescript.json` are the target the
+Rust core is measured against with the same runner (`SOFAR_CONFORMANCE_BIN`,
+ratios per cell; `SOFAR_PERF_GATE=1` is the 3.3 gate). Recorded on an Apple
+M4 Pro, node 24.15, at a79c4a7 (a bare `node -e 0` spawn is 21 ms there):
+
+| cell | session-start warm | session-start cold | post-tool Edit | user-prompt | stop | session-end | statusline |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 10 initiatives, 1 MB bound (3,595 events) | 64 / 70 | 82 / 86 | 92 / 96 | 61 / 67 | 55 / 59 | 93 / 114 | 59 / 60 |
+| 10 initiatives, 10 MB bound (35,903 events) | 313 / 323 | 430 / 443 | 610 / 626 | 334 / 346 | 332 / 345 | 615 / 648 | 322 / 331 |
+| 100 initiatives, 1 MB bound | 79 / 83 | 98 / 103 | 94 / 99 | 66 / 78 | 58 / 62 | 90 / 96 | 57 / 59 |
+| 100 initiatives, 10 MB bound | 312 / 318 | 454 / 488 | 604 / 661 | 371 / 417 | 328 / 364 | 610 / 624 | 324 / 333 |
+| 1,000 initiatives, 1 MB bound | 132 / 139 | 208 / 212 | 98 / 99 | 72 / 77 | 61 / 63 | 99 / 113 | 64 / 69 |
+| 1,000 initiatives, 10 MB bound | 372 / 386 | 565 / 589 | 621 / 646 | 352 / 366 | 329 / 336 | 616 / 640 | 332 / 344 |
+| this repo's record (55 initiatives, 7.6 MB; bound session-driver 0.6 MB, 789 events) | 64 / 68 | 126 / 136 | 56 / 59 | 41 / 44 | 35 / 39 | 50 / 52 | 36 / 38 |
+| floor: a root with no record | 31 / 34 | | | | | | |
+
+Milliseconds, p50 / p95. What the numbers say, for the Rust work:
+- Boot is ~31 ms of every hook (floor): node's own 21 ms plus the boot stub
+  and the fast bundle. That is the part a native binary removes outright.
+- The fold scales with EVENT COUNT, not bytes: in-process `foldLog` is 13 ms
+  for 3,595 events, 215–227 ms for 35,903, 2.3 ms for session-driver's 789
+  long lines. `renderStatus` is < 1 ms everywhere. Per-line `JSON.parse` +
+  envelope validation is the cost.
+- Appending hooks (post-tool, session-end) fold twice on a big log — once
+  for the handler, once in `regenerateProjections` — so they run at ~2× the
+  read-only hooks at 10 MB (610 ms vs 313 ms). A single fold shared by
+  append and projection is the first structural win available.
+- The 100 ms shim budget (speed T2) holds only up to ~1 MB / ~4k events on
+  this machine; a 10 MB bound log blows it 3–6× on every hook.
+- Sibling count costs session-start most: 1,000 initiatives add ~70 ms warm
+  and ~125 ms cold (the registration scan and index rebuild); the other
+  hooks pay < 10 ms for the same siblings.
+
 ## Open decisions (for the run owner)
 
 - O1 Sort collation (P4): keep ICU `localeCompare` (Rust would need ICU or

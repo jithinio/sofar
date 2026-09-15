@@ -29,6 +29,9 @@ SOFAR_CONFORMANCE_KEEP=1 …                                # keep scratch roots
   output, checked in; the suite fails if it drifts from the builder.
 - `golden/<case>.txt` — per step: argv, stdin, env, exit, stdout, stderr
   (and any artifact); then the record delta.
+- `perf/` — the hot-path perf baseline (rust-core 1.3): the same
+  implementation runner timed at scale, TypeScript numbers recorded as the
+  target (README there).
 
 ## What a golden holds
 
