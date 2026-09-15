@@ -4,11 +4,11 @@
 
 Goal: A small, trustworthy improvement process whose every change has inspectable benefit, cost, evidence and reversal path (self-improve D1). Developer-side first: benchmark → loss study → bounded fix → held-out proof, beating an equal-budget direct-fix baseline net of full cost. In-product local adaptation only after repeated wins; private diagnostics never enter events.jsonl, git, export or sync.
 
-Progress: 0/14 tasks done (0%)
+Progress: 1/14 tasks done (7%)
 
-## Phase 1 — Evidence contracts and capture [active] — 0/3 done
+## Phase 1 — Evidence contracts and capture [active] — 1/3 done
 
-- [ ] 1.1 Gating Decisions before code: (a) outcome payload schema only in packages/schema/src; (b) diagnostics storage boundary: a separate local gitignored store that the exporter and sync never read, enforced by tests at the export boundary
+- [x] 1.1 Gating Decisions before code: (a) outcome payload schema only in packages/schema/src; (b) diagnostics storage boundary: a separate local gitignored store that the exporter and sync never read, enforced by tests at the export boundary
 - [ ] 1.2 Outcome capture, single owner (r1-fixes 2.5 consumes it): tool exit status and is_error, PostToolUseFailure, MCP typed-error rejections, and memory-usage signals, written to the private store where they are diagnostics
 - [ ] 1.3 Signal availability map: every promised signal marked capturable or UNKNOWN with its reason (e.g. sofar and git commands are hook-exempt per record-hygiene D1); consumers report unknown, never guess
 
@@ -33,4 +33,4 @@ Progress: 0/14 tasks done (0%)
 - [ ] 4.4 Expand autonomy, including any in-product local adaptation, only after 3 consecutive cycles beat the direct-fix baseline on unseen work
 
 Active phase: Phase 1 — Evidence contracts and capture
-Next action: self-improve 1.1: log schema and diagnostics-boundary Decisions before any capture code
+Next action: 1.2: build the outcome capture under D2/D3 — row shape in packages/schema/src, XDG store, hook and MCP writers, boundary sentinel tests, SPEC §Diagnostics store section.
