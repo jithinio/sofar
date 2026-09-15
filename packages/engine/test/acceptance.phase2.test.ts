@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import type { EventEnvelope } from '../src/core/envelope'
 import { foldLog } from '../src/core/fold'
 import type { InitiativeState } from '../src/core/fold'
@@ -404,6 +404,8 @@ describe('stdio end-to-end via `sofar mcp`', () => {
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: [bundle, 'mcp', '--root', fixture.root],
+      // The SDK passes only a default env whitelist; carry the suite's state dir (vitest.config.ts).
+      env: { ...getDefaultEnvironment(), XDG_STATE_HOME: process.env.XDG_STATE_HOME ?? '' },
     })
     const client = new Client({ name: 'stdio-acceptance', version: '0.0.0' })
     await client.connect(transport)

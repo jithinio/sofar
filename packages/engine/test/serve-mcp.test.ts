@@ -1,5 +1,5 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { buildSync } from 'esbuild'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -67,6 +67,8 @@ async function stdioClient(root: string): Promise<Client> {
     new StdioClientTransport({
       command: process.execPath,
       args: [bundle, 'mcp', '--root', root],
+      // The SDK passes only a default env whitelist; carry the suite's state dir (vitest.config.ts).
+      env: { ...getDefaultEnvironment(), XDG_STATE_HOME: process.env.XDG_STATE_HOME ?? '' },
     }),
   )
   clients.push(client)

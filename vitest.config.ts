@@ -1,5 +1,14 @@
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { defineConfig, type Plugin } from 'vitest/config'
+
+// Per-clone state (diagnostics store, sync cursors, update check) resolves
+// from XDG_STATE_HOME, and every temp clone a test creates hashes to a NEW
+// dir there. Without this, hook and CLI tests leave one dir per fixture clone
+// in the developer's real ~/.local/state/sofar (1,100 found 2026-09-15). A
+// test that needs a specific state dir still stubs its own.
+const testState = { XDG_STATE_HOME: mkdtempSync(join(tmpdir(), 'sofar-vitest-state-')) }
 
 // Mirror of esbuild's `loader: { '.sh': 'text' }` (packages/engine/
 // build.mjs): tests import engine src directly, so vitest must resolve
@@ -30,6 +39,7 @@ export default defineConfig({
         plugins: [shAsText()],
         test: {
           name: 'unit',
+          env: testState,
           sequence: { groupOrder: 0 },
           exclude: ['**/node_modules/**', 'packages/engine/test/shim-latency.test.ts'],
         },
@@ -38,6 +48,7 @@ export default defineConfig({
         plugins: [shAsText()],
         test: {
           name: 'latency',
+          env: testState,
           sequence: { groupOrder: 1 },
           include: ['packages/engine/test/shim-latency.test.ts'],
           fileParallelism: false,
