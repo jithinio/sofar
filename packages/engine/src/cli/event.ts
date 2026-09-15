@@ -1071,8 +1071,8 @@ function landedNotice(
  * is simply absent, and an OLD tool silently does the old thing.
  *
  * That is not hypothetical: it cost this repo two wrong conclusions in one day
- * (commit-attribution M5). `sofar_review` never appeared for the sessions that
- * built it, and `sofar_close_initiative` closed a record with no close audit
+ * (commit-attribution M5). A review never appeared for the sessions that
+ * built it, and the close tool closed a record with no close audit
  * because the installed engine predated it — the only visible tell being a
  * field missing from the tool result.
  *

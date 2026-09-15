@@ -25,11 +25,23 @@ describe('tool contract surface', () => {
       'sofar_update_plan',
       'sofar_add_note',
       'sofar_remember',
-      'sofar_review',
-      'sofar_close_initiative',
-      'sofar_find',
     ])
     expect(TOOL_DEFS.map((t) => t.name)).toEqual([...TOOL_NAMES])
+  })
+
+  it('the serialized tool definitions stay ≤8,000 chars (r1-fixes 2.4, D13)', () => {
+    // What a host without deferred tools carries in EVERY turn: name,
+    // description and inputSchema of every tool, as the MCP list returns them.
+    const total = TOOL_DEFS.reduce(
+      (sum, t) =>
+        sum + JSON.stringify({ name: t.name, description: t.description, inputSchema: t.inputSchema }).length,
+      0,
+    )
+    expect(total).toBeLessThanOrEqual(8_000)
+    // The three CLI-first operations are not tools.
+    for (const gone of ['sofar_review', 'sofar_close_initiative', 'sofar_find']) {
+      expect(isToolName(gone)).toBe(false)
+    }
   })
 
   it('isToolName accepts every declared name and rejects others', () => {
@@ -59,7 +71,6 @@ describe('validateToolInput', () => {
     sofar_update_task: { task_id: '2.1', status: 'done', note: 'green' },
     sofar_update_phase: { phase: 'Phase 2 — sofar_update_phase', status: 'done', note: 'shipped' },
     sofar_log_decision: { chose: 'a', over: 'b', because: 'c' },
-    sofar_close_initiative: { status: 'done', note: 'goal met' },
     sofar_update_plan: {
       plan: {
         goal: 'ship',
@@ -70,14 +81,6 @@ describe('validateToolInput', () => {
     },
     sofar_add_note: { text: 'hello' },
     sofar_remember: { text: 'release: npm publish -w sofar.sh from the root' },
-    sofar_review: {
-      scope: 'phase',
-      verdict: 'findings',
-      watermark: '0415062a1b2c3d4e5f60718293a4b5c6d7e8f900',
-      phase: 'Phase 1',
-      findings: ['the emitted range dropped the oldest commit'],
-    },
-    sofar_find: { seed: 'packages/engine/src/core/fold.ts', hops: 2 },
   }
 
   it('accepts a valid argument object for every tool', () => {

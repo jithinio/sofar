@@ -127,7 +127,7 @@ worse than no attribution.
 | --- | --- |
 | `cli/index.ts` | Command registration. |
 | `cli/event.ts` | All five hook handlers, plus `sofar event append`. |
-| `cli/review.ts` | `sofar review` — prints the evidence packet (read half). `sofar_review` records the verdict (write half). |
+| `cli/review.ts` | `sofar review` — prints the evidence packet (read half); the packet ends with the `sofar event append --type review_recorded` command that records the verdict (write half; r1-fixes 2.4, D13). |
 | `cli/commit-trailer.ts` | `sofar commit-trailer` — the prepare-commit-msg worker that stamps `Sofar-Initiative:` from the session that made the commit (D5). Session-only resolution; never fails a commit. |
 | `cli/init.ts` | `sofar init` — hooks, MCP wiring, protocol block, `.gitattributes`. Owns the protocol-block ledger. |
 | `cli/uninit.ts` | `sofar uninit` — removes what init wrote. |
@@ -165,10 +165,8 @@ worse than no attribution.
 | `mcp/update-phase.ts` | Phase status, addressed by exact phase name. Unknown name = typed error, not the fold's create-on-miss; already-at-status = no event. |
 | `mcp/add-note.ts` | `sofar_add_note`. |
 | `mcp/remember.ts` | `sofar_remember`. |
-| `mcp/review.ts` | `sofar_review` — records a performed review and its watermark. Records, never judges. |
 | `mcp/get-state.ts` | `sofar_get_state`. |
-| `mcp/close-initiative.ts` | `sofar_close_initiative`. |
-| `mcp/find.ts` | `sofar_find` — index-backed retrieval. Read-only, appends nothing, never builds the graph. |
+| `mcp/close-initiative.ts` | `applyClose` — the two-step close behind `sofar close` and `sofar new --supersedes` (the MCP tool left in r1-fixes 2.4, D13). |
 
 **Library** — importable entry points, side-effect free.
 

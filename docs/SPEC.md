@@ -249,8 +249,8 @@ from the record is the EDGE — "this stopped, it goes on there" — and prose
 cannot be one (a bare slug in a note is not a citation; §Record graph). So
 supersession is a status carrying a pointer: `initiative_status_changed
 {status: superseded, successor: <slug>}`, appended by `sofar close <old>
---superseded-by <new>` / `sofar_close_initiative({status: "superseded",
-successor})`, or by `sofar new <new> --supersedes <old>,<older>` (create,
+--superseded-by <new>` (the MCP close tool left the surface in r1-fixes 2.4,
+D13), or by `sofar new <new> --supersedes <old>,<older>` (create,
 bind, then one ordinary superseded close per predecessor — the log reads
 exactly as if they had been run by hand). The successor MUST exist under
 .sofar/initiatives/ and must not be the record closing — refused at write
@@ -276,8 +276,8 @@ flag that could disagree with the status it summarises. `status_ts` and
 `status_note` describe the status IN FORCE, so reopening overwrites both
 rather than accumulating a closure the record has since undone.
 
-**Closing unbinds (D1).** `sofar close [slug]` / `sofar_close_initiative`
-appends the status event and then removes EVERY bindings.json entry pointing
+**Closing unbinds (D1).** `sofar close [slug]` (CLI-first since r1-fixes
+2.4, D13; the MCP tool is gone) appends the status event and then removes EVERY bindings.json entry pointing
 at that slug — not just the current branch. Order is load-bearing: the log is
 truth, so a crash between the steps leaves a record correctly marked closed
 with a stale binding, which doctor reports and re-running close repairs; the
@@ -1337,9 +1337,11 @@ runs under any agent, which is what the AGENTS.md dialect exists for (BD31),
 so naming a host-specific command AS the instruction would render an
 instruction most readers cannot follow. sofar ships no analysis code and makes
 no model call (§Architectural invariants): the reviewing SESSION does the work
-and `sofar_review` records what it concluded.
+and records what it concluded with `sofar event append --type
+review_recorded` — the packet ends with that exact command (r1-fixes 2.4,
+D13; the sofar_review MCP tool is gone).
 
-**DECOUPLED from close (4.5).** `sofar_review` gates nothing. If passing a
+**DECOUPLED from close (4.5).** Recording a review gates nothing. If passing a
 review were what let a session go home, the reviewing agent would have an
 incentive to pass and would find nothing. Close reads the verdicts separately
 and reports what is open. A `blocked` verdict SKIPS rather than
@@ -1480,7 +1482,7 @@ parse and rewrite:
 | `open.json` | which sessions are open, holding what | UserPromptSubmit shim | on that shim | live sessions |
 | `guards.json` | does any decision ANYWHERE guard this subject | PostToolUse | every edit | guarded decisions (6 of 208 here) |
 | `graph.json` | who else has touched this path | PostToolUse dedupe, priming line | after a guard MATCHES; once per session | the repo's whole touch history |
-| `reach.json` | what else bears on this | `sofar find` / `sofar_find` | on a query | prose + terms of every decision and note |
+| `reach.json` | what else bears on this | `sofar find` | on a query | prose + terms of every decision and note |
 
 Read frequency, not taste, draws these lines — and they coincide with D2's
 authority split, which is usually what a real boundary looks like. Measured
@@ -1585,8 +1587,8 @@ COUNT — a truncated answer that says so is usable, a silent one is a lie about
 coverage.
 
 **Never in the hot path.** `core/index-reach.ts` is the pull layer and only
-the pull layer: the full CLI (`sofar find`) and the `sofar_find` MCP tool
-reach it, and no shim, hook or statusline bundle carries a byte of it —
+the pull layer: the full CLI (`sofar find`; the sofar_find MCP tool left the
+surface in r1-fixes 2.4, D13) reaches it, and no shim, hook or statusline bundle carries a byte of it —
 `dist/fast.js` and the `cli/boot.ts`, `cli/event.ts`, `cli/statusline.ts`
 entries are clean of reach and lexicon code. Same rule as §Record graph's
 exclusion of `core/graph.ts`, for the same reason and one layer down: the
@@ -1870,7 +1872,7 @@ instructions ride every initialize, so they stay short.
   fold (never lose a logged fact) and wrong for a tool (a typo would mint a
   phantom phase that renders in the plan forever). Idempotent: already at
   this status AND this note appends nothing and returns event_id null (the
-  sofar_close_initiative precedent); a note-only change still appends.
+  `sofar close` precedent); a note-only change still appends.
   `note` is REQUIRED for status=dropped — the rule a dropped task already
   follows (task-drop-state D3), one level up, for the reason it gives: an
   abandonment with no stated reason reads as something quietly forgotten.
@@ -1903,57 +1905,25 @@ instructions ride every initialize, so they stay short.
   names the successor; doctor's repo-memory axis retires it across every
   record and reports the successor instead. History is append-only — nothing
   is edited or removed.
-- sofar_review({initiative?, scope, verdict, watermark?, phase?, findings?})
-  → {ok, event_id}   # record a review that was actually performed
-  (commit-attribution 4.4, §Review). `watermark` is the load-bearing field,
-  not `verdict`: it is the sha the review read THROUGH and it bounds the next
-  review's range, which is why this is an event and not a note — omit it only
-  when the range was empty. `scope` is `phase` (one phase just completed) or
-  `final` (the close-time pass, which asks ONLY what a phase review cannot);
-  `phase` names the phase and is absent for `final`. A verdict of `findings`
-  MUST list them — a review that can only ever say "looks good" is a rubber
-  stamp, so if nothing is wrong say so with `pass`, but the verdict must be
-  able to be "no". GATES NOTHING (4.5): it does not let a session close and
-  close does not require it, because a review that buys the reviewer's exit
-  is one the reviewer has an incentive to pass.
-- sofar_close_initiative({initiative?, status, note?}) → {ok, event_id,
-  unbound[], overrides[]}  # close an initiative (§Initiative statuses):
-  `overrides` is what the close-time audit found still outstanding, recorded on
-  the event and returned here because the close went ahead anyway (5.2) — empty
-  when it found nothing, and likewise on the idempotent path, where no event is
-  appended and there is no close to audit; status is
-  `done`|`dropped`|`superseded` only — reopening is a binding act (`sofar
-  switch`) — `dropped` REQUIRES a note, and `superseded` REQUIRES `successor`
-  (an existing slug, not this one; initiative-supersession D1) while
-  `successor` on any other status is invalid_input. Appends initiative_status_changed, then removes
-  every branch binding pointing at the slug; `event_id` is null when it was
-  already at that status (idempotent, no second event). Resolves to the
-  ACTIVE session's pinned initiative like every other write tool.
-- sofar_find({seed, hops?, initiative?}) → ReachResult   # READ-ONLY, appends
-  nothing (record-index 3.4). Traverses the reach index out from a LITERAL
-  seed — a path (resolved across checkouts, §Path identity), a session id, an
-  initiative slug, a decision handle `<slug> D<n>`, or a node id — and returns
-  what is within `hops` (default 2, max 3), grouped by kind and capped at
-  GRAPH_RESULT_CAP per group with a numeric `omitted`. Every hit carries
-  `via.event_id`: the event that produced the edge, so any claim can be
-  checked against the log. A bare `D<n>` needs `initiative` — unlike the write
-  tools this is NOT resolved from the branch, because a read that silently
-  answers about a different record is worse than one that finds nothing. A seed
-  denoting nothing is matched against decision and note prose (record-index 3.5)
-  and comes back as `seed.kind: 'text'` with `seed.matches[]` — each carrying the
-  event id whose prose holds the words, the words themselves, and a score — plus
-  `seed.omitted` for what the cap left out. Matches never appear in `groups`:
-  they seeded the traversal, and word overlap is not an edge. A query matching
-  neither way is `kind: null` with no groups, never a nearest match.
-  Everything returned is DERIVED relevance (record-index D2): offered as worth
-  reading, never asserted as a rule, and the tool description says so because
-  the result is JSON with no room for a caveat line.
+- CLI-first operations (r1-fixes 2.4, D13): recording a review, closing an
+  initiative and reach queries are NOT MCP tools. `sofar review` prints the
+  packet and ends with the `sofar event append --type review_recorded
+  --payload -` heredoc that records the verdict (§Review); `sofar close`
+  closes and returns the close-time overrides (§Initiative statuses);
+  `sofar find <seed>` traverses the reach index (§Derived index). They were
+  sofar_review, sofar_close_initiative and sofar_find until 2.4: the three
+  least-called operations were a third of the tool-definition bytes that
+  hosts without deferred tools carry in every turn, and every host that runs
+  sofar has the CLI. The server's initialize `instructions` name the three
+  commands. The MCP surface is the nine tools above — TOOL_NAMES — and
+  every tool definition together is ≤8,000 chars serialized (name,
+  description, inputSchema), pinned by test.
 Every tool = validate payload → append event → regenerate projections →
-return. No tool mutates state except via an event (sofar_get_state and
-sofar_find are reads and append nothing).
+return. No tool mutates state except via an event (sofar_get_state is a read
+and appends nothing).
 Transports (speed T3): stdio (`sofar mcp`) is the DEFAULT and the only
 transport `sofar init` registers — zero-config users lose nothing. The
-SAME frozen 11-tool surface is additionally served over streamable HTTP at
+SAME frozen tool surface (TOOL_NAMES) is additionally served over streamable HTTP at
 `/mcp` on the `sofar serve` daemon (127.0.0.1 only), opt-in via a
 documented .mcp.json entry `{"type": "http", "url":
 "http://127.0.0.1:4173/mcp"}` — sessions connect to the running daemon
@@ -2915,8 +2885,9 @@ Shims contain no logic — they invoke the sofar CLI.
   Diagnostics paragraph of §Driver (session-driver — the record is the queue).
 - `sofar review [slug] [--final] [--phase <name>]` — print the evidence packet
   a reviewing session works from (commit-attribution 4.6, contract in §Review).
-  The READ half of the loop; `sofar_review` is the write half, split
-  deliberately: rendering is cheap and repeatable while recording a verdict is
+  The READ half of the loop; `sofar event append --type review_recorded` is
+  the write half (the packet ends with the exact command; r1-fixes 2.4, D13),
+  split deliberately: rendering is cheap and repeatable while recording a verdict is
   an append, and a session must be able to re-read the packet without emitting
   an event every time it looks. Range is watermark..HEAD filtered to this
   initiative's attributed commits, falling back to a bounded window when no
@@ -3387,6 +3358,16 @@ stay the underlying derivation's, and exit codes are styling-independent.
   a 1,200-char summary and repo memory at budget the block stays ≤10,000
   chars with NO truncation marker, the ledger carrying the `…and N more`
   pointer, and `Next ids` plus the read-back rendering after it.
+- **Tool surface (r1-fixes 2.4):** TOOL_NAMES is the nine tools
+  (get_state, start_session, end_session, update_task, update_phase,
+  log_decision, update_plan, add_note, remember); `sofar mcp` and the serve
+  daemon list exactly them; the serialized tool definitions (name +
+  description + inputSchema, JSON) total ≤8,000 chars; calling sofar_review,
+  sofar_close_initiative or sofar_find returns `unknown_tool`; the review
+  packet ends with the `sofar event append --type review_recorded` heredoc
+  whose example payload names the scope (and the phase for a phase review);
+  `sofar close` and `sofar find` behave as before; the initialize
+  `instructions` name the three commands.
 - **Cache-stable layout (r1-fixes 2.3):** renderStatus orders its sections
   static head → record state → volatile tail → read-back → footer: Goal
   before Standing constraints before Repo memory before Phases before
@@ -3610,7 +3591,7 @@ stay the underlying derivation's, and exit codes are styling-independent.
   (byte-stability precedent, felt-cost 1.2).
 - **Speed (speed T3 — persistent MCP daemon):** a genuinely spawned stdio
   `sofar mcp` server and the serve daemon's /mcp endpoint return identical
-  tool listings (the frozen 7) and identical results for an identical
+  tool listings (the frozen TOOL_NAMES) and identical results for an identical
   call script covering every tool — digest/portfolio text byte-equal,
   typed errors included — and the two records fold to the same state
   (volatile ulids/timestamps redacted); two concurrent HTTP clients on one
@@ -3763,9 +3744,10 @@ stay the underlying derivation's, and exit codes are styling-independent.
   predecessor as superseded by it with cli/human envelopes, and refuses
   before creating anything when a predecessor is missing or is the new slug;
   each predecessor's close audit is printed and recorded, and a task left
-  ACTIVE is named as not carried into the successor. `sofar_close_initiative`
-  accepts `{status: "superseded", successor}` and returns unknown_initiative
-  for a successor that is not a record. `sofar status` renders `Status:
+  ACTIVE is named as not carried into the successor. `sofar close
+  --superseded-by <slug>` (applyClose) records `{status: "superseded",
+  successor}` and refuses a successor that is not a record (r1-fixes 2.4,
+  D13: the MCP close tool is gone). `sofar status` renders `Status:
   superseded by <successor>`; the listing carries `successor` on the
   predecessor and a derived, sorted `supersedes` on the successor, rendered
   as `continues in:` / `supersedes:`; the CLOSED banner names the successor
@@ -3902,7 +3884,7 @@ stay the underlying derivation's, and exit codes are styling-independent.
   with a crowded neighbourhood. Nothing overlapping, an initiative that has
   touched nothing, or an unreadable index renders NO section and a block that
   is otherwise unchanged.
-- **Reach traversal (record-index 3.4):** `sofar find` and `sofar_find` answer
+- **Reach traversal (record-index 3.4):** `sofar find` (and findFrom behind it) answers
   from a seed within a hop budget, and EVERY hit names an event that exists in
   a log and is of the type its edge claims — checked as a property over every
   result, not on a sample. The decision→decision citation edges equal the ones
@@ -3952,7 +3934,7 @@ stay the underlying derivation's, and exit codes are styling-independent.
   — asserted against the REBUILT bundles, not the import graph, so a dynamic
   import or a barrel re-export cannot slip through. The full CLI is the
   positive control: `sofar find` lives there and does bundle it. `mcp/` is
-  deliberately unprotected, unlike the graph exclusion — `sofar_find` is the
+  deliberately unprotected, unlike the graph exclusion — a reach query is the
   agent asking, not the harness pushing.
 - **Commit attribution (commit-attribution 1.x-3.x):** a trailered commit reads
   back with its slug and an untrailered one reads back EMPTY, never as a guess;
@@ -4126,7 +4108,7 @@ stay the underlying derivation's, and exit codes are styling-independent.
   final review at every size. Ids past the cap collapse to `(+N more)`. A DROP
   ignores pending tasks and names ACTIVE ones as half-built, while asking every
   other question unchanged. Nothing is refused: both surfaces close and both
-  return the findings — `sofar_close_initiative` in `overrides`, `sofar close`
+  return the findings — applyClose in `overrides`, `sofar close`
   as an OVERRIDDEN block — the event carries them, `sofar status` renders them
   under `Status:` forever, the SessionStart closed banner names up to three and
   points at `sofar status` for the rest while staying byte-identical to before

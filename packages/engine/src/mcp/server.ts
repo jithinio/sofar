@@ -25,9 +25,6 @@ import { logDecision } from './log-decision'
 import { updatePlan } from './update-plan'
 import { addNote } from './add-note'
 import { remember } from './remember'
-import { review } from './review'
-import { closeInitiative } from './close-initiative'
-import { find } from './find'
 
 /**
  * Sofar MCP server (SPEC §MCP tools) — low-level SDK API on purpose (BD12):
@@ -63,12 +60,14 @@ export const CORE_TOOLS = [
  * hook had already injected; the three sentences below name the one-call
  * load and the no-reread rule, and say where task changes may ride. Kept
  * short on purpose: the protocol block carries the loop, and instructions
- * ride every initialize.
+ * ride every initialize. The fourth sentence (r1-fixes 2.4, D13) names the
+ * three operations that left the tool list for the CLI.
  */
 export const SERVER_INSTRUCTIONS = [
   "sofar keeps this repo's work record. The SessionStart hook already injected it (goal, next action, decisions, rejected approaches, next D/M ids): do not call sofar_get_state to re-read it.",
   `If these tools are deferred, load the core set in ONE ToolSearch call: "select:${CORE_TOOLS.map((t) => `mcp__sofar__${t}`).join(',')}". Load the others only when needed.`,
   'Call sofar_start_session first, with the session_id from the injected "Session:" line. Log decisions and remembered facts as they happen; task status changes that land at wrap-up ride sofar_end_session\'s `tasks`. Always finish with sofar_end_session.',
+  'Reviews, closing and reach queries are CLI: `sofar review` (the packet ends with the command that records the verdict), `sofar close`, `sofar find <seed>`.',
 ].join('\n')
 
 const handlers: { [K in ToolName]: (ctx: ToolContext, args: ToolArgs[K]) => unknown } = {
@@ -81,9 +80,6 @@ const handlers: { [K in ToolName]: (ctx: ToolContext, args: ToolArgs[K]) => unkn
   sofar_update_plan: updatePlan,
   sofar_add_note: addNote,
   sofar_remember: remember,
-  sofar_review: review,
-  sofar_close_initiative: closeInitiative,
-  sofar_find: find,
 }
 
 function okResult(value: unknown): CallToolResult {

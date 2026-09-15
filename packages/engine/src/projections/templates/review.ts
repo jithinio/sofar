@@ -244,10 +244,13 @@ export function renderReviewPacket(state: InitiativeState, input: ReviewPacketIn
     '## What to do',
     ...questions(scope),
     '',
-    'Record the verdict with `sofar_review` (or `sofar event append --type',
-    'review_recorded` if your host has no MCP). A review that can only',
-    'say "looks good" is a rubber stamp — if nothing is wrong, say so plainly,',
-    'but the verdict must be able to be "no".',
+    'Record the verdict (r1-fixes 2.4, D13 — CLI, no MCP tool):',
+    "  sofar event append --type review_recorded --payload - <<'EOF'",
+    `  {"scope": "${scope}", "verdict": "pass" | "findings" | "blocked",${scope === 'phase' ? ` "phase": ${JSON.stringify(phase?.name ?? '')},` : ''} "watermark": "<sha read through>", "findings": ["one actionable line each — required when verdict is findings"]}`,
+    '  EOF',
+    '`watermark` bounds the NEXT review\'s range; omit it only when the range was',
+    'empty. A review that can only say "looks good" is a rubber stamp — if',
+    'nothing is wrong, say so plainly, but the verdict must be able to be "no".',
     // The one field the packet used to demand without ever answering. Every
     // other sha here is a 12-char display abbreviation: recording one of those
     // under-advances the mark or stores a prefix that can go ambiguous, and an
