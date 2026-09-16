@@ -4,18 +4,21 @@
 
 Goal: Move sofar's hot path to a native Rust core incrementally (rust-core D1): contract first, then sofar-core in Rust behind the same CLI and hook contract, integrated with TypeScript fallback, shipped as prebuilt binaries, and proven as its own benchmark arm that shrinks no held-out lead margin (bench-refresh D19). After parity, new hot-path code is Rust-only.
 
-Progress: 4/15 tasks done (26%)
+Progress: 5/18 tasks done (27%)
 
-## Phase 1 — Contract [active] — 3/3 done
+## Phase 1 — Contract [active] — 3/6 done
 
 - [x] 1.1 Inventory the hot-path surface from docs/SPEC.md and engine code: every hook's stdin/stdout/exit behaviour, CLI commands in scope (event append, status, statusline), env vars, files written, event envelope and projection outputs. List every SPEC gap found.
 - [x] 1.2 Black-box conformance suite in the TS repo: runs an implementation binary against golden fixtures (real records including this repo's 9.7 MB log, calib and smoke cells, corrupt and unknown lines, concurrent appends) and compares stdout, exit codes and record bytes. Green on TypeScript first.
 - [x] 1.3 Perf baseline harness: hook p50/p95 cold start and fold/digest latency at 10, 100 and 1,000 initiatives and 1–10 MB records, TypeScript numbers recorded as the target to beat
+- [ ] 1.4 Re-pin both parity targets to the RC: re-record the conformance goldens and the perf baseline against r1-fixes 179b8fd (sofar.sh 0.33.0-rc.1, schema 0.10.0) with a reason per changed golden, keeping the 0.32.0 as-shipped and a45ea21 sets alongside (D11); regenerate crates/sofar-schema from the RC's packages/schema/src (task_added/plan verify, run_started verify, handoff detail, memory_promoted supersedes, verification_recorded)
+- [ ] 1.5 team100 scale corpus and perf cell: a PARAMETERISED, exported synthetic-record generator (named writer profiles `agent` 14.3 ev/session 593 B/ev file_touched-heavy and `human` 21 ev/session 798 B/ev with a 1–4 KB session_ended tail, blend ratio, initiatives, writers, events per stream, heavy-tail size distribution) shaped like 100 users on one repo (~20 initiatives, ~500k events, largest log ≥50 MB, 100 session ids); report cold process and warm fold separately, the fold-cost curve vs events and vs bytes (name the log size crossing 100 ms and the full-refold ≥250 ms point), session-start digest, user-prompt, statusline, find/index build, memory high-water, digest and statusline cost as sessions[] grows to 100 writers; interleaved per D12; record the growth budget (MB and events per user per week) and every non-linear turn as an idea with a predicted gain, never built here
+- [ ] 1.6 Order-independence and merge conformance: a property test that the same event SET folds to an identical state under any arrival order (shuffle N times; duplicate ids, out-of-order session_started/ended, corrections; proptest shapes fine), and a union-merge test where N branches append to the SAME initiative's events.jsonl (merge=union .gitattributes path) plus across-initiative merges, asserting the merged fold equals the fold of the union and measuring merged-log fold time
 
-## Phase 2 — Rust core [pending] — 1/6 done
+## Phase 2 — Rust core [active] — 2/6 done
 
 - [x] 2.1 Cargo workspace crates/sofar-core; schema codegen from packages/schema/src (no hand-written payload types); dependency list per D1
-- [ ] 2.2 Event envelope and atomic O_APPEND append; unknown and corrupt lines skipped with a warning, never fatal, never rewritten
+- [x] 2.2 Event envelope and atomic O_APPEND append; unknown and corrupt lines skipped with a warning, never fatal, never rewritten
 - [ ] 2.3 Fold to initiative state with conformance parity
 - [ ] 2.4 Digest/status render byte-identical to the projection templates (golden tests), including the 10k char cap behaviour
 - [ ] 2.5 Hook handlers (session-start, user-prompt-submit, post-tool-use, stop, session-end) with conformance parity, including r1-fixes wave 1–2 behaviour
@@ -34,4 +37,4 @@ Progress: 4/15 tasks done (26%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: 2.2 — event envelope and atomic O_APPEND append in crates/sofar-core: hand-write the v1 envelope (it lives in engine/src/core/envelope.ts, outside the schema package), the canonical serializer matching serializeEvent byte-for-byte (key order, JS number formatting — HOTPATH §Text-semantics pins), envelope + payload validation with the exact TypeScript error strings (fold warning parity, syn.corrupt golden), ulid minting, `git config user.email` identity (D7), and the sidecar-lock append protocol from D9; prove with the repo.append and concurrent-append conformance cases once 2.5 wires argv. Consult current Rust docs first (D3) — std File::lock (1.89), format_into (1.98).
+Next action: 1.4 first (the Rust port must read RC sources): re-record goldens and the perf baseline against 179b8fd with a reason per changed golden (r1-fixes 4.2's note lists them), keep the earlier sets, regenerate crates/sofar-schema from the RC schema; then 2.3 fold (port core/fold.ts at 179b8fd incl. D17 checkpoint semantics) on top of log::decode_text, proving warnings against syn.corrupt.

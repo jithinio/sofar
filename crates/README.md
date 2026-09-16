@@ -9,7 +9,7 @@ engine, proven by the black-box conformance suite in
 | crate | what |
 | --- | --- |
 | `crates/sofar-schema` | payload types **generated** from `packages/schema/src/events.ts` — never hand-written |
-| `crates/sofar-core` | the engine core and the `sofar-core` hook binary (argv grammar in 2.1; envelope/append 2.2, fold 2.3, digest 2.4, hooks 2.5, statusline 2.6) |
+| `crates/sofar-core` | the engine core and the `sofar-core` hook binary (argv grammar 2.1; envelope, JS-semantics JSON, payload rules, append, tolerant decode, registration lock 2.2; fold 2.3, digest 2.4, hooks 2.5, statusline 2.6) |
 | `xtask` | developer commands, never shipped: `cargo xtask schema [--check]` |
 
 ## Schema codegen
@@ -33,6 +33,8 @@ goldens, the same way the guard grammar is. Integer fields carry
 
 ```
 cargo test --workspace          # unit tests + the fixture round-trip through the generated types
+# byte-for-byte cross-check of the envelope path against the TypeScript reference (see canon-pairs.ts):
+SOFAR_CANON_PAIRS=/tmp/canon-pairs.tsv cargo test -p sofar-core --test canonical_crosscheck -- --ignored
 cargo clippy --workspace --all-targets
 cargo build --release -p sofar-core   # target/release/sofar-core
 ```
