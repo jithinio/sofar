@@ -6,7 +6,7 @@ import { performance } from 'node:perf_hooks'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { foldLog } from '../../../src/core/fold'
 import { renderStatus } from '../../../src/projections/templates/status'
-import { CANDIDATE, FIXTURES, KEEP, childEnv, cleanupScratch, here, implementation, materialize, type Materialized } from '../harness'
+import { CANDIDATE, FIXTURES, IS_CANDIDATE, KEEP, childEnv, cleanupScratch, here, implementation, materialize, type Materialized } from '../harness'
 import { BOUND_SLUG, SCALE_CELLS, writeScale, type ScaleCell } from './scale'
 
 /**
@@ -36,6 +36,7 @@ import { BOUND_SLUG, SCALE_CELLS, writeScale, type ScaleCell } from './scale'
  *   SOFAR_PERF_GATE=1             fail unless every candidate p50 and p95 ≤ the recorded target
  *   SOFAR_PERF_CELLS=i10-1mb,repo run a subset of cells
  *   SOFAR_CONFORMANCE_BIN=…       measure another implementation
+ *   SOFAR_CORE=<path>             measure the shipped stub dispatching to a native core (rust-core 3.1)
  *   SOFAR_PERF_AB_BIN="node …/cli.js"  interleave every spawn with this comparator (ABAB, order
  *                                 alternating per iteration) so machine drift cancels; the
  *                                 comparator's stats land in `ab` next to each measure
@@ -247,14 +248,14 @@ function measures(cell: Cell): Measure[] {
 /** The binary under measurement: an external TypeScript build, the candidate, or the reference built from this tree. */
 function binary(): { name: string; command: readonly string[] } {
   if (TS_BIN !== undefined && TS_BIN.length > 0) {
-    if (CANDIDATE !== undefined) throw new Error('SOFAR_PERF_TS_BIN and SOFAR_CONFORMANCE_BIN are exclusive')
+    if (IS_CANDIDATE) throw new Error('SOFAR_PERF_TS_BIN and SOFAR_CONFORMANCE_BIN / SOFAR_CORE are exclusive')
     return { name: 'typescript', command: TS_BIN.split(/\s+/) }
   }
   return implementation()
 }
 
 /** In-process timing needs this tree's engine to be the build under measurement. */
-const IN_PROCESS = CANDIDATE === undefined && (TS_BIN === undefined || TS_BIN.length === 0)
+const IN_PROCESS = !IS_CANDIDATE && (TS_BIN === undefined || TS_BIN.length === 0)
 
 function spawnTimed(
   cell: Cell,
@@ -489,7 +490,7 @@ describe.skipIf(!PERF)('perf baseline (rust-core 1.3)', () => {
   const cells: Cell[] = []
 
   beforeAll(() => {
-    if (RECORD && CANDIDATE !== undefined) throw new Error('the baseline is recorded from the TypeScript reference only — unset SOFAR_CONFORMANCE_BIN')
+    if (RECORD && IS_CANDIDATE) throw new Error('the baseline is recorded from the TypeScript reference only — unset SOFAR_CONFORMANCE_BIN and SOFAR_CORE')
     const impl = binary()
     report.implementation = impl.name
     if (LABEL !== undefined && LABEL.length > 0) report.label = LABEL
@@ -506,7 +507,7 @@ describe.skipIf(!PERF)('perf baseline (rust-core 1.3)', () => {
 
   afterAll(() => {
     report.load.end = round(loadavg()[0]!)
-    const baseline = CANDIDATE === undefined ? null : readBaseline()
+    const baseline = IS_CANDIDATE ? readBaseline() : null
     const text = table(report, baseline)
     // eslint-disable-next-line no-console
     console.log(`\n${text}`)
@@ -577,7 +578,7 @@ describe.skipIf(!PERF)('perf baseline (rust-core 1.3)', () => {
     })
   }
 
-  it.skipIf(!GATE || CANDIDATE === undefined)('gate: every candidate p50 and p95 is at or under the TypeScript target', () => {
+  it.skipIf(!GATE || !IS_CANDIDATE)('gate: every candidate p50 and p95 is at or under the TypeScript target', () => {
     const baseline = readBaseline()
     expect(baseline, `no baseline at ${BASELINE_PATH} — record it with SOFAR_PERF_RECORD=1`).not.toBeNull()
     const misses: string[] = []

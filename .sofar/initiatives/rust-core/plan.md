@@ -4,7 +4,7 @@
 
 Goal: Move sofar's hot path to a native Rust core incrementally (rust-core D1): contract first, then sofar-core in Rust behind the same CLI and hook contract, integrated with TypeScript fallback, shipped as prebuilt binaries, and proven as its own benchmark arm that shrinks no held-out lead margin (bench-refresh D19). After parity, new hot-path code is Rust-only.
 
-Progress: 10/18 tasks done (55%)
+Progress: 11/18 tasks done (61%)
 
 ## Phase 1 — Contract [active] — 4/6 done
 
@@ -24,9 +24,9 @@ Progress: 10/18 tasks done (55%)
 - [x] 2.5 Hook handlers (session-start, user-prompt-submit, post-tool-use, stop, session-end) with conformance parity, including r1-fixes wave 1–2 behaviour
 - [x] 2.6 Statusline command parity
 
-## Phase 3 — Integration and distribution [pending] — 0/3 done
+## Phase 3 — Integration and distribution [pending] — 1/3 done
 
-- [ ] 3.1 TS entry points and hook shims dispatch to sofar-core when present, with TypeScript fallback and an explicit override for debugging
+- [x] 3.1 TS entry points and hook shims dispatch to sofar-core when present, with TypeScript fallback and an explicit override for debugging
 - [ ] 3.2 Prebuilt binaries per platform (darwin arm64/x64, linux x64/arm64, win32 x64) via npm optionalDependencies, plus a CI build matrix
 - [ ] 3.3 Gate green: 100% conformance on both implementations and perf targets beaten
 
@@ -37,4 +37,4 @@ Progress: 10/18 tasks done (55%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: Start 3.1: the boot stub (cli/boot.ts) dispatches the six hooks, statusline and plain status to a present sofar-core binary with TypeScript fallback and an explicit override env for debugging; then the UNFILTERED conformance run through the stub (event append falls through) becomes the standalone proof; add the `sofar status` stderr update notice (update_cache::notice_from) on the way.
+Next action: Start 3.2: platform packages @sofar/core-<platform>-<arch> (darwin arm64/x64, linux x64/arm64, win32 x64) as optionalDependencies of sofar.sh with the binary at the package root (boot.ts CORE_PACKAGE/CORE_BINARY is the contract; confirm the npm scope first, rename the one constant if not), a CI build matrix, and settle the stable per-machine binary path the hook shims need to exec sofar-core directly; then measure the stub arm with SOFAR_PERF=1 SOFAR_CORE=… per D5/D12 before any perf claim.

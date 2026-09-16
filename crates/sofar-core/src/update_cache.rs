@@ -195,9 +195,46 @@ pub fn notice_from(cache: Option<&UpdateCache>, current: &str) -> Option<UpdateN
     })
 }
 
+/// `noticeLine`: the one-line hint for the text surfaces (status, init, doctor).
+#[must_use]
+pub fn notice_line(notice: &UpdateNotice) -> String {
+    if notice.installed {
+        format!(
+            "sofar auto-upgraded to {} (you are running {}). Restart your agent, and run `sofar init` in each repo to refresh its wiring.",
+            notice.latest, notice.current
+        )
+    } else {
+        format!(
+            "sofar {} is available (you have {}) — run `sofar upgrade`.",
+            notice.latest, notice.current
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn notice_lines_follow_the_engine() {
+        let available = UpdateNotice {
+            latest: "99.0.0".into(),
+            current: "0.33.0-rc.1".into(),
+            installed: false,
+        };
+        assert_eq!(
+            notice_line(&available),
+            "sofar 99.0.0 is available (you have 0.33.0-rc.1) — run `sofar upgrade`."
+        );
+        let installed = UpdateNotice {
+            installed: true,
+            ..available
+        };
+        assert_eq!(
+            notice_line(&installed),
+            "sofar auto-upgraded to 99.0.0 (you are running 0.33.0-rc.1). Restart your agent, and run `sofar init` in each repo to refresh its wiring."
+        );
+    }
 
     #[test]
     fn version_order_follows_the_engine() {

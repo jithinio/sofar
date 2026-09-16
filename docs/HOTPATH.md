@@ -32,7 +32,25 @@ OUT: `init`, `doctor`, `new`, `switch`, `close`, `list`, `next`, `why`,
 
 ## Entry points and dispatch
 
-`dist/cli.js` (`cli/boot.ts`) is a stub: `process.argv[2]` of `event` or
+`dist/cli.js` (`cli/boot.ts`) is a stub. With a native core present
+(rust-core 3.1) it hands every `event`, `statusline` and `status` argv to
+`sofar-core` with stdio inherited and `SOFAR_CORE_DISPATCHED=1` in the
+environment; the core's exit 64 (`EX_USAGE`, "not a shape I own" — `event
+append`, a styled `status`, `--help`, an unknown flag; the core reads no
+stdin before deciding, and says nothing on stderr when dispatched) means the
+TypeScript CLI runs the same argv instead, and every other exit code is
+mirrored. The core is `SOFAR_CORE=<path>` when set (`0` or empty: no core),
+otherwise the platform package `@sofar/core-<platform>-<arch>`
+(optionalDependencies, rust-core 3.2) resolved from the stub; neither
+present means TypeScript, silently. A named core that cannot be spawned
+warns once (`sofar: SOFAR_CORE=… could not be run …`) and falls back; a core
+killed by a signal exits 1 with `sofar: sofar-core died with <signal>` — its
+stdin is gone, so there is no fallback. After the core has rendered a
+`statusline` or `status` the stub makes the update-refresh claim
+(`claimRefresh`, `cli/update-cache.ts`) the TypeScript surface would have
+made: the core only ever reads the cache (O2 ruling).
+
+Without a core, `process.argv[2]` of `event` or
 `statusline` loads `dist/fast.js` (`cli/fast.ts`); anything `runFast` does
 not own falls through to `dist/full.js` (commander). The fast path owns
 EXACTLY these argv shapes, with `--root <dir>` / `--root=<dir>` the only
@@ -49,7 +67,7 @@ CLI reports the error:
 | `event session-end [--root D]` | handleSessionEnd |
 | `statusline [--root D] [--no-color] [--color]` | runStatusline |
 | `fold --events F [--take N] [--snapshot S --since N] [--write-snapshot W]` | runFold (hidden conformance shape — the incremental fold under SPEC §Library surface (library-surface, L1/L2 — added for sofar-cloud + D11); owned by `sofar-core` directly under rust-core D15, never routed by the shim) |
-| `status [slug] [--root D] [--no-color] [--color]` | runStatus, PLAIN only (rust-core D14, 2.4): `sofar-core` owns this shape and applies the stdout colour ladder of `cli/ui/caps.ts` itself — `NO_COLOR` > `--no-color` > `FORCE_COLOR` > `--color` > (TTY and `TERM` ≠ dumb); a render that would be styled exits 64 for the TypeScript CLI. `--watch`, a second positional or any other option is commander's (exit 64). The update notice on stderr (`withUpdateNotice`) arrives with the statusline's cache reader (2.6). |
+| `status [slug] [--root D] [--no-color] [--color]` | runStatus, PLAIN only (rust-core D14, 2.4): `sofar-core` owns this shape and applies the stdout colour ladder of `cli/ui/caps.ts` itself — `NO_COLOR` > `--no-color` > `FORCE_COLOR` > `--color` > (TTY and `TERM` ≠ dumb); a render that would be styled exits 64 for the TypeScript CLI. `--watch`, a second positional or any other option is commander's (exit 64). The stderr update notice (`withUpdateNotice`) is rendered from the cache with the stderr caps ladder (rust-core 3.1: `status_cli::with_update_notice`); the refresh claim is the stub's. |
 
 `event append …` is full-CLI only (commander: `--type` and `--payload`
 required; `--session` default `cli`; `--source` default `cli`; `--actor`
@@ -60,11 +78,15 @@ stderr}`; `mirror` writes stdout verbatim, stderr with a trailing `\n`
 appended if absent, and sets `process.exitCode` (never `process.exit`).
 stdin: read to EOF as UTF-8; if stdin is a TTY, treated as empty string.
 
-The integration seam for rust-core 3.1: `boot.ts` is the natural dispatch
-point — the seven hook/statusline shapes above are the whole shim-routed
-surface, and `runFast` returning false is already the fallback contract.
-`fold` is reached only by invoking the binary itself
+The hook shims (`src/hooks/*.sh`) still `exec sofar event <hook>`: through
+the stub, a hook on the core pays node's boot before the binary runs.
+Exec'ing the binary from the shim directly needs a stable per-machine path,
+which is the 3.2 install layout's to settle. `fold` is reached only by
+invoking the binary itself
 (`SOFAR_CONFORMANCE_BIN=target/release/sofar-core npx vitest run fold-parity`).
+The unfiltered proof of the mixed install is the reference suite with the
+stub dispatching: `SOFAR_CORE=$PWD/target/release/sofar-core npx vitest run
+conformance` — every case, no tag skipped.
 The templates and both status renders are proved on every fixture initiative
 by the render-parity goldens (`packages/engine/test/conformance/render-parity`,
 rust-core 2.4): in-process on each side, options embedded per golden.
@@ -575,6 +597,8 @@ message file (commit-trailer).
 | `HOME` (homedir) | registry, update cache defaults |
 | `XDG_STATE_HOME` | update cache path |
 | `SOFAR_NO_UPDATE_CHECK`, `CI`, `VITEST`, `NODE_ENV=test` | suppress the update refresh spawn |
+| `SOFAR_CORE` | boot stub (rust-core 3.1): path of the native core; `0`/empty = TypeScript; unset = the platform package |
+| `SOFAR_CORE_DISPATCHED` | set by the stub for the core it spawns: exit-64 diagnostics stay silent |
 | `CLAUDE_CODE_SESSION_ID` | commit-trailer only |
 | `GIT_CONFIG_*`, git's own env | inherited by the `git config user.email` spawn |
 | `XDG_CONFIG_HOME` | refresh child only (auto-upgrade preference) |
@@ -586,7 +610,8 @@ message file (commit-trailer).
 | `git config user.email` (2 s timeout) | first `makeEvent` in a process: post-tool (non-exempt), session-end, append |
 | `git log --no-color --max-count=30 --format=<RS>%H<US>%(trailers:key=Sofar-Initiative,valueonly,separator=%x2C)<US>%B [range]` and `git rev-list origin/<b>..HEAD` | session-start shipping notice |
 | `git log … --max-count=100 <prev>..<upstream>` (or `<tip> --not --exclude=origin/<b> --remotes=origin` on a first push) | user-prompt, ONLY when the mark says origin/<b> moved |
-| `node <dir>/cli.js update-check --refresh` (detached) | statusline / status, ≤ once per 24 h |
+| `node <dir>/cli.js update-check --refresh` (detached) | statusline / status, ≤ once per 24 h (from the stub when the core rendered them) |
+| `sofar-core <argv>` (stdio inherited) | boot stub, every `event` / `statusline` / `status` when a core is present (rust-core 3.1) |
 | `kill(pid, 0)` | user-prompt peer liveness (not a spawn) |
 
 ## Text-semantics pins (JS behaviours the bytes depend on)

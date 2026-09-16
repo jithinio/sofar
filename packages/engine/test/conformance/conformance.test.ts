@@ -4,7 +4,6 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { CASES } from './cases'
 import {
-  CANDIDATE,
   KEEP,
   RECORD,
   SKIP_TAGS,
@@ -30,6 +29,7 @@ import { staleSynthetic, writeSynthetic } from './synthetic'
  *
  *   SOFAR_CONFORMANCE_RECORD=1  re-record goldens and synthetic fixtures
  *   SOFAR_CONFORMANCE_BIN=…      run another implementation
+ *   SOFAR_CORE=<path>            the reference stub dispatching to a native core (rust-core 3.1)
  *   SOFAR_CONFORMANCE_SKIP=O2,O4 skip cases tagged with open decisions
  *   SOFAR_CONFORMANCE_KEEP=1     keep the scratch roots for inspection
  */
@@ -49,7 +49,7 @@ describe('conformance fixtures', () => {
   })
 })
 
-describe(`conformance goldens (${CANDIDATE === undefined ? 'typescript reference' : 'candidate binary'})`, () => {
+describe(`conformance goldens (${implementation().name})`, () => {
   for (const c of CASES) {
     const skipped = (c.tags ?? []).some((t) => SKIP_TAGS.has(t))
     const test = skipped ? it.skip : it

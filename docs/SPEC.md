@@ -5018,6 +5018,20 @@ stay the underlying derivation's, and exit codes are styling-independent.
   type, and the hook binary owns exactly the argv shapes the fast path
   owns (the five hooks and the statusline with `--root`), handing every
   other shape back.
+- **Rust core, dispatch (rust-core 3.1):** the `sofar` bin is a stub that
+  hands every `event`, `statusline` and `status` argv to a present
+  `sofar-core` with stdio inherited and runs the TypeScript CLI itself for
+  the core's exit 64 (a shape the core does not own, or a styled `status`)
+  with stdin intact and no byte leaked to either stream; `SOFAR_CORE=<path>`
+  names the core, `SOFAR_CORE=0` forbids it, and no platform package means
+  TypeScript, silently; a named core that cannot run warns once and falls
+  back. The whole conformance suite — every case, no tag skipped — passes
+  with the reference stub dispatching to `target/release/sofar-core`, and a
+  core that exits non-zero on every shape fails it; the stub's routing is
+  pinned with a fake core under `npm test`. Plain `status` on the core
+  renders the stderr update notice from the cache byte-for-byte with the
+  TypeScript surface, and the refresh claim is made by the stub after the
+  core has rendered a `statusline` or `status`.
 - **Diagnostics store (self-improve 1.2):** a diagnostics row fails
   `validateEnvelope` and an import stream carrying one appends nothing; the
   store resolves under the XDG state dir keyed by the same clone hash as the

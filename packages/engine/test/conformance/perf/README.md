@@ -11,6 +11,7 @@ against with the same code.
 npm run perf                                             # measure the TypeScript reference (~6 min)
 SOFAR_PERF=1 SOFAR_PERF_RECORD=1 npx vitest run --project perf        # re-record baseline.typescript.json
 SOFAR_PERF=1 SOFAR_CONFORMANCE_BIN=target/release/sofar-core npx vitest run --project perf   # a candidate, with ratios vs the target
+SOFAR_PERF=1 SOFAR_CORE=$PWD/target/release/sofar-core npx vitest run --project perf         # the stub dispatching to a core (rust-core 3.1): what a mixed install pays
 SOFAR_PERF=1 SOFAR_PERF_GATE=1 SOFAR_CONFORMANCE_BIN=… npx vitest run --project perf         # the 3.3 gate: every p50 and p95 ≤ target
 SOFAR_PERF_CELLS=i10-1mb,repo,floor …                    # a subset (with RECORD: merged into the baseline)
 SOFAR_PERF_ITER=50 …                                     # spawns per measurement (default 20)

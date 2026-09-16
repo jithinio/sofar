@@ -1,5 +1,4 @@
 import { spawn, execFileSync } from 'node:child_process'
-import { basename, dirname, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { version as CURRENT_VERSION } from '../../package.json'
 import { errMessage, fail, ok, type CmdResult } from './shared'
@@ -30,45 +29,10 @@ export interface UpgradeOptions {
   force?: boolean
 }
 
-export type UpgradePlan =
-  | { kind: 'global-npm'; prefix: string; selfPath: string }
-  | { kind: 'not-global'; selfPath: string; reason: string }
-
-/**
- * Decide whether — and where — this binary can self-upgrade, PURELY from its
- * own on-disk path. Deliberately does not consult `npm config get prefix`:
- * that value is exactly what lies when sofar was installed under a custom
- * prefix, which is the whole reason a naive global install misses the live
- * copy. npm's posix global layout is
- * `<prefix>/lib/node_modules/sofar.sh/…`, so the prefix is the
- * directory holding `lib`. Anything that is not that layout — a project-local
- * dependency, an npx cache, a source checkout, or a Windows global root — is
- * reported `not-global` with a reason, and the caller prints manual guidance
- * rather than guessing a prefix and installing into the wrong place.
- */
-export function planUpgrade(selfPath: string): UpgradePlan {
-  const segments = selfPath.split(sep)
-  const nmIndex = segments.lastIndexOf('node_modules')
-  if (nmIndex < 0) {
-    return {
-      kind: 'not-global',
-      selfPath,
-      reason: 'not running from an installed package (looks like a source checkout)',
-    }
-  }
-  const beforeNodeModules = segments.slice(0, nmIndex).join(sep)
-  // posix npm global: node_modules sits directly inside `lib`, and the prefix
-  // is lib's parent. A local dep (`<project>/node_modules`) or an npx cache
-  // (`…/_npx/<hash>/node_modules`) has some other parent and must not self-upgrade.
-  if (basename(beforeNodeModules) !== 'lib') {
-    return {
-      kind: 'not-global',
-      selfPath,
-      reason: 'not a global npm install (local dependency, npx cache, or non-npm layout)',
-    }
-  }
-  return { kind: 'global-npm', prefix: dirname(beforeNodeModules), selfPath }
-}
+// The plan is derived in update-cache.ts (the boot stub needs it for the
+// refresh gate, rust-core 3.1); re-exported so callers keep their path.
+import { planUpgrade, type UpgradePlan } from './update-cache'
+export { planUpgrade, type UpgradePlan }
 
 /** npm argv that installs the target into the resolved prefix. */
 export function npmInstallArgs(prefix: string, target: string): string[] {

@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
@@ -46,6 +46,23 @@ const ENGINE_SRC = join(here, '..', '..', 'src')
 export const RECORD = process.env.SOFAR_CONFORMANCE_RECORD === '1'
 /** `SOFAR_CONFORMANCE_BIN="<cmd> [args]"` runs the suite against another implementation. */
 export const CANDIDATE = process.env.SOFAR_CONFORMANCE_BIN
+/**
+ * `SOFAR_CORE=<path>` (rust-core 3.1): the TypeScript reference runs as
+ * shipped — the boot stub — and the stub dispatches every `event`,
+ * `statusline` and `status` step to this native core, falling back to the
+ * TypeScript CLI on its exit 64. This is the UNFILTERED proof of the mixed
+ * install: every case, every step, no tag skipped, `event append` and the
+ * styled `status` reaching TypeScript through the stub's own fallback. The
+ * path is made absolute here because every step runs with the case's scratch
+ * root as cwd. `0` and empty mean what they mean to the stub: no core.
+ */
+export const CORE = (() => {
+  const raw = process.env.SOFAR_CORE
+  if (raw === undefined || raw.trim().length === 0 || raw.trim() === '0') return undefined
+  return resolve(raw.trim())
+})()
+/** True when the bytes come from anything but the pure TypeScript reference. */
+export const IS_CANDIDATE = (CANDIDATE !== undefined && CANDIDATE.trim().length > 0) || CORE !== undefined
 /** `SOFAR_CONFORMANCE_KEEP=1` leaves each case's scratch root on disk for inspection. */
 export const KEEP = process.env.SOFAR_CONFORMANCE_KEEP === '1'
 /**
@@ -100,14 +117,15 @@ let ref: Implementation | null = null
  */
 export function implementation(): Implementation {
   if (impl !== null) return impl
+  if (RECORD && IS_CANDIDATE) {
+    throw new Error('goldens are recorded from the TypeScript reference only — unset SOFAR_CONFORMANCE_BIN and SOFAR_CORE')
+  }
   if (CANDIDATE !== undefined && CANDIDATE.trim().length > 0) {
-    if (RECORD) {
-      throw new Error('goldens are recorded from the TypeScript reference only — unset SOFAR_CONFORMANCE_BIN')
-    }
     impl = { name: 'candidate', command: CANDIDATE.trim().split(/\s+/) }
     return impl
   }
-  impl = reference()
+  // With SOFAR_CORE the reference build IS the candidate: its stub dispatches.
+  impl = CORE === undefined ? reference() : { ...reference(), name: 'typescript+sofar-core' }
   return impl
 }
 
@@ -253,6 +271,8 @@ export function childEnv(m: Materialized, extra: Record<string, string | undefin
     CLAUDE_CONFIG_DIR: join(m.home, '.claude'),
     GIT_CONFIG_NOSYSTEM: '1',
     SOFAR_NO_UPDATE_CHECK: '1',
+    // The stub's dispatch target (rust-core 3.1); absent = TypeScript throughout.
+    SOFAR_CORE: CORE,
     LANG: 'en_US.UTF-8',
     LC_ALL: 'en_US.UTF-8',
     TZ: 'UTC',
