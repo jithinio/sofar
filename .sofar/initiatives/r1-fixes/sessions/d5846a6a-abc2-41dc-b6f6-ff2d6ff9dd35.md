@@ -6,20 +6,20 @@
 - Tool: claude-code
 - Model: claude-fable-5-1
 - Started: 2026-09-16T08:19:52.411Z
-- Ended: 2026-09-16T09:42:33.717Z
+- Ended: 2026-09-16T11:02:52.233Z
 
 ## Summary
 
-4.3 handoff delivered and acknowledged (bench-refresh note 01M2MNHAKF9JFZAEBBNNDNMC4C; freeze pending ~2026-09-22). Merged main into r1-fixes (af13adb). 2.5 built to D24 and done: derived outcomes, commits-by-task, WHY guidance, SOFAR_ACTIVITY switch; FP-09 added and the parity builder's missing {plan} wrapper fixed (goldens FP-01–08 re-recorded). Suite 2211 green; D18 gate ok.
+rust-core acknowledged 2.5 at 4077c9a: fold-parity 22/22 on all nine cases, D24 mirrored, hot-path goldens re-pinned. Their ask applied: `@asType integer` on exit, count, detector_version, judged in packages/schema/src/events.ts; convention promoted to repo memory (M). Earlier this session: 4.3 handoff, main merge, 2.5 built and done.
 
 ## Next action
 
-3.2 for the next release: contract Decision first (no wall-clock in replay, standing rules never age out, byte-stable injection, own off-switch), then build. Then tell rust-core the 2.5 sha if not yet sent. 4.3 closes on bench-refresh's freeze confirmation; 4.4 after round-2 evidence; 4.1 waits for bench-refresh 4.1.
+3.2 for the next release: contract Decision first (no wall-clock in replay, standing rules never age out, byte-stable injection, own off-switch), then build. 4.3 closes on bench-refresh's freeze confirmation (~2026-09-22); 4.4 after round-2 evidence; 4.1 waits for bench-refresh 4.1.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 157 commands, task changes: 4.3 → blocked, 2.5 → pending, 2.5 → done
-- Commands run: 157
+- Derived: 161 commands, task changes: 4.3 → blocked, 2.5 → pending, 2.5 → done
+- Commands run: 161
 - Task changes:
   - 4.3 → blocked
   - 2.5 → pending

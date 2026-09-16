@@ -196,6 +196,13 @@ export interface SessionEndedPayload { session_id?: string; summary: string; nex
  * mechanical close must never clobber them during fold.
  */
 export interface SessionClosedPayload { reason: string }
+/*
+ * Integer-valued `number` fields carry `@asType integer` in their doc comment
+ * (rust-core 1.4): the Rust schema codegen reads it, and a number field added
+ * without it breaks the sofar-schema crate on rust-core's next merge. Real
+ * floats (precision, recall) stay unannotated.
+ */
+
 /**
  * Mechanical outcome fields (self-improve D2): OPTIONAL, additive, and the
  * ONLY outcome facts the durable record carries. `ok` is what the host said
@@ -206,7 +213,12 @@ export interface SessionClosedPayload { reason: string }
  * diagnostics row (src/diagnostics.ts), never a payload field.
  */
 export interface FileTouchedPayload { path: string; op: string; ok?: boolean }
-export interface CommandRunPayload { cmd: string; ok?: boolean; exit?: number }
+export interface CommandRunPayload {
+  cmd: string
+  ok?: boolean
+  /** @asType integer */
+  exit?: number
+}
 export interface NoteAddedPayload { text: string }
 /**
  * A fact its author declares repo memory — operational knowledge that is not a
@@ -431,7 +443,7 @@ export interface SuggestionTrust {
   verdict: string
   precision: number
   recall: number
-  /** Findings judged on held-out splits — the n behind the precision. */
+  /** Findings judged on held-out splits — the n behind the precision. @asType integer */
   judged: number
 }
 /**
@@ -445,10 +457,12 @@ export interface SuggestionProposedPayload {
   signal: string
   /** Event ids (or `row:` hashes) the detector cited — the whole set the hash covers. */
   evidence: string[]
+  /** @asType integer */
   count: number
   /** Highest event id the deriving report read. Recorded, never hashed. */
   cutoff?: string
   engine: string
+  /** @asType integer */
   detector_version: number
   trust: SuggestionTrust
 }
