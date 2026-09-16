@@ -26,7 +26,7 @@ Progress: 8/14 tasks done (57%)
 
 - [x] 3.1 Frozen evaluator outside the candidate's control: runner, hidden tests, fixtures, scoring and result capture live in a separate repo and process the candidate cannot write
 - [x] 3.2 Durable spend ledger across restarts counting every attempt, retry and evaluation, aligned with bench-refresh D14 and D17
-- [ ] 3.3 Equal-budget baseline: the same agent directly fixing the same loss with the same feedback and spend; a loop change is kept only if it beats this baseline
+- [ ] 3.3 Equal-budget baseline: the same agent directly fixing the same loss with the same feedback and spend; a loop change is kept only if it beats this baseline (blocked)
 - [ ] 3.4 First manual cycle on one round-1 loss row: loop result vs direct-fix baseline vs the human-built r1-fixes change
 
 ## Phase 4 — Release proof [pending] — 0/4 done
@@ -36,4 +36,5 @@ Progress: 8/14 tasks done (57%)
 - [ ] 4.3 Public standing snapshot (downloads, stars, listings) reported separately and never used as a technical gate
 - [ ] 4.4 Expand autonomy, including any in-product local adaptation, only after 3 consecutive cycles beat the direct-fix baseline on unseen work
 
-Next action: 3.3 equal-budget baseline: log the contract as a Decision (same agent, same approved loss row, same feedback, same ledger budget, comparator patch hidden; selection without hidden-answer access), then build it in the evaluator as a second run mode over the same shims and caps.
+Next action: When the D17 7-day window frees (2026-09-22T10:02Z if round 1 adds nothing) or the operator raises --week-usd: resume smoke33-loop and smoke33-direct with `evaluator fix … --resume`, `run` each candidate on S1, `compare --loop-extra-usd 0.50`; record the evidence, mark 3.3 done, then 3.4 (needs the operator to approve a real row in THIS repo and name --hide-record r1-fixes).
+Blocked on: task 3.3: Built and proven short of a live agent launch. ~/IO/sofar-evaluator 93ffe6d..68240b3: `evaluator fix` (both arms, D13) and `evaluator compare`; 37 tests pass (11 new); `fix --dry-run` on the fixture clone fixtures/sofar-33 (row f554d19bfd94364e approved THERE, not in this repo) exported a refless one-commit cell, held 12 probes incl. the hidden source repo, npm ci sandboxed. The live launch (logs/smoke-33.sh via launchd) built both cells then PAUSED before launch per D12: 7-day Claude spend $451.89 (round-1 ledgers $443.14 + evaluator $8.75, of which $8 is the estimate for one lost attempt) vs the bench-refresh D17 $450 cap; compare WITHHELD correctly. BLOCKED on the D17 window: it frees 2026-09-22T10:02Z only if round 1 adds no more Claude spend; otherwise the operator raises `--week-usd` explicitly (D17 is their half-limit rule). Unblock: `bun evaluator.ts fix … --run smoke33-loop --resume` then `… smoke33-direct --resume`, `run` each candidate on S1, `compare --loop-extra-usd 0.50` — the exact commands are in logs/smoke-33.sh (do NOT resubmit it to launchd as written: launchd re-runs it on exit).
