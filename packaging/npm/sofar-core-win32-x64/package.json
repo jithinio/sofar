@@ -1,0 +1,24 @@
+{
+  "name": "sofar-core-win32-x64",
+  "version": "0.33.0-rc.1",
+  "description": "sofar's native hot-path core (sofar-core) for win32-x64. Installed by sofar.sh as an optional dependency; never depend on it directly.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jithinio/sofar.git",
+    "directory": "packaging/npm/sofar-core-win32-x64"
+  },
+  "homepage": "https://sofar.sh",
+  "license": "MIT",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "sofar-core.exe"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

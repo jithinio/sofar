@@ -34,26 +34,21 @@
  *    cloud, doctor or upgrade.
  *
  * The stub must stay dependency-free: anything imported here is paid for by
- * BOTH paths. update-cache.ts is node builtins only — it is here because the
- * native core never spawns the update refresh (rust-core O2 ruling), so after
+ * BOTH paths. core.ts and update-cache.ts are node builtins only — the latter is
+ * here because the native core never spawns the update refresh (rust-core O2 ruling), so after
  * the core has rendered a statusline or a status the stub makes the claim the
  * TypeScript surface would have made.
  */
 
 import { spawnSync } from 'node:child_process'
-import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveCore } from './core'
 import { claimRefresh } from './update-cache'
 
 // Marked external in build.mjs so esbuild emits these as runtime imports of
 // the sibling bundles instead of inlining them back into one file.
 const FAST = './fast.js'
 const FULL = './full.js'
-
-/** The platform package rust-core 3.2 publishes; the binary sits at its root. */
-const CORE_PACKAGE = `@sofar/core-${process.platform}-${process.arch}`
-const CORE_BINARY = process.platform === 'win32' ? 'sofar-core.exe' : 'sofar-core'
 
 /** The shapes the native core may own; anything else never spawns it. */
 const CORE_COMMANDS: ReadonlySet<string | undefined> = new Set(['event', 'statusline', 'status'])
@@ -69,23 +64,6 @@ try {
 } catch {
   // No compile cache on this runtime, or the cache dir is not writable.
   // Purely an optimization — never let it break a command.
-}
-
-/**
- * Where the native core is, or null for TypeScript. `override` is the raw
- * `SOFAR_CORE` value: a path wins, `0` (or empty) turns the core off, unset
- * asks the platform package.
- */
-function coreBinary(override: string | undefined): { path: string; explicit: boolean } | null {
-  if (override !== undefined) {
-    return override === '' || override === '0' ? null : { path: override, explicit: true }
-  }
-  try {
-    const pkg = createRequire(import.meta.url).resolve(`${CORE_PACKAGE}/package.json`)
-    return { path: join(dirname(pkg), CORE_BINARY), explicit: false }
-  } catch {
-    return null
-  }
 }
 
 /**
@@ -121,7 +99,8 @@ const command = argv[0]
 let handled = false
 
 if (CORE_COMMANDS.has(command)) {
-  const core = coreBinary(process.env.SOFAR_CORE)
+  const resolved = resolveCore(process.env.SOFAR_CORE, import.meta.url)
+  const core = resolved.kind === 'none' ? null : { path: resolved.path, explicit: resolved.kind === 'override' }
   if (core !== null && runCore(core, argv)) {
     handled = true
     // The core rendered from the cache; the claim-and-spawn that keeps the

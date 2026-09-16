@@ -209,6 +209,10 @@ fn rule_header(s: &[char], i: usize) -> Option<(usize, String)> {
 }
 
 /// Rule 4: `\b([a-z][a-z0-9+.-]*:\/\/[^\s:/@]+):[^\s@/]+@` → `$1:[redacted]@`.
+#[allow(
+    clippy::many_single_char_names,
+    reason = "the cursors mirror the regex's groups; naming them longer hides the scan"
+)]
 fn rule_url(s: &[char], i: usize) -> Option<(usize, String)> {
     if !boundary(s, i) || !s[i].is_ascii_alphabetic() {
         return None;

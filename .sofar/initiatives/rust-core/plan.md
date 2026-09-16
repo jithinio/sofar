@@ -4,7 +4,7 @@
 
 Goal: Move sofar's hot path to a native Rust core incrementally (rust-core D1): contract first, then sofar-core in Rust behind the same CLI and hook contract, integrated with TypeScript fallback, shipped as prebuilt binaries, and proven as its own benchmark arm that shrinks no held-out lead margin (bench-refresh D19). After parity, new hot-path code is Rust-only.
 
-Progress: 11/18 tasks done (61%)
+Progress: 12/18 tasks done (66%)
 
 ## Phase 1 — Contract [active] — 4/6 done
 
@@ -24,10 +24,10 @@ Progress: 11/18 tasks done (61%)
 - [x] 2.5 Hook handlers (session-start, user-prompt-submit, post-tool-use, stop, session-end) with conformance parity, including r1-fixes wave 1–2 behaviour
 - [x] 2.6 Statusline command parity
 
-## Phase 3 — Integration and distribution [pending] — 1/3 done
+## Phase 3 — Integration and distribution [pending] — 2/3 done
 
 - [x] 3.1 TS entry points and hook shims dispatch to sofar-core when present, with TypeScript fallback and an explicit override for debugging
-- [ ] 3.2 Prebuilt binaries per platform (darwin arm64/x64, linux x64/arm64, win32 x64) via npm optionalDependencies, plus a CI build matrix
+- [x] 3.2 Prebuilt binaries per platform (darwin arm64/x64, linux x64/arm64, win32 x64) via npm optionalDependencies, plus a CI build matrix
 - [ ] 3.3 Gate green: 100% conformance on both implementations and perf targets beaten
 
 ## Phase 4 — Prove and switch [pending] — 0/3 done
@@ -37,4 +37,4 @@ Progress: 11/18 tasks done (61%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: Start 3.2: platform packages @sofar/core-<platform>-<arch> (darwin arm64/x64, linux x64/arm64, win32 x64) as optionalDependencies of sofar.sh with the binary at the package root (boot.ts CORE_PACKAGE/CORE_BINARY is the contract; confirm the npm scope first, rename the one constant if not), a CI build matrix, and settle the stable per-machine binary path the hook shims need to exec sofar-core directly; then measure the stub arm with SOFAR_PERF=1 SOFAR_CORE=… per D5/D12 before any perf claim.
+Next action: Push rust-core so the `core` matrix and `core-conformance` CI jobs run for the first time (fix runner labels if macos-15-intel/ubuntu-24.04-arm are unavailable), then start 3.3: re-record the TypeScript perf reference and measure both arms — SOFAR_CONFORMANCE_BIN=target/release/sofar-core (direct, what the shim execs) and SOFAR_CORE=… (through the stub) — with SOFAR_PERF_GATE=1 per D5/D10/D12; then 1.5/1.6 remain in Phase 1.

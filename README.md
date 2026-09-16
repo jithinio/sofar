@@ -42,6 +42,12 @@ npm install -g sofar.sh
 Needs Node 18 or newer. To try it without installing, use
 `npx sofar.sh status`. Update later with `sofar upgrade`.
 
+On macOS (arm64, x64), Linux (x64, arm64) and Windows (x64) the install also
+brings a native core, `sofar-core`, that runs the hooks, the statusline and
+`sofar status` with no node in front; everywhere else, and with
+`SOFAR_CORE=0`, the same commands run in TypeScript with identical output.
+`sofar doctor` says which one you are on.
+
 To build from a clone of this repo instead:
 
 ```

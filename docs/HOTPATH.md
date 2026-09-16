@@ -40,9 +40,10 @@ append`, a styled `status`, `--help`, an unknown flag; the core reads no
 stdin before deciding, and says nothing on stderr when dispatched) means the
 TypeScript CLI runs the same argv instead, and every other exit code is
 mirrored. The core is `SOFAR_CORE=<path>` when set (`0` or empty: no core),
-otherwise the platform package `@sofar/core-<platform>-<arch>`
-(optionalDependencies, rust-core 3.2) resolved from the stub; neither
-present means TypeScript, silently. A named core that cannot be spawned
+otherwise the platform package `sofar-core-<platform>-<arch>`
+(an optionalDependency of sofar.sh, one per target, pinned at sofar.sh's own
+version — `packaging/npm/emit.mjs`, rust-core 3.2) resolved from the stub
+(`cli/core.ts`); neither present means TypeScript, silently. A named core that cannot be spawned
 warns once (`sofar: SOFAR_CORE=… could not be run …`) and falls back; a core
 killed by a signal exits 1 with `sofar: sofar-core died with <signal>` — its
 stdin is gone, so there is no fallback. After the core has rendered a
@@ -78,11 +79,17 @@ stderr}`; `mirror` writes stdout verbatim, stderr with a trailing `\n`
 appended if absent, and sets `process.exitCode` (never `process.exit`).
 stdin: read to EOF as UTF-8; if stdin is a TTY, treated as empty string.
 
-The hook shims (`src/hooks/*.sh`) still `exec sofar event <hook>`: through
-the stub, a hook on the core pays node's boot before the binary runs.
-Exec'ing the binary from the shim directly needs a stable per-machine path,
-which is the 3.2 install layout's to settle. `fold` is reached only by
-invoking the binary itself
+The hook shims (`src/hooks/*.sh`) route before they exec (rust-core 3.2,
+D32): `sofar-core event <hook>` when `command -v sofar-core` finds one —
+sofar.sh's own `bin/sofar-core`, which its postinstall (`install.mjs`)
+replaces with the platform package's binary, so the hook is one exec of
+native code with no node in front — else `sofar event <hook>`, the stub.
+`SOFAR_CORE=0` sends the shim to the CLI, `SOFAR_CORE=<path>` names the core;
+where postinstall could not run (`--ignore-scripts`, no platform package,
+Windows) `bin/sofar-core` stays a JavaScript shim that IS `sofar`, so the
+bytes are the same and only node's boot is paid. `sofar doctor` reports which
+implementation the hot path runs on under "Wiring integrity". `fold` is
+reached only by invoking the binary itself
 (`SOFAR_CONFORMANCE_BIN=target/release/sofar-core npx vitest run fold-parity`).
 The unfiltered proof of the mixed install is the reference suite with the
 stub dispatching: `SOFAR_CORE=$PWD/target/release/sofar-core npx vitest run

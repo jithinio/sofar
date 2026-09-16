@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { version as CURRENT_VERSION } from '../../package.json'
 import { isClosedInitiativeStatus, isResolvedTaskStatus } from '@sofar/schema'
 import { join, relative } from 'node:path'
 import {
@@ -33,6 +34,7 @@ import {
   SOURCE_NOT_SINCE,
   type TailwindV4Detection,
 } from './scanners'
+import { CORE_PACKAGE, resolveCore } from './core'
 import { detectFormatterHazards } from './formatters'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 import {
@@ -286,8 +288,44 @@ function auditWiring(rootDir: string): Section {
   }
 
   auditAttribution(rootDir, findings)
+  auditCore(findings)
 
   return { title: 'Wiring integrity', findings }
+}
+
+/**
+ * Which implementation the hot path runs on (rust-core 3.2). Never a fault:
+ * a source checkout or an unsupported platform has no core and every hook
+ * still runs, on TypeScript. The one warning is a version mismatch — a core
+ * that is not this release's — which only an override or a hand install can
+ * produce, since sofar.sh pins each platform package at its own version.
+ */
+function auditCore(findings: Finding[]): void {
+  const core = resolveCore(process.env.SOFAR_CORE, import.meta.url)
+  switch (core.kind) {
+    case 'override':
+      findings.push({ level: 'ok', text: `hot path: native core named by SOFAR_CORE (${core.path})` })
+      break
+    case 'package':
+      if (core.version !== null && core.version !== CURRENT_VERSION) {
+        findings.push({
+          level: 'warn',
+          text: `hot path: native core ${core.version} does not match sofar ${CURRENT_VERSION}`,
+          hint: 'run `sofar upgrade` — the core ships pinned to each release',
+        })
+      } else {
+        findings.push({ level: 'ok', text: `hot path: native core ${CORE_PACKAGE}${core.version === null ? '' : ` ${core.version}`}` })
+      }
+      break
+    default:
+      findings.push({
+        level: 'ok',
+        text:
+          core.reason === 'forbidden'
+            ? 'hot path: TypeScript (SOFAR_CORE=0)'
+            : `hot path: TypeScript (no native core installed for ${process.platform}-${process.arch})`,
+      })
+  }
 }
 
 // ---------------------------------------------------------------------------
