@@ -47,6 +47,7 @@ CLI reports the error:
 | `event stop [--root D]` | handleStop |
 | `event session-end [--root D]` | handleSessionEnd |
 | `statusline [--root D] [--no-color] [--color]` | runStatusline |
+| `fold --events F [--take N] [--snapshot S --since N] [--write-snapshot W]` | runFold (hidden conformance shape, SPEC §Incremental fold; owned by `sofar-core` directly under rust-core D15 — never routed by the shim) |
 
 `event append …` is full-CLI only (commander: `--type` and `--payload`
 required; `--session` default `cli`; `--source` default `cli`; `--actor`
@@ -58,8 +59,10 @@ appended if absent, and sets `process.exitCode` (never `process.exit`).
 stdin: read to EOF as UTF-8; if stdin is a TTY, treated as empty string.
 
 The integration seam for rust-core 3.1: `boot.ts` is the natural dispatch
-point — the six shapes above are the whole Rust-owned surface, and `runFast`
-returning false is already the fallback contract.
+point — the six hook/statusline shapes above are the whole shim-routed
+surface, and `runFast` returning false is already the fallback contract.
+`fold` is reached only by invoking the binary itself
+(`SOFAR_CONFORMANCE_BIN=target/release/sofar-core npx vitest run fold-parity`).
 
 ## Hook input (all five `event` subcommands)
 

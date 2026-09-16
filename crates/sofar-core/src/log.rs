@@ -8,11 +8,11 @@
 //! with the same warning TypeScript prints. Corrupt or unknown lines are
 //! skipped with a warning, never fatal, never rewritten (CLAUDE.md).
 
-use std::collections::HashSet;
 use std::fs;
 use std::io::{self, Write as _};
 use std::path::Path;
 
+use crate::collections::OrderedSet;
 use crate::envelope::{Envelope, error_detail, serialize_event, validate_envelope};
 use crate::json::{self, Json};
 use crate::payload::validate_payload;
@@ -75,8 +75,8 @@ pub struct ParsedLine {
 pub struct DecodedLog {
     /// Envelope-valid events in ulid order (stable — a duplicated id keeps file order).
     pub parsed: Vec<ParsedLine>,
-    /// Event ids voided by a `correction` (BD8).
-    pub voided: HashSet<String>,
+    /// Event ids voided by a `correction` (BD8), in file order of the corrections.
+    pub voided: OrderedSet,
     /// Decode warnings, in file order (they describe lines, not events).
     pub warnings: Vec<String>,
 }
@@ -86,6 +86,18 @@ pub struct DecodedLog {
 #[must_use]
 pub fn decode_text(text: &str) -> DecodedLog {
     decode_lines(text.split('\n'))
+}
+
+/// The line count a fresh `split('\n')` implies (`countLines`): a trailing
+/// empty element is the final newline, not a line.
+#[must_use]
+pub fn count_lines(text: &str) -> usize {
+    let newlines = text.bytes().filter(|b| *b == b'\n').count();
+    if text.is_empty() || text.ends_with('\n') {
+        newlines
+    } else {
+        newlines + 1
+    }
 }
 
 /// Decode lines already split; `line_no` counts from 1 in iteration order.
@@ -121,7 +133,7 @@ pub fn decode_lines<'a>(lines: impl IntoIterator<Item = &'a str>) -> DecodedLog 
         if validate_payload("correction", &payload).is_ok()
             && let Some(Json::Str(target)) = line.event.payload.get("ref")
         {
-            log.voided.insert(target.clone());
+            log.voided.insert(target);
         }
     }
     // Convergent fold: replay order is NORMATIVELY ulid id order (plain JS
@@ -285,9 +297,19 @@ mod tests {
             ]
         );
         assert_eq!(
-            decoded.voided,
-            HashSet::from(["01K4C0000000000000000000AA".to_owned()])
+            decoded.voided.iter().collect::<Vec<_>>(),
+            ["01K4C0000000000000000000AA"]
         );
+    }
+
+    #[test]
+    fn count_lines_drops_only_the_trailing_newline() {
+        assert_eq!(count_lines(""), 0);
+        assert_eq!(count_lines("a"), 1);
+        assert_eq!(count_lines("a\n"), 1);
+        assert_eq!(count_lines("a\n\n"), 2);
+        assert_eq!(count_lines("\n"), 1);
+        assert_eq!(count_lines("a\nb"), 2);
     }
 
     #[test]

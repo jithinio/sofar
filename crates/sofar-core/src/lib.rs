@@ -14,8 +14,12 @@
 
 pub mod atomic;
 pub mod cli;
+pub mod collections;
 pub mod entropy;
 pub mod envelope;
+pub mod fold;
+pub mod fold_cli;
+pub mod guards;
 pub mod identity;
 pub mod json;
 pub mod layout;
@@ -23,6 +27,7 @@ pub mod lock;
 pub mod log;
 pub mod payload;
 pub mod sha256;
+pub mod snapshot;
 pub mod text;
 
 #[cfg(test)]

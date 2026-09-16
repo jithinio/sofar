@@ -790,3 +790,134 @@ mod tests {
         assert!(!Json::Str("5".into()).is_integer());
     }
 }
+
+// ---------------------------------------------------------------------------
+// Additions for the fold (rust-core 2.3): in-place payload edits, `String(v)`,
+// and the pretty canonical form the fold-parity suite compares.
+
+impl Object {
+    /// Mutable access to one value (the plan-status coercion rewrites in place).
+    #[must_use]
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut Json> {
+        self.entries
+            .iter_mut()
+            .find(|(k, _)| k == key)
+            .map(|(_, v)| v)
+    }
+}
+
+/// ECMAScript `String(value)` for a JSON value: `null`, `true`/`false`, the
+/// number's `toString`, the string itself, an array's elements joined by `,`
+/// (a `null` element prints as empty), `[object Object]` for an object.
+#[must_use]
+pub fn js_to_string(value: &Json) -> String {
+    match value {
+        Json::Null => "null".to_owned(),
+        Json::Bool(b) => b.to_string(),
+        Json::Num(n) => number_to_string(*n),
+        Json::Str(s) => s.clone(),
+        Json::Arr(items) => items
+            .iter()
+            .map(|v| match v {
+                Json::Null => String::new(),
+                other => js_to_string(other),
+            })
+            .collect::<Vec<_>>()
+            .join(","),
+        Json::Obj(_) => "[object Object]".to_owned(),
+    }
+}
+
+/// `Number.prototype.toString()`: like [`write_number`] but non-finite values
+/// print as `NaN` / `Infinity` / `-Infinity` instead of `null`.
+#[must_use]
+pub fn number_to_string(x: f64) -> String {
+    if x.is_nan() {
+        return "NaN".to_owned();
+    }
+    if x.is_infinite() {
+        return if x > 0.0 { "Infinity" } else { "-Infinity" }.to_owned();
+    }
+    let mut out = String::new();
+    write_number(&mut out, x);
+    out
+}
+
+/// `JSON.stringify(sortKeysDeep(value), null, 2)` — `canonicalJSON` in
+/// `core/snapshot.ts` (r1-fixes D22 (6)): keys sorted by code point
+/// recursively, arrays in order, two-space indentation, `"key": value`,
+/// empty containers as `[]` / `{}`.
+#[must_use]
+pub fn stringify_pretty_canonical(value: &Json) -> String {
+    let mut out = String::new();
+    write_pretty(&mut out, value, 0);
+    out
+}
+
+fn write_pretty(out: &mut String, value: &Json, depth: usize) {
+    match value {
+        Json::Arr(items) if !items.is_empty() => {
+            out.push_str("[\n");
+            for (i, item) in items.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(",\n");
+                }
+                indent(out, depth + 1);
+                write_pretty(out, item, depth + 1);
+            }
+            out.push('\n');
+            indent(out, depth);
+            out.push(']');
+        }
+        Json::Obj(obj) if !obj.is_empty() => {
+            out.push_str("{\n");
+            for (i, (k, v)) in obj.sorted().into_iter().enumerate() {
+                if i > 0 {
+                    out.push_str(",\n");
+                }
+                indent(out, depth + 1);
+                write_string(out, k);
+                out.push_str(": ");
+                write_pretty(out, v, depth + 1);
+            }
+            out.push('\n');
+            indent(out, depth);
+            out.push('}');
+        }
+        other => write_value(out, other, true),
+    }
+}
+
+fn indent(out: &mut String, depth: usize) {
+    for _ in 0..depth {
+        out.push_str("  ");
+    }
+}
+
+#[cfg(test)]
+mod pretty_tests {
+    use super::*;
+
+    #[test]
+    fn pretty_canonical_matches_json_stringify_with_indent_2() {
+        let v = parse("{\"z\":[],\"a\":{},\"m\":{\"y\":[1,{\"b\":null,\"a\":\"x\"}],\"x\":1.5}}")
+            .unwrap();
+        assert_eq!(
+            stringify_pretty_canonical(&v),
+            "{\n  \"a\": {},\n  \"m\": {\n    \"x\": 1.5,\n    \"y\": [\n      1,\n      {\n        \"a\": \"x\",\n        \"b\": null\n      }\n    ]\n  },\n  \"z\": []\n}"
+        );
+        assert_eq!(stringify_pretty_canonical(&Json::Num(3.0)), "3");
+    }
+
+    #[test]
+    fn js_to_string_follows_tostring() {
+        assert_eq!(js_to_string(&Json::Null), "null");
+        assert_eq!(js_to_string(&Json::Num(5.0)), "5");
+        assert_eq!(js_to_string(&Json::Num(f64::INFINITY)), "Infinity");
+        assert_eq!(
+            js_to_string(&parse("[1,null,\"a\",[2,3],{}]").unwrap()),
+            "1,,a,2,3,[object Object]"
+        );
+        assert_eq!(js_to_string(&Json::Bool(false)), "false");
+    }
+}

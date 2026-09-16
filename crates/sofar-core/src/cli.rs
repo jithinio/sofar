@@ -1,10 +1,13 @@
 //! The argv grammar the hook shims emit — `docs/HOTPATH.md` §Entry points and
 //! dispatch. This is the ONLY surface the native core owns: the five hook
 //! subcommands and the statusline, each with an optional `--root <dir>`
-//! (either token form). Anything else is "not ours" and the dispatcher hands
-//! it to the TypeScript CLI unchanged, so the command surface and every error
-//! message stay where they are (speed-2 T1: the fast path is an optimisation,
-//! never a second implementation).
+//! (either token form), plus the hidden `fold` conformance shape (rust-core
+//! D15: the fold-parity suite drives `<bin> fold …` black-box, so the binary
+//! must own it; its options are parsed by [`crate::fold_cli`]). Anything
+//! else is "not ours" and the dispatcher hands it to the TypeScript CLI
+//! unchanged, so the command surface and every error message stay where they
+//! are (speed-2 T1: the fast path is an optimisation, never a second
+//! implementation).
 
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -57,8 +60,18 @@ pub enum Color {
 /// An argv shape the native core owns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Owned {
-    Event { hook: Hook, root: Option<PathBuf> },
-    Statusline { root: Option<PathBuf>, color: Color },
+    Event {
+        hook: Hook,
+        root: Option<PathBuf>,
+    },
+    Statusline {
+        root: Option<PathBuf>,
+        color: Color,
+    },
+    /// `fold …` — the argv after the word, for `fold_cli::run_fold` (D15).
+    Fold {
+        args: Vec<OsString>,
+    },
 }
 
 /// Argv as a shape: owned here, or handed to the full TypeScript CLI.
@@ -116,6 +129,7 @@ where
             };
             Dispatch::Owned(Owned::Statusline { root, color })
         }
+        Some("fold") => Dispatch::Owned(Owned::Fold { args: rest }),
         _ => Dispatch::NotOurs,
     }
 }
@@ -202,6 +216,22 @@ mod tests {
         assert_eq!(d(&["status"]), Dispatch::NotOurs);
         assert_eq!(d(&["--version"]), Dispatch::NotOurs);
         assert_eq!(d(&["statusline", "--json"]), Dispatch::NotOurs);
+    }
+
+    #[test]
+    fn fold_is_owned_with_its_argv_passed_through() {
+        assert_eq!(
+            d(&["fold", "--events", "x.jsonl", "--take", "2"]),
+            Dispatch::Owned(Owned::Fold {
+                args: vec![
+                    "--events".into(),
+                    "x.jsonl".into(),
+                    "--take".into(),
+                    "2".into()
+                ]
+            })
+        );
+        assert_eq!(d(&["fold"]), Dispatch::Owned(Owned::Fold { args: vec![] }));
     }
 
     #[test]

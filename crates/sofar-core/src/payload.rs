@@ -11,7 +11,7 @@
 //! absent-or-non-empty; "absent" means the key is missing (a JSON `null` is
 //! present and fails the type test).
 
-use crate::json::{Json, Object};
+use crate::json::{Json, Object, js_to_string};
 use crate::text::{js_trim, utf16_len};
 
 pub const TASK_STATUSES: [&str; 5] = ["pending", "active", "done", "blocked", "dropped"];
@@ -66,6 +66,78 @@ pub const EVENT_TYPES: [&str; 21] = [
 #[must_use]
 pub fn is_known_event_type(event_type: &str) -> bool {
     EVENT_TYPES.contains(&event_type)
+}
+
+/// `RESOLVED_TASK_STATUSES`: done or dropped — nothing remains (task-drop-state D1).
+pub const RESOLVED_TASK_STATUSES: [&str; 2] = ["done", "dropped"];
+
+#[must_use]
+pub fn is_resolved_task_status(status: &str) -> bool {
+    RESOLVED_TASK_STATUSES.contains(&status)
+}
+
+/// One status this build did not recognise, rewritten so the plan survives
+/// (`CoercedStatus`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CoercedStatus {
+    /// Human path into the plan, e.g. `phases[0].tasks[1]`.
+    pub path: String,
+    /// Task id, or phase name for a phase-level coercion (`#<index>` when unreadable).
+    pub subject: String,
+    /// The unrecognised value as `String(value)` prints it.
+    pub status: String,
+}
+
+/// Forward compatibility for `plan_updated` (`coerceUnknownPlanStatuses`,
+/// task-drop-state D2): a phase or task status this build cannot read is
+/// rewritten to `pending` IN PLACE and reported, so one unreadable status
+/// never rejects the whole plan. A present `null` counts as unreadable, as
+/// `!== undefined` does; a payload that is not plan-shaped is left alone
+/// for validation to reject.
+pub fn coerce_unknown_plan_statuses(payload: &mut Object) -> Vec<CoercedStatus> {
+    let mut coerced = Vec::new();
+    let Some(Json::Obj(plan)) = payload.get_mut("plan") else {
+        return coerced;
+    };
+    let Some(Json::Arr(phases)) = plan.get_mut("phases") else {
+        return coerced;
+    };
+    for (pi, phase) in phases.iter_mut().enumerate() {
+        let Json::Obj(phase) = phase else { continue };
+        if let Some(status) = phase.get("status")
+            && !one_of(Some(status), &PHASE_STATUSES)
+        {
+            coerced.push(CoercedStatus {
+                path: format!("phases[{pi}]"),
+                subject: phase
+                    .get("name")
+                    .and_then(Json::as_nonempty_str)
+                    .map_or_else(|| format!("#{pi}"), str::to_owned),
+                status: js_to_string(status),
+            });
+            phase.insert("status", Json::Str("pending".to_owned()));
+        }
+        let Some(Json::Arr(tasks)) = phase.get_mut("tasks") else {
+            continue;
+        };
+        for (ti, task) in tasks.iter_mut().enumerate() {
+            let Json::Obj(task) = task else { continue };
+            if opt_one_of(task.get("status"), &TASK_STATUSES) {
+                continue;
+            }
+            let status = task.get("status").expect("present: opt_one_of failed");
+            coerced.push(CoercedStatus {
+                path: format!("phases[{pi}].tasks[{ti}]"),
+                subject: task
+                    .get("id")
+                    .and_then(Json::as_nonempty_str)
+                    .map_or_else(|| format!("#{ti}"), str::to_owned),
+                status: js_to_string(status),
+            });
+            task.insert("status", Json::Str("pending".to_owned()));
+        }
+    }
+    coerced
 }
 
 /// `^[a-z0-9-]+$`.
