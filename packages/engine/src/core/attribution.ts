@@ -50,6 +50,14 @@ export interface CommitAttribution {
    * several initiatives' trailers, and that is informative.
    */
   initiatives: string[]
+  /**
+   * First line of the commit message (r1-fixes 2.5, D24) — the CLAUDE.md
+   * convention prefixes it with the task id (`2.5: …`), which is how commits
+   * are counted by task without recording a single sha. Empty when the walk
+   * carried no body — absent then, so a walk with no subjects reads exactly
+   * as it always did.
+   */
+  subject?: string
 }
 
 export interface AttributionQuery {
@@ -190,9 +198,11 @@ export function parseAttribution(out: string): CommitAttribution[] {
     const body = bodySep === -1 ? '' : record.slice(bodySep + 1)
 
     const initiatives = parseSlugs(trailers)
+    const subject = (body.split('\n', 1)[0] ?? '').trim()
     commits.push({
       sha,
       initiatives: initiatives.length > 0 ? initiatives : squashedSlugs(body),
+      ...(subject.length > 0 ? { subject } : {}),
     })
   }
   return commits
@@ -381,6 +391,15 @@ export function readShipping(
 ): Map<string, InitiativeShipping> | null {
   const commits = readAttribution(rootDir, query)
   if (commits === null) return null
+  return readShippingFrom(rootDir, commits)
+}
+
+/**
+ * readShipping over a walk the caller already paid for — SessionStart reads
+ * the window ONCE and derives both the shipping notice and the commits-by-task
+ * line from it (D24; D6's "never a second unbounded spawn").
+ */
+export function readShippingFrom(rootDir: string, commits: CommitAttribution[]): Map<string, InitiativeShipping> {
   // Skip the second spawn when nothing in the window is attributed: with no
   // slugs to file, the unpushed set cannot change the answer. This is the
   // dominant case — every repo before it adopts attribution, and any window of
@@ -390,4 +409,40 @@ export function readShipping(
   const branch = currentBranch(rootDir)
   const unpushed = branch === null ? null : readUnpushed(rootDir, `origin/${branch}`)
   return shippingBySlug(commits, unpushed)
+}
+
+/** The CLAUDE.md task-id prefix of a commit subject (`2.5: …`, `12: …`), or null. */
+export function taskOfSubject(subject: string): string | null {
+  const m = /^(\d+(?:\.\d+)*):\s/.exec(subject)
+  return m === null ? null : m[1]!
+}
+
+export interface CommitsByTask {
+  /** Commits in the window carrying this record's trailer. */
+  total: number
+  /** Task id (or `other` for an unprefixed subject) → count, in order of newest appearance. */
+  by_task: [string, number][]
+  /** The newest attributed commit — the walk is newest-first. */
+  newest: { sha: string; subject: string } | null
+}
+
+/**
+ * This record's commits in the walked window, counted by task-id prefix
+ * (r1-fixes 2.5, D24). Read from git, never recorded: the walk is the
+ * bounded one the shipping notice pays, and the answer is a count and a
+ * subject, not a sha the record would have to keep true.
+ */
+export function commitsByTask(commits: readonly CommitAttribution[], slug: string): CommitsByTask {
+  const counts = new Map<string, number>()
+  let newest: CommitsByTask['newest'] = null
+  let total = 0
+  for (const c of commits) {
+    if (!c.initiatives.includes(slug)) continue
+    total += 1
+    const subject = c.subject ?? ''
+    if (newest === null) newest = { sha: c.sha, subject }
+    const key = taskOfSubject(subject) ?? 'other'
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  return { total, by_task: [...counts], newest }
 }

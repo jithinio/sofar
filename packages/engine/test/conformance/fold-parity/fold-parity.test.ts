@@ -79,7 +79,7 @@ const caseIds = existsSync(CASES)
   : []
 
 describe('fold-parity (D22) — cases are committed and named', () => {
-  it('the eight cases exist with sidecars and goldens', () => {
+  it('the nine cases exist with sidecars and goldens', () => {
     expect(caseIds).toEqual(buildCases().map((c) => c.id))
     for (const id of caseIds) {
       expect(existsSync(join(CASES, `${id}.json`)), id).toBe(true)

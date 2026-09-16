@@ -80,7 +80,11 @@ class Log {
   }
 }
 
-const plan = (tasks: number, extra: Record<string, unknown> = {}) => ({
+// The plan_updated PAYLOAD is `{plan}` (SPEC §Event envelope): before r1-fixes
+// 2.5 the builder emitted the bare plan, every case folded it as an invalid
+// payload, and no golden ever held a phase, a task or a task_files entry.
+const plan = (tasks: number, extra: Record<string, unknown> = {}) => ({ plan: planBody(tasks, extra) })
+const planBody = (tasks: number, extra: Record<string, unknown> = {}) => ({
   goal: 'a goal of realistic length for the parity suite',
   phases: [
     {
@@ -203,6 +207,25 @@ export function buildCases(): FoldParityCase[] {
     l.raw(l.lines[2]!) // the session_started once more
     void dup
     cases.push({ id: 'FP-08-duplicate-ids-stable-order', lines: l.lines, sidecar: { tail_at: 4, seeds: [22, 23, 24], refusal: 'out_of_order_id', order_independence: true, note: 'byte-identical duplicate lines (an idempotent re-import): the stable sort keeps file order and a shuffle folds the same; the tail re-imports an EARLIER line, so the fast path refuses it as out_of_order_id and the full fold is the reference' } })
+  }
+  {
+    // r1-fixes 2.5 (D24), case id agreed with rust-core: command outcomes and
+    // per-task tests. Unknown `ok` folds as it always did; the tail begins at
+    // the ok-absent line so snapshot-plus-tail crosses the ok:false one.
+    const l = new Log('demo')
+    l.ev('initiative_created', { slug: 'demo', goal: 'g' })
+    l.ev('plan_updated', plan(2))
+    l.ev('session_started', { tool: 'claude-code' }, { session: 'A' })
+    l.ev('command_run', { cmd: 'npm test', ok: true }, { session: 'A' }) // test-shaped, 1.1 active → one `tested` edge
+    l.ev('task_status_changed', { id: '1.2', status: 'active' }, { session: 'A' })
+    l.ev('command_run', { cmd: 'cd packages/x && npm test -- --run', ok: false, exit: 1 }, { session: 'A' }) // two tasks active → two `tested` edges
+    l.ev('command_run', { cmd: 'vitest run later' }, { session: 'A' }) // ok absent: unknown, never a failure, never a test
+    l.ev('command_run', { cmd: 'npm run build', ok: true }, { session: 'A' }) // a non-test command with an outcome
+    l.ev('task_status_changed', { id: '1.1', status: 'done' }, { session: 'A' })
+    l.ev('task_status_changed', { id: '1.2', status: 'done' }, { session: 'A' })
+    l.ev('command_run', { cmd: 'pytest -q', ok: true }, { session: 'A' }) // none active: the session's last_test moves, no task's does
+    l.ev('session_ended', { summary: 's', next_action: 'n' }, { session: 'A' })
+    cases.push({ id: 'FP-09-command-outcomes-and-tests', lines: l.lines, sidecar: { tail_at: 6, seeds: [25, 26, 27], order_independence: true, note: 'command_run outcomes (r1-fixes 2.5, D24): ok:true test-shaped with one task active, ok:false with exit under two, ok absent (unknown — folds as before), a non-test with ok, a test with none active; the tail starts at the ok-absent line' } })
   }
   return cases
 }

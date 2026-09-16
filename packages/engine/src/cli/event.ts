@@ -27,13 +27,16 @@ import {
   type InitiativeState,
   type SessionState,
 } from '../core/fold'
-import { readAttribution, readShipping } from '../core/attribution'
+import { commitsByTask, readAttribution, readShippingFrom, type CommitAttribution } from '../core/attribution'
+import { activityEnabled } from '../core/derived'
 import { readGitState, type GitState } from '../core/git'
 import { noteEngine, noteUpstream } from '../core/shipwatch'
 import { version as ENGINE_VERSION } from '../../package.json'
 
 /** Commits walked for the SessionStart shipping notice — bounded per D6. */
 const SHIPPING_WINDOW = 30
+/** Subject clip on the commits-by-task line (D24). */
+const COMMIT_SUBJECT_BUDGET = 72
 import { refreshTier0, refreshTier0Known } from '../core/index-tier0'
 import {
   guardsForSubject,
@@ -726,11 +729,17 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     // (session-orientation 2.2). The block's state-derived sections stay
     // byte-stable for an unchanged record (felt-cost 1.2): the tail is
     // appended after them, never interleaved.
+    // ONE bounded attribution walk (SPEC §Commit attribution, D6) feeds both
+    // the shipping notice and the commits-by-task line (r1-fixes 2.5, D24):
+    // the same window, read once, never a second spawn on the hook path.
+    const commits = readAttribution(rootDir, { maxCount: SHIPPING_WINDOW })
+    const activity = activityEnabled()
     const notices = [
       recentWorkElsewhereNotice(ctx.sofarDir, slug, via),
       closedBanner(state),
       advisory,
-      shippingNotice(rootDir, slug),
+      shippingNotice(rootDir, slug, commits),
+      activity ? commitsNotice(commits, slug) : null,
     ].filter((p): p is string => p !== null)
     // The quick lane renders its own lean block (r1-fixes 2.6, D14): the same
     // template, minus every section that presumes a plan or a write-back.
@@ -741,6 +750,7 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
       ...(neighbours.length > 0 ? { neighbours } : {}),
       ...(notices.length > 0 ? { notices } : {}),
       ...(slug === QUICK_LANE ? { lane: true } : {}),
+      ...(activity ? {} : { activity: false }),
     })
     // The size half of a memory-use signal (self-improve 1.2): how many bytes
     // this hook put in front of the model, and how many of them were repo
@@ -1244,10 +1254,10 @@ function gitStateLine(git: ReturnType<typeof readGitState>): string | null {
  *
  * Best-effort like every other reader on a shim path: any failure is silence.
  */
-function shippingNotice(rootDir: string, slug: string): string | null {
+function shippingNotice(rootDir: string, slug: string, commits: CommitAttribution[] | null): string | null {
   try {
-    const shipping = readShipping(rootDir, { maxCount: SHIPPING_WINDOW })
-    const mine = shipping?.get(slug)
+    if (commits === null) return null
+    const mine = readShippingFrom(rootDir, commits).get(slug)
     if (mine === undefined) return null
     if (mine.unknown.length > 0) {
       // Two causes, both honest as `unknown` and neither worth guessing
@@ -1262,6 +1272,22 @@ function shippingNotice(rootDir: string, slug: string): string | null {
   } catch {
     return null
   }
+}
+
+/**
+ * Commits by task (r1-fixes 2.5, D24) — the third fact a session used to
+ * narrate. Read from the walk SessionStart already pays, counted by the
+ * CLAUDE.md task-id prefix, never recorded (SPEC §Commit attribution). One
+ * volatile-tail line; silent when the window holds none of this record's.
+ */
+function commitsNotice(commits: CommitAttribution[] | null, slug: string): string | null {
+  if (commits === null) return null
+  const mine = commitsByTask(commits, slug)
+  if (mine.total === 0) return null
+  const counts = mine.by_task.map(([task, n]) => `${task} ×${n}`).join(', ')
+  const newest =
+    mine.newest === null ? '' : ` — newest ${mine.newest.sha.slice(0, 7)} ${clipTo(mine.newest.subject, COMMIT_SUBJECT_BUDGET)}`
+  return `Commits (this record, last ${commits.length} walked): ${counts}${newest}. Files, commands, test outcomes and commits are captured — write only why.`
 }
 
 /** Commits walked when origin actually moves — the arrival window (3.4). */

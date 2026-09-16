@@ -1,3 +1,4 @@
+import { withActivityGuidance } from '../core/derived'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
@@ -157,7 +158,10 @@ export function createSofarServer(options: CreateSofarServerOptions = {}): Sofar
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: TOOL_DEFS.map((tool) => ({
       name: tool.name,
-      description: tool.description,
+      // "Log only why" (r1-fixes 2.5, D24): the two write tools that take
+      // prose say once what hooks already capture. Read at list time so the
+      // ablation arm (SOFAR_ACTIVITY=off) removes the telling with the showing.
+      description: withActivityGuidance(tool.name, tool.description),
       inputSchema: tool.inputSchema,
     })),
   }))

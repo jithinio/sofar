@@ -1,5 +1,5 @@
 import type { InitiativeState, SessionState } from '../../core/fold'
-import { GENERATED_HEADER, describeActivity, doc } from './shared'
+import { GENERATED_HEADER, describeActivity, doc, testOutcomeLine } from './shared'
 
 /**
  * sessions/<session-id>.md template (task 3.6, BD3): per-session detail —
@@ -43,7 +43,8 @@ export function renderSession(state: InitiativeState, session: SessionState): st
       lines.push(`- Files:`)
       for (const file of activity.files) lines.push(`  - ${file}`)
     }
-    lines.push(`- Commands run: ${activity.commands}`)
+    lines.push(`- Commands run: ${activity.commands}${activity.failed !== undefined ? ` (${activity.failed} failed)` : ''}`)
+    if (activity.last_test !== undefined) lines.push(`- Last test: ${testOutcomeLine(activity.last_test)}`)
     if (activity.task_changes.length > 0) {
       lines.push(`- Task changes:`)
       for (const change of activity.task_changes) lines.push(`  - ${change}`)

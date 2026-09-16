@@ -6,20 +6,21 @@
 - Tool: claude-code
 - Model: claude-fable-5-1
 - Started: 2026-09-16T08:19:52.411Z
-- Ended: 2026-09-16T08:36:07.950Z
+- Ended: 2026-09-16T09:42:33.717Z
 
 ## Summary
 
-4.3 handoff packet delivered and acknowledged: filed in bench-refresh as note 01M2MNHAKF9JFZAEBBNNDNMC4C. D23 logged (SOFAR_LESSONS is the RC's only switch; other levers by PREDICT observables). Freeze not confirmable yet: round 1's Claude arms are paused on bench-refresh D17 cap until ~2026-09-22; round 2 still targets 179b8fd.
+4.3 handoff delivered and acknowledged (bench-refresh note 01M2MNHAKF9JFZAEBBNNDNMC4C; freeze pending ~2026-09-22). Merged main into r1-fixes (af13adb). 2.5 built to D24 and done: derived outcomes, commits-by-task, WHY guidance, SOFAR_ACTIVITY switch; FP-09 added and the parity builder's missing {plan} wrapper fixed (goldens FP-01–08 re-recorded). Suite 2211 green; D18 gate ok.
 
 ## Next action
 
-Nothing actionable before ~2026-09-22: 4.3 closes on bench-refresh's freeze confirmation (arrives as a peer message); 4.4 after round-2 evidence passes D19. 4.1 waits for bench-refresh 4.1; 2.5 for self-improve 1.2; 3.2 and 5.1 ship in the next release, then tell sofar-cloud the version (D21).
+3.2 for the next release: contract Decision first (no wall-clock in replay, standing rules never age out, byte-stable injection, own off-switch), then build. Then tell rust-core the 2.5 sha if not yet sent. 4.3 closes on bench-refresh's freeze confirmation; 4.4 after round-2 evidence; 4.1 waits for bench-refresh 4.1.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 61 commands, task changes: 4.3 → blocked, 2.5 → pending
-- Commands run: 61
+- Derived: 157 commands, task changes: 4.3 → blocked, 2.5 → pending, 2.5 → done
+- Commands run: 157
 - Task changes:
   - 4.3 → blocked
   - 2.5 → pending
+  - 2.5 → done

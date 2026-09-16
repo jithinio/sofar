@@ -212,7 +212,7 @@ memories[ {id, ts, text} ],
 sessions[ {id, tool, model?, started, ended?,
 summary?, next_action?, closed_reason?, activity?, handoff?: {run, reason,
 ts}} ],
-files_touched[], task_files, drop_notes, guard_violations[ {decision, rule,
+files_touched[], task_files, task_tests? (r1-fixes 2.5, D24: present only when non-empty), drop_notes, guard_violations[ {decision, rule,
 guard, domain, subject, event_id, ts, session} ], reviews[ {id, ts, scope,
 verdict, watermark?, phase?, findings[]} ], runs[ {id, ts, adapter, policy,
 threshold_pct?, context_window?, max_sessions?, handoffs[ {ts, session_id, reason, task?,
@@ -626,11 +626,12 @@ structural (final folded plan; no event_id)
   has_task    phase      -> task
 occurrence (exactly ONE edge per sourcing event; carries event_id + ts)
   touched     session    -> file       file_touched            attrs.op
-  ran         session    -> command    command_run
+  ran         session    -> command    command_run             attrs.ok/exit/test only when the host said (D24)
   changed     session    -> task       task_status_changed     attrs.status
   decided     session    -> decision   decision_logged
   noted       session    -> note       note_added
   worked      task       -> file       file_touched x every task ACTIVE then
+  tested      task       -> command    test-shaped command_run with a KNOWN ok x every task ACTIVE then (r1-fixes 2.5, D24)
 derived from decision prose (closed lexical grammar; no event_id)
   cites       decision   -> decision | task
 structural (predecessor's folded `successor`; no event_id; initiative-supersession D1)
@@ -2402,6 +2403,39 @@ per-session, so it is named ONCE where the agent reads: SessionStart injects
 an unbound notice naming `sofar switch` / `sofar new`, and the statusline
 renders `unbound`. Both are scoped to repos that carry a record — a repo
 sofar has never touched is unchanged.
+**Derived activity (r1-fixes 2.5, D24) — the model logs only why.** The
+outcome facts self-improve 1.2 put on the record — `ok`/`exit` on command_run
+and file_touched — are folded, never narrated. (1) RECOGNIZER: `core/derived.ts`
+holds a CLOSED set of test runners matched at the head of each shell segment
+(`&&`, `||`, `;`, `|`, newline; quote-aware) after `VAR=value` prefixes are
+dropped — `cd pkg && npm test` and `CI=1 npx vitest run` are test-shaped,
+`git commit -m "npm test"` is not. It is pure: what the command DID is `ok`.
+(2) FOLD: a `ran` edge carries {ok, exit?, test?} only when `ok` is known, and
+a `tested` edge (task → command) is written for every task ACTIVE at a
+test-shaped command with a known `ok` — the task_files window. On finalize a
+session's activity gains OPTIONAL `failed` (ok:false only; an absent `ok` is
+UNKNOWN, never a failure) and `last_test` {cmd, ok, exit?}, and the state
+gains OPTIONAL `task_tests` (task id → latest {cmd, ok, exit?, ts, event_id}),
+present only when non-empty — a record without outcome fields folds
+byte-identically, so every fold-parity golden and pre-capture projection is
+unchanged (D21). (3) SURFACES: sessions/<id>.md says `Commands run: N (M
+failed)` and `Last test: pass|fail — <cmd>`; describeActivity says `N
+commands (M failed), tests pass|fail`; the status block's Current task gains
+one budgeted `tests: pass|fail — <cmd>` line, which a D19 verification at
+least as new takes over as `tests: verified <result> — <command>`.
+(4) COMMITS, read from git and never recorded (§Commit attribution): SessionStart
+reads the shipping window ONCE and derives from the same walk a volatile-tail
+line `Commits (this record, last N walked): <task> ×n, … — newest <sha7>
+<subject>`, counting this record's trailered commits by the task-id prefix of
+their subject (`2.5: …`; `other` for the rest); CommitAttribution carries the
+`subject`. (5) GUIDANCE: sofar_update_task's and sofar_end_session's
+descriptions end with the "WHY — never restate what hooks capture" sentence,
+and the CLAUDE.md and AGENTS.md protocol blocks carry the same clause in
+DURING (their predecessors sit in the ledger as stale). (6) SWITCH:
+`SOFAR_ACTIVITY=off` (also `0`, `false`) removes the tests line, the commits
+line and the two description sentences — round 3's ablation arm (D5, D23);
+projections read no env and are unchanged by it.
+
 **Quick-work lane (r1-fixes 2.6, D14, D15).** The reserved slug `quick` is
 the standing per-repo record ad-hoc work lands in with no ceremony. It is a
 FALLBACK, never a binding and never a home: (1) `resolveInitiative` answers
@@ -3964,6 +3998,28 @@ stay the underlying derivation's, and exit codes are styling-independent.
   lessons line; a runner-up under 0.6× the top score is dropped; an
   unregistered session gets nothing; the line clips at 320 chars; and the
   hook appends nothing.
+- **Derived activity (r1-fixes 2.5):** a record whose command_run events
+  carry no `ok` folds to state with no `task_tests` key and to session
+  activity with no `failed` or `last_test`, so every pre-capture projection
+  and fold-parity golden is byte-identical; with outcomes, a session's
+  activity counts `failed` (ok:false only — an absent `ok` is unknown, never
+  a failure) and keeps the newest test-shaped command with a known `ok` as
+  `last_test`, and `task_tests` holds that outcome for every task ACTIVE at
+  the command; the recognizer accepts `npm test`, `cd x && npm run test:unit
+  -- --run`, `CI=1 npx vitest run`, `cargo test --all`, `ls; pytest -q`, `npm
+  test | tail` and rejects `git commit -m "npm test"`, `echo "a && npm
+  test"`, `make testing`; sessions/<id>.md says `Commands run: N (M failed)`
+  and `Last test: pass|fail — <cmd>`; the status block's Current task gains
+  `tests: pass — <cmd>`, a verification at least as new renders `tests:
+  verified <result> — <command>` instead, and `activity: false` omits the
+  line; SessionStart on a repo whose trailered commits are subject-prefixed
+  renders `Commits (this record, last N walked): 2.5 ×2, other ×1 — newest
+  <sha7> <subject>` from one attribution walk and omits it under
+  `SOFAR_ACTIVITY=off`; parseAttribution keeps the subject and omits the key
+  when the walk carried none; `withActivityGuidance` appends the WHY sentence
+  to exactly sofar_update_task and sofar_end_session and to neither under the
+  switch; both protocol blocks contain the WHY clause and their V7
+  predecessors classify as stale.
 - **Repo memory capture:** `sofar remember <text>` and `sofar_remember`
   append memory_promoted and report the `<slug> M<n>` handle; ordinals follow
   log order; `memory.md` appears only once something is promoted; empty text

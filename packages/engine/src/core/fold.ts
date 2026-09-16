@@ -7,6 +7,8 @@ import {
   taskFilesFromEdges,
   type GraphEdge,
   type SessionActivity,
+  taskTestsFromEdges,
+  type TaskTestOutcome,
 } from './adjacency'
 import {
   coerceUnknownPlanStatuses,
@@ -535,6 +537,13 @@ export interface InitiativeState {
    */
   task_files: Record<string, string[]>
   /**
+   * Latest test outcome per task (r1-fixes 2.5, D24): task id → the newest
+   * test-shaped command_run with a KNOWN `ok` while the task was ACTIVE, the
+   * window task_files uses. OPTIONAL and present only when non-empty, so a
+   * record without outcome fields folds to byte-identical state (D21).
+   */
+  task_tests?: Record<string, TaskTestOutcome>
+  /**
    * Task id → the reason given when it was dropped (task-drop-state D3).
    * A drop is the one way a task closes without being delivered, so the
    * reason is the whole record of it — kept addressable so surfaces can
@@ -899,6 +908,8 @@ export function finalizeFold(cp: FoldCheckpoint): FoldResult {
   const warnings = cp.warnings.slice()
   const edges = cp.edges.slice()
   state.task_files = taskFilesFromEdges(edges)
+  const tests = taskTestsFromEdges(edges)
+  if (Object.keys(tests).length > 0) state.task_tests = tests
   attachActivity(state, activityFromEdges(edges))
   deriveCurrent(state, cp.blockNotes)
   // Keep only ids the FINAL plan never absorbed (a later task_added /

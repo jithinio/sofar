@@ -7,6 +7,7 @@ import {
   staleActivePhases,
   type InitiativeState,
   type SessionState,
+  type TaskState,
 } from '../../core/fold'
 import type { GitState } from '../../core/git'
 import type { NeighbourRecord } from '../../core/index-tier1'
@@ -21,8 +22,7 @@ import {
   phaseFraction,
   progressText,
   standingConstraintLines,
-  taskProgress,
-} from './shared'
+  taskProgress, testOutcomeLine } from './shared'
 
 /**
  * Status projection — the SessionStart context block (task 3.6, BD3):
@@ -419,6 +419,12 @@ export interface StatusOptions {
    * block. Decisions render as always: they are the "why" the lane recalls.
    */
   lane?: boolean
+  /**
+   * Derived activity lines (r1-fixes 2.5, D24): the active task's latest test
+   * outcome. Default on; the CALLER passes false under SOFAR_ACTIVITY=off —
+   * the switch is read by the hook, never here (templates read no env).
+   */
+  activity?: boolean
 }
 
 /** How the lane works — static, so it sits in the cached head (D12). */
@@ -434,6 +440,21 @@ const LANE_HOW_LINES = [
  * a session that has no record YET is exactly the one about to register,
  * and one wording is what keeps the two surfaces from teaching different ids.
  */
+/**
+ * `tests: pass — npm test` for the active task (D24). A D19 verification that
+ * is at least as new is the stronger fact — the driver ran the task's OWN
+ * acceptance command on a fingerprinted tree — and takes the line instead.
+ */
+function taskTestsLine(state: InitiativeState, task: TaskState): string | null {
+  const test = state.task_tests?.[task.id]
+  const v = task.verification
+  if (v !== undefined && (test === undefined || v.ts >= test.ts)) {
+    return `tests: verified ${v.result} — ${v.command}`
+  }
+  if (test === undefined) return null
+  return `tests: ${testOutcomeLine(test)}`
+}
+
 export function sessionIdLine(sessionId: string | null | undefined): string | null {
   const id = sessionId?.trim() ?? ''
   if (id.length === 0) return null
@@ -535,6 +556,13 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
       const files = state.task_files[current.id]
       if (files !== undefined && files.length > 0) {
         lines.push(`  ${clip(`files: ${files.slice(0, MAX_TASK_FILES).join(', ')}`, TASK_FILES_LINE_BUDGET - 2)}`)
+      }
+      // The task's latest test outcome (r1-fixes 2.5, D24) — what the record
+      // already knows, so the agent need not narrate it. One budgeted line,
+      // silently absent when no outcome was ever reported.
+      if (options?.activity !== false) {
+        const tests = taskTestsLine(state, current)
+        if (tests !== null) lines.push(`  ${clip(tests, TASK_FILES_LINE_BUDGET - 2)}`)
       }
     }
     if (next !== undefined) {

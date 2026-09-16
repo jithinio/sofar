@@ -1,7 +1,7 @@
 {
   "state": {
     "current": {
-      "active_phase": null,
+      "active_phase": "Phase 1 — first",
       "next_action": "n"
     },
     "cursor": "01KDVDNGTRD87THWBENGF2S4KP",
@@ -23,10 +23,44 @@
       "notes": [],
       "unattributed_mutations": 0
     },
-    "goal": "g",
+    "goal": "a goal of realistic length for the parity suite",
     "guard_violations": [],
     "memories": [],
-    "phases": [],
+    "phases": [
+      {
+        "name": "Phase 1 — first",
+        "status": "active",
+        "tasks": [
+          {
+            "id": "1.1",
+            "status": "active",
+            "title": "task 1"
+          },
+          {
+            "id": "1.2",
+            "status": "pending",
+            "title": "task 2"
+          }
+        ]
+      },
+      {
+        "name": "Phase 2 — second",
+        "status": "pending",
+        "tasks": [
+          {
+            "id": "2.1",
+            "route": {
+              "agent": "codex"
+            },
+            "status": "pending",
+            "title": "later",
+            "verify": {
+              "cmd": "npm test"
+            }
+          }
+        ]
+      }
+    ],
     "reviews": [],
     "runs": [],
     "sessions": [
@@ -51,7 +85,6 @@
   "warnings": [
     "line 3: unparseable JSON — skipped (torn or corrupt line)",
     "line 6: invalid envelope (v: must be 1; id: must be a 26-char ulid; ts: must be an ISO8601 timestamp; initiative: must be a non-empty slug; session: must be a non-empty session id (or \"cli\"); source: must be one of: claude-code, opencode, codex, cli, hook; actor: must be one of: agent, human) — skipped",
-    "line 2: invalid plan_updated payload (plan: must be an object) — skipped",
     "line 5: unknown event type \"telemetry_emitted\" — skipped",
     "line 9: invalid task_status_changed payload (status: must be one of pending|active|done|blocked|dropped) — skipped"
   ]

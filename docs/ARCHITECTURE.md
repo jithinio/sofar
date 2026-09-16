@@ -92,6 +92,7 @@ synced, and any absence, staleness, or corruption falls back to reading the logs
 | `core/index-reach.ts` | **Reach tier.** What `sofar find` traverses: decisions, notes, files, sessions and citation edges, each carrying the event id that produced it. Read only when asked, so it can afford prose the hot tiers cannot. |
 | `core/lexicon.ts` | Turns a question into seeds when nothing denotes it: tokenize, fold plurals and tenses, rank by IDF. No model, and every match returns the words that carried it. |
 | `core/lessons.ts` | Relevant lessons at the prompt (r1-fixes 3.3, D16): BM25-ranks the prompt against this initiative's decisions and stall handoffs with the lexicon's ranker, in-process from the fold — no model, no file read, two lines at most; bounded to the last 60 decisions and switchable off with `SOFAR_LESSONS=off` (D18). |
+| `core/derived.ts` | Derived activity (r1-fixes 2.5, D24): the closed test-command recognizer the fold uses to mark test-shaped `command_run` events, the `SOFAR_ACTIVITY` switch, and the "log only why" sentences the MCP server appends to two tool descriptions. Pure — the fold never reads the env. |
 
 ### 4. Projections — state rendered to disk
 
@@ -119,9 +120,9 @@ silence, never a broken session.
 
 | hook | what it does |
 | --- | --- |
-| SessionStart | Injects the record — goal, progress, next action, decisions, standing constraints, rejected approaches, repo memory. |
+| SessionStart | Injects the record — goal, progress, next action, decisions, standing constraints, rejected approaches, repo memory. One bounded attribution walk feeds the shipping notice and the commits-by-task line (D24). |
 | UserPromptSubmit | Crossed guards and the lessons the prompt re-proposes first (D16), then live hazards: file conflicts, reachable peers, parallel wrap-ups, git state, drift nudge. |
-| PostToolUse | Captures file touches and commands as events (`ok: true`). The point-of-use guard fires here. On an unbound branch it creates the quick lane (`quick`) on the first edit and captures there (D14). A `tool_outcome` diagnostics row goes to the private store — including for the self-recording commands the record exempts. |
+| PostToolUse | Captures file touches and commands as events (`ok: true`). The point-of-use guard fires here. On an unbound branch it creates the quick lane (`quick`) on the first edit and captures there (D14). A `tool_outcome` diagnostics row goes to the private store — including for the self-recording commands the record exempts. Outcomes (`ok`/`exit`) fold into per-session failed counts and per-task test outcomes (D24). |
 | PostToolUseFailure | The failed half: the same mechanical event with `ok: false` (and `exit` when the host gives one), and a `tool_failure` row carrying the redacted, clipped error text the record must never hold. Routes like PostToolUse, quick lane included. |
 | Stop | Blocks a session that owes a write-back — never in the quick lane, which has no write-back. |
 | SessionEnd | Closes the session. |
