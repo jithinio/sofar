@@ -593,12 +593,18 @@ core must reproduce the JS semantics, NOT the Rust defaults:
   `matchRecordedPaths`, the statusline model regex are JS NON-unicode mode:
   `\b`/`\w` are ASCII, `.` excludes `\n \r U+2028 U+2029`, `i` flag uses
   simple case folding.
-- P4 Sorting: `parsed.sort` by id and `compareCodePoints` are code-point
-  order, BUT conflicts, cross-conflict holders, Tier 0 flattening, peers'
-  ambiguity and several listings use `localeCompare` (ICU root collation:
-  base letters compare first and case only as a tertiary difference, so
-  `a < A < b`; punctuation sorts before digits before letters — none of
-  which is code-point order). Ordering of sorted output lines depends on it.
+- P4 Sorting: every hot-path sort compares UTF-16 CODE UNITS — plain JS
+  `<`/`>` on strings, which is what `parsed.sort` by id and the default
+  `Array.prototype.sort` already do (rust-core D6, O1 ruled 2026-09-16;
+  the Rust core's `text::cmp_utf16`). Never `localeCompare`, `Intl` or a
+  Unicode collation: ICU root collation orders `a < A < b` and punctuation
+  before digits before letters, none of which is code-unit order, and a
+  collation table is a multi-MB dependency. Code-unit order differs from
+  code-POINT order only where a supplementary character (surrogate pair)
+  meets a BMP character above U+D7FF. Until r1-fixes 5.2 lands, the
+  TypeScript engine still uses `localeCompare` for conflicts, cross-conflict
+  holders, Tier 0 flattening, peers' ambiguity and several listings; no
+  fixture holds the mixed-case set that would show the difference.
 - P5 JSON numbers serialize per ECMAScript (`1e+21`, `1e-7`, no `.0`,
   shortest round-trip); `JSON.parse` accepts lone-surrogate escapes and
   keeps last-wins on duplicate keys; big integers lose precision to f64.

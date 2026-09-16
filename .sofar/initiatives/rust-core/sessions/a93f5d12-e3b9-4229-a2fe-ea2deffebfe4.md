@@ -6,19 +6,19 @@
 - Tool: claude-code
 - Model: claude-fable-5-1
 - Started: 2026-09-16T11:11:38.837Z
-- Ended: 2026-09-16T11:32:28.526Z
+- Ended: 2026-09-16T11:33:55.723Z
 
 ## Summary
 
-2.4 done: status.rs, projections.rs, resolve.rs, git.rs, status_cli.rs; `status` owned by the binary (D27); render-parity suite (D28) 83 goldens / 988 surfaces byte-identical on the first Rust run; repo.status 9/9 black-box; npm test 2325, 82 Rust tests, clippy clean. Peer r1-fixes announced D25 (decision supersession, FP-10) — acked, mirror pending; D6 TS localeCompare gap raised with them.
+2.4 done (1b5e319): status/projections/resolve/git ports, `status` in the binary (D27), render-parity 83/988 byte-identical (D28), repo.status black-box 9/9. Then a8810d3: HOTPATH P4 pin rewritten to D6; r1-fixes D25 landed as e9f93ab (mirror pending), r1-fixes 5.2 building the TS code-unit comparator.
 
 ## Next action
 
-Commit 2.4 (code, render-parity goldens, docs, record) then start 2.5 with session-start: stdin + resolveSessionFirst/homeInitiative, repo memory, git line, Tier 1 neighbours, notices, proven black-box on repo.session-start and syn.*; mirror r1-fixes D25 (fold + payload rules + schema regen + FP-10) as soon as the peer gives its sha.
+Start 2.5 with the session-start hook (stdin, resolveSessionFirst/homeInitiative, repo memory, git line, Tier 1 neighbours, notices), proven black-box on repo.session-start and syn.*; mirror r1-fixes D25 at e9f93ab (fold decision_logged rule, payload rules, cargo xtask schema, FP-10) first if it blocks fold-parity; note the r1-fixes 5.2 sha when the peer sends it.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 76 commands, task changes: 2.4 → done
-- Commands run: 76
+- Derived: 79 commands, task changes: 2.4 → done
+- Commands run: 79
 - Task changes:
   - 2.4 → done
