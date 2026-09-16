@@ -167,3 +167,23 @@ Conditions, all binding:
 (5) Not in the RC. It lands in the NEXT release after round-2 evidence, so the RC that round 2 measures stays exactly what was frozen (D20, D23).
 Ownership: r1-fixes builds the TypeScript API (r1-fixes 2.7 already built the internal FoldCheckpoint, so this is promotion plus contract and tests); rust-core mirrors it behind the same conformance suite; sofar-cloud consumes it and keeps server-side concerns.
 ALSO: travel-planner 3.3 closed — chain A (52 tests) and chain B (62 tests) are both validated against their sealed references, chain B blind-verified independently (skeleton 0/58, reference 62/62, B1–B6 each failing 7–23 tests). Chain B enters the harness only at round-2 pre-registration.** over Keeping the incremental fold internal (cloud would have to reimplement it, which fold-parity forbids and which the drift work exists to prevent), shipping it inside the RC, or waiting for the Rust port before cloud can start. because Cloud's snapshot+tail ingest is blocked with no legitimate workaround: two implementations of the fold would drift, which is the exact failure the parity rules forbid. The machinery already exists internally, so the work is mostly contract, versioning and tests. Keeping it out of the RC protects round 2's comparison, and the parity plus order-independence guarantees are worth publishing anyway — they are the claims an enterprise buyer asks for.
+- 2026-09-16T09:04:57.537Z — chose **Run owner ruling, 2026-09-16 14:20 IST: pause the whole benchmark until next week.
+- All three launchd runners were booted out: claude and cursor were stopped by hand; codex had already exited on its D14 usage-limit stop.
+- The D17 cap is NOT raised.
+- Resume next week, when both windows have freed: Claude's D17 7-day window about 2026-09-22 10:02Z, Codex's reset 2026-09-21 22:25 IST. That means bootstrapping the three plists again. Each interrupted session re-runs under PRE-REGISTRATION §5.
+- Engine work (r1-fixes, rust-core, self-improve) continues this week on anything that needs no benchmark run.** over Raising the D17 $450 cap to finish Claude round 1 this week; leaving the Claude runner to auto-resume mid-window; keeping Cursor running alone because The owner's plan usage is about 50% spent. A paused round loses nothing: cells resume at their next unscored session. One resume point for all three families keeps rep-by-rep ordering comparable across arms.
+- 2026-09-16T15:56:00.259Z — chose **Run-owner rulings, 2026-09-16 21:40 IST ("all recommended"):
+(1) TRIM round 1, which is tuning-only per D5. Finish only these cells:
+- claude-bare/r2: discarded and re-run whole, as the one bare rep.
+- claude-obsidian/r3: finish.
+- claude-claudemd/r1: rewind to its `bench: after S4` commit and re-run S5–S10, since S5 was a 429 recorded as failed and S6–S10 built on it.
+- claude-drive/r1: set aside and re-run.
+- codex-bare/r1: 1 rep.
+- codex-drive/r1: 1 run.
+- Cursor: finish all 3 reps (not budget-bound).
+- Every other unstarted or partial Claude/Codex cell is dropped from round 1.
+(2) Approve the repair: claude-bare/r2 and claude-drive/r1 cells moved aside and their ledger entries dropped.
+(3) claudemd/r1 S5–S10 re-run, per (1).
+(4) L01 CLAUDE.md leak: round 1 stays as is for rep comparability; round 2 must fix it (cells root outside $HOME, plus a doctor check).
+(5) L05: a provider message carrying a reset time ("try again at …", "resets …") pauses (LimitPause, exit 4) even when it has upsell words, provided overage is verified off. Any payment or credit-purchase prompt WITHOUT a reset time still stops (D14).
+(6) L07–L10 are built into a new release candidate (0.33.0-rc.2) BEFORE round 2 freezes, and round 2 measures that RC instead of 179b8fd. L11 is optional if cheap.** over Finishing the frozen 3-rep round 1 (Claude about 1.4 weeks, Codex 3–4 weeks at current caps); leaving the damaged cells in place; round 2 on 179b8fd with L07–L10 deferred to round 3 because Round 1 exists only to find losses, and every key comparison already has 2 clean reps. Round 2 carries the public numbers, so it should measure the fixes the loss study ranked first. L07 alone explains 0 standing rules across 43 CLI-agent decisions.

@@ -51,7 +51,7 @@ Progress: 2/22 tasks done (9%)
 
 ## Phase 4 — Loss study + improvements [pending] — 0/2 done
 
-- [ ] 4.1 Loss-study report: every score gap, fallback and failure, classified with evidence and ranked by expected gain × frequency ÷ effort. Name the top big-win fixes, each with a PREDICTED gain (D10).
+- [ ] 4.1 Loss-study report: every score gap, fallback and failure, classified with evidence and ranked by expected gain × frequency ÷ effort. Name the top big-win fixes, each with a PREDICTED gain (D10). (active)
 - [ ] 4.2 User picks which big-win fixes to build. Open an initiative per fix; build, test and release between rounds (the user runs npm publish).
 
 ## Phase 5 — Round 2 [pending] — 0/2 done
@@ -66,4 +66,4 @@ Progress: 2/22 tasks done (9%)
 - [ ] 6.3 Replace stale public claims: one-pager R04 figures, install name @alignlabs/sofar, "adds nothing to your bill" next to --cost-cap
 
 Active phase: Phase 1 — Claim + round design
-Next action: Round 2 addendum: agent Seatbelt signal isolation plus harness readiness liveness check
+Next action: Run owner: rule on rc.2 scope and create the memory-lead initiative
