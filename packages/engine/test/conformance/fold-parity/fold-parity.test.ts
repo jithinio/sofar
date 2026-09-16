@@ -79,7 +79,7 @@ const caseIds = existsSync(CASES)
   : []
 
 describe('fold-parity (D22) — cases are committed and named', () => {
-  it('the nine cases exist with sidecars and goldens', () => {
+  it('every case exists with a sidecar and a golden', () => {
     expect(caseIds).toEqual(buildCases().map((c) => c.id))
     for (const id of caseIds) {
       expect(existsSync(join(CASES, `${id}.json`)), id).toBe(true)
@@ -130,6 +130,155 @@ for (const id of caseIds) {
     }
   })
 }
+
+// ---------------------------------------------------------------------------
+// rust-core 1.6 — union-merge conformance. `sofar init` marks every
+// events.jsonl `merge=union` (.gitattributes), so N branches that appended to
+// the SAME log merge without a conflict and the merged file is the UNION of
+// their lines. The fold is convergent (replay in id order, D-sync-1), so the
+// merged log must fold to exactly what the union folds to — which for a case
+// split head + tail across branches is the case's own golden state.
+// ---------------------------------------------------------------------------
+
+function git(cwd: string, args: string[], home: string): string {
+  const r = spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    env: {
+      PATH: process.env.PATH,
+      HOME: home,
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_CONFIG_GLOBAL: join(home, 'gitconfig'),
+      GIT_AUTHOR_NAME: 'fold-parity',
+      GIT_AUTHOR_EMAIL: 'fold-parity@example.invalid',
+      GIT_COMMITTER_NAME: 'fold-parity',
+      GIT_COMMITTER_EMAIL: 'fold-parity@example.invalid',
+      GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z',
+      GIT_COMMITTER_DATE: '2026-01-01T00:00:00Z',
+    },
+  })
+  if (r.status !== 0) throw new Error(`git ${args.join(' ')} → exit ${r.status}: ${r.stderr}`)
+  return r.stdout
+}
+
+const LOG_REL = (slug: string) => join('.sofar', 'initiatives', slug, 'events.jsonl')
+
+/** A repo whose main holds `base` in each slug's log, with the union attribute in place. */
+function repoWith(base: Record<string, string[]>): { root: string; home: string } {
+  const dir = tmp()
+  const root = join(dir, 'repo')
+  const home = join(dir, 'home')
+  mkdirSync(root, { recursive: true })
+  mkdirSync(home, { recursive: true })
+  writeFileSync(join(home, 'gitconfig'), '')
+  git(root, ['init', '-q', '-b', 'main'], home)
+  writeFileSync(join(root, '.gitattributes'), '.sofar/**/events.jsonl merge=union\n')
+  for (const [slug, lines] of Object.entries(base)) {
+    mkdirSync(join(root, '.sofar', 'initiatives', slug), { recursive: true })
+    writeFileSync(join(root, LOG_REL(slug)), lines.length === 0 ? '' : `${lines.join('\n')}\n`)
+  }
+  git(root, ['add', '-A'], home)
+  git(root, ['commit', '-q', '-m', 'base'], home)
+  return { root, home }
+}
+
+/** One branch off main appending `lines` to `slug`'s log, committed. */
+function branchAppending(repo: { root: string; home: string }, name: string, slug: string, lines: string[]): void {
+  git(repo.root, ['checkout', '-q', '-b', name, 'main'], repo.home)
+  const log = join(repo.root, LOG_REL(slug))
+  writeFileSync(log, `${readFileSync(log, 'utf8')}${lines.join('\n')}\n`)
+  git(repo.root, ['add', '-A'], repo.home)
+  git(repo.root, ['commit', '-q', '-m', name], repo.home)
+  git(repo.root, ['checkout', '-q', 'main'], repo.home)
+}
+
+function mergeAll(repo: { root: string; home: string }, names: string[]): void {
+  for (const name of names) git(repo.root, ['merge', '-q', '--no-edit', name], repo.home)
+}
+
+const bodyOf = (file: string) => {
+  const lines = readFileSync(file, 'utf8').split('\n')
+  return lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines
+}
+
+for (const id of caseIds) {
+  const file = join(CASES, `${id}.jsonl`)
+  const sidecar = JSON.parse(readFileSync(join(CASES, `${id}.json`), 'utf8')) as CaseSidecar
+  const expected = JSON.parse(readFileSync(join(GOLDEN, `${id}.state.json`), 'utf8')) as { state: unknown }
+
+  it(`fold-parity/union-merge: ${id}`, () => {
+    if (!sidecar.order_independence) return
+    const body = bodyOf(file)
+    const head = body.slice(0, sidecar.tail_at)
+    const tail = body.slice(sidecar.tail_at)
+    // Three writers, the tail dealt round-robin, each on its own branch.
+    const writers = 3
+    // A short tail leaves a writer with nothing: no branch for it.
+    const parts = Array.from({ length: writers }, (_, w) => tail.filter((_, i) => i % writers === w)).filter((p) => p.length > 0)
+    const repo = repoWith({ demo: head })
+    parts.forEach((lines, w) => branchAppending(repo, `writer-${w}`, 'demo', lines))
+    mergeAll(repo, parts.map((_, w) => `writer-${w}`))
+    // The merged file IS the union: every line once, none lost, none invented.
+    const merged = bodyOf(join(repo.root, LOG_REL('demo')))
+    expect([...merged].sort()).toEqual([...body].sort())
+    // Its fold is the case's fold — whatever order git's union driver chose.
+    const out = run(BIN, ['--events', join(repo.root, LOG_REL('demo'))])
+    expect(out.ok).toBe(true)
+    expect(out.state).toEqual(expected.state)
+  })
+}
+
+describe('fold-parity/union-merge across initiatives', () => {
+  it('branches that touched different records merge trivially and each folds to its golden', () => {
+    const ids = caseIds.filter((id) => (JSON.parse(readFileSync(join(CASES, `${id}.json`), 'utf8')) as CaseSidecar).order_independence).slice(0, 2)
+    if (ids.length < 2) return
+    const bodies = ids.map((id) => bodyOf(join(CASES, `${id}.jsonl`)))
+    const sidecars = ids.map((id) => JSON.parse(readFileSync(join(CASES, `${id}.json`), 'utf8')) as CaseSidecar)
+    const repo = repoWith({ x: bodies[0]!.slice(0, sidecars[0]!.tail_at), y: bodies[1]!.slice(0, sidecars[1]!.tail_at) })
+    branchAppending(repo, 'on-x', 'x', bodies[0]!.slice(sidecars[0]!.tail_at))
+    branchAppending(repo, 'on-y', 'y', bodies[1]!.slice(sidecars[1]!.tail_at))
+    // Both branches also append to BOTH records, so the same merge carries a
+    // same-file union and a different-file union at once.
+    git(repo.root, ['checkout', '-q', 'on-x'], repo.home)
+    const yLog = join(repo.root, LOG_REL('y'))
+    writeFileSync(yLog, `${readFileSync(yLog, 'utf8')}${bodies[1]!.slice(sidecars[1]!.tail_at, sidecars[1]!.tail_at + 1).join('\n')}\n`)
+    git(repo.root, ['add', '-A'], repo.home)
+    git(repo.root, ['commit', '-q', '-m', 'on-x touches y'], repo.home)
+    git(repo.root, ['checkout', '-q', 'main'], repo.home)
+    mergeAll(repo, ['on-x', 'on-y'])
+    for (const [i, slug] of ['x', 'y'].entries()) {
+      const merged = bodyOf(join(repo.root, LOG_REL(slug)))
+      // The line on-x duplicated into y is byte-identical: the union keeps it
+      // twice, and the convergent fold's stable sort skips the duplicate.
+      expect(new Set(merged)).toEqual(new Set(bodies[i]!))
+      const out = run(BIN, ['--events', join(repo.root, LOG_REL(slug))])
+      expect(out.ok).toBe(true)
+      expect(out.state).toEqual((JSON.parse(readFileSync(join(GOLDEN, `${ids[i]}.state.json`), 'utf8')) as { state: unknown }).state)
+    }
+  })
+
+  it('merged-log fold time (measurement, never a claim — rust-core D5): the largest case, three writers, five spawns', () => {
+    const largest = caseIds.map((id) => ({ id, n: bodyOf(join(CASES, `${id}.jsonl`)).length })).sort((a, b) => b.n - a.n)[0]
+    if (largest === undefined) return
+    const body = bodyOf(join(CASES, `${largest.id}.jsonl`))
+    const repo = repoWith({ demo: body.slice(0, 2) })
+    const tail = body.slice(2)
+    const parts = [0, 1, 2].map((w) => tail.filter((_, i) => i % 3 === w)).filter((p) => p.length > 0)
+    parts.forEach((lines, w) => branchAppending(repo, `writer-${w}`, 'demo', lines))
+    mergeAll(repo, parts.map((_, w) => `writer-${w}`))
+    const log = join(repo.root, LOG_REL('demo'))
+    const samples: number[] = []
+    for (let i = 0; i < 5; i++) {
+      const t0 = performance.now()
+      run(BIN, ['--events', log])
+      samples.push(performance.now() - t0)
+    }
+    samples.sort((a, b) => a - b)
+    // eslint-disable-next-line no-console
+    console.log(`fold-parity/union-merge fold time: ${largest.id} (${body.length} lines, 3 writers merged) min ${samples[0]!.toFixed(1)} ms, p50 ${samples[2]!.toFixed(1)} ms via ${BIN.join(' ')}`)
+    expect(samples.length).toBe(5)
+  })
+})
 
 describe('fold-parity sentinels (D22)', () => {
   const first = caseIds[0]

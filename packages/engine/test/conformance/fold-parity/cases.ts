@@ -249,6 +249,31 @@ export function buildCases(): FoldParityCase[] {
     l.ev('session_ended', { summary: 's', next_action: 'n' }, { session: 'A' })
     cases.push({ id: 'FP-10-decision-supersession', lines: l.lines, sidecar: { tail_at: 9, seeds: [28, 29, 30], order_independence: true, note: 'decision retirement (r1-fixes 3.2, D25): D5 supersedes D1 (resolved), D4 names the rule D2 without a rule (inert), D6 points forward (inert), D7 replaces rule D2 with a rule (resolved), D8 names itself (inert), D3 carries until:1.1 which the tail resolves — stored as recorded, retirement derived; the tail starts at D7' } })
   }
+  {
+    // rust-core 1.6: the session lifecycle arriving out of order — three
+    // ways a hook race or two writers with skewed clocks leave the file.
+    const l = new Log('demo')
+    l.ev('initiative_created', { slug: 'demo', goal: 'g' })
+    l.ev('plan_updated', plan(2))
+    // A: written back BEFORE its registration in FILE order, ids in the
+    // right order (the writer of the write-back was simply first to the file).
+    const base = Date.parse('2026-01-01T00:00:00Z')
+    l.ev('session_ended', { summary: 'A done', next_action: 'B next' }, { session: 'A', at: base + 60_000 })
+    l.ev('session_started', { tool: 'claude-code' }, { session: 'A' })
+    l.ev('task_status_changed', { id: '1.1', status: 'done' }, { session: 'A' })
+    // B: its first mechanical event carries an EARLIER id than its
+    // session_started (lazy registration lost the race to the append).
+    l.ev('session_started', { tool: 'codex' }, { session: 'B', at: base + 70_000 })
+    l.ev('file_touched', { path: 'src/b.ts', op: 'edit' }, { session: 'B', at: base + 65_000 })
+    // C: closed with an id BELOW its registration — a clock skewed backwards
+    // between the two writers; the fold sees the close first.
+    l.ev('session_started', { tool: 'claude-code' }, { session: 'C', at: base + 90_000 })
+    l.ev('session_closed', { reason: 'exit' }, { session: 'C', at: base + 80_000 })
+    // The tail is monotonic again: a note from A after everything above.
+    l.ev('note_added', { text: 'settled' }, { session: 'A', at: base + 100_000 })
+    l.ev('session_ended', { summary: 'B done', next_action: 'C next' }, { session: 'B', at: base + 110_000 })
+    cases.push({ id: 'FP-11-session-lifecycle-out-of-order', lines: l.lines, sidecar: { tail_at: 9, seeds: [31, 32, 33], order_independence: true, note: 'session lifecycle arriving out of order (rust-core 1.6): a write-back filed before its registration in file order, a mechanical event with an id below its session_started, a close with an id below its registration; the tail is monotonic so the fast path applies it' } })
+  }
   return cases
 }
 

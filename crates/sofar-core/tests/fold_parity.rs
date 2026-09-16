@@ -49,8 +49,8 @@ fn cases() -> Vec<Case> {
     ids.sort();
     assert_eq!(
         ids.len(),
-        10,
-        "the ten D22 cases (FP-09 from r1-fixes 2.5, FP-10 from 3.2/D25)"
+        11,
+        "the eleven D22 cases (FP-09 from r1-fixes 2.5, FP-10 from 3.2/D25, FP-11 from rust-core 1.6)"
     );
     ids.into_iter()
         .map(|id| {

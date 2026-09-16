@@ -4,16 +4,16 @@
 
 Goal: Move sofar's hot path to a native Rust core incrementally (rust-core D1): contract first, then sofar-core in Rust behind the same CLI and hook contract, integrated with TypeScript fallback, shipped as prebuilt binaries, and proven as its own benchmark arm that shrinks no held-out lead margin (bench-refresh D19). After parity, new hot-path code is Rust-only.
 
-Progress: 13/18 tasks done (72%)
+Progress: 14/18 tasks done (77%)
 
-## Phase 1 — Contract [active] — 4/6 done
+## Phase 1 — Contract [active] — 5/6 done
 
 - [x] 1.1 Inventory the hot-path surface from docs/SPEC.md and engine code: every hook's stdin/stdout/exit behaviour, CLI commands in scope (event append, status, statusline), env vars, files written, event envelope and projection outputs. List every SPEC gap found.
 - [x] 1.2 Black-box conformance suite in the TS repo: runs an implementation binary against golden fixtures (real records including this repo's 9.7 MB log, calib and smoke cells, corrupt and unknown lines, concurrent appends) and compares stdout, exit codes and record bytes. Green on TypeScript first.
 - [x] 1.3 Perf baseline harness: hook p50/p95 cold start and fold/digest latency at 10, 100 and 1,000 initiatives and 1–10 MB records, TypeScript numbers recorded as the target to beat
 - [x] 1.4 Re-pin both parity targets to the RC: re-record the conformance goldens and the perf baseline against r1-fixes 179b8fd (sofar.sh 0.33.0-rc.1, schema 0.10.0) with a reason per changed golden, keeping the 0.32.0 as-shipped and a45ea21 sets alongside (D11); regenerate crates/sofar-schema from the RC's packages/schema/src (task_added/plan verify, run_started verify, handoff detail, memory_promoted supersedes, verification_recorded)
 - [ ] 1.5 team100 scale corpus and perf cell: a PARAMETERISED, exported synthetic-record generator (named writer profiles `agent` 14.3 ev/session 593 B/ev file_touched-heavy and `human` 21 ev/session 798 B/ev with a 1–4 KB session_ended tail, blend ratio, initiatives, writers, events per stream, heavy-tail size distribution) shaped like 100 users on one repo (~20 initiatives, ~500k events, largest log ≥50 MB, 100 session ids); report cold process and warm fold separately, the fold-cost curve vs events and vs bytes (name the log size crossing 100 ms and the full-refold ≥250 ms point), session-start digest, user-prompt, statusline, find/index build, memory high-water, digest and statusline cost as sessions[] grows to 100 writers; interleaved per D12; record the growth budget (MB and events per user per week) and every non-linear turn as an idea with a predicted gain, never built here
-- [ ] 1.6 Order-independence and merge conformance: a property test that the same event SET folds to an identical state under any arrival order (shuffle N times; duplicate ids, out-of-order session_started/ended, corrections; proptest shapes fine), and a union-merge test where N branches append to the SAME initiative's events.jsonl (merge=union .gitattributes path) plus across-initiative merges, asserting the merged fold equals the fold of the union and measuring merged-log fold time
+- [x] 1.6 Order-independence and merge conformance: a property test that the same event SET folds to an identical state under any arrival order (shuffle N times; duplicate ids, out-of-order session_started/ended, corrections; proptest shapes fine), and a union-merge test where N branches append to the SAME initiative's events.jsonl (merge=union .gitattributes path) plus across-initiative merges, asserting the merged fold equals the fold of the union and measuring merged-log fold time
 
 ## Phase 2 — Rust core [done] — 6/6 done
 
@@ -41,4 +41,4 @@ Progress: 13/18 tasks done (72%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: User pushes rust-core (`git -C ~/IO/sofar-rust-core push -u origin rust-core`) so the core matrix and core-conformance jobs run; fix runner labels if macos-15-intel / ubuntu-24.04-arm are unavailable. Then Phase 1's open tasks: 1.6 (order-independence property test + union-merge conformance, shared with r1-fixes) before 1.5 (team100 corpus, parameterised generator, growth budget — measurement only, D12 interleaved). Mirror L09/L10 in the Rust core once r1-fixes lands them (golden re-record with reasons, D11). 4.1 waits on the round-2 addendum freeze at rc.2.
+Next action: User pushes rust-core (`git -C ~/IO/sofar-rust-core push -u origin rust-core`) to run the core matrix and core-conformance CI jobs. Then 1.5 (team100 corpus: parameterised exported generator, scale cells, fold-cost curve, growth budget — measurement only, D12 interleaved, no render work). When r1-fixes lands L09/L10 and Wave A (A1 session adoption from CLAUDE_CODE_SESSION_ID, A2 rule quotes, A3 digest recomposition), mirror each in the Rust core with a golden re-record naming the rc.2 commit and a reason per golden (D11) — that is memory-lead 1.4.

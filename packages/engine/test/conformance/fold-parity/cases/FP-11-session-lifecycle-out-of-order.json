@@ -1,0 +1,10 @@
+{
+  "tail_at": 9,
+  "seeds": [
+    31,
+    32,
+    33
+  ],
+  "order_independence": true,
+  "note": "session lifecycle arriving out of order (rust-core 1.6): a write-back filed before its registration in file order, a mechanical event with an id below its session_started, a close with an id below its registration; the tail is monotonic so the fast path applies it"
+}

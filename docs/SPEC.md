@@ -2049,7 +2049,7 @@ implementations, driven black-box through the hidden `sofar fold` command
 point recursively, arrays in order, JSON.stringify(v, null, 2) verbatim —
 {ok, cursor, version, state, warnings} or the refusal) with
 `SOFAR_CONFORMANCE_BIN` selecting the candidate and the built CLI as the
-reference. Cases `FP-01-plan-tasks-decisions` … `FP-10-decision-supersession`
+reference. Cases `FP-01-plan-tasks-decisions` … `FP-11-session-lifecycle-out-of-order`
 are RAW lines (corrupt and unknown lines included) with a sidecar
 {tail_at, seeds, refusal?, order_independence, note} and a golden {state,
 warnings} recorded through the reference (`FOLD_PARITY_RECORD=1`).
@@ -2061,7 +2061,18 @@ golden's state (warnings are file-order line-numbered and compared only on
 the arrival-order run); `fold-parity/version-mismatch-refolds` — a snapshot
 with a bumped engine or schema version is refused with found and expected;
 `fold-parity/pure-of-clock-and-env` — two runs under different TZ, LANG and
-HOME equal the golden. FP-08's duplicates are byte-identical lines (an
+HOME equal the golden; `fold-parity/union-merge` (rust-core 1.6) — a case's
+head committed to a git repository carrying `sofar init`'s
+`.sofar/**/events.jsonl merge=union` attribute, its tail dealt round-robin
+to three branches that each append and are merged back in turn, merges
+without a conflict, the merged file is the union of every branch's lines
+(none lost, none invented), and its fold equals the golden's state whatever
+order the union driver chose; the across-initiatives form merges branches
+that touched different records (and one that touched both, duplicating a
+byte-identical line the stable sort skips) and folds each to its golden.
+FP-11 is the session lifecycle arriving out of order: a write-back filed
+before its registration in file order, a mechanical event with an id below
+its session_started, a close with an id below its registration. FP-08's duplicates are byte-identical lines (an
 idempotent re-import), so it takes part in order-independence; its tail
 re-imports an EARLIER line, which the fast path refuses as
 `out_of_order_id` — the full fold is the reference there, as for FP-04
