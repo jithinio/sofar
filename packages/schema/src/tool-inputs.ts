@@ -153,6 +153,10 @@ export interface LogDecisionArgs {
   rule?: string
   /** Machine-checkable half of `rule` (drift-hardening D3) — see guards.ts. */
   guard?: string
+  /** `D<n>` of the earlier decision this one replaces (r1-fixes 3.2, D25). */
+  supersedes?: string
+  /** Task id this decision is in force until; never with `rule` (r1-fixes 3.2, D25). */
+  until?: string
 }
 export interface UpdatePlanArgs {
   initiative?: string
@@ -406,14 +410,18 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
         type: 'string',
         minLength: 1,
         description:
-          'ONE short imperative every future session must obey (e.g. "Never emit `@source not` below tailwindcss 4.1."). Makes this a standing constraint: rendered verbatim in every digest, never clipped or aged out. Omit for one-off choices.',
+          'ONE short imperative every future session must obey — a standing constraint, rendered verbatim in every digest, never clipped or aged out. Omit for one-off choices.',
       },
       guard: {
         type: 'string',
         minLength: 1,
         description:
-          'Machine-checkable half of `rule` (requires it): "path:<globs>" matched against edited paths or "cmd:<globs>" against shell commands — comma-separated, leading "!" exempts, * ** ? globs, path patterns match a path tail. Warns when crossed, never blocks. Omit unless the rule is literally "these files" or "these commands".',
+          'Machine-checkable half of `rule` (requires it): "path:<globs>" against edited paths or "cmd:<globs>" against commands; comma-separated, leading "!" exempts. Warns, never blocks. Omit unless the rule is these files or commands.',
       },
+      // Shape is enforced by the payload validator (D25); the schema stays
+      // terse because the whole tool surface is budgeted (2.4, D13).
+      supersedes: { type: 'string', description: 'Earlier decision this replaces (`D<n>`); a rule only by a rule.' },
+      until: { type: 'string', description: 'Task id this holds until it resolves; never with `rule`.' },
     },
     required: ['chose', 'over', 'because'],
     additionalProperties: false,

@@ -227,6 +227,28 @@ export function buildCases(): FoldParityCase[] {
     l.ev('session_ended', { summary: 's', next_action: 'n' }, { session: 'A' })
     cases.push({ id: 'FP-09-command-outcomes-and-tests', lines: l.lines, sidecar: { tail_at: 6, seeds: [25, 26, 27], order_independence: true, note: 'command_run outcomes (r1-fixes 2.5, D24): ok:true test-shaped with one task active, ok:false with exit under two, ok absent (unknown — folds as before), a non-test with ok, a test with none active; the tail starts at the ok-absent line' } })
   }
+  {
+    // r1-fixes 3.2 (D25): decision supersession and task-scoped validity.
+    // What the fold stores is `supersedes`/`until` as recorded and
+    // `superseded_by` where a reference resolves and is permitted; nothing
+    // here reads a clock. The tail starts at the rule-carrying superseder so
+    // snapshot-plus-tail resolves a reference INTO the snapshot.
+    const l = new Log('demo')
+    l.ev('initiative_created', { slug: 'demo', goal: 'g' })
+    l.ev('plan_updated', plan(2))
+    l.ev('session_started', { tool: 'claude-code' }, { session: 'A' })
+    l.ev('decision_logged', { chose: 'sqlite', over: 'postgres', because: 'single user' }, { session: 'A' }) // D1
+    l.ev('decision_logged', { chose: 'never call a model', over: 'a cheap summarizer', because: 'cost', rule: 'Never call a model.' }, { session: 'A' }) // D2, a rule
+    l.ev('decision_logged', { chose: 'a scratch dir per task', over: 'one shared tmp', because: 'isolation', until: '1.1' }, { session: 'A' }) // D3, in force until 1.1 resolves
+    l.ev('decision_logged', { chose: 'lift the model ban', over: 'keeping it', because: 'test', supersedes: 'D2' }, { session: 'A' }) // D4: rule-less superseder of a rule → inert
+    l.ev('decision_logged', { chose: 'postgres after all', over: 'sqlite', because: 'multi user', supersedes: 'D1' }, { session: 'A' }) // D5 retires D1
+    l.ev('decision_logged', { chose: 'forward ref', over: 'none', because: 'test', supersedes: 'D9' }, { session: 'A' }) // D6: points forward → inert
+    l.ev('decision_logged', { chose: 'never call a model, even locally', over: 'the D2 wording', because: 'tightened', rule: 'Never call a model, local or remote.', supersedes: 'D2' }, { session: 'A' }) // D7 retires D2 (rule for rule)
+    l.ev('task_status_changed', { id: '1.1', status: 'done' }, { session: 'A' }) // resolves D3's `until`
+    l.ev('decision_logged', { chose: 'self', over: 'none', because: 'test', supersedes: 'D8' }, { session: 'A' }) // D8 names itself → inert
+    l.ev('session_ended', { summary: 's', next_action: 'n' }, { session: 'A' })
+    cases.push({ id: 'FP-10-decision-supersession', lines: l.lines, sidecar: { tail_at: 9, seeds: [28, 29, 30], order_independence: true, note: 'decision retirement (r1-fixes 3.2, D25): D5 supersedes D1 (resolved), D4 names the rule D2 without a rule (inert), D6 points forward (inert), D7 replaces rule D2 with a rule (resolved), D8 names itself (inert), D3 carries until:1.1 which the tail resolves — stored as recorded, retirement derived; the tail starts at D7' } })
+  }
   return cases
 }
 

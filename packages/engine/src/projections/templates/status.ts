@@ -12,6 +12,7 @@ import {
 import type { GitState } from '../../core/git'
 import type { NeighbourRecord } from '../../core/index-tier1'
 import { LANE_RECENT_SESSIONS, QUICK_LANE } from '../../core/lane'
+import { retireEnabled, retiredOrdinals } from '../../core/retire'
 import {
   clip,
   clipBlockDetect,
@@ -210,7 +211,8 @@ export function renderFullStatus(state: InitiativeState): string {
   lines.push(`Goal: ${state.goal || '(none recorded)'}`)
 
   // Standing constraints (drift-hardening 2.1) — terminal surface, uncapped.
-  const standing = standingConstraintLines(state.decisions)
+  // In force only (r1-fixes 3.2, D25), switch-aware like the digest.
+  const standing = standingConstraintLines(state.decisions, undefined, retireEnabled())
   if (standing.length > 0) {
     lines.push('')
     lines.push(...standing)
@@ -482,7 +484,13 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   // Standing constraints (drift-hardening 2.1): the normative frame, directly
   // under the goal — what every session must obey before it reads any detail.
   // Absent when no decision carries a rule, so old records render unchanged.
-  const standing = standingConstraintLines(state.decisions, STANDING_LEDGER_BUDGET)
+  // Retirement (r1-fixes 3.2, D25): a rule a later rule replaced, and below
+  // a decision superseded or scoped to a task that resolved, leave the block
+  // — derived from the record, never a clock. `SOFAR_RETIRE=off` renders
+  // everything as before: the ablation arm round 3 prices this lever with.
+  const retire = retireEnabled()
+  const retired = retire ? retiredOrdinals(state) : new Set<number>()
+  const standing = standingConstraintLines(state.decisions, STANDING_LEDGER_BUDGET, retire)
   if (standing.length > 0) {
     lines.push(...standing, '')
   }
@@ -801,28 +809,37 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   // and gets the short chose budget — the rule IS its operative content, and
   // the index stops restating it (constraints vs rules).
   if (state.decisions.length > 0) {
-    const recent = state.decisions.slice(-MAX_DECISIONS)
-    const olderCount = state.decisions.length - recent.length
+    // In-force decisions keep their ordinals (D25: ids never renumber); the
+    // window is the last 5 of THEM, so a superseded decision does not spend
+    // a window slot restating what its successor already says. The header
+    // is byte-identical to before when nothing is retired.
+    const inForce = state.decisions
+      .map((d, i) => ({ d, ordinal: i + 1 }))
+      .filter((x) => !retired.has(x.ordinal))
+    const recent = inForce.slice(-MAX_DECISIONS)
+    const olderCount = inForce.length - recent.length
     const shownRules = new Set(
       standing.map((line) => /^- \[D(\d+)\]/.exec(line)?.[1]).filter((n): n is string => n !== undefined),
     )
-    const window = olderCount > 0 ? `last ${recent.length} of ${state.decisions.length}` : `${state.decisions.length}`
+    const count = olderCount > 0 ? `last ${recent.length} of ${inForce.length}` : `${inForce.length}`
+    const window = retired.size > 0 ? `${count} in force, ${retired.size} retired` : count
     lines.push(`Recent decisions (${window}; full text in decisions.md):`)
-    recent.forEach((d, i) => {
-      const ordinal = olderCount + i + 1
+    for (const { d, ordinal } of recent) {
       const ruled = d.rule !== undefined && shownRules.has(String(ordinal))
       const chose = clip(d.chose, ruled ? DECISION_RULED_CHOSE_BUDGET : DECISION_CHOSE_BUDGET)
       const over = hasRealAlternative(d.over) ? ` — over ${clip(d.over, REJECTED_OVER_LINE_BUDGET)}` : ''
-      lines.push(`- [D${ordinal}] ${d.ts.slice(0, 10)}${ruled ? ' (rule above)' : ''} ${chose}${over}`)
-    })
+      const marks = [...(ruled ? ['rule above'] : []), ...(retire && d.supersedes !== undefined ? [`supersedes ${d.supersedes}`] : [])]
+      const mark = marks.length > 0 ? ` (${marks.join('; ')})` : ''
+      lines.push(`- [D${ordinal}] ${d.ts.slice(0, 10)}${mark} ${chose}${over}`)
+    }
 
     // Older rejected approaches (D-ledger, Phase-3 validated; scoped by D11):
     // the `over` of every decision OUTSIDE the recent window that recorded a
     // real alternative — the breadth of "what NOT to re-propose" the window
     // drops. A record of ≤5 decisions has nothing older and renders no ledger.
-    const rejected = state.decisions
+    const rejected = inForce
       .slice(0, olderCount)
-      .map((d, i) => ({ ordinal: i + 1, over: d.over }))
+      .map(({ d, ordinal }) => ({ ordinal, over: d.over }))
       .filter((d) => hasRealAlternative(d.over))
     if (rejected.length > 0) {
       lines.push(`Earlier rejected approaches — do NOT re-propose (${rejected.length} older):`)

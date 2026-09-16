@@ -1,4 +1,4 @@
-import type { DecisionState, InitiativeState, PhaseState } from '../../core/fold'
+import { standingRules, type DecisionState, type InitiativeState, type PhaseState } from '../../core/fold'
 import { doc } from './shared'
 
 /**
@@ -69,11 +69,12 @@ export interface ReviewPacketInput {
  * to check conformance against it would defeat the packet entirely.
  */
 function constraintLines(decisions: readonly DecisionState[]): string[] {
-  const standing = decisions
-    .map((decision, i) => ({ decision, handle: `D${i + 1}` }))
-    .filter((entry) => entry.decision.rule !== undefined)
+  // In force only (r1-fixes 3.2, D25): a rule a later rule replaced is not
+  // law, and a packet that demanded conformance to it would fail the work
+  // for obeying the record. The rejected list below stays complete.
+  const standing = standingRules(decisions)
   if (standing.length === 0) return ['- (none)']
-  return standing.map((entry) => `- [${entry.handle}] ${entry.decision.rule!}`)
+  return standing.map((entry) => `- [D${entry.ordinal}] ${entry.rule}`)
 }
 
 /**

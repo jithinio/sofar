@@ -29,6 +29,7 @@ import {
 } from '../core/fold'
 import { commitsByTask, readAttribution, readShippingFrom, type CommitAttribution } from '../core/attribution'
 import { activityEnabled } from '../core/derived'
+import { retireEnabled } from '../core/retire'
 import { readGitState, type GitState } from '../core/git'
 import { noteEngine, noteUpstream } from '../core/shipwatch'
 import { version as ENGINE_VERSION } from '../../package.json'
@@ -2017,7 +2018,7 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     // `SOFAR_LESSONS=off` is the ablation switch (D18): round 2 prices the
     // line's tokens on their own, and a lever must be separable to be priced.
     const prompt = strField(hook, 'prompt')
-    if (prompt !== null && lessonsEnabled()) lines.unshift(...lessonLines(relevantLessons(state, prompt)))
+    if (prompt !== null && lessonsEnabled()) lines.unshift(...lessonLines(relevantLessons(state, prompt, retireEnabled())))
     lines.unshift(...guardViolationLines(sessionGuardViolations(state, sessionId, me.ended), rootDir))
 
     const wrap = parallelWrapLine(state, sessionId)

@@ -1,5 +1,6 @@
 import type { InitiativeState } from './fold'
 import { lexicalCounts, rankLexical, type LexicalDoc } from './lexicon'
+import { retiredOrdinals } from './retire'
 
 /**
  * Relevant lessons at the prompt (r1-fixes 3.3, D16) — what this record has
@@ -89,25 +90,29 @@ function isFailure(reason: string): boolean {
   return reason === 'stall'
 }
 
-function lessonDocs(state: InitiativeState): LessonDoc[] {
+function lessonDocs(state: InitiativeState, retire: boolean): LessonDoc[] {
   const docs: LessonDoc[] = []
-  const decisions = state.decisions.slice(-LESSON_DOC_CAP)
-  const first = state.decisions.length - decisions.length
-  decisions.forEach((d, i) => {
+  // Retired decisions (r1-fixes 3.2, D25) are not lessons: "ruled out before"
+  // citing a decision a later one reversed would be the record contradicting
+  // itself at the point of use. Ordinals are kept — the cap counts in-force
+  // decisions, so a heavy record's oldest live lesson is still reachable.
+  const retired = retire ? retiredOrdinals(state) : new Set<number>()
+  const live = state.decisions.map((d, i) => ({ d, ordinal: i + 1 })).filter((x) => !retired.has(x.ordinal))
+  for (const { d, ordinal } of live.slice(-LESSON_DOC_CAP)) {
     // The prompt names the SUBJECT, which lives in `chose`; the `over` is
     // what gets rendered. Indexing the whole decision is what lets a
     // re-proposal phrased in the subject's words reach its rejection.
     const prose = `${d.chose} ${d.over} ${d.because}`.slice(0, LESSON_DOC_CHARS)
     const terms = lexicalCounts(prose)
     docs.push({
-      id: `decision:${first + i + 1}`,
+      id: `decision:${ordinal}`,
       ts: d.ts,
       terms,
       tokens: Object.values(terms).reduce((a, b) => a + b, 0),
-      handle: `D${first + i + 1}`,
+      handle: `D${ordinal}`,
       text: d.over,
     })
-  })
+  }
   for (const s of state.sessions) {
     const h = s.handoff
     if (h === undefined || h.detail === undefined || h.detail.trim().length === 0 || !isFailure(h.reason)) continue
@@ -125,10 +130,10 @@ function lessonDocs(state: InitiativeState): LessonDoc[] {
 }
 
 /** The lessons a prompt re-proposes, strongest first; empty for a prompt that names nothing. */
-export function relevantLessons(state: InitiativeState, prompt: string): Lesson[] {
+export function relevantLessons(state: InitiativeState, prompt: string, retire = true): Lesson[] {
   const query = prompt.slice(0, LESSON_PROMPT_CHARS)
   if (query.trim().length === 0) return []
-  const docs = lessonDocs(state)
+  const docs = lessonDocs(state, retire)
   if (docs.length === 0) return []
   const byId = new Map(docs.map((d) => [d.id, d]))
   const ranked = rankLexical(docs, query, docs.length)

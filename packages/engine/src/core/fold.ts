@@ -21,6 +21,7 @@ import {
   type CompiledGuard,
   type CorrectionPayload,
   type GuardDomain,
+  DECISION_HANDLE_RE,
   type DecisionLoggedPayload,
   type HandoffPayload,
   type HandoffReason,
@@ -133,6 +134,17 @@ export interface DecisionState {
    * glob list. Present only alongside `rule`, by payload validation.
    */
   guard?: string
+  /** `D<n>` of the earlier decision this one replaces, as recorded (r1-fixes 3.2, D25). */
+  supersedes?: string
+  /** Task id this decision is in force until, as recorded (D25); never present with `rule`. */
+  until?: string
+  /**
+   * Ordinal of the decision that replaced this one (D25) — set by the fold
+   * when a later decision's `supersedes` resolves here and is permitted (a
+   * rule is replaced only by a rule). Retirement by `until` is NOT stored: it
+   * depends on the task's final status, so core/retire.ts derives it.
+   */
+  superseded_by?: number
 }
 
 /** One performed review (commit-attribution 4.4). */
@@ -409,15 +421,24 @@ export function sessionDebt(state: InitiativeState, session: SessionState): numb
  * Standing constraints (drift-hardening D1): every decision carrying a
  * `rule`, with its 1-based ordinal in log order — the D<n> handle the
  * citation grammar resolves. The single selector behind the digest section,
- * the full-status section, and the update_task point-of-use reminder, so no
- * surface can disagree with another about what the law says.
+ * the full-status section, and the review packet, so no surface can disagree
+ * with another about what the law says.
+ *
+ * A rule replaced by a later rule (`superseded_by`, r1-fixes 3.2, D25) is
+ * not law any more and is skipped while `retire` holds — the default; the
+ * digest passes `SOFAR_RETIRE`'s value so round 3's ablation arm renders
+ * every rule as before. Rules never age out any other way: `until` is
+ * rejected on them, and a rule-less superseder leaves them standing.
  */
 export function standingRules(
   decisions: readonly DecisionState[],
+  retire = true,
 ): Array<{ ordinal: number; rule: string }> {
   const rules: Array<{ ordinal: number; rule: string }> = []
   decisions.forEach((d, i) => {
-    if (d.rule !== undefined) rules.push({ ordinal: i + 1, rule: d.rule })
+    if (d.rule === undefined) return
+    if (retire && d.superseded_by !== undefined) return
+    rules.push({ ordinal: i + 1, rule: d.rule })
   })
   return rules
 }
@@ -1476,7 +1497,26 @@ function applyEvent(
         // Absent stays absent — a missing rule must not serialize as a key.
         ...(p.rule !== undefined ? { rule: p.rule } : {}),
         ...(p.guard !== undefined ? { guard: p.guard } : {}),
+        ...(p.supersedes !== undefined ? { supersedes: p.supersedes } : {}),
+        ...(p.until !== undefined ? { until: p.until } : {}),
       })
+      // Supersession (r1-fixes 3.2, D25): resolve `D<n>` against the
+      // decisions already folded — the log alone, no clock, no env. Inert
+      // when it points forward or at itself (nothing to retire yet; a
+      // decision cannot retire the future), or when a rule-less decision
+      // names a rule: a standing constraint is replaced only by a new
+      // constraint, never dropped by a plain choice. Ordinals are 1-based in
+      // id order, which is what the fold applies in, so the same log folds
+      // to the same marks whatever order the lines arrived.
+      if (p.supersedes !== undefined) {
+        const m = DECISION_HANDLE_RE.exec(p.supersedes)
+        const n = m === null ? NaN : Number(m[1])
+        const ordinal = state.decisions.length
+        const target = Number.isInteger(n) && n < ordinal ? state.decisions[n - 1] : undefined
+        if (target !== undefined && (target.rule === undefined || p.rule !== undefined)) {
+          target.superseded_by = ordinal
+        }
+      }
       break
     }
     case 'memory_promoted': {

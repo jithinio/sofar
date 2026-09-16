@@ -109,13 +109,15 @@ export function describeFreshness(counts: FreshnessState['events_since_writeback
  * Budget semantics: whole entries drop with a count pointer; the first entry
  * always renders whole (a budget that could silence every rule would be a
  * clip by other means). Whitespace is collapsed to keep the list shape — that
- * is normalization, not clipping.
+ * is normalization, not clipping. `retire` (r1-fixes 3.2, D25) is
+ * `SOFAR_RETIRE`'s value: false renders rules a later rule replaced.
  */
 export function standingConstraintLines(
   decisions: readonly DecisionState[],
   budget?: number,
+  retire = true,
 ): string[] {
-  const standing = standingRules(decisions)
+  const standing = standingRules(decisions, retire)
   if (standing.length === 0) return []
   const lines = [`Standing constraints — obey verbatim (${standing.length}):`]
   let used = 0
