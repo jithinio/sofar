@@ -337,6 +337,45 @@ export interface RunStopRequestedPayload {
   run: string
 }
 
+/**
+ * What the 2.2 protocol measured about the detector behind a suggestion
+ * (self-improve 2.3): a reader sees how often this signal is right without
+ * leaving the row. Every field is a measurement, never an estimate.
+ */
+export interface SuggestionTrust {
+  /** Event id of the protocol decision the numbers were produced under. */
+  protocol: string
+  /** Event id of the decision carrying the verdict. */
+  verdict: string
+  precision: number
+  recall: number
+  /** Findings judged on held-out splits — the n behind the precision. */
+  judged: number
+}
+/**
+ * A LOSS ROW proposed from a trusted detector — never a cause, never a fix
+ * (self-improve 2.3). `candidate` is sha256 over {version, signal, scope,
+ * sorted evidence}, so new evidence is a new candidate and approval binds to
+ * the exact one.
+ */
+export interface SuggestionProposedPayload {
+  candidate: string
+  signal: string
+  /** Event ids (or `row:` hashes) the detector cited — the whole set the hash covers. */
+  evidence: string[]
+  count: number
+  /** Highest event id the deriving report read. Recorded, never hashed. */
+  cutoff?: string
+  engine: string
+  detector_version: number
+  trust: SuggestionTrust
+}
+/** approve / reject / revert: append-only transitions on one candidate. */
+export interface SuggestionTransitionPayload {
+  candidate: string
+  reason?: string
+}
+
 export interface KnownEventPayloads {
   initiative_created: InitiativeCreatedPayload
   initiative_status_changed: InitiativeStatusChangedPayload
@@ -358,6 +397,10 @@ export interface KnownEventPayloads {
   run_stopped: RunStoppedPayload
   run_stop_requested: RunStopRequestedPayload
   correction: CorrectionPayload
+  suggestion_proposed: SuggestionProposedPayload
+  suggestion_approved: SuggestionTransitionPayload
+  suggestion_rejected: SuggestionTransitionPayload
+  suggestion_reverted: SuggestionTransitionPayload
 }
 
 export type KnownEventType = keyof KnownEventPayloads
@@ -383,6 +426,10 @@ export const EVENT_TYPES = [
   'run_stopped',
   'run_stop_requested',
   'correction',
+  'suggestion_proposed',
+  'suggestion_approved',
+  'suggestion_rejected',
+  'suggestion_reverted',
 ] as const satisfies readonly KnownEventType[]
 
 export function isKnownEventType(type: string): type is KnownEventType {
@@ -719,6 +766,47 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (!str(p.ref)) e.push('ref: must be a non-empty string (target event id)')
     if (!optStr(p.reason)) e.push('reason: must be a string')
   },
+  suggestion_proposed(p, e) {
+    if (!str(p.candidate)) e.push('candidate: must be a non-empty string (the candidate hash)')
+    if (!str(p.signal)) e.push('signal: must be a non-empty string')
+    // The evidence IS the candidate (self-improve 2.3): a row whose hash covers
+    // nothing could never be re-derived, so approval could not bind to it.
+    if (!Array.isArray(p.evidence) || p.evidence.length === 0 || !p.evidence.every((id) => str(id))) {
+      e.push('evidence: must be a non-empty array of non-empty strings (event ids or row hashes)')
+    }
+    if (typeof p.count !== 'number' || !Number.isInteger(p.count) || p.count < 1) {
+      e.push('count: must be a positive integer')
+    }
+    if (!optStr(p.cutoff)) e.push('cutoff: must be a string')
+    if (!str(p.engine)) e.push('engine: must be a non-empty string')
+    if (typeof p.detector_version !== 'number' || !Number.isInteger(p.detector_version)) {
+      e.push('detector_version: must be an integer')
+    }
+    // Trust travels with the row or the row is an assertion: a reader must see
+    // how often this signal was right without leaving it.
+    if (!isObj(p.trust)) {
+      e.push('trust: must be the 2.2 measurement {protocol, verdict, precision, recall, judged}')
+      return
+    }
+    const t = p.trust
+    if (!str(t.protocol)) e.push('trust.protocol: must be a non-empty string (the protocol decision event id)')
+    if (!str(t.verdict)) e.push('trust.verdict: must be a non-empty string (the verdict decision event id)')
+    for (const key of ['precision', 'recall'] as const) {
+      const v = t[key]
+      if (typeof v !== 'number' || !(v >= 0 && v <= 1)) e.push(`trust.${key}: must be a number between 0 and 1`)
+    }
+    if (typeof t.judged !== 'number' || !Number.isInteger(t.judged) || t.judged < 0) {
+      e.push('trust.judged: must be a non-negative integer')
+    }
+  },
+  suggestion_approved: suggestionTransition,
+  suggestion_rejected: suggestionTransition,
+  suggestion_reverted: suggestionTransition,
+}
+
+function suggestionTransition(p: Obj, e: string[]): void {
+  if (!str(p.candidate)) e.push('candidate: must be a non-empty string (the candidate hash)')
+  if (!optStr(p.reason)) e.push('reason: must be a string')
 }
 
 /**

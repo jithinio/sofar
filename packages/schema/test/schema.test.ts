@@ -49,6 +49,19 @@ const validPayloads: Record<string, Record<string, unknown>> = {
   run_stopped: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSE', reason: 'needs_user', note: 'next action names a release' },
   run_stop_requested: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSE' },
   correction: { ref: '01JZ8B3V0N5B4W8XK2M9QF7TSD' },
+  suggestion_proposed: {
+    candidate: '9f2b1c4d5e6a7b80',
+    signal: 'corrections',
+    evidence: ['01JZ8B3V0N5B4W8XK2M9QF7TSD', '01JZ8B3V0N5B4W8XK2M9QF7TSE'],
+    count: 3,
+    cutoff: '01JZ8B3V0N5B4W8XK2M9QF7TSF',
+    engine: '0.32.0',
+    detector_version: 1,
+    trust: { protocol: '01M2K5DXFHDV642E8008D5CGWN', verdict: '01M2K74TNG81P6FS1QNKA63RCS', precision: 0.97, recall: 0.53, judged: 29 },
+  },
+  suggestion_approved: { candidate: '9f2b1c4d5e6a7b80' },
+  suggestion_rejected: { candidate: '9f2b1c4d5e6a7b80', reason: 'already fixed upstream' },
+  suggestion_reverted: { candidate: '9f2b1c4d5e6a7b80', reason: 'the fix did not hold' },
 }
 
 describe('event type registry', () => {
@@ -117,6 +130,39 @@ describe('validatePayload', () => {
     ['run_stopped', { run: 'r', reason: 'error' }, /note: required/],
     ['run_stop_requested', {}, /run/],
     ['correction', {}, /ref/],
+    // A loss row is its evidence and its measured trust (self-improve 2.3):
+    // without either it could never be re-derived or weighed.
+    ['suggestion_proposed', { signal: 'corrections', evidence: ['a'], count: 1, engine: '0', detector_version: 1, trust: {} }, /candidate/],
+    [
+      'suggestion_proposed',
+      { candidate: 'c', signal: 'corrections', evidence: [], count: 1, engine: '0', detector_version: 1, trust: {} },
+      /evidence/,
+    ],
+    [
+      'suggestion_proposed',
+      { candidate: 'c', signal: 'corrections', evidence: ['a'], count: 0, engine: '0', detector_version: 1, trust: {} },
+      /count/,
+    ],
+    [
+      'suggestion_proposed',
+      { candidate: 'c', signal: 'corrections', evidence: ['a'], count: 1, engine: '0', detector_version: 1 },
+      /trust: must be the 2.2 measurement/,
+    ],
+    [
+      'suggestion_proposed',
+      {
+        candidate: 'c',
+        signal: 'corrections',
+        evidence: ['a'],
+        count: 1,
+        engine: '0',
+        detector_version: 1,
+        trust: { protocol: 'p', verdict: 'v', precision: 1.4, recall: 0.5, judged: 3 },
+      },
+      /trust\.precision/,
+    ],
+    ['suggestion_approved', {}, /candidate/],
+    ['suggestion_rejected', { candidate: 'c', reason: 5 }, /reason/],
   ]
 
   for (const [type, payload, pattern] of invalidCases) {

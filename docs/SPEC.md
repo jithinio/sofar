@@ -167,7 +167,13 @@ reason: closed|needs_user|stall|cost_cap|max_sessions|interrupted|error,
 note? — REQUIRED for `error`; the three driver events ride on envelope
 session `cli`, since a run is not a session; session-driver 1.2, see
 §Driver) · run_stop_requested (run — an operator asking a driver to end its
-run from outside it; in-session-drive D2, see §Driver) · correction (ref)
+run from outside it; in-session-drive D2, see §Driver) · correction (ref) ·
+suggestion_proposed (candidate, signal, evidence, count, cutoff?, engine,
+detector_version, trust {protocol, verdict, precision, recall, judged} — a
+loss row from a TRUSTED detector, never a cause and never a fix) ·
+suggestion_approved · suggestion_rejected · suggestion_reverted
+(candidate, reason? — append-only transitions; approval binds to the
+candidate hash; self-improve 2.3, see §Suggestions)
 `watermark` is review_recorded's load-bearing field, not `verdict`: it is the
 sha the review read THROUGH, and it is what makes the next review's range
 computable. That is why a review is an event and could never have been a
@@ -1711,6 +1717,50 @@ reproduces the report. The plain rendering caps evidence at ten ids per
 finding (`+N more`); the JSON carries them all. Both are byte-plain
 (§CLI UI).
 
+## Suggestions (self-improve — propose-only; a loss row is never a fix)
+`sofar suggest [slug|--all] --dry-run [--json]` derives LOSS ROWS from the
+detectors the 2.2 precision protocol marked TRUSTED and prints them, writing
+nothing. `--list` shows the recorded ones with their history. Persisting is
+always an explicit verb: `sofar suggest record|approve|reject|revert
+<candidate>`, one event each. There is no MCP tool and no digest section — the
+operator asks for suggestions; they are never pushed into every session.
+
+**A candidate.** `{candidate, signal, scope (one initiative), evidence, count,
+cutoff, engine, detector_version, trust}`. It names no cause and proposes no
+change: `corrections` proves the record was fixed N times, not why, so the
+fix, its predicted gain, its falsifier and its budget belong to Phase 3, which
+consumes approved rows. `trust` carries what 2.2 measured about the signal —
+precision, recall, the judged n, and the protocol and verdict event ids — so a
+reader sees how often it is right without leaving the row.
+
+**Trust gates emission.** A candidate exists only for a signal the 2.2
+protocol trusts (today `corrections` alone: precision 0.97, recall 0.53).
+Every other detector stays report-only in §Tune, and adding one REQUIRES a
+re-run of that protocol on a fresh held-out corpus. A detector the corpus gate
+left UNKNOWN proposes nothing, and a signal needs at least 3 instances in
+scope — one correction is ordinary work, a cluster is a pattern.
+
+**The hash is the evidence.** `candidate` is sha256 over `{version, signal,
+scope, sorted evidence}` — not the cutoff, not prose, not a branch name. New
+evidence is a NEW candidate. That is what makes approval bind to the exact one
+and keeps a rejected row suppressed until its evidence actually moves.
+
+**Transitions are append-only.** `record` refuses a candidate the record no
+longer derives, one already recorded, one whose identical evidence was already
+rejected, and any beyond 10 awaiting a verdict in an initiative. `approve` is
+refused once the evidence set has moved, naming the candidate that replaced
+it. `reject` and `revert` require a reason. `revert` ends an approval with a
+new event — stale or not, because an approval that cannot be undone is a trap
+— and erases nothing. Suggestions are deliberately NOT folded into
+InitiativeState, and they are excluded from drift (commit-attribution D18): a
+row that changes nothing cannot stale a next action.
+
+**The protected floor.** The set of things a suggestion may ever change is
+today EMPTY, and log integrity, session routing, standing constraints,
+evaluator integrity, permissions and release policy are never in it. No
+candidate kind that changes what is INJECTED may ship before the offline
+replay check (context size, information preservation) exists.
+
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
 events not already present (dedupe by id — idempotent). Per-initiative
@@ -2919,6 +2969,12 @@ Shims contain no logic — they invoke the sofar CLI.
   hashes, state coverage and blind spots, print UNKNOWN — never zero — for
   every signal this clone cannot observe. `--dry-run` is required and the
   only mode; the command refuses without it and writes nothing.
+- `sofar suggest [slug|--all] --dry-run|--list [--json]` and
+  `sofar suggest record|approve|reject|revert <candidate> [--reason]` —
+  propose-only loss rows from TRUSTED detectors (§Suggestions,
+  self-improve 2.3). Reading writes nothing; each verb appends exactly one
+  event; approval binds to the candidate hash and is refused once its evidence
+  moves; `--reason` is required to reject or revert.
 - `sofar diagnostics [--purge] [--signals] [--json]` — the one human window
   onto the private store (§Diagnostics store): where it is for this clone,
   rows and bytes per initiative and per kind, the retention rule. Counts and
@@ -4189,3 +4245,15 @@ stay the underlying derivation's, and exit codes are styling-independent.
   stated as an upper bound; `--all` spans every initiative; the plain
   rendering is byte-plain, caps evidence at ten with `+N more`, and equals the
   pure renderer over the JSON report.
+- **Suggestions (self-improve 2.3):** `sofar suggest` without `--dry-run` or
+  `--list` exits 1; both reading modes leave `.sofar/` byte-identical. A row is
+  derived only for a TRUSTED signal, only when the corpus gate let its
+  detector run, and only at 3+ instances in scope; it carries the 2.2
+  precision, recall, judged n and protocol id, and names no cause. The
+  candidate hash is stable when unrelated events move the cutoff and changes
+  when the evidence set does. `record` is refused for an underivable
+  candidate, one already recorded, one whose identical evidence was rejected,
+  and past 10 awaiting a verdict; `approve` is refused once the evidence moved
+  and names the replacement; `reject` and `revert` without `--reason` exit 1;
+  `revert` works on a stale approval and leaves proposed/approved/reverted in
+  the log in order; the lifecycle leaves `events_since_writeback` unchanged.

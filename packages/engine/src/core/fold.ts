@@ -872,6 +872,18 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
       // session to owe a write-back. Counting them would make every driven
       // record read as stale the moment its driver did its job.
       break
+    case 'suggestion_proposed':
+    case 'suggestion_approved':
+    case 'suggestion_rejected':
+    case 'suggestion_reverted':
+      // Suggestions are EXCLUDED from drift, deliberately (commit-attribution
+      // D18 requires the class decided here). A loss row is an observation
+      // derived FROM the record that names no cause and changes nothing in it
+      // (self-improve 2.3); an operator's verdict on one settles whether it
+      // enters the fix queue, and Phase 3 turns an approved row into tasks —
+      // THOSE events are the drift. Counting the row itself would make asking
+      // for suggestions stale the next_action it never touched.
+      break
     case 'task_status_changed':
       mutation(() => (counts.tasks += 1))
       break
