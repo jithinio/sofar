@@ -27,13 +27,16 @@ import {
   type InitiativeState,
   type SessionState,
 } from '../core/fold'
-import { readAttribution, readShipping } from '../core/attribution'
+import { commitsByTask, readAttribution, readShippingFrom, type CommitAttribution } from '../core/attribution'
+import { activityEnabled } from '../core/derived'
 import { readGitState, type GitState } from '../core/git'
 import { noteEngine, noteUpstream } from '../core/shipwatch'
 import { version as ENGINE_VERSION } from '../../package.json'
 
 /** Commits walked for the SessionStart shipping notice — bounded per D6. */
 const SHIPPING_WINDOW = 30
+/** Subject clip on the commits-by-task line (D24). */
+const COMMIT_SUBJECT_BUDGET = 72
 import { refreshTier0, refreshTier0Known } from '../core/index-tier0'
 import {
   guardsForSubject,
@@ -47,6 +50,8 @@ import {
 import { resolvePeers, type Peer } from '../core/peers'
 import { nudgeLine, readNudge } from '../driver/nudge'
 import { redactCommand } from '../core/redact'
+import { recordDiagnostic } from '../core/diagnostics'
+import { clipDiagnosticText, DIAGNOSTIC_HEAD_CLIP } from '@sofar/schema/diagnostics'
 import { newestEvent } from '../core/warmth'
 import {
   createToolContext,
@@ -724,11 +729,17 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     // (session-orientation 2.2). The block's state-derived sections stay
     // byte-stable for an unchanged record (felt-cost 1.2): the tail is
     // appended after them, never interleaved.
+    // ONE bounded attribution walk (SPEC §Commit attribution, D6) feeds both
+    // the shipping notice and the commits-by-task line (r1-fixes 2.5, D24):
+    // the same window, read once, never a second spawn on the hook path.
+    const commits = readAttribution(rootDir, { maxCount: SHIPPING_WINDOW })
+    const activity = activityEnabled()
     const notices = [
       recentWorkElsewhereNotice(ctx.sofarDir, slug, via),
       closedBanner(state),
       advisory,
-      shippingNotice(rootDir, slug),
+      shippingNotice(rootDir, slug, commits),
+      activity ? commitsNotice(commits, slug) : null,
     ].filter((p): p is string => p !== null)
     // The quick lane renders its own lean block (r1-fixes 2.6, D14): the same
     // template, minus every section that presumes a plan or a write-back.
@@ -739,8 +750,166 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
       ...(neighbours.length > 0 ? { neighbours } : {}),
       ...(notices.length > 0 ? { notices } : {}),
       ...(slug === QUICK_LANE ? { lane: true } : {}),
+      ...(activity ? {} : { activity: false }),
+    })
+    // The size half of a memory-use signal (self-improve 1.2): how many bytes
+    // this hook put in front of the model, and how many of them were repo
+    // memory. Private row, never an event — the block's byte-stability is
+    // pinned and reads nothing back from the store. `status` already carries
+    // the notices (r1-fixes 2.3), so its length is the whole injection.
+    recordDiagnostic(rootDir, {
+      kind: 'injection',
+      initiative: slug,
+      session: sessionId ?? 'cli',
+      host: { tool: HOOK_TOOL },
+      data: {
+        hook: 'SessionStart',
+        bytes: status.length,
+        ...(repoMemory !== null ? { memory_bytes: repoMemory.length } : {}),
+      },
     })
     return { ...OK, stdout: status }
+  } catch {
+    return { ...OK }
+  }
+}
+
+/** What a PostToolUse-class hook classified the host's call as. */
+interface ClassifiedCall {
+  toolName: string
+  type: 'file_touched' | 'command_run'
+  /** The mechanical payload WITHOUT outcome fields — the caller adds ok/exit. */
+  payload: Obj
+  domain: GuardDomain
+  subject: string
+  /** Self-recording command (record-hygiene D1): guard is read, nothing is appended. */
+  exempt: boolean
+  /** Leading token of a command, for the diagnostics denominator (self-improve D3 (4)). */
+  head?: string
+}
+
+/**
+ * Shared by PostToolUse and PostToolUseFailure: the same host call classifies
+ * the same way whether it succeeded or failed, so both hooks append the same
+ * event type for it and differ only in the outcome fields they add.
+ *
+ * A self-recording command still gets its guard read (record-index 3.2). The
+ * record-hygiene D1 exemption exists to keep the tree settleable, and it does
+ * that by appending nothing — a read appends nothing either. Not reading
+ * would leave `cmd:*git push*`-shaped rules permanently unenforceable, since
+ * no event about a push is ever written for the fold to test.
+ */
+function classifyToolCall(hook: Obj): ClassifiedCall | null {
+  const toolName = strField(hook, 'tool_name')
+  const toolInput = isObj(hook.tool_input) ? hook.tool_input : {}
+  if (toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'Write') {
+    const path = strField(toolInput, 'file_path')
+    if (path === null) return null
+    return {
+      toolName,
+      type: 'file_touched',
+      payload: { path, op: toolName === 'Write' ? 'write' : 'edit' },
+      domain: 'path',
+      subject: path,
+      exempt: false,
+    }
+  }
+  if (toolName === 'Bash') {
+    const cmd = strField(toolInput, 'command')
+    if (cmd === null) return null
+    // Redact BEFORE the append, because there is no after: the log is
+    // append-only and committed, so a credential that lands here is a
+    // credential in everyone's clone forever (security-hardening 3.1).
+    // The exemption scan reads the raw text — redaction must not change which
+    // commands are considered self-recording.
+    const redacted = redactCommand(cmd)
+    const head = cmd.trimStart().split(/\s+/, 1)[0] ?? ''
+    return {
+      toolName,
+      type: 'command_run',
+      payload: { cmd: redacted },
+      domain: 'cmd',
+      // The guard matches what the record HOLDS, not what was typed, so the
+      // hook and the fold can never disagree about whether a rule fired.
+      subject: redacted,
+      exempt: isSelfRecordingCommand(cmd),
+      ...(head.length > 0 ? { head: head.slice(0, DIAGNOSTIC_HEAD_CLIP) } : {}),
+    }
+  }
+  return null
+}
+
+/**
+ * Lazy registration through the ONE locked path (r1-fixes D2, 1.2): hosts
+ * that fire hooks in parallel otherwise registered a session once per
+ * process. "cli" is never a session identity, so it is never registered.
+ */
+function registerLazily(ctx: ToolContext, slug: string, session: string): void {
+  if (session !== 'cli') ctx.registerSession(slug, session, { tool: HOOK_TOOL }, { source: 'hook' })
+}
+
+/**
+ * PostToolUseFailure (self-improve 1.2) — the half the record never saw.
+ * Claude Code fires PostToolUse only for a call that succeeded, so until this
+ * hook existed a failing `npm test` left no trace at all: the record showed
+ * every command that passed and none that failed. This hook appends the SAME
+ * mechanical event the success path would have — command_run / file_touched —
+ * with `ok: false` and, for Bash, the host's structured `exit_code` when it
+ * gives one (self-improve D2). The error text itself goes ONLY to the private
+ * diagnostics store, redacted and clipped (D3): a stderr tail carries paths
+ * and secrets, and the record is committed and synced.
+ *
+ * Same exemption as the success path: a failed `git push` is still a
+ * self-recording command and appends nothing — but its row is still written,
+ * because the store is outside the tree. No guard notice here: the notice
+ * comments on an edit just made, and this call did not make one.
+ */
+export function handlePostToolFailure(rootDir: string, input: string): HookResult {
+  try {
+    const hook = parseHook(input)
+    const session = strField(hook, 'session_id') ?? 'cli'
+    // Same routing as the success path (r1-fixes 2.6, D14): nothing resolves
+    // → the quick lane, created here if this failure is the first captured call.
+    let bound = resolveBound(rootDir, session)
+    if (bound === null && ensureLane(rootDir)) bound = resolveBound(rootDir, session)
+    if (bound === null) return { ...OK }
+    const { ctx, slug } = bound
+
+    const call = classifyToolCall(hook)
+    if (call === null) return { ...OK }
+    const { type, exempt, head } = call
+
+    const exit = typeof hook.exit_code === 'number' ? hook.exit_code : null
+    const interrupt = typeof hook.is_interrupt === 'boolean' ? hook.is_interrupt : null
+    if (!exempt) {
+      registerLazily(ctx, slug, session)
+      ctx.appendAndProject(
+        slug,
+        type,
+        { ...call.payload, ok: false, ...(type === 'command_run' && exit !== null ? { exit } : {}) },
+        { session, source: 'hook' },
+      )
+    }
+
+    // stderr is the informative half when the host supplies it; `error` is
+    // the host's one-line summary ("Command failed with exit code 1").
+    const stderr = typeof hook.stderr === 'string' ? hook.stderr.trim() : ''
+    const summary = typeof hook.error === 'string' ? hook.error.trim() : ''
+    const text = stderr.length > 0 ? (summary.length > 0 ? `${summary}\n${stderr}` : stderr) : summary
+    recordDiagnostic(rootDir, {
+      kind: 'tool_failure',
+      initiative: slug,
+      session,
+      host: { tool: HOOK_TOOL },
+      data: {
+        tool: call.toolName,
+        ...(head !== undefined ? { head } : {}),
+        ...(exempt ? { exempt: true } : {}),
+        error: clipDiagnosticText(redactCommand(text)),
+        interrupt,
+      },
+    })
+    return { ...OK }
   } catch {
     return { ...OK }
   }
@@ -785,47 +954,25 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
     if (bound === null) return driven.length === 0 ? { ...OK } : { ...OK, stdout: postToolContext(driven) }
     const { ctx, slug } = bound
 
-    const toolName = strField(hook, 'tool_name')
-    const toolInput = isObj(hook.tool_input) ? hook.tool_input : {}
-
-    let type: 'file_touched' | 'command_run'
-    let payload: Obj
-    let domain: GuardDomain
-    let subject: string
-    // A self-recording command still gets its guard read (record-index 3.2).
-    // The record-hygiene D1 exemption exists to keep the tree settleable, and
-    // it does that by appending nothing — a read appends nothing either. Not
-    // reading would leave `cmd:*git push*`-shaped rules permanently
-    // unenforceable, since no event about a push is ever written for the fold
-    // to test.
-    let exempt = false
     const injected = (lines: readonly string[]): HookResult =>
       lines.length === 0 ? { ...OK } : { ...OK, stdout: postToolContext(lines) }
 
-    if (toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'Write') {
-      const path = strField(toolInput, 'file_path')
-      if (path === null) return injected(driven)
-      type = 'file_touched'
-      payload = { path, op: toolName === 'Write' ? 'write' : 'edit' }
-      domain = 'path'
-      subject = path
-    } else if (toolName === 'Bash') {
-      const cmd = strField(toolInput, 'command')
-      if (cmd === null) return injected(driven)
-      exempt = isSelfRecordingCommand(cmd)
-      type = 'command_run'
-      // Redact BEFORE the append, because there is no after: the log is
-      // append-only and committed, so a credential that lands here is a
-      // credential in everyone's clone forever (security-hardening 3.1).
-      // The exemption scan above still reads the raw text — redaction must
-      // not change which commands are considered self-recording.
-      payload = { cmd: redactCommand(cmd) }
-      domain = 'cmd'
-      // The guard matches what the record HOLDS, not what was typed, so the
-      // hook and the fold can never disagree about whether a rule fired.
-      subject = payload.cmd as string
-    } else {
-      return injected(driven)
+    const call = classifyToolCall(hook)
+    if (call === null) return injected(driven)
+    const { type, domain, subject, exempt, head } = call
+
+    // The host fired PostToolUse, which it does only for a call that
+    // succeeded — so `ok` is what the host said, not an inference from output
+    // (self-improve D2). `exit` rides along only when the host hands a number.
+    const response = isObj(hook.tool_response) ? hook.tool_response : null
+    const interrupted =
+      response !== null && (response.interrupted === true || response.timed_out === true)
+    const exit = response !== null && typeof response.exit_code === 'number' ? response.exit_code : null
+    const ok = !interrupted
+    const payload: Obj = {
+      ...call.payload,
+      ok,
+      ...(type === 'command_run' && exit !== null ? { exit } : {}),
     }
 
     // Before the append, never after: the notice asks what this session has
@@ -840,9 +987,34 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
       // hooks in parallel (Cursor) otherwise registered it once per process.
       // "cli" is never a session identity (the fold skips it), so it is never
       // registered.
-      if (session !== 'cli') ctx.registerSession(slug, session, { tool: HOOK_TOOL }, { source: 'hook' })
+      registerLazily(ctx, slug, session)
       ctx.appendAndProject(slug, type, payload, { session, source: 'hook' })
     }
+
+    // The private row (self-improve D3): written for EVERY classified call,
+    // exempt ones included — the exemption protects the tree from self-
+    // dirtying appends, and the store is outside the tree. Best-effort; a
+    // failed row changes nothing above.
+    const outBytes =
+      response === null
+        ? undefined
+        : (typeof response.stdout === 'string' ? response.stdout.length : 0) +
+          (typeof response.stderr === 'string' ? response.stderr.length : 0)
+    recordDiagnostic(rootDir, {
+      kind: 'tool_outcome',
+      initiative: slug,
+      session,
+      host: { tool: HOOK_TOOL },
+      data: {
+        tool: call.toolName,
+        ok,
+        exit,
+        ...(head !== undefined ? { head } : {}),
+        ...(exempt ? { exempt: true } : {}),
+        ...(interrupted ? { interrupted: true } : {}),
+        ...(outBytes !== undefined ? { out_bytes: outBytes } : {}),
+      },
+    })
     // Nudge first: it says what to do NEXT, while a guard notice comments on
     // the edit just made.
     return injected([...driven, ...notice])
@@ -1082,10 +1254,10 @@ function gitStateLine(git: ReturnType<typeof readGitState>): string | null {
  *
  * Best-effort like every other reader on a shim path: any failure is silence.
  */
-function shippingNotice(rootDir: string, slug: string): string | null {
+function shippingNotice(rootDir: string, slug: string, commits: CommitAttribution[] | null): string | null {
   try {
-    const shipping = readShipping(rootDir, { maxCount: SHIPPING_WINDOW })
-    const mine = shipping?.get(slug)
+    if (commits === null) return null
+    const mine = readShippingFrom(rootDir, commits).get(slug)
     if (mine === undefined) return null
     if (mine.unknown.length > 0) {
       // Two causes, both honest as `unknown` and neither worth guessing
@@ -1100,6 +1272,22 @@ function shippingNotice(rootDir: string, slug: string): string | null {
   } catch {
     return null
   }
+}
+
+/**
+ * Commits by task (r1-fixes 2.5, D24) — the third fact a session used to
+ * narrate. Read from the walk SessionStart already pays, counted by the
+ * CLAUDE.md task-id prefix, never recorded (SPEC §Commit attribution). One
+ * volatile-tail line; silent when the window holds none of this record's.
+ */
+function commitsNotice(commits: CommitAttribution[] | null, slug: string): string | null {
+  if (commits === null) return null
+  const mine = commitsByTask(commits, slug)
+  if (mine.total === 0) return null
+  const counts = mine.by_task.map(([task, n]) => `${task} ×${n}`).join(', ')
+  const newest =
+    mine.newest === null ? '' : ` — newest ${mine.newest.sha.slice(0, 7)} ${clipTo(mine.newest.subject, COMMIT_SUBJECT_BUDGET)}`
+  return `Commits (this record, last ${commits.length} walked): ${counts}${newest}. Files, commands, test outcomes and commits are captured — write only why.`
 }
 
 /** Commits walked when origin actually moves — the arrival window (3.4). */
@@ -2067,6 +2255,12 @@ export const SUBCOMMANDS: ReadonlyArray<{
     description:
       'PostToolUse hook: append mechanical file_touched (Edit|Write|MultiEdit) / command_run (Bash) events, and surface any repo-wide guarded rule the subject crosses',
     handler: handlePostTool,
+  },
+  {
+    name: 'post-tool-failure',
+    description:
+      'PostToolUseFailure hook: append the same mechanical event with ok:false (and exit when the host gives one); the error text goes to the private diagnostics store, never the record',
+    handler: handlePostToolFailure,
   },
   {
     name: 'user-prompt',

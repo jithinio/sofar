@@ -24,6 +24,9 @@ import { runRemember } from './remember'
 import { registerStatuslineCommand } from './statusline'
 import { startServer, renderServeBanner, DEFAULT_PORT } from './serve'
 import { runExport, runImport } from './transfer'
+import { runDiagnostics } from './diagnostics'
+import { runTune } from './tune'
+import { runSuggest, runSuggestVerb } from './suggest'
 import { runLogin, runLink, runPush, runPull, runPullWatch } from './cloud'
 import { runUpgrade } from './upgrade'
 import { runCheckStatus, runRefresh, withUpdateNotice } from './update-check'
@@ -262,6 +265,97 @@ program
       }),
     )
   })
+
+program
+  .command('diagnostics')
+  .description(
+    'show the private diagnostics store for this clone (path, rows per initiative and kind) — lives outside the repo, never exported or synced; --purge deletes it',
+  )
+  .option('--purge', 'delete every diagnostics row recorded for this clone')
+  .option('--signals', 'print the signal availability map: what the loop may measure here, and what it must report as UNKNOWN')
+  .option('--json', 'machine-readable output')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action((opts: { purge?: boolean; signals?: boolean; json?: boolean; root?: string }) => {
+    emit(
+      runDiagnostics(rootOf(opts), {
+        ...(opts.purge !== undefined ? { purge: opts.purge } : {}),
+        ...(opts.signals !== undefined ? { signals: opts.signals } : {}),
+        ...(opts.json !== undefined ? { json: opts.json } : {}),
+      }),
+    )
+  })
+
+program
+  .command('tune [slug]')
+  .description(
+    'detect well-supported failure patterns in the record and the private diagnostics store, citing event ids and row hashes; prints UNKNOWN for every signal this clone cannot observe. Detection only — nothing is proposed or applied',
+  )
+  .option('--dry-run', 'REQUIRED: the only mode that exists — read, detect, report')
+  .option('--all', 'every initiative under .sofar/initiatives/ (default: the resolved one)')
+  .option('--json', 'machine-readable report (version-stamped, deterministic for the same inputs)')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action((slug: string | undefined, opts: { dryRun?: boolean; all?: boolean; json?: boolean; root?: string }) => {
+    emit(
+      runTune(rootOf(opts), {
+        ...(slug !== undefined ? { slug } : {}),
+        ...(opts.dryRun !== undefined ? { dryRun: opts.dryRun } : {}),
+        ...(opts.all !== undefined ? { all: opts.all } : {}),
+        ...(opts.json !== undefined ? { json: opts.json } : {}),
+      }),
+    )
+  })
+
+const suggest = program
+  .command('suggest [slug]')
+  .description(
+    'loss rows from the detectors the 2.2 precision protocol trusts, each carrying that measurement and citing its evidence — never a cause, never a fix. --dry-run and --list read; record/approve/reject/revert are the verbs that write',
+  )
+  .option('--dry-run', 'derive what the record supports now and print it — writes nothing')
+  .option('--list', 'every recorded candidate with its history, including ones whose evidence has moved')
+  .option('--all', 'every initiative under .sofar/initiatives/ (default: the resolved one)')
+  .option('--json', 'machine-readable')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action((slug: string | undefined, opts: { dryRun?: boolean; list?: boolean; all?: boolean; json?: boolean; root?: string }) => {
+    emit(
+      runSuggest(rootOf(opts), {
+        ...(slug !== undefined ? { slug } : {}),
+        ...(opts.dryRun !== undefined ? { dryRun: opts.dryRun } : {}),
+        ...(opts.list !== undefined ? { list: opts.list } : {}),
+        ...(opts.all !== undefined ? { all: opts.all } : {}),
+        ...(opts.json !== undefined ? { json: opts.json } : {}),
+      }),
+    )
+  })
+
+// The verbs are SUBCOMMANDS of `suggest`, so the surface reads the way the
+// 2.3 contract names it: reading is the bare command, and every path that
+// writes is spelled with a verb.
+for (const verb of ['record', 'approve', 'reject', 'revert'] as const) {
+  suggest
+    .command(`${verb} <candidate>`)
+    .description(
+      verb === 'record'
+        ? 'record a derived loss row in its initiative (writes one event; refuses a candidate the record no longer supports)'
+        : verb === 'approve'
+          ? 'approve a recorded loss row — binds to the exact candidate hash and is refused once its evidence moves'
+          : verb === 'reject'
+            ? 'reject a recorded loss row; the same evidence is then suppressed until it changes (--reason required)'
+            : 'end an approval with a new event — history is never erased (--reason required)',
+    )
+    .option('--reason <text>', verb === 'record' || verb === 'approve' ? 'why' : 'REQUIRED: why')
+    .option('--root <dir>', 'repo root (default: current directory)')
+    .action((candidate: string, opts: { reason?: string; root?: string }, cmd: Command) => {
+      // `--root` may land on either half of `sofar suggest record <c> --root x`
+      // — commander gives the parent's copy to the parent. Reading the wrong
+      // one silently resolves the CWD instead of the named repo.
+      const parentRoot = (cmd.parent?.opts() as { root?: string } | undefined)?.root
+      emit(
+        runSuggestVerb(rootOf({ ...(opts.root ?? parentRoot ? { root: opts.root ?? parentRoot } : {}) }), verb, candidate, {
+          ...(opts.reason !== undefined ? { reason: opts.reason } : {}),
+        }),
+      )
+    })
+}
 
 program
   .command('import <file> [slug]')

@@ -230,15 +230,15 @@ Fable 5.1 (1M) · root:rust-core · rust-core 1/15 · ctx 42% · cache 90% ✓
 (empty)
 
 ## record delta
-=== .sofar/initiatives/rust-core/events.jsonl (appended 3140 bytes after 28249 unchanged)
+=== .sofar/initiatives/rust-core/events.jsonl (appended 3210 bytes after 28249 unchanged)
 {"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"session_started","payload":{"tool":"claude-code"}}
-{"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"file_touched","payload":{"op":"edit","path":"<ROOT>/packages/engine/src/core/fold.ts"}}
-{"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"file_touched","payload":{"op":"write","path":"<ROOT>/docs/NEW.md"}}
-{"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"file_touched","payload":{"op":"edit","path":"<ROOT>/packages/engine/src/cli/event.ts"}}
-{"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"command_run","payload":{"cmd":"export OPENAI_API_KEY=[redacted] && curl -H \"Authorization: Bearer [redacted] https://user:[redacted]@example.com/x --token=[redacted] -p [redacted]"}}
-{"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"command_run","payload":{"cmd":"git status && sofar status | head -3; GIT_PAGER=cat git log -1"}}
-{"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"command_run","payload":{"cmd":"git commit -m \"$(cat msg)\""}}
-{"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"command_run","payload":{"cmd":"git status && echo 'oops"}}
+{"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"file_touched","payload":{"ok":true,"op":"edit","path":"<ROOT>/packages/engine/src/core/fold.ts"}}
+{"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"file_touched","payload":{"ok":true,"op":"write","path":"<ROOT>/docs/NEW.md"}}
+{"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"file_touched","payload":{"ok":true,"op":"edit","path":"<ROOT>/packages/engine/src/cli/event.ts"}}
+{"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"command_run","payload":{"cmd":"export OPENAI_API_KEY=[redacted] && curl -H \"Authorization: Bearer [redacted] https://user:[redacted]@example.com/x --token=[redacted] -p [redacted]","ok":true}}
+{"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"command_run","payload":{"cmd":"git status && sofar status | head -3; GIT_PAGER=cat git log -1","ok":true}}
+{"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"command_run","payload":{"cmd":"git commit -m \"$(cat msg)\"","ok":true}}
+{"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"command_run","payload":{"cmd":"git status && echo 'oops","ok":true}}
 {"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"session_closed","payload":{"reason":"exit"}}
 {"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"session_ended","payload":{"next_action":"read the golden","summary":"conformance lifecycle finished"}}
 === .sofar/initiatives/rust-core/plan.md (rewritten, 2885 bytes)

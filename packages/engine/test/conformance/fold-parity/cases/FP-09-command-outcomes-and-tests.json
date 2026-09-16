@@ -1,0 +1,10 @@
+{
+  "tail_at": 6,
+  "seeds": [
+    25,
+    26,
+    27
+  ],
+  "order_independence": true,
+  "note": "command_run outcomes (r1-fixes 2.5, D24): ok:true test-shaped with one task active, ok:false with exit under two, ok absent (unknown — folds as before), a non-test with ok, a test with none active; the tail starts at the ok-absent line"
+}

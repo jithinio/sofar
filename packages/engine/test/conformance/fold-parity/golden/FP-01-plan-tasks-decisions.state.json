@@ -1,7 +1,8 @@
 {
   "state": {
     "current": {
-      "active_phase": "Phase 2 — second",
+      "active_phase": "Phase 1 — first",
+      "blocked_on": "task 1.2: waiting",
       "next_action": "do 1.2"
     },
     "cursor": "01KDVDNKRG1CVY50ZJ9M36D87T",
@@ -31,7 +32,7 @@
       "notes": [],
       "unattributed_mutations": 0
     },
-    "goal": "g",
+    "goal": "a goal of realistic length for the parity suite",
     "guard_violations": [],
     "memories": [
       {
@@ -43,8 +44,23 @@
     "phases": [
       {
         "name": "Phase 1 — first",
-        "status": "pending",
+        "status": "active",
         "tasks": [
+          {
+            "id": "1.1",
+            "status": "done",
+            "title": "task 1"
+          },
+          {
+            "id": "1.2",
+            "status": "blocked",
+            "title": "task 2"
+          },
+          {
+            "id": "1.3",
+            "status": "pending",
+            "title": "task 3"
+          },
           {
             "id": "1.4",
             "status": "pending",
@@ -59,7 +75,19 @@
       {
         "name": "Phase 2 — second",
         "status": "active",
-        "tasks": []
+        "tasks": [
+          {
+            "id": "2.1",
+            "route": {
+              "agent": "codex"
+            },
+            "status": "pending",
+            "title": "later",
+            "verify": {
+              "cmd": "npm test"
+            }
+          }
+        ]
       }
     ],
     "reviews": [],
@@ -92,11 +120,5 @@
     "successor": null,
     "task_files": {}
   },
-  "warnings": [
-    "line 2: invalid plan_updated payload (plan: must be an object) — skipped",
-    "line 4: task \"1.1\" not found — task_status_changed skipped",
-    "line 6: phase \"Phase 1 — first\" not in plan — created implicitly",
-    "line 7: task \"1.2\" not found — task_status_changed skipped",
-    "line 8: phase \"Phase 2 — second\" not in plan — created implicitly"
-  ]
+  "warnings": []
 }

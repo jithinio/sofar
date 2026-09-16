@@ -3,12 +3,16 @@
 // Do not edit: change the TypeScript, regenerate, review the diff (rust-core D1).
 
 #[doc = "`CommandRunPayload`"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct CommandRunPayload {
     pub cmd: ::std::string::String,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub exit: ::std::option::Option<i64>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub ok: ::std::option::Option<bool>,
 }
 #[doc = "`CorrectionPayload`"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct CorrectionPayload {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub reason: ::std::option::Option<::std::string::String>,
@@ -16,7 +20,7 @@ pub struct CorrectionPayload {
     pub ref_: ::std::string::String,
 }
 #[doc = "`rule` (drift-hardening D1): optional standing-constraint clause — one short imperative every future session must obey. Its presence is what makes a decision a standing constraint; there is no separate flag. Render contract: verbatim on every surface, never clipped, never aged out — the C-abl ablation showed decisions are the load-bearing resume field, and clipped normative text is how dead ends recur."]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct DecisionLoggedPayload {
     pub because: ::std::string::String,
     pub chose: ::std::string::String,
@@ -27,14 +31,16 @@ pub struct DecisionLoggedPayload {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub rule: ::std::option::Option<::std::string::String>,
 }
-#[doc = "`FileTouchedPayload`"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[doc = "Mechanical outcome fields (self-improve D2): OPTIONAL, additive, and the ONLY outcome facts the durable record carries. `ok` is what the host said about the call — PostToolUse fires only on success, PostToolUseFailure only on failure — and `exit` is the process status when the host supplies one as a number. Absent means UNKNOWN (an engine or host that predates capture), never success. Everything richer — error text, output, timing — is a diagnostics row (src/diagnostics.ts), never a payload field."]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct FileTouchedPayload {
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub ok: ::std::option::Option<bool>,
     pub op: ::std::string::String,
     pub path: ::std::string::String,
 }
 #[doc = "`HandoffPayload`"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct HandoffPayload {
     #[doc = "How the agent process ended, when that is worth knowing (r1-fixes 1.6, D9): the exit code or signal, a spawn error, the last stderr line. Set on stalls and on any unclean exit; never consulted for `reason`, which the driver reads from the fold alone (session-driver D5)."]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -114,7 +120,7 @@ impl ::std::convert::TryFrom<::std::string::String> for HandoffReason {
     }
 }
 #[doc = "`InitiativeCreatedPayload`"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct InitiativeCreatedPayload {
     pub goal: ::std::string::String,
     pub slug: ::std::string::String,
@@ -179,7 +185,7 @@ impl ::std::convert::TryFrom<::std::string::String> for InitiativeStatus {
     }
 }
 #[doc = "The initiative's own status changed. `note` is the reason, and it is REQUIRED for `dropped` (task-drop-state D3): a whole initiative abandoned with nothing said reads as forgotten rather than decided, and unlike a dropped task there is no surviving sibling work to infer the reason from.\n\nReopening is just another event with status `active` — history stays append-only, so a closed initiative is never a dead end in the log.\n\n`overrides` (commit-attribution 5.2) is what the close-time audit found still outstanding, recorded because the close went ahead anyway. It is the whole mechanism: a hard refusal on a solo tool grows a `--force` and the flag becomes the habit, while \"closed with 3 tasks outstanding, overridden\" rendered in the digest forever is a sentence its author has to live beside. Absent means the audit found nothing — never that it was skipped."]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct InitiativeStatusChangedPayload {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub note: ::std::option::Option<::std::string::String>,
@@ -191,7 +197,7 @@ pub struct InitiativeStatusChangedPayload {
     pub successor: ::std::option::Option<::std::string::String>,
 }
 #[doc = "`KnownEventPayloads`"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct KnownEventPayloads {
     pub command_run: CommandRunPayload,
     pub correction: CorrectionPayload,
@@ -211,12 +217,16 @@ pub struct KnownEventPayloads {
     pub session_closed: SessionClosedPayload,
     pub session_ended: SessionEndedPayload,
     pub session_started: SessionStartedPayload,
+    pub suggestion_approved: SuggestionTransitionPayload,
+    pub suggestion_proposed: SuggestionProposedPayload,
+    pub suggestion_rejected: SuggestionTransitionPayload,
+    pub suggestion_reverted: SuggestionTransitionPayload,
     pub task_added: TaskAddedPayload,
     pub task_status_changed: TaskStatusChangedPayload,
     pub verification_recorded: VerificationRecordedPayload,
 }
 #[doc = "A fact its author declares repo memory — operational knowledge that is not a decision (a release command, a failure mode) and so can never be observed as repo-general from citation behaviour, because nothing derives a fact that was never written down (repo-memory-capture D1)."]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct MemoryPromotedPayload {
     #[doc = "The QUALIFIED handle `<slug> M<n>` of the memory this one replaces (r1-fixes 1.5, D8). Facts go stale; the record is append-only, so the replacement is a new promotion that names the old one, and readers (memory.md, doctor's repo-memory axis) retire the old handle."]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -224,7 +234,7 @@ pub struct MemoryPromotedPayload {
     pub text: ::std::string::String,
 }
 #[doc = "`NoteAddedPayload`"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct NoteAddedPayload {
     pub text: ::std::string::String,
 }
@@ -292,7 +302,7 @@ impl ::std::convert::TryFrom<::std::string::String> for PhaseStatus {
     }
 }
 #[doc = "`note` (phase-lifecycle 2.1) is the same field task_status_changed carries, one level up, and required for `dropped` for the same reason: a phase abandoned without a stated reason is indistinguishable from one quietly forgotten, and nothing else in the record explains it."]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct PhaseStatusChangedPayload {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub note: ::std::option::Option<::std::string::String>,
@@ -300,7 +310,7 @@ pub struct PhaseStatusChangedPayload {
     pub status: PhaseStatus,
 }
 #[doc = "`PlanPhaseInput`"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct PlanPhaseInput {
     pub name: ::std::string::String,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -308,14 +318,14 @@ pub struct PlanPhaseInput {
     pub tasks: ::std::vec::Vec<PlanTaskInput>,
 }
 #[doc = "Full plan structure carried by plan_updated (full replace, SPEC §MCP tools)."]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct PlanStructure {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub goal: ::std::option::Option<::std::string::String>,
     pub phases: ::std::vec::Vec<PlanPhaseInput>,
 }
 #[doc = "`PlanTaskInput`"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct PlanTaskInput {
     pub id: ::std::string::String,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -327,12 +337,12 @@ pub struct PlanTaskInput {
     pub verify: ::std::option::Option<TaskVerify>,
 }
 #[doc = "`PlanUpdatedPayload`"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct PlanUpdatedPayload {
     pub plan: PlanStructure,
 }
 #[doc = "A review that was actually performed (commit-attribution 4.4).\n\n`watermark` is the load-bearing field, not `verdict`. It is the sha the review read through, and it is what makes the NEXT review's range computable — watermark..HEAD filtered to this initiative's attributed commits (D9). Without it a range could only be derived from task timestamps, which is the time-window guess record-integrity D6 rejected. That is why a review is an EVENT and could never have been a note.\n\n`findings` are the ones that survived, one line each. An empty list with verdict `pass` is a legitimate outcome; an empty list with verdict `findings` is not, and validation rejects it — a review that reports findings must say what they were, or it is a rubber stamp wearing the wrong hat."]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct ReviewRecordedPayload {
     #[serde(default, skip_serializing_if = "::std::vec::Vec::is_empty")]
     pub findings: ::std::vec::Vec<::std::string::String>,
@@ -503,7 +513,7 @@ impl ::std::convert::TryFrom<::std::string::String> for RunPolicy {
     }
 }
 #[doc = "`RunStartedPayload`"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct RunStartedPayload {
     #[doc = "Adapter name, e.g. `claude-code`: which headless agent the run launches."]
     pub adapter: ::std::string::String,
@@ -597,12 +607,12 @@ impl ::std::convert::TryFrom<::std::string::String> for RunStopReason {
     }
 }
 #[doc = "An operator asking the driver of `run` to end it from OUTSIDE the driver (in-session-drive D2) — `sofar drive --stop`, for a detached driver no ^C can reach. A request, never a stop: only the driver writes `run_stopped`, after reading the handoff of the session it signalled."]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct RunStopRequestedPayload {
     pub run: ::std::string::String,
 }
 #[doc = "`RunStoppedPayload`"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct RunStoppedPayload {
     #[doc = "What happened; REQUIRED for `error` — a run that died unexplained is one nobody can resume."]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -611,7 +621,7 @@ pub struct RunStoppedPayload {
     pub run: ::std::string::String,
 }
 #[doc = "What `run_started.surface` carries; the driver's own type is engine-side."]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct RunSurface {
     pub allow: ::std::vec::Vec<::std::string::String>,
     #[serde(default, skip_serializing_if = "::std::vec::Vec::is_empty")]
@@ -623,12 +633,12 @@ pub struct RunSurface {
     pub permission_mode: ::std::string::String,
 }
 #[doc = "Mechanical session close (SessionEnd hook fallback). Deliberately has no summary/next_action: those belong to session_ended (the write-back) and a mechanical close must never clobber them during fold."]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct SessionClosedPayload {
     pub reason: ::std::string::String,
 }
 #[doc = "`SessionEndedPayload`"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct SessionEndedPayload {
     pub next_action: ::std::string::String,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -636,14 +646,48 @@ pub struct SessionEndedPayload {
     pub summary: ::std::string::String,
 }
 #[doc = "`SessionStartedPayload`"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct SessionStartedPayload {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub model: ::std::option::Option<::std::string::String>,
     pub tool: ::std::string::String,
 }
+#[doc = "A LOSS ROW proposed from a trusted detector — never a cause, never a fix (self-improve 2.3). `candidate` is sha256 over {version, signal, scope, sorted evidence}, so new evidence is a new candidate and approval binds to the exact one."]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
+pub struct SuggestionProposedPayload {
+    pub candidate: ::std::string::String,
+    pub count: i64,
+    #[doc = "Highest event id the deriving report read. Recorded, never hashed."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub cutoff: ::std::option::Option<::std::string::String>,
+    pub detector_version: i64,
+    pub engine: ::std::string::String,
+    #[doc = "Event ids (or `row:` hashes) the detector cited — the whole set the hash covers."]
+    pub evidence: ::std::vec::Vec<::std::string::String>,
+    pub signal: ::std::string::String,
+    pub trust: SuggestionTrust,
+}
+#[doc = "approve / reject / revert: append-only transitions on one candidate."]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
+pub struct SuggestionTransitionPayload {
+    pub candidate: ::std::string::String,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub reason: ::std::option::Option<::std::string::String>,
+}
+#[doc = "What the 2.2 protocol measured about the detector behind a suggestion (self-improve 2.3): a reader sees how often this signal is right without leaving the row. Every field is a measurement, never an estimate."]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
+pub struct SuggestionTrust {
+    #[doc = "Findings judged on held-out splits — the n behind the precision."]
+    pub judged: i64,
+    pub precision: f64,
+    #[doc = "Event id of the protocol decision the numbers were produced under."]
+    pub protocol: ::std::string::String,
+    pub recall: f64,
+    #[doc = "Event id of the decision carrying the verdict."]
+    pub verdict: ::std::string::String,
+}
 #[doc = "`TaskAddedPayload`"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct TaskAddedPayload {
     pub id: ::std::string::String,
     pub phase: ::std::string::String,
@@ -654,7 +698,7 @@ pub struct TaskAddedPayload {
     pub verify: ::std::option::Option<TaskVerify>,
 }
 #[doc = "Where a task wants to be run (session-driver 3.2, D10). Hints, not orders: anything the RUN states — the model/effort `run_started.surface` recorded, or the driver's own flags — wins over them, because a run whose second half ran a different model than its record names is two runs wearing one id. What the run leaves open, the task fills.\n\n`agent` names an ADAPTER (`claude-code`, `codex`), and it is the one field the driver cannot honour halfway: a run that cannot reach the named agent, or whose policy that agent cannot run, refuses to start rather than falling back to the default one.\n\nNothing else records the route: the plan carries the hint and the launched session's own `session_started` carries the tool and model it actually ran, so a third copy on the handoff would be the one that goes stale (D3)."]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Default, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Default, PartialEq)]
 pub struct TaskRoute {
     #[doc = "Adapter name the driver must launch this task with."]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -728,7 +772,7 @@ impl ::std::convert::TryFrom<::std::string::String> for TaskStatus {
     }
 }
 #[doc = "`TaskStatusChangedPayload`"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct TaskStatusChangedPayload {
     pub id: ::std::string::String,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -736,7 +780,7 @@ pub struct TaskStatusChangedPayload {
     pub status: TaskStatus,
 }
 #[doc = "The task's acceptance command (r1-fixes 3.1, D19): what `sofar drive` runs before it accepts the task as done. A shell command line, run in `cwd` relative to the launch directory (default the launch directory itself), killed after `timeout_ms`. The plan carries it like a route, and like a route it survives only as long as a full-replace plan restates it. An agent can write a plan, so the driver runs a plan-level command ONLY when it falls inside the run's recorded permission surface (D19) — the operator's `--verify` is the other, always-approved source."]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct TaskVerify {
     pub cmd: ::std::string::String,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -745,7 +789,7 @@ pub struct TaskVerify {
     pub timeout_ms: ::std::option::Option<i64>,
 }
 #[doc = "The driver ran a task's acceptance command (r1-fixes 3.1, D19) — the record of WHAT was checked, on WHICH tree, and how it ended. Written by the driver before it accepts a `task_done`, and again on every retry; the fold keeps each task's latest. A pass counts only while `checked` still names the current tree and `command` is unchanged — the driver re-fingerprints before trusting one. Diagnostics are a bounded, redacted tail of the command's output (D9's precedent for driver diagnostics on the record)."]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct VerificationRecordedPayload {
     pub attempt: i64,
     pub checked: VerificationRecordedPayloadChecked,
@@ -768,7 +812,7 @@ pub struct VerificationRecordedPayload {
     pub validator: ::std::string::String,
 }
 #[doc = "The tree the command ran on: HEAD, and a digest of every tracked change plus every untracked file."]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct VerificationRecordedPayloadChecked {
     pub head: ::std::string::String,
     pub tree: ::std::string::String,

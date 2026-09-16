@@ -43,6 +43,7 @@ Three consequences run through every design decision in the codebase:
 | `schema/src/events.ts` | Event payload shapes. The **only** place payload schema lives. |
 | `schema/src/guards.ts` | Guard grammar (`path:`/`cmd:` globs) and matching. |
 | `schema/src/tool-inputs.ts` | MCP tool input schemas and descriptions. |
+| `schema/src/diagnostics.ts` | Private diagnostics ROW shape (self-improve D2) — structurally never an event envelope; kinds disjoint from event types. |
 | `core/envelope.ts` | Envelope v1: mint, validate, canonical field order. |
 | `core/log.ts` | `appendEvent` — O_APPEND, one line, never partial. Canonical serialization. |
 | `core/atomic.ts` | `writeFileAtomic` — temp + rename, so readers never see a torn file. |
@@ -69,6 +70,11 @@ Three consequences run through every design decision in the codebase:
 | `core/shipwatch.ts` | Per-session `origin/<branch>` marks in the derived index — the free ref-movement gate that lets the per-prompt path pay for `attribution.ts`'s walk only when a push actually happened (3.4, D11). Edge-triggered: marking is what stops a transition being announced twice. |
 | `core/closeout.ts` | The mechanical audit run at close (5.1) — outstanding tasks, unresolved phases, done tasks with no file evidence, unaddressed guard crossings, drift since the write-back, unreviewed phases. Refuses nothing: the findings ride on the close event so an override is recorded rather than prevented (5.2). |
 | `core/cursor.ts` | Export/import cursors: the entire sync interface. |
+| `core/state-dir.ts` | Per-clone state OUTSIDE the repo: `$XDG_STATE_HOME/sofar`, keyed by a hash of the clone's real path. Shared by sync cursors and the diagnostics store. |
+| `core/diagnostics.ts` | The private diagnostics store (self-improve D3): append-only rows per initiative under the clone's state dir, 90-day retention, byte cap, best-effort writes that never recurse, refused outright if the path would land inside the repo. A third class — not truth, not derived. |
+| `core/signals.ts` | The signal availability map (self-improve 1.3): every signal the improvement loop may consume, with its ceiling (capturable / partial / unavailable), the blind spot behind it, and what the clone must have wired for it — a consumer prints UNKNOWN for anything else. |
+| `core/tune.ts` | `sofar tune --dry-run` detectors (self-improve 2.1): pure over raw events + diagnostics rows + the availability map; runs only what the map allows, cites event ids and row hashes, states coverage, names no cause, proposes nothing. |
+| `core/suggest.ts` | Suggestions (self-improve 2.3): loss rows derived from TRUSTED detectors only, each carrying the 2.2 precision/recall of its signal. Candidate hash over {version, signal, scope, sorted evidence}; append-only approve/reject/revert; staleness, rejection suppression and the open cap live here. Pure. |
 | `core/peers.ts` | Resolves a Claude Code session id to the name its `SendMessage` addresses, from the host's own registry. Best-effort; absent means no address. |
 
 ### 3. Index — derived, local, incremental
@@ -86,6 +92,7 @@ synced, and any absence, staleness, or corruption falls back to reading the logs
 | `core/index-reach.ts` | **Reach tier.** What `sofar find` traverses: decisions, notes, files, sessions and citation edges, each carrying the event id that produced it. Read only when asked, so it can afford prose the hot tiers cannot. |
 | `core/lexicon.ts` | Turns a question into seeds when nothing denotes it: tokenize, fold plurals and tenses, rank by IDF. No model, and every match returns the words that carried it. |
 | `core/lessons.ts` | Relevant lessons at the prompt (r1-fixes 3.3, D16): BM25-ranks the prompt against this initiative's decisions and stall handoffs with the lexicon's ranker, in-process from the fold — no model, no file read, two lines at most; bounded to the last 60 decisions and switchable off with `SOFAR_LESSONS=off` (D18). |
+| `core/derived.ts` | Derived activity (r1-fixes 2.5, D24): the closed test-command recognizer the fold uses to mark test-shaped `command_run` events, the `SOFAR_ACTIVITY` switch, and the "log only why" sentences the MCP server appends to two tool descriptions. Pure — the fold never reads the env. |
 
 ### 4. Projections — state rendered to disk
 
@@ -107,22 +114,23 @@ Regenerated on every append. Never hand-edited.
 ### 5. Surfaces — how agents and humans reach the record
 
 **Hooks** — installed by `sofar init` as shims in `.claude/hooks/`. Each is
-four lines; the CLI owns behaviour. All five run on the user's critical path
+four lines; the CLI owns behaviour. All six run on the user's critical path
 under a **100ms end-to-end budget**, and all are best-effort: a failure is
 silence, never a broken session.
 
 | hook | what it does |
 | --- | --- |
-| SessionStart | Injects the record — goal, progress, next action, decisions, standing constraints, rejected approaches, repo memory. |
+| SessionStart | Injects the record — goal, progress, next action, decisions, standing constraints, rejected approaches, repo memory. One bounded attribution walk feeds the shipping notice and the commits-by-task line (D24). |
 | UserPromptSubmit | Crossed guards and the lessons the prompt re-proposes first (D16), then live hazards: file conflicts, reachable peers, parallel wrap-ups, git state, drift nudge. |
-| PostToolUse | Captures file touches and commands as events. The point-of-use guard fires here. On an unbound branch it creates the quick lane (`quick`) on the first edit and captures there (D14). |
+| PostToolUse | Captures file touches and commands as events (`ok: true`). The point-of-use guard fires here. On an unbound branch it creates the quick lane (`quick`) on the first edit and captures there (D14). A `tool_outcome` diagnostics row goes to the private store — including for the self-recording commands the record exempts. Outcomes (`ok`/`exit`) fold into per-session failed counts and per-task test outcomes (D24). |
+| PostToolUseFailure | The failed half: the same mechanical event with `ok: false` (and `exit` when the host gives one), and a `tool_failure` row carrying the redacted, clipped error text the record must never hold. Routes like PostToolUse, quick lane included. |
 | Stop | Blocks a session that owes a write-back — never in the quick lane, which has no write-back. |
 | SessionEnd | Closes the session. |
 
-A sixth shim, `hooks/prepare-commit-msg.sh`, is a **git** hook rather than a
+A seventh shim, `hooks/prepare-commit-msg.sh`, is a **git** hook rather than a
 Claude Code one — installed into `.git/hooks/` and never clobbering an existing
 file. It stamps `Sofar-Initiative:` onto the commit message (D5). It cannot
-`exec` like the five above: it runs inside `git commit`, so it guards on the
+`exec` like the six above: it runs inside `git commit`, so it guards on the
 binary existing and exits 0 unconditionally — a hook that can abort a commit is
 worse than no attribution.
 
@@ -148,6 +156,9 @@ worse than no attribution.
 | `cli/statusline.ts` | `sofar statusline` — the one-line host status. Resolves session-first. |
 | `cli/serve.ts` | `sofar serve` — localhost JSON state server. |
 | `cli/transfer.ts` | `sofar export` / `sofar import`. |
+| `cli/diagnostics.ts` | `sofar diagnostics` — where the private store is and how much sits in it; `--purge` deletes it; `--signals` renders the availability map. Counts only, never row contents. |
+| `cli/tune.ts` | `sofar tune [slug|--all] --dry-run [--json]` — read the logs and the store, run the detectors, print the report. `--dry-run` is required and the only mode. |
+| `cli/suggest.ts` | `sofar suggest [slug|--all] --dry-run|--list [--json]` reads; `sofar suggest record|approve|reject|revert <candidate>` are the only paths that write, one event each. |
 | `cli/adopt.ts` | `sofar adopt` — migrate a legacy prose record. |
 | `cli/cloud.ts` | `sofar login` / `link` / `push` / `pull`. |
 | `cli/scanners.ts` | Host-config scanners (e.g. emitted stylesheet directives). |

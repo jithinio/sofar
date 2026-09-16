@@ -1,7 +1,8 @@
 //! Fold/replay: `events.jsonl` → `InitiativeState` — the port of
-//! `core/fold.ts` (SPEC §State, `docs/HOTPATH.md` §Fold) at r1-fixes ea777c8
-//! (merged as 0572b3f), with the adjacency rule of `core/adjacency.ts`
-//! folded in because the fold is its only hot-path consumer.
+//! `core/fold.ts` (SPEC §State, `docs/HOTPATH.md` §Fold) at r1-fixes 4077c9a
+//! (5.1's incremental fold plus 2.5's derived outcomes, D24), with the
+//! adjacency rule of `core/adjacency.ts` folded in because the fold is its
+//! only hot-path consumer; the test recognizer is [`crate::derived`].
 //!
 //! Pass 1 (tolerant decode, correction voiding, the convergent ulid sort) is
 //! [`crate::log::decode_lines`]. Pass 2 here replays in id order, retaining
@@ -17,6 +18,7 @@
 use std::collections::HashMap;
 
 use crate::collections::{OrderedSet, StringMap};
+use crate::derived::test_shaped_command;
 use crate::envelope::Envelope;
 use crate::guards::{CompiledGuard, GuardDomain, guard_matches, parse_guard};
 use crate::json::{Json, Object};
@@ -108,12 +110,32 @@ pub struct MemoryState {
     pub superseded_by: Option<String>,
 }
 
+/// A test-shaped `command_run` the host reported an outcome for (r1-fixes 2.5, D24).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TestOutcome {
+    pub cmd: String,
+    pub ok: bool,
+    pub exit: Option<f64>,
+}
+
+/// The latest [`TestOutcome`] a task saw while active, with the event it came from.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TaskTestOutcome {
+    pub outcome: TestOutcome,
+    pub ts: String,
+    pub event_id: String,
+}
+
 /// Derived per-session activity (BD44).
 #[derive(Debug, Clone, PartialEq)]
 pub struct SessionActivity {
     pub files: Vec<String>,
     pub commands: u64,
     pub task_changes: Vec<String>,
+    /// Commands the host reported failed (`ok: false`); absent when none (D24).
+    pub failed: Option<u64>,
+    /// The newest test-shaped command with a known outcome; absent when none (D24).
+    pub last_test: Option<TestOutcome>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -243,6 +265,10 @@ pub struct InitiativeState {
     pub files_touched: Vec<String>,
     /// Task id → paths touched while it was active, most-recent-first (speed T4).
     pub task_files: Vec<(String, Vec<String>)>,
+    /// Latest test outcome per task (D24), same window as `task_files`;
+    /// written only when non-empty, so a record without outcome fields folds
+    /// to byte-identical state (D21).
+    pub task_tests: Vec<(String, TaskTestOutcome)>,
     /// Task id → the reason given when it was dropped (task-drop-state D3).
     pub drop_notes: StringMap,
     pub guard_violations: Vec<GuardViolation>,
@@ -275,6 +301,7 @@ pub fn empty_state() -> InitiativeState {
         sessions: Vec::new(),
         files_touched: Vec::new(),
         task_files: Vec::new(),
+        task_tests: Vec::new(),
         drop_notes: StringMap::new(),
         guard_violations: Vec::new(),
         reviews: Vec::new(),
@@ -296,14 +323,30 @@ pub struct OrphanTaskEvent {
     pub status: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct EdgeAttrs {
     pub op: Option<String>,
     pub status: Option<String>,
+    /// `command_run` outcome (self-improve D2), present only when the host said (D24).
+    pub ok: Option<bool>,
+    pub exit: Option<f64>,
+    /// The test-shaped segment of the command, when the recognizer found one and `ok` is known.
+    pub test: Option<String>,
+}
+
+impl EdgeAttrs {
+    /// `outcomeOf`: the test outcome these attrs carry, when both `test` and `ok` are known.
+    fn outcome(&self) -> Option<TestOutcome> {
+        Some(TestOutcome {
+            cmd: self.test.clone()?,
+            ok: self.ok?,
+            exit: self.exit,
+        })
+    }
 }
 
 /// One adjacency edge (record-graph 4.1/4.2), slug-qualified.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GraphEdge {
     pub kind: &'static str,
     pub from: String,
@@ -519,6 +562,7 @@ pub fn finalize_fold(cp: &FoldCheckpoint) -> FoldResult {
     let warnings = cp.warnings.clone();
     let edges = cp.edges.clone();
     state.task_files = task_files_from_edges(&edges);
+    state.task_tests = task_tests_from_edges(&edges);
     attach_activity(&mut state, activity_from_edges(&edges));
     derive_current(&mut state, &cp.block_notes);
     let orphans: Vec<OrphanTaskEvent> = cp
@@ -1098,7 +1142,7 @@ fn edges_for_event(
                     file.clone(),
                     Some(EdgeAttrs {
                         op: Some(req_str(p, "op")),
-                        status: None,
+                        ..EdgeAttrs::default()
                     }),
                 ));
             }
@@ -1112,8 +1156,33 @@ fn edges_for_event(
             }
         }
         "command_run" => {
+            let command = format!("command:{}", event.id);
+            // Outcome attrs ride only on a command whose `ok` the host reported
+            // (self-improve D2): a record without outcome fields forms exactly
+            // the edges it always did (D21). Unknown `ok` is unknown, not a test.
+            let outcome = p.get("ok").and_then(|v| match v {
+                Json::Bool(ok) => Some(EdgeAttrs {
+                    ok: Some(*ok),
+                    exit: opt_num(p, "exit"),
+                    test: test_shaped_command(&req_str(p, "cmd")),
+                    ..EdgeAttrs::default()
+                }),
+                _ => None,
+            });
             if let Some(session) = session {
-                edges.push(stamp("ran", session, format!("command:{}", event.id), None));
+                edges.push(stamp("ran", session, command.clone(), outcome.clone()));
+            }
+            if let Some(outcome) = outcome
+                && outcome.test.is_some()
+            {
+                for task_id in active_tasks {
+                    edges.push(stamp(
+                        "tested",
+                        task_node_id(slug, task_id),
+                        command.clone(),
+                        Some(outcome.clone()),
+                    ));
+                }
             }
         }
         "task_status_changed" => {
@@ -1123,8 +1192,8 @@ fn edges_for_event(
                     session,
                     task_node_id(slug, &req_str(p, "id")),
                     Some(EdgeAttrs {
-                        op: None,
                         status: Some(req_str(p, "status")),
+                        ..EdgeAttrs::default()
                     }),
                 ));
             }
@@ -1175,6 +1244,31 @@ fn task_files_from_edges(edges: &[GraphEdge]) -> Vec<(String, Vec<String>)> {
     out
 }
 
+/// Task id → latest test outcome (D24), from `tested` edges in log order —
+/// last wins, the key keeping its first position (`taskTestsFromEdges`).
+fn task_tests_from_edges(edges: &[GraphEdge]) -> Vec<(String, TaskTestOutcome)> {
+    let mut out: Vec<(String, TaskTestOutcome)> = Vec::new();
+    for edge in edges {
+        if edge.kind != "tested" {
+            continue;
+        }
+        let Some(outcome) = edge.attrs.as_ref().and_then(EdgeAttrs::outcome) else {
+            continue;
+        };
+        let task_id = task_id_of(&edge.from);
+        let value = TaskTestOutcome {
+            outcome,
+            ts: edge.ts.clone().unwrap_or_default(),
+            event_id: edge.event_id.clone().unwrap_or_default(),
+        };
+        match out.iter_mut().find(|(id, _)| id == task_id) {
+            Some(slot) => slot.1 = value,
+            None => out.push((task_id.to_owned(), value)),
+        }
+    }
+    out
+}
+
 #[derive(Default)]
 struct ActivityAcc {
     files: Vec<String>,
@@ -1182,6 +1276,8 @@ struct ActivityAcc {
     seen: std::collections::HashSet<String>,
     files_overflow: u64,
     commands: u64,
+    failed: u64,
+    last_test: Option<TestOutcome>,
     task_changes: Vec<String>,
     task_changes_overflow: u64,
 }
@@ -1209,7 +1305,18 @@ fn activity_from_edges(edges: &[GraphEdge]) -> HashMap<String, SessionActivity> 
                     a.files_overflow += 1;
                 }
             }
-            "ran" => of(&mut acc, &edge.from).commands += 1,
+            "ran" => {
+                let a = of(&mut acc, &edge.from);
+                a.commands += 1;
+                if let Some(attrs) = &edge.attrs {
+                    if attrs.ok == Some(false) {
+                        a.failed += 1;
+                    }
+                    if let Some(outcome) = attrs.outcome() {
+                        a.last_test = Some(outcome);
+                    }
+                }
+            }
             "changed" => {
                 let a = of(&mut acc, &edge.from);
                 if a.task_changes.len() < ACTIVITY_LIST_CAP {
@@ -1243,6 +1350,8 @@ fn activity_from_edges(edges: &[GraphEdge]) -> HashMap<String, SessionActivity> 
                     files,
                     commands: a.commands,
                     task_changes,
+                    failed: (a.failed > 0).then_some(a.failed),
+                    last_test: a.last_test,
                 },
             )
         })
@@ -1290,12 +1399,18 @@ fn record_freshness(state: &mut InitiativeState, event: &Envelope) {
         "file_touched" => mutation(state, |c| c.files += 1),
         // Counted for the record, never for drift (drift-signal D1).
         "command_run" => state.freshness.events_since_writeback.commands += 1,
-        // Driver events are EXCLUDED from drift, deliberately.
+        // Driver events are EXCLUDED from drift, deliberately; so are
+        // suggestions (r1-fixes 2.5): a loss row is an observation derived
+        // FROM the record, and the tasks Phase 3 mints from it are the drift.
         "run_started"
         | "handoff"
         | "run_stopped"
         | "run_stop_requested"
-        | "verification_recorded" => {}
+        | "verification_recorded"
+        | "suggestion_proposed"
+        | "suggestion_approved"
+        | "suggestion_rejected"
+        | "suggestion_reverted" => {}
         "task_status_changed" => mutation(state, |c| c.tasks += 1),
         "phase_status_changed" => mutation(state, |c| c.phases += 1),
         "note_added" => {
@@ -1540,12 +1655,41 @@ impl MemoryState {
     }
 }
 
-impl SessionActivity {
+impl TestOutcome {
     #[must_use]
     pub fn to_json(&self) -> Json {
         let mut o = Object::with_capacity(3);
+        put(&mut o, "cmd", &self.cmd);
+        o.insert("ok", Json::Bool(self.ok));
+        put_opt_num(&mut o, "exit", self.exit);
+        Json::Obj(o)
+    }
+
+    #[must_use]
+    pub fn from_json(o: &Object) -> Option<Self> {
+        Some(TestOutcome {
+            cmd: rs(o, "cmd")?,
+            ok: match o.get("ok")? {
+                Json::Bool(b) => *b,
+                _ => return None,
+            },
+            exit: on(o, "exit")?,
+        })
+    }
+}
+
+impl SessionActivity {
+    #[must_use]
+    pub fn to_json(&self) -> Json {
+        let mut o = Object::with_capacity(5);
         o.insert("files", str_arr(&self.files));
         put_count(&mut o, "commands", self.commands);
+        if let Some(failed) = self.failed {
+            put_count(&mut o, "failed", failed);
+        }
+        if let Some(t) = &self.last_test {
+            o.insert("last_test", t.to_json());
+        }
         o.insert("task_changes", str_arr(&self.task_changes));
         Json::Obj(o)
     }
@@ -1729,6 +1873,18 @@ impl InitiativeState {
             task_files.insert(id.clone(), str_arr(files));
         }
         o.insert("task_files", Json::Obj(task_files));
+        if !self.task_tests.is_empty() {
+            let mut tests = Object::with_capacity(self.task_tests.len());
+            for (id, t) in &self.task_tests {
+                let Json::Obj(mut to) = t.outcome.to_json() else {
+                    unreachable!("an object")
+                };
+                put(&mut to, "ts", &t.ts);
+                put(&mut to, "event_id", &t.event_id);
+                tests.insert(id.clone(), Json::Obj(to));
+            }
+            o.insert("task_tests", Json::Obj(tests));
+        }
         let mut drop_notes = Object::with_capacity(self.drop_notes.len());
         for (id, note) in self.drop_notes.iter() {
             drop_notes.insert(id, Json::Str(note.to_owned()));
@@ -1785,9 +1941,14 @@ impl GraphEdge {
         put_opt(&mut o, "event_id", self.event_id.as_deref());
         put_opt(&mut o, "ts", self.ts.as_deref());
         if let Some(a) = &self.attrs {
-            let mut ao = Object::with_capacity(2);
+            let mut ao = Object::with_capacity(5);
             put_opt(&mut ao, "op", a.op.as_deref());
             put_opt(&mut ao, "status", a.status.as_deref());
+            if let Some(ok) = a.ok {
+                ao.insert("ok", Json::Bool(ok));
+            }
+            put_opt_num(&mut ao, "exit", a.exit);
+            put_opt(&mut ao, "test", a.test.as_deref());
             o.insert("attrs", Json::Obj(ao));
         }
         Json::Obj(o)
@@ -1978,6 +2139,14 @@ impl SessionState {
                         files: strs(a, "files")?,
                         commands: count(a, "commands")?,
                         task_changes: strs(a, "task_changes")?,
+                        failed: match a.get("failed") {
+                            None => None,
+                            Some(_) => Some(count(a, "failed")?),
+                        },
+                        last_test: match a.get("last_test") {
+                            None => None,
+                            Some(t) => Some(TestOutcome::from_json(t.as_obj()?)?),
+                        },
                     })
                 }
             },
@@ -2117,6 +2286,24 @@ impl InitiativeState {
         for (id, note) in o.get("drop_notes")?.as_obj()?.iter() {
             drop_notes.set(id, note.as_str()?.to_owned());
         }
+        let task_tests = match o.get("task_tests") {
+            None => Vec::new(),
+            Some(tests) => tests
+                .as_obj()?
+                .iter()
+                .map(|(id, t)| {
+                    let t = t.as_obj()?;
+                    Some((
+                        id.to_owned(),
+                        TaskTestOutcome {
+                            outcome: TestOutcome::from_json(t)?,
+                            ts: rs(t, "ts")?,
+                            event_id: rs(t, "event_id")?,
+                        },
+                    ))
+                })
+                .collect::<Option<Vec<_>>>()?,
+        };
         Some(InitiativeState {
             slug: rs(o, "slug")?,
             goal: rs(o, "goal")?,
@@ -2143,6 +2330,7 @@ impl InitiativeState {
                 .collect::<Option<_>>()?,
             files_touched: strs(o, "files_touched")?,
             task_files,
+            task_tests,
             drop_notes,
             guard_violations: objs(o, "guard_violations")?
                 .into_iter()
@@ -2179,6 +2367,7 @@ impl GraphEdge {
             "decided" => "decided",
             "noted" => "noted",
             "worked" => "worked",
+            "tested" => "tested",
             "cites" => "cites",
             "superseded_by" => "superseded_by",
             _ => return None,
@@ -2197,6 +2386,13 @@ impl GraphEdge {
                     Some(EdgeAttrs {
                         op: os(a, "op")?,
                         status: os(a, "status")?,
+                        ok: match a.get("ok") {
+                            None => None,
+                            Some(Json::Bool(b)) => Some(*b),
+                            Some(_) => return None,
+                        },
+                        exit: on(a, "exit")?,
+                        test: os(a, "test")?,
                     })
                 }
             },

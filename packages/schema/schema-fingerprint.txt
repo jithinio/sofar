@@ -9,8 +9,8 @@ decision_logged: chose, over, because, rule? (one imperative every later session
 session_started: tool (your agent name), model?
 session_ended: summary, next_action (the single next step)
 session_closed: reason
-file_touched: path, op
-command_run: cmd
+file_touched: path, op, ok? (what the host said; absent = unknown, never success)
+command_run: cmd, ok? (what the host said; absent = unknown), exit? (only when the host gives a number)
 note_added: text
 memory_promoted: text, supersedes? (qualified handle `<slug> M<n>` of the fact this one replaces)
 review_recorded: scope: phase|final, verdict: pass|findings|blocked, watermark? (sha read through), phase?, findings?: string[] (required, non-empty, for findings)
@@ -20,3 +20,7 @@ run_stopped: run, reason: closed|needs_user|stall|cost_cap|max_sessions|interrup
 run_stop_requested: run
 verification_recorded: run, task, attempt, command, cwd, checked: {head, tree}, validator, result: pass|fail|timeout|error|refused, exit_code?, signal?, duration_ms, timeout_ms, diagnostics? (≤1,024 chars)
 correction: ref (the bad event id), reason?
+suggestion_proposed: candidate (sha256 over version, signal, scope, sorted evidence), signal, evidence (non-empty: event ids or row hashes), count (≥1), cutoff?, engine, detector_version, trust {protocol, verdict, precision, recall, judged}
+suggestion_approved: candidate, reason?
+suggestion_rejected: candidate, reason? (the command requires it)
+suggestion_reverted: candidate, reason? (the command requires it)

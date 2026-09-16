@@ -37,4 +37,4 @@ Progress: 7/18 tasks done (38%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: Commit 2.3 (code + record), then 1.5 (team100 corpus and perf cell) or 2.4 (digest/status render byte-identical); when r1-fixes 2.5 (D24) lands, merge it and mirror the `ran` attrs, `tested` edge, activity.failed/last_test and task_tests in fold.rs with the FP-09 case.
+Next action: Commit the merge (code, goldens, record) as one commit, then start 2.4 (digest/status render byte-identical to the projection templates at 4077c9a, incl. the D24 session lines) or 1.5; keep the perf baseline pinned at 179b8fd until 3.3's same-sitting re-record.

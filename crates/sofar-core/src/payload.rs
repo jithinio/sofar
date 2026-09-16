@@ -1,7 +1,8 @@
 //! Payload validation RULES — the hand-ported logic of
 //! `packages/schema/src/events.ts` (`validatePayload`) and the guard grammar
 //! of `guards.ts` (`guardSpecErrors`), at the pinned TypeScript commit
-//! (179b8fd, sofar.sh 0.33.0-rc.1). Shapes are generated into
+//! (r1-fixes 4077c9a: 179b8fd's rules plus the optional outcome fields and
+//! the four `suggestion_*` types of self-improve D2 / r1-fixes 2.5). Shapes are generated into
 //! `sofar_schema`; rules are logic, so they live here (rust-core D1) and every
 //! error string is verbatim: the fold prints them (`syn.corrupt`), and
 //! `event append` echoes them.
@@ -39,7 +40,7 @@ pub const RUN_STOP_REASONS: [&str; 7] = [
 pub const VERIFICATION_RESULTS: [&str; 5] = ["pass", "fail", "timeout", "error", "refused"];
 
 /// `EVENT_TYPES`, in the schema's order.
-pub const EVENT_TYPES: [&str; 21] = [
+pub const EVENT_TYPES: [&str; 25] = [
     "initiative_created",
     "initiative_status_changed",
     "plan_updated",
@@ -61,6 +62,10 @@ pub const EVENT_TYPES: [&str; 21] = [
     "run_stop_requested",
     "verification_recorded",
     "correction",
+    "suggestion_proposed",
+    "suggestion_approved",
+    "suggestion_rejected",
+    "suggestion_reverted",
 ];
 
 #[must_use]
@@ -203,6 +208,73 @@ fn positive_integer(v: Option<&Json>) -> bool {
 }
 fn eq_str(v: Option<&Json>, s: &str) -> bool {
     v.and_then(Json::as_str) == Some(s)
+}
+/// `v === undefined || typeof v === 'boolean'`.
+fn opt_bool(v: Option<&Json>) -> bool {
+    v.is_none_or(|v| matches!(v, Json::Bool(_)))
+}
+
+/// A LOSS ROW proposed from a trusted detector (self-improve 2.3): the
+/// evidence IS the candidate, and trust travels with the row.
+fn validate_suggestion_proposed(p: &Object, e: &mut Vec<String>) {
+    if !str(p.get("candidate")) {
+        e.push("candidate: must be a non-empty string (the candidate hash)".to_owned());
+    }
+    if !str(p.get("signal")) {
+        e.push("signal: must be a non-empty string".to_owned());
+    }
+    if !p
+        .get("evidence")
+        .and_then(Json::as_arr)
+        .is_some_and(|a| !a.is_empty() && a.iter().all(|id| id.as_nonempty_str().is_some()))
+    {
+        e.push(
+            "evidence: must be a non-empty array of non-empty strings (event ids or row hashes)"
+                .to_owned(),
+        );
+    }
+    if !integer(p.get("count")).is_some_and(|n| n >= 1.0) {
+        e.push("count: must be a positive integer".to_owned());
+    }
+    if !opt_str(p.get("cutoff")) {
+        e.push("cutoff: must be a string".to_owned());
+    }
+    if !str(p.get("engine")) {
+        e.push("engine: must be a non-empty string".to_owned());
+    }
+    if integer(p.get("detector_version")).is_none() {
+        e.push("detector_version: must be an integer".to_owned());
+    }
+    let Some(t) = p.get("trust").and_then(Json::as_obj) else {
+        e.push(
+            "trust: must be the 2.2 measurement {protocol, verdict, precision, recall, judged}"
+                .to_owned(),
+        );
+        return;
+    };
+    if !str(t.get("protocol")) {
+        e.push(
+            "trust.protocol: must be a non-empty string (the protocol decision event id)"
+                .to_owned(),
+        );
+    }
+    if !str(t.get("verdict")) {
+        e.push(
+            "trust.verdict: must be a non-empty string (the verdict decision event id)".to_owned(),
+        );
+    }
+    for key in ["precision", "recall"] {
+        if !t
+            .get(key)
+            .and_then(Json::as_f64)
+            .is_some_and(|v| (0.0..=1.0).contains(&v))
+        {
+            e.push(format!("trust.{key}: must be a number between 0 and 1"));
+        }
+    }
+    if !integer(t.get("judged")).is_some_and(|n| n >= 0.0) {
+        e.push("trust.judged: must be a non-negative integer".to_owned());
+    }
 }
 
 fn validate_route(route: Option<&Json>, path: &str, errors: &mut Vec<String>) {
@@ -436,8 +508,16 @@ fn validate_known(event_type: &str, p: &Object, e: &mut Vec<String>) {
         "file_touched" => {
             must(e, str(p.get("path")), "path: must be a non-empty string");
             must(e, str(p.get("op")), "op: must be a non-empty string");
+            // Outcome fields (self-improve D2): optional, boolean when present.
+            must(e, opt_bool(p.get("ok")), "ok: must be a boolean");
         }
-        "command_run" => must(e, str(p.get("cmd")), "cmd: must be a non-empty string"),
+        "command_run" => {
+            must(e, str(p.get("cmd")), "cmd: must be a non-empty string");
+            must(e, opt_bool(p.get("ok")), "ok: must be a boolean");
+            if p.contains_key("exit") && integer(p.get("exit")).is_none() {
+                e.push("exit: must be an integer".to_owned());
+            }
+        }
         "note_added" => must(e, str(p.get("text")), "text: must be a non-empty string"),
         "memory_promoted" => {
             must(e, str(p.get("text")), "text: must be a non-empty string");
@@ -652,6 +732,15 @@ fn validate_known(event_type: &str, p: &Object, e: &mut Vec<String>) {
                 e,
                 str(p.get("ref")),
                 "ref: must be a non-empty string (target event id)",
+            );
+            must(e, opt_str(p.get("reason")), "reason: must be a string");
+        }
+        "suggestion_proposed" => validate_suggestion_proposed(p, e),
+        "suggestion_approved" | "suggestion_rejected" | "suggestion_reverted" => {
+            must(
+                e,
+                str(p.get("candidate")),
+                "candidate: must be a non-empty string (the candidate hash)",
             );
             must(e, opt_str(p.get("reason")), "reason: must be a string");
         }

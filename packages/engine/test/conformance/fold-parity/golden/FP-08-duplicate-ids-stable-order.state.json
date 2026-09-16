@@ -1,7 +1,7 @@
 {
   "state": {
     "current": {
-      "active_phase": null,
+      "active_phase": "Phase 1 — first",
       "next_action": "n"
     },
     "cursor": "01KDVDNEW8GF2S4KPXRQA1CVY5",
@@ -25,10 +25,44 @@
       "notes": [],
       "unattributed_mutations": 0
     },
-    "goal": "g",
+    "goal": "a goal of realistic length for the parity suite",
     "guard_violations": [],
     "memories": [],
-    "phases": [],
+    "phases": [
+      {
+        "name": "Phase 1 — first",
+        "status": "active",
+        "tasks": [
+          {
+            "id": "1.1",
+            "status": "active",
+            "title": "task 1"
+          },
+          {
+            "id": "1.2",
+            "status": "pending",
+            "title": "task 2"
+          }
+        ]
+      },
+      {
+        "name": "Phase 2 — second",
+        "status": "pending",
+        "tasks": [
+          {
+            "id": "2.1",
+            "route": {
+              "agent": "codex"
+            },
+            "status": "pending",
+            "title": "later",
+            "verify": {
+              "cmd": "npm test"
+            }
+          }
+        ]
+      }
+    ],
     "reviews": [],
     "runs": [],
     "sessions": [
@@ -55,10 +89,13 @@
     "status_overrides": [],
     "status_ts": null,
     "successor": null,
-    "task_files": {}
+    "task_files": {
+      "1.1": [
+        "src/a.ts"
+      ]
+    }
   },
   "warnings": [
-    "line 2: invalid plan_updated payload (plan: must be an object) — skipped",
     "line 7: session \"A\" already started — skipped"
   ]
 }

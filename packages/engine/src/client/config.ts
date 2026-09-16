@@ -1,8 +1,8 @@
-import { createHash } from 'node:crypto'
-import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join } from 'node:path'
 import { assertSafeWebUrl } from './url'
+import { cloneKey, stateBase } from '../core/state-dir'
 
 /**
  * Sync-client configuration + stores (sync-client 1.1, SPEC §Sync client).
@@ -183,15 +183,9 @@ export interface SyncState {
 }
 
 export function syncStatePath(rootDir: string, env: Env = process.env): string {
-  const base = nonEmpty(env.XDG_STATE_HOME) ?? join(homedir(), '.local', 'state')
-  let real: string
-  try {
-    real = realpathSync(rootDir)
-  } catch {
-    real = resolve(rootDir)
-  }
-  const key = createHash('sha256').update(real).digest('hex').slice(0, 32)
-  return join(base, 'sofar', 'sync', `${key}.json`)
+  // Shared per-clone keying (core/state-dir.ts): the diagnostics store
+  // (self-improve D3) sits beside these cursors under the same clone hash.
+  return join(stateBase(env), 'sync', `${cloneKey(rootDir)}.json`)
 }
 
 /**

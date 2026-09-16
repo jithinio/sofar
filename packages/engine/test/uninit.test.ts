@@ -81,7 +81,7 @@ describe('sofar uninit on an inited fresh repo', () => {
     expect(result.stderr).toBe('')
 
     // the five shims and their (now empty) directory are gone
-    for (const shim of ['session-start.sh', 'user-prompt-submit.sh', 'post-tool-use.sh', 'stop.sh', 'session-end.sh']) {
+    for (const shim of ['session-start.sh', 'user-prompt-submit.sh', 'post-tool-use.sh', 'post-tool-use-failure.sh', 'stop.sh', 'session-end.sh']) {
       expect(result.stdout).toContain(`removed .claude/hooks/${shim}`)
       expect(existsSync(join(root, '.claude', 'hooks', shim))).toBe(false)
     }

@@ -186,7 +186,14 @@ describe('acceptance 1+2+4 — two interleaved sessions on ONE initiative', () =
     expect(sessionA).toMatchObject({ summary: 'A finished its half' })
     expect(sessionB).toMatchObject({ summary: 'B finished its half' })
     expect(sessionA.activity).toEqual({ files: ['src/a.ts'], commands: 0, task_changes: ['1.1 → active'] })
-    expect(sessionB.activity).toEqual({ files: [], commands: 1, task_changes: ['1.2 → active'] })
+    // The hook wrote `ok: true` (self-improve 1.2), so B's `npm test` is a known
+    // test outcome (r1-fixes 2.5, D24) — derived, never narrated.
+    expect(sessionB.activity).toEqual({
+      files: [],
+      commands: 1,
+      last_test: { cmd: 'npm test', ok: true },
+      task_changes: ['1.2 → active'],
+    })
     expect(state.files_touched).toEqual(['src/a.ts']) // global aggregation unchanged
     const replay = foldLog(fixture.eventsPath)
     expect(replay.state).toEqual(state)

@@ -75,6 +75,8 @@ engine-only scope law still applies during the Fable window.
   repo.md                      # repo-scoped memory (hand-written, NOT generated)
   bindings.json                # { "<git-branch-or-worktree>": "<slug>" }
   .index/                      # DERIVED, local, gitignored — §Derived index
+                               # private diagnostics live OUTSIDE the repo,
+                               #   under the XDG state dir — §Diagnostics store
   initiatives/<slug>/
     events.jsonl               # TRUTH — append-only
     plan.md                    # generated projection
@@ -164,7 +166,12 @@ alongside `rule`; see §Decision guards, drift-hardening D3) ·
 session_started (tool, model?) · session_ended (summary, next_action) ·
 session_closed (reason — mechanical close from the SessionEnd hook; never
 carries summary/next_action, added Phase 3, BD21) ·
-file_touched (path, op) · command_run (cmd) · note_added ·
+file_touched (path, op, ok?) · command_run (cmd, ok?, exit?) — `ok` is what the
+HOST said about the call (PostToolUse fires only on success, PostToolUseFailure
+only on failure) and `exit` the process status when the host supplies a number;
+both OPTIONAL and additive, absent means UNKNOWN, never success; they are the
+ONLY outcome facts the record carries, everything richer is a private row
+(self-improve D2, see §Diagnostics store) · note_added ·
 memory_promoted (text, supersedes? — a fact its author declares repo memory,
 addressable as `<slug> M<n>`; `supersedes` names the qualified handle of the
 fact it replaces, r1-fixes D8; repo-memory-capture D1) ·
@@ -181,7 +188,13 @@ reason: closed|needs_user|stall|cost_cap|max_sessions|interrupted|error,
 note? — REQUIRED for `error`; the three driver events ride on envelope
 session `cli`, since a run is not a session; session-driver 1.2, see
 §Driver) · run_stop_requested (run — an operator asking a driver to end its
-run from outside it; in-session-drive D2, see §Driver) · correction (ref)
+run from outside it; in-session-drive D2, see §Driver) · correction (ref) ·
+suggestion_proposed (candidate, signal, evidence, count, cutoff?, engine,
+detector_version, trust {protocol, verdict, precision, recall, judged} — a
+loss row from a TRUSTED detector, never a cause and never a fix) ·
+suggestion_approved · suggestion_rejected · suggestion_reverted
+(candidate, reason? — append-only transitions; approval binds to the
+candidate hash; self-improve 2.3, see §Suggestions)
 `watermark` is review_recorded's load-bearing field, not `verdict`: it is the
 sha the review read THROUGH, and it is what makes the next review's range
 computable. That is why a review is an event and could never have been a
@@ -199,7 +212,7 @@ memories[ {id, ts, text} ],
 sessions[ {id, tool, model?, started, ended?,
 summary?, next_action?, closed_reason?, activity?, handoff?: {run, reason,
 ts}} ],
-files_touched[], task_files, drop_notes, guard_violations[ {decision, rule,
+files_touched[], task_files, task_tests? (r1-fixes 2.5, D24: present only when non-empty), drop_notes, guard_violations[ {decision, rule,
 guard, domain, subject, event_id, ts, session} ], reviews[ {id, ts, scope,
 verdict, watermark?, phase?, findings[]} ], runs[ {id, ts, adapter, policy,
 threshold_pct?, context_window?, max_sessions?, handoffs[ {ts, session_id, reason, task?,
@@ -613,11 +626,12 @@ structural (final folded plan; no event_id)
   has_task    phase      -> task
 occurrence (exactly ONE edge per sourcing event; carries event_id + ts)
   touched     session    -> file       file_touched            attrs.op
-  ran         session    -> command    command_run
+  ran         session    -> command    command_run             attrs.ok/exit/test only when the host said (D24)
   changed     session    -> task       task_status_changed     attrs.status
   decided     session    -> decision   decision_logged
   noted       session    -> note       note_added
   worked      task       -> file       file_touched x every task ACTIVE then
+  tested      task       -> command    test-shaped command_run with a KNOWN ok x every task ACTIVE then (r1-fixes 2.5, D24)
 derived from decision prose (closed lexical grammar; no event_id)
   cites       decision   -> decision | task
 structural (predecessor's folded `successor`; no event_id; initiative-supersession D1)
@@ -1676,6 +1690,199 @@ entries are clean of reach and lexicon code. Same rule as §Record graph's
 exclusion of `core/graph.ts`, for the same reason and one layer down: the
 declared half is what a shim may afford, and it is sized so that it is.
 
+## Diagnostics store (self-improve — private, local, never truth)
+A THIRD class of data next to events.jsonl (truth) and §Derived index
+(derived, disposable): raw observations about tool calls, hook firings and
+MCP calls that exist nowhere else and are NOT rebuildable, kept OUTSIDE the
+repo. It exists because the record cannot hold them — every envelope-valid
+event is exported and synced (§Cursor primitive, §Sync client) and events.jsonl
+is committed, so error text, output sizes and call counts in the record would
+be error text in every clone forever — and .index cannot hold them either,
+because §Derived index's first rule is that every file there may be deleted
+and rebuilt with no loss. Adopted as self-improve D2 (the shape) and D3 (the
+boundary) on 2026-09-15; the schema half lives in
+`packages/schema/src/diagnostics.ts`, the store in `core/diagnostics.ts`.
+
+**Where.** `$XDG_STATE_HOME/sofar/diagnostics/<clone-key>/<initiative>.jsonl`
+(default `~/.local/state/sofar/…`), plus one `meta.json` per clone. The clone
+key is the same 32-hex sha256 of the clone's real path that names the sync
+cursor file (sync-client D2's storage triad; `core/state-dir.ts`), so a
+worktree is its own clone and two checkouts never share a file. Never under
+`.sofar/`, never under the clone root, and not by convention: `diagnosticsDir`
+compares the resolved directory against the repo root with symlinks resolved
+on BOTH sides and returns null — every writer goes silent — if
+`XDG_STATE_HOME` would put it inside. A path outside the clone is
+uncommittable, unpackable and unexportable by construction; a `.gitignore`
+would have been one file away from failing.
+
+**What a row is.** `{d: 1, ts, engine, host?: {tool, version?}, clone,
+initiative, session, kind, data}` — and, deliberately, NOT an event: no `v`,
+no ulid `id`, no `type`, no `payload`, no `source`, no `actor`, so
+`validateEnvelope` rejects a row on six fields at once and an import stream
+that somehow carries one appends nothing. `kind` is one of `tool_outcome`
+(a PostToolUse-class report: tool, ok, exit, leading command token, exempt,
+interrupted, output bytes), `tool_failure` (PostToolUseFailure: tool, redacted
+error clipped to 512 characters, interrupt), `mcp_call` (every sofar MCP call
+the server handled, success or typed rejection: tool, ok, code, ms) and
+`injection` (what a hook put in front of the model: hook, bytes, memory
+bytes) — a set that shares no member with the event types, pinned by test.
+Rows are validated against the schema before the append; the engine never
+widens the shape. Redaction precedes storage: command text only through the
+same redactor as `cmd`; error text clipped and redacted; no tool arguments,
+no transcripts.
+
+**Who writes.** The PostToolUse and PostToolUseFailure shims (§Hooks), the
+SessionStart shim (an `injection` row sized to its stdout), and the MCP
+server itself — the PostToolUse matcher never sees `mcp__sofar__*` calls, so
+the server counts its own, which is the MCP half of the bookkeeping
+denominator. The record-hygiene D1 exemption does NOT reach the store: a
+self-recording git or sofar command appends no event and still gets a row,
+because the exemption protects the tree from self-dirtying appends and the
+store is outside the tree. Coverage is bounded and said so: hooks fire only
+on Edit|Write|MultiEdit|Bash, Read/Grep/other tools are never observed, and
+a consumer must report what it cannot see as unknown (self-improve 1.3).
+
+**Best-effort, never recursive (BD22).** A failed row write returns false,
+fails no tool call, appends no event and is not itself recorded as a
+diagnostic. An MCP typed rejection writes a row and still appends nothing to
+the record — no-write-on-invalid-input is pinned. Nothing the fold, the
+projections or the SessionStart block depends on reads the store, so the
+block's byte-stability (felt-cost 1.2) holds with a store full of rows.
+
+**Retention.** Rows older than 90 days are dropped by a sweep that runs at
+most once a day per clone (remembered in `meta.json`); a row file over 8 MiB
+is compacted — expired rows first, then the oldest — until it fits in half
+the cap. The hot path pays one stat per write. `sofar diagnostics --purge`
+deletes the clone's store. Deleting the repo strands its store until the
+sweep or a purge; that cost is accepted for a path no `git add -f` can reach.
+
+**The boundary is a test, not a promise.** With a store seeded with a
+sentinel, `exportEvents`, `exportNDJSON`, `sofar export`, `pushStream` (every
+request body) and `pullStream` (the imported log and the untouched store) are
+each asserted to move zero bytes of it, and a row write in a real git repo is
+asserted to leave `git status --porcelain --ignored` empty. Editing
+`core/cursor.ts`, `client/push.ts` or `client/pull.ts` crosses the D3 guard,
+which names this test.
+
+**What the record may hold about a row.** Its id, a content hash or an
+aggregate count — never its content. When rows have expired, a consumer
+reports evidence unavailable; it never reconstructs it.
+
+**Signal availability (self-improve 1.3).** Every signal the improvement
+loop may ever consume is listed ONCE, in code (`core/signals.ts`), with the
+question it answers, what it is derived from (record, diagnostics, git,
+index, none), its CEILING — `capturable`, `partial` (derivable with a stated
+blind spot) or `unavailable` (nothing in this design observes it) — the
+reason the ceiling is what it is, and what the clone must have wired for it
+(the PostToolUse, PostToolUseFailure or SessionStart shim in
+`.claude/settings.json`; a diagnostics store that is not refused; a driven
+run). The live layer degrades the ceiling against the actual clone, so a
+signal is `capturable` only when both agree. A consumer asks this map before
+it reports a number, and prints UNKNOWN — never zero, never "no failures" —
+for anything not capturable. Sixteen signals today; four are unavailable by
+design and say why: read-only tool calls (the matcher never sees them),
+memory USE (only "no observed citation" is derivable, and that is not
+"unused"), historical digest bytes (a re-render is a simulation) and hook
+latency (not instrumented). `sofar diagnostics --signals` renders the map for
+this clone, `--json` the machine form; the id set is pinned by test so the
+Phase 2 detector cannot consume a signal the map does not name.
+
+## Tune (self-improve — detection only; dry-run is the only mode)
+`sofar tune [slug|--all] --dry-run [--json]` reads the RAW logs and the
+private store (§Diagnostics store), runs a detector for each signal the
+availability map allows on this clone, and prints a report. Nothing else. No
+event is appended, no row is written, no file under `.sofar/` or the store
+changes; `--dry-run` is REQUIRED on the command line and the command refuses
+without it, so a reader of a shell history never wonders whether an
+invocation applied something. A mode that persists or applies, if one ever
+exists (self-improve 2.3), is a separate, differently named surface.
+
+**Three rules, from the audit (S1, S3, S5).** (1) A detector runs ONLY for a
+signal the map does not call `unavailable` here; every other signal is
+reported UNKNOWN with the map's reason and what is missing — a count is never
+printed for a signal nobody observes, and UNKNOWN is never zero. The map
+degrades against the clone; the CORPUS gate (self-improve 2.2) degrades
+against the log: a detector whose source only a hook, the store or a driver
+produces — `stalls` (a run_started, handoff or run_stopped), `formatter_friction`
+(a file_touched), `tool_failure` (a command_run or file_touched carrying `ok`),
+and the three store detectors (a row of their kind) — is UNKNOWN, `not observed
+in this corpus: …`, unless the logs and rows read show that source at least
+once. Detectors over events sofar writes itself (`session_started`,
+`correction`) are not gated. Which detectors may feed suggestions is decided
+by the 2.2 precision protocol, not by this report. (2) Every
+finding cites immutable evidence: event ids, or `row:` + the first 16 hex of
+the sha256 of a row's stored line — never prose, never a re-derivation.
+(3) A detector states its coverage — the denominator, the event types, the
+rows — and, when partial, the map's blind spot on the same block, and it
+never labels a cause: a correction is a correction, not "shell mangling"; an
+edit to `biome.json` is an edit, not "friction".
+
+**Detectors (2.1).** Over the record: `duplicate_session_starts` (raw
+session_started lines per session id — the fold hides exactly these),
+`corrections` (each with its target when the target is in the same log),
+`stalls` (handoff and run_stopped with reason `stall`, driven runs only),
+`formatter_friction` (file_touched whose basename is a formatter or MCP
+config name), `tool_failure` (command_run / file_touched with `ok: false`,
+grouped by leading token or path; events without `ok` are counted neither
+way). Over the store: `mcp_rejections` (mcp_call rows with `ok: false`, by
+tool and code), `bookkeeping_share` (exempt commands plus sofar MCP calls
+over the observed calls — an UPPER bound), `injection_bytes` (SessionStart
+rows: median and max chars, repo memory max). Everything else in the map is
+UNKNOWN by construction.
+
+**Deterministic and replayable.** The detectors are pure over their inputs —
+no filesystem, no clock, no randomness — so the same inputs render the same
+bytes, the JSON report is version-stamped (`version: 1`) and carries the
+corpus behind every count (events read per initiative, rows read, the
+highest event id as the cutoff), and a run against the same log prefix
+reproduces the report. The plain rendering caps evidence at ten ids per
+finding (`+N more`); the JSON carries them all. Both are byte-plain
+(§CLI UI).
+
+## Suggestions (self-improve — propose-only; a loss row is never a fix)
+`sofar suggest [slug|--all] --dry-run [--json]` derives LOSS ROWS from the
+detectors the 2.2 precision protocol marked TRUSTED and prints them, writing
+nothing. `--list` shows the recorded ones with their history. Persisting is
+always an explicit verb: `sofar suggest record|approve|reject|revert
+<candidate>`, one event each. There is no MCP tool and no digest section — the
+operator asks for suggestions; they are never pushed into every session.
+
+**A candidate.** `{candidate, signal, scope (one initiative), evidence, count,
+cutoff, engine, detector_version, trust}`. It names no cause and proposes no
+change: `corrections` proves the record was fixed N times, not why, so the
+fix, its predicted gain, its falsifier and its budget belong to Phase 3, which
+consumes approved rows. `trust` carries what 2.2 measured about the signal —
+precision, recall, the judged n, and the protocol and verdict event ids — so a
+reader sees how often it is right without leaving the row.
+
+**Trust gates emission.** A candidate exists only for a signal the 2.2
+protocol trusts (today `corrections` alone: precision 0.97, recall 0.53).
+Every other detector stays report-only in §Tune, and adding one REQUIRES a
+re-run of that protocol on a fresh held-out corpus. A detector the corpus gate
+left UNKNOWN proposes nothing, and a signal needs at least 3 instances in
+scope — one correction is ordinary work, a cluster is a pattern.
+
+**The hash is the evidence.** `candidate` is sha256 over `{version, signal,
+scope, sorted evidence}` — not the cutoff, not prose, not a branch name. New
+evidence is a NEW candidate. That is what makes approval bind to the exact one
+and keeps a rejected row suppressed until its evidence actually moves.
+
+**Transitions are append-only.** `record` refuses a candidate the record no
+longer derives, one already recorded, one whose identical evidence was already
+rejected, and any beyond 10 awaiting a verdict in an initiative. `approve` is
+refused once the evidence set has moved, naming the candidate that replaced
+it. `reject` and `revert` require a reason. `revert` ends an approval with a
+new event — stale or not, because an approval that cannot be undone is a trap
+— and erases nothing. Suggestions are deliberately NOT folded into
+InitiativeState, and they are excluded from drift (commit-attribution D18): a
+row that changes nothing cannot stale a next action.
+
+**The protected floor.** The set of things a suggestion may ever change is
+today EMPTY, and log integrity, session routing, standing constraints,
+evaluator integrity, permissions and release policy are never in it. No
+candidate kind that changes what is INJECTED may ship before the offline
+replay check (context size, information preservation) exists.
+
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
 events not already present (dedupe by id — idempotent). Per-initiative
@@ -2196,6 +2403,39 @@ per-session, so it is named ONCE where the agent reads: SessionStart injects
 an unbound notice naming `sofar switch` / `sofar new`, and the statusline
 renders `unbound`. Both are scoped to repos that carry a record — a repo
 sofar has never touched is unchanged.
+**Derived activity (r1-fixes 2.5, D24) — the model logs only why.** The
+outcome facts self-improve 1.2 put on the record — `ok`/`exit` on command_run
+and file_touched — are folded, never narrated. (1) RECOGNIZER: `core/derived.ts`
+holds a CLOSED set of test runners matched at the head of each shell segment
+(`&&`, `||`, `;`, `|`, newline; quote-aware) after `VAR=value` prefixes are
+dropped — `cd pkg && npm test` and `CI=1 npx vitest run` are test-shaped,
+`git commit -m "npm test"` is not. It is pure: what the command DID is `ok`.
+(2) FOLD: a `ran` edge carries {ok, exit?, test?} only when `ok` is known, and
+a `tested` edge (task → command) is written for every task ACTIVE at a
+test-shaped command with a known `ok` — the task_files window. On finalize a
+session's activity gains OPTIONAL `failed` (ok:false only; an absent `ok` is
+UNKNOWN, never a failure) and `last_test` {cmd, ok, exit?}, and the state
+gains OPTIONAL `task_tests` (task id → latest {cmd, ok, exit?, ts, event_id}),
+present only when non-empty — a record without outcome fields folds
+byte-identically, so every fold-parity golden and pre-capture projection is
+unchanged (D21). (3) SURFACES: sessions/<id>.md says `Commands run: N (M
+failed)` and `Last test: pass|fail — <cmd>`; describeActivity says `N
+commands (M failed), tests pass|fail`; the status block's Current task gains
+one budgeted `tests: pass|fail — <cmd>` line, which a D19 verification at
+least as new takes over as `tests: verified <result> — <command>`.
+(4) COMMITS, read from git and never recorded (§Commit attribution): SessionStart
+reads the shipping window ONCE and derives from the same walk a volatile-tail
+line `Commits (this record, last N walked): <task> ×n, … — newest <sha7>
+<subject>`, counting this record's trailered commits by the task-id prefix of
+their subject (`2.5: …`; `other` for the rest); CommitAttribution carries the
+`subject`. (5) GUIDANCE: sofar_update_task's and sofar_end_session's
+descriptions end with the "WHY — never restate what hooks capture" sentence,
+and the CLAUDE.md and AGENTS.md protocol blocks carry the same clause in
+DURING (their predecessors sit in the ledger as stale). (6) SWITCH:
+`SOFAR_ACTIVITY=off` (also `0`, `false`) removes the tests line, the commits
+line and the two description sentences — round 3's ablation arm (D5, D23);
+projections read no env and are unchanged by it.
+
 **Quick-work lane (r1-fixes 2.6, D14, D15).** The reserved slug `quick` is
 the standing per-repo record ad-hoc work lands in with no ceremony. It is a
 FALLBACK, never a binding and never a home: (1) `resolveInitiative` answers
@@ -2682,6 +2922,27 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   Best-effort per BD22 and D1: any failure yields no notice, never an error and
   never a wrong answer — a missing, stale or corrupt index rebuilds and answers
   correctly, more slowly.
+  OUTCOME (self-improve 1.2, D2): the event carries `ok: true` — the host fired
+  PostToolUse, which it does only for a call that succeeded — and `exit` when
+  `tool_response.exit_code` is a number. The same call also writes ONE
+  `tool_outcome` row to the private store (§Diagnostics store): tool name,
+  ok/exit, the command's leading token, output size — and it is written for
+  the EXEMPT commands too, because the exemption protects the tree from
+  self-dirtying appends and the store is outside the tree. That row is how the
+  bookkeeping share of git/sofar commands becomes countable at all.
+- PostToolUseFailure shim (matcher: Edit|Write|MultiEdit|Bash) → `sofar event
+  post-tool-failure`: the half the record never saw. Claude Code fires
+  PostToolUse only for a call that succeeded, so before this shim a failing
+  `npm test` left NO trace — the record showed every command that passed and
+  none that failed. The shim appends the SAME mechanical event the success
+  path would have — command_run / file_touched, same exemption, same lazy
+  registration — with `ok: false` and, for Bash, the host's structured
+  `exit_code`. The error text (`stderr`, then the host's one-line `error`)
+  goes ONLY to a `tool_failure` row in the private store, passed through the
+  same redaction as `cmd` and clipped to 512 characters: a stderr tail carries
+  paths and secrets, and the record is committed and synced. No guard notice
+  and no stdout: the notice comments on an edit just made, and this call made
+  none. Best-effort per BD22: every failure path is exit 0 and silence.
 - Stop shim → reads stdin JSON; if stop_hook_active is true → exit 0
   (loop guard). Else if no session_ended event exists for this session_id
   AND gate-relevant drift is nonzero → exit 2 with stderr: "Write back to
@@ -3123,11 +3384,32 @@ Shims contain no logic — they invoke the sofar CLI.
 - `sofar export [slug] [--since <id>]` / `sofar import <file|-> [slug]`
   — per-initiative NDJSON over the §Cursor primitive; slug resolves like
   status (explicit wins, else branch binding) (extended Phase 4, BD28)
+- `sofar tune [slug|--all] --dry-run [--json]` — detection only (§Tune,
+  self-improve 2.1): run the detectors the signal availability map allows on
+  this clone over the raw logs and the private store, cite event ids and row
+  hashes, state coverage and blind spots, print UNKNOWN — never zero — for
+  every signal this clone cannot observe. `--dry-run` is required and the
+  only mode; the command refuses without it and writes nothing.
+- `sofar suggest [slug|--all] --dry-run|--list [--json]` and
+  `sofar suggest record|approve|reject|revert <candidate> [--reason]` —
+  propose-only loss rows from TRUSTED detectors (§Suggestions,
+  self-improve 2.3). Reading writes nothing; each verb appends exactly one
+  event; approval binds to the candidate hash and is refused once its evidence
+  moves; `--reason` is required to reject or revert.
+- `sofar diagnostics [--purge] [--signals] [--json]` — the one human window
+  onto the private store (§Diagnostics store): where it is for this clone,
+  rows and bytes per initiative and per kind, the retention rule. Counts and
+  paths ONLY, never row contents — a row can carry redacted error text, and a
+  summary surface must not become a second way to read it. `--purge` deletes
+  the clone's store; `--signals` renders the signal availability map — each
+  promised signal with its status here, its blind spot and what is missing;
+  `--json` is the machine form (self-improve 1.2, 1.3).
 - `sofar login` / `sofar link` / `sofar push` / `sofar pull [--watch]`
   — the v2 sync client against api.sofar.sh; full contract in
   §Sync client (sync-client, Jul 2026).
 - `sofar event <subcommand>` — append-side surface: session-start,
-  post-tool, stop, session-end are internal subcommands for the hook shims;
+  post-tool, post-tool-failure, stop, session-end are internal subcommands for
+  the hook shims;
   `event append --type <event_type> --payload <json-object> [--session <id>]
   [--source <tool>] [--actor <actor>] [slug]` is the convention-dialect
   surface for MCP-less tools — validate payload, append ONE event,
@@ -3716,6 +3998,28 @@ stay the underlying derivation's, and exit codes are styling-independent.
   lessons line; a runner-up under 0.6× the top score is dropped; an
   unregistered session gets nothing; the line clips at 320 chars; and the
   hook appends nothing.
+- **Derived activity (r1-fixes 2.5):** a record whose command_run events
+  carry no `ok` folds to state with no `task_tests` key and to session
+  activity with no `failed` or `last_test`, so every pre-capture projection
+  and fold-parity golden is byte-identical; with outcomes, a session's
+  activity counts `failed` (ok:false only — an absent `ok` is unknown, never
+  a failure) and keeps the newest test-shaped command with a known `ok` as
+  `last_test`, and `task_tests` holds that outcome for every task ACTIVE at
+  the command; the recognizer accepts `npm test`, `cd x && npm run test:unit
+  -- --run`, `CI=1 npx vitest run`, `cargo test --all`, `ls; pytest -q`, `npm
+  test | tail` and rejects `git commit -m "npm test"`, `echo "a && npm
+  test"`, `make testing`; sessions/<id>.md says `Commands run: N (M failed)`
+  and `Last test: pass|fail — <cmd>`; the status block's Current task gains
+  `tests: pass — <cmd>`, a verification at least as new renders `tests:
+  verified <result> — <command>` instead, and `activity: false` omits the
+  line; SessionStart on a repo whose trailered commits are subject-prefixed
+  renders `Commits (this record, last N walked): 2.5 ×2, other ×1 — newest
+  <sha7> <subject>` from one attribution walk and omits it under
+  `SOFAR_ACTIVITY=off`; parseAttribution keeps the subject and omits the key
+  when the walk carried none; `withActivityGuidance` appends the WHY sentence
+  to exactly sofar_update_task and sofar_end_session and to neither under the
+  switch; both protocol blocks contain the WHY clause and their V7
+  predecessors classify as stale.
 - **Repo memory capture:** `sofar remember <text>` and `sofar_remember`
   append memory_promoted and report the `<slug> M<n>` handle; ordinals follow
   log order; `memory.md` appears only once something is promoted; empty text
@@ -4643,3 +4947,58 @@ stay the underlying derivation's, and exit codes are styling-independent.
   type, and the hook binary owns exactly the argv shapes the fast path
   owns (the five hooks and the statusline with `--root`), handing every
   other shape back.
+- **Diagnostics store (self-improve 1.2):** a diagnostics row fails
+  `validateEnvelope` and an import stream carrying one appends nothing; the
+  store resolves under the XDG state dir keyed by the same clone hash as the
+  sync cursors, and is REFUSED (every writer silent, nothing created) when
+  `XDG_STATE_HOME` would place it inside the repo; a row write in a real git
+  repo leaves `git status --porcelain --ignored` empty; with a sentinel row in
+  the store, `exportEvents`, `exportNDJSON`, `sofar export`, `pushStream` and
+  `pullStream` move zero bytes of it; rows past 90 days are swept and a file
+  over the byte cap compacts to half; `PostToolUse` appends `command_run` /
+  `file_touched` with `ok: true` (and `exit` when the host gives a number) plus
+  a `tool_outcome` row, including for exempt commands, which still append no
+  event; `PostToolUseFailure` appends the same event with `ok: false` and the
+  structured exit code while the error text lands ONLY in a `tool_failure` row,
+  redacted and clipped to 512 characters; `SessionStart` writes an `injection`
+  row and renders byte-identically with the store populated; an MCP typed
+  rejection writes an `mcp_call` row and appends nothing; `sofar diagnostics`
+  prints counts and paths, never contents, and `--purge` removes the store.
+- **Signal availability (self-improve 1.3):** `core/signals.ts` names every
+  signal the loop may consume with a ceiling and a reason; with every
+  requirement met each signal's status equals its ceiling and four remain
+  unavailable by design; unwiring the PostToolUseFailure shim makes
+  `tool_failure` and `error_text` unavailable naming that shim; a refused
+  store makes every diagnostics-sourced signal unavailable; the environment
+  read from a fresh fixture shows no hooks, after `sofar init` all three, and
+  `XDG_STATE_HOME` inside the repo shows the store refused; `sofar
+  diagnostics --signals` renders all sixteen byte-plain with what is missing,
+  and `--json` carries the environment and the list.
+- **Tune (self-improve 2.1):** `sofar tune` without `--dry-run` exits 1 and
+  changes nothing; with it, two runs over the same logs and store leave
+  `.sofar/` and the store byte-identical and print identical output with no
+  timestamp in it; the report names every signal in the availability map,
+  each with a detector block or UNKNOWN carrying the map's reason; a signal
+  the clone cannot observe (the failure shim unwired, the store refused) is
+  UNKNOWN naming what is missing even when the log holds matching events;
+  `duplicate_session_starts` cites every raw registration of a session,
+  `corrections` cites the correction and its target and names no cause,
+  `stalls` reads only `stall` reasons, `formatter_friction` counts config-file
+  edits by path, `tool_failure` groups `ok: false` by leading token or path
+  and counts events without `ok` neither way; `mcp_rejections`,
+  `bookkeeping_share` and `injection_bytes` cite row hashes and the share is
+  stated as an upper bound; `--all` spans every initiative; the plain
+  rendering is byte-plain, caps evidence at ten with `+N more`, and equals the
+  pure renderer over the JSON report.
+- **Suggestions (self-improve 2.3):** `sofar suggest` without `--dry-run` or
+  `--list` exits 1; both reading modes leave `.sofar/` byte-identical. A row is
+  derived only for a TRUSTED signal, only when the corpus gate let its
+  detector run, and only at 3+ instances in scope; it carries the 2.2
+  precision, recall, judged n and protocol id, and names no cause. The
+  candidate hash is stable when unrelated events move the cutoff and changes
+  when the evidence set does. `record` is refused for an underivable
+  candidate, one already recorded, one whose identical evidence was rejected,
+  and past 10 awaiting a verdict; `approve` is refused once the evidence moved
+  and names the replacement; `reject` and `revert` without `--reason` exit 1;
+  `revert` works on a stale approval and leaves proposed/approved/reverted in
+  the log in order; the lifecycle leaves `events_since_writeback` unchanged.

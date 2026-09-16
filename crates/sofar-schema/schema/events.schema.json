@@ -67,6 +67,18 @@
         },
         "correction": {
           "$ref": "#/definitions/CorrectionPayload"
+        },
+        "suggestion_proposed": {
+          "$ref": "#/definitions/SuggestionProposedPayload"
+        },
+        "suggestion_approved": {
+          "$ref": "#/definitions/SuggestionTransitionPayload"
+        },
+        "suggestion_rejected": {
+          "$ref": "#/definitions/SuggestionTransitionPayload"
+        },
+        "suggestion_reverted": {
+          "$ref": "#/definitions/SuggestionTransitionPayload"
         }
       },
       "required": [
@@ -90,7 +102,11 @@
         "run_stopped",
         "run_stop_requested",
         "verification_recorded",
-        "correction"
+        "correction",
+        "suggestion_proposed",
+        "suggestion_approved",
+        "suggestion_rejected",
+        "suggestion_reverted"
       ]
     },
     "InitiativeCreatedPayload": {
@@ -411,18 +427,28 @@
         },
         "op": {
           "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
         }
       },
       "required": [
         "path",
         "op"
-      ]
+      ],
+      "description": "Mechanical outcome fields (self-improve D2): OPTIONAL, additive, and the ONLY outcome facts the durable record carries. `ok` is what the host said about the call — PostToolUse fires only on success, PostToolUseFailure only on failure — and `exit` is the process status when the host supplies one as a number. Absent means UNKNOWN (an engine or host that predates capture), never success. Everything richer — error text, output, timing — is a diagnostics row (src/diagnostics.ts), never a payload field."
     },
     "CommandRunPayload": {
       "type": "object",
       "properties": {
         "cmd": {
           "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "exit": {
+          "type": "integer"
         }
       },
       "required": [
@@ -760,6 +786,96 @@
       "required": [
         "ref"
       ]
+    },
+    "SuggestionProposedPayload": {
+      "type": "object",
+      "properties": {
+        "candidate": {
+          "type": "string"
+        },
+        "signal": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Event ids (or `row:` hashes) the detector cited — the whole set the hash covers."
+        },
+        "count": {
+          "type": "integer"
+        },
+        "cutoff": {
+          "type": "string",
+          "description": "Highest event id the deriving report read. Recorded, never hashed."
+        },
+        "engine": {
+          "type": "string"
+        },
+        "detector_version": {
+          "type": "integer"
+        },
+        "trust": {
+          "$ref": "#/definitions/SuggestionTrust"
+        }
+      },
+      "required": [
+        "candidate",
+        "signal",
+        "evidence",
+        "count",
+        "engine",
+        "detector_version",
+        "trust"
+      ],
+      "description": "A LOSS ROW proposed from a trusted detector — never a cause, never a fix (self-improve 2.3). `candidate` is sha256 over {version, signal, scope, sorted evidence}, so new evidence is a new candidate and approval binds to the exact one."
+    },
+    "SuggestionTrust": {
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "type": "string",
+          "description": "Event id of the protocol decision the numbers were produced under."
+        },
+        "verdict": {
+          "type": "string",
+          "description": "Event id of the decision carrying the verdict."
+        },
+        "precision": {
+          "type": "number"
+        },
+        "recall": {
+          "type": "number"
+        },
+        "judged": {
+          "type": "integer",
+          "description": "Findings judged on held-out splits — the n behind the precision."
+        }
+      },
+      "required": [
+        "protocol",
+        "verdict",
+        "precision",
+        "recall",
+        "judged"
+      ],
+      "description": "What the 2.2 protocol measured about the detector behind a suggestion (self-improve 2.3): a reader sees how often this signal is right without leaving the row. Every field is a measurement, never an estimate."
+    },
+    "SuggestionTransitionPayload": {
+      "type": "object",
+      "properties": {
+        "candidate": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate"
+      ],
+      "description": "approve / reject / revert: append-only transitions on one candidate."
     }
   }
 }

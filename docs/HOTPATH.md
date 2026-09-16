@@ -43,11 +43,12 @@ CLI reports the error:
 | --- | --- |
 | `event session-start [--root D]` | handleSessionStart |
 | `event post-tool [--root D]` | handlePostTool |
+| `event post-tool-failure [--root D]` | handlePostToolFailure (r1-fixes 2.5 / self-improve 1.2: the same mechanical event with `ok:false` and `exit` when the host gives one; error text goes to the diagnostics store outside `.sofar/`, never the record) |
 | `event user-prompt [--root D]` | handleUserPrompt |
 | `event stop [--root D]` | handleStop |
 | `event session-end [--root D]` | handleSessionEnd |
 | `statusline [--root D] [--no-color] [--color]` | runStatusline |
-| `fold --events F [--take N] [--snapshot S --since N] [--write-snapshot W]` | runFold (hidden conformance shape, SPEC §Incremental fold; owned by `sofar-core` directly under rust-core D15 — never routed by the shim) |
+| `fold --events F [--take N] [--snapshot S --since N] [--write-snapshot W]` | runFold (hidden conformance shape — the incremental fold under SPEC §Library surface (library-surface, L1/L2 — added for sofar-cloud + D11); owned by `sofar-core` directly under rust-core D15, never routed by the shim) |
 
 `event append …` is full-CLI only (commander: `--type` and `--payload`
 required; `--session` default `cli`; `--source` default `cli`; `--actor`
@@ -59,12 +60,12 @@ appended if absent, and sets `process.exitCode` (never `process.exit`).
 stdin: read to EOF as UTF-8; if stdin is a TTY, treated as empty string.
 
 The integration seam for rust-core 3.1: `boot.ts` is the natural dispatch
-point — the six hook/statusline shapes above are the whole shim-routed
+point — the seven hook/statusline shapes above are the whole shim-routed
 surface, and `runFast` returning false is already the fallback contract.
 `fold` is reached only by invoking the binary itself
 (`SOFAR_CONFORMANCE_BIN=target/release/sofar-core npx vitest run fold-parity`).
 
-## Hook input (all five `event` subcommands)
+## Hook input (all six `event` subcommands)
 
 stdin is Claude Code hook JSON. Parsed defensively: unparseable or non-object
 → `{}`; a field is used only when it is a NON-EMPTY string (`strField`), so
@@ -395,7 +396,12 @@ record `seenSessions` (≠ `cli`); `plan_updated` omitted-status warning
 `line N: <path> ("<subject>") was <was> and this plan omits its status —
 counted as pending; restate a status to keep it` (present entry, no
 `status` key, prior status done|dropped); `applyEvent`; emit edges
-(`edgesForEvent` against tasks active AFTER apply); `recordFreshness`;
+(`edgesForEvent` against tasks active AFTER apply — a `command_run` whose
+payload carries `ok` puts `{ok, exit?, test?}` on its `ran` edge and one
+`tested` edge per active task when `test` is the first test-shaped shell
+segment per `core/derived.ts`'s closed recognizer: quote-aware split on
+`&&` `||` `;` `|` newline, leading `VAR=value` dropped, three anchored
+regexes, clipped to 120 units; unknown `ok` means no attrs and no test); `recordFreshness`;
 `recordGuardViolations`; orphan candidate for a `task_status_changed`
 whose id is not in the plan.
 
@@ -420,8 +426,12 @@ rule?, guard?}`; `file_touched` dedupes into `files_touched` in first-touch
 order; `command_run`/`note_added`/`correction` change no state.
 
 Post-pass: `task_files = taskFilesFromEdges` (most-recent-first, dedupe,
-cap 20); `activity` attached to REGISTERED sessions only (files first-touch
-order cap 20 + `+N more` sentinel, commands count, task_changes `<id> →
+cap 20); `task_tests = taskTestsFromEdges` (r1-fixes 2.5, D24: task id →
+`{cmd, ok, exit?, ts, event_id}` from `tested` edges, last wins, key
+OMITTED when empty); `activity` attached to REGISTERED sessions only (files
+first-touch order cap 20 + `+N more` sentinel, commands count, `failed?`
+count of `ok:false` omitted when 0, `last_test?` `{cmd, ok, exit?}` the
+newest test-shaped command with a known `ok`, task_changes `<id> →
 <status>` cap 20 + sentinel); `deriveCurrent` (first `active` phase;
 `blocked_on` = `phase <name>` / `task <id>: <note>` / `task <id> (<title>)`
 joined by `; `); orphans = candidates whose id the FINAL plan lacks;

@@ -135,6 +135,14 @@ describe('sofar init on a fresh repo', () => {
           hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use.sh' }],
         },
       ],
+      PostToolUseFailure: [
+        {
+          matcher: 'Edit|Write|MultiEdit|Bash',
+          hooks: [
+            { type: 'command', command: '$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use-failure.sh' },
+          ],
+        },
+      ],
       Stop: [{ hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/.claude/hooks/stop.sh' }] }],
       SessionEnd: [
         { hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/.claude/hooks/session-end.sh' }] },
@@ -352,7 +360,7 @@ describe('sofar init --statusline (opt-in rent-meter wiring, D4 informed re-test
 
     const settings = readJSON(join(root, '.claude', 'settings.json'))
     expect(settings.statusLine).toEqual(STATUSLINE_SETTINGS_ENTRY)
-    expect(Object.keys(settings.hooks as object)).toHaveLength(5) // hooks untouched by the flag
+    expect(Object.keys(settings.hooks as object)).toHaveLength(6) // hooks untouched by the flag
   })
 
   it('is byte-level idempotent: a second --statusline run changes no file', () => {
@@ -498,7 +506,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
     expect(result.exitCode).toBe(0)
     // The report block ends at the blank line before the (unstyled) hint.
     const lines = (result.stdout.split('\n\n')[0] ?? '').split('\n')
-    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (13 changes)')
+    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (14 changes)')
     expect(lines[0]).toBe('\x1b[2m  └ created .sofar/repo.md\x1b[22m')
     for (const line of lines.slice(0, -1)) {
       expect(line.startsWith('\x1b[2m  └ ')).toBe(true)
@@ -516,6 +524,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
         'created .claude/hooks/session-start.sh',
         'created .claude/hooks/user-prompt-submit.sh',
         'created .claude/hooks/post-tool-use.sh',
+        'created .claude/hooks/post-tool-use-failure.sh',
         'created .claude/hooks/stop.sh',
         'created .claude/hooks/session-end.sh',
         'created .git/hooks/prepare-commit-msg',
@@ -523,7 +532,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
         'created .mcp.json',
         'created CLAUDE.md (sofar protocol block)',
         'created AGENTS.md (sofar protocol block)',
-        'sofar init: done (13 changes)',
+        'sofar init: done (14 changes)',
         '',
         STATUSLINE_HINT,
         '',

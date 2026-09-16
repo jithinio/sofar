@@ -5,6 +5,7 @@ import {
   type RunState,
   type SessionActivity,
 } from '../../core/fold'
+import type { TestOutcome } from '../../core/adjacency'
 
 /**
  * Shared template pieces. Projections are generated files — the header
@@ -29,8 +30,10 @@ export function describeActivity(activity: SessionActivity): string {
     parts.push(`${count} file${count === 1 ? '' : 's'} (${activity.files.join(', ')})`)
   }
   if (activity.commands > 0) {
-    parts.push(`${activity.commands} command${activity.commands === 1 ? '' : 's'}`)
+    const failed = activity.failed !== undefined && activity.failed > 0 ? ` (${activity.failed} failed)` : ''
+    parts.push(`${activity.commands} command${activity.commands === 1 ? '' : 's'}${failed}`)
   }
+  if (activity.last_test !== undefined) parts.push(`tests ${activity.last_test.ok ? 'pass' : 'fail'}`)
   if (activity.task_changes.length > 0) {
     parts.push(`task changes: ${activity.task_changes.join(', ')}`)
   }
@@ -250,4 +253,14 @@ export function pct(done: number, total: number, dropped = 0): string {
   const resolved = done + dropped
   const raw = Math.floor((resolved / total) * 100)
   return `${resolved === total ? 100 : Math.min(raw, 99)}%`
+}
+
+/**
+ * One test outcome as a surface line (r1-fixes 2.5, D24): `pass — npm test`,
+ * `fail (exit 1) — npm test`. The exit code is shown only on a failure —
+ * on a pass it is 0 or unknown, and neither adds a fact.
+ */
+export function testOutcomeLine(test: TestOutcome): string {
+  const exit = !test.ok && test.exit !== undefined ? ` (exit ${test.exit})` : ''
+  return `${test.ok ? 'pass' : 'fail'}${exit} — ${test.cmd}`
 }

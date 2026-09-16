@@ -17,6 +17,10 @@
     "./tool-inputs": {
       "types": "./src/tool-inputs.ts",
       "default": "./src/tool-inputs.ts"
+    },
+    "./diagnostics": {
+      "types": "./src/diagnostics.ts",
+      "default": "./src/diagnostics.ts"
     }
   },
   "scripts": {

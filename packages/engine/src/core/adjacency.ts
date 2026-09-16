@@ -1,3 +1,4 @@
+import { testShapedCommand } from './derived'
 import type {
   CommandRunPayload,
   DecisionLoggedPayload,
@@ -102,6 +103,12 @@ export type GraphEdgeKind =
   | 'decided'
   | 'noted'
   | 'worked'
+  /**
+   * task -> command: a test-shaped command_run with a KNOWN `ok`, for every
+   * task ACTIVE then (r1-fixes 2.5, D24) — the task_files window applied to
+   * outcomes. Never written for a command whose outcome the host did not say.
+   */
+  | 'tested'
   | 'cites'
   /** initiative -> initiative: the predecessor's `successor` (initiative-supersession 3.3). */
   | 'superseded_by'
@@ -118,7 +125,15 @@ export interface GraphEdge {
   /** Present on occurrence edges: the ulid of the event that produced this edge. */
   event_id?: string
   ts?: string
-  attrs?: { op?: string; status?: TaskStatus }
+  attrs?: {
+    op?: string
+    status?: TaskStatus
+    /** command_run outcome (self-improve D2), present only when the host said (D24). */
+    ok?: boolean
+    exit?: number
+    /** The test-shaped segment of the command, when the recognizer found one and `ok` is known. */
+    test?: string
+  }
 }
 
 /**
@@ -160,8 +175,24 @@ export function edgesForEvent(
       break
     }
     case 'command_run': {
+      const p = event.payload as unknown as CommandRunPayload
+      const command = `command:${event.id}`
+      // Outcome attrs ride only on a command whose `ok` the host reported
+      // (self-improve D2): a record without outcome fields forms exactly the
+      // edges it always did, so its fold and its goldens are byte-identical
+      // (D21). A test-shaped command with unknown `ok` is unknown, not a test.
+      const test = p.ok === undefined ? null : testShapedCommand(p.cmd)
+      const outcome =
+        p.ok === undefined
+          ? null
+          : { ok: p.ok, ...(p.exit !== undefined ? { exit: p.exit } : {}), ...(test !== null ? { test } : {}) }
       if (session !== undefined) {
-        edges.push({ kind: 'ran', from: session, to: `command:${event.id}`, ...stamp })
+        edges.push({ kind: 'ran', from: session, to: command, ...stamp, ...(outcome !== null ? { attrs: outcome } : {}) })
+      }
+      if (outcome !== null && test !== null) {
+        for (const taskId of activeTasks) {
+          edges.push({ kind: 'tested', from: taskNodeId(slug, taskId), to: command, ...stamp, attrs: outcome })
+        }
       }
       break
     }
@@ -273,6 +304,44 @@ export interface SessionActivity {
   commands: number
   /** task_status_changed as "<id> → <status>" in log order (capped + sentinel). */
   task_changes: string[]
+  /** Commands the host reported failed (`ok: false`); absent when none (r1-fixes 2.5, D24). */
+  failed?: number
+  /** The newest test-shaped command with a known outcome; absent when none (D24). */
+  last_test?: TestOutcome
+}
+
+/** A test-shaped command_run the host reported an outcome for (r1-fixes 2.5, D24). */
+export interface TestOutcome {
+  cmd: string
+  ok: boolean
+  exit?: number
+}
+
+/** The latest TestOutcome a task saw while active, with the event it came from. */
+export interface TaskTestOutcome extends TestOutcome {
+  ts: string
+  event_id: string
+}
+
+function outcomeOf(attrs: NonNullable<GraphEdge['attrs']>): TestOutcome | null {
+  if (attrs.test === undefined || attrs.ok === undefined) return null
+  return { cmd: attrs.test, ok: attrs.ok, ...(attrs.exit !== undefined ? { exit: attrs.exit } : {}) }
+}
+
+/**
+ * Task id → latest test outcome (D24), from `tested` edges in log order —
+ * last wins, the newest fact about the task's tests. Empty when the record
+ * carries no outcome fields.
+ */
+export function taskTestsFromEdges(edges: readonly GraphEdge[]): Record<string, TaskTestOutcome> {
+  const out: Record<string, TaskTestOutcome> = {}
+  for (const edge of edges) {
+    if (edge.kind !== 'tested' || edge.attrs === undefined) continue
+    const outcome = outcomeOf(edge.attrs)
+    if (outcome === null) continue
+    out[taskIdOf(edge.from)] = { ...outcome, ts: edge.ts ?? '', event_id: edge.event_id ?? '' }
+  }
+  return out
 }
 
 interface ActivityAcc {
@@ -280,6 +349,8 @@ interface ActivityAcc {
   seen: Set<string>
   filesOverflow: number
   commands: number
+  failed: number
+  lastTest?: TestOutcome
   taskChanges: string[]
   taskChangesOverflow: number
 }
@@ -297,7 +368,7 @@ export function activityFromEdges(edges: readonly GraphEdge[]): Map<string, Sess
     const id = sessionNode.slice('session:'.length)
     let a = acc.get(id)
     if (a === undefined) {
-      a = { files: [], seen: new Set(), filesOverflow: 0, commands: 0, taskChanges: [], taskChangesOverflow: 0 }
+      a = { files: [], seen: new Set(), filesOverflow: 0, commands: 0, failed: 0, taskChanges: [], taskChangesOverflow: 0 }
       acc.set(id, a)
     }
     return a
@@ -315,7 +386,13 @@ export function activityFromEdges(edges: readonly GraphEdge[]): Map<string, Sess
         break
       }
       case 'ran': {
-        of(edge.from).commands += 1
+        const a = of(edge.from)
+        a.commands += 1
+        if (edge.attrs !== undefined) {
+          if (edge.attrs.ok === false) a.failed += 1
+          const outcome = outcomeOf(edge.attrs)
+          if (outcome !== null) a.lastTest = outcome
+        }
         break
       }
       case 'changed': {
@@ -333,6 +410,8 @@ export function activityFromEdges(edges: readonly GraphEdge[]): Map<string, Sess
     out.set(id, {
       files: a.filesOverflow > 0 ? [...a.files, `+${a.filesOverflow} more`] : a.files,
       commands: a.commands,
+      ...(a.failed > 0 ? { failed: a.failed } : {}),
+      ...(a.lastTest !== undefined ? { last_test: a.lastTest } : {}),
       task_changes:
         a.taskChangesOverflow > 0 ? [...a.taskChanges, `+${a.taskChangesOverflow} more`] : a.taskChanges,
     })

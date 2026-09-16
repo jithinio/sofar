@@ -197,8 +197,22 @@ export interface SessionEndedPayload { session_id?: string; summary: string; nex
  * mechanical close must never clobber them during fold.
  */
 export interface SessionClosedPayload { reason: string }
-export interface FileTouchedPayload { path: string; op: string }
-export interface CommandRunPayload { cmd: string }
+/**
+ * Mechanical outcome fields (self-improve D2): OPTIONAL, additive, and the
+ * ONLY outcome facts the durable record carries. `ok` is what the host said
+ * about the call — PostToolUse fires only on success, PostToolUseFailure only
+ * on failure — and `exit` is the process status when the host supplies one as
+ * a number. Absent means UNKNOWN (an engine or host that predates capture),
+ * never success. Everything richer — error text, output, timing — is a
+ * diagnostics row (src/diagnostics.ts), never a payload field.
+ */
+export interface FileTouchedPayload { path: string; op: string; ok?: boolean }
+export interface CommandRunPayload {
+  cmd: string
+  ok?: boolean
+  /** @asType integer */
+  exit?: number
+}
 export interface NoteAddedPayload { text: string }
 /**
  * A fact its author declares repo memory — operational knowledge that is not a
@@ -423,6 +437,50 @@ export interface RunStopRequestedPayload {
   run: string
 }
 
+/**
+ * What the 2.2 protocol measured about the detector behind a suggestion
+ * (self-improve 2.3): a reader sees how often this signal is right without
+ * leaving the row. Every field is a measurement, never an estimate.
+ */
+export interface SuggestionTrust {
+  /** Event id of the protocol decision the numbers were produced under. */
+  protocol: string
+  /** Event id of the decision carrying the verdict. */
+  verdict: string
+  precision: number
+  recall: number
+  /**
+   * Findings judged on held-out splits — the n behind the precision.
+   * @asType integer
+   */
+  judged: number
+}
+/**
+ * A LOSS ROW proposed from a trusted detector — never a cause, never a fix
+ * (self-improve 2.3). `candidate` is sha256 over {version, signal, scope,
+ * sorted evidence}, so new evidence is a new candidate and approval binds to
+ * the exact one.
+ */
+export interface SuggestionProposedPayload {
+  candidate: string
+  signal: string
+  /** Event ids (or `row:` hashes) the detector cited — the whole set the hash covers. */
+  evidence: string[]
+  /** @asType integer */
+  count: number
+  /** Highest event id the deriving report read. Recorded, never hashed. */
+  cutoff?: string
+  engine: string
+  /** @asType integer */
+  detector_version: number
+  trust: SuggestionTrust
+}
+/** approve / reject / revert: append-only transitions on one candidate. */
+export interface SuggestionTransitionPayload {
+  candidate: string
+  reason?: string
+}
+
 export interface KnownEventPayloads {
   initiative_created: InitiativeCreatedPayload
   initiative_status_changed: InitiativeStatusChangedPayload
@@ -445,6 +503,10 @@ export interface KnownEventPayloads {
   run_stop_requested: RunStopRequestedPayload
   verification_recorded: VerificationRecordedPayload
   correction: CorrectionPayload
+  suggestion_proposed: SuggestionProposedPayload
+  suggestion_approved: SuggestionTransitionPayload
+  suggestion_rejected: SuggestionTransitionPayload
+  suggestion_reverted: SuggestionTransitionPayload
 }
 
 export type KnownEventType = keyof KnownEventPayloads
@@ -479,6 +541,10 @@ export const EVENT_TYPES = [
   'run_stop_requested',
   'verification_recorded',
   'correction',
+  'suggestion_proposed',
+  'suggestion_approved',
+  'suggestion_rejected',
+  'suggestion_reverted',
 ] as const satisfies readonly KnownEventType[]
 
 export function isKnownEventType(type: string): type is KnownEventType {
@@ -712,9 +778,14 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
   file_touched(p, e) {
     if (!str(p.path)) e.push('path: must be a non-empty string')
     if (!str(p.op)) e.push('op: must be a non-empty string')
+    if (p.ok !== undefined && typeof p.ok !== 'boolean') e.push('ok: must be a boolean')
   },
   command_run(p, e) {
     if (!str(p.cmd)) e.push('cmd: must be a non-empty string')
+    if (p.ok !== undefined && typeof p.ok !== 'boolean') e.push('ok: must be a boolean')
+    if (p.exit !== undefined && !(typeof p.exit === 'number' && Number.isInteger(p.exit))) {
+      e.push('exit: must be an integer')
+    }
   },
   note_added(p, e) {
     if (!str(p.text)) e.push('text: must be a non-empty string')
@@ -852,6 +923,47 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (!str(p.ref)) e.push('ref: must be a non-empty string (target event id)')
     if (!optStr(p.reason)) e.push('reason: must be a string')
   },
+  suggestion_proposed(p, e) {
+    if (!str(p.candidate)) e.push('candidate: must be a non-empty string (the candidate hash)')
+    if (!str(p.signal)) e.push('signal: must be a non-empty string')
+    // The evidence IS the candidate (self-improve 2.3): a row whose hash covers
+    // nothing could never be re-derived, so approval could not bind to it.
+    if (!Array.isArray(p.evidence) || p.evidence.length === 0 || !p.evidence.every((id) => str(id))) {
+      e.push('evidence: must be a non-empty array of non-empty strings (event ids or row hashes)')
+    }
+    if (typeof p.count !== 'number' || !Number.isInteger(p.count) || p.count < 1) {
+      e.push('count: must be a positive integer')
+    }
+    if (!optStr(p.cutoff)) e.push('cutoff: must be a string')
+    if (!str(p.engine)) e.push('engine: must be a non-empty string')
+    if (typeof p.detector_version !== 'number' || !Number.isInteger(p.detector_version)) {
+      e.push('detector_version: must be an integer')
+    }
+    // Trust travels with the row or the row is an assertion: a reader must see
+    // how often this signal was right without leaving it.
+    if (!isObj(p.trust)) {
+      e.push('trust: must be the 2.2 measurement {protocol, verdict, precision, recall, judged}')
+      return
+    }
+    const t = p.trust
+    if (!str(t.protocol)) e.push('trust.protocol: must be a non-empty string (the protocol decision event id)')
+    if (!str(t.verdict)) e.push('trust.verdict: must be a non-empty string (the verdict decision event id)')
+    for (const key of ['precision', 'recall'] as const) {
+      const v = t[key]
+      if (typeof v !== 'number' || !(v >= 0 && v <= 1)) e.push(`trust.${key}: must be a number between 0 and 1`)
+    }
+    if (typeof t.judged !== 'number' || !Number.isInteger(t.judged) || t.judged < 0) {
+      e.push('trust.judged: must be a non-negative integer')
+    }
+  },
+  suggestion_approved: suggestionTransition,
+  suggestion_rejected: suggestionTransition,
+  suggestion_reverted: suggestionTransition,
+}
+
+function suggestionTransition(p: Obj, e: string[]): void {
+  if (!str(p.candidate)) e.push('candidate: must be a non-empty string (the candidate hash)')
+  if (!optStr(p.reason)) e.push('reason: must be a string')
 }
 
 /**
@@ -967,14 +1079,14 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
   },
   file_touched: {
     writer: 'hook',
-    summary: 'a file edit captured by the PostToolUse hook',
-    fields: 'path, op',
+    summary: 'a file edit captured by the PostToolUse hook (PostToolUseFailure on a failed one)',
+    fields: 'path, op, ok? (what the host said; absent = unknown, never success)',
     example: { path: 'src/app.ts', op: 'edit' },
   },
   command_run: {
     writer: 'hook',
-    summary: 'a shell command captured by the PostToolUse hook',
-    fields: 'cmd',
+    summary: 'a shell command captured by the PostToolUse hook (PostToolUseFailure on a failed one)',
+    fields: 'cmd, ok? (what the host said; absent = unknown), exit? (only when the host gives a number)',
     example: { cmd: 'npm test' },
   },
   note_added: {
@@ -1045,6 +1157,42 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
     summary: 'voids one earlier event by id (append the corrected event fresh after it)',
     fields: 'ref (the bad event id), reason?',
     example: { ref: '01J00000000000000000000000', reason: 'wrong task id' },
+  },
+  suggestion_proposed: {
+    writer: 'command',
+    via: 'sofar suggest record <candidate>',
+    summary: 'a loss row derived from a TRUSTED detector — evidence and its measured trust, never a cause or a fix (self-improve 2.3)',
+    fields: 'candidate (sha256 over version, signal, scope, sorted evidence), signal, evidence (non-empty: event ids or row hashes), count (≥1), cutoff?, engine, detector_version, trust {protocol, verdict, precision, recall, judged}',
+    example: {
+      candidate: 'c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00',
+      signal: 'corrections',
+      evidence: ['01J00000000000000000000000'],
+      count: 3,
+      engine: '0.33.0',
+      detector_version: 1,
+      trust: { protocol: '01J00000000000000000000001', verdict: '01J00000000000000000000002', precision: 0.9, recall: 0.5, judged: 20 },
+    },
+  },
+  suggestion_approved: {
+    writer: 'command',
+    via: 'sofar suggest approve <candidate>',
+    summary: 'the operator accepted a proposed loss row — bound to the exact candidate hash, refused once its evidence moved',
+    fields: 'candidate, reason?',
+    example: { candidate: 'c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00' },
+  },
+  suggestion_rejected: {
+    writer: 'command',
+    via: 'sofar suggest reject <candidate> --reason "<why>"',
+    summary: 'the operator declined a proposed loss row; the same evidence is not proposed again',
+    fields: 'candidate, reason? (the command requires it)',
+    example: { candidate: 'c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00', reason: 'known, already fixed' },
+  },
+  suggestion_reverted: {
+    writer: 'command',
+    via: 'sofar suggest revert <candidate> --reason "<why>"',
+    summary: 'an approval withdrawn, append-only — proposed, approved and reverted all stay in the log',
+    fields: 'candidate, reason? (the command requires it)',
+    example: { candidate: 'c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00', reason: 'evidence set moved' },
   },
 }
 

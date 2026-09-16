@@ -2,31 +2,39 @@
 
 # Plan: self-improve
 
-Goal: Make sofar improve itself within its invariants. L1: zero-model local adaptation from outcome signals, proposed not applied, reversible, local-only (never telemetry). L2: `sofar improve` via the operator's own agent in sofar drive, one ranked loss at a time, never auto-merged, evaluator checksummed. L3: a release gate on held-out lead margin over the best current competitor (bench-refresh D19).
+Goal: A small, trustworthy improvement process whose every change has inspectable benefit, cost, evidence and reversal path (self-improve D1). Developer-side first: benchmark → loss study → bounded fix → held-out proof, beating an equal-budget direct-fix baseline net of full cost. In-product local adaptation only after repeated wins; private diagnostics never enter events.jsonl, git, export or sync.
 
-Progress: 0/11 tasks done (0%)
+Progress: 8/14 tasks done (57%)
 
-## Phase 1 — Outcome capture [active] — 0/2 done
+## Phase 1 — Evidence contracts and capture [done] — 3/3 done
 
-- [ ] 1.1 Log the two gating Decisions BEFORE any code: (a) the schema change for tool outcomes lives only in packages/schema/src; (b) local stats are not telemetry: never emitted, never synced, gitignored, naming the guard-rail they sit beside
-- [ ] 1.2 Capture outcomes: exit code and is_error in post-tool, register the PostToolUseFailure hook, count MCP typed-error rejections (today they append nothing, cli/event.ts:1735)
+> D2/D3 contracts, capture (1.2) and the availability map (1.3) landed; full suite green except a pre-existing intermittent in reach-index 3.5 unrelated to this work.
 
-## Phase 2 — L1 local miner [pending] — 0/3 done
+- [x] 1.1 Gating Decisions before code: (a) outcome payload schema only in packages/schema/src; (b) diagnostics storage boundary: a separate local gitignored store that the exporter and sync never read, enforced by tests at the export boundary
+- [x] 1.2 Outcome capture, single owner (r1-fixes 2.5 consumes it): tool exit status and is_error, PostToolUseFailure, MCP typed-error rejections, and memory-usage signals, written to the private store where they are diagnostics
+- [x] 1.3 Signal availability map: every promised signal marked capturable or UNKNOWN with its reason (e.g. sofar and git commands are hook-exempt per record-hygiene D1); consumers report unknown, never guess
 
-- [ ] 2.1 `sofar tune --dry-run`: mine events.jsonl for duplicate session starts, corrections, stalls, sofar share of commands, digest bytes per section, memories never referenced
-- [ ] 2.2 Precision/recall check: the miner must rediscover the manual round-1 and smoke loss-study rows before any proposal is trusted
-- [ ] 2.3 Proposals as reversible events shown in the digest, with a whitelist of tunable settings and hysteresis; offline replay of candidates over past sessions before going live
+## Phase 2 — Detector (propose-only) [done] — 3/3 done
 
-## Phase 3 — L2 improvement loop [pending] — 0/3 done
+> Detector, its measured trust, and the propose-only lifecycle are all in: tune detects and gates on the corpus, 2.2 says which detector may be believed, suggest turns only those into loss rows that Phase 3 can consume.
 
-- [ ] 3.1 Design `sofar improve`: one initiative per ranked loss, predicted gain logged as a Decision first, patch and test in a worktree through sofar drive, human review gate
-- [ ] 3.2 Evaluator protection: hidden tests, chains and the taxonomy are checksummed and read-only; any diff touching them is rejected (the Darwin Gödel Machine objective-hacking lesson)
-- [ ] 3.3 First manual L2 cycle on one round-1 loss row, compared against the human-built fix
+- [x] 2.1 `sofar tune --dry-run` detects only well-supported failure types (duplicate session starts, corrections, stalls, formatter friction) and prints unknown for the rest
+- [x] 2.2 Precision and recall against the manual smoke and round-1 loss-study rows before any suggestion is trusted
+- [x] 2.3 Suggestions only: approval bound to an exact candidate hash, stale applications rejected, rejection and reversal history kept; offline replay limited to context-size and information-preservation checks
 
-## Phase 4 — L3 release gate [pending] — 0/3 done
+## Phase 3 — Bounded fix loop (developer-side) [pending] — 2/4 done
 
-- [ ] 4.1 Lead-margin scoreboard per claim (sofar vs best current competitor, held-out chain, ≥3 reps, noise-floor arm)
-- [ ] 4.2 Competitor re-pin at each round start (latest Claude Code, Codex, Cursor, and third-party tools once added)
-- [ ] 4.3 Industry-standing snapshot from public sources only (npm weekly downloads, GitHub stars, registry listings, public mentions), compared release over release
+- [x] 3.1 Frozen evaluator outside the candidate's control: runner, hidden tests, fixtures, scoring and result capture live in a separate repo and process the candidate cannot write
+- [x] 3.2 Durable spend ledger across restarts counting every attempt, retry and evaluation, aligned with bench-refresh D14 and D17
+- [ ] 3.3 Equal-budget baseline: the same agent directly fixing the same loss with the same feedback and spend; a loop change is kept only if it beats this baseline (blocked)
+- [ ] 3.4 First manual cycle on one round-1 loss row: loop result vs direct-fix baseline vs the human-built r1-fixes change
 
-Active phase: Phase 1 — Outcome capture
+## Phase 4 — Release proof [pending] — 0/4 done
+
+- [ ] 4.1 Separate development feedback (tuning chain) from release evaluation (held-out chain); a held-out workload whose failures inform any fix is retired, and a fresh held-out chain is authored per release
+- [ ] 4.2 Gate: gain on unseen work NET of the entire improvement cost, lead margin over the best current competitor per bench-refresh D19, at least 3 reps
+- [ ] 4.3 Public standing snapshot (downloads, stars, listings) reported separately and never used as a technical gate
+- [ ] 4.4 Expand autonomy, including any in-product local adaptation, only after 3 consecutive cycles beat the direct-fix baseline on unseen work
+
+Next action: When the D17 7-day window frees (2026-09-22T10:02Z if round 1 adds nothing) or the operator raises --week-usd: resume smoke33-loop and smoke33-direct with `evaluator fix … --resume`, `run` each candidate on S1, `compare --loop-extra-usd 0.50`; record the evidence, mark 3.3 done, then 3.4 (needs the operator to approve a real row in THIS repo and name --hide-record r1-fixes).
+Blocked on: task 3.3: Built and proven short of a live agent launch. ~/IO/sofar-evaluator 93ffe6d..68240b3: `evaluator fix` (both arms, D13) and `evaluator compare`; 37 tests pass (11 new); `fix --dry-run` on the fixture clone fixtures/sofar-33 (row f554d19bfd94364e approved THERE, not in this repo) exported a refless one-commit cell, held 12 probes incl. the hidden source repo, npm ci sandboxed. The live launch (logs/smoke-33.sh via launchd) built both cells then PAUSED before launch per D12: 7-day Claude spend $451.89 (round-1 ledgers $443.14 + evaluator $8.75, of which $8 is the estimate for one lost attempt) vs the bench-refresh D17 $450 cap; compare WITHHELD correctly. BLOCKED on the D17 window: it frees 2026-09-22T10:02Z only if round 1 adds no more Claude spend; otherwise the operator raises `--week-usd` explicitly (D17 is their half-limit rule). Unblock: `bun evaluator.ts fix … --run smoke33-loop --resume` then `… smoke33-direct --resume`, `run` each candidate on S1, `compare --loop-extra-usd 0.50` — the exact commands are in logs/smoke-33.sh (do NOT resubmit it to launchd as written: launchd re-runs it on exit).

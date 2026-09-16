@@ -7,6 +7,8 @@ import {
   taskFilesFromEdges,
   type GraphEdge,
   type SessionActivity,
+  taskTestsFromEdges,
+  type TaskTestOutcome,
 } from './adjacency'
 import {
   coerceUnknownPlanStatuses,
@@ -535,6 +537,13 @@ export interface InitiativeState {
    */
   task_files: Record<string, string[]>
   /**
+   * Latest test outcome per task (r1-fixes 2.5, D24): task id → the newest
+   * test-shaped command_run with a KNOWN `ok` while the task was ACTIVE, the
+   * window task_files uses. OPTIONAL and present only when non-empty, so a
+   * record without outcome fields folds to byte-identical state (D21).
+   */
+  task_tests?: Record<string, TaskTestOutcome>
+  /**
    * Task id → the reason given when it was dropped (task-drop-state D3).
    * A drop is the one way a task closes without being delivered, so the
    * reason is the whole record of it — kept addressable so surfaces can
@@ -899,6 +908,8 @@ export function finalizeFold(cp: FoldCheckpoint): FoldResult {
   const warnings = cp.warnings.slice()
   const edges = cp.edges.slice()
   state.task_files = taskFilesFromEdges(edges)
+  const tests = taskTestsFromEdges(edges)
+  if (Object.keys(tests).length > 0) state.task_tests = tests
   attachActivity(state, activityFromEdges(edges))
   deriveCurrent(state, cp.blockNotes)
   // Keep only ids the FINAL plan never absorbed (a later task_added /
@@ -995,6 +1006,18 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
       // what the plan says, so they cannot stale it — and a driver carries no
       // session to owe a write-back. Counting them would make every driven
       // record read as stale the moment its driver did its job.
+      break
+    case 'suggestion_proposed':
+    case 'suggestion_approved':
+    case 'suggestion_rejected':
+    case 'suggestion_reverted':
+      // Suggestions are EXCLUDED from drift, deliberately (commit-attribution
+      // D18 requires the class decided here). A loss row is an observation
+      // derived FROM the record that names no cause and changes nothing in it
+      // (self-improve 2.3); an operator's verdict on one settles whether it
+      // enters the fix queue, and Phase 3 turns an approved row into tasks —
+      // THOSE events are the drift. Counting the row itself would make asking
+      // for suggestions stale the next_action it never touched.
       break
     case 'task_status_changed':
       mutation(() => (counts.tasks += 1))

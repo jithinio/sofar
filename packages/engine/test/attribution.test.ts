@@ -318,7 +318,7 @@ describe('squash-merge recovery (2.3)', () => {
       parseAttribution(
         `${RS}${SHA_A}${US}alpha${US}subject\n\n    ${TRAILER_KEY}: impostor\n\n${TRAILER_KEY}: alpha\n`,
       ),
-    ).toEqual([{ sha: SHA_A, initiatives: ['alpha'] }])
+    ).toEqual([{ sha: SHA_A, initiatives: ['alpha'], subject: 'subject' }])
   })
 
   it('ignores an UNINDENTED mention, which git would already have parsed', () => {
@@ -326,7 +326,7 @@ describe('squash-merge recovery (2.3)', () => {
     // than every occurrence of the key anywhere in a body.
     expect(
       parseAttribution(`${RS}${SHA_A}${US}${US}subject\n\nnot a trailer: ${TRAILER_KEY}: loose\n`),
-    ).toEqual([{ sha: SHA_A, initiatives: [] }])
+    ).toEqual([{ sha: SHA_A, initiatives: [], subject: 'subject' }])
   })
 
   it('still parses a record with no body field at all', () => {

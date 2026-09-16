@@ -12,31 +12,35 @@ append-side surface: hook subcommands read hook JSON from stdin (SPEC §Hooks);
 `append` is the convention dialect for MCP-less tools
 
 Options:
-  -h, --help               display help for command
+  -h, --help                   display help for command
 
 Commands:
-  append [options] [slug]  append one validated event and regenerate projections
-                           — the convention-dialect surface for tools without
-                           MCP (prints {ok, event_id} JSON)
-  types [options] [type]   payload reference for `event append`: every event
-                           type, its fields, a validating example, and who
-                           writes it
-  session-start [options]  SessionStart hook: register the session in the log,
-                           print the status projection (≤10,000 chars) as
-                           injected context
-  post-tool [options]      PostToolUse hook: append mechanical file_touched
-                           (Edit|Write|MultiEdit) / command_run (Bash) events,
-                           and surface any repo-wide guarded rule the subject
-                           crosses
-  user-prompt [options]    UserPromptSubmit hook: nudge an in-flow write-back
-                           (one additionalContext line) when drift since the
-                           last session_ended ≥5 events
-  stop [options]           Stop hook: exit 2 (blocking) when the registered
-                           session has not written back via session_ended;
-                           loop-guarded by stop_hook_active
-  session-end [options]    SessionEnd hook: append a mechanical session_closed
-                           marker (fallback only)
-  help [command]           display help for command
+  append [options] [slug]      append one validated event and regenerate
+                               projections — the convention-dialect surface for
+                               tools without MCP (prints {ok, event_id} JSON)
+  types [options] [type]       payload reference for `event append`: every event
+                               type, its fields, a validating example, and who
+                               writes it
+  session-start [options]      SessionStart hook: register the session in the
+                               log, print the status projection (≤10,000 chars)
+                               as injected context
+  post-tool [options]          PostToolUse hook: append mechanical file_touched
+                               (Edit|Write|MultiEdit) / command_run (Bash)
+                               events, and surface any repo-wide guarded rule
+                               the subject crosses
+  post-tool-failure [options]  PostToolUseFailure hook: append the same
+                               mechanical event with ok:false (and exit when the
+                               host gives one); the error text goes to the
+                               private diagnostics store, never the record
+  user-prompt [options]        UserPromptSubmit hook: nudge an in-flow
+                               write-back (one additionalContext line) when
+                               drift since the last session_ended ≥5 events
+  stop [options]               Stop hook: exit 2 (blocking) when the registered
+                               session has not written back via session_ended;
+                               loop-guarded by stop_hook_active
+  session-end [options]        SessionEnd hook: append a mechanical
+                               session_closed marker (fallback only)
+  help [command]               display help for command
 
 ## step 2: unknown hook name
 argv: ["event","wat"]

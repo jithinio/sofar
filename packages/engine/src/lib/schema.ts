@@ -24,3 +24,4 @@ export {
 } from '../core/envelope'
 
 export * from '@sofar/schema'
+export * from '@sofar/schema/diagnostics'

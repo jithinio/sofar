@@ -1,5 +1,5 @@
 //! The argv grammar the hook shims emit — `docs/HOTPATH.md` §Entry points and
-//! dispatch. This is the ONLY surface the native core owns: the five hook
+//! dispatch. This is the ONLY surface the native core owns: the six hook
 //! subcommands and the statusline, each with an optional `--root <dir>`
 //! (either token form), plus the hidden `fold` conformance shape (rust-core
 //! D15: the fold-parity suite drives `<bin> fold …` black-box, so the binary
@@ -12,11 +12,13 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-/// The five hooks, in the order `SUBCOMMANDS` lists them in `cli/event.ts`.
+/// The six hooks, in the order `SUBCOMMANDS` lists them in `cli/event.ts`
+/// (`post-tool-failure` since r1-fixes 2.5 / self-improve 1.2 — rust-core D16).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Hook {
     SessionStart,
     PostTool,
+    PostToolFailure,
     UserPrompt,
     Stop,
     SessionEnd,
@@ -29,6 +31,7 @@ impl Hook {
         match self {
             Hook::SessionStart => "session-start",
             Hook::PostTool => "post-tool",
+            Hook::PostToolFailure => "post-tool-failure",
             Hook::UserPrompt => "user-prompt",
             Hook::Stop => "stop",
             Hook::SessionEnd => "session-end",
@@ -39,6 +42,7 @@ impl Hook {
         Some(match name {
             "session-start" => Hook::SessionStart,
             "post-tool" => Hook::PostTool,
+            "post-tool-failure" => Hook::PostToolFailure,
             "user-prompt" => Hook::UserPrompt,
             "stop" => Hook::Stop,
             "session-end" => Hook::SessionEnd,
@@ -173,6 +177,7 @@ mod tests {
         for (name, hook) in [
             ("session-start", Hook::SessionStart),
             ("post-tool", Hook::PostTool),
+            ("post-tool-failure", Hook::PostToolFailure),
             ("user-prompt", Hook::UserPrompt),
             ("stop", Hook::Stop),
             ("session-end", Hook::SessionEnd),

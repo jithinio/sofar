@@ -54,8 +54,10 @@ fn schema(check: bool) -> Result<ExitCode, Box<dyn std::error::Error>> {
 
     let mut settings = TypeSpaceSettings::default();
     settings
+        // PartialEq only: SuggestionTrust carries genuine floats (precision,
+        // recall), so a blanket Eq cannot compile; integer-valued fields are
+        // `@asType integer` in the TypeScript and arrive as i64.
         .with_derive("PartialEq".to_owned())
-        .with_derive("Eq".to_owned())
         .with_struct_builder(false);
     let mut space = TypeSpace::new(&settings);
     space.add_root_schema(root_schema)?;

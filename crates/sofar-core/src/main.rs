@@ -1,5 +1,5 @@
 //! `sofar-core` — the native hook binary. Parses the shim argv grammar and
-//! dispatches; the hook handlers arrive with tasks 2.5 and 2.6, the hidden
+//! dispatches; the six hook handlers arrive with tasks 2.5 and 2.6, the hidden
 //! `fold` conformance command is here (2.3, D15). Until then an owned hook
 //! shape exits 70 (`EX_SOFTWARE`) with a one-line reason, and a shape the
 //! TypeScript CLI owns exits 64 (`EX_USAGE`) so no caller can mistake either

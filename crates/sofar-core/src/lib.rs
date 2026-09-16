@@ -15,6 +15,7 @@
 pub mod atomic;
 pub mod cli;
 pub mod collections;
+pub mod derived;
 pub mod entropy;
 pub mod envelope;
 pub mod fold;
