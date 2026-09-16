@@ -84,7 +84,7 @@ synced, and any absence, staleness, or corruption falls back to reading the logs
 | `core/index-tier1.ts` | **Keyed tier.** Declared relevance (which decisions guard this path) and derived relevance (who else touched it, from which initiative). |
 | `core/index-reach.ts` | **Reach tier.** What `sofar find` traverses: decisions, notes, files, sessions and citation edges, each carrying the event id that produced it. Read only when asked, so it can afford prose the hot tiers cannot. |
 | `core/lexicon.ts` | Turns a question into seeds when nothing denotes it: tokenize, fold plurals and tenses, rank by IDF. No model, and every match returns the words that carried it. |
-| `core/lessons.ts` | Relevant lessons at the prompt (r1-fixes 3.3, D16): BM25-ranks the prompt against this initiative's decisions and stall handoffs with the lexicon's ranker, in-process from the fold — no model, no file read, two lines at most. |
+| `core/lessons.ts` | Relevant lessons at the prompt (r1-fixes 3.3, D16): BM25-ranks the prompt against this initiative's decisions and stall handoffs with the lexicon's ranker, in-process from the fold — no model, no file read, two lines at most; bounded to the last 60 decisions and switchable off with `SOFAR_LESSONS=off` (D18). |
 
 ### 4. Projections — state rendered to disk
 

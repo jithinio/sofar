@@ -32,7 +32,8 @@
     "build": "node build.mjs",
     "prepack": "node build.mjs && node -e \"require('node:fs').copyFileSync('../../README.md', 'README.md')\"",
     "postpack": "node -e \"require('node:fs').rmSync('README.md', { force: true })\"",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "bench:read-paths": "node bench/read-paths.mjs"
   },
   "devDependencies": {
     "@sofar/schema": "*",

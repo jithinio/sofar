@@ -59,8 +59,25 @@ export const LESSON_MAX = 2
 export const LESSON_RUNNER_UP_RATIO = 0.6
 /** Prompt text considered — the intent is in the first lines, and the rest is paste. */
 export const LESSON_PROMPT_CHARS = 2_000
-/** Most recent decisions indexed — bounds the tokenizing on a heavy record. */
-export const LESSON_DOC_CAP = 200
+/**
+ * Most recent decisions indexed — bounds the tokenizing on a heavy record.
+ * The per-prompt cost is proportional to the prose tokenized: 17 decisions
+ * cost ~1.5 ms in-process (D18); 200 would have cost ~20 ms on every
+ * prompt, a tax the read-path budget forbids. Sixty recent decisions is
+ * more than the digest ever shows, and older lessons are still one
+ * `sofar find` away.
+ */
+export const LESSON_DOC_CAP = 60
+/** Prose per lesson tokenized — the subject and the rejection are in the first lines. */
+export const LESSON_DOC_CHARS = 1_200
+/** Env switch: `SOFAR_LESSONS=off` disables the line — round 2's ablation arm (D18). */
+export const LESSONS_ENV = 'SOFAR_LESSONS'
+
+/** Whether the lessons line is enabled in this environment. */
+export function lessonsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const v = env[LESSONS_ENV]?.trim().toLowerCase()
+  return !(v === 'off' || v === '0' || v === 'false')
+}
 
 interface LessonDoc extends LexicalDoc {
   handle: string
@@ -80,7 +97,7 @@ function lessonDocs(state: InitiativeState): LessonDoc[] {
     // The prompt names the SUBJECT, which lives in `chose`; the `over` is
     // what gets rendered. Indexing the whole decision is what lets a
     // re-proposal phrased in the subject's words reach its rejection.
-    const prose = `${d.chose} ${d.over} ${d.because}`
+    const prose = `${d.chose} ${d.over} ${d.because}`.slice(0, LESSON_DOC_CHARS)
     const terms = lexicalCounts(prose)
     docs.push({
       id: `decision:${first + i + 1}`,
@@ -94,7 +111,7 @@ function lessonDocs(state: InitiativeState): LessonDoc[] {
   for (const s of state.sessions) {
     const h = s.handoff
     if (h === undefined || h.detail === undefined || h.detail.trim().length === 0 || !isFailure(h.reason)) continue
-    const terms = lexicalCounts(h.detail)
+    const terms = lexicalCounts(h.detail.slice(0, LESSON_DOC_CHARS))
     docs.push({
       id: `failure:${s.id}`,
       ts: h.ts,

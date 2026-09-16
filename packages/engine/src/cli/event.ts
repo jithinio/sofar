@@ -4,7 +4,7 @@ import { readBindingsFile } from '../core/bindings'
 import { currentBranch } from '../core/git'
 import { ensureIndexDir } from '../core/index-store'
 import { QUICK_LANE, QUICK_LANE_GOAL } from '../core/lane'
-import { relevantLessons, type Lesson } from '../core/lessons'
+import { lessonsEnabled, relevantLessons, type Lesson } from '../core/lessons'
 import { withFileLock } from '../core/lock'
 import type { Command } from 'commander'
 import {
@@ -1826,8 +1826,10 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     // typed was ruled out before. Both are about the record's constraints,
     // and both outrank news about siblings. Read from the prompt text the
     // host passes; a payload without one renders nothing.
+    // `SOFAR_LESSONS=off` is the ablation switch (D18): round 2 prices the
+    // line's tokens on their own, and a lever must be separable to be priced.
     const prompt = strField(hook, 'prompt')
-    if (prompt !== null) lines.unshift(...lessonLines(relevantLessons(state, prompt)))
+    if (prompt !== null && lessonsEnabled()) lines.unshift(...lessonLines(relevantLessons(state, prompt)))
     lines.unshift(...guardViolationLines(sessionGuardViolations(state, sessionId, me.ended), rootDir))
 
     const wrap = parallelWrapLine(state, sessionId)

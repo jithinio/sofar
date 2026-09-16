@@ -2296,7 +2296,13 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   read beyond the log (D6) — measured 1.2–1.5 ms per prompt on a 16-decision
   record; the top hit was the re-proposed decision on every probe. A payload
   without `prompt` renders no line. Stateless, best-effort: silence on any
-  failure.
+  failure. BOUNDED (D18): the last 60 decisions only, each lesson's prose
+  clipped to 1,200 chars before tokenizing — ~1.5 ms in-process on 17
+  decisions, and the cost is proportional to prose, so the old 200-decision
+  cap would have been a ~20 ms per-prompt tax on a heavy record. The
+  environment variable `SOFAR_LESSONS=off` (also `0`, `false`) disables the
+  line: the ablation switch round 2 uses to price the line's tokens on their
+  own, never the default.
   The same shim also emits the PARALLEL-WRAP line (record-integrity 4.2),
   independently of the drift nudge — both may appear, newest first. It fires
   when another session in this initiative ENDED with a real write-back
@@ -3515,6 +3521,19 @@ stay the underlying derivation's, and exit codes are styling-independent.
   context's render; a direct append, a same-size rewrite with a newer mtime
   and a deleted log are all seen; a correction appended through the context
   refolds; the cache holds at most 8 slugs.
+- **Read-path latency budget (r1-fixes D18):** `npm run bench:read-paths --
+  --baseline <previous release cli.js> --candidate <RC cli.js>` on the
+  real-record fixture (this repo's own record, a registered session id),
+  interleaved ABAB, n≥25, reports session-start, user-prompt, stop and
+  statusline p50 for both and exits 1 when any candidate p50 exceeds the
+  baseline's by more than 10%. Run by hand on a quiet machine before an RC;
+  the table goes in the RC's task note. Attribution per lever is by
+  ablation (D5, D20): a lever's latency cost is stated beside its predicted
+  gain, and one over budget gets cheaper or a flag defaulted off. Measured
+  for the r1-fixes RC against 0.32.0 on this record: session-start +0.5 ms,
+  user-prompt +3.4 (lessons line +1.5), stop +0.5, statusline +1.0 — all
+  within budget. With `SOFAR_LESSONS=off` the prompt hook renders no
+  lessons line; with 61 decisions folded the oldest is not a lesson.
 - **Relevant lessons (r1-fixes 3.3):** with three decisions folded, a prompt
   that re-proposes the second's rejected approach in the subject's words
   renders `sofar: ruled out before — [D2] <its over> (matched: …)` first

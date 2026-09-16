@@ -176,3 +176,52 @@ describe('sofar event user-prompt — the lessons line (r1-fixes 3.3, D16)', () 
     expect(conflict).toBeGreaterThan(lesson)
   })
 })
+
+describe('bounded and switchable (r1-fixes D18)', () => {
+  it('SOFAR_LESSONS=off renders no lessons line; the default and any other value keep it', () => {
+    const f = fx()
+    register(f)
+    decided(f)
+    const text = 'let us rewrite the committed log to scrub that credential'
+    const was = process.env.SOFAR_LESSONS
+    try {
+      process.env.SOFAR_LESSONS = 'off'
+      expect(handleUserPrompt(f.root, prompt(text)).stdout).not.toContain('ruled out before')
+      process.env.SOFAR_LESSONS = 'on'
+      expect(handleUserPrompt(f.root, prompt(text)).stdout).toContain('ruled out before')
+      delete process.env.SOFAR_LESSONS
+      expect(handleUserPrompt(f.root, prompt(text)).stdout).toContain('ruled out before')
+    } finally {
+      if (was === undefined) delete process.env.SOFAR_LESSONS
+      else process.env.SOFAR_LESSONS = was
+    }
+  })
+
+  it('only the last 60 decisions are lessons — the oldest of 61 is not matched', () => {
+    const f = fx()
+    register(f)
+    append(f, 'decision_logged', {
+      chose: 'ship the zebra migration in one go',
+      over: 'splitting the zebra migration into quokka-sized steps',
+      because: 'zebra tables are small',
+    })
+    for (let i = 0; i < 60; i++) {
+      append(f, 'decision_logged', { chose: `choice ${i}`, over: `alternative ${i}`, because: `reason ${i}` })
+    }
+    const state = foldLog(f.eventsPath).state
+    expect(state.decisions).toHaveLength(61)
+    expect(relevantLessons(state, 'split the zebra migration into quokka sized steps')).toEqual([])
+    // Drop the padding to 59 and the same prompt finds it — the cap, not the words, hid it.
+    const g = fx()
+    register(g)
+    append(g, 'decision_logged', {
+      chose: 'ship the zebra migration in one go',
+      over: 'splitting the zebra migration into quokka-sized steps',
+      because: 'zebra tables are small',
+    })
+    for (let i = 0; i < 59; i++) {
+      append(g, 'decision_logged', { chose: `choice ${i}`, over: `alternative ${i}`, because: `reason ${i}` })
+    }
+    expect(relevantLessons(foldLog(g.eventsPath).state, 'split the zebra migration into quokka sized steps')[0]?.handle).toBe('D1')
+  })
+})
