@@ -1,0 +1,500 @@
+== options (38078 bytes) ==
+{
+  "plain": {},
+  "hook": {
+    "sessionId": "scanner-version-gate-session",
+    "git": {
+      "branch": "feature/scanner-version-gate",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 12,
+        "decisions": 0
+      },
+      {
+        "initiative": "beta",
+        "paths": 4,
+        "decisions": 19
+      },
+      {
+        "initiative": "gamma",
+        "paths": 4,
+        "decisions": 2
+      },
+      {
+        "initiative": "delta",
+        "paths": 1,
+        "decisions": 1
+      },
+      {
+        "initiative": "epsilon",
+        "paths": 1,
+        "decisions": 0
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare."
+    ]
+  },
+  "lane": {
+    "lane": true,
+    "sessionId": "lane-session",
+    "git": {
+      "branch": "feature/scanner-version-gate",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    }
+  },
+  "quiet": {
+    "activity": false,
+    "sessionId": " quiet-session\t"
+  },
+  "cap": {
+    "sessionId": "scanner-version-gate-session",
+    "git": {
+      "branch": "feature/scanner-version-gate",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 12,
+        "decisions": 0
+      },
+      {
+        "initiative": "beta",
+        "paths": 4,
+        "decisions": 19
+      },
+      {
+        "initiative": "gamma",
+        "paths": 4,
+        "decisions": 2
+      },
+      {
+        "initiative": "delta",
+        "paths": 1,
+        "decisions": 1
+      },
+      {
+        "initiative": "epsilon",
+        "paths": 1,
+        "decisions": 0
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare.",
+      "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    ]
+  }
+}
+== status (2921 bytes) ==
+# scanner-version-gate
+
+Status: done 2026-08-07T07:17:54.587Z — Gate shipped in 0.21.0 and verified live against a 4.0.17 host; M1 folded into repo.md.
+Goal: Gate sofar's Tailwind scanner fix on what the host's installed Tailwind can actually parse: `@source not` landed in 4.1, so emitting it on 4.0.x breaks the build `doctor --fix` set out to protect (reported from the field on a repo pinned to tailwindcss 4.0.17).
+Progress: 9/9 tasks done (100%) across 3 phase(s)
+
+Phases:
+- Phase 1 — Version-gate the repair [done] 5/5
+  - [x] 1.1 Resolve the Tailwind version that will actually build: read node_modules/tailwindcss when installed, else the declared range's LOWER bound; carry `sourceNot` (>= 4.1) on TailwindV4Detection
+  - [x] 1.2 doctor --fix writes the `@source not` line only when sourceNot is true; below 4.1 (or unknowable) it reports the hazard at FAIL and writes nothing
+  - [x] 1.3 Name the 4.0-compatible remedy in the hint, computed per stylesheet: `@import "tailwindcss" source(<dir>)` — `./` for an entry below the root, a placeholder for one at the root (paths are stylesheet-relative, so a literal ./src would resolve to src/src)
+  - [x] 1.4 cssExcludesSofar counts a narrowed import scan base (`source(<dir>)` excluding .sofar, or `source(none)`) as protection, so a repo that applies the hint stops being flagged
+  - [x] 1.5 init's scanner hint stops handing pre-4.1 repos the `@source not` line — it names the >= 4.1 requirement and the scan-base form instead
+- Phase 2 — Evidence and acceptance [done] 3/3
+  - [x] 2.1 Establish the boundary from the artifacts, not memory: unpack tailwindcss 4.0.17 and 4.1.0 — the `not ` prefix is parsed only in 4.1.0's dist
+  - [x] 2.2 Live-fire both paths: on real 4.0.17 the old line fails with "Error: `@source` paths must be quoted", --fix now leaves the stylesheet byte-identical, and the hint's directive pasted verbatim builds clean; with 4.3.3 installed under `^4` the fix still applies and classes still emit
+  - [x] 2.3 Acceptance tests (withheld write, unknown-version withhold, node_modules proves >= 4.1, source(...) repo passes) + unit tests for the gate and the scan-base suggestion; SPEC §CLI doctor + §Acceptance updated
+- Phase 3 — Release [done] 1/1
+  - [x] 3.1 Bump sofar.sh, publish, and verify the gate against the published binary on a 4.0.x fixture
+
+Next action: None — closed. Active work moved to drift-hardening.
+
+Last session (claude-code, ended 2026-08-07T07:17:47.977Z):
+  Drift-measurement analysis (Q&A) turned into work: folded scanner-version-gate M1 into repo.md, closed this initiative done. Engine-side drift-hardening (never-clip rules, standing constraints, read-back, guards) continues in new initiative drift-hardening.
+
+Files touched (4):
+- /Users/jins/IO/sofar/docs/SPEC.md
+- /Users/jins/IO/sofar/README.md
+- /Users/jins/IO/sofar/packages/engine/package.json
+- /Users/jins/IO/sofar/.sofar/repo.md
+
+== digest:plain (1406 bytes) ==
+# Sofar status: scanner-version-gate
+
+Goal: Gate sofar's Tailwind scanner fix on what the host's installed Tailwind can actually parse: `@source not` landed in 4.1, so emitting it on 4.0.x breaks the build `doctor --fix` set out to protect (reported from the field on a repo pinned to tailwindcss 4.0.17).
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3 (9/9 tasks)
+
+Progress: 9/9 tasks done (100%) across 3 phase(s)
+Active phase: (none)
+Next action: None — closed. Active work moved to drift-hardening.
+
+Last session (claude-code, ended 2026-08-07T07:17:47.977Z):
+  Drift-measurement analysis (Q&A) turned into work: folded scanner-version-gate M1 into repo.md, closed this initiative done. Engine-side drift-hardening (never-clip rules, standing constraints, read-back, guards) continues in new initiative drift-hardening.
+
+Recent decisions (1; full text in decisions.md):
+- [D1] 2026-08-06 Version-gate the `@source not` repair on what the host will actually build with: read node_modules/tailwindcss's versio… — over Emitting `@source not` unconditionally on tailwindcss>=4 (the shipped behaviour, which br…
+
+Next ids: D2 (decision), M2 (memory)
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:hook (3621 bytes) ==
+# Sofar status: scanner-version-gate
+
+Goal: Gate sofar's Tailwind scanner fix on what the host's installed Tailwind can actually parse: `@source not` landed in 4.1, so emitting it on 4.0.x breaks the build `doctor --fix` set out to protect (reported from the field on a repo pinned to tailwindcss 4.0.17).
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+  if SPEC must change.
+- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
+  Both run at the workspace root; typecheck: `npm run typecheck`.
+- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
+  (source-shipped, no build); packages/engine → sofar bin
+  (packages/engine/dist/cli.js after build).
+- Definition of done per task: acceptance criteria in docs/SPEC.md
+  §Acceptance.
+- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
+  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
+  live OUTSIDE this repo in the user's strategy vault. Engine sessions
+  never need them; 5.3 scoring is performed by the user against that
+  scorecard. Do not go looking for them; do not block on them.
+- Push policy: push origin main at each verified wrap-up (user-established
+  Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Committing the record needs a BARE
+…truncated — read .sofar/repo.md for the rest
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3 (9/9 tasks)
+
+Progress: 9/9 tasks done (100%) across 3 phase(s)
+Active phase: (none)
+Next action: None — closed. Active work moved to drift-hardening.
+
+Last session (claude-code, ended 2026-08-07T07:17:47.977Z):
+  Drift-measurement analysis (Q&A) turned into work: folded scanner-version-gate M1 into repo.md, closed this initiative done. Engine-side drift-hardening (never-clip rules, standing constraints, read-back, guards) continues in new initiative drift-hardening.
+
+Recent decisions (1; full text in decisions.md):
+- [D1] 2026-08-06 Version-gate the `@source not` repair on what the host will actually build with: read node_modules/tailwindcss's versio… — over Emitting `@source not` unconditionally on tailwindcss>=4 (the shipped behaviour, which br…
+
+Next ids: D2 (decision), M2 (memory)
+
+Adjacent records — 22 decisions across 5 other initiatives that have worked this one's files, densest first:
+- alpha — 12 shared files, 0 decisions
+- beta — 4 shared files, 19 decisions
+- gamma — 4 shared files, 2 decisions
+…and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: scanner-version-gate-session — when calling sofar_start_session, pass this as session_id.
+Git: feature/scanner-version-gate @ a1b2c3d — in sync with origin/feature/scanner-version-gate
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:lane (2045 bytes) ==
+# Sofar: quick-work lane (scanner-version-gate)
+
+Goal: Gate sofar's Tailwind scanner fix on what the host's installed Tailwind can actually parse: `@source not` landed in 4.1, so emitting it on 4.0.x breaks the build `doctor --fix` set out to protect (reported from the field on a repo pinned to tailwindcss 4.0.17).
+
+This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
+- Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
+- Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
+
+Last session (claude-code, ended 2026-08-07T07:17:47.977Z):
+  Drift-measurement analysis (Q&A) turned into work: folded scanner-version-gate M1 into repo.md, closed this initiative done. Engine-side drift-hardening (never-clip rules, standing constraints, read-back, guards) continues in new initiative drift-hardening.
+
+Recent quick work (4 sessions, 1 decision since 2026-08-06):
+- 2026-08-07 claude-code — 1 file (/Users/jins/IO/sofar/.sofar/repo.md), 20 commands
+- 2026-08-07 claude-code — 16 commands
+- 2026-08-07 claude-code — 8 commands
+- 2026-08-06 claude-code — 3 files (/Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/README.md, /Users/jins/IO/sofar/packages/engine/package.json), 32 commands, task changes: 3.1 → done
+
+Recent decisions (1; full text in decisions.md):
+- [D1] 2026-08-06 Version-gate the `@source not` repair on what the host will actually build with: read node_modules/tailwindcss's versio… — over Emitting `@source not` unconditionally on tailwindcss>=4 (the shipped behaviour, which br…
+
+Next ids: D2 (decision), M2 (memory)
+
+Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Git: feature/scanner-version-gate @ a1b2c3d — in sync with origin/feature/scanner-version-gate
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:quiet (1493 bytes) ==
+# Sofar status: scanner-version-gate
+
+Goal: Gate sofar's Tailwind scanner fix on what the host's installed Tailwind can actually parse: `@source not` landed in 4.1, so emitting it on 4.0.x breaks the build `doctor --fix` set out to protect (reported from the field on a repo pinned to tailwindcss 4.0.17).
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3 (9/9 tasks)
+
+Progress: 9/9 tasks done (100%) across 3 phase(s)
+Active phase: (none)
+Next action: None — closed. Active work moved to drift-hardening.
+
+Last session (claude-code, ended 2026-08-07T07:17:47.977Z):
+  Drift-measurement analysis (Q&A) turned into work: folded scanner-version-gate M1 into repo.md, closed this initiative done. Engine-side drift-hardening (never-clip rules, standing constraints, read-back, guards) continues in new initiative drift-hardening.
+
+Recent decisions (1; full text in decisions.md):
+- [D1] 2026-08-06 Version-gate the `@source not` repair on what the host will actually build with: read node_modules/tailwindcss's versio… — over Emitting `@source not` unconditionally on tailwindcss>=4 (the shipped behaviour, which br…
+
+Next ids: D2 (decision), M2 (memory)
+
+Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:cap (10671 bytes) ==
+# Sofar status: scanner-version-gate
+
+Goal: Gate sofar's Tailwind scanner fix on what the host's installed Tailwind can actually parse: `@source not` landed in 4.1, so emitting it on 4.0.x breaks the build `doctor --fix` set out to protect (reported from the field on a repo pinned to tailwindcss 4.0.17).
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+  if SPEC must change.
+- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
+  Both run at the workspace root; typecheck: `npm run typecheck`.
+- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
+  (source-shipped, no build); packages/engine → sofar bin
+  (packages/engine/dist/cli.js after build).
+- Definition of done per task: acceptance criteria in docs/SPEC.md
+  §Acceptance.
+- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
+  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
+  live OUTSIDE this repo in the user's strategy vault. Engine sessions
+  never need them; 5.3 scoring is performed by the user against that
+  scorecard. Do not go looking for them; do not block on them.
+- Push policy: push origin main at each verified wrap-up (user-established
+  Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Committing the record needs a BARE
+…truncated — read .sofar/repo.md for the rest
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3 (9/9 tasks)
+
+Progress: 9/9 tasks done (100%) across 3 phase(s)
+Active phase: (none)
+Next action: None — closed. Active work moved to drift-hardening.
+
+Last session (claude-code, ended 2026-08-07T07:17:47.977Z):
+  Drift-measurement analysis (Q&A) turned into work: folded scanner-version-gate M1 into repo.md, closed this initiative done. Engine-side drift-hardening (never-clip rules, standing constraints, read-back, guards) continues in new initiative drift-hardening.
+
+Recent decisions (1; full text in decisions.md):
+- [D1] 2026-08-06 Version-gate the `@source not` repair on what the host will actually build with: read node_modules/tailwindcss's versio… — over Emitting `@source not` unconditionally on tailwindcss>=4 (the shipped behaviour, which br…
+
+Next ids: D2 (decision), M2 (memory)
+
+Adjacent records — 22 decisions across 5 other initiatives that have worked this one's files, densest first:
+- alpha — 12 shared files, 0 decisions
+- beta — 4 shared files, 19 decisions
+- gamma — 4 shared files, 2 decisions
+…and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: scanner-version-gate-session — when calling sofar_start_session, pass this as session_id.
+Git: feature/scanner-version-gate @ a1b2c3d — in sync with origin/feature/scanner-version-gate
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+
+😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀
+…truncated — run sofar status for full detail
+
+== plan (2368 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Plan: scanner-version-gate
+
+Goal: Gate sofar's Tailwind scanner fix on what the host's installed Tailwind can actually parse: `@source not` landed in 4.1, so emitting it on 4.0.x breaks the build `doctor --fix` set out to protect (reported from the field on a repo pinned to tailwindcss 4.0.17).
+
+Progress: 9/9 tasks done (100%)
+
+## Phase 1 — Version-gate the repair [done] — 5/5 done
+
+- [x] 1.1 Resolve the Tailwind version that will actually build: read node_modules/tailwindcss when installed, else the declared range's LOWER bound; carry `sourceNot` (>= 4.1) on TailwindV4Detection
+- [x] 1.2 doctor --fix writes the `@source not` line only when sourceNot is true; below 4.1 (or unknowable) it reports the hazard at FAIL and writes nothing
+- [x] 1.3 Name the 4.0-compatible remedy in the hint, computed per stylesheet: `@import "tailwindcss" source(<dir>)` — `./` for an entry below the root, a placeholder for one at the root (paths are stylesheet-relative, so a literal ./src would resolve to src/src)
+- [x] 1.4 cssExcludesSofar counts a narrowed import scan base (`source(<dir>)` excluding .sofar, or `source(none)`) as protection, so a repo that applies the hint stops being flagged
+- [x] 1.5 init's scanner hint stops handing pre-4.1 repos the `@source not` line — it names the >= 4.1 requirement and the scan-base form instead
+
+## Phase 2 — Evidence and acceptance [done] — 3/3 done
+
+- [x] 2.1 Establish the boundary from the artifacts, not memory: unpack tailwindcss 4.0.17 and 4.1.0 — the `not ` prefix is parsed only in 4.1.0's dist
+- [x] 2.2 Live-fire both paths: on real 4.0.17 the old line fails with "Error: `@source` paths must be quoted", --fix now leaves the stylesheet byte-identical, and the hint's directive pasted verbatim builds clean; with 4.3.3 installed under `^4` the fix still applies and classes still emit
+- [x] 2.3 Acceptance tests (withheld write, unknown-version withhold, node_modules proves >= 4.1, source(...) repo passes) + unit tests for the gate and the scan-base suggestion; SPEC §CLI doctor + §Acceptance updated
+
+## Phase 3 — Release [done] — 1/1 done
+
+- [x] 3.1 Bump sofar.sh, publish, and verify the gate against the published binary on a 4.0.x fixture
+
+Next action: None — closed. Active work moved to drift-hardening.
+
+== decisions (1852 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Decisions: scanner-version-gate
+
+- 2026-08-06T13:30:48.908Z — chose **Version-gate the `@source not` repair on what the host will actually build with: read node_modules/tailwindcss's version when installed, else the declared range's LOWER bound, and write only when that is known >= 4.1. Below it (or when unknowable) doctor still FAILs the hazard but writes nothing, and names the 4.0-compatible remedy — narrowing the import scan base with `source(<dir>)` — computed relative to THAT stylesheet. cssExcludesSofar now also counts a narrowed `source(...)`/`source(none)` as protection.** over Emitting `@source not` unconditionally on tailwindcss>=4 (the shipped behaviour, which broke a 4.0.17 host's build); trusting the declared range optimistically so `^4` counts as 4.1; auto-rewriting the import to add `source(...)` on pre-4.1 hosts; downgrading the finding to WARN when no fix is available. because `@source not` landed in Tailwind 4.1 — verified by unpacking both tarballs (the `not ` prefix is parsed only in 4.1.0's dist, absent in 4.0.17) and reproduced live: on real 4.0.17 the inserted line fails the build with "Error: `@source` paths must be quoted", because `not` reads as an unquoted path. A defense that breaks the build it defends is worse than the hazard, so the fix must never be written on a version that cannot parse it, and an ambiguous range must resolve conservatively (`^4` guarantees only 4.0). Auto-adding `source(...)` was rejected because narrowing the scan base silently stops scanning templates outside it — a content-loss edit, not the safe deterministic repair --fix is scoped to (D-P10/BD54); it is offered as a hint the user applies. Severity stays FAIL because the hazard is identical on 4.0; only the repair is withheld.
+
+== memory (1139 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Promoted to repo memory: scanner-version-gate
+
+Cite these in .sofar/repo.md by qualified handle — `scanner-version-gate M<n>` —
+which is how `sofar doctor` sees that a promoted fact reached repo memory.
+
+- **M1** (2026-08-06T13:31:48.264Z) — Tailwind directives sofar emits into a host stylesheet must be checked against the host's INSTALLED version, not just major>=4: `@source not` landed in 4.1 and on 4.0.x fails the build with "Error: `@source` paths must be quoted" (`not` reads as an unquoted path). Establish such a boundary from the artifact, never from memory or a changelog: `npm pack tailwindcss@X`, untar, and grep dist/ for the parse site (`startsWith("not ")` is present in 4.1.0, absent in 4.0.17). Second rule from the same bug: every Tailwind path is resolved relative to the STYLESHEET, so a suggested `source("./src")` becomes src/src for a src/app.css entry — suggestions must be computed per stylesheet like sofarExclusionDirective already is, and live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` before shipping.
+
+== session 066e23e9-79ec-4fbd-aed6-68f135e9cb6c.md (1222 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 066e23e9-79ec-4fbd-aed6-68f135e9cb6c
+
+- Initiative: scanner-version-gate
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-06T13:30:16.184Z
+- Ended: 2026-08-06T17:11:38.282Z
+
+## Summary
+
+Shipped in 0.21.0 and verified against the published binary: on real tailwindcss 4.0.17 doctor --fix leaves the stylesheet byte-identical and its suggested scan-base directive builds clean; on 4.3.3 under ^4 the @source not fix still applies and classes still emit. All 9 tasks done.
+
+## Next action
+
+Nothing open — close the initiative. Optionally decide whether repo.md should absorb scanner-version-gate M1, and whether a deliberate session re-home should stop tripping doctor’s torn-session FAIL (see note).
+
+## Activity (derived from mechanical events)
+
+- Derived: 3 files (/Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/README.md, /Users/jins/IO/sofar/packages/engine/package.json), 32 commands, task changes: 3.1 → done
+- Files:
+  - /Users/jins/IO/sofar/docs/SPEC.md
+  - /Users/jins/IO/sofar/README.md
+  - /Users/jins/IO/sofar/packages/engine/package.json
+- Commands run: 32
+- Task changes:
+  - 3.1 → done
+
+== session 72b5339d-b4c0-4957-9a01-637d1f1cf81c.md (654 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 72b5339d-b4c0-4957-9a01-637d1f1cf81c
+
+- Initiative: scanner-version-gate
+- Tool: claude-code
+- Started: 2026-08-07T05:06:46.498Z
+- Ended: 2026-08-07T05:07:24.550Z
+
+## Summary
+
+Q&A only, no code or record changes: explained sofar's staleness handling (append-only log, mechanical drift counters since last session_ended, warn-don't-fix surfacing, reset on write-back).
+
+## Next action
+
+Nothing open — close the initiative. Optionally fold scanner-version-gate M1 into repo.md.
+
+## Activity (derived from mechanical events)
+
+- Derived: 8 commands
+- Commands run: 8
+
+== session 9b0a5d6e-1119-428d-bd73-af95a9fc03b6.md (569 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 9b0a5d6e-1119-428d-bd73-af95a9fc03b6
+
+- Initiative: scanner-version-gate
+- Tool: claude-code
+- Started: 2026-08-07T06:30:13.877Z
+- Ended: 2026-08-07T06:31:13.425Z
+
+## Summary
+
+Q&A only, no changes: drafted a post-comment reply explaining the fold-to-digest index (10k cap, branch-scoped, last-5 decisions + over-only rejected ledger).
+
+## Next action
+
+Nothing open — close the initiative.
+
+## Activity (derived from mechanical events)
+
+- Derived: 16 commands
+- Commands run: 16
+
+== session 0e1942c3-6fa0-4ed3-9f82-89bc757dca77.md (779 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 0e1942c3-6fa0-4ed3-9f82-89bc757dca77
+
+- Initiative: scanner-version-gate
+- Tool: claude-code
+- Started: 2026-08-07T06:37:34.144Z
+- Ended: 2026-08-07T07:17:47.977Z
+
+## Summary
+
+Drift-measurement analysis (Q&A) turned into work: folded scanner-version-gate M1 into repo.md, closed this initiative done. Engine-side drift-hardening (never-clip rules, standing constraints, read-back, guards) continues in new initiative drift-hardening.
+
+## Next action
+
+None — closed. Active work moved to drift-hardening.
+
+## Activity (derived from mechanical events)
+
+- Derived: 1 file (/Users/jins/IO/sofar/.sofar/repo.md), 20 commands
+- Files:
+  - /Users/jins/IO/sofar/.sofar/repo.md
+- Commands run: 20
+

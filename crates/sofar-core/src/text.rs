@@ -94,3 +94,78 @@ mod utf16_order_tests {
         assert_eq!(cmp_utf16("B", "a"), Ordering::Less);
     }
 }
+
+/// `text.slice(0, n)` in UTF-16 units (P1). A supplementary character cut in
+/// half leaves Node a lone surrogate, which it writes as U+FFFD — so the
+/// prefix ends in U+FFFD when the cut lands inside a pair.
+#[must_use]
+pub fn utf16_prefix(s: &str, n: usize) -> String {
+    let mut out = String::with_capacity(s.len().min(n * 3));
+    let mut used = 0;
+    for c in s.chars() {
+        let w = c.len_utf16();
+        if used + w > n {
+            if used < n {
+                // Half a pair fits: JS keeps the high surrogate alone.
+                out.push('\u{FFFD}');
+            }
+            break;
+        }
+        out.push(c);
+        used += w;
+    }
+    out
+}
+
+/// `text.replace(/\s+/g, ' ')` (P2): every run of JS whitespace → one space.
+#[must_use]
+pub fn collapse_ws(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut in_ws = false;
+    for c in s.chars() {
+        if is_js_whitespace(c) {
+            if !in_ws {
+                out.push(' ');
+                in_ws = true;
+            }
+        } else {
+            out.push(c);
+            in_ws = false;
+        }
+    }
+    out
+}
+
+/// `text.replace(/\s+/g, ' ').trim()` — the one-line normalisation every
+/// budgeted section applies (`clip`).
+#[must_use]
+pub fn one_line(s: &str) -> String {
+    js_trim(&collapse_ws(s)).to_owned()
+}
+
+/// `text.slice(0, 10)` for an ISO timestamp — the date part, or the whole
+/// string when shorter (timestamps are ASCII, so units are bytes).
+#[must_use]
+pub fn date_part(ts: &str) -> String {
+    utf16_prefix(ts, 10)
+}
+
+#[cfg(test)]
+mod prefix_tests {
+    use super::*;
+
+    #[test]
+    fn prefix_counts_units_and_breaks_pairs_to_fffd() {
+        assert_eq!(utf16_prefix("abc", 2), "ab");
+        assert_eq!(utf16_prefix("abc", 5), "abc");
+        assert_eq!(utf16_prefix("a\u{1F600}b", 2), "a\u{FFFD}");
+        assert_eq!(utf16_prefix("a\u{1F600}b", 3), "a\u{1F600}");
+        assert_eq!(utf16_prefix("a\u{1F600}b", 0), "");
+    }
+
+    #[test]
+    fn one_line_collapses_js_whitespace() {
+        assert_eq!(one_line("  a \n\t b\u{00A0}\u{FEFF}c  "), "a b c");
+        assert_eq!(collapse_ws("a\u{200B}b"), "a\u{200B}b");
+    }
+}

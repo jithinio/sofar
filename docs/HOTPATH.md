@@ -49,6 +49,7 @@ CLI reports the error:
 | `event session-end [--root D]` | handleSessionEnd |
 | `statusline [--root D] [--no-color] [--color]` | runStatusline |
 | `fold --events F [--take N] [--snapshot S --since N] [--write-snapshot W]` | runFold (hidden conformance shape — the incremental fold under SPEC §Library surface (library-surface, L1/L2 — added for sofar-cloud + D11); owned by `sofar-core` directly under rust-core D15, never routed by the shim) |
+| `status [slug] [--root D] [--no-color] [--color]` | runStatus, PLAIN only (rust-core D14, 2.4): `sofar-core` owns this shape and applies the stdout colour ladder of `cli/ui/caps.ts` itself — `NO_COLOR` > `--no-color` > `FORCE_COLOR` > `--color` > (TTY and `TERM` ≠ dumb); a render that would be styled exits 64 for the TypeScript CLI. `--watch`, a second positional or any other option is commander's (exit 64). The update notice on stderr (`withUpdateNotice`) arrives with the statusline's cache reader (2.6). |
 
 `event append …` is full-CLI only (commander: `--type` and `--payload`
 required; `--session` default `cli`; `--source` default `cli`; `--actor`
@@ -64,6 +65,9 @@ point — the seven hook/statusline shapes above are the whole shim-routed
 surface, and `runFast` returning false is already the fallback contract.
 `fold` is reached only by invoking the binary itself
 (`SOFAR_CONFORMANCE_BIN=target/release/sofar-core npx vitest run fold-parity`).
+The templates and both status renders are proved on every fixture initiative
+by the render-parity goldens (`packages/engine/test/conformance/render-parity`,
+rust-core 2.4): in-process on each side, options embedded per golden.
 
 ## Hook input (all six `event` subcommands)
 

@@ -1,0 +1,685 @@
+== options (37299 bytes) ==
+{
+  "plain": {},
+  "hook": {
+    "sessionId": "speed-session",
+    "git": {
+      "branch": "speed",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": null,
+      "upstreamFull": null,
+      "synced": false
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 3,
+        "decisions": 7
+      },
+      {
+        "initiative": "beta",
+        "paths": 1,
+        "decisions": 1
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare."
+    ]
+  },
+  "lane": {
+    "lane": true,
+    "sessionId": "lane-session",
+    "git": {
+      "branch": "speed",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": null,
+      "upstreamFull": null,
+      "synced": false
+    }
+  },
+  "quiet": {
+    "activity": false,
+    "sessionId": " quiet-session\t"
+  },
+  "cap": {
+    "sessionId": "speed-session",
+    "git": {
+      "branch": "speed",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": null,
+      "upstreamFull": null,
+      "synced": false
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 3,
+        "decisions": 7
+      },
+      {
+        "initiative": "beta",
+        "paths": 1,
+        "decisions": 1
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare.",
+      "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    ]
+  }
+}
+== status (3642 bytes) ==
+# speed
+
+Goal: Cut the fresh-session pattern's felt latency: no empty write-back waits, pinned-fast shims, no per-session spawn, and orientation that names its files.
+Progress: 4/4 tasks done (100%) across 1 phase(s)
+
+Phases:
+- Phase 1 — Speed [done] 4/4
+  - [x] T1 Drift-gated Stop: SPEC decision on gate-relevant drift, then Stop exits 0 silently at zero drift, enforces as today otherwise; fail closed on computation error
+  - [x] T2 Shim-latency budget pin: every hook shim <100ms against a realistic seeded record; mutation-checked with a temporary 150ms sleep
+  - [x] T3 Persistent MCP daemon: serve the frozen 7-tool MCP surface over HTTP from sofar serve; stdio stays default; opt-in .mcp.json config; parity + no-hang tests
+  - [x] T4 File-locality orientation hints: per-task touched-files line from existing PostToolUse events, budgeted + byte-stable; ablation-gated before merge
+
+Next action: Await go-ahead to sofar new; first task is the on-disk session-to-initiative pin for hooks.
+
+Last session (claude-code, ended 2026-08-01T17:26:03.106Z):
+  Confirmed the misroute empirically: 21/99 sessions split across initiatives, 780 events in initiatives that never registered their session, 13 sessions registered in 2+. Session aefa6315 proves the hook/MCP split (hooks to speed, MCP to session-strategy-bench). 0/3450 envelope.initiative mismatches, so repair is inferential not mechanical. doctor sees symptoms, has no split detector.
+
+Files touched (34):
+- /Users/jins/IO/sofar/docs/SPEC.md
+- /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+- /Users/jins/IO/sofar/packages/engine/test/hooks.test.ts
+- /Users/jins/IO/sofar/packages/engine/test/append.test.ts
+- /Users/jins/IO/sofar/packages/engine/test/shim-latency.test.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/serve.ts
+- /Users/jins/IO/sofar/packages/engine/test/serve.test.ts
+- /Users/jins/IO/sofar/packages/engine/test/acceptance.cli-ui.test.ts
+- /Users/jins/IO/sofar/packages/engine/test/serve-mcp.test.ts
+- /Users/jins/IO/sofar/README.md
+- /Users/jins/IO/sofar/packages/engine/src/core/fold.ts
+- /Users/jins/IO/sofar/packages/engine/src/projections/templates/status.ts
+- /Users/jins/IO/sofar/packages/engine/test/task-files.test.ts
+- /Users/jins/IO/sofar/vitest.config.ts
+- /Users/jins/IO/sofar/product doc/speed-T4-ablation.md
+- /Users/jins/IO/handoff-bench/scenario2-session-strategy/workloads/task7-probe-r02.md
+- /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/build-arms-r02.sh
+- /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/run-sanctioned-r02.sh
+- /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/build-packets.py
+- /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/run-graders.py
+- /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/aggregate-grades.py
+- /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/sidecar-orientation.py
+- /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/reclean-diffs-r02.sh
+- /Users/jins/IO/sofar/product doc/session-strategy-bench-evidence.md
+- /Users/jins/IO/sofar/packages/engine/test/acceptance.phase3.test.ts
+- /Users/jins/IO/sofar/packages/engine/test/mcp.test.ts
+- /Users/jins/IO/sofar/packages/engine/test/acceptance.phase7.test.ts
+- /Users/jins/IO/sofar/CLAUDE.md
+- /Users/jins/IO/sofar/.sofar/repo.md
+- /Users/jins/IO/sofar/packages/engine/package.json
+- /Users/jins/IO/sofar-cloud/apps/marketing/content/docs/quickstart.mdx
+- /Users/jins/IO/sofar-cloud/apps/marketing/src/components/sections.tsx
+- /Users/jins/IO/sofar/packaging/homebrew/sofar.rb
+- /Users/jins/IO/sofar/packaging/homebrew/update-formula.sh
+
+== digest:plain (2745 bytes) ==
+# Sofar status: speed
+
+Goal: Cut the fresh-session pattern's felt latency: no empty write-back waits, pinned-fast shims, no per-session spawn, and orientation that names its files.
+
+Phases:
+- done: Phase 1 (4/4 tasks)
+
+Progress: 4/4 tasks done (100%) across 1 phase(s)
+Active phase: (none)
+Next action: Await go-ahead to sofar new; first task is the on-disk session-to-initiative pin for hooks.
+
+Last session (claude-code, ended 2026-08-01T17:26:03.106Z):
+  Confirmed the misroute empirically: 21/99 sessions split across initiatives, 780 events in initiatives that never registered their session, 13 sessions registered in 2+. Session aefa6315 proves the hook/MCP split (hooks to speed, MCP to session-strategy-bench). 0/3450 envelope.initiative mismatches, so repair is inferential not mechanical. doctor sees symptoms, has no split detector.
+
+⚠ 2 other session(s) did work without writing back: 1d1b8f86-3523-43b7-aa06-95ca7b885776, 47818069-b7de-4d6e-af9f-4884852ce257
+
+Recent decisions (last 5 of 7; full text in decisions.md):
+- [D3] 2026-07-20 T3: serve the frozen 7-tool MCP surface over streamable HTTP at /mcp on the EXISTING `sofar serve` daemon (SDK Streamab… — over (a) One shared Server/ToolContext for all HTTP clients — rejected: the BD58 active-sessio…
+- [D4] 2026-07-28 D1 record-hygiene: PostToolUse appends nothing for a Bash command whose every shell segment leads with `git` or `sofar`… — over Logging every Bash command as today; or sweeping the dirty record with an auto-commit at …
+- [D5] 2026-07-28 D2 record-hygiene: SessionStart appends nothing; sessions register lazily on their first real event (start_session unkn… — over Eager registration in the SessionStart hook (the prior behavior)
+- [D6] 2026-07-30 npm package renamed @alignlabs/sofar → sofar.sh (unscoped, matches the sofar.sh domain, socket.io precedent); bin stays… — over bare `sofar` (held by npm internally — never published, no moniker collision, publish sti…
+- [D7] 2026-07-30 Homebrew formula sources the immutable npm registry tarball (registry.npmjs.org/sofar.sh/-/sofar.sh-VERSION.tgz) + npm … — over a GitHub release tarball source, or a from-source build
+Earlier rejected approaches — do NOT re-propose (2 older):
+- [D1] Option A, any event since last write-back — rejected because the SessionStart hook's own …
+- [D2] The pure initiative-scoped counter alone (the first T1 decision as originally scoped), wh…
+
+Next ids: D8 (decision), M1 (memory)
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:hook (4844 bytes) ==
+# Sofar status: speed
+
+Goal: Cut the fresh-session pattern's felt latency: no empty write-back waits, pinned-fast shims, no per-session spawn, and orientation that names its files.
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+  if SPEC must change.
+- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
+  Both run at the workspace root; typecheck: `npm run typecheck`.
+- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
+  (source-shipped, no build); packages/engine → sofar bin
+  (packages/engine/dist/cli.js after build).
+- Definition of done per task: acceptance criteria in docs/SPEC.md
+  §Acceptance.
+- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
+  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
+  live OUTSIDE this repo in the user's strategy vault. Engine sessions
+  never need them; 5.3 scoring is performed by the user against that
+  scorecard. Do not go looking for them; do not block on them.
+- Push policy: push origin main at each verified wrap-up (user-established
+  Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Committing the record needs a BARE
+…truncated — read .sofar/repo.md for the rest
+
+Phases:
+- done: Phase 1 (4/4 tasks)
+
+Progress: 4/4 tasks done (100%) across 1 phase(s)
+Active phase: (none)
+Next action: Await go-ahead to sofar new; first task is the on-disk session-to-initiative pin for hooks.
+
+Last session (claude-code, ended 2026-08-01T17:26:03.106Z):
+  Confirmed the misroute empirically: 21/99 sessions split across initiatives, 780 events in initiatives that never registered their session, 13 sessions registered in 2+. Session aefa6315 proves the hook/MCP split (hooks to speed, MCP to session-strategy-bench). 0/3450 envelope.initiative mismatches, so repair is inferential not mechanical. doctor sees symptoms, has no split detector.
+
+⚠ 2 other session(s) did work without writing back: 1d1b8f86-3523-43b7-aa06-95ca7b885776, 47818069-b7de-4d6e-af9f-4884852ce257
+
+Recent decisions (last 5 of 7; full text in decisions.md):
+- [D3] 2026-07-20 T3: serve the frozen 7-tool MCP surface over streamable HTTP at /mcp on the EXISTING `sofar serve` daemon (SDK Streamab… — over (a) One shared Server/ToolContext for all HTTP clients — rejected: the BD58 active-sessio…
+- [D4] 2026-07-28 D1 record-hygiene: PostToolUse appends nothing for a Bash command whose every shell segment leads with `git` or `sofar`… — over Logging every Bash command as today; or sweeping the dirty record with an auto-commit at …
+- [D5] 2026-07-28 D2 record-hygiene: SessionStart appends nothing; sessions register lazily on their first real event (start_session unkn… — over Eager registration in the SessionStart hook (the prior behavior)
+- [D6] 2026-07-30 npm package renamed @alignlabs/sofar → sofar.sh (unscoped, matches the sofar.sh domain, socket.io precedent); bin stays… — over bare `sofar` (held by npm internally — never published, no moniker collision, publish sti…
+- [D7] 2026-07-30 Homebrew formula sources the immutable npm registry tarball (registry.npmjs.org/sofar.sh/-/sofar.sh-VERSION.tgz) + npm … — over a GitHub release tarball source, or a from-source build
+Earlier rejected approaches — do NOT re-propose (2 older):
+- [D1] Option A, any event since last write-back — rejected because the SessionStart hook's own …
+- [D2] The pure initiative-scoped counter alone (the first T1 decision as originally scoped), wh…
+
+Next ids: D8 (decision), M1 (memory)
+
+Adjacent records — 8 decisions across 2 other initiatives that have worked this one's files, densest first:
+- alpha — 3 shared files, 7 decisions
+- beta — 1 shared file, 1 decision
+Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: speed-session — when calling sofar_start_session, pass this as session_id.
+Git: speed @ a1b2c3d — no origin ref — never pushed
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:lane (3784 bytes) ==
+# Sofar: quick-work lane (speed)
+
+Goal: Cut the fresh-session pattern's felt latency: no empty write-back waits, pinned-fast shims, no per-session spawn, and orientation that names its files.
+
+This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
+- Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
+- Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
+
+Last session (claude-code, ended 2026-08-01T17:26:03.106Z):
+  Confirmed the misroute empirically: 21/99 sessions split across initiatives, 780 events in initiatives that never registered their session, 13 sessions registered in 2+. Session aefa6315 proves the hook/MCP split (hooks to speed, MCP to session-strategy-bench). 0/3450 envelope.initiative mismatches, so repair is inferential not mechanical. doctor sees symptoms, has no split detector.
+
+Recent quick work (10 sessions, 7 decisions since 2026-07-20; last 5):
+- 2026-08-01 claude-code — 23 commands
+- 2026-07-30 claude-code — 2 files (/Users/jins/IO/sofar/packaging/homebrew/sofar.rb, /Users/jins/IO/sofar/packaging/homebrew/update-formula.sh), 34 commands
+- 2026-07-30 claude-code — 4 files (/Users/jins/IO/sofar/.sofar/repo.md, /Users/jins/IO/sofar/packages/engine/package.json, /Users/jins/IO/sofar-cloud/apps/marketing/content/docs/quickstart.mdx, /Users/jins/IO/sofar-cloud/apps/marketing/src/components/sections.tsx), 41 commands
+- 2026-07-27 claude-code — 7 files (/Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/test/hooks.test.ts, /Users/jins/IO/sofar/packages/engine/test/acceptance.phase3.test.ts, /Users/jins/IO/sofar/packages/engine/test/mcp.test.ts, /Users/jins/IO/sofar/packages/engine/test/acceptance.phase7.test.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/CLAUDE.md), 47 commands
+- 2026-07-27 claude-code — 4 commands
+
+Recent decisions (last 5 of 7; full text in decisions.md):
+- [D3] 2026-07-20 T3: serve the frozen 7-tool MCP surface over streamable HTTP at /mcp on the EXISTING `sofar serve` daemon (SDK Streamab… — over (a) One shared Server/ToolContext for all HTTP clients — rejected: the BD58 active-sessio…
+- [D4] 2026-07-28 D1 record-hygiene: PostToolUse appends nothing for a Bash command whose every shell segment leads with `git` or `sofar`… — over Logging every Bash command as today; or sweeping the dirty record with an auto-commit at …
+- [D5] 2026-07-28 D2 record-hygiene: SessionStart appends nothing; sessions register lazily on their first real event (start_session unkn… — over Eager registration in the SessionStart hook (the prior behavior)
+- [D6] 2026-07-30 npm package renamed @alignlabs/sofar → sofar.sh (unscoped, matches the sofar.sh domain, socket.io precedent); bin stays… — over bare `sofar` (held by npm internally — never published, no moniker collision, publish sti…
+- [D7] 2026-07-30 Homebrew formula sources the immutable npm registry tarball (registry.npmjs.org/sofar.sh/-/sofar.sh-VERSION.tgz) + npm … — over a GitHub release tarball source, or a from-source build
+Earlier rejected approaches — do NOT re-propose (2 older):
+- [D1] Option A, any event since last write-back — rejected because the SessionStart hook's own …
+- [D2] The pure initiative-scoped counter alone (the first T1 decision as originally scoped), wh…
+
+Next ids: D8 (decision), M1 (memory)
+
+Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Git: speed @ a1b2c3d — no origin ref — never pushed
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:quiet (2832 bytes) ==
+# Sofar status: speed
+
+Goal: Cut the fresh-session pattern's felt latency: no empty write-back waits, pinned-fast shims, no per-session spawn, and orientation that names its files.
+
+Phases:
+- done: Phase 1 (4/4 tasks)
+
+Progress: 4/4 tasks done (100%) across 1 phase(s)
+Active phase: (none)
+Next action: Await go-ahead to sofar new; first task is the on-disk session-to-initiative pin for hooks.
+
+Last session (claude-code, ended 2026-08-01T17:26:03.106Z):
+  Confirmed the misroute empirically: 21/99 sessions split across initiatives, 780 events in initiatives that never registered their session, 13 sessions registered in 2+. Session aefa6315 proves the hook/MCP split (hooks to speed, MCP to session-strategy-bench). 0/3450 envelope.initiative mismatches, so repair is inferential not mechanical. doctor sees symptoms, has no split detector.
+
+⚠ 2 other session(s) did work without writing back: 1d1b8f86-3523-43b7-aa06-95ca7b885776, 47818069-b7de-4d6e-af9f-4884852ce257
+
+Recent decisions (last 5 of 7; full text in decisions.md):
+- [D3] 2026-07-20 T3: serve the frozen 7-tool MCP surface over streamable HTTP at /mcp on the EXISTING `sofar serve` daemon (SDK Streamab… — over (a) One shared Server/ToolContext for all HTTP clients — rejected: the BD58 active-sessio…
+- [D4] 2026-07-28 D1 record-hygiene: PostToolUse appends nothing for a Bash command whose every shell segment leads with `git` or `sofar`… — over Logging every Bash command as today; or sweeping the dirty record with an auto-commit at …
+- [D5] 2026-07-28 D2 record-hygiene: SessionStart appends nothing; sessions register lazily on their first real event (start_session unkn… — over Eager registration in the SessionStart hook (the prior behavior)
+- [D6] 2026-07-30 npm package renamed @alignlabs/sofar → sofar.sh (unscoped, matches the sofar.sh domain, socket.io precedent); bin stays… — over bare `sofar` (held by npm internally — never published, no moniker collision, publish sti…
+- [D7] 2026-07-30 Homebrew formula sources the immutable npm registry tarball (registry.npmjs.org/sofar.sh/-/sofar.sh-VERSION.tgz) + npm … — over a GitHub release tarball source, or a from-source build
+Earlier rejected approaches — do NOT re-propose (2 older):
+- [D1] Option A, any event since last write-back — rejected because the SessionStart hook's own …
+- [D2] The pure initiative-scoped counter alone (the first T1 decision as originally scoped), wh…
+
+Next ids: D8 (decision), M1 (memory)
+
+Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:cap (10075 bytes) ==
+# Sofar status: speed
+
+Goal: Cut the fresh-session pattern's felt latency: no empty write-back waits, pinned-fast shims, no per-session spawn, and orientation that names its files.
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+  if SPEC must change.
+- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
+  Both run at the workspace root; typecheck: `npm run typecheck`.
+- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
+  (source-shipped, no build); packages/engine → sofar bin
+  (packages/engine/dist/cli.js after build).
+- Definition of done per task: acceptance criteria in docs/SPEC.md
+  §Acceptance.
+- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
+  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
+  live OUTSIDE this repo in the user's strategy vault. Engine sessions
+  never need them; 5.3 scoring is performed by the user against that
+  scorecard. Do not go looking for them; do not block on them.
+- Push policy: push origin main at each verified wrap-up (user-established
+  Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Committing the record needs a BARE
+…truncated — read .sofar/repo.md for the rest
+
+Phases:
+- done: Phase 1 (4/4 tasks)
+
+Progress: 4/4 tasks done (100%) across 1 phase(s)
+Active phase: (none)
+Next action: Await go-ahead to sofar new; first task is the on-disk session-to-initiative pin for hooks.
+
+Last session (claude-code, ended 2026-08-01T17:26:03.106Z):
+  Confirmed the misroute empirically: 21/99 sessions split across initiatives, 780 events in initiatives that never registered their session, 13 sessions registered in 2+. Session aefa6315 proves the hook/MCP split (hooks to speed, MCP to session-strategy-bench). 0/3450 envelope.initiative mismatches, so repair is inferential not mechanical. doctor sees symptoms, has no split detector.
+
+⚠ 2 other session(s) did work without writing back: 1d1b8f86-3523-43b7-aa06-95ca7b885776, 47818069-b7de-4d6e-af9f-4884852ce257
+
+Recent decisions (last 5 of 7; full text in decisions.md):
+- [D3] 2026-07-20 T3: serve the frozen 7-tool MCP surface over streamable HTTP at /mcp on the EXISTING `sofar serve` daemon (SDK Streamab… — over (a) One shared Server/ToolContext for all HTTP clients — rejected: the BD58 active-sessio…
+- [D4] 2026-07-28 D1 record-hygiene: PostToolUse appends nothing for a Bash command whose every shell segment leads with `git` or `sofar`… — over Logging every Bash command as today; or sweeping the dirty record with an auto-commit at …
+- [D5] 2026-07-28 D2 record-hygiene: SessionStart appends nothing; sessions register lazily on their first real event (start_session unkn… — over Eager registration in the SessionStart hook (the prior behavior)
+- [D6] 2026-07-30 npm package renamed @alignlabs/sofar → sofar.sh (unscoped, matches the sofar.sh domain, socket.io precedent); bin stays… — over bare `sofar` (held by npm internally — never published, no moniker collision, publish sti…
+- [D7] 2026-07-30 Homebrew formula sources the immutable npm registry tarball (registry.npmjs.org/sofar.sh/-/sofar.sh-VERSION.tgz) + npm … — over a GitHub release tarball source, or a from-source build
+Earlier rejected approaches — do NOT re-propose (2 older):
+- …and 2 more (see decisions.md)
+
+Next ids: D8 (decision), M1 (memory)
+
+Adjacent records — 8 decisions across 2 other initiatives that have worked this one's files, densest first:
+- alpha — 3 shared files, 7 decisions
+- beta — 1 shared file, 1 decision
+Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: speed-session — when calling sofar_start_session, pass this as session_id.
+Git: speed @ a1b2c3d — no origin ref — never pushed
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+…truncated — run sofar status for full detail
+
+== plan (1062 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Plan: speed
+
+Goal: Cut the fresh-session pattern's felt latency: no empty write-back waits, pinned-fast shims, no per-session spawn, and orientation that names its files.
+
+Progress: 4/4 tasks done (100%)
+
+## Phase 1 — Speed [done] — 4/4 done
+
+- [x] T1 Drift-gated Stop: SPEC decision on gate-relevant drift, then Stop exits 0 silently at zero drift, enforces as today otherwise; fail closed on computation error
+- [x] T2 Shim-latency budget pin: every hook shim <100ms against a realistic seeded record; mutation-checked with a temporary 150ms sleep
+- [x] T3 Persistent MCP daemon: serve the frozen 7-tool MCP surface over HTTP from sofar serve; stdio stays default; opt-in .mcp.json config; parity + no-hang tests
+- [x] T4 File-locality orientation hints: per-task touched-files line from existing PostToolUse events, budgeted + byte-stable; ablation-gated before merge
+
+Next action: Await go-ahead to sofar new; first task is the on-disk session-to-initiative pin for hooks.
+
+== decisions (8277 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Decisions: speed
+
+- 2026-07-20T08:43:08.062Z — chose **T1 gate-relevant drift = Option B, mutation-class only: the existing staleness/nudge counter total (freshnessTotal over freshness.events_since_writeback — file_touched + command_run + task_status_changed + note_added + decision_logged), initiative-scoped, read-side, computed at Stop; zero drift exits 0 silently even without a session_ended, nonzero or ANY drift-computation error enforces exactly today's block (fail closed). Gate only ever converts an exit-2 into an exit-0 — every today-exit-0 path (loop guard first, unreadable stdin, unbound repo, unregistered session, written-back session) is untouched.** over Option A, any event since last write-back — rejected because the SessionStart hook's own session_started event makes drift nonzero for every session, so the silent exit would never fire (dead code); also considered widening B to count plan_updated/phase_status_changed, rejected for this task. because B reuses the ONE existing drift definition shared by the UserPromptSubmit nudge and the staleness line, so gate/nudge/staleness can never disagree, and pure reads emit no events so they naturally never gate. Accepted gaps, stated: (1) plan_updated/phase_status_changed stay uncounted, matching the staleness counter today — a plan-only session ends ungated since the plan event is already durable in the record; widening the counter later must widen all three surfaces together via a new decision. (2) Drift is initiative-scoped, so a read-only session on a record left drifted by an earlier writer still gates — it becomes the write-back of record for that drift; no regression, that session is blocked today too. Existing zero-drift Stop tests (hooks.test.ts) are amended to seed drift; SPEC §Hooks + §Acceptance Phase 3 wording updated to drift-qualified enforcement.
+- 2026-07-20T08:45:54.478Z — chose **T1 refinement: the Stop gate's silent exit requires BOTH zero initiative-wide freshness drift AND no derived mechanical activity (BD44 session.activity) on the stopping session itself — gate-relevant drift = counter total OR own-session activity.** over The pure initiative-scoped counter alone (the first T1 decision as originally scoped), which the Phase 7 acceptance disproved: concurrent session A's write-back resets the shared counter, so unwritten session B — with real task/file work — would exit silently and its summary/next_action would never land, breaking the Phase 7 "independent Stop gates" law. because session.activity is an existing read-side derivation (zero new event types) that attributes file_touched/command_run/task_status_changed by envelope.session, so an unwritten session that did mechanical work stays gated regardless of who reset the shared counter. Known asymmetry accepted and documented: activity excludes note_added/decision_logged (BD44 scope), so a session whose ONLY act was a decision/note, absorbed by a later concurrent write-back, ends ungated — the event is durable in the record and a postdating write-back acknowledged it. All five commissioned T1 behaviors unchanged; phase-7 tests pass unmodified.
+- 2026-07-20T08:54:32.388Z — chose **T3: serve the frozen 7-tool MCP surface over streamable HTTP at /mcp on the EXISTING `sofar serve` daemon (SDK StreamableHTTPServerTransport, sessions keyed by mcp-session-id), with a FRESH SofarServerHandle — own ToolContext and active-session pin — created per MCP session, and all transports closed on daemon close. stdio (`sofar mcp`) stays the default and the only transport `sofar init` registers; HTTP is opt-in via a documented .mcp.json entry {type:"http", url:"http://127.0.0.1:4173/mcp"}. Zero new dependencies (SDK 1.29.0 already ships both transports).** over (a) One shared Server/ToolContext for all HTTP clients — rejected: the BD58 active-session pin would be shared across concurrent Claude sessions, recreating exactly the Phase 11 misroute that Phase 12 hardened against. (b) A separate `sofar mcp --http` daemon — rejected: a second long-lived process to manage defeats the no-per-session-spawn goal; serve is already the resident localhost process. (c) Making HTTP the default — rejected: zero-config users must lose nothing. because Sessions connect to a running server instead of paying a per-session `sofar mcp` spawn. Guard-rail reading: "the state server serves JSON on localhost — nothing more" holds — /mcp is JSON-RPC bound to 127.0.0.1, no UI/sync/telemetry, and the 7-tool surface is byte-frozen (transport change only, parity-tested stdio vs HTTP). Daemon-absent fallback is fail-fast connection refusal (never a hang, pinned by test); documented remedy: start `sofar serve` or keep the stdio config. Serve banner wording gains "/mcp MCP" — the cli-ui banner pins update with it.
+- 2026-07-28T08:56:04.004Z — chose **D1 record-hygiene: PostToolUse appends nothing for a Bash command whose every shell segment leads with `git` or `sofar` (quote-unaware split; any ambiguity resolves toward logging)** over Logging every Bash command as today; or sweeping the dirty record with an auto-commit at SessionEnd because The record could never settle: committing it is itself a Bash call, so PostToolUse appended an event about committing the record — dirty the instant it was clean. A clean tree requires some record-committing action that appends zero events. Auto-commit only converts dirty-tree into unpushed-commit, so it does not break the loop. Nothing is lost: the fold counts command_run and never reads `cmd` (bare tally in recordActivity, explicit no-op in applyEvent), and git/sofar each keep their own ledger. Counting a commit as drift was backwards — drift means the record moved since the last write-back, and committing is the act of recording.
+- 2026-07-28T08:56:16.984Z — chose **D2 record-hygiene: SessionStart appends nothing; sessions register lazily on their first real event (start_session unknown-id branch, or PostToolUse registering before its append)** over Eager registration in the SessionStart hook (the prior behavior) because Opening a session dirtied the record before any work existed, and a session that only read and exited still minted session_started + session_closed + a permanent tracked sessions/<id>.md for having done nothing (3 of 4 untracked files in the observed dirty tree were exactly this). Safe because the adopt-by-id line comes from the hook payload not the log, and fold attachActivity merges activity by session id after the full pass, so registration order is irrelevant. The Stop gate already exits 0 for unregistered sessions, so a do-nothing session is correctly ungated.
+- 2026-07-30T06:53:22.454Z — chose **npm package renamed @alignlabs/sofar → sofar.sh (unscoped, matches the sofar.sh domain, socket.io precedent); bin stays `sofar`; @alignlabs/sofar to be deprecated with a pointer after first publish** over bare `sofar` (held by npm internally — never published, no moniker collision, publish still blocked); sofar-cli/getsofar variants; a new org scope like @sofarhq; petitioning npm support and waiting because sofar.sh is the strongest brand match available: identical to the domain, unscoped, and its whole moniker-collision class (sofarsh/sofar-sh/sofar_sh) is empty so npm's typosquat rule cannot block it. Historical record text and the canonical-serialize fixture keep the old name (history, never rewritten); existing @alignlabs installs have PACKAGE_NAME baked in, so migration relies on the deprecation notice.
+- 2026-07-30T14:58:18.988Z — chose **Homebrew formula sources the immutable npm registry tarball (registry.npmjs.org/sofar.sh/-/sofar.sh-VERSION.tgz) + npm std_npm_args install** over a GitHub release tarball source, or a from-source build because the repo cuts no GitHub releases at all, and the registry tarball is already the exact artifact npm/bun/pnpm users receive — one artifact behind every install path, so brew can never drift from npm. dist/cli.js is fully bundled with zero runtime deps, so the formula needs only depends_on node. Verified end-to-end: installs, brew test passes (--version + init scaffolds .sofar/), brew audit --strict clean.
+
+== session 8d40de69-7589-4f67-8ffc-da71d4e99951.md (2949 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 8d40de69-7589-4f67-8ffc-da71d4e99951
+
+- Initiative: speed
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-20T08:41:15.305Z
+- Ended: 2026-07-20T09:26:56.078Z
+
+## Summary
+
+speed initiative fully shipped: T1 drift-gated Stop, T2 shim-latency pin, T3 MCP-over-HTTP daemon, T4 files: locality hint (ablation-gated, stands). Released as 0.10.0 (f067915): user published to npm and upgraded the global install — verified registry 0.10.0, `sofar --version` 0.10.0, upgrade --check up-to-date. Hooks now run the 0.10.0 engine in every wired repo.
+
+## Next action
+
+Nothing open on speed (initiative closable). Candidates: (a) relativize files:-line paths (byte-stability-compatible design needed — T4 follow-up note), (b) pre-existing client-doorbell load flake, (c) resume session-strategy-bench's pending publish decision.
+
+## Activity (derived from mechanical events)
+
+- Derived: 15 files (/Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/test/hooks.test.ts, /Users/jins/IO/sofar/packages/engine/test/append.test.ts, /Users/jins/IO/sofar/packages/engine/test/shim-latency.test.ts, /Users/jins/IO/sofar/packages/engine/src/cli/serve.ts, /Users/jins/IO/sofar/packages/engine/test/serve.test.ts, /Users/jins/IO/sofar/packages/engine/test/acceptance.cli-ui.test.ts, /Users/jins/IO/sofar/packages/engine/test/serve-mcp.test.ts, /Users/jins/IO/sofar/README.md, /Users/jins/IO/sofar/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar/packages/engine/src/projections/templates/status.ts, /Users/jins/IO/sofar/packages/engine/test/task-files.test.ts, /Users/jins/IO/sofar/vitest.config.ts, /Users/jins/IO/sofar/product doc/speed-T4-ablation.md), 64 commands, task changes: T1 → done, T2 → active, T2 → done, T3 → active, T3 → done, T4 → active
+- Files:
+  - /Users/jins/IO/sofar/docs/SPEC.md
+  - /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+  - /Users/jins/IO/sofar/packages/engine/test/hooks.test.ts
+  - /Users/jins/IO/sofar/packages/engine/test/append.test.ts
+  - /Users/jins/IO/sofar/packages/engine/test/shim-latency.test.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/serve.ts
+  - /Users/jins/IO/sofar/packages/engine/test/serve.test.ts
+  - /Users/jins/IO/sofar/packages/engine/test/acceptance.cli-ui.test.ts
+  - /Users/jins/IO/sofar/packages/engine/test/serve-mcp.test.ts
+  - /Users/jins/IO/sofar/README.md
+  - /Users/jins/IO/sofar/packages/engine/src/core/fold.ts
+  - /Users/jins/IO/sofar/packages/engine/src/projections/templates/status.ts
+  - /Users/jins/IO/sofar/packages/engine/test/task-files.test.ts
+  - /Users/jins/IO/sofar/vitest.config.ts
+  - /Users/jins/IO/sofar/product doc/speed-T4-ablation.md
+- Commands run: 64
+- Task changes:
+  - T1 → done
+  - T2 → active
+  - T2 → done
+  - T3 → active
+  - T3 → done
+  - T4 → active
+
+== session aefa6315-3725-4e4d-9f9a-224ff6f86ddb.md (3104 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session aefa6315-3725-4e4d-9f9a-224ff6f86ddb
+
+- Initiative: speed
+- Tool: claude-code
+- Started: 2026-07-20T09:27:31.581Z
+- Ended: 2026-07-21T11:48:39.975Z
+
+## Summary
+
+S2-R02 COMPLETE end to end. 28 task runs + 24 orientation-sidecar probes + 72 blind grades + a W1-L control re-run, all executed, analyzed, and reported. Final verdicts: P1' SPLIT (met W1/missed W2) with the ambient-drift confound now EMPIRICALLY CONFIRMED by the 3-way W1-L control ($39/$43/$52, both R02 runs +40-50% wall over R01, persistent not one-off); P2' SUPPORTED stronger than R01 (primary L14/S10, all 3 graders incl 2 cross-family agree S>=L, sign-flip resolved); P3' SUPPORTED-on-W2 (record can't carry command output, arm S honest UNRECOVERABLE); P4' SPLIT; P5' FALSIFIED-as-stated (S 21% vs L 30% fab, not via inert T4 hint). Evidence section complete in local vault; records committed (sofar a85cfb3, handoff-bench 28cef12). Robust drift-proof takeaways: quality parity/slight-S-edge, ~30% cost saving per run, both within-run. Two engine proposals logged (T4 hint never renders at orientation; command_run stores no output).
+
+## Next action
+
+Initiative deliverable is done. If pursued: (a) the two engine findings become their own initiatives; (b) a future R03 with equalized arms (both get .claude skills) and same-window arm pairing would remove the two documented confounds. No action otherwise required.
+
+## Activity (derived from mechanical events)
+
+- Derived: 9 files (/Users/jins/IO/handoff-bench/scenario2-session-strategy/workloads/task7-probe-r02.md, /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/build-arms-r02.sh, /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/run-sanctioned-r02.sh, /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/build-packets.py, /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/run-graders.py, /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/aggregate-grades.py, /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/sidecar-orientation.py, /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/reclean-diffs-r02.sh, /Users/jins/IO/sofar/product doc/session-strategy-bench-evidence.md), 120 commands
+- Files:
+  - /Users/jins/IO/handoff-bench/scenario2-session-strategy/workloads/task7-probe-r02.md
+  - /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/build-arms-r02.sh
+  - /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/run-sanctioned-r02.sh
+  - /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/build-packets.py
+  - /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/run-graders.py
+  - /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/aggregate-grades.py
+  - /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/sidecar-orientation.py
+  - /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/reclean-diffs-r02.sh
+  - /Users/jins/IO/sofar/product doc/session-strategy-bench-evidence.md
+- Commands run: 120
+
+== session codex-redesign-20260721-01.md (594 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session codex-redesign-20260721-01
+
+- Initiative: speed
+- Tool: codex
+- Started: 2026-07-21T07:30:02.728Z
+- Ended: 2026-07-21T07:30:20.820Z
+
+## Summary
+
+Oriented from the speed-bound record and inspected the existing cli-ui redesign initiative. No implementation changes made because cli-ui is already 16/16 complete and the requested redesign surface is not identified by the active record.
+
+## Next action
+
+Confirm whether to extend the completed cli-ui terminal redesign or name the other surface to redesign.
+
+== session 7b03505e-b89f-4345-82a5-6991258ea9b3.md (358 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 7b03505e-b89f-4345-82a5-6991258ea9b3
+
+- Initiative: speed
+- Tool: claude-code
+- Started: 2026-07-21T15:17:02.810Z
+- Ended: 2026-07-21T15:17:08.675Z (closed: prompt_input_exit)
+
+## Summary
+
+(none recorded — session did not write back)
+
+## Next action
+
+(none recorded)
+
+== session 47818069-b7de-4d6e-af9f-4884852ce257.md (470 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 47818069-b7de-4d6e-af9f-4884852ce257
+
+- Initiative: speed
+- Tool: claude-code
+- Started: 2026-07-23T07:45:21.551Z
+- Ended: 2026-07-27T05:36:28.581Z (closed: prompt_input_exit)
+
+## Summary
+
+(none recorded — ended without write-back; derived resume point below)
+
+## Next action
+
+(none recorded)
+
+## Activity (derived from mechanical events)
+
+- Derived: 1 command
+- Commands run: 1
+
+== session 1d1b8f86-3523-43b7-aa06-95ca7b885776.md (471 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 1d1b8f86-3523-43b7-aa06-95ca7b885776
+
+- Initiative: speed
+- Tool: claude-code
+- Started: 2026-07-27T14:18:42.207Z
+- Ended: 2026-07-27T14:21:26.194Z (closed: prompt_input_exit)
+
+## Summary
+
+(none recorded — ended without write-back; derived resume point below)
+
+## Next action
+
+(none recorded)
+
+## Activity (derived from mechanical events)
+
+- Derived: 4 commands
+- Commands run: 4
+
+== session e6d19185-4bef-4690-b353-6f191993d663.md (1631 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session e6d19185-4bef-4690-b353-6f191993d663
+
+- Initiative: speed
+- Tool: claude-code
+- Started: 2026-07-27T16:23:32.686Z
+- Ended: 2026-07-28T03:25:15.942Z
+
+## Summary
+
+Verified the git-dirt fix is semantically safe: command_run's cmd string is read by nothing (fold.ts:710 log-only, :356 counts only), so exempting git/sofar ops loses only counter magnitude. Found one tradeoff — filtering read-only commands would let analysis-only sessions exit the Stop gate silently.
+
+## Next action
+
+Decide the scope: exempt git+sofar ops and add lazy session registration (safe, terminates the loop), and separately decide whether read-only filtering keeps the gate or only the nudge.
+
+## Activity (derived from mechanical events)
+
+- Derived: 7 files (/Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/test/hooks.test.ts, /Users/jins/IO/sofar/packages/engine/test/acceptance.phase3.test.ts, /Users/jins/IO/sofar/packages/engine/test/mcp.test.ts, /Users/jins/IO/sofar/packages/engine/test/acceptance.phase7.test.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/CLAUDE.md), 47 commands
+- Files:
+  - /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+  - /Users/jins/IO/sofar/packages/engine/test/hooks.test.ts
+  - /Users/jins/IO/sofar/packages/engine/test/acceptance.phase3.test.ts
+  - /Users/jins/IO/sofar/packages/engine/test/mcp.test.ts
+  - /Users/jins/IO/sofar/packages/engine/test/acceptance.phase7.test.ts
+  - /Users/jins/IO/sofar/docs/SPEC.md
+  - /Users/jins/IO/sofar/CLAUDE.md
+- Commands run: 47
+
+== session c05ca5d3-cbfe-4277-9090-c969630d7374.md (1380 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session c05ca5d3-cbfe-4277-9090-c969630d7374
+
+- Initiative: speed
+- Tool: claude-code
+- Started: 2026-07-30T06:15:47.492Z
+- Ended: 2026-07-30T08:09:09.405Z
+
+## Summary
+
+Rebrand wrap-up: @alignlabs/sofar deprecation confirmed live on registry. Marketing site (sofar-cloud/apps/marketing) updated to sofar.sh — hero install command, npm links, footer, quickstart.mdx; typecheck+build green; deploy + commit left to user/that repo. Drafted the sofar-cloud handoff prompt: catalog+imports+vitest-regex migration to sofar.sh@^0.11.0, fixture/record/brew-tap untouched.
+
+## Next action
+
+User runs the handoff prompt in sofar-cloud (dependency migration to sofar.sh ^0.11.0) and deploys the marketing site (bun run deploy).
+
+## Activity (derived from mechanical events)
+
+- Derived: 4 files (/Users/jins/IO/sofar/.sofar/repo.md, /Users/jins/IO/sofar/packages/engine/package.json, /Users/jins/IO/sofar-cloud/apps/marketing/content/docs/quickstart.mdx, /Users/jins/IO/sofar-cloud/apps/marketing/src/components/sections.tsx), 41 commands
+- Files:
+  - /Users/jins/IO/sofar/.sofar/repo.md
+  - /Users/jins/IO/sofar/packages/engine/package.json
+  - /Users/jins/IO/sofar-cloud/apps/marketing/content/docs/quickstart.mdx
+  - /Users/jins/IO/sofar-cloud/apps/marketing/src/components/sections.tsx
+- Commands run: 41
+
+== session 6a7e57d6-5176-4241-acd2-7b5e0bbfdecb.md (1424 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 6a7e57d6-5176-4241-acd2-7b5e0bbfdecb
+
+- Initiative: speed
+- Tool: claude-code
+- Started: 2026-07-30T14:45:33.065Z
+- Ended: 2026-07-30T15:02:09.782Z
+
+## Summary
+
+Distribution survey: npm/yarn/pnpm/bun are four CLIENTS of one registry, not four registries — the single npm publish of 0.11.0 already serves all of them. Verified empirically: bunx, pnpm dlx, and yarn add all resolve and run sofar.sh@0.11.0. No further publishing needed. Brew deferred by user (blocker is traction, not packaging — self-submission needs 225 stars; formula is built + verified at packaging/homebrew/). Remaining real channels are Homebrew (macOS), Scoop/winget (Windows — engine has win32 handling and no os restriction), and AUR/nixpkgs (community-packaged). GitHub Packages and JSR judged not worth it for a public bundled CLI.
+
+## Next action
+
+Nothing required — distribution is complete for npm/yarn/pnpm/bun. packaging/homebrew/ (sofar.rb + update-formula.sh) is uncommitted and parked until brew is revisited.
+
+## Activity (derived from mechanical events)
+
+- Derived: 2 files (/Users/jins/IO/sofar/packaging/homebrew/sofar.rb, /Users/jins/IO/sofar/packaging/homebrew/update-formula.sh), 34 commands
+- Files:
+  - /Users/jins/IO/sofar/packaging/homebrew/sofar.rb
+  - /Users/jins/IO/sofar/packaging/homebrew/update-formula.sh
+- Commands run: 34
+
+== session 7e987def-15b6-4689-97c7-1b7157f9289d.md (835 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 7e987def-15b6-4689-97c7-1b7157f9289d
+
+- Initiative: speed
+- Tool: claude-code
+- Started: 2026-08-01T17:07:17.735Z
+- Ended: 2026-08-01T17:26:03.106Z
+
+## Summary
+
+Confirmed the misroute empirically: 21/99 sessions split across initiatives, 780 events in initiatives that never registered their session, 13 sessions registered in 2+. Session aefa6315 proves the hook/MCP split (hooks to speed, MCP to session-strategy-bench). 0/3450 envelope.initiative mismatches, so repair is inferential not mechanical. doctor sees symptoms, has no split detector.
+
+## Next action
+
+Await go-ahead to sofar new; first task is the on-disk session-to-initiative pin for hooks.
+
+## Activity (derived from mechanical events)
+
+- Derived: 23 commands
+- Commands run: 23
+

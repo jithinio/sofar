@@ -1,0 +1,563 @@
+== options (44031 bytes) ==
+{
+  "plain": {},
+  "hook": {
+    "sessionId": "drift-hardening-session",
+    "git": {
+      "branch": "drift-hardening",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "fedcba9",
+      "upstreamFull": "fedcba9111111111111111111111111111111111",
+      "synced": false
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 12,
+        "decisions": 0
+      },
+      {
+        "initiative": "beta",
+        "paths": 4,
+        "decisions": 19
+      },
+      {
+        "initiative": "gamma",
+        "paths": 4,
+        "decisions": 2
+      },
+      {
+        "initiative": "delta",
+        "paths": 1,
+        "decisions": 1
+      },
+      {
+        "initiative": "epsilon",
+        "paths": 1,
+        "decisions": 0
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare."
+    ]
+  },
+  "lane": {
+    "lane": true,
+    "sessionId": "lane-session",
+    "git": {
+      "branch": "drift-hardening",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "fedcba9",
+      "upstreamFull": "fedcba9111111111111111111111111111111111",
+      "synced": false
+    }
+  },
+  "quiet": {
+    "activity": false,
+    "sessionId": " quiet-session\t"
+  },
+  "cap": {
+    "sessionId": "drift-hardening-session",
+    "git": {
+      "branch": "drift-hardening",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "fedcba9",
+      "upstreamFull": "fedcba9111111111111111111111111111111111",
+      "synced": false
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 12,
+        "decisions": 0
+      },
+      {
+        "initiative": "beta",
+        "paths": 4,
+        "decisions": 19
+      },
+      {
+        "initiative": "gamma",
+        "paths": 4,
+        "decisions": 2
+      },
+      {
+        "initiative": "delta",
+        "paths": 1,
+        "decisions": 1
+      },
+      {
+        "initiative": "epsilon",
+        "paths": 1,
+        "decisions": 0
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare.",
+      "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    ]
+  }
+}
+== status (4784 bytes) ==
+# drift-hardening
+
+Status: done 2026-08-07T08:33:15.670Z
+Goal: Make cross-session/cross-model drift structurally low instead of accidentally low: the normative clause of a decision survives every render surface verbatim (never clipped, never aged out), gets re-surfaced at the point of use, and — where expressible as a predicate — is mechanically enforced. Engine-side only; certification (A3 trap harness, cross-model arms, n>=150) is handoff-bench machinery outside this repo. Evidence base: C-abl ablation showed decisions are load-bearing; live digest shows 90/280-char clips cutting operative detail; MAX_DECISIONS=5 ages settled decisions out.
+
+Standing constraints — obey verbatim (3):
+- [D2] Never clip inside a decision rule on any surface; under budget pressure drop whole entries with a count pointer instead.
+- [D3] A guard warns, never blocks: a guard violation must never change any exit code, and Stop's exit 2 stays write-back-only.
+- [D4] sofar never emits to a network sink — no telemetry, no analytics, no user content off the machine. Metrics integrate at the bench layer, never in the engine.
+Progress: 10/10 tasks done (100%) across 5 phase(s)
+
+Phases:
+- Phase 1 — rule field (schema + fold) [done] 2/2
+  - [x] 1.1 Schema: optional `rule` (short imperative, verbatim-render contract) on decision_logged payload + LogDecisionArgs; SPEC contract updated
+  - [x] 1.2 Fold: DecisionState carries rule; tests for payload validation + fold
+- Phase 2 — standing constraints render (never-clip) [done] 3/3
+  - [x] 2.1 Digest: Standing constraints section — every decision with a rule, verbatim; budget pressure drops whole entries with a count pointer, never clips inside a rule; immune to the last-5 window
+  - [x] 2.2 Full status view + decisions.md projection render rule ahead of chose/over/because
+  - [x] 2.3 Tests: rendering, status-limit interaction, byte-stability
+- Phase 3 — read-back protocol line [done] 1/1
+  - [x] 3.1 Digest instructs the resuming session to restate goal + next action + applicable constraints before acting; test
+- Phase 4 — point-of-use resurfacing [done] 1/1
+  - [x] 4.1 sofar_update_task (-> active) response carries the standing rules, budgeted — reminder at point of use beats instructions at session start; test
+- Phase 5 — decision guards (mechanical tier) [done] 3/3
+  - [x] 5.1 Design: guard predicate shape (glob/grep over touched files + commands, zero model calls) — log decision before building
+  - [x] 5.2 Doctor + Stop-gate check session events against guards; violation names the decision
+  - [x] 5.3 Tests: guard match/no-match, doctor axis, gate surface
+
+Next action: Nothing open here. The binding gap is coverage: 2 of 178 decisions carry a rule, which also limits drift-certification 2.1's trap pool.
+
+⚠ Staleness:
+- next action may be stale: 1 event since the last write-back (2026-08-07T09:12:10.022Z) — 1 decision
+
+Last session (claude-code, ended 2026-08-07T09:12:10.022Z):
+  Loss audit: 74% of held content never reaches a resume; 82% of that is two causes on decisions — the 280-char line clip (84/84 lines) and the last-5 window (94 dropped). Ceiling causes zero loss (36% headroom unused). Standing rules lose nothing. NOTE: survival % is not the <2% M4 recurrence rate — opposite polarity, different axis.
+
+Files touched (22):
+- /Users/jins/IO/sofar/packages/schema/src/events.ts
+- /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/fold.ts
+- /Users/jins/IO/sofar/packages/engine/src/mcp/log-decision.ts
+- /Users/jins/IO/sofar/docs/SPEC.md
+- /Users/jins/IO/sofar/packages/engine/test/fold.test.ts
+- /Users/jins/IO/sofar/packages/schema/test/schema.test.ts
+- /Users/jins/IO/sofar/packages/engine/src/projections/templates/shared.ts
+- /Users/jins/IO/sofar/packages/engine/src/projections/templates/status.ts
+- /Users/jins/IO/sofar/packages/engine/src/projections/templates/decisions.ts
+- /Users/jins/IO/sofar/packages/engine/test/projections.test.ts
+- /Users/jins/IO/sofar/packages/engine/src/mcp/update-task.ts
+- /Users/jins/IO/sofar/packages/engine/test/mcp.test.ts
+- /Users/jins/IO/sofar/packages/engine/package.json
+- /Users/jins/IO/sofar/packages/schema/src/guards.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts
+- /Users/jins/IO/sofar/packages/schema/test/guards.test.ts
+- /Users/jins/IO/sofar/packages/engine/test/decision-guards.test.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/1787dd70-a96c-4a47-a8cb-410e449090d1/scratchpad/drift.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/1787dd70-a96c-4a47-a8cb-410e449090d1/scratchpad/avg.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/1787dd70-a96c-4a47-a8cb-410e449090d1/scratchpad/audit.ts
+
+== digest:plain (2986 bytes) ==
+# Sofar status: drift-hardening
+
+Goal: Make cross-session/cross-model drift structurally low instead of accidentally low: the normative clause of a decision survives every render surface verbatim (never clipped, never aged out), gets re-surfaced at the point of use, and — where expressible as a predicate — is mechanically enforced. Engine-side only; certification (A3 trap harness, cross-model arms, n>=150) is handoff-bench machinery outside this repo. Evidence base: C-abl ablation showed decisions are load-bearing; live digest shows 90/280-char clips cutting operative detail; MAX_DECISIONS=5 ages settled decisions out.
+
+Standing constraints — obey verbatim (3):
+- [D2] Never clip inside a decision rule on any surface; under budget pressure drop whole entries with a count pointer instead.
+- [D3] A guard warns, never blocks: a guard violation must never change any exit code, and Stop's exit 2 stays write-back-only.
+- [D4] sofar never emits to a network sink — no telemetry, no analytics, no user content off the machine. Metrics integrate at the bench layer, never in the engine.
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (10/10 tasks)
+
+Progress: 10/10 tasks done (100%) across 5 phase(s)
+Active phase: (none)
+Next action: Nothing open here. The binding gap is coverage: 2 of 178 decisions carry a rule, which also limits drift-certification 2.1's trap pool.
+⚠ next action may be stale: 1 event since write-back (1 decision)
+
+Last session (claude-code, ended 2026-08-07T09:12:10.022Z):
+  Loss audit: 74% of held content never reaches a resume; 82% of that is two causes on decisions — the 280-char line clip (84/84 lines) and the last-5 window (94 dropped). Ceiling causes zero loss (36% headroom unused). Standing rules lose nothing. NOTE: survival % is not the <2% M4 recurrence rate — opposite polarity, different axis.
+
+Recent decisions (4; full text in decisions.md):
+- [D1] 2026-08-07 `rule` as an optional field on decision_logged — a short imperative clause whose presence IS what makes a decision a st… — over a separate standing:bool flag, a new event type, or raising the existing clip budgets
+- [D2] 2026-08-07 (rule above) whole-entry drop with a count pointer when the standing sec… — over clipping rule text like every other budgeted line
+- [D3] 2026-08-07 (rule above) `guard` as an optional companion field to `rule` on decisio… — over a hand-written .sofar/guards.json; regex predicates; blocking Stop on violation; deriving…
+- [D4] 2026-08-07 (rule above) keep sofar emission-free — the graded drift rate is produce… — over adding a telemetry emitter to the engine that posts drift rate + reasoning to PostHog
+
+Next ids: D5 (decision), M1 (memory)
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:hook (5198 bytes) ==
+# Sofar status: drift-hardening
+
+Goal: Make cross-session/cross-model drift structurally low instead of accidentally low: the normative clause of a decision survives every render surface verbatim (never clipped, never aged out), gets re-surfaced at the point of use, and — where expressible as a predicate — is mechanically enforced. Engine-side only; certification (A3 trap harness, cross-model arms, n>=150) is handoff-bench machinery outside this repo. Evidence base: C-abl ablation showed decisions are load-bearing; live digest shows 90/280-char clips cutting operative detail; MAX_DECISIONS=5 ages settled decisions out.
+
+Standing constraints — obey verbatim (3):
+- [D2] Never clip inside a decision rule on any surface; under budget pressure drop whole entries with a count pointer instead.
+- [D3] A guard warns, never blocks: a guard violation must never change any exit code, and Stop's exit 2 stays write-back-only.
+- [D4] sofar never emits to a network sink — no telemetry, no analytics, no user content off the machine. Metrics integrate at the bench layer, never in the engine.
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+  if SPEC must change.
+- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
+  Both run at the workspace root; typecheck: `npm run typecheck`.
+- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
+  (source-shipped, no build); packages/engine → sofar bin
+  (packages/engine/dist/cli.js after build).
+- Definition of done per task: acceptance criteria in docs/SPEC.md
+  §Acceptance.
+- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
+  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
+  live OUTSIDE this repo in the user's strategy vault. Engine sessions
+  never need them; 5.3 scoring is performed by the user against that
+  scorecard. Do not go looking for them; do not block on them.
+- Push policy: push origin main at each verified wrap-up (user-established
+  Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Committing the record needs a BARE
+…truncated — read .sofar/repo.md for the rest
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (10/10 tasks)
+
+Progress: 10/10 tasks done (100%) across 5 phase(s)
+Active phase: (none)
+Next action: Nothing open here. The binding gap is coverage: 2 of 178 decisions carry a rule, which also limits drift-certification 2.1's trap pool.
+⚠ next action may be stale: 1 event since write-back (1 decision)
+
+Last session (claude-code, ended 2026-08-07T09:12:10.022Z):
+  Loss audit: 74% of held content never reaches a resume; 82% of that is two causes on decisions — the 280-char line clip (84/84 lines) and the last-5 window (94 dropped). Ceiling causes zero loss (36% headroom unused). Standing rules lose nothing. NOTE: survival % is not the <2% M4 recurrence rate — opposite polarity, different axis.
+
+Recent decisions (4; full text in decisions.md):
+- [D1] 2026-08-07 `rule` as an optional field on decision_logged — a short imperative clause whose presence IS what makes a decision a st… — over a separate standing:bool flag, a new event type, or raising the existing clip budgets
+- [D2] 2026-08-07 (rule above) whole-entry drop with a count pointer when the standing sec… — over clipping rule text like every other budgeted line
+- [D3] 2026-08-07 (rule above) `guard` as an optional companion field to `rule` on decisio… — over a hand-written .sofar/guards.json; regex predicates; blocking Stop on violation; deriving…
+- [D4] 2026-08-07 (rule above) keep sofar emission-free — the graded drift rate is produce… — over adding a telemetry emitter to the engine that posts drift rate + reasoning to PostHog
+
+Next ids: D5 (decision), M1 (memory)
+
+Adjacent records — 22 decisions across 5 other initiatives that have worked this one's files, densest first:
+- alpha — 12 shared files, 0 decisions
+- beta — 4 shared files, 19 decisions
+- gamma — 4 shared files, 2 decisions
+…and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: drift-hardening-session — when calling sofar_start_session, pass this as session_id.
+Git: drift-hardening @ a1b2c3d — differs from origin/drift-hardening (fedcba9) — unpushed work
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:lane (4306 bytes) ==
+# Sofar: quick-work lane (drift-hardening)
+
+Goal: Make cross-session/cross-model drift structurally low instead of accidentally low: the normative clause of a decision survives every render surface verbatim (never clipped, never aged out), gets re-surfaced at the point of use, and — where expressible as a predicate — is mechanically enforced. Engine-side only; certification (A3 trap harness, cross-model arms, n>=150) is handoff-bench machinery outside this repo. Evidence base: C-abl ablation showed decisions are load-bearing; live digest shows 90/280-char clips cutting operative detail; MAX_DECISIONS=5 ages settled decisions out.
+
+This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
+- Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
+- Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
+
+Standing constraints — obey verbatim (3):
+- [D2] Never clip inside a decision rule on any surface; under budget pressure drop whole entries with a count pointer instead.
+- [D3] A guard warns, never blocks: a guard violation must never change any exit code, and Stop's exit 2 stays write-back-only.
+- [D4] sofar never emits to a network sink — no telemetry, no analytics, no user content off the machine. Metrics integrate at the bench layer, never in the engine.
+
+Last session (claude-code, ended 2026-08-07T09:12:10.022Z):
+  Loss audit: 74% of held content never reaches a resume; 82% of that is two causes on decisions — the 280-char line clip (84/84 lines) and the last-5 window (94 dropped). Ceiling causes zero loss (36% headroom unused). Standing rules lose nothing. NOTE: survival % is not the <2% M4 recurrence rate — opposite polarity, different axis.
+
+Recent quick work (2 sessions, 4 decisions since 2026-08-07):
+- 2026-08-07 claude-code — 14 files (/Users/jins/IO/sofar/packages/schema/src/guards.ts, /Users/jins/IO/sofar/packages/schema/src/events.ts, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/log-decision.ts, /Users/jins/IO/sofar/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts, /Users/jins/IO/sofar/packages/schema/test/guards.test.ts, /Users/jins/IO/sofar/packages/engine/test/decision-guards.test.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/…
+- 2026-08-07 claude-code — 14 files (/Users/jins/IO/sofar/packages/schema/src/events.ts, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/log-decision.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/engine/test/fold.test.ts, /Users/jins/IO/sofar/packages/schema/test/schema.test.ts, /Users/jins/IO/sofar/packages/engine/src/projections/templates/shared.ts, /Users/jins/IO/sofar/packages/engine/src/projections/templates/status.ts, /Users/jins/IO/sofar/packages/engine/src/…
+
+Recent decisions (4; full text in decisions.md):
+- [D1] 2026-08-07 `rule` as an optional field on decision_logged — a short imperative clause whose presence IS what makes a decision a st… — over a separate standing:bool flag, a new event type, or raising the existing clip budgets
+- [D2] 2026-08-07 (rule above) whole-entry drop with a count pointer when the standing sec… — over clipping rule text like every other budgeted line
+- [D3] 2026-08-07 (rule above) `guard` as an optional companion field to `rule` on decisio… — over a hand-written .sofar/guards.json; regex predicates; blocking Stop on violation; deriving…
+- [D4] 2026-08-07 (rule above) keep sofar emission-free — the graded drift rate is produce… — over adding a telemetry emitter to the engine that posts drift rate + reasoning to PostHog
+
+Next ids: D5 (decision), M1 (memory)
+
+Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Git: drift-hardening @ a1b2c3d — differs from origin/drift-hardening (fedcba9) — unpushed work
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:quiet (3073 bytes) ==
+# Sofar status: drift-hardening
+
+Goal: Make cross-session/cross-model drift structurally low instead of accidentally low: the normative clause of a decision survives every render surface verbatim (never clipped, never aged out), gets re-surfaced at the point of use, and — where expressible as a predicate — is mechanically enforced. Engine-side only; certification (A3 trap harness, cross-model arms, n>=150) is handoff-bench machinery outside this repo. Evidence base: C-abl ablation showed decisions are load-bearing; live digest shows 90/280-char clips cutting operative detail; MAX_DECISIONS=5 ages settled decisions out.
+
+Standing constraints — obey verbatim (3):
+- [D2] Never clip inside a decision rule on any surface; under budget pressure drop whole entries with a count pointer instead.
+- [D3] A guard warns, never blocks: a guard violation must never change any exit code, and Stop's exit 2 stays write-back-only.
+- [D4] sofar never emits to a network sink — no telemetry, no analytics, no user content off the machine. Metrics integrate at the bench layer, never in the engine.
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (10/10 tasks)
+
+Progress: 10/10 tasks done (100%) across 5 phase(s)
+Active phase: (none)
+Next action: Nothing open here. The binding gap is coverage: 2 of 178 decisions carry a rule, which also limits drift-certification 2.1's trap pool.
+⚠ next action may be stale: 1 event since write-back (1 decision)
+
+Last session (claude-code, ended 2026-08-07T09:12:10.022Z):
+  Loss audit: 74% of held content never reaches a resume; 82% of that is two causes on decisions — the 280-char line clip (84/84 lines) and the last-5 window (94 dropped). Ceiling causes zero loss (36% headroom unused). Standing rules lose nothing. NOTE: survival % is not the <2% M4 recurrence rate — opposite polarity, different axis.
+
+Recent decisions (4; full text in decisions.md):
+- [D1] 2026-08-07 `rule` as an optional field on decision_logged — a short imperative clause whose presence IS what makes a decision a st… — over a separate standing:bool flag, a new event type, or raising the existing clip budgets
+- [D2] 2026-08-07 (rule above) whole-entry drop with a count pointer when the standing sec… — over clipping rule text like every other budgeted line
+- [D3] 2026-08-07 (rule above) `guard` as an optional companion field to `rule` on decisio… — over a hand-written .sofar/guards.json; regex predicates; blocking Stop on violation; deriving…
+- [D4] 2026-08-07 (rule above) keep sofar emission-free — the graded drift rate is produce… — over adding a telemetry emitter to the engine that posts drift rate + reasoning to PostHog
+
+Next ids: D5 (decision), M1 (memory)
+
+Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:cap (10077 bytes) ==
+# Sofar status: drift-hardening
+
+Goal: Make cross-session/cross-model drift structurally low instead of accidentally low: the normative clause of a decision survives every render surface verbatim (never clipped, never aged out), gets re-surfaced at the point of use, and — where expressible as a predicate — is mechanically enforced. Engine-side only; certification (A3 trap harness, cross-model arms, n>=150) is handoff-bench machinery outside this repo. Evidence base: C-abl ablation showed decisions are load-bearing; live digest shows 90/280-char clips cutting operative detail; MAX_DECISIONS=5 ages settled decisions out.
+
+Standing constraints — obey verbatim (3):
+- [D2] Never clip inside a decision rule on any surface; under budget pressure drop whole entries with a count pointer instead.
+- [D3] A guard warns, never blocks: a guard violation must never change any exit code, and Stop's exit 2 stays write-back-only.
+- [D4] sofar never emits to a network sink — no telemetry, no analytics, no user content off the machine. Metrics integrate at the bench layer, never in the engine.
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+  if SPEC must change.
+- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
+  Both run at the workspace root; typecheck: `npm run typecheck`.
+- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
+  (source-shipped, no build); packages/engine → sofar bin
+  (packages/engine/dist/cli.js after build).
+- Definition of done per task: acceptance criteria in docs/SPEC.md
+  §Acceptance.
+- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
+  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
+  live OUTSIDE this repo in the user's strategy vault. Engine sessions
+  never need them; 5.3 scoring is performed by the user against that
+  scorecard. Do not go looking for them; do not block on them.
+- Push policy: push origin main at each verified wrap-up (user-established
+  Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Committing the record needs a BARE
+…truncated — read .sofar/repo.md for the rest
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (10/10 tasks)
+
+Progress: 10/10 tasks done (100%) across 5 phase(s)
+Active phase: (none)
+Next action: Nothing open here. The binding gap is coverage: 2 of 178 decisions carry a rule, which also limits drift-certification 2.1's trap pool.
+⚠ next action may be stale: 1 event since write-back (1 decision)
+
+Last session (claude-code, ended 2026-08-07T09:12:10.022Z):
+  Loss audit: 74% of held content never reaches a resume; 82% of that is two causes on decisions — the 280-char line clip (84/84 lines) and the last-5 window (94 dropped). Ceiling causes zero loss (36% headroom unused). Standing rules lose nothing. NOTE: survival % is not the <2% M4 recurrence rate — opposite polarity, different axis.
+
+Recent decisions (4; full text in decisions.md):
+- [D1] 2026-08-07 `rule` as an optional field on decision_logged — a short imperative clause whose presence IS what makes a decision a st… — over a separate standing:bool flag, a new event type, or raising the existing clip budgets
+- [D2] 2026-08-07 (rule above) whole-entry drop with a count pointer when the standing sec… — over clipping rule text like every other budgeted line
+- [D3] 2026-08-07 (rule above) `guard` as an optional companion field to `rule` on decisio… — over a hand-written .sofar/guards.json; regex predicates; blocking Stop on violation; deriving…
+- [D4] 2026-08-07 (rule above) keep sofar emission-free — the graded drift rate is produce… — over adding a telemetry emitter to the engine that posts drift rate + reasoning to PostHog
+
+Next ids: D5 (decision), M1 (memory)
+
+Adjacent records — 22 decisions across 5 other initiatives that have worked this one's files, densest first:
+- alpha — 12 shared files, 0 decisions
+- beta — 4 shared files, 19 decisions
+- gamma — 4 shared files, 2 decisions
+…and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: drift-hardening-session — when calling sofar_start_session, pass this as session_id.
+Git: drift-hardening @ a1b2c3d — differs from origin/drift-hardening (fedcba9) — unpushed work
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+…truncated — run sofar status for full detail
+
+== plan (2387 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Plan: drift-hardening
+
+Goal: Make cross-session/cross-model drift structurally low instead of accidentally low: the normative clause of a decision survives every render surface verbatim (never clipped, never aged out), gets re-surfaced at the point of use, and — where expressible as a predicate — is mechanically enforced. Engine-side only; certification (A3 trap harness, cross-model arms, n>=150) is handoff-bench machinery outside this repo. Evidence base: C-abl ablation showed decisions are load-bearing; live digest shows 90/280-char clips cutting operative detail; MAX_DECISIONS=5 ages settled decisions out.
+
+Progress: 10/10 tasks done (100%)
+
+## Phase 1 — rule field (schema + fold) [done] — 2/2 done
+
+- [x] 1.1 Schema: optional `rule` (short imperative, verbatim-render contract) on decision_logged payload + LogDecisionArgs; SPEC contract updated
+- [x] 1.2 Fold: DecisionState carries rule; tests for payload validation + fold
+
+## Phase 2 — standing constraints render (never-clip) [done] — 3/3 done
+
+- [x] 2.1 Digest: Standing constraints section — every decision with a rule, verbatim; budget pressure drops whole entries with a count pointer, never clips inside a rule; immune to the last-5 window
+- [x] 2.2 Full status view + decisions.md projection render rule ahead of chose/over/because
+- [x] 2.3 Tests: rendering, status-limit interaction, byte-stability
+
+## Phase 3 — read-back protocol line [done] — 1/1 done
+
+- [x] 3.1 Digest instructs the resuming session to restate goal + next action + applicable constraints before acting; test
+
+## Phase 4 — point-of-use resurfacing [done] — 1/1 done
+
+- [x] 4.1 sofar_update_task (-> active) response carries the standing rules, budgeted — reminder at point of use beats instructions at session start; test
+
+## Phase 5 — decision guards (mechanical tier) [done] — 3/3 done
+
+- [x] 5.1 Design: guard predicate shape (glob/grep over touched files + commands, zero model calls) — log decision before building
+- [x] 5.2 Doctor + Stop-gate check session events against guards; violation names the decision
+- [x] 5.3 Tests: guard match/no-match, doctor axis, gate surface
+
+Next action: Nothing open here. The binding gap is coverage: 2 of 178 decisions carry a rule, which also limits drift-certification 2.1's trap pool.
+
+== decisions (4620 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Decisions: drift-hardening
+
+- 2026-08-07T07:18:21.064Z — chose **`rule` as an optional field on decision_logged — a short imperative clause whose presence IS what makes a decision a standing constraint (one field, one concept; render contract: verbatim, never clipped, never aged out)** over a separate standing:bool flag, a new event type, or raising the existing clip budgets because C-abl (handoff-bench R04) showed decisions are the load-bearing field, and the live digest clips exactly them (over@90, decision line@280, last-5 aging). Raising budgets just moves the cliff; a new event type forks fold/render/doctor for the same semantic. An optional field keeps 0.21.0 logs valid (unknown fields already tolerated), and 'has an imperative worth verbatim rendering' is precisely the standing-constraint distinction.
+- 2026-08-07T07:30:42.538Z — rule: **Never clip inside a decision rule on any surface; under budget pressure drop whole entries with a count pointer instead.** — chose **whole-entry drop with a count pointer when the standing section exceeds its budget** over clipping rule text like every other budgeted line because a clipped imperative is how dead ends recur: the operative clause is exactly what the clip cuts (observed live: scanner-version-gate rejected-approaches line truncated mid-rationale at 90 chars)
+- 2026-08-07T07:58:44.675Z — rule: **A guard warns, never blocks: a guard violation must never change any exit code, and Stop's exit 2 stays write-back-only.** — chose **`guard` as an optional companion field to `rule` on decision_logged — `path:`/`cmd:` domain-prefixed comma-separated globs (leading `!` exempts) evaluated by the fold against file_touched/command_run events logged AFTER that decision; violations are derived state surfaced as warnings only (doctor axis, UserPromptSubmit line, and the existing Stop block message)** over a hand-written .sofar/guards.json; regex predicates; blocking Stop on violation; deriving the predicate from the rule prose because the violation must name the decision, so the predicate belongs on the same event as the clause it enforces — a side file drifts from the rule it claims to guard. Same one-field-one-concept grain as D1, and `guard` REQUIRES `rule`: a guard with no clause has nothing to cite when it fires. Globs over regex — agent-authored patterns must be safe to compile and cheap inside the 100ms hook budget, and every ambiguity resolves to a non-match. `path:` anchors at a segment boundary so it matches the tail of the ABSOLUTE paths hooks log (portable across machines, which absolute matching is not); `cmd:` matches as a substring, because `cmd:npm publish` silently never firing would be a guard that reads as compliance. Non-retroactive — a guard only sees events after its own decision, or the first thing it flags is the work that motivated it. Warn, never block: Stop's one deliberate exit 2 stays write-back only (BD2/BD22), a false-positive block stops real work, and inferring intent to avoid false positives would need a model call (SPEC zero-model-API-calls).
+- 2026-08-07T10:23:59.308Z — rule: **sofar never emits to a network sink — no telemetry, no analytics, no user content off the machine. Metrics integrate at the bench layer, never in the engine.** — chose **keep sofar emission-free — the graded drift rate is produced by handoff-bench, so a PostHog (or any) sink integrates THERE; the engine's contribution stays mechanical, local and read-side (guard crossings, survival numbers, doctor findings)** over adding a telemetry emitter to the engine that posts drift rate + reasoning to PostHog because two independent blocks. (1) Scope law: CLAUDE.md guard-rails put telemetry emission on the DO-NOT-BUILD list, and SPEC's zero-model-API-calls invariant (felt-cost D3) says no user content is sent anywhere — the payload here would be decision text, rule text, file paths and commands, i.e. the user's source and reasoning. An outbound socket changes sofar's local-first trust story, not just its code. (2) Feasibility: the engine CANNOT derive a drift rate even locally. M4 recurrence is a judgment about whether a resume re-proposed a recorded dead end, which needs grading — a model call — so it is unreachable under the same invariant. What the engine can derive mechanically is the guard-crossing rate (D3): a session's own work crossing a declared rule, no grading required. The bench already holds the graded results, captures transcripts and usage, and carries no such constraint.
+
+== session 0e1942c3-6fa0-4ed3-9f82-89bc757dca77.md (2986 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 0e1942c3-6fa0-4ed3-9f82-89bc757dca77
+
+- Initiative: drift-hardening
+- Tool: claude-code
+- Started: 2026-08-07T07:18:01.694Z
+- Ended: 2026-08-07T07:52:05.728Z
+
+## Summary
+
+0.22.0 published and global install upgraded — verified live: npm registry serves 0.22.0, global `sofar` reports 0.22.0 and renders the standing-constraints section ([D2] verbatim) from the installed engine. Drift-hardening phases 1-4 are now active for every future session in this repo.
+
+## Next action
+
+Phase 5.1 in a fresh session (new engine hooks live): design the guard predicate (glob/grep over touched files + commands, warn-don't-block, no new deps), log the decision, then build doctor/Stop-gate checks (5.2, 5.3).
+
+## Activity (derived from mechanical events)
+
+- Derived: 14 files (/Users/jins/IO/sofar/packages/schema/src/events.ts, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/log-decision.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/engine/test/fold.test.ts, /Users/jins/IO/sofar/packages/schema/test/schema.test.ts, /Users/jins/IO/sofar/packages/engine/src/projections/templates/shared.ts, /Users/jins/IO/sofar/packages/engine/src/projections/templates/status.ts, /Users/jins/IO/sofar/packages/engine/src/projections/templates/decisions.ts, /Users/jins/IO/sofar/packages/engine/test/projections.test.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/update-task.ts, /Users/jins/IO/sofar/packages/engine/test/mcp.test.ts, /Users/jins/IO/sofar/packages/engine/package.json), 44 commands, task changes: 1.1 → active, 1.1 → done, 1.2 → done, 2.1 → active, 2.1 → done, 2.2 → done, 2.3 → done, 3.1 → active, 3.1 → done, 4.1 → active, 4.1 → done
+- Files:
+  - /Users/jins/IO/sofar/packages/schema/src/events.ts
+  - /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/fold.ts
+  - /Users/jins/IO/sofar/packages/engine/src/mcp/log-decision.ts
+  - /Users/jins/IO/sofar/docs/SPEC.md
+  - /Users/jins/IO/sofar/packages/engine/test/fold.test.ts
+  - /Users/jins/IO/sofar/packages/schema/test/schema.test.ts
+  - /Users/jins/IO/sofar/packages/engine/src/projections/templates/shared.ts
+  - /Users/jins/IO/sofar/packages/engine/src/projections/templates/status.ts
+  - /Users/jins/IO/sofar/packages/engine/src/projections/templates/decisions.ts
+  - /Users/jins/IO/sofar/packages/engine/test/projections.test.ts
+  - /Users/jins/IO/sofar/packages/engine/src/mcp/update-task.ts
+  - /Users/jins/IO/sofar/packages/engine/test/mcp.test.ts
+  - /Users/jins/IO/sofar/packages/engine/package.json
+- Commands run: 44
+- Task changes:
+  - 1.1 → active
+  - 1.1 → done
+  - 1.2 → done
+  - 2.1 → active
+  - 2.1 → done
+  - 2.2 → done
+  - 2.3 → done
+  - 3.1 → active
+  - 3.1 → done
+  - 4.1 → active
+  - 4.1 → done
+
+== session 1787dd70-a96c-4a47-a8cb-410e449090d1.md (2937 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 1787dd70-a96c-4a47-a8cb-410e449090d1
+
+- Initiative: drift-hardening
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-07T07:55:02.144Z
+- Ended: 2026-08-07T09:12:10.022Z
+
+## Summary
+
+Loss audit: 74% of held content never reaches a resume; 82% of that is two causes on decisions — the 280-char line clip (84/84 lines) and the last-5 window (94 dropped). Ceiling causes zero loss (36% headroom unused). Standing rules lose nothing. NOTE: survival % is not the <2% M4 recurrence rate — opposite polarity, different axis.
+
+## Next action
+
+Nothing open here. The binding gap is coverage: 2 of 178 decisions carry a rule, which also limits drift-certification 2.1's trap pool.
+
+## Activity (derived from mechanical events)
+
+- Derived: 14 files (/Users/jins/IO/sofar/packages/schema/src/guards.ts, /Users/jins/IO/sofar/packages/schema/src/events.ts, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/log-decision.ts, /Users/jins/IO/sofar/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts, /Users/jins/IO/sofar/packages/schema/test/guards.test.ts, /Users/jins/IO/sofar/packages/engine/test/decision-guards.test.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/engine/package.json, /private/tmp/claude-501/-Users-jins-IO-sofar/1787dd70-a96c-4a47-a8cb-410e449090d1/scratchpad/drift.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/1787dd70-a96c-4a47-a8cb-410e449090d1/scratchpad/avg.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/1787dd70-a96c-4a47-a8cb-410e449090d1/scratchpad/audit.ts), 88 commands, task changes: 5.1 → active, 5.1 → done, 5.2 → active, 5.2 → done, 5.3 → done
+- Files:
+  - /Users/jins/IO/sofar/packages/schema/src/guards.ts
+  - /Users/jins/IO/sofar/packages/schema/src/events.ts
+  - /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts
+  - /Users/jins/IO/sofar/packages/engine/src/mcp/log-decision.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/fold.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts
+  - /Users/jins/IO/sofar/packages/schema/test/guards.test.ts
+  - /Users/jins/IO/sofar/packages/engine/test/decision-guards.test.ts
+  - /Users/jins/IO/sofar/docs/SPEC.md
+  - /Users/jins/IO/sofar/packages/engine/package.json
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/1787dd70-a96c-4a47-a8cb-410e449090d1/scratchpad/drift.ts
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/1787dd70-a96c-4a47-a8cb-410e449090d1/scratchpad/avg.ts
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/1787dd70-a96c-4a47-a8cb-410e449090d1/scratchpad/audit.ts
+- Commands run: 88
+- Task changes:
+  - 5.1 → active
+  - 5.1 → done
+  - 5.2 → active
+  - 5.2 → done
+  - 5.3 → done
+

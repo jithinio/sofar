@@ -1,0 +1,1049 @@
+== options (37364 bytes) ==
+{
+  "plain": {},
+  "hook": {
+    "sessionId": "token-optimization-session",
+    "git": {
+      "branch": "token-optimization",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": null,
+      "upstreamFull": null,
+      "synced": false
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 3,
+        "decisions": 7
+      },
+      {
+        "initiative": "beta",
+        "paths": 1,
+        "decisions": 1
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare."
+    ]
+  },
+  "lane": {
+    "lane": true,
+    "sessionId": "lane-session",
+    "git": {
+      "branch": "token-optimization",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": null,
+      "upstreamFull": null,
+      "synced": false
+    }
+  },
+  "quiet": {
+    "activity": false,
+    "sessionId": " quiet-session\t"
+  },
+  "cap": {
+    "sessionId": "token-optimization-session",
+    "git": {
+      "branch": "token-optimization",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": null,
+      "upstreamFull": null,
+      "synced": false
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 3,
+        "decisions": 7
+      },
+      {
+        "initiative": "beta",
+        "paths": 1,
+        "decisions": 1
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare.",
+      "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    ]
+  }
+}
+== status (5851 bytes) ==
+# token-optimization
+
+Goal: Reduce the token cost of CONSUMING a sofar record (Phase-0 scorecard cost axis M3/M6) WITHOUT regressing rationale-carried resume quality (M1/M4/M5). Apply the architecture's compaction-proofing principle to every read surface.
+Progress: 17/17 tasks done (100%) across 7 phase(s)
+
+Phases:
+- Phase 1 — Audit & research [done] 3/3
+  - [x] 1.1 Quantify token surfaces (get_state ~16k unbounded, session block ~1k)
+  - [x] 1.2 Internet research: context engineering, agent-memory, MCP efficiency
+  - [x] 1.3 Reconcile with strategy docs; reframe to scorecard axes
+- Phase 2 — get_state progressive disclosure (P0) [done] 3/3
+  - [x] 2.1 Design digest contract (SPEC decision)
+  - [x] 2.2 Implement view param + digest default (SHIPPED in 0.3.0)
+  - [x] 2.4 Unit tests + token measurement
+- Phase 3 — Resume-quality validation (assistant-owned) [done] 2/2
+  - [x] 3.1 Build automated resume ablation (digest vs full; grade M1/M4/M5)
+  - [x] 3.2 Run it; found digest regresses M4 on counterintuitive rejected approaches
+- Phase 4 — Rejected-approaches ledger (Phase-3 M4 fix) [done] 3/3
+  - [x] 4.1 Add over-only ledger to renderStatus (budgeted); committed 9b83163
+  - [x] 4.2 Re-ablation confirms M4 restored (3/3 decline; digest ~1.67k tok, 90% under full)
+  - [x] 4.3 Ship as 0.3.1 (version bump + commit + npm publish)
+- Phase 5 — Lean tool-definition pass (P1) [done] 2/2
+  - [x] 5.1 Measure baseline 7-tool definition footprint
+  - [x] 5.2 Trim descriptions, enforce enums, dedupe shared shapes; re-measure
+- Phase 6 — Compact serialization + session-block trims (P2) [done] 2/2
+  - [x] 6.1 Render uniform lists as terse tables in the digest (evaluated: declined, lists win)
+  - [x] 6.2 Optional session-block trims: collapse done phases, lazy repo.md pointer
+- Phase 7 — Caching guidance + docs (P3) [done] 2/2
+  - [x] 7.1 Document two-lever model + prompt-caching (Lever A) guidance
+  - [x] 7.2 Cut 0.3.2: 5.2+6.2 trims, SERVER_VERSION single-sourced from package.json, README install refresh
+
+Next action: Merge token-optimization into main when ready (docs + record commits accumulated since the 0.5.0 release merge).
+
+Last session (claude-code, ended 2026-07-11T10:32:57.046Z):
+  Cleanup complete: staleness-detection initiative formally closed (paired CLI session events), merged branch deleted local+origin, dead binding removed, doctor clean (7 pre-existing warnings). Global install confirmed at 0.5.0, sole copy on PATH.
+
+Files touched (53):
+- /private/tmp/claude-501/-Users-jins-IO-harness/e2806b33-0ab0-45e7-8b11-04a86e59208e/scratchpad/add-phase11.mjs
+- /Users/jins/IO/harness/packages/engine/src/core/fold.ts
+- /Users/jins/IO/harness/packages/engine/src/cli/doctor.ts
+- /Users/jins/IO/harness/packages/engine/src/projections/templates/status.ts
+- /Users/jins/IO/harness/packages/engine/test/acceptance.phase11.test.ts
+- /Users/jins/IO/harness/docs/SPEC.md
+- /Users/jins/IO/harness/.gitignore
+- /Users/jins/IO/harness/packages/engine/test/projections.test.ts
+- /Users/jins/IO/harness/package.json
+- /Users/jins/IO/harness/packages/engine/package.json
+- /Users/jins/IO/harness/packages/schema/package.json
+- /private/tmp/claude-501/-Users-jins-IO-harness/111e144f-19eb-4c3b-8d6d-719896a5a27a/scratchpad/measure-tooldefs.ts
+- /Users/jins/IO/harness/packages/schema/src/tool-inputs.ts
+- /private/tmp/claude-501/-Users-jins-IO-harness/111e144f-19eb-4c3b-8d6d-719896a5a27a/scratchpad/measure-digest.ts
+- /Users/jins/IO/harness/README.md
+- /Users/jins/.claude/projects/-Users-jins-IO-harness/memory/claude-share-links-fetch-method.md
+- /Users/jins/.claude/projects/-Users-jins-IO-harness/memory/MEMORY.md
+- /Users/jins/IO/harness/packages/engine/src/mcp/server.ts
+- /Users/jins/IO/harness/product doc/sofar-phase0-run-R01-cmodel.md
+- /Users/jins/IO/harness/product doc/sofar-phase0-scorecard.html
+- /private/tmp/claude-501/-Users-jins-IO-harness/5167c335-4dbe-47f4-b5d7-1e79ed2f67fb/scratchpad/source-session-prompt.txt
+- /Users/jins/IO/harness/product doc/02-sofar-action-plan.md
+- /Users/jins/IO/harness/product doc/design-partner-onepager.md
+- /Users/jins/IO/harness/docs/FORMAT.md
+- /private/tmp/claude-501/-Users-jins-IO-harness/5167c335-4dbe-47f4-b5d7-1e79ed2f67fb/scratchpad/plan-payload.json
+- /Users/jins/IO/sofar-bench/README.md
+- /Users/jins/IO/sofar-bench/RUBRIC.md
+- /Users/jins/IO/sofar-bench/METHODOLOGY.md
+- /Users/jins/IO/sofar-bench/scripts/build-arms.sh
+- /Users/jins/IO/sofar-bench/scripts/run-arm.sh
+- /Users/jins/IO/sofar-bench/scripts/extract-telemetry.py
+- /Users/jins/IO/sofar-bench/prompts/resume-arm-prompt.md
+- /Users/jins/IO/sofar-bench/prompts/blind-grader-prompt.md
+- /Users/jins/IO/sofar-bench/results/R04-reference-run.md
+- /Users/jins/IO/sofar-bench/LICENSE
+- /Users/jins/IO/sofar-bench/results/R03-unpaired-demonstration.md
+- /Users/jins/IO/harness-staleness/packages/engine/src/core/fold.ts
+- /Users/jins/IO/harness-staleness/packages/engine/src/cli/doctor.ts
+- /Users/jins/IO/harness-staleness/packages/engine/src/projections/templates/shared.ts
+- /Users/jins/IO/harness-staleness/packages/engine/src/projections/templates/status.ts
+- /Users/jins/IO/harness-staleness/docs/SPEC.md
+- /Users/jins/IO/harness-staleness/packages/engine/test/staleness.test.ts
+- /Users/jins/.claude/projects/-Users-jins-IO-harness/memory/no-coauthored-by-trailer.md
+- /Users/jins/.claude/projects/-Users-jins-IO-sofar/memory/sofar-end-session-length-limit.md
+- /Users/jins/IO/sofar/packages/engine/src/cli/upgrade.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/index.ts
+- /Users/jins/IO/sofar/packages/engine/test/upgrade.test.ts
+- /Users/jins/IO/sofar/docs/SPEC.md
+- /Users/jins/IO/sofar/package.json
+- /Users/jins/IO/sofar/packages/schema/package.json
+- /Users/jins/IO/sofar/packages/engine/package.json
+- /Users/jins/IO/sofar/README.md
+- /Users/jins/IO/sofar/.sofar/bindings.json
+
+== digest:plain (3003 bytes) ==
+# Sofar status: token-optimization
+
+Goal: Reduce the token cost of CONSUMING a sofar record (Phase-0 scorecard cost axis M3/M6) WITHOUT regressing rationale-carried resume quality (M1/M4/M5). Apply the architecture's compaction-proofing principle to every read surface.
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7 (17/17 tasks)
+
+Progress: 17/17 tasks done (100%) across 7 phase(s)
+Active phase: (none)
+Next action: Merge token-optimization into main when ready (docs + record commits accumulated since the 0.5.0 release merge).
+
+Last session (claude-code, ended 2026-07-11T10:32:57.046Z):
+  Cleanup complete: staleness-detection initiative formally closed (paired CLI session events), merged branch deleted local+origin, dead binding removed, doctor clean (7 pre-existing warnings). Global install confirmed at 0.5.0, sole copy on PATH.
+
+Recent decisions (last 5 of 10; full text in decisions.md):
+- [D6] 2026-07-10 Phase-6 compact serialization lands as: (a) keep the digest's one-line list format — measured on this repo's live recor… — over Rendering tasks/decisions as terse markdown tables (the 6.1 premise as written), or repla…
+- [D7] 2026-07-10 Descope 2.3 (on-demand section fetch, paginated) and close Phase 2 — user ratified. The digest + view:"full" + on-disk … — over Building a section/page parameter on sofar_get_state (the original 2.3), or keeping 2.3 p…
+- [D8] 2026-07-10 Phase-0 M4 scoring convention (pre-registered before the SaaS arms, user-confirmed): a dead-end recurrence counts only … — over The strict-letter reading of the frozen rubric ("propose or attempt it again" = fail rega…
+- [D9] 2026-07-11 Founder spot-check (mitigation b) CLEARED — all five convention calls ratified against raw evidence: R01 BD51 informed-… — over Leaving mitigation (b) as an open footnote on the validation story, or amending the shipp…
+- [D10] 2026-07-11 Add `sofar upgrade [version]` (flags --check/--dry-run/--force): derive the real npm prefix from the running binary pat… — over Telling users to run npm by hand, or a self-updater that trusts `npm config get prefix`
+Earlier rejected approaches — do NOT re-propose (5 older):
+- [D1] Leading with prompt caching (doesn't reduce occupancy), or rewriting the SessionStart inj…
+- [D2] Treating token reduction as pure plumbing (risk: silently compressing the rationale 'musc…
+- [D3] Shipping the digest default as-is (unbounded M4 risk on exactly the class D7 bets on), re…
+- [D4] Full chose/over/because for all decisions (re-bloats toward the 15k full state), only rec…
+- [D5] Aggressive minification (dropping minLength/enum hints, one-line descriptions everywhere)…
+
+Next ids: D11 (decision), M1 (memory)
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:hook (5128 bytes) ==
+# Sofar status: token-optimization
+
+Goal: Reduce the token cost of CONSUMING a sofar record (Phase-0 scorecard cost axis M3/M6) WITHOUT regressing rationale-carried resume quality (M1/M4/M5). Apply the architecture's compaction-proofing principle to every read surface.
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+  if SPEC must change.
+- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
+  Both run at the workspace root; typecheck: `npm run typecheck`.
+- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
+  (source-shipped, no build); packages/engine → sofar bin
+  (packages/engine/dist/cli.js after build).
+- Definition of done per task: acceptance criteria in docs/SPEC.md
+  §Acceptance.
+- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
+  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
+  live OUTSIDE this repo in the user's strategy vault. Engine sessions
+  never need them; 5.3 scoring is performed by the user against that
+  scorecard. Do not go looking for them; do not block on them.
+- Push policy: push origin main at each verified wrap-up (user-established
+  Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Committing the record needs a BARE
+…truncated — read .sofar/repo.md for the rest
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7 (17/17 tasks)
+
+Progress: 17/17 tasks done (100%) across 7 phase(s)
+Active phase: (none)
+Next action: Merge token-optimization into main when ready (docs + record commits accumulated since the 0.5.0 release merge).
+
+Last session (claude-code, ended 2026-07-11T10:32:57.046Z):
+  Cleanup complete: staleness-detection initiative formally closed (paired CLI session events), merged branch deleted local+origin, dead binding removed, doctor clean (7 pre-existing warnings). Global install confirmed at 0.5.0, sole copy on PATH.
+
+Recent decisions (last 5 of 10; full text in decisions.md):
+- [D6] 2026-07-10 Phase-6 compact serialization lands as: (a) keep the digest's one-line list format — measured on this repo's live recor… — over Rendering tasks/decisions as terse markdown tables (the 6.1 premise as written), or repla…
+- [D7] 2026-07-10 Descope 2.3 (on-demand section fetch, paginated) and close Phase 2 — user ratified. The digest + view:"full" + on-disk … — over Building a section/page parameter on sofar_get_state (the original 2.3), or keeping 2.3 p…
+- [D8] 2026-07-10 Phase-0 M4 scoring convention (pre-registered before the SaaS arms, user-confirmed): a dead-end recurrence counts only … — over The strict-letter reading of the frozen rubric ("propose or attempt it again" = fail rega…
+- [D9] 2026-07-11 Founder spot-check (mitigation b) CLEARED — all five convention calls ratified against raw evidence: R01 BD51 informed-… — over Leaving mitigation (b) as an open footnote on the validation story, or amending the shipp…
+- [D10] 2026-07-11 Add `sofar upgrade [version]` (flags --check/--dry-run/--force): derive the real npm prefix from the running binary pat… — over Telling users to run npm by hand, or a self-updater that trusts `npm config get prefix`
+Earlier rejected approaches — do NOT re-propose (5 older):
+- [D1] Leading with prompt caching (doesn't reduce occupancy), or rewriting the SessionStart inj…
+- [D2] Treating token reduction as pure plumbing (risk: silently compressing the rationale 'musc…
+- [D3] Shipping the digest default as-is (unbounded M4 risk on exactly the class D7 bets on), re…
+- [D4] Full chose/over/because for all decisions (re-bloats toward the 15k full state), only rec…
+- [D5] Aggressive minification (dropping minLength/enum hints, one-line descriptions everywhere)…
+
+Next ids: D11 (decision), M1 (memory)
+
+Adjacent records — 8 decisions across 2 other initiatives that have worked this one's files, densest first:
+- alpha — 3 shared files, 7 decisions
+- beta — 1 shared file, 1 decision
+Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: token-optimization-session — when calling sofar_start_session, pass this as session_id.
+Git: token-optimization @ a1b2c3d — no origin ref — never pushed
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:lane (5078 bytes) ==
+# Sofar: quick-work lane (token-optimization)
+
+Goal: Reduce the token cost of CONSUMING a sofar record (Phase-0 scorecard cost axis M3/M6) WITHOUT regressing rationale-carried resume quality (M1/M4/M5). Apply the architecture's compaction-proofing principle to every read surface.
+
+This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
+- Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
+- Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
+
+Last session (claude-code, ended 2026-07-11T10:32:57.046Z):
+  Cleanup complete: staleness-detection initiative formally closed (paired CLI session events), merged branch deleted local+origin, dead binding removed, doctor clean (7 pre-existing warnings). Global install confirmed at 0.5.0, sole copy on PATH.
+
+Recent quick work (25 sessions, 10 decisions since 2026-07-08; last 5):
+- 2026-07-11 claude-code — 2 files (/Users/jins/IO/sofar/README.md, /Users/jins/IO/sofar/.sofar/bindings.json), 28 commands
+- 2026-07-11 claude-code — 9 files (/Users/jins/.claude/projects/-Users-jins-IO-sofar/memory/sofar-end-session-length-limit.md, /Users/jins/IO/sofar/packages/engine/src/cli/upgrade.ts, /Users/jins/IO/sofar/packages/engine/src/cli/index.ts, /Users/jins/IO/sofar/packages/engine/test/upgrade.test.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/package.json, /Users/jins/IO/sofar/packages/schema/package.json, /Users/jins/IO/sofar/packages/engine/package.json, /Users/jins/IO/sofar/README.md), 40 commands
+- 2026-07-10 claude-code — task changes: 7.2 → done
+- 2026-07-10 claude-code — 28 files (/Users/jins/.claude/projects/-Users-jins-IO-harness/memory/claude-share-links-fetch-method.md, /Users/jins/.claude/projects/-Users-jins-IO-harness/memory/MEMORY.md, /Users/jins/IO/harness/product doc/sofar-phase0-run-R01-cmodel.md, /Users/jins/IO/harness/product doc/sofar-phase0-scorecard.html, /private/tmp/claude-501/-Users-jins-IO-harness/5167c335-4dbe-47f4-b5d7-1e79ed2f67fb/scratchpad/source-session-prompt.txt, /Users/jins/IO/harness/product doc/02-sofar-action-plan.md, /Users/jins/IO/harness/product doc/design-partner-onepager.md, /Users/jins/IO/harness/…
+- 2026-07-10 claude-code — 7 files (/private/tmp/claude-501/-Users-jins-IO-harness/111e144f-19eb-4c3b-8d6d-719896a5a27a/scratchpad/measure-tooldefs.ts, /Users/jins/IO/harness/packages/schema/src/tool-inputs.ts, /private/tmp/claude-501/-Users-jins-IO-harness/111e144f-19eb-4c3b-8d6d-719896a5a27a/scratchpad/measure-digest.ts, /Users/jins/IO/harness/packages/engine/src/projections/templates/status.ts, /Users/jins/IO/harness/packages/engine/test/projections.test.ts, /Users/jins/IO/harness/README.md, /Users/jins/IO/harness/packages/engine/src/mcp/server.ts), 53 commands, task changes: 4.3 → done, 5.1…
+
+Recent decisions (last 5 of 10; full text in decisions.md):
+- [D6] 2026-07-10 Phase-6 compact serialization lands as: (a) keep the digest's one-line list format — measured on this repo's live recor… — over Rendering tasks/decisions as terse markdown tables (the 6.1 premise as written), or repla…
+- [D7] 2026-07-10 Descope 2.3 (on-demand section fetch, paginated) and close Phase 2 — user ratified. The digest + view:"full" + on-disk … — over Building a section/page parameter on sofar_get_state (the original 2.3), or keeping 2.3 p…
+- [D8] 2026-07-10 Phase-0 M4 scoring convention (pre-registered before the SaaS arms, user-confirmed): a dead-end recurrence counts only … — over The strict-letter reading of the frozen rubric ("propose or attempt it again" = fail rega…
+- [D9] 2026-07-11 Founder spot-check (mitigation b) CLEARED — all five convention calls ratified against raw evidence: R01 BD51 informed-… — over Leaving mitigation (b) as an open footnote on the validation story, or amending the shipp…
+- [D10] 2026-07-11 Add `sofar upgrade [version]` (flags --check/--dry-run/--force): derive the real npm prefix from the running binary pat… — over Telling users to run npm by hand, or a self-updater that trusts `npm config get prefix`
+Earlier rejected approaches — do NOT re-propose (5 older):
+- [D1] Leading with prompt caching (doesn't reduce occupancy), or rewriting the SessionStart inj…
+- [D2] Treating token reduction as pure plumbing (risk: silently compressing the rationale 'musc…
+- [D3] Shipping the digest default as-is (unbounded M4 risk on exactly the class D7 bets on), re…
+- [D4] Full chose/over/because for all decisions (re-bloats toward the 15k full state), only rec…
+- [D5] Aggressive minification (dropping minLength/enum hints, one-line descriptions everywhere)…
+
+Next ids: D11 (decision), M1 (memory)
+
+Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Git: token-optimization @ a1b2c3d — no origin ref — never pushed
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:quiet (3090 bytes) ==
+# Sofar status: token-optimization
+
+Goal: Reduce the token cost of CONSUMING a sofar record (Phase-0 scorecard cost axis M3/M6) WITHOUT regressing rationale-carried resume quality (M1/M4/M5). Apply the architecture's compaction-proofing principle to every read surface.
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7 (17/17 tasks)
+
+Progress: 17/17 tasks done (100%) across 7 phase(s)
+Active phase: (none)
+Next action: Merge token-optimization into main when ready (docs + record commits accumulated since the 0.5.0 release merge).
+
+Last session (claude-code, ended 2026-07-11T10:32:57.046Z):
+  Cleanup complete: staleness-detection initiative formally closed (paired CLI session events), merged branch deleted local+origin, dead binding removed, doctor clean (7 pre-existing warnings). Global install confirmed at 0.5.0, sole copy on PATH.
+
+Recent decisions (last 5 of 10; full text in decisions.md):
+- [D6] 2026-07-10 Phase-6 compact serialization lands as: (a) keep the digest's one-line list format — measured on this repo's live recor… — over Rendering tasks/decisions as terse markdown tables (the 6.1 premise as written), or repla…
+- [D7] 2026-07-10 Descope 2.3 (on-demand section fetch, paginated) and close Phase 2 — user ratified. The digest + view:"full" + on-disk … — over Building a section/page parameter on sofar_get_state (the original 2.3), or keeping 2.3 p…
+- [D8] 2026-07-10 Phase-0 M4 scoring convention (pre-registered before the SaaS arms, user-confirmed): a dead-end recurrence counts only … — over The strict-letter reading of the frozen rubric ("propose or attempt it again" = fail rega…
+- [D9] 2026-07-11 Founder spot-check (mitigation b) CLEARED — all five convention calls ratified against raw evidence: R01 BD51 informed-… — over Leaving mitigation (b) as an open footnote on the validation story, or amending the shipp…
+- [D10] 2026-07-11 Add `sofar upgrade [version]` (flags --check/--dry-run/--force): derive the real npm prefix from the running binary pat… — over Telling users to run npm by hand, or a self-updater that trusts `npm config get prefix`
+Earlier rejected approaches — do NOT re-propose (5 older):
+- [D1] Leading with prompt caching (doesn't reduce occupancy), or rewriting the SessionStart inj…
+- [D2] Treating token reduction as pure plumbing (risk: silently compressing the rationale 'musc…
+- [D3] Shipping the digest default as-is (unbounded M4 risk on exactly the class D7 bets on), re…
+- [D4] Full chose/over/because for all decisions (re-bloats toward the 15k full state), only rec…
+- [D5] Aggressive minification (dropping minLength/enum hints, one-line descriptions everywhere)…
+
+Next ids: D11 (decision), M1 (memory)
+
+Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:cap (10075 bytes) ==
+# Sofar status: token-optimization
+
+Goal: Reduce the token cost of CONSUMING a sofar record (Phase-0 scorecard cost axis M3/M6) WITHOUT regressing rationale-carried resume quality (M1/M4/M5). Apply the architecture's compaction-proofing principle to every read surface.
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+  if SPEC must change.
+- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
+  Both run at the workspace root; typecheck: `npm run typecheck`.
+- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
+  (source-shipped, no build); packages/engine → sofar bin
+  (packages/engine/dist/cli.js after build).
+- Definition of done per task: acceptance criteria in docs/SPEC.md
+  §Acceptance.
+- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
+  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
+  live OUTSIDE this repo in the user's strategy vault. Engine sessions
+  never need them; 5.3 scoring is performed by the user against that
+  scorecard. Do not go looking for them; do not block on them.
+- Push policy: push origin main at each verified wrap-up (user-established
+  Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Committing the record needs a BARE
+…truncated — read .sofar/repo.md for the rest
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7 (17/17 tasks)
+
+Progress: 17/17 tasks done (100%) across 7 phase(s)
+Active phase: (none)
+Next action: Merge token-optimization into main when ready (docs + record commits accumulated since the 0.5.0 release merge).
+
+Last session (claude-code, ended 2026-07-11T10:32:57.046Z):
+  Cleanup complete: staleness-detection initiative formally closed (paired CLI session events), merged branch deleted local+origin, dead binding removed, doctor clean (7 pre-existing warnings). Global install confirmed at 0.5.0, sole copy on PATH.
+
+Recent decisions (last 5 of 10; full text in decisions.md):
+- [D6] 2026-07-10 Phase-6 compact serialization lands as: (a) keep the digest's one-line list format — measured on this repo's live recor… — over Rendering tasks/decisions as terse markdown tables (the 6.1 premise as written), or repla…
+- [D7] 2026-07-10 Descope 2.3 (on-demand section fetch, paginated) and close Phase 2 — user ratified. The digest + view:"full" + on-disk … — over Building a section/page parameter on sofar_get_state (the original 2.3), or keeping 2.3 p…
+- [D8] 2026-07-10 Phase-0 M4 scoring convention (pre-registered before the SaaS arms, user-confirmed): a dead-end recurrence counts only … — over The strict-letter reading of the frozen rubric ("propose or attempt it again" = fail rega…
+- [D9] 2026-07-11 Founder spot-check (mitigation b) CLEARED — all five convention calls ratified against raw evidence: R01 BD51 informed-… — over Leaving mitigation (b) as an open footnote on the validation story, or amending the shipp…
+- [D10] 2026-07-11 Add `sofar upgrade [version]` (flags --check/--dry-run/--force): derive the real npm prefix from the running binary pat… — over Telling users to run npm by hand, or a self-updater that trusts `npm config get prefix`
+Earlier rejected approaches — do NOT re-propose (5 older):
+- …and 5 more (see decisions.md)
+
+Next ids: D11 (decision), M1 (memory)
+
+Adjacent records — 8 decisions across 2 other initiatives that have worked this one's files, densest first:
+- alpha — 3 shared files, 7 decisions
+- beta — 1 shared file, 1 decision
+Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: token-optimization-session — when calling sofar_start_session, pass this as session_id.
+Git: token-optimization @ a1b2c3d — no origin ref — never pushed
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+…truncated — run sofar status for full detail
+
+== plan (2274 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Plan: token-optimization
+
+Goal: Reduce the token cost of CONSUMING a sofar record (Phase-0 scorecard cost axis M3/M6) WITHOUT regressing rationale-carried resume quality (M1/M4/M5). Apply the architecture's compaction-proofing principle to every read surface.
+
+Progress: 17/17 tasks done (100%)
+
+## Phase 1 — Audit & research [done] — 3/3 done
+
+- [x] 1.1 Quantify token surfaces (get_state ~16k unbounded, session block ~1k)
+- [x] 1.2 Internet research: context engineering, agent-memory, MCP efficiency
+- [x] 1.3 Reconcile with strategy docs; reframe to scorecard axes
+
+## Phase 2 — get_state progressive disclosure (P0) [done] — 3/3 done
+
+- [x] 2.1 Design digest contract (SPEC decision)
+- [x] 2.2 Implement view param + digest default (SHIPPED in 0.3.0)
+- [x] 2.4 Unit tests + token measurement
+
+## Phase 3 — Resume-quality validation (assistant-owned) [done] — 2/2 done
+
+- [x] 3.1 Build automated resume ablation (digest vs full; grade M1/M4/M5)
+- [x] 3.2 Run it; found digest regresses M4 on counterintuitive rejected approaches
+
+## Phase 4 — Rejected-approaches ledger (Phase-3 M4 fix) [done] — 3/3 done
+
+- [x] 4.1 Add over-only ledger to renderStatus (budgeted); committed 9b83163
+- [x] 4.2 Re-ablation confirms M4 restored (3/3 decline; digest ~1.67k tok, 90% under full)
+- [x] 4.3 Ship as 0.3.1 (version bump + commit + npm publish)
+
+## Phase 5 — Lean tool-definition pass (P1) [done] — 2/2 done
+
+- [x] 5.1 Measure baseline 7-tool definition footprint
+- [x] 5.2 Trim descriptions, enforce enums, dedupe shared shapes; re-measure
+
+## Phase 6 — Compact serialization + session-block trims (P2) [done] — 2/2 done
+
+- [x] 6.1 Render uniform lists as terse tables in the digest (evaluated: declined, lists win)
+- [x] 6.2 Optional session-block trims: collapse done phases, lazy repo.md pointer
+
+## Phase 7 — Caching guidance + docs (P3) [done] — 2/2 done
+
+- [x] 7.1 Document two-lever model + prompt-caching (Lever A) guidance
+- [x] 7.2 Cut 0.3.2: 5.2+6.2 trims, SERVER_VERSION single-sourced from package.json, README install refresh
+
+Next action: Merge token-optimization into main when ready (docs + record commits accumulated since the 0.5.0 release merge).
+
+== decisions (12409 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Decisions: token-optimization
+
+- 2026-07-08T12:22:32.446Z — chose **Anchor the initiative on the two-lever model and make sofar_get_state the P0 target. Lever A (cost/latency) = prompt caching, largely harness-owned → guidance only. Lever B (context-window occupancy) = progressive disclosure + compact serialization → where sofar's own wins live. get_state today returns the full raw folded InitiativeState (~14.2k tok for harness-build; ~10.1k of it the 57-decision history, unbounded), where the budgeted SessionStart block gives the same orientation in ~1k tok.** over Leading with prompt caching (doesn't reduce occupancy), or rewriting the SessionStart injection (already budgeted to ~1k tok / hard 10k-char cap), or adopting heavy MCP machinery (tool-search/deferred-loading/code-execution — overkill at 7 tools). because Audit + 3 independent web research sweeps converge: caching cuts $/latency but NOT the tokens the model must attend to; the industry (Anthropic context-engineering, claude-mem, Agent Skills, Letta, mem0, Cursor rules) has converged on progressive disclosure — inject a thin index, fetch detail on demand. sofar's one large, unbounded, per-orient occupancy sink is get_state's full-fold dump. A compact-default digest + on-demand section fetch fixes it while keeping the full InitiativeState available for the state server/sync (SPEC contract preserved).
+- 2026-07-08T12:50:30.902Z — chose **Reframe around the product's own instruments after the strategy-docs review. Token cost is already a Phase-0-scorecard axis (M3 'redundant work — minutes OR tokens', M6 capture overhead), so the goal = drive DOWN cost (M3/M6) while HOLDING resume quality (M1 re-explanation, M4 dead-end recurrence, M5 consistency). The get_state digest keeps RATIONALE first-class (recent decisions surfaced WITH over/because), makes the record re-injectable IN FULL via view:full, and detail fetchable via section:*. No-regression is validated by an automated resume ablation I own (fresh agent resumes from digest vs full; blind grader scores M1/M4/M5) — the user does not hand-score. Build proceeds step by step, each increment test-gated.** over Treating token reduction as pure plumbing (risk: silently compressing the rationale 'muscle' the product's central bet D7 rests on), asserting no-regression without measuring it, or asking the user to hand-score the scorecard. because Spine 'the one bet' + D7 + scorecard M4/M5 establish rationale as the UNPROVEN load-bearing field for cross-tool resume. Architecture Open-Q#5 'compaction-proofing' (record re-injectable in full; keep top summary-dense, push detail into per-session files) already sanctions progressive disclosure, so a summary-dense default + view:full is the product's own principle, not an improvisation. Optimizing M3/M6 while holding M1/M4/M5 makes this a core scorecard axis, and a leaner record serves the prime directive 'integration cost must approach zero' (the moat). User approved step-by-step and delegated testing.
+- 2026-07-08T13:21:57.981Z — chose **Keep digest-by-default BUT add a compact rejected-approaches ledger (each decision's `over` + brief `because`) to the digest — validated as the fix. Ablation on harness-build: 3 trap proposals each explicitly rejected in the record; digest arm (rejections absent) walked into the counterintuitive P3 (BD22 'hooks best-effort, never fail loudly') 2/2 AND invented a justification contradicting BD22, while full-JSON and readable arms (rejections present) declined all three 4/4, each citing the exact decision. Digest avoided P1/P2 only because general engineering knowledge covered them.** over Shipping the digest default as-is (unbounded M4 risk on exactly the class D7 bets on), reverting to full-by-default (loses the 93% token win), or padding the digest with the whole decision history (re-bloats it). because This empirically confirms D7 / scorecard M4-M5: rationale is load-bearing precisely where the model's prior is WRONG, and the digest's omission there produced a confidently-wrong re-proposal (the 'confidently wrong 72%' failure the spine names). The readable arm (rejections present) restored M4 to 4/4, and full-JSON performed identically to readable, so view:full is a sound escape hatch — omission, not format, is the issue. A rejected-approaches ledger is far cheaper than the full state (est ~0.5-1.5k tok vs ~15k) and protects the bet while keeping most of the token win.
+- 2026-07-10T05:04:05.334Z — chose **Rejected-approaches ledger design: add a 'Rejected approaches' section to renderStatus (shared by the SessionStart injection AND the get_state digest) listing the `over` clause of every decision that has a real alternative — one terse clipped line each, over-only (no because) to start — budgeted, with the existing 10k hard cap as backstop. Build over-only first, then re-run the ablation P3 trap to confirm M4 is restored; escalate to include a short because only if over-only underperforms.** over Full chose/over/because for all decisions (re-bloats toward the 15k full state), only recent-N rejected approaches (the failing trap BD22 was OLD, so recency-capping re-breaks M4), or relying on section-fetch (Phase-3 showed agents don't proactively fetch). because Phase-3 ablation: the digest fails M4 only when a rejected approach is ABSENT; the readable arm (all rejected approaches present) restored M4 to 4/4. `over` clauses are short (~50 chars), so listing all is compact (~2.3k chars/~575 tok for 59 decisions) — breadth over depth. Placing it in renderStatus also protects the auto-injected SessionStart resume path, which faces the same trap.
+- 2026-07-10T12:58:19.575Z — chose **Lean tool-definition pass = conservative description trims only: dedupe redundancy between tool and property descriptions (dropped log_decision prop descs, get_state view detail, planSchema desc), shorten the 6×-repeated initiative prop, tighten wording — while KEEPING the load-bearing semantics verbatim in spirit (get_state 'call this first', session_id adopt-by-id line, update_plan 'full replace, not a merge'). 4,615→3,992 chars, ~1,154→~998 est tok (−13.5%).** over Aggressive minification (dropping minLength/enum hints, one-line descriptions everywhere) for a bigger cut, or JSON-Schema $defs to dedupe shared shapes, or leaving definitions untouched because 1.15k tok is already small. because Tool definitions are injected into EVERY session that connects the server, so chars here are the highest-frequency read surface — but they are also the agent's usage contract: Phase-3 ablation proved omission (not format) is what breaks behavior, and the adopt-by-id + full-replace warnings each prevent a known field failure (orphaned hook sessions; silent plan merges). $defs would ADD bytes (each nested shape is used once) and some clients render them poorly. Enums were already enforced everywhere applicable (status, view), so the win had to come from description dedupe alone.
+- 2026-07-10T13:03:42.665Z — chose **Phase-6 compact serialization lands as: (a) keep the digest's one-line list format — measured on this repo's live record, markdown tables LOSE (phases 482ch table vs 419ch list, +15%; decisions 1,448ch vs 1,414ch — header/separator/pipe overhead exceeds label savings); (b) collapse done phases into one trailing summary line (phases section 419→245ch, −42%, compounds with age, frees cap slots for open phases); (c) keep repo.md INLINE in the SessionStart block.** over Rendering tasks/decisions as terse markdown tables (the 6.1 premise as written), or replacing the inline repo.md section with a lazy "read .sofar/repo.md" pointer (the second half of 6.2). because Tables were measured, not assumed — the current list serialization is already the terse form, so 6.1 closes as evaluated-and-declined with numbers. The lazy repo.md pointer fails on Phase-3's central finding: agents do NOT proactively fetch, so a pointer would effectively delete repo conventions (test commands, push policy, boundaries) from orientation — an M5-consistency regression to save ~380 tok, exactly the omission-class failure the ablation flagged. Collapsing done phases is the one trim that is pure win: detail survives in plan.md, and the digest's job is orienting on what is NEXT, not history.
+- 2026-07-10T14:20:41.880Z — chose **Descope 2.3 (on-demand section fetch, paginated) and close Phase 2 — user ratified. The digest + view:"full" + on-disk projections ARE the progressive-disclosure surface.** over Building a section/page parameter on sofar_get_state (the original 2.3), or keeping 2.3 parked in the plan indefinitely. because Phase-3 ablation showed agents don't proactively fetch detail, so the surface would go unused exactly when it matters; both deep-dive paths are already served (view:"full" for the complete state, generated projections readable from disk with zero tool calls); and a section/page param would re-grow the get_state schema the Phase-5 lean pass just trimmed — every session pays for a parameter's definition whether or not it is called.
+- 2026-07-10T14:57:16.161Z — chose **Phase-0 M4 scoring convention (pre-registered before the SaaS arms, user-confirmed): a dead-end recurrence counts only if the session proposes/attempts a recorded-rejected approach WITHOUT acknowledging the recorded decision; informed re-tests that cite the decision and serve a new open question do not count. Applied symmetrically to all arms including B/gstack. R01 C-model accordingly rules M4=Pass (BD51 re-test cited the decision, predicted the E403, resolved D13); M6 = ~2min, staleness=Y, friction=1.** over The strict-letter reading of the frozen rubric ("propose or attempt it again" = fail regardless of awareness), which would have scored R01 M4=Fail(1) because M4's construct is record-transmission failure (D7): the failure mode is ignorant re-walking, which R02-iso reproduced (C-abl justified the BD16-rejected approach unaware). R01's re-test was the opposite — the record demonstrably transmitted (BD51 cited, failure predicted) and the attempt executed the spine's open D13 directive, producing new information that closed it. Pre-registering the refinement BEFORE the gate-deciding A/B runs, and recording both readings for R01, keeps the frozen-rubric discipline intact while scoring the construct rather than the letter.
+- 2026-07-11T09:26:15.964Z — chose **Founder spot-check (mitigation b) CLEARED — all five convention calls ratified against raw evidence: R01 BD51 informed-re-test M4 ruling, R03 P5.1 non-recurrence ruling, the M2 exclusion split (human actions/preferences never count; re-asking a settled decision always counts), the GLM record-hole reading of M2 (handoff-bench anchors ratified as-is), and the M3 boundary (targeted spot-verification=1 vs broad re-verification=2 — the gate's M3 win stands). All three judge-provenance mitigations now discharged.** over Leaving mitigation (b) as an open footnote on the validation story, or amending the shipped M2 anchors toward the Fable reading (any-question-counts) because The one participant who isn't a language model reviewed the calls the machines converged on; M2's purpose is measuring record holes, not general human-dependence, so the GLM reading matches the metric's intent. Every check in the validation story is now cleared by both machine cross-examination and human review.
+- 2026-07-11T10:02:46.158Z — chose **Add `sofar upgrade [version]` (flags --check/--dry-run/--force): derive the real npm prefix from the running binary path (fileURLToPath(import.meta.url) -> …/lib/node_modules/@alignlabs/sofar -> prefix), then npm install -g --prefix <prefix> @alignlabs/sofar@<target>. Non-global/npx/source layouts print manual guidance and never spawn npm. Pure core (planUpgrade/resolveUpgrade) unit-tested; spawn+registry behind injected deps.** over Telling users to run npm by hand, or a self-updater that trusts `npm config get prefix` because npm config prefix (/usr/local) disagrees with where sofar actually lives (~/.local), so a naive npm i -g installs to the wrong root and leaves the on-PATH copy stale. The running file path is ground truth for the prefix. 19 new tests, full suite 372 green, build clean, verified on the real bundle via a simulated global layout.
+
+== session 40742c6d-bde5-4786-babc-7a5146b57e3a.md (1529 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 40742c6d-bde5-4786-babc-7a5146b57e3a
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-opus-4-8[1m]
+- Started: 2026-07-08T12:14:14.660Z
+- Ended: 2026-07-10T12:37:21.459Z
+
+## Summary
+
+Shipped the rejected-approaches ledger fix as 0.3.1: bumped root/engine/schema to 0.3.1 + lockfile, committed (release f95d9f5), pushed origin/token-optimization and fast-forwarded origin/main. 330 tests green. Ledger validated (re-ablation: agents decline the fail-loudly trap 3/3, vs bare digest 0/2). npm publish left to the user.
+
+## Next action
+
+User runs npm publish -w @alignlabs/sofar to release 0.3.1. Next build task: Phase 5 (P1) lean tool-definition pass — measure the 7-tool footprint, then trim descriptions/enforce enums/dedupe.
+
+## Activity (derived from mechanical events)
+
+- Derived: 5 files (/Users/jins/IO/harness/packages/engine/src/projections/templates/status.ts, /Users/jins/IO/harness/packages/engine/test/projections.test.ts, /Users/jins/IO/harness/package.json, /Users/jins/IO/harness/packages/engine/package.json, /Users/jins/IO/harness/packages/schema/package.json), 36 commands
+- Files:
+  - /Users/jins/IO/harness/packages/engine/src/projections/templates/status.ts
+  - /Users/jins/IO/harness/packages/engine/test/projections.test.ts
+  - /Users/jins/IO/harness/package.json
+  - /Users/jins/IO/harness/packages/engine/package.json
+  - /Users/jins/IO/harness/packages/schema/package.json
+- Commands run: 36
+
+== session 111e144f-19eb-4c3b-8d6d-719896a5a27a.md (2338 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 111e144f-19eb-4c3b-8d6d-719896a5a27a
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Started: 2026-07-10T12:51:07.644Z
+- Ended: 2026-07-10T13:06:24.839Z
+
+## Summary
+
+Closed 4.3 (0.3.1 confirmed live on npm). Phase 5 done: tool defs measured 4,615ch/~1,154 tok, trimmed to 3,992ch/~998 tok (−13.5%, commit 37a4843). Phase 6 done: tables declined by measurement (lists win); done-phases collapse shipped (b8dc5f2, phases section −42%); lazy repo.md pointer declined (Phase-3: agents don't fetch). Phase 7 done: README token-economics section (c1a1ea0). 331 tests green. 16/17 tasks.
+
+## Next action
+
+User ratifies descoping 2.3 (see note — recommend drop; view:full + on-disk projections cover it), then cut 0.3.2 with the 5.2/6.2 trims + fix SERVER_VERSION drift in server.ts.
+
+## Activity (derived from mechanical events)
+
+- Derived: 7 files (/private/tmp/claude-501/-Users-jins-IO-harness/111e144f-19eb-4c3b-8d6d-719896a5a27a/scratchpad/measure-tooldefs.ts, /Users/jins/IO/harness/packages/schema/src/tool-inputs.ts, /private/tmp/claude-501/-Users-jins-IO-harness/111e144f-19eb-4c3b-8d6d-719896a5a27a/scratchpad/measure-digest.ts, /Users/jins/IO/harness/packages/engine/src/projections/templates/status.ts, /Users/jins/IO/harness/packages/engine/test/projections.test.ts, /Users/jins/IO/harness/README.md, /Users/jins/IO/harness/packages/engine/src/mcp/server.ts), 53 commands, task changes: 4.3 → done, 5.1 → active, 5.1 → done, 5.2 → active, 5.2 → done, 6.1 → done, 6.2 → done, 7.1 → done
+- Files:
+  - /private/tmp/claude-501/-Users-jins-IO-harness/111e144f-19eb-4c3b-8d6d-719896a5a27a/scratchpad/measure-tooldefs.ts
+  - /Users/jins/IO/harness/packages/schema/src/tool-inputs.ts
+  - /private/tmp/claude-501/-Users-jins-IO-harness/111e144f-19eb-4c3b-8d6d-719896a5a27a/scratchpad/measure-digest.ts
+  - /Users/jins/IO/harness/packages/engine/src/projections/templates/status.ts
+  - /Users/jins/IO/harness/packages/engine/test/projections.test.ts
+  - /Users/jins/IO/harness/README.md
+  - /Users/jins/IO/harness/packages/engine/src/mcp/server.ts
+- Commands run: 53
+- Task changes:
+  - 4.3 → done
+  - 5.1 → active
+  - 5.1 → done
+  - 5.2 → active
+  - 5.2 → done
+  - 6.1 → done
+  - 6.2 → done
+  - 7.1 → done
+
+== session 5167c335-4dbe-47f4-b5d7-1e79ed2f67fb.md (3504 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 5167c335-4dbe-47f4-b5d7-1e79ed2f67fb
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Started: 2026-07-10T12:54:56.026Z
+- Ended: 2026-07-10T13:07:21.293Z
+
+## Summary
+
+Orientation session, no code changes: read all product docs (spine/roadmap/action-plan/architecture/vision/phase0 kit+scorecard), docs/SPEC.md, and the engine end-to-end (schema, core, mcp, projections, cli, hooks). Also retrieved and read the full Jun20-Jul8 founding strategy chat (claude.ai share link) via headed browser after Cloudflare blocked headless fetches.
+
+## Next action
+
+Unchanged: user runs npm publish -w @alignlabs/sofar for 0.3.1; next build task is Phase 6 (6.1 terse digest tables, 6.2 session-block trims) since Phase 5 lean tool-defs is done.
+
+## Activity (derived from mechanical events)
+
+- Derived: 28 files (/Users/jins/.claude/projects/-Users-jins-IO-harness/memory/claude-share-links-fetch-method.md, /Users/jins/.claude/projects/-Users-jins-IO-harness/memory/MEMORY.md, /Users/jins/IO/harness/product doc/sofar-phase0-run-R01-cmodel.md, /Users/jins/IO/harness/product doc/sofar-phase0-scorecard.html, /private/tmp/claude-501/-Users-jins-IO-harness/5167c335-4dbe-47f4-b5d7-1e79ed2f67fb/scratchpad/source-session-prompt.txt, /Users/jins/IO/harness/product doc/02-sofar-action-plan.md, /Users/jins/IO/harness/product doc/design-partner-onepager.md, /Users/jins/IO/harness/docs/FORMAT.md, /private/tmp/claude-501/-Users-jins-IO-harness/5167c335-4dbe-47f4-b5d7-1e79ed2f67fb/scratchpad/plan-payload.json, /Users/jins/IO/sofar-bench/README.md, /Users/jins/IO/sofar-bench/RUBRIC.md, /Users/jins/IO/sofar-bench/METHODOLOGY.md, /Users/jins/IO/sofar-bench/scripts/build-arms.sh, /Users/jins/IO/sofar-bench/scripts/run-arm.sh, /Users/jins/IO/sofar-bench/scripts/extract-telemetry.py, /Users/jins/IO/sofar-bench/prompts/resume-arm-prompt.md, /Users/jins/IO/sofar-bench/prompts/blind-grader-prompt.md, /Users/jins/IO/sofar-bench/results/R04-reference-run.md, /Users/jins/IO/sofar-bench/LICENSE, /Users/jins/IO/sofar-bench/results/R03-unpaired-demonstration.md, +8 more), 208 commands
+- Files:
+  - /Users/jins/.claude/projects/-Users-jins-IO-harness/memory/claude-share-links-fetch-method.md
+  - /Users/jins/.claude/projects/-Users-jins-IO-harness/memory/MEMORY.md
+  - /Users/jins/IO/harness/product doc/sofar-phase0-run-R01-cmodel.md
+  - /Users/jins/IO/harness/product doc/sofar-phase0-scorecard.html
+  - /private/tmp/claude-501/-Users-jins-IO-harness/5167c335-4dbe-47f4-b5d7-1e79ed2f67fb/scratchpad/source-session-prompt.txt
+  - /Users/jins/IO/harness/product doc/02-sofar-action-plan.md
+  - /Users/jins/IO/harness/product doc/design-partner-onepager.md
+  - /Users/jins/IO/harness/docs/FORMAT.md
+  - /private/tmp/claude-501/-Users-jins-IO-harness/5167c335-4dbe-47f4-b5d7-1e79ed2f67fb/scratchpad/plan-payload.json
+  - /Users/jins/IO/sofar-bench/README.md
+  - /Users/jins/IO/sofar-bench/RUBRIC.md
+  - /Users/jins/IO/sofar-bench/METHODOLOGY.md
+  - /Users/jins/IO/sofar-bench/scripts/build-arms.sh
+  - /Users/jins/IO/sofar-bench/scripts/run-arm.sh
+  - /Users/jins/IO/sofar-bench/scripts/extract-telemetry.py
+  - /Users/jins/IO/sofar-bench/prompts/resume-arm-prompt.md
+  - /Users/jins/IO/sofar-bench/prompts/blind-grader-prompt.md
+  - /Users/jins/IO/sofar-bench/results/R04-reference-run.md
+  - /Users/jins/IO/sofar-bench/LICENSE
+  - /Users/jins/IO/sofar-bench/results/R03-unpaired-demonstration.md
+  - +8 more
+- Commands run: 208
+
+== session 01KX665J9Q1D3KEFC32N9JV8MB.md (873 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX665J9Q1D3KEFC32N9JV8MB
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-10T14:16:10.295Z
+- Ended: 2026-07-10T14:23:14.497Z
+
+## Summary
+
+Descoped 2.3 (user-ratified, decision logged: agents don't proactively fetch; view:full + on-disk projections cover it), closed Phase 2. Cut 0.3.2 as new task 7.2 (commit c79811d): versions bumped, SERVER_VERSION single-sourced from package.json (handshake verified 0.3.2), README install refreshed. 331 tests green. Initiative 17/17 — COMPLETE.
+
+## Next action
+
+User runs: npm publish -w @alignlabs/sofar (0.3.2). Initiative done — no further build work.
+
+## Activity (derived from mechanical events)
+
+- Derived: task changes: 7.2 → done
+- Commands run: 0
+- Task changes:
+  - 7.2 → done
+
+== session 01KX66XG5K72J9GGR29XZHBDS0.md (879 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX66XG5K72J9GGR29XZHBDS0
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-10T14:29:14.547Z
+- Ended: 2026-07-10T14:37:00.392Z
+
+## Summary
+
+Built + ran the automated Phase-0 scoring: extracted the Jul 8 ceremony transcript + record-as-read, blind-graded R01 C-model with 2 independent graders (M1=0 M2=0 M3=1 M4=fail-strict/pass-lenient M5=Y+Y; M6 write-back ~82s, staleness=Y), ran directional A/C/C-abl arm probes. Results + caveats in product doc/sofar-phase0-run-R01-cmodel.md; note logged with the stale-next_action digest finding.
+
+## Next action
+
+User: rule M4 strict-vs-lenient + M6 friction, enter R01 into the HTML scorecard; then arms A/B on the frozen SaaS snapshot. Build: 0.3.1 publish still pending; Phase 6 digest trims next.
+
+== session 01KX67PVTBCW79HY66WQGA3Q04.md (847 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX67PVTBCW79HY66WQGA3Q04
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-10T14:43:05.675Z
+- Ended: 2026-07-10T14:49:07.741Z
+
+## Summary
+
+Verified 0.3.2 live (initiative 17/17 complete) and re-ran the Phase-0 ablation isolated (headless arms, empty dirs, leak-screened traps). D7 reproduced cleanly: C-abl adopted the BD16-rejected approach and proposed violating BD32; full-record arm declined 3/3 citing recorded rationale. Results appended to product doc/sofar-phase0-run-R01-cmodel.md; note logged.
+
+## Next action
+
+User: rule R01 M4 strict-vs-lenient, rate M6 friction, enter R01+R02-iso in the HTML scorecard; then arms A/B (gstack) on the frozen SaaS snapshot — the last gate-critical manual piece.
+
+== session cb69dc38-4ae5-420c-933a-5927b46a360f.md (359 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session cb69dc38-4ae5-420c-933a-5927b46a360f
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Started: 2026-07-10T14:43:37.465Z
+- Ended: 2026-07-10T14:44:00.671Z (closed: other)
+
+## Summary
+
+(none recorded — session did not write back)
+
+## Next action
+
+(none recorded)
+
+== session 01KX68FZ1JX625JT5VNGTHVW5G.md (742 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX68FZ1JX625JT5VNGTHVW5G
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-10T14:56:48.178Z
+- Ended: 2026-07-10T14:57:33.237Z
+
+## Summary
+
+Recorded the user-confirmed R01 rulings (M4=Pass lenient with strict reading preserved; M6=2min/stale-Y/friction-1) and the pre-registered M4 convention in product doc/sofar-phase0-run-R01-cmodel.md; logged the convention as a decision.
+
+## Next action
+
+User: transcribe the R01 row into sofar-phase0-scorecard.html and copy the frozen M4 convention into the scorecard notes; then run arms A/B (gstack) on the frozen SaaS snapshot — the last gate-critical piece.
+
+== session 01KX68MV9E5A80NWMESJWNNT7A.md (878 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX68MV9E5A80NWMESJWNNT7A
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-10T14:59:28.174Z
+- Ended: 2026-07-10T15:03:07.982Z
+
+## Summary
+
+Wired R01 into product doc/sofar-phase0-scorecard.html: seeded the run (merge-by-id, user edits win), added the C-model arm option (excluded from the C-vs-B gate), and embedded the frozen M4 convention in both the M4 form section and the auto-grader rubric. Verified render headless: no console errors, R01 row shows 0/0/1/pass/1, gate correctly reads INSUFFICIENT DATA (B:0, C:0).
+
+## Next action
+
+User: run arms A and B (gstack) on the frozen SaaS snapshot — the last gate-critical piece; supply transcripts for blind grading. Scorecard changes are uncommitted — include in next wrap-up commit.
+
+== session 01KX6AFXQ8KR32ZXQEH5Y82ZW6.md (893 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX6AFXQ8KR32ZXQEH5Y82ZW6
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-10T15:31:43.976Z
+- Ended: 2026-07-10T15:43:07.238Z
+
+## Summary
+
+Closed validation-ledger entry 2: recovered the Jul 8 OpenCode/brillo session from OpenCode's SQLite store, blind-graded it ×2 as R03 true cross-tool arm C (M1=0 M2=0 M3=1 M4=pass M5=Y+Y, write-back persisted), seeded it into the HTML scorecard (gate: B:0 C:1), pre-registered the screened brillo trap battery. design-consistency confirmed complete (54/54) — no mid-flight work in brillo.
+
+## Next action
+
+User picks the arms-A/B task: stripe v22 or react-email v6 migration (queued branches) or names the next brillo feature; then run the paired three-arm experiment with the source-session dual-capture design.
+
+== session codex-20260710-1717.md (442 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session codex-20260710-1717
+
+- Initiative: token-optimization
+- Tool: codex
+- Started: 2026-07-10T15:35:17.562Z
+- Ended: 2026-07-10T15:35:17.622Z
+
+## Summary
+
+Reviewed the token-optimization initiative record and provided the completed 17-task list.
+
+## Next action
+
+Run frozen SaaS snapshot arms A and B with gstack, then supply transcripts for blind grading.
+
+== session 01KX6BGRAW4RY58BXPPPG74030.md (1035 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX6BGRAW4RY58BXPPPG74030
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-10T15:49:39.805Z
+- Ended: 2026-07-10T15:51:30.031Z
+
+## Summary
+
+Staged the paired three-arm experiment on the real multi-email-accounts feature: created brillo worktree at /Users/jins/IO/brillo-phase0-multi-email (branch feat/multi-email-accounts, node_modules linked, sofar wiring verified), wrote the source-session prompt (backend-core-only + dual capture with timings). Launch of the headless source session was denied by the permission classifier (autonomous agent with approvals disabled needs explicit user sanction) — handed the ignition command to the user.
+
+## Next action
+
+User launches the source session in the worktree (interactive claude, or headless with skip-permissions typed by them, or grants a permission rule); on completion I freeze the handoff state and run the four resume arms + blind grading.
+
+== session 01KX7T413HMQAZCRB7YHT56TDJ.md (999 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX7T413HMQAZCRB7YHT56TDJ
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-11T05:24:05.874Z
+- Ended: 2026-07-11T05:48:27.682Z
+
+## Summary
+
+Ran the full paired Phase-0 experiment on the real multi-email-accounts task: verified the user-launched source session (backend core + 25-task record + dual capture), built 4 doctored arm worktrees, ran read-only resume arms (Opus 4.8), re-ran B with the checkpoint reachable, graded, seeded R04-B/R04-C, and read the gate: ITERATE via M1 ceiling-tie only — C beat B on M2/M3/M6 and tied M4. Findings + confounds in the results doc §R04.
+
+## Next action
+
+User rules the M1 ceiling-tie rubric edge (tie-at-0 satisfies intent → PROCEED, or keep strict → ITERATE); then either sanction full-work arms for a stricter re-run, or act on the verdict. Brillo: apply the migration, then P2 UI on feat/multi-email-accounts.
+
+== session 01KX7VVEZVAJH7YMYG93Q7C9F1.md (887 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX7VVEZVAJH7YMYG93Q7C9F1
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-11T05:54:22.331Z
+- Ended: 2026-07-11T05:55:22.026Z
+
+## Summary
+
+Seeded the two remaining R04 arm rows (R04-A, R04-CABL) into the scorecard; all five arm-comparison rows now populated. Verified render: gate still ITERATE (M1 ceiling-tie), ablation readout correctly reports M4 pass-rate not distinguishing (100% both) with its investigate-before-concluding warning — consistent with the artifact-quality confound documented in §R04.
+
+## Next action
+
+User rules the M1 ceiling-tie (tie-at-perfect satisfies gate intent → PROCEED vs strict ITERATE); then Phase-1 sweep (3-5 task types) or design partners. Brillo: apply migration, then P2 UI on feat/multi-email-accounts.
+
+== session 01KX7ZXDS04M8YDSWM2P2PMY3K.md (1137 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX7ZXDS04M8YDSWM2P2PMY3K
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-11T07:05:20.929Z
+- Ended: 2026-07-11T07:07:30.383Z
+
+## Summary
+
+Checked product doc/02-sofar-action-plan.md: found it already refreshed to a Jul-11 gate-read state (PROCEED via prospective ceiling-tie amendment, judge-provenance disclosure — accurate and fair). Fixed three factual staleness errors: 0.2.0→0.3.2/Phase-12 engine state, and the defensive bare-name stub (twice) — obsolete since D13 resolved it impossible+unnecessary. Flagged: HTML scorecard gate still computes strict ITERATE vs the doc's PROCEED ruling; duplicate NEXT ACTION header (historical sprint section) could mislead a cold reader.
+
+## Next action
+
+User confirms the PROCEED ruling is theirs; if so I encode the pre-registered ceiling-tie amendment into the HTML gate logic and mark the sprint-era NEXT ACTION as historical. Then post-gate list stands: staleness detection (F2) as the next engine initiative, design partners, format spec doc.
+
+== session 01KX80HZBFH45P8EZPEFAQPE69.md (1096 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX80HZBFH45P8EZPEFAQPE69
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-11T07:16:34.287Z
+- Ended: 2026-07-11T07:45:56.934Z
+
+## Summary
+
+Post-gate batch delivered via 5 subagents: design-partner one-pager, docs/FORMAT.md (+10 SPEC ambiguities), staleness-detection initiative scaffold (worktree, 12-task plan), sofar-bench local scaffold (10 files, sanitized R04 reference run, founder-review list), and the cross-family re-grade (GLM 5.2): original R04 grading survives — M3/M4/M5 orderings hold, GLM harsher on arm A, M2 compresses to a second ceiling-tie; PROCEED stands under the pre-registered amendment. Action plan factual fixes re-applied around the user's new sofar-bench action.
+
+## Next action
+
+User reviews the five deliverables: staleness plan (build go/no-go), FORMAT.md ambiguity rulings, one-pager fact-check trio, sofar-bench naming + public-workload gate + R03 inclusion; then wrap-up commit/push of the accumulated record+doc changes.
+
+== session 01KX82FK9B4Y62Q0C6AD95XPSY.md (920 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX82FK9B4Y62Q0C6AD95XPSY
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-11T07:50:13.548Z
+- Ended: 2026-07-11T08:19:14.593Z
+
+## Summary
+
+Wrap-up batch executed: committed+pushed (FORMAT.md draft + record; main fast-forwarded), removed 4 arm worktrees, recorded staleness GO with mechanical-only constraint and built it (12/12, 353 tests green, verified independently, unmerged pending review), fixed one-pager per rulings, staged the founder spot-check packet, added sanitized R03 to the bench, namespace-checked bench names (handoff-bench recommended).
+
+## Next action
+
+Founder: 20-min spot-check (product doc/spot-check/), rule handoff-bench rename + ulid-normative merge order, review/merge staleness-detection branch. Then design-partner outreach with the upgraded one-pager.
+
+== session 01KX84SN5JBWZBN78X49DRHQTK.md (987 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX84SN5JBWZBN78X49DRHQTK
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-11T08:30:40.306Z
+- Ended: 2026-07-11T08:32:48.388Z
+
+## Summary
+
+Executed both founder rulings: renamed bench to handoff-bench with normative M2 classification anchors shipped in RUBRIC.md (include/exclude classes + the settled-decision re-raise rule); spec'd D-sync-1 ulid-normative convergent fold in FORMAT.md + SPEC.md with both riders (monotonic-writer obligation, fold totality under skew, accepted-in-v1, vector-clock reserved), logged the decision and queued task 13.1 in harness-build, committed and pushed (ee9e12f, main ff'd).
+
+## Next action
+
+Founder morning sequence stands: spot-check (product doc/spot-check/) → say the word and staleness-detection merges → one-pager goes out. Engine: task 13.1 (convergent fold) ready to build after the staleness merge.
+
+== session 01KX854PWCW0AX0571250DZTSS.md (856 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX854PWCW0AX0571250DZTSS
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-11T08:36:42.508Z
+- Ended: 2026-07-11T08:37:50.509Z
+
+## Summary
+
+Durability sweep across all five checkouts: harness record drift committed+pushed (branch+main); staleness-detection and feat/multi-email-accounts branches pushed to origin (first upstreams); brillo main record drift committed LOCALLY only (19 unpushed commits are the user-held ship decision); handoff-bench initial commit 84e65ed made (no remote — publication gated).
+
+## Next action
+
+User: 20-min spot-check → merge staleness-detection → send one-pager. Separately user-held: brillo main push (ships 20 commits incl. design-consistency landing) and the migration apply.
+
+== session 01KX87YH5T6AM46853GQ8EBRGF.md (888 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX87YH5T6AM46853GQ8EBRGF
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-11T09:25:45.786Z
+- Ended: 2026-07-11T09:27:26.769Z
+
+## Summary
+
+Spot-check CLEARED (all 5 founder verdicts recorded: rulings 1-3+5 agreed, GLM M2 reading + shipped anchors ratified) — all judge-provenance mitigations discharged; evidence file + action plan updated, decision logged. Merged staleness-detection (clean, SPEC sections coexist), gates green (353 tests, typecheck clean), bumped 0.4.0 (root+engine+schema+lockfile), built CLI reads 0.4.0, committed 26dc99c, pushed branch + main, staleness worktree removed.
+
+## Next action
+
+User: npm publish -w @alignlabs/sofar (0.4.0), then send the one-pager. Next build: task 13.1 convergent fold (harness-build Phase 13).
+
+== session 012af394-419d-4729-bd3c-de19cbac23dc.md (371 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 012af394-419d-4729-bd3c-de19cbac23dc
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Started: 2026-07-11T09:28:23.413Z
+- Ended: 2026-07-11T09:28:26.989Z (closed: prompt_input_exit)
+
+## Summary
+
+(none recorded — session did not write back)
+
+## Next action
+
+(none recorded)
+
+== session 01KX885DNBGDP2CN4SR18PPTJM.md (594 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX885DNBGDP2CN4SR18PPTJM
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-11T09:29:31.563Z
+- Ended: 2026-07-11T09:30:22.589Z
+
+## Summary
+
+Verified 0.4.0 live on npm (latest → 0.4.0, shasum f06766af…), recorded the publish, committed and pushed the record (branch + main).
+
+## Next action
+
+User sends the design-partner one-pager (product doc/design-partner-onepager.md — ready, cross-family-validated claims). Next build: task 13.1 convergent fold.
+
+== session 01KX888RW3TWV9DCEA8247T5XD.md (662 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KX888RW3TWV9DCEA8247T5XD
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-11T09:31:21.347Z
+- Ended: 2026-07-11T09:32:19.205Z
+
+## Summary
+
+Recorded the no-Co-Authored-By ruling (repo.md + assistant memory), committed the record, and executed the folder rename harness→sofar as this session's final act (memory copied to the new project key). Verified no worktrees/processes blocked the move.
+
+## Next action
+
+Open the next session from /Users/jins/IO/sofar. Then: send the one-pager; next build task 13.1 convergent fold.
+
+== session 83ed1f73-136e-4f29-b1d3-9a9af71e02f6.md (1753 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 83ed1f73-136e-4f29-b1d3-9a9af71e02f6
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Started: 2026-07-11T09:42:46.065Z
+- Ended: 2026-07-11T10:10:01.680Z
+
+## Summary
+
+Shipped `sofar upgrade` self-update command (derives real npm prefix from the running binary path; --check/--dry-run/--force). Committed feature + record, bumped all three packages + lockfile 0.4.0->0.5.0, pushing token-optimization to origin. 372 tests green, build clean, --version reports 0.5.0.
+
+## Next action
+
+Publish 0.5.0 to npm so users get the upgrade command: npm publish -w @alignlabs/sofar (needs npm auth).
+
+## Activity (derived from mechanical events)
+
+- Derived: 9 files (/Users/jins/.claude/projects/-Users-jins-IO-sofar/memory/sofar-end-session-length-limit.md, /Users/jins/IO/sofar/packages/engine/src/cli/upgrade.ts, /Users/jins/IO/sofar/packages/engine/src/cli/index.ts, /Users/jins/IO/sofar/packages/engine/test/upgrade.test.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/package.json, /Users/jins/IO/sofar/packages/schema/package.json, /Users/jins/IO/sofar/packages/engine/package.json, /Users/jins/IO/sofar/README.md), 40 commands
+- Files:
+  - /Users/jins/.claude/projects/-Users-jins-IO-sofar/memory/sofar-end-session-length-limit.md
+  - /Users/jins/IO/sofar/packages/engine/src/cli/upgrade.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/index.ts
+  - /Users/jins/IO/sofar/packages/engine/test/upgrade.test.ts
+  - /Users/jins/IO/sofar/docs/SPEC.md
+  - /Users/jins/IO/sofar/package.json
+  - /Users/jins/IO/sofar/packages/schema/package.json
+  - /Users/jins/IO/sofar/packages/engine/package.json
+  - /Users/jins/IO/sofar/README.md
+- Commands run: 40
+
+== session 5fb51a69-7f95-4619-bc4c-1cb77bc4d1a8.md (903 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 5fb51a69-7f95-4619-bc4c-1cb77bc4d1a8
+
+- Initiative: token-optimization
+- Tool: claude-code
+- Started: 2026-07-11T10:13:47.338Z
+- Ended: 2026-07-11T10:32:57.046Z
+
+## Summary
+
+Cleanup complete: staleness-detection initiative formally closed (paired CLI session events), merged branch deleted local+origin, dead binding removed, doctor clean (7 pre-existing warnings). Global install confirmed at 0.5.0, sole copy on PATH.
+
+## Next action
+
+Merge token-optimization into main when ready (docs + record commits accumulated since the 0.5.0 release merge).
+
+## Activity (derived from mechanical events)
+
+- Derived: 2 files (/Users/jins/IO/sofar/README.md, /Users/jins/IO/sofar/.sofar/bindings.json), 28 commands
+- Files:
+  - /Users/jins/IO/sofar/README.md
+  - /Users/jins/IO/sofar/.sofar/bindings.json
+- Commands run: 28
+

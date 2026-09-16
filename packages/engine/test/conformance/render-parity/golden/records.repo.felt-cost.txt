@@ -1,0 +1,659 @@
+== options (37319 bytes) ==
+{
+  "plain": {},
+  "hook": {
+    "sessionId": "felt-cost-session",
+    "git": {
+      "branch": "felt-cost",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": null,
+      "upstreamFull": null,
+      "synced": false
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 3,
+        "decisions": 7
+      },
+      {
+        "initiative": "beta",
+        "paths": 1,
+        "decisions": 1
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare."
+    ]
+  },
+  "lane": {
+    "lane": true,
+    "sessionId": "lane-session",
+    "git": {
+      "branch": "felt-cost",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": null,
+      "upstreamFull": null,
+      "synced": false
+    }
+  },
+  "quiet": {
+    "activity": false,
+    "sessionId": " quiet-session\t"
+  },
+  "cap": {
+    "sessionId": "felt-cost-session",
+    "git": {
+      "branch": "felt-cost",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": null,
+      "upstreamFull": null,
+      "synced": false
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 3,
+        "decisions": 7
+      },
+      {
+        "initiative": "beta",
+        "paths": 1,
+        "decisions": 1
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare.",
+      "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    ]
+  }
+}
+== status (3148 bytes) ==
+# felt-cost
+
+Goal: Make harness cost felt at the moment it is incurred — cold-resume advisory, statusline rent-meter with cache-read health bands, batch-complete end-session nudge (behind SPEC) — and pin the injection's byte-stability against regression. Governed by the zero-model-API-calls invariant: no play may add a model call, API key, or inference cost to sofar.
+Progress: 12/12 tasks done (100%) across 5 phase(s)
+
+Phases:
+- Phase 1 — Invariants & pinning [done] 2/2
+  - [x] 1.1 Name the zero-model-API-calls invariant in docs/SPEC.md and CLAUDE.md guard-rails
+  - [x] 1.2 Byte-stability regression test: identical fold state → byte-identical renderStatus across wall-clock change
+- Phase 2 — Cold-resume advisory [done] 2/2
+  - [x] 2.1 SessionStart source=resume detection: last-event age + transcript size estimate (read-side, best-effort)
+  - [x] 2.2 Advisory line in injected block + tests (never blocks, never errors)
+- Phase 3 — Rent-meter [done] 3/3
+  - [x] 3.1 SPEC-lite: statusline integration design (stdin cost/cache fields + sofar record state)
+  - [x] 3.2 Implement statusline surface with cache-read % health bands (50–80% healthy, <30% warn)
+  - [x] 3.3 Tests + README/docs for statusline setup
+- Phase 4 — Batch-complete nudge [done] 2/2
+  - [x] 4.1 SPEC decision: UserPromptSubmit shim + additionalContext contract
+  - [x] 4.2 Implement nudge behind the SPEC + tests
+- Phase 5 — Polish round (user feedback on 0.8.0) [done] 3/3
+  - [x] 5.1 Statusline harness-identity segments: restore model · dir:branch (custom statusLine replaces Claude Code's default)
+  - [x] 5.2 Styled statusline: forced caps (D7), glyphs not emoji (D8), task-progress pie (D9), text cache label (D10); --no-color plain fallback
+  - [x] 5.3 Release 0.8.1 + rollout (publish, upgrade)
+
+Next action: None — initiative complete. Other repos: one-time `sofar init` re-run each for the UserPromptSubmit shim (doctor flags them); statusLine can live once in ~/.claude/settings.json. Next engine work starts a new initiative (sofar new).
+
+⚠ Staleness:
+- next action may be stale: 8 events since the last write-back (2026-07-12T13:17:26.558Z) — 1 task change, 1 phase change, 6 decisions
+
+Last session (claude-code, ended 2026-07-12T13:17:26.558Z):
+  felt-cost CLOSED: 0.8.1 confirmed on registry + global, doctor clean, 12/12 tasks across 5 phases, D1-D10. Binding removed (main unbound, close precedent).
+
+Files touched (13):
+- /Users/jins/IO/sofar/CLAUDE.md
+- /Users/jins/IO/sofar/docs/SPEC.md
+- /Users/jins/IO/sofar/packages/engine/test/byte-stability.test.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+- /Users/jins/IO/sofar/packages/engine/test/hooks.test.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/statusline.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/index.ts
+- /Users/jins/IO/sofar/packages/engine/test/statusline.test.ts
+- /Users/jins/IO/sofar/README.md
+- /Users/jins/IO/sofar/packages/engine/src/hooks/user-prompt-submit.sh
+- /Users/jins/IO/sofar/packages/engine/src/cli/init.ts
+- /Users/jins/IO/sofar/packages/engine/test/init.test.ts
+- /Users/jins/IO/sofar/packages/engine/test/uninit.test.ts
+
+== digest:plain (3921 bytes) ==
+# Sofar status: felt-cost
+
+Goal: Make harness cost felt at the moment it is incurred — cold-resume advisory, statusline rent-meter with cache-read health bands, batch-complete end-session nudge (behind SPEC) — and pin the injection's byte-stability against regression. Governed by the zero-model-API-calls invariant: no play may add a model call, API key, or inference cost to sofar.
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (12/12 tasks)
+
+Progress: 12/12 tasks done (100%) across 5 phase(s)
+Active phase: (none)
+Next action: None — initiative complete. Other repos: one-time `sofar init` re-run each for the UserPromptSubmit shim (doctor flags them); statusLine can live once in ~/.claude/settings.json. Next engine work starts a new initiative (sofar new).
+⚠ next action may be stale: 8 events since write-back (1 task change, 1 phase change, 6 decisions)
+
+Last session (claude-code, ended 2026-07-12T13:17:26.558Z):
+  felt-cost CLOSED: 0.8.1 confirmed on registry + global, doctor clean, 12/12 tasks across 5 phases, D1-D10. Binding removed (main unbound, close precedent).
+
+⚠ 1 other session(s) did work without writing back: 46131e4b-130b-4919-b64d-e619205d2a2c
+
+Recent decisions (last 5 of 16; full text in decisions.md):
+- [D12] 2026-08-05 Statusline drops the two decorative glyphs — ▸ dir and ⎇ branch (D12, user request): dir and branch become independent … — over Keeping the D8 glyph pair, collapsing to dir:branch in styled mode (matches plain but rea…
+- [D13] 2026-08-05 Statusline D13, four changes (user request): (a) the task gauge becomes a fixed five-cell ▰▱ track via a new kernel bar… — over Keeping the pie and accepting the jitter; switching to the ▁▂▃▄▅▆▇█ block ramp (one cell,…
+- [D14] 2026-08-05 D13 revised, after the ▰▱ bar was tried and rejected as too wide: keep the pie and narrow its ramp to ○◔◕●, dropping ◑ … — over The five-cell ▰▱ bar (spent 5 columns where the pie spent 1 — user rejected on size), the…
+- [D15] 2026-08-05 D14, three parts (user request): (a) `sofar statusline --install` — a one-command project-level installer that merges O… — over Telling users to hand-edit settings.json (the status quo — not shippable to anyone else);…
+- [D16] 2026-08-05 D15: (a) `sofar statusline --uninstall` — the inverse of --install, deleting the statusLine key so the host tool's own … — over Leaving revert to `sofar uninit` (repo-scoped only, so it can never reach the personal se…
+Earlier rejected approaches — do NOT re-propose (11 older):
+- [D1] Building cache-anchoring as new work, or adopting report Tier-2 (model-tiered/batch bookk…
+- [D2] Treating the recorded rejection as blocking, or ignoring it as out-of-scope
+- [D3] Adopting model-tiered or Batch-API bookkeeping, or leaving the property implicit as an ac…
+- [D4] Auto-installing the statusLine in sofar init (clobbers user config — README documents the…
+- [D5] Nudging via the Stop hook only (too late — the forced block costs an extra cold turn, $0.…
+- [D6] A wrapper script composing sofar's output with hand-rolled default segments (pushes maint…
+- [D7] TTY-detected caps (piped output would always strip styles — the one wrong answer for a st…
+- [D8] Emoji icons (📁 🌿 ♻ 🧠 — render as color pictographs, off-register with the CLI's glyph …
+- [D9] Numbers-only record segment (the 5.1 shape), or reserving the pie for ctx alone to avoid …
+- [D10] The ↺ rewarm glyph from D8
+- [D11] The D8 progress-pie ctx gauge with a dim healthy band, and the uniform bold model segment…
+
+Next ids: D17 (decision), M1 (memory)
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:hook (6028 bytes) ==
+# Sofar status: felt-cost
+
+Goal: Make harness cost felt at the moment it is incurred — cold-resume advisory, statusline rent-meter with cache-read health bands, batch-complete end-session nudge (behind SPEC) — and pin the injection's byte-stability against regression. Governed by the zero-model-API-calls invariant: no play may add a model call, API key, or inference cost to sofar.
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+  if SPEC must change.
+- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
+  Both run at the workspace root; typecheck: `npm run typecheck`.
+- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
+  (source-shipped, no build); packages/engine → sofar bin
+  (packages/engine/dist/cli.js after build).
+- Definition of done per task: acceptance criteria in docs/SPEC.md
+  §Acceptance.
+- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
+  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
+  live OUTSIDE this repo in the user's strategy vault. Engine sessions
+  never need them; 5.3 scoring is performed by the user against that
+  scorecard. Do not go looking for them; do not block on them.
+- Push policy: push origin main at each verified wrap-up (user-established
+  Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Committing the record needs a BARE
+…truncated — read .sofar/repo.md for the rest
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (12/12 tasks)
+
+Progress: 12/12 tasks done (100%) across 5 phase(s)
+Active phase: (none)
+Next action: None — initiative complete. Other repos: one-time `sofar init` re-run each for the UserPromptSubmit shim (doctor flags them); statusLine can live once in ~/.claude/settings.json. Next engine work starts a new initiative (sofar new).
+⚠ next action may be stale: 8 events since write-back (1 task change, 1 phase change, 6 decisions)
+
+Last session (claude-code, ended 2026-07-12T13:17:26.558Z):
+  felt-cost CLOSED: 0.8.1 confirmed on registry + global, doctor clean, 12/12 tasks across 5 phases, D1-D10. Binding removed (main unbound, close precedent).
+
+⚠ 1 other session(s) did work without writing back: 46131e4b-130b-4919-b64d-e619205d2a2c
+
+Recent decisions (last 5 of 16; full text in decisions.md):
+- [D12] 2026-08-05 Statusline drops the two decorative glyphs — ▸ dir and ⎇ branch (D12, user request): dir and branch become independent … — over Keeping the D8 glyph pair, collapsing to dir:branch in styled mode (matches plain but rea…
+- [D13] 2026-08-05 Statusline D13, four changes (user request): (a) the task gauge becomes a fixed five-cell ▰▱ track via a new kernel bar… — over Keeping the pie and accepting the jitter; switching to the ▁▂▃▄▅▆▇█ block ramp (one cell,…
+- [D14] 2026-08-05 D13 revised, after the ▰▱ bar was tried and rejected as too wide: keep the pie and narrow its ramp to ○◔◕●, dropping ◑ … — over The five-cell ▰▱ bar (spent 5 columns where the pie spent 1 — user rejected on size), the…
+- [D15] 2026-08-05 D14, three parts (user request): (a) `sofar statusline --install` — a one-command project-level installer that merges O… — over Telling users to hand-edit settings.json (the status quo — not shippable to anyone else);…
+- [D16] 2026-08-05 D15: (a) `sofar statusline --uninstall` — the inverse of --install, deleting the statusLine key so the host tool's own … — over Leaving revert to `sofar uninit` (repo-scoped only, so it can never reach the personal se…
+Earlier rejected approaches — do NOT re-propose (11 older):
+- [D1] Building cache-anchoring as new work, or adopting report Tier-2 (model-tiered/batch bookk…
+- [D2] Treating the recorded rejection as blocking, or ignoring it as out-of-scope
+- [D3] Adopting model-tiered or Batch-API bookkeeping, or leaving the property implicit as an ac…
+- [D4] Auto-installing the statusLine in sofar init (clobbers user config — README documents the…
+- [D5] Nudging via the Stop hook only (too late — the forced block costs an extra cold turn, $0.…
+- [D6] A wrapper script composing sofar's output with hand-rolled default segments (pushes maint…
+- [D7] TTY-detected caps (piped output would always strip styles — the one wrong answer for a st…
+- [D8] Emoji icons (📁 🌿 ♻ 🧠 — render as color pictographs, off-register with the CLI's glyph …
+- [D9] Numbers-only record segment (the 5.1 shape), or reserving the pie for ctx alone to avoid …
+- [D10] The ↺ rewarm glyph from D8
+- [D11] The D8 progress-pie ctx gauge with a dim healthy band, and the uniform bold model segment…
+
+Next ids: D17 (decision), M1 (memory)
+
+Adjacent records — 8 decisions across 2 other initiatives that have worked this one's files, densest first:
+- alpha — 3 shared files, 7 decisions
+- beta — 1 shared file, 1 decision
+Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: felt-cost-session — when calling sofar_start_session, pass this as session_id.
+Git: felt-cost @ a1b2c3d — no origin ref — never pushed
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:lane (4124 bytes) ==
+# Sofar: quick-work lane (felt-cost)
+
+Goal: Make harness cost felt at the moment it is incurred — cold-resume advisory, statusline rent-meter with cache-read health bands, batch-complete end-session nudge (behind SPEC) — and pin the injection's byte-stability against regression. Governed by the zero-model-API-calls invariant: no play may add a model call, API key, or inference cost to sofar.
+
+This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
+- Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
+- Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
+
+Last session (claude-code, ended 2026-07-12T13:17:26.558Z):
+  felt-cost CLOSED: 0.8.1 confirmed on registry + global, doctor clean, 12/12 tasks across 5 phases, D1-D10. Binding removed (main unbound, close precedent).
+
+Recent quick work (8 sessions, 16 decisions since 2026-07-12):
+- 2026-07-12 claude-code — task changes: 5.3 → done
+- 2026-07-12 claude-code — 1 command
+- 2026-07-12 claude-code — task changes: 1.1 → active, 1.1 → done, 1.2 → active, 1.2 → done, 2.1 → active, 2.1 → done, 2.2 → done, 3.1 → active, 3.1 → done, 3.2 → active, 3.2 → done, 3.3 → done, 4.1 → done, 4.2 → active, 4.2 → done
+
+Recent decisions (last 5 of 16; full text in decisions.md):
+- [D12] 2026-08-05 Statusline drops the two decorative glyphs — ▸ dir and ⎇ branch (D12, user request): dir and branch become independent … — over Keeping the D8 glyph pair, collapsing to dir:branch in styled mode (matches plain but rea…
+- [D13] 2026-08-05 Statusline D13, four changes (user request): (a) the task gauge becomes a fixed five-cell ▰▱ track via a new kernel bar… — over Keeping the pie and accepting the jitter; switching to the ▁▂▃▄▅▆▇█ block ramp (one cell,…
+- [D14] 2026-08-05 D13 revised, after the ▰▱ bar was tried and rejected as too wide: keep the pie and narrow its ramp to ○◔◕●, dropping ◑ … — over The five-cell ▰▱ bar (spent 5 columns where the pie spent 1 — user rejected on size), the…
+- [D15] 2026-08-05 D14, three parts (user request): (a) `sofar statusline --install` — a one-command project-level installer that merges O… — over Telling users to hand-edit settings.json (the status quo — not shippable to anyone else);…
+- [D16] 2026-08-05 D15: (a) `sofar statusline --uninstall` — the inverse of --install, deleting the statusLine key so the host tool's own … — over Leaving revert to `sofar uninit` (repo-scoped only, so it can never reach the personal se…
+Earlier rejected approaches — do NOT re-propose (11 older):
+- [D1] Building cache-anchoring as new work, or adopting report Tier-2 (model-tiered/batch bookk…
+- [D2] Treating the recorded rejection as blocking, or ignoring it as out-of-scope
+- [D3] Adopting model-tiered or Batch-API bookkeeping, or leaving the property implicit as an ac…
+- [D4] Auto-installing the statusLine in sofar init (clobbers user config — README documents the…
+- [D5] Nudging via the Stop hook only (too late — the forced block costs an extra cold turn, $0.…
+- [D6] A wrapper script composing sofar's output with hand-rolled default segments (pushes maint…
+- [D7] TTY-detected caps (piped output would always strip styles — the one wrong answer for a st…
+- [D8] Emoji icons (📁 🌿 ♻ 🧠 — render as color pictographs, off-register with the CLI's glyph …
+- [D9] Numbers-only record segment (the 5.1 shape), or reserving the pie for ctx alone to avoid …
+- [D10] The ↺ rewarm glyph from D8
+- [D11] The D8 progress-pie ctx gauge with a dim healthy band, and the uniform bold model segment…
+
+Next ids: D17 (decision), M1 (memory)
+
+Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Git: felt-cost @ a1b2c3d — no origin ref — never pushed
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:quiet (4008 bytes) ==
+# Sofar status: felt-cost
+
+Goal: Make harness cost felt at the moment it is incurred — cold-resume advisory, statusline rent-meter with cache-read health bands, batch-complete end-session nudge (behind SPEC) — and pin the injection's byte-stability against regression. Governed by the zero-model-API-calls invariant: no play may add a model call, API key, or inference cost to sofar.
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (12/12 tasks)
+
+Progress: 12/12 tasks done (100%) across 5 phase(s)
+Active phase: (none)
+Next action: None — initiative complete. Other repos: one-time `sofar init` re-run each for the UserPromptSubmit shim (doctor flags them); statusLine can live once in ~/.claude/settings.json. Next engine work starts a new initiative (sofar new).
+⚠ next action may be stale: 8 events since write-back (1 task change, 1 phase change, 6 decisions)
+
+Last session (claude-code, ended 2026-07-12T13:17:26.558Z):
+  felt-cost CLOSED: 0.8.1 confirmed on registry + global, doctor clean, 12/12 tasks across 5 phases, D1-D10. Binding removed (main unbound, close precedent).
+
+⚠ 1 other session(s) did work without writing back: 46131e4b-130b-4919-b64d-e619205d2a2c
+
+Recent decisions (last 5 of 16; full text in decisions.md):
+- [D12] 2026-08-05 Statusline drops the two decorative glyphs — ▸ dir and ⎇ branch (D12, user request): dir and branch become independent … — over Keeping the D8 glyph pair, collapsing to dir:branch in styled mode (matches plain but rea…
+- [D13] 2026-08-05 Statusline D13, four changes (user request): (a) the task gauge becomes a fixed five-cell ▰▱ track via a new kernel bar… — over Keeping the pie and accepting the jitter; switching to the ▁▂▃▄▅▆▇█ block ramp (one cell,…
+- [D14] 2026-08-05 D13 revised, after the ▰▱ bar was tried and rejected as too wide: keep the pie and narrow its ramp to ○◔◕●, dropping ◑ … — over The five-cell ▰▱ bar (spent 5 columns where the pie spent 1 — user rejected on size), the…
+- [D15] 2026-08-05 D14, three parts (user request): (a) `sofar statusline --install` — a one-command project-level installer that merges O… — over Telling users to hand-edit settings.json (the status quo — not shippable to anyone else);…
+- [D16] 2026-08-05 D15: (a) `sofar statusline --uninstall` — the inverse of --install, deleting the statusLine key so the host tool's own … — over Leaving revert to `sofar uninit` (repo-scoped only, so it can never reach the personal se…
+Earlier rejected approaches — do NOT re-propose (11 older):
+- [D1] Building cache-anchoring as new work, or adopting report Tier-2 (model-tiered/batch bookk…
+- [D2] Treating the recorded rejection as blocking, or ignoring it as out-of-scope
+- [D3] Adopting model-tiered or Batch-API bookkeeping, or leaving the property implicit as an ac…
+- [D4] Auto-installing the statusLine in sofar init (clobbers user config — README documents the…
+- [D5] Nudging via the Stop hook only (too late — the forced block costs an extra cold turn, $0.…
+- [D6] A wrapper script composing sofar's output with hand-rolled default segments (pushes maint…
+- [D7] TTY-detected caps (piped output would always strip styles — the one wrong answer for a st…
+- [D8] Emoji icons (📁 🌿 ♻ 🧠 — render as color pictographs, off-register with the CLI's glyph …
+- [D9] Numbers-only record segment (the 5.1 shape), or reserving the pie for ctx alone to avoid …
+- [D10] The ↺ rewarm glyph from D8
+- [D11] The D8 progress-pie ctx gauge with a dim healthy band, and the uniform bold model segment…
+
+Next ids: D17 (decision), M1 (memory)
+
+Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:cap (10133 bytes) ==
+# Sofar status: felt-cost
+
+Goal: Make harness cost felt at the moment it is incurred — cold-resume advisory, statusline rent-meter with cache-read health bands, batch-complete end-session nudge (behind SPEC) — and pin the injection's byte-stability against regression. Governed by the zero-model-API-calls invariant: no play may add a model call, API key, or inference cost to sofar.
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+  if SPEC must change.
+- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
+  Both run at the workspace root; typecheck: `npm run typecheck`.
+- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
+  (source-shipped, no build); packages/engine → sofar bin
+  (packages/engine/dist/cli.js after build).
+- Definition of done per task: acceptance criteria in docs/SPEC.md
+  §Acceptance.
+- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
+  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
+  live OUTSIDE this repo in the user's strategy vault. Engine sessions
+  never need them; 5.3 scoring is performed by the user against that
+  scorecard. Do not go looking for them; do not block on them.
+- Push policy: push origin main at each verified wrap-up (user-established
+  Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Committing the record needs a BARE
+…truncated — read .sofar/repo.md for the rest
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (12/12 tasks)
+
+Progress: 12/12 tasks done (100%) across 5 phase(s)
+Active phase: (none)
+Next action: None — initiative complete. Other repos: one-time `sofar init` re-run each for the UserPromptSubmit shim (doctor flags them); statusLine can live once in ~/.claude/settings.json. Next engine work starts a new initiative (sofar new).
+⚠ next action may be stale: 8 events since write-back (1 task change, 1 phase change, 6 decisions)
+
+Last session (claude-code, ended 2026-07-12T13:17:26.558Z):
+  felt-cost CLOSED: 0.8.1 confirmed on registry + global, doctor clean, 12/12 tasks across 5 phases, D1-D10. Binding removed (main unbound, close precedent).
+
+⚠ 1 other session(s) did work without writing back: 46131e4b-130b-4919-b64d-e619205d2a2c
+
+Recent decisions (last 5 of 16; full text in decisions.md):
+- [D12] 2026-08-05 Statusline drops the two decorative glyphs — ▸ dir and ⎇ branch (D12, user request): dir and branch become independent … — over Keeping the D8 glyph pair, collapsing to dir:branch in styled mode (matches plain but rea…
+- [D13] 2026-08-05 Statusline D13, four changes (user request): (a) the task gauge becomes a fixed five-cell ▰▱ track via a new kernel bar… — over Keeping the pie and accepting the jitter; switching to the ▁▂▃▄▅▆▇█ block ramp (one cell,…
+- [D14] 2026-08-05 D13 revised, after the ▰▱ bar was tried and rejected as too wide: keep the pie and narrow its ramp to ○◔◕●, dropping ◑ … — over The five-cell ▰▱ bar (spent 5 columns where the pie spent 1 — user rejected on size), the…
+- [D15] 2026-08-05 D14, three parts (user request): (a) `sofar statusline --install` — a one-command project-level installer that merges O… — over Telling users to hand-edit settings.json (the status quo — not shippable to anyone else);…
+- [D16] 2026-08-05 D15: (a) `sofar statusline --uninstall` — the inverse of --install, deleting the statusLine key so the host tool's own … — over Leaving revert to `sofar uninit` (repo-scoped only, so it can never reach the personal se…
+Earlier rejected approaches — do NOT re-propose (11 older):
+- …and 11 more (see decisions.md)
+
+Next ids: D17 (decision), M1 (memory)
+
+Adjacent records — 8 decisions across 2 other initiatives that have worked this one's files, densest first:
+- alpha — 3 shared files, 7 decisions
+- beta — 1 shared file, 1 decision
+Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: felt-cost-session — when calling sofar_start_session, pass this as session_id.
+Git: felt-cost @ a1b2c3d — no origin ref — never pushed
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+…truncated — run sofar status for full detail
+
+== plan (2145 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Plan: felt-cost
+
+Goal: Make harness cost felt at the moment it is incurred — cold-resume advisory, statusline rent-meter with cache-read health bands, batch-complete end-session nudge (behind SPEC) — and pin the injection's byte-stability against regression. Governed by the zero-model-API-calls invariant: no play may add a model call, API key, or inference cost to sofar.
+
+Progress: 12/12 tasks done (100%)
+
+## Phase 1 — Invariants & pinning [done] — 2/2 done
+
+- [x] 1.1 Name the zero-model-API-calls invariant in docs/SPEC.md and CLAUDE.md guard-rails
+- [x] 1.2 Byte-stability regression test: identical fold state → byte-identical renderStatus across wall-clock change
+
+## Phase 2 — Cold-resume advisory [done] — 2/2 done
+
+- [x] 2.1 SessionStart source=resume detection: last-event age + transcript size estimate (read-side, best-effort)
+- [x] 2.2 Advisory line in injected block + tests (never blocks, never errors)
+
+## Phase 3 — Rent-meter [done] — 3/3 done
+
+- [x] 3.1 SPEC-lite: statusline integration design (stdin cost/cache fields + sofar record state)
+- [x] 3.2 Implement statusline surface with cache-read % health bands (50–80% healthy, <30% warn)
+- [x] 3.3 Tests + README/docs for statusline setup
+
+## Phase 4 — Batch-complete nudge [done] — 2/2 done
+
+- [x] 4.1 SPEC decision: UserPromptSubmit shim + additionalContext contract
+- [x] 4.2 Implement nudge behind the SPEC + tests
+
+## Phase 5 — Polish round (user feedback on 0.8.0) [done] — 3/3 done
+
+- [x] 5.1 Statusline harness-identity segments: restore model · dir:branch (custom statusLine replaces Claude Code's default)
+- [x] 5.2 Styled statusline: forced caps (D7), glyphs not emoji (D8), task-progress pie (D9), text cache label (D10); --no-color plain fallback
+- [x] 5.3 Release 0.8.1 + rollout (publish, upgrade)
+
+Next action: None — initiative complete. Other repos: one-time `sofar init` re-run each for the UserPromptSubmit shim (doctor flags them); statusLine can live once in ~/.claude/settings.json. Next engine work starts a new initiative (sofar new).
+
+== decisions (17232 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Decisions: felt-cost
+
+- 2026-07-12T12:13:31.569Z — chose **Cycle scope = the memo's three vetted plays (cold-resume advisory, rent-meter with cache-read health bands, batch-complete nudge behind SPEC) plus a byte-stability regression test as the residue of the report's cache-anchoring play 1a** over Building cache-anchoring as new work, or adopting report Tier-2 (model-tiered/batch bookkeeping, delta injection) because The 1a property already exists (renderStatus embeds no volatile bytes) — pin it against silent regression rather than build what's already true. Report Stage-1 hardening confirmed already shipped (independent confirmation the engine was built right, not wasted research). User-approved Jul 12.
+- 2026-07-12T12:13:40.584Z — chose **Any future cache-cost play must cite token-optimization's rejected approach "leading with prompt caching (doesn't reduce occupancy)" as an informed re-test — legitimate because the scope differs (dollar cost vs token occupancy)** over Treating the recorded rejection as blocking, or ignoring it as out-of-scope because The M4 convention is the M4 convention: informed re-tests that cite the recorded decision are legitimate; silent re-proposal is not. The record governing its own evolution is the product working on itself. User ruling Jul 12.
+- 2026-07-12T12:13:48.974Z — chose **"sofar makes zero model API calls" promoted to a named architectural invariant (docs/SPEC.md + CLAUDE.md guard-rails); report Tier-2 (Haiku/Batch bookkeeping, 2a/2b) deferred entirely** over Adopting model-tiered or Batch-API bookkeeping, or leaving the property implicit as an accident of implementation because No API keys, no inference costs, no user content sent anywhere; write-backs are already minimal by construction because they are the agent's own tool-call args (report 2c true by construction). Trading that for the measured ~$3.87/2-day upside would be a terrible exchange. User ruling Jul 12.
+- 2026-07-12T12:25:52.765Z — chose **sofar statusline (3.1 SPEC-lite): a read-side CLI subcommand for Claude Code's statusLine slot — reads statusline JSON from stdin, prints ONE plain line "slug done/total · $cost · cache N%[⚠|✓] · ctx N%", omits any segment it cannot compute, appends nothing to the record, always exits 0. Health marker judged only after 10k tokens: &lt;30% warm ⚠ (prefix nondeterminism), ≥50% ✓. Root resolution: --root/cwd, falling back to the JSON's workspace.current_dir then cwd** over Auto-installing the statusLine in sofar init (clobbers user config — README documents the one-liner instead), ui-kernel/ANSI styling (statusline is a contract-byte surface, keep plain), or serving cost via the localhost state server (statusline stdin already carries cost + cache tokens at zero API cost) because The rent-meter must satisfy the zero-model-API invariant: pure stdin→stdout derivation, no keys, no calls. A statusline must never break or mutate — hooks' best-effort philosophy (BD22) applies verbatim. Bands from the Jul-12 research: healthy stable-prefix workloads run 50–80% cache-read; below 30% signals prefix non-determinism — itself a sofar self-diagnostic.
+- 2026-07-12T12:31:55.769Z — chose **Batch-complete nudge (4.1 SPEC): a fifth shim, user-prompt-submit.sh → `sofar event user-prompt` (UserPromptSubmit). When the session is registered AND initiative drift since the last write-back ≥5 mechanical events, emit ONE line of additionalContext nudging sofar_end_session while context is warm; else silence. Stateless and re-fires each prompt until write-back (staleness-line precedent). Mid-session repeat write-backs are blessed: fold is already last-wins (ended/summary/next_action overwritten, freshness resets, Stop passes once any session_ended exists)** over Nudging via the Stop hook only (too late — the forced block costs an extra cold turn, $0.65/block measured), a stateful once-per-batch memory (violates read-side derivation), or nudging unregistered sessions (noise in unbound/foreign repos) because UserPromptSubmit stdout at exit 0 becomes additionalContext that lands AFTER the cached prefix (cache-safe, per the Jul-12 research); write-backs that happen in-flow while context is warm make the Stop gate a fallback instead of a tax. Best-effort per BD22: any failure is silence, never a blocked prompt.
+- 2026-07-12T12:56:26.725Z — chose **Restore the default-statusline information INSIDE sofar statusline (D4 amendment): prepend model display name and dir:branch segments — model.display_name from stdin JSON; dir = basename of workspace.current_dir (cwd fallback); branch read from .git/HEAD by bounded upward walk (gitdir-file/worktree aware), no subprocess. Order: model · dir:branch · record · $ · cache · ctx; same independence + omission rules** over A wrapper script composing sofar's output with hand-rolled default segments (pushes maintenance onto every user), or documenting the loss as intended (the rent-meter should never cost the user the line they had) because Claude Code renders exactly one statusLine command — configuring sofar's replaced the default line and its model/dir/branch info (user report, Jul 12). All three segments derive from the same stdin JSON plus one local file read: zero API cost, zero subprocess, best-effort like every other segment.
+- 2026-07-12T13:01:04.092Z — chose **Styled statusline (D7): the statusline is a HUMAN surface whose consumer (Claude Code's status bar) renders ANSI + emoji even though stdout is piped — so the command wiring FORCES styled caps (bold model, 📁 dir 🌿 branch, accent slug, band-colored cache, threshold-colored ctx ≥70% warn / ≥90% error, dim separators) instead of TTY detection; --no-color or NO_COLOR env falls back to the plain line, byte-identical to 0.8.0. Icons gate on the unicode cap, colors on the color cap; runStatusline's library default stays plain** over TTY-detected caps (piped output would always strip styles — the one wrong answer for a status bar), emoji-free ANSI only (user asked for icons), or a separate styled variant command because User feedback on 0.8.0: the line renders as bare basics. The plain-surface guard protects AGENT surfaces; sofar status/list/doctor already style human surfaces via the ui kernel — the statusline belongs with them, and the kernel costs zero new dependencies (cli-ui D1/D2).
+- 2026-07-12T13:04:57.102Z — chose **Statusline icons are text GLYPHS from the house vocabulary, not emoji (D7 amendment, user feedback): ▸ dir, ⎇ branch, ↺ cache, and the kernel's honest progress pie (○◔◑◕●) as the context gauge; ✓/⚠ markers unchanged** over Emoji icons (📁 🌿 ♻ 🧠 — render as color pictographs, off-register with the CLI's glyph language), or nerd-font glyphs (require patched fonts) because The sofar CLI already speaks a cp437-fallback-safe glyph vocabulary (cli-ui 1.3) — the statusline should be the same product, same register; the pie is literally built for fill-gauges and ctx% is a fill.
+- 2026-07-12T13:10:27.719Z — chose **Task-progress pie on the statusline record segment (D9, user feedback): `<pie> <slug> <done>/<total>` with the next.ts coloring convention — success when complete, warn in progress, dim untouched; glyph mode only (plain line stays byte-compatible). Ships in the still-unpublished 0.8.1** over Numbers-only record segment (the 5.1 shape), or reserving the pie for ctx alone to avoid two pies per line because pieFor exists precisely to quantize done/total (cli-ui 4.2) and sofar next already leads entries with it — the statusline should read as the same product; position + adjacent text (slug d/t vs %) disambiguate the two gauges.
+- 2026-07-12T13:13:40.706Z — chose **Cache segment keeps its text label in every mode — `cache N% [✓|⚠]` (D10, user feedback); the ↺ glyph is dropped** over The ↺ rewarm glyph from D8 because The word carries the meaning; ↺ reads as refresh/undo, not cache-hit share. Band marks ✓/⚠ stay — they are state, not decoration.
+- 2026-07-12T13:33:50.474Z — chose **Statusline ctx gauge keeps its text label in every mode — `ctx N%` (D10 word-over-glyph extended to the context segment, user feedback); healthy band (<70%) tones success-green instead of dim; model name toned by family inside the D1 semantic palette: Fable bold accent, Opus accent, Sonnet info, Haiku success, unknown families keep the D6 bold** over The D8 progress-pie ctx gauge with a dim healthy band, and the uniform bold model segment of D6/D7 because Same ruling as D10: the word carries the meaning — the pie next to a bare percent read as decoration, not a gauge. Color-coding the two most-glanced segments (which model, how full) makes them legible without reading; every tone stays ANSI-16 semantic so the terminal theme supplies the palette. Plain (--no-color) line unchanged, still byte-identical to 0.8.0.
+- 2026-08-05T06:01:15.131Z — chose **Statusline drops the two decorative glyphs — ▸ dir and ⎇ branch (D12, user request): dir and branch become independent top-level segments carried by the same dim · as every other segment, branch still success-green. The progress pie (D9) is now the line's sole glyph. Plain (--no-color) line unchanged — still dir:branch, byte-identical to 0.8.0** over Keeping the D8 glyph pair, collapsing to dir:branch in styled mode (matches plain but reads tighter than the rest of the line), or a bare space between dir and branch (relies on color alone to mark the boundary) because Same ruling as D10 and D11, applied to separators instead of labels: the ▸/⎇ glyphs decorated a boundary the dim · already draws, so they cost width without carrying meaning. D8's principle stands — glyphs over emoji — but it only earns its place where the glyph does work, which is now the pie alone.
+- 2026-08-05T06:09:58.671Z — chose **Statusline D13, four changes (user request): (a) the task gauge becomes a fixed five-cell ▰▱ track via a new kernel barFor — filled run toned by state (success complete / warn in progress), unfilled remainder dim; (b) the $cost segment is removed entirely; (c) ctx moves ahead of cache; (d) the constant `ctx` label dims to gray and only the number+% carries the band tone. barFor is statusline-scoped — pieFor and its ○◔◑◕● are untouched and still serve sofar next / list. This retires D7's promise that the plain --no-color line stays byte-identical to 0.8.0: dropping cost and reordering are content changes that apply in both modes** over Keeping the pie and accepting the jitter; switching to the ▁▂▃▄▅▆▇█ block ramp (one cell, 8 steps, but fill height still reads as size change); dropping the gauge entirely and letting 9/10 carry it; and changing pieFor globally so all three surfaces share the new ramp (D9's one-product argument) because The pie's ○◔◑◕● members are East-Asian-Ambiguous width, so terminals resolve them to different advance widths — often a different font for the quarter-filled ones — and every segment after the gauge shifted horizontally as progress moved. A status bar re-renders constantly; a gauge that reflows the line is worse than no gauge. Five cells cost four columns and buy total stability. Cost went because the rent-meter's dollar figure stopped being the thing being watched; ctx moved first because it is the segment that governs when to act. Dimming the invariant label is the same word-over-glyph logic as D10/D11 taken one step further: gray what never changes so the eye lands on what does.
+- 2026-08-05T06:19:56.157Z — chose **D13 revised, after the ▰▱ bar was tried and rejected as too wide: keep the pie and narrow its ramp to ○◔◕●, dropping ◑ (U+25D1) only. pieFor's banding is now derived from sym.pie.length instead of hardcoded 0.375/0.625 thresholds, and interior ties round DOWN (exactly half → ◔). Applies to ALL pie surfaces — statusline, sofar next, sofar list — since they share the ramp. barFor/BAR_CELLS/sym.bar are removed entirely rather than left unused. The other three D13 changes stand: cost segment gone, ctx before cache, dim `ctx` label with the band tone on the number** over The five-cell ▰▱ bar (spent 5 columns where the pie spent 1 — user rejected on size), the ▁▂▃▄▅▆▇█ block ramp and ░▒▓█ shade ramp (both abandon the pie, which the user judged the more meaningful shape here), keeping ◑ and accepting the jitter, and SVG or other image icons (asked about and impossible — the statusline is a string in Claude Code's TUI; inline-image escapes like kitty/sixel would pass through its renderer and break every other terminal, a stronger version of the patched-font objection that already sank Nerd Fonts in D8) because The user's screenshot isolated the real fault: ○ and ● render correctly and only ◑ is wide, which rules out East-Asian-Ambiguous width as the cause (all five members are Ambiguous) and identifies font COVERAGE — ◑ is absent from common coding fonts, so it falls back to a symbol font drawn at a different advance width. That is a one-glyph defect and deserved a one-glyph fix, not a new gauge. Removing it costs one band of resolution, which the adjacent done/total fraction already supplies. Ties round down for the same reason ● is withheld short of 100%: never overstate progress.
+- 2026-08-05T06:42:28.902Z — chose **D14, three parts (user request): (a) `sofar statusline --install` — a one-command project-level installer that merges ONLY the statusLine key into <root>/.claude/settings.json, no hooks and no .sofar/, reusing init's merge law (existing statusLine always wins) and reporting wired/already/kept; (b) the identity segments quote Claude Code's default palette — dir YELLOW, branch BLUE — via a new non-semantic `Style.blue` reserved for exactly this and documented as unusable for state; (c) the model label drops `context` from a parenthesised window size, so "Opus 5 (1M context)" renders "Opus 5 (1M)". Model family tones are unchanged.** over Telling users to hand-edit settings.json (the status quo — not shippable to anyone else); making them run `sofar init --statusline` and accept five hooks plus a .sofar/ they never asked for; keeping the D1 semantic palette on dir/branch (green branch) and accepting that the line looks unlike the one it replaces; and inventing a semantic meaning for blue to keep the law formally intact because The line is read-side and already degrades to model/dir/branch/ctx/cache with no record present, so wanting the line was never the same as wanting the tracking — tying them together was an artifact of --statusline being an init flag, not a design. On color: D6 established that the rent-meter REPLACES Claude's default line and must not cost the user what it replaced, and that argument covers appearance as much as content — a reproduction that recolors its source is not a reproduction. Calling blue a quotation rather than a meaning keeps D1 honest: the law binds color to meaning, and the one member that carries no meaning is marked as such instead of being given a fake one. Dropping `context` is the same word-over-glyph economy as D10/D11 — on a line that already reports ctx fill, the noun is the one part nobody has to read.
+- 2026-08-05T07:34:34.082Z — chose **D15: (a) `sofar statusline --uninstall` — the inverse of --install, deleting the statusLine key so the host tool's own line returns, reporting removed/absent/foreign; (b) `--user` on both verbs, retargeting ~/.claude/settings.json (every project) instead of the repo's; (c) init's statusline hint is suppressed when the personal ~/.claude/settings.json already wires sofar's line. The theirs-wins law now runs in BOTH directions: --uninstall deletes only a byte-for-byte match of sofar's own entry, so it can only undo what sofar did. The settings file survives a removal that empties it to {}. --install with --uninstall is an error, not a precedence rule.** over Leaving revert to `sofar uninit` (repo-scoped only, so it can never reach the personal settings file, and far too heavy when the user installed nothing but a status line); documenting the hand-edit in the README instead of shipping a command; a --force that removes a foreign statusLine; deleting the settings file when the removal empties it; and letting the hint keep firing on the grounds that it only claims to describe project settings because D14 shipped a way to wire the line and no way to unwire it, which is not a neutral omission: it means the only documented exit is hand-editing JSON, and at the --user scope uninit cannot help at all. Symmetry is the fix. The hint change is a correctness bug caught by dogfooding — after wiring the personal settings, every fresh `sofar init` announced "statusline not wired" while sofar's line was visibly rendering, telling the user to fix something that was not broken. Making the probe injectable also closed a real non-hermeticity in the test suite: three init tests had been passing only because no developer had yet wired the line personally, and they failed the moment one did.
+
+== session 01KXB3XSRNCBR9WCPVENZVMTS8.md (1359 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KXB3XSRNCBR9WCPVENZVMTS8
+
+- Initiative: felt-cost
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-12T12:13:10.805Z
+- Ended: 2026-07-12T12:37:20.400Z
+
+## Summary
+
+felt-cost shipped complete (9/9): invariants named in SPEC+guard-rails, byte-stability pin (mutation-checked), cold-resume advisory, statusline rent-meter (E2E: felt-cost 5/9 · $2.50 · cache 75% ✓), UserPromptSubmit nudge (E2E at 98 drift). 647/647 green. 5 decisions logged (D1-D5).
+
+## Next action
+
+Review + merge felt-cost into main; publish + sofar upgrade, THEN re-run sofar init (new shim needs `event user-prompt` in the installed binary) and wire the statusline one-liner from README.
+
+## Activity (derived from mechanical events)
+
+- Derived: task changes: 1.1 → active, 1.1 → done, 1.2 → active, 1.2 → done, 2.1 → active, 2.1 → done, 2.2 → done, 3.1 → active, 3.1 → done, 3.2 → active, 3.2 → done, 3.3 → done, 4.1 → done, 4.2 → active, 4.2 → done
+- Commands run: 0
+- Task changes:
+  - 1.1 → active
+  - 1.1 → done
+  - 1.2 → active
+  - 1.2 → done
+  - 2.1 → active
+  - 2.1 → done
+  - 2.2 → done
+  - 3.1 → active
+  - 3.1 → done
+  - 3.2 → active
+  - 3.2 → done
+  - 3.3 → done
+  - 4.1 → done
+  - 4.2 → active
+  - 4.2 → done
+
+== session 01KXB5MDPF1FCYAYAT4JK8EG1C.md (781 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KXB5MDPF1FCYAYAT4JK8EG1C
+
+- Initiative: felt-cost
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-12T12:43:00.687Z
+- Ended: 2026-07-12T12:47:52.444Z
+
+## Summary
+
+Release staged: felt-cost ff-merged to main, lockstep bump 0.7.0→0.8.0, 647/647 green at 0.8.0, pushed. npm publish blocked pending user approval (public-registry action). Branch deleted, binding cleaned, doctor's only 2 problems are the expected not-yet-installed UserPromptSubmit shim.
+
+## Next action
+
+User: npm publish -w @alignlabs/sofar (OTP). Then: sofar upgrade → sofar init (installs UserPromptSubmit shim) → add statusLine {"type":"command","command":"sofar statusline"} to .claude/settings.json.
+
+== session 01KXB65N145D11H8P5H5AQB3HW.md (947 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KXB65N145D11H8P5H5AQB3HW
+
+- Initiative: felt-cost
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-12T12:52:25.252Z
+- Ended: 2026-07-12T13:07:30.233Z
+
+## Summary
+
+Polish round on user feedback: statusline gained harness-identity segments (model · ▸ dir ⎇ branch — custom statusLine replaces Claude Code's default, D6), styled-by-default glyph output (forced caps D7, glyphs-not-emoji D8, banded colors, --no-color plain fallback byte-compatible with 0.8.0). 654/654 green, released 0.8.1, pushed e81a101. Publish pending user (OTP).
+
+## Next action
+
+User: npm publish -w @alignlabs/sofar (OTP), then sofar upgrade. Statusline restarts with the session. Other repos: one-time `sofar init` re-run each to get the UserPromptSubmit shim (doctor flags which); statusLine can go in ~/.claude/settings.json once globally instead of per-repo.
+
+== session 01KXB75VF497PWQSFTH3CHJSNN.md (761 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KXB75VF497PWQSFTH3CHJSNN
+
+- Initiative: felt-cost
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-12T13:10:00.420Z
+- Ended: 2026-07-12T13:11:44.698Z
+
+## Summary
+
+D9 (user feedback): record segment gains the task-progress pie — pieFor(done,total) with next.ts coloring (success done / warn in-progress / dim untouched), glyph mode only, plain fallback unchanged. 655/655 green, folded into unpublished 0.8.1, pushed.
+
+## Next action
+
+User: npm publish -w @alignlabs/sofar (OTP), then sofar upgrade; restart session for the statusline. Other repos: one-time sofar init re-run each (doctor flags them); statusLine can live once in ~/.claude/settings.json.
+
+== session 84f1d2c6-a4ab-4261-8da0-86f4948a5572.md (362 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 84f1d2c6-a4ab-4261-8da0-86f4948a5572
+
+- Initiative: felt-cost
+- Tool: claude-code
+- Started: 2026-07-12T13:10:30.508Z
+- Ended: 2026-07-12T13:10:36.170Z (closed: prompt_input_exit)
+
+## Summary
+
+(none recorded — session did not write back)
+
+## Next action
+
+(none recorded)
+
+== session 01KXB7BR5RWRZM94NAXSGHWJ2Q.md (694 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KXB7BR5RWRZM94NAXSGHWJ2Q
+
+- Initiative: felt-cost
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-12T13:13:13.656Z
+- Ended: 2026-07-12T13:14:24.473Z
+
+## Summary
+
+D10 (user feedback): cache segment uses its text label in every mode — ↺ glyph dropped, ✓/⚠ band marks kept. 655/655 green, E2E verified, folded into unpublished 0.8.1, all commits pushed to origin/main.
+
+## Next action
+
+User: npm publish -w @alignlabs/sofar (OTP), then sofar upgrade + session restart. Other repos: one-time sofar init re-run (doctor flags them); statusLine can live once in ~/.claude/settings.json.
+
+== session 46131e4b-130b-4919-b64d-e619205d2a2c.md (544 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 46131e4b-130b-4919-b64d-e619205d2a2c
+
+- Initiative: felt-cost
+- Tool: claude-code
+- Started: 2026-07-12T13:16:11.906Z
+- Ended: 2026-07-12T13:23:02.612Z (closed: hook-registered under felt-cost before main was rebound; session adopted by sync-client)
+
+## Summary
+
+(none recorded — ended without write-back; derived resume point below)
+
+## Next action
+
+(none recorded)
+
+## Activity (derived from mechanical events)
+
+- Derived: 1 command
+- Commands run: 1
+
+== session 01KXB7HZR7GW1Q076T5AW7JT5A.md (812 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KXB7HZR7GW1Q076T5AW7JT5A
+
+- Initiative: felt-cost
+- Tool: claude-code
+- Model: claude-fable-5
+- Started: 2026-07-12T13:16:38.023Z
+- Ended: 2026-07-12T13:17:26.558Z
+
+## Summary
+
+felt-cost CLOSED: 0.8.1 confirmed on registry + global, doctor clean, 12/12 tasks across 5 phases, D1-D10. Binding removed (main unbound, close precedent).
+
+## Next action
+
+None — initiative complete. Other repos: one-time `sofar init` re-run each for the UserPromptSubmit shim (doctor flags them); statusLine can live once in ~/.claude/settings.json. Next engine work starts a new initiative (sofar new).
+
+## Activity (derived from mechanical events)
+
+- Derived: task changes: 5.3 → done
+- Commands run: 0
+- Task changes:
+  - 5.3 → done
+

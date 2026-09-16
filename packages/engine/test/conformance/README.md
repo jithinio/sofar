@@ -32,6 +32,11 @@ SOFAR_CONFORMANCE_KEEP=1 …                                # keep scratch roots
 - `perf/` — the hot-path perf baseline (rust-core 1.3): the same
   implementation runner timed at scale, TypeScript numbers recorded as the
   target (README there).
+- `fold-parity/` — the shared incremental-fold cases (r1-fixes D22), driven
+  black-box through `<bin> fold`.
+- `render-parity/` — the projection templates and both status renders on
+  every fixture initiative (rust-core 2.4), one golden per initiative with the
+  digest options embedded; in-process on each side (README there).
 
 ## What a golden holds
 

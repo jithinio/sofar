@@ -3,7 +3,10 @@
 //! subcommands and the statusline, each with an optional `--root <dir>`
 //! (either token form), plus the hidden `fold` conformance shape (rust-core
 //! D15: the fold-parity suite drives `<bin> fold …` black-box, so the binary
-//! must own it; its options are parsed by [`crate::fold_cli`]). Anything
+//! must own it; its options are parsed by [`crate::fold_cli`]) and plain
+//! `status [slug]` (rust-core D14: the core owns the uncapped agent-readable
+//! bytes; a styled TTY render is still the TypeScript CLI's, decided by the
+//! colour ladder at run time, not here). Anything
 //! else is "not ours" and the dispatcher hands it to the TypeScript CLI
 //! unchanged, so the command surface and every error message stay where they
 //! are (speed-2 T1: the fast path is an optimisation, never a second
@@ -76,6 +79,13 @@ pub enum Owned {
     Fold {
         args: Vec<OsString>,
     },
+    /// `status [slug] [--root D] [--no-color] [--color]` (D14). `--watch`, a
+    /// second positional or any other option is commander's.
+    Status {
+        slug: Option<String>,
+        root: Option<PathBuf>,
+        color: Color,
+    },
 }
 
 /// Argv as a shape: owned here, or handed to the full TypeScript CLI.
@@ -134,6 +144,28 @@ where
             Dispatch::Owned(Owned::Statusline { root, color })
         }
         Some("fold") => Dispatch::Owned(Owned::Fold { args: rest }),
+        Some("status") => {
+            let Some((root, extra)) = parse_root(rest) else {
+                return Dispatch::NotOurs;
+            };
+            let mut slug: Option<String> = None;
+            let mut color = Color::Auto;
+            for arg in &extra {
+                match arg.to_str() {
+                    Some("--no-color") => color = Color::Off,
+                    Some("--color") => {
+                        if color == Color::Auto {
+                            color = Color::Forced;
+                        }
+                    }
+                    Some(text) if !text.starts_with('-') && slug.is_none() => {
+                        slug = Some(text.to_owned());
+                    }
+                    _ => return Dispatch::NotOurs,
+                }
+            }
+            Dispatch::Owned(Owned::Status { slug, root, color })
+        }
         _ => Dispatch::NotOurs,
     }
 }
@@ -218,7 +250,10 @@ mod tests {
         assert_eq!(d(&["event", "stop", "--root="]), Dispatch::NotOurs);
         assert_eq!(d(&["event", "stop", "extra"]), Dispatch::NotOurs);
         assert_eq!(d(&["event", "stop", "--help"]), Dispatch::NotOurs);
-        assert_eq!(d(&["status"]), Dispatch::NotOurs);
+        assert_eq!(d(&["status", "--watch"]), Dispatch::NotOurs);
+        assert_eq!(d(&["status", "a", "b"]), Dispatch::NotOurs);
+        assert_eq!(d(&["status", "--root"]), Dispatch::NotOurs);
+        assert_eq!(d(&["status", "-x"]), Dispatch::NotOurs);
         assert_eq!(d(&["--version"]), Dispatch::NotOurs);
         assert_eq!(d(&["statusline", "--json"]), Dispatch::NotOurs);
     }
@@ -237,6 +272,43 @@ mod tests {
             })
         );
         assert_eq!(d(&["fold"]), Dispatch::Owned(Owned::Fold { args: vec![] }));
+    }
+
+    #[test]
+    fn status_is_owned_with_slug_root_and_colour_flags() {
+        assert_eq!(
+            d(&["status"]),
+            Dispatch::Owned(Owned::Status {
+                slug: None,
+                root: None,
+                color: Color::Auto
+            })
+        );
+        assert_eq!(
+            d(&["status", "--no-color", "rust-core"]),
+            Dispatch::Owned(Owned::Status {
+                slug: Some("rust-core".into()),
+                root: None,
+                color: Color::Off
+            })
+        );
+        assert_eq!(
+            d(&["status", "--root", "/r", "felt-cost", "--color"]),
+            Dispatch::Owned(Owned::Status {
+                slug: Some("felt-cost".into()),
+                root: Some("/r".into()),
+                color: Color::Forced
+            })
+        );
+        // The colour ladder: NO_COLOR/--no-color beats --color.
+        assert_eq!(
+            d(&["status", "--color", "--no-color"]),
+            Dispatch::Owned(Owned::Status {
+                slug: None,
+                root: None,
+                color: Color::Off
+            })
+        );
     }
 
     #[test]
