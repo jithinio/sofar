@@ -593,6 +593,43 @@ core must reproduce the JS semantics, NOT the Rust defaults:
   percentages and the `~Nh` labels.
 - P9 ISO timestamps: `toISOString()` millisecond precision, `Z` suffix.
 
+## RC re-pin deltas (179b8fd, rust-core 1.4)
+
+The inventory above was taken against engine 0.32.0. Both parity targets
+now pin to r1-fixes 179b8fd (sofar.sh 0.33.0-rc.1); the goldens' manifest
+(`packages/engine/test/conformance/golden/MANIFEST.md`) lists what changed
+per golden. Contract deltas a native core must reproduce:
+- §Per-command contract, `event append`: `--source` accepts ANY value
+  (r1-fixes 1.3); a value outside SOURCES records envelope source `cli`
+  (`toSource`), the payload untouched — the tool's own name lives only in
+  session_started's `tool`. `--actor` is still closed. `sofar event types`
+  is a new full-CLI command (not hot path).
+- §Status block: section order is static head → record state → volatile
+  tail (r1-fixes 2.3): `Session:` and `Git:` lines, the recent-work,
+  closed and adjacency notices render at the END of the block; decisions
+  render as an index `[D<n>] <date> [(rule above) ]<chose> — over <over>`
+  with `(N; full text in decisions.md)` / `(last 5 of N; …)` headers and
+  an `Earlier rejected approaches — do NOT re-propose (N older):` ledger
+  of only the decisions the index does not show (2.2); a `Next ids: D<n>
+  (decision), M<n> (memory)` line follows (2.1).
+- §session-start: the unbound and no-initiative notices are reworded and
+  carry the `Session:` line (1.1); repos with an unbound branch get the
+  quick-work lane paragraph (2.6); §post-tool: when nothing is bound and the
+  repo can hold a lane (`laneAvailability`), the first captured edit creates
+  the `quick` record (`initiative_created`, under
+  `.index/locks/quick.create.lock`) and the event lands there — a NEW
+  append path the 0.32.0 inventory does not have.
+- §Projection files: plan.md gains `verify:` / `verified pass @<head7>` /
+  `verification <result>` suffixes and describeRun `, P/N verifications
+  passed`, only on records carrying them (3.1); sessions/<id>.md and
+  status render handoff `detail` (1.6).
+- Schema 0.10.0: task `verify {cmd, cwd?, timeout_ms?}` on plans and
+  task_added, run_started `verify?`, handoff `detail?` and
+  `verify_failed`, memory_promoted `supersedes?`, the
+  `verification_recorded` event.
+- §Fold: appending hooks fold once per log per process; the appended event
+  advances a checkpoint instead of a refold (2.7, D17) — bytes unchanged.
+
 ## SPEC gaps
 
 Found while inventorying; each needs either a SPEC edit or a Decision

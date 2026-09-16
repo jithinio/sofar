@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { EVENT_TYPES } from '../src/events'
 import { describe, expect, it } from 'vitest'
 import { OUT, emit } from '../../../tools/schema-codegen/emit.mjs'
 
@@ -22,7 +23,7 @@ describe('rust schema codegen (rust-core 2.1)', () => {
   it('every KnownEventPayloads member reaches the schema as a definition', () => {
     const schema = JSON.parse(emit()) as { definitions: Record<string, { properties?: Record<string, { $ref?: string }> }> }
     const registry = schema.definitions.KnownEventPayloads?.properties ?? {}
-    expect(Object.keys(registry).length).toBe(20)
+    expect(Object.keys(registry).sort()).toEqual([...EVENT_TYPES].sort())
     for (const [type, ref] of Object.entries(registry)) {
       const name = ref.$ref?.replace('#/definitions/', '')
       expect(name, `${type} should reference a named payload type`).toMatch(/Payload$/)

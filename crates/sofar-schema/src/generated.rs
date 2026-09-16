@@ -36,6 +36,9 @@ pub struct FileTouchedPayload {
 #[doc = "`HandoffPayload`"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
 pub struct HandoffPayload {
+    #[doc = "How the agent process ended, when that is worth knowing (r1-fixes 1.6, D9): the exit code or signal, a spawn error, the last stderr line. Set on stalls and on any unclean exit; never consulted for `reason`, which the driver reads from the fold alone (session-driver D5)."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub detail: ::std::option::Option<::std::string::String>,
     pub reason: HandoffReason,
     pub run: ::std::string::String,
     #[doc = "The session that just ended — registered here by its own session_started."]
@@ -69,6 +72,8 @@ pub enum HandoffReason {
     Stall,
     #[serde(rename = "needs_user")]
     NeedsUser,
+    #[serde(rename = "verify_failed")]
+    VerifyFailed,
 }
 impl ::std::fmt::Display for HandoffReason {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
@@ -77,6 +82,7 @@ impl ::std::fmt::Display for HandoffReason {
             Self::Threshold => f.write_str("threshold"),
             Self::Stall => f.write_str("stall"),
             Self::NeedsUser => f.write_str("needs_user"),
+            Self::VerifyFailed => f.write_str("verify_failed"),
         }
     }
 }
@@ -88,6 +94,7 @@ impl ::std::str::FromStr for HandoffReason {
             "threshold" => Ok(Self::Threshold),
             "stall" => Ok(Self::Stall),
             "needs_user" => Ok(Self::NeedsUser),
+            "verify_failed" => Ok(Self::VerifyFailed),
             _ => Err("invalid value".into()),
         }
     }
@@ -206,10 +213,14 @@ pub struct KnownEventPayloads {
     pub session_started: SessionStartedPayload,
     pub task_added: TaskAddedPayload,
     pub task_status_changed: TaskStatusChangedPayload,
+    pub verification_recorded: VerificationRecordedPayload,
 }
 #[doc = "A fact its author declares repo memory — operational knowledge that is not a decision (a release command, a failure mode) and so can never be observed as repo-general from citation behaviour, because nothing derives a fact that was never written down (repo-memory-capture D1)."]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
 pub struct MemoryPromotedPayload {
+    #[doc = "The QUALIFIED handle `<slug> M<n>` of the memory this one replaces (r1-fixes 1.5, D8). Facts go stale; the record is append-only, so the replacement is a new promotion that names the old one, and readers (memory.md, doctor's repo-memory axis) retire the old handle."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub supersedes: ::std::option::Option<::std::string::String>,
     pub text: ::std::string::String,
 }
 #[doc = "`NoteAddedPayload`"]
@@ -312,6 +323,8 @@ pub struct PlanTaskInput {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub status: ::std::option::Option<TaskStatus>,
     pub title: ::std::string::String,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub verify: ::std::option::Option<TaskVerify>,
 }
 #[doc = "`PlanUpdatedPayload`"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
@@ -508,6 +521,9 @@ pub struct RunStartedPayload {
     #[doc = "Context percentage at which a session is told to finish and hand off; REQUIRED for `threshold`."]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub threshold_pct: ::std::option::Option<i64>,
+    #[doc = "The run's default acceptance command (r1-fixes 3.1, D19): `--verify`, applied to every task that carries no `verify` of its own. Operator- stated, so it always runs; recorded so a resumed run keeps it."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub verify: ::std::option::Option<::std::string::String>,
 }
 #[doc = "`RunStopReason`"]
 #[derive(
@@ -634,6 +650,8 @@ pub struct TaskAddedPayload {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub status: ::std::option::Option<TaskStatus>,
     pub title: ::std::string::String,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub verify: ::std::option::Option<TaskVerify>,
 }
 #[doc = "Where a task wants to be run (session-driver 3.2, D10). Hints, not orders: anything the RUN states — the model/effort `run_started.surface` recorded, or the driver's own flags — wins over them, because a run whose second half ran a different model than its record names is two runs wearing one id. What the run leaves open, the task fills.\n\n`agent` names an ADAPTER (`claude-code`, `codex`), and it is the one field the driver cannot honour halfway: a run that cannot reach the named agent, or whose policy that agent cannot run, refuses to start rather than falling back to the default one.\n\nNothing else records the route: the plan carries the hint and the launched session's own `session_started` carries the tool and model it actually ran, so a third copy on the handoff would be the one that goes stale (D3)."]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Default, Eq, PartialEq)]
@@ -716,6 +734,107 @@ pub struct TaskStatusChangedPayload {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub note: ::std::option::Option<::std::string::String>,
     pub status: TaskStatus,
+}
+#[doc = "The task's acceptance command (r1-fixes 3.1, D19): what `sofar drive` runs before it accepts the task as done. A shell command line, run in `cwd` relative to the launch directory (default the launch directory itself), killed after `timeout_ms`. The plan carries it like a route, and like a route it survives only as long as a full-replace plan restates it. An agent can write a plan, so the driver runs a plan-level command ONLY when it falls inside the run's recorded permission surface (D19) — the operator's `--verify` is the other, always-approved source."]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+pub struct TaskVerify {
+    pub cmd: ::std::string::String,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub cwd: ::std::option::Option<::std::string::String>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub timeout_ms: ::std::option::Option<i64>,
+}
+#[doc = "The driver ran a task's acceptance command (r1-fixes 3.1, D19) — the record of WHAT was checked, on WHICH tree, and how it ended. Written by the driver before it accepts a `task_done`, and again on every retry; the fold keeps each task's latest. A pass counts only while `checked` still names the current tree and `command` is unchanged — the driver re-fingerprints before trusting one. Diagnostics are a bounded, redacted tail of the command's output (D9's precedent for driver diagnostics on the record)."]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRecordedPayload {
+    pub attempt: i64,
+    pub checked: VerificationRecordedPayloadChecked,
+    pub command: ::std::string::String,
+    #[doc = "Relative to the launch directory; `.` for the launch directory itself."]
+    pub cwd: ::std::string::String,
+    #[doc = "≤1,024 chars: ANSI-stripped, redacted tail of stdout and stderr."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub diagnostics: ::std::option::Option<::std::string::String>,
+    pub duration_ms: i64,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub exit_code: ::std::option::Option<i64>,
+    pub result: VerificationResult,
+    pub run: ::std::string::String,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub signal: ::std::option::Option<::std::string::String>,
+    pub task: ::std::string::String,
+    pub timeout_ms: i64,
+    #[doc = "Engine version that ran it."]
+    pub validator: ::std::string::String,
+}
+#[doc = "The tree the command ran on: HEAD, and a digest of every tracked change plus every untracked file."]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRecordedPayloadChecked {
+    pub head: ::std::string::String,
+    pub tree: ::std::string::String,
+}
+#[doc = "`VerificationResult`"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum VerificationResult {
+    #[serde(rename = "pass")]
+    Pass,
+    #[serde(rename = "fail")]
+    Fail,
+    #[serde(rename = "timeout")]
+    Timeout,
+    #[serde(rename = "error")]
+    Error,
+    #[serde(rename = "refused")]
+    Refused,
+}
+impl ::std::fmt::Display for VerificationResult {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Pass => f.write_str("pass"),
+            Self::Fail => f.write_str("fail"),
+            Self::Timeout => f.write_str("timeout"),
+            Self::Error => f.write_str("error"),
+            Self::Refused => f.write_str("refused"),
+        }
+    }
+}
+impl ::std::str::FromStr for VerificationResult {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "pass" => Ok(Self::Pass),
+            "fail" => Ok(Self::Fail),
+            "timeout" => Ok(Self::Timeout),
+            "error" => Ok(Self::Error),
+            "refused" => Ok(Self::Refused),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for VerificationResult {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for VerificationResult {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
 }
 #[doc = " Error types."]
 pub mod error {

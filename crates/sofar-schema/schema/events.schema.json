@@ -62,6 +62,9 @@
         "run_stop_requested": {
           "$ref": "#/definitions/RunStopRequestedPayload"
         },
+        "verification_recorded": {
+          "$ref": "#/definitions/VerificationRecordedPayload"
+        },
         "correction": {
           "$ref": "#/definitions/CorrectionPayload"
         }
@@ -86,6 +89,7 @@
         "handoff",
         "run_stopped",
         "run_stop_requested",
+        "verification_recorded",
         "correction"
       ]
     },
@@ -212,6 +216,9 @@
         },
         "route": {
           "$ref": "#/definitions/TaskRoute"
+        },
+        "verify": {
+          "$ref": "#/definitions/TaskVerify"
         }
       },
       "required": [
@@ -244,6 +251,24 @@
         }
       },
       "description": "Where a task wants to be run (session-driver 3.2, D10). Hints, not orders: anything the RUN states — the model/effort `run_started.surface` recorded, or the driver's own flags — wins over them, because a run whose second half ran a different model than its record names is two runs wearing one id. What the run leaves open, the task fills.\n\n`agent` names an ADAPTER (`claude-code`, `codex`), and it is the one field the driver cannot honour halfway: a run that cannot reach the named agent, or whose policy that agent cannot run, refuses to start rather than falling back to the default one.\n\nNothing else records the route: the plan carries the hint and the launched session's own `session_started` carries the tool and model it actually ran, so a third copy on the handoff would be the one that goes stale (D3)."
+    },
+    "TaskVerify": {
+      "type": "object",
+      "properties": {
+        "cmd": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "timeout_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cmd"
+      ],
+      "description": "The task's acceptance command (r1-fixes 3.1, D19): what `sofar drive` runs before it accepts the task as done. A shell command line, run in `cwd` relative to the launch directory (default the launch directory itself), killed after `timeout_ms`. The plan carries it like a route, and like a route it survives only as long as a full-replace plan restates it. An agent can write a plan, so the driver runs a plan-level command ONLY when it falls inside the run's recorded permission surface (D19) — the operator's `--verify` is the other, always-approved source."
     },
     "PhaseStatusChangedPayload": {
       "type": "object",
@@ -278,6 +303,9 @@
         },
         "status": {
           "$ref": "#/definitions/TaskStatus"
+        },
+        "verify": {
+          "$ref": "#/definitions/TaskVerify"
         }
       },
       "required": [
@@ -417,6 +445,10 @@
       "properties": {
         "text": {
           "type": "string"
+        },
+        "supersedes": {
+          "type": "string",
+          "description": "The QUALIFIED handle `<slug> M<n>` of the memory this one replaces (r1-fixes 1.5, D8). Facts go stale; the record is append-only, so the replacement is a new promotion that names the old one, and readers (memory.md, doctor's repo-memory axis) retire the old handle."
         }
       },
       "required": [
@@ -497,6 +529,10 @@
         "surface": {
           "$ref": "#/definitions/RunSurface",
           "description": "The permission surface every session in the run was launched under (session-driver 2.4, D8) — what the driver PINNED, never what the session could ultimately do: the agent's settings file is one source among the operator's own and allow rules union across them. Absent on a run whose adapter pins nothing. `model`/`effort` are recorded here so a reader can tell a run that pinned them from one that left them to whatever the operator's mutable config said that day."
+        },
+        "verify": {
+          "type": "string",
+          "description": "The run's default acceptance command (r1-fixes 3.1, D19): `--verify`, applied to every task that carries no `verify` of its own. Operator- stated, so it always runs; recorded so a resumed run keeps it."
         }
       },
       "required": [
@@ -563,6 +599,10 @@
         "tokens": {
           "type": "integer",
           "description": "Context tokens the session held when it ended, when the adapter could report them."
+        },
+        "detail": {
+          "type": "string",
+          "description": "How the agent process ended, when that is worth knowing (r1-fixes 1.6, D9): the exit code or signal, a spawn error, the last stderr line. Set on stalls and on any unclean exit; never consulted for `reason`, which the driver reads from the fold alone (session-driver D5)."
         }
       },
       "required": [
@@ -577,7 +617,8 @@
         "task_done",
         "threshold",
         "stall",
-        "needs_user"
+        "needs_user",
+        "verify_failed"
       ]
     },
     "RunStoppedPayload": {
@@ -622,6 +663,89 @@
         "run"
       ],
       "description": "An operator asking the driver of `run` to end it from OUTSIDE the driver (in-session-drive D2) — `sofar drive --stop`, for a detached driver no ^C can reach. A request, never a stop: only the driver writes `run_stopped`, after reading the handoff of the session it signalled."
+    },
+    "VerificationRecordedPayload": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string"
+        },
+        "task": {
+          "type": "string"
+        },
+        "attempt": {
+          "type": "integer"
+        },
+        "command": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Relative to the launch directory; `.` for the launch directory itself."
+        },
+        "checked": {
+          "type": "object",
+          "properties": {
+            "head": {
+              "type": "string"
+            },
+            "tree": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "head",
+            "tree"
+          ],
+          "description": "The tree the command ran on: HEAD, and a digest of every tracked change plus every untracked file."
+        },
+        "validator": {
+          "type": "string",
+          "description": "Engine version that ran it."
+        },
+        "result": {
+          "$ref": "#/definitions/VerificationResult"
+        },
+        "exit_code": {
+          "type": "integer"
+        },
+        "signal": {
+          "type": "string"
+        },
+        "duration_ms": {
+          "type": "integer"
+        },
+        "timeout_ms": {
+          "type": "integer"
+        },
+        "diagnostics": {
+          "type": "string",
+          "description": "≤1,024 chars: ANSI-stripped, redacted tail of stdout and stderr."
+        }
+      },
+      "required": [
+        "run",
+        "task",
+        "attempt",
+        "command",
+        "cwd",
+        "checked",
+        "validator",
+        "result",
+        "duration_ms",
+        "timeout_ms"
+      ],
+      "description": "The driver ran a task's acceptance command (r1-fixes 3.1, D19) — the record of WHAT was checked, on WHICH tree, and how it ended. Written by the driver before it accepts a `task_done`, and again on every retry; the fold keeps each task's latest. A pass counts only while `checked` still names the current tree and `command` is unchanged — the driver re-fingerprints before trusting one. Diagnostics are a bounded, redacted tail of the command's output (D9's precedent for driver diagnostics on the record)."
+    },
+    "VerificationResult": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "fail",
+        "timeout",
+        "error",
+        "refused"
+      ]
     },
     "CorrectionPayload": {
       "type": "object",

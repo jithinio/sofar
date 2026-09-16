@@ -111,6 +111,7 @@ export interface PlanTaskInput {
 export interface TaskVerify {
   cmd: string
   cwd?: string
+  /** @asType integer */
   timeout_ms?: number
 }
 
@@ -385,6 +386,7 @@ export interface VerificationRecordedPayload {
   run: string
   task: string
   /** 1-based, per task per run. */
+  /** @asType integer */
   attempt: number
   command: string
   /** Relative to the launch directory; `.` for the launch directory itself. */
@@ -394,9 +396,12 @@ export interface VerificationRecordedPayload {
   /** Engine version that ran it. */
   validator: string
   result: VerificationResult
+  /** @asType integer */
   exit_code?: number
   signal?: string
+  /** @asType integer */
   duration_ms: number
+  /** @asType integer */
   timeout_ms: number
   /** ≤1,024 chars: ANSI-stripped, redacted tail of stdout and stderr. */
   diagnostics?: string

@@ -50,11 +50,11 @@ exit: 1
 
 ## step 7: bad source
 argv: ["event","append","--type","note_added","--payload","{\"text\":\"x\"}","--source","nope"]
-exit: 0
+exit: 1
 --- stdout
-{"ok":true,"event_id":"<ULID>"}
---- stderr
 (empty)
+--- stderr
+{"code":"invalid_input","message":"--source must be one of: claude-code|opencode|codex|cli|hook"}
 
 ## step 8: bad actor
 argv: ["event","append","--type","note_added","--payload","{\"text\":\"x\"}","--actor","nope"]
@@ -133,11 +133,10 @@ Phases:
 Next action: Get the run owner's rulings on docs/HOTPATH.md §Open decisions O1–O6 (collation, update spawn, identity spawn, styled status, commit-trailer scope, SOFAR_NOW), then build the 1.2 black-box conformance suite in packages/engine/test against the built CLI.
 
 ⚠ Staleness:
-- next action may be stale: 4 events since the last write-back (2026-09-15T16:11:51.483Z) — 1 task change, 3 notes
+- next action may be stale: 3 events since the last write-back (2026-09-15T16:11:51.483Z) — 1 task change, 2 notes
 
-Notes since write-back (3):
+Notes since write-back (2):
 - <TS> conformance note
-- <TS> x
 - <TS> esc  😀 � "q" \ /
 
 Last session (claude-code, ended 2026-09-15T16:11:51.483Z):
@@ -147,7 +146,7 @@ Files touched (2):
 - /private/tmp/claude-501/-Users-jins-IO-sofar/aac148fe-0a14-46d5-b42c-64fb65cd8ad2/scratchpad/commit-msg.txt
 - /Users/jins/IO/sofar-rust-core/docs/HOTPATH.md
 --- stderr
-warning: line 54: task "9.9" not found — task_status_changed skipped
+warning: line 53: task "9.9" not found — task_status_changed skipped
 
 ## step 14: status of the other record
 argv: ["status","felt-cost"]
@@ -208,8 +207,7 @@ Files touched (13):
 ## record delta
 === .sofar/initiatives/felt-cost/events.jsonl (appended 252 bytes after 98263 unchanged)
 {"v":1,"id":"<ULID>","ts":"<TS>","initiative":"felt-cost","session":"conf-cli","source":"cli","actor":"human","user":"conformance@example.invalid","type":"note_added","payload":{"text":"note on another record"}}
-=== .sofar/initiatives/rust-core/events.jsonl (appended 1129 bytes after 28249 unchanged)
+=== .sofar/initiatives/rust-core/events.jsonl (appended 903 bytes after 28249 unchanged)
 {"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"cli","source":"cli","actor":"agent","user":"conformance@example.invalid","type":"note_added","payload":{"text":"conformance note"}}
-{"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"cli","source":"cli","actor":"agent","user":"conformance@example.invalid","type":"note_added","payload":{"text":"x"}}
 {"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"cli","source":"cli","actor":"agent","user":"conformance@example.invalid","type":"task_status_changed","payload":{"id":"9.9","status":"done"}}
 {"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"cli","source":"cli","actor":"agent","user":"conformance@example.invalid","type":"note_added","payload":{"a":1e-7,"big":12345678901234567000,"dup":2,"f":1,"m":0,"nest":{"a":true,"b":[null,1,{"x":1,"y":2}]},"s":0.30000000000000004,"text":"esc \u0001 😀 \ud800 \"q\" \\ /  ","tiny":5e-324,"z":1e+21}}

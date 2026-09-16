@@ -68,6 +68,10 @@ exit: 0
 --- stdout
 # Sofar status: boopada
 
+Session: conf-session — when calling sofar_start_session, pass this as session_id.
+
+Git: main @ ce11ce1 — no origin ref — never pushed
+
 Goal: Build Boopada trip planner (apps/web Next.js + SQLite, bun monorepo) through the 9-piece roadmap, one piece per session.
 
 Standing constraints — obey verbatim (4):
@@ -75,6 +79,11 @@ Standing constraints — obey verbatim (4):
 - [D2] Interests are only provider activity categories; reject any other value.
 - [D3] Add schema changes only as new entries appended to MIGRATIONS; never edit a shipped migration or import sqlite modules statically.
 - [D6] Never hard-delete traveller-made rows or add confirm dialogs: soft-delete via lib/server/deletions.ts (register the table in SOFT_DELETE_TABLES) and filter `deleted_at IS NULL` in every list, total and suggestion.
+
+Progress: 5/12 tasks done (41%) across 9 phase(s)
+Active phase: 3. Trips (legs of cities + nights, draft day-by-day plan) — 0/1 tasks done
+Next task: p3-trips Trip creation from legs + draft plan
+Next action: Start phase 3, trips (p3-trips). Once the operator OKs it, commit the uncommitted piece-2 work on main first. Then append migration v3 with tables for trips and legs (city_id and nights per leg) and draft days, each with deleted_at/deletion_id columns registered in SOFT_DELETE_TABLES (D6). Trip DELETE should soft-delete the trip and its legs and days under one softDelete target so a single undo restores them. Add /api/trips CRUD with handle<IdContext> and a /trips page, following the patterns i…
 
 Phases:
 - 3. Trips (legs of cities + nights, draft day-by-day plan) [active] 0/1
@@ -86,29 +95,25 @@ Phases:
 - 9. Chat command box (POST /api/chat {trip_id,message} -> {reply,changed,suggestions?}; commands: ad… [pending] 0/1
 - done: 1. Traveller profile, 2. Bucket list (places and experiences saved for later) (5/5 tasks)
 
-Progress: 5/12 tasks done (41%) across 9 phase(s)
-Active phase: 3. Trips (legs of cities + nights, draft day-by-day plan) — 0/1 tasks done
-Next task: p3-trips Trip creation from legs + draft plan
-Next action: Start phase 3, trips (p3-trips). Once the operator OKs it, commit the uncommitted piece-2 work on main first. Then append migration v3 with tables for trips and legs (city_id and nights per leg) and draft days, each with deleted_at/deletion_id columns registered in SOFT_DELETE_TABLES (D6). Trip DELETE should soft-delete the trip and its legs and days under one softDelete target so a single undo restores them. Add /api/trips CRUD with handle<IdContext> and a /trips page, following the patterns i…
-
 Last session (claude-code, ended 2026-09-15T13:17:30.307Z):
   Built piece 2, the bucket list, plus the app-wide rule that deletes are soft and can be undone (D6). Migration v2 appends a `deletions` journal and a `bucket_items` table with deleted_at and deletion_id columns. lib/server/deletions.ts has softDelete(target), which journals the delete and stamps rows (it handles cascades and returns false with nothing written when no row matched). It also has undoLatestDeletion(), which restores the latest deletion not yet undone across SOFT_DELETE_TABLES and throws 409 nothing_to_undo when there is none. lib/server/bucket.ts does list, get, create, partial PATCH and soft delete, with validation: title trimmed to 1–200 chars; city_id a provider city id or null, unknown gives 400; notes up to 2000 chars; estimated_daily_spend as Money via the new shared lib/server/validate.ts parseMoneyField, which profile now uses too. Routes: GET/POST /api/bucket (POST returns 201), GET/PATCH/DELETE /api/bucket/[id] (DELETE returns 204, unknown or deleted ids 404), and POST /api/undo, which returns {restored:{kind,entity_id,label,deleted_at}}. api.ts handle<C>() now passes the route context… (clipped — full text in sessions/a1b0e2cd-3b39-442f-aae0-6fe2d7b70683.md)
 
-Recent decisions (last 5 of 8; full text in decisions.md):
-- [D4] 2026-09-15 PUT /api/profile is a partial update (omitted fields keep value, daily_activity_budget:null clears), validated all-or-n… — over Full-replace PUT; lenient case normalisation; forcing budget currency to equal home curre…
-- [D5] 2026-09-15 Extras beyond the brief (operator allowed, must be recorded): GET /api/reference (currencies, airports w/ city, cabin c… — over Shipping only the two profile endpoints and page
-- [D6] 2026-09-15 (rule above) App-wide soft delete + undo: every traveller-made table get… — over Hard DELETE; confirm dialogs; per-entity undo endpoints; a single deleted flag without a …
-- [D7] 2026-09-15 Bucket list API at /api/bucket and page at /bucket (per operator brief); item = { id (UUID), title (trimmed, 1–200 char… — over /api/bucket-list + /bucket-list (the previous next-action guess); estimated_daily_spend a…
-- [D8] 2026-09-15 Extras beyond the brief for piece 2 (operator allowed, recorded): GET /api/bucket/{id}; Undo button on /bucket after a … — over Shipping only the four endpoints and a bare list page
-Earlier rejected approaches — do NOT re-propose (3 older):
-- [D1] Decimal strings or floats (the prototype's approach)
-- [D2] Free-text interests
-- [D3] better-sqlite3 (native build step) or bun:sqlite only (next start runs on Node); createRe…
+Recent decisions (last 5 of 8):
+- 2026-09-15 chose PUT /api/profile is a partial update (omitted fields keep value, daily_activity_budget:null clears), validated all-or-nothing; codes are strict (no case normalisation); known currencies = FX provider's USD rate table, known airports = airports of provider cities…
+- 2026-09-15 chose Extras beyond the brief (operator allowed, must be recorded): GET /api/reference (currencies, airports w/ city, cabin classes, interests) feeding the form; lib/money.ts helpers (decimalToMinor exact string conversion, minorToDecimal, addMoney currency-checked, f…
+- 2026-09-15 chose App-wide soft delete + undo: every traveller-made table gets `deleted_at TEXT` and `deletion_id INTEGER` columns; a DELETE writes one row to a `deletions` journal (id AUTOINCREMENT, kind, entity_id, label, deleted_at, undone_at) and stamps every affected row (in…
+- 2026-09-15 chose Bucket list API at /api/bucket and page at /bucket (per operator brief); item = { id (UUID), title (trimmed, 1–200 chars), city_id (provider city id or null), notes (string ≤2000 or null), estimated_daily_spend (Money {amount_minor, currency} or null, non-negati…
+- 2026-09-15 chose Extras beyond the brief for piece 2 (operator allowed, recorded): GET /api/bucket/{id}; Undo button on /bucket after a delete (data-testid bucket-undo) instead of any confirm; bucket-title/-city/-notes/-spend-amount/-spend-currency/-form/-list/-empty/-status tes…
 
-Next ids: D9 (decision), M4 (memory)
-
-Session: conf-session — when calling sofar_start_session, pass this as session_id.
-Git: main @ ce11ce1 — no origin ref — never pushed
+Rejected approaches — do NOT re-propose (8):
+- Decimal strings or floats (the prototype's approach)
+- Free-text interests
+- better-sqlite3 (native build step) or bun:sqlite only (next start runs on Node); createRe…
+- Full-replace PUT; lenient case normalisation; forcing budget currency to equal home curre…
+- Shipping only the two profile endpoints and page
+- Hard DELETE; confirm dialogs; per-entity undo endpoints; a single deleted flag without a …
+- /api/bucket-list + /bucket-list (the previous next-action guess); estimated_daily_spend a…
+- Shipping only the four endpoints and a bare list page
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 

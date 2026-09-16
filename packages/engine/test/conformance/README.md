@@ -68,6 +68,15 @@ rewritten fails the case regardless of the golden.
   native core behind the boot stub never sees them; a standalone candidate
   must reproduce the commander text or skip the tag.
 
+## Golden sets
+
+`golden/` is THE set the suite compares against, recorded from the pinned
+TypeScript commit named in `golden/MANIFEST.md`, which also gives a one-line
+reason for every golden that changed at the last re-record (rust-core D11).
+`golden-0.32.0-as-shipped/` is history: the same cases recorded from the
+0.32.0 engine (this repository at 7535e75), kept so the RC's intentional
+digest changes stay auditable. Nothing reads it.
+
 ## Re-recording
 
 Only from the TypeScript reference, never from a candidate. Re-record when a
