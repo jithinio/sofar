@@ -3308,7 +3308,14 @@ Shims contain no logic — they invoke the sofar CLI.
   (staleness-detection 2.3). Un-absorbed notes render UNCAPPED after the
   staleness section (notes-in-digest 2.2): every selected note, full
   timestamp, no count cap or length clip, whitespace collapsed to keep each
-  entry one list line; absent when none.
+  entry one list line; absent when none. With NO slug on an unbound branch
+  or a detached HEAD in a repo that carries `.sofar/` (r1-fixes D28), it
+  orients instead of failing and exits 0: one line naming why and the slug
+  to pass, the most recently active open initiative's status (byte-identical
+  to `sofar status <slug>`), a blank line, then the `sofar list` render; with
+  no open initiative, the line names `sofar new <slug> --goal` before the
+  list. An explicit unknown slug, a branch bound to a missing directory, and
+  a repo with no `.sofar/` still exit 1. Read-only: nothing is bound.
 - `sofar list` — every initiative under .sofar/initiatives/, one line each
   (slug, bound branch(es) or "unbound", done/total tasks with %, active
   phase, next action), most recently active first per §State's
