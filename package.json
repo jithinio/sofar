@@ -15,7 +15,7 @@
     "test": "vitest run",
     "perf": "SOFAR_PERF=1 vitest run --project perf",
     "typecheck": "npm run typecheck -w @sofar/schema && npm run typecheck -w sofar.sh",
-    "schema:emit": "node tools/schema-codegen/emit.mjs",
+    "schema:emit": "node packages/schema/scripts/emit-fingerprint.mjs && node tools/schema-codegen/emit.mjs",
     "schema:check": "node tools/schema-codegen/emit.mjs --check && cargo xtask schema --check",
     "bench:read-paths": "npm run bench:read-paths -w sofar.sh --"
   },

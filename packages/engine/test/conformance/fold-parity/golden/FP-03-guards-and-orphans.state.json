@@ -1,0 +1,118 @@
+{
+  "state": {
+    "current": {
+      "active_phase": null,
+      "next_action": null
+    },
+    "cursor": "01KDVDNMQRY50ZJ9M36D87THWB",
+    "decisions": [
+      {
+        "because": "one home",
+        "chose": "keep shapes in schema",
+        "guard": "path:src/shapes/**",
+        "id": "01KDVDNDX0KPXRQA1CVY50ZJ9M",
+        "over": "shapes in engine",
+        "rule": "Never put shapes in the engine.",
+        "ts": "2026-01-01T00:00:04.000Z"
+      },
+      {
+        "because": "gated",
+        "chose": "no pushes",
+        "guard": "cmd:*git push*",
+        "id": "01KDVDNGTRA1CVY50ZJ9M36D87",
+        "over": "push",
+        "rule": "Never push unattended.",
+        "ts": "2026-01-01T00:00:07.000Z"
+      }
+    ],
+    "drop_notes": {},
+    "files_touched": [
+      "src/shapes/x.ts"
+    ],
+    "freshness": {
+      "events_since_writeback": {
+        "commands": 1,
+        "decisions": 2,
+        "files": 2,
+        "memories": 0,
+        "notes": 0,
+        "phases": 0,
+        "reviews": 0,
+        "tasks": 2
+      },
+      "last_writeback_ts": null,
+      "notes": [],
+      "unattributed_mutations": 0
+    },
+    "goal": "g",
+    "guard_violations": [
+      {
+        "decision": 1,
+        "domain": "path",
+        "event_id": "01KDVDNEW8GF2S4KPXRQA1CVY5",
+        "guard": "path:src/shapes/**",
+        "rule": "Never put shapes in the engine.",
+        "session": "A",
+        "subject": "src/shapes/x.ts",
+        "ts": "2026-01-01T00:00:05.000Z"
+      },
+      {
+        "decision": 2,
+        "domain": "cmd",
+        "event_id": "01KDVDNHT07THWBENGF2S4KPXR",
+        "guard": "cmd:*git push*",
+        "rule": "Never push unattended.",
+        "session": "A",
+        "subject": "git push origin main",
+        "ts": "2026-01-01T00:00:08.000Z"
+      }
+    ],
+    "memories": [],
+    "phases": [
+      {
+        "name": "Phase 1 — first",
+        "status": "pending",
+        "tasks": [
+          {
+            "id": "7.7",
+            "status": "pending",
+            "title": "absorbed later"
+          }
+        ]
+      }
+    ],
+    "reviews": [],
+    "runs": [],
+    "sessions": [
+      {
+        "activity": {
+          "commands": 1,
+          "files": [
+            "src/shapes/x.ts"
+          ],
+          "task_changes": [
+            "7.7 → done",
+            "8.8 → active"
+          ]
+        },
+        "id": "A",
+        "started": "2026-01-01T00:00:03.000Z",
+        "tool": "claude-code",
+        "unwritten": 6
+      }
+    ],
+    "slug": "demo",
+    "status": "active",
+    "status_note": null,
+    "status_overrides": [],
+    "status_ts": null,
+    "successor": null,
+    "task_files": {}
+  },
+  "warnings": [
+    "line 2: invalid plan_updated payload (plan: must be an object) — skipped",
+    "line 9: task \"7.7\" not found — task_status_changed skipped",
+    "line 10: phase \"Phase 1 — first\" not in plan — created implicitly",
+    "line 11: task \"8.8\" not found — task_status_changed skipped"
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "state": {
+    "current": {
+      "active_phase": null,
+      "next_action": "n"
+    },
+    "cursor": "01KDVDNGTRD87THWBENGF2S4KP",
+    "decisions": [],
+    "drop_notes": {},
+    "files_touched": [],
+    "freshness": {
+      "events_since_writeback": {
+        "commands": 0,
+        "decisions": 0,
+        "files": 0,
+        "memories": 0,
+        "notes": 0,
+        "phases": 0,
+        "reviews": 0,
+        "tasks": 0
+      },
+      "last_writeback_ts": "2026-01-01T00:00:05.000Z",
+      "notes": [],
+      "unattributed_mutations": 0
+    },
+    "goal": "g",
+    "guard_violations": [],
+    "memories": [],
+    "phases": [],
+    "reviews": [],
+    "runs": [],
+    "sessions": [
+      {
+        "ended": "2026-01-01T00:00:05.000Z",
+        "id": "A",
+        "next_action": "n",
+        "started": "2026-01-01T00:00:03.000Z",
+        "summary": "s",
+        "tool": "claude-code",
+        "unwritten": 0
+      }
+    ],
+    "slug": "demo",
+    "status": "active",
+    "status_note": null,
+    "status_overrides": [],
+    "status_ts": null,
+    "successor": null,
+    "task_files": {}
+  },
+  "warnings": [
+    "line 3: unparseable JSON — skipped (torn or corrupt line)",
+    "line 6: invalid envelope (v: must be 1; id: must be a 26-char ulid; ts: must be an ISO8601 timestamp; initiative: must be a non-empty slug; session: must be a non-empty session id (or \"cli\"); source: must be one of: claude-code, opencode, codex, cli, hook; actor: must be one of: agent, human) — skipped",
+    "line 2: invalid plan_updated payload (plan: must be an object) — skipped",
+    "line 5: unknown event type \"telemetry_emitted\" — skipped",
+    "line 9: invalid task_status_changed payload (status: must be one of pending|active|done|blocked|dropped) — skipped"
+  ]
+}

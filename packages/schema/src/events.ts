@@ -449,6 +449,14 @@ export interface KnownEventPayloads {
 
 export type KnownEventType = keyof KnownEventPayloads
 
+/**
+ * The schema package's own version (r1-fixes 5.1, D20). A constant rather
+ * than a package.json read so the browser build and every bundle carry it;
+ * a test pins it to package.json. Part of a fold snapshot's version hash —
+ * bump it with any payload-shape change.
+ */
+export const SCHEMA_VERSION = '0.10.0'
+
 export const EVENT_TYPES = [
   'initiative_created',
   'initiative_status_changed',
@@ -1038,6 +1046,17 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
     fields: 'ref (the bad event id), reason?',
     example: { ref: '01J00000000000000000000000', reason: 'wrong task id' },
   },
+}
+
+/**
+ * The exact string a fold snapshot's schema hash is taken over (r1-fixes
+ * 5.1, D22): the schema version, then one `type: fields` line per event type
+ * in EVENT_TYPES order. Emitted verbatim to packages/schema/schema-fingerprint.txt
+ * by `npm run schema:emit` and pinned by a test, so a second implementation
+ * hashes the committed bytes and lands on the same constant.
+ */
+export function schemaFingerprint(): string {
+  return `${SCHEMA_VERSION}\n${EVENT_TYPES.map((t) => `${t}: ${EVENT_TYPE_REFERENCE[t].fields}`).join('\n')}\n`
 }
 
 /**

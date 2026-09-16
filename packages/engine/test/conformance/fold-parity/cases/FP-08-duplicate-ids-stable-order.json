@@ -1,0 +1,11 @@
+{
+  "tail_at": 4,
+  "seeds": [
+    22,
+    23,
+    24
+  ],
+  "refusal": "out_of_order_id",
+  "order_independence": true,
+  "note": "byte-identical duplicate lines (an idempotent re-import): the stable sort keeps file order and a shuffle folds the same; the tail re-imports an EARLIER line, so the fast path refuses it as out_of_order_id and the full fold is the reference"
+}

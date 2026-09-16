@@ -1,0 +1,10 @@
+{
+  "tail_at": 6,
+  "seeds": [
+    7,
+    8,
+    9
+  ],
+  "order_independence": true,
+  "note": "path and cmd guards crossed, one orphan absorbed by a later task_added and one left"
+}

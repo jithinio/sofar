@@ -1,0 +1,108 @@
+{
+  "state": {
+    "current": {
+      "active_phase": null,
+      "next_action": "n"
+    },
+    "cursor": "01KDVDNMQRY50ZJ9M36D87THWB",
+    "decisions": [],
+    "drop_notes": {},
+    "files_touched": [],
+    "freshness": {
+      "events_since_writeback": {
+        "commands": 0,
+        "decisions": 0,
+        "files": 0,
+        "memories": 0,
+        "notes": 0,
+        "phases": 0,
+        "reviews": 0,
+        "tasks": 1
+      },
+      "last_writeback_ts": "2026-01-01T00:00:06.000Z",
+      "notes": [],
+      "unattributed_mutations": 1
+    },
+    "goal": "g",
+    "guard_violations": [],
+    "memories": [],
+    "phases": [],
+    "reviews": [],
+    "runs": [
+      {
+        "adapter": "claude-code",
+        "done_tasks": [],
+        "handoffs": [
+          {
+            "detail": "verification attempt 1",
+            "reason": "verify_failed",
+            "session_id": "A",
+            "task": "1.1",
+            "ts": "2026-01-01T00:00:09.000Z"
+          }
+        ],
+        "id": "01J00000000000000000000000",
+        "policy": "task",
+        "stop_note": "stop requested",
+        "stop_reason": "interrupted",
+        "stop_requests": [
+          "2026-01-01T00:00:10.000Z"
+        ],
+        "stopped": "2026-01-01T00:00:11.000Z",
+        "surface": {
+          "allow": [
+            "Bash(npm test:*)"
+          ],
+          "permission_mode": "acceptEdits"
+        },
+        "ts": "2026-01-01T00:00:03.000Z",
+        "verifications": [
+          {
+            "attempt": 1,
+            "result": "fail",
+            "task": "1.1",
+            "ts": "2026-01-01T00:00:07.000Z"
+          }
+        ],
+        "verify": "npm test"
+      }
+    ],
+    "sessions": [
+      {
+        "activity": {
+          "commands": 0,
+          "files": [],
+          "task_changes": [
+            "1.1 → done"
+          ]
+        },
+        "ended": "2026-01-01T00:00:06.000Z",
+        "handoff": {
+          "detail": "verification attempt 1",
+          "reason": "verify_failed",
+          "run": "01J00000000000000000000000",
+          "ts": "2026-01-01T00:00:09.000Z"
+        },
+        "id": "A",
+        "next_action": "n",
+        "started": "2026-01-01T00:00:04.000Z",
+        "summary": "s",
+        "tool": "claude-code",
+        "unwritten": 0
+      }
+    ],
+    "slug": "demo",
+    "status": "active",
+    "status_note": null,
+    "status_overrides": [],
+    "status_ts": null,
+    "successor": null,
+    "task_files": {}
+  },
+  "warnings": [
+    "line 2: invalid plan_updated payload (plan: must be an object) — skipped",
+    "line 5: task \"1.1\" not found — task_status_changed skipped",
+    "line 7: verification for task \"1.1\" not in the plan — kept on the run only",
+    "line 8: task \"1.1\" not found — task_status_changed skipped"
+  ]
+}

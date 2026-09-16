@@ -4,6 +4,7 @@ import { Command } from 'commander'
 import { version } from '../../package.json'
 import { createSofarServer } from '../mcp/server'
 import { registerCommitTrailerCommand } from './commit-trailer'
+import { registerFoldCommand } from './fold'
 import { registerEventCommand } from './event'
 import { registerReviewCommand } from './review'
 import { runAdopt } from './adopt'
@@ -562,6 +563,7 @@ program
   })
 
 registerEventCommand(program)
+registerFoldCommand(program)
 registerCommitTrailerCommand(program, rootOf)
 registerReviewCommand(program, rootOf)
 registerStatuslineCommand(program, rootOf)

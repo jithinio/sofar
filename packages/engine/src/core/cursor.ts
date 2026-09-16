@@ -46,6 +46,54 @@ export function readEvents(logPath: string): ReadEventsResult {
   return { events, warnings }
 }
 
+/** What a since-read returns: the events after the cursor in id order, and the cursor to continue from. */
+export interface SinceResult {
+  events: EventEnvelope[]
+  /** Greatest id seen — the input cursor when nothing was newer. */
+  cursor: string
+  warnings: string[]
+}
+
+/** The canonical envelope starts `{"v":1,"id":"<ulid>"` — the id is readable without parsing the line. */
+const ID_PREFIX = /^\{"v":1,"id":"([0-9A-HJKMNP-TV-Z]{26})"/
+
+/**
+ * Events with id strictly after `cursor`, in id order, WITHOUT folding
+ * (r1-fixes 5.1, D20). A line whose leading id is at or below the cursor is
+ * skipped on the prefix alone — no JSON.parse — so the cost is a scan of the
+ * file plus a parse of the tail; a line that does not start canonically is
+ * parsed and judged on its id like any other.
+ */
+export function readEventsSince(logPath: string, cursor = ''): SinceResult {
+  if (!existsSync(logPath)) return { events: [], cursor, warnings: [] }
+  const events: EventEnvelope[] = []
+  const warnings: string[] = []
+  readFileSync(logPath, 'utf8')
+    .split('\n')
+    .forEach((raw, index) => {
+      const line = raw.trim()
+      if (line.length === 0) return
+      const quick = ID_PREFIX.exec(line)
+      if (quick !== null && quick[1]! <= cursor) return
+      let decoded: unknown
+      try {
+        decoded = JSON.parse(line)
+      } catch {
+        warnings.push(`line ${index + 1}: unparseable JSON — skipped`)
+        return
+      }
+      const check = validateEnvelope(decoded)
+      if (!check.ok) {
+        warnings.push(`line ${index + 1}: invalid envelope — skipped`)
+        return
+      }
+      if (check.event.id > cursor) events.push(check.event)
+    })
+  events.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  const last = events.length > 0 ? events[events.length - 1]!.id : cursor
+  return { events, cursor: last > cursor ? last : cursor, warnings }
+}
+
 export interface ExportResult {
   events: EventEnvelope[]
   warnings: string[]
