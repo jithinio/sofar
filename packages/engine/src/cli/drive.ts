@@ -38,6 +38,12 @@ export interface DriveCliOptions {
   model?: string
   effort?: string
   resume?: boolean
+  /** The run's default acceptance command (r1-fixes 3.1, D19). */
+  verify?: string
+  /** Seconds one acceptance command may run (default 600). */
+  verifyTimeout?: string
+  /** Failed verifications on one task before the run stops (default 3). */
+  maxVerifyAttempts?: string
   /** Which agent to drive: `claude-code` (default) or `codex` (3.1). */
   agent?: string
   /** Binary the adapter spawns (default: the agent's own name). */
@@ -149,6 +155,8 @@ export async function runDrive(
     const contextWindow = integer('--context-window', options.contextWindow)
     const costCapUsd = positive('--cost-cap', options.costCap)
     const sessionTimeoutSec = positive('--session-timeout', options.sessionTimeout)
+    const verifyTimeoutSec = positive('--verify-timeout', options.verifyTimeout)
+    const maxVerifyAttempts = integer('--max-verify-attempts', options.maxVerifyAttempts)
     // The surface is built HERE, before anything is recorded: a bad
     // --permission-mode is a preflight refusal with no run_started behind it,
     // not a run that starts and dies on its first launch.
@@ -175,6 +183,9 @@ export async function runDrive(
       ...(options.model !== undefined ? { model: options.model } : {}),
       ...(options.effort !== undefined ? { effort: options.effort } : {}),
       ...(options.resume === true ? { resume: true } : {}),
+      ...(options.verify !== undefined ? { verify: options.verify } : {}),
+      ...(verifyTimeoutSec !== undefined ? { verifyTimeoutMs: verifyTimeoutSec * 1_000 } : {}),
+      ...(maxVerifyAttempts !== undefined ? { maxVerifyAttempts } : {}),
       ...(options.onStarted !== undefined ? { onStarted: options.onStarted } : {}),
       surface,
       onProgress,

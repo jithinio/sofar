@@ -377,6 +377,12 @@ program
   .option('--effort <effort>', "effort for every launch — outranks any task's own route hint")
   .option('--resume', 'adopt the latest run when it has no stop, instead of refusing to start')
   .option(
+    '--verify <cmd>',
+    'acceptance command run before a task the agent marked done is accepted (r1-fixes 3.1); a task\'s own plan `verify` wins',
+  )
+  .option('--verify-timeout <seconds>', 'kill an acceptance command that has not ended in this long (default 600)')
+  .option('--max-verify-attempts <n>', 'stop the run once one task has failed verification this many times (default 3)')
+  .option(
     '--agent <name>',
     'default headless agent: claude-code (default) or codex — a task whose plan entry carries route.agent is launched with THAT one instead',
   )

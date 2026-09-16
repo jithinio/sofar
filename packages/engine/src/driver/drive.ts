@@ -24,6 +24,20 @@ import {
   type SessionExit,
 } from './adapter'
 import { previewRoutes, resolveRoute, RouteError, type RoutingOptions } from './routing'
+import {
+  attemptsSoFar,
+  commandAllowed,
+  DEFAULT_MAX_VERIFY_ATTEMPTS,
+  DEFAULT_VERIFY_TIMEOUT_MS,
+  describeVerification,
+  fingerprintTree,
+  resolveVerify,
+  runVerification,
+  verificationCovers,
+  verifyDirs,
+  type VerificationOutcome,
+} from './verify'
+import { version as ENGINE_VERSION } from '../../package.json'
 
 /**
  * `sofar drive <initiative>` (session-driver 2.2, D2): the loop, and nothing
@@ -304,6 +318,16 @@ export interface DriveOptions {
    * recording nothing.
    */
   surface?: PermissionSurface
+  /**
+   * The run's default acceptance command (r1-fixes 3.1, D19): run before a
+   * task the agent marked done is accepted, for every task without a `verify`
+   * of its own. Recorded in `run_started.verify`; a resumed run keeps its own.
+   */
+  verify?: string
+  /** Bound on one acceptance command (default DEFAULT_VERIFY_TIMEOUT_MS); a task's `verify.timeout_ms` wins. */
+  verifyTimeoutMs?: number
+  /** Failed attempts on one task before the run stops as a stall (default DEFAULT_MAX_VERIFY_ATTEMPTS). */
+  maxVerifyAttempts?: number
   /** Adopt the latest run when it has no stop, instead of refusing. */
   resume?: boolean
   /** Test seam: how often a waiting driver looks for a stop request (default STOP_POLL_MS). */
@@ -446,7 +470,12 @@ export function handoffReason(
  * says to keep taking tasks, and the nudge is what ends it (2.3). Telling a
  * threshold session to stop after one task would make the gauge decorative.
  */
-export function renderPrompt(initiative: string, task: DriveTask, policy: RunPolicy = 'task'): string {
+export function renderPrompt(
+  initiative: string,
+  task: DriveTask,
+  policy: RunPolicy = 'task',
+  failure?: string,
+): string {
   const scope =
     policy === 'threshold'
       ? [
@@ -470,6 +499,17 @@ export function renderPrompt(initiative: string, task: DriveTask, policy: RunPol
     '',
     ...scope,
     '',
+    // The gate's failure, verbatim (D19): the previous session marked this task
+    // done and the acceptance command rejected it, so this session starts from
+    // the failure rather than from a clean claim.
+    ...(failure !== undefined
+      ? [
+          `The previous session marked this task done, but ${failure}`,
+          'The driver reopened the task. Make that command pass — it is re-run, unchanged,',
+          'before the task is accepted — then mark the task done and write back as below.',
+          '',
+        ]
+      : []),
     'Finish the way the protocol says: log decisions as you make them, mark the task',
     'done with sofar_update_task, write back with sofar_end_session (summary + the',
     'single next action), then commit code and record together.',
@@ -528,6 +568,7 @@ export async function drive(
   // Run-owned, like thresholdPct and contextWindow above: stated by this
   // driver's flags for a fresh run, taken from the record for a resumed one.
   let surface = options.surface
+  let verify = options.verify
 
   const cwd = resolve(options.cwd ?? rootDir)
   assertSameRecord(cwd, initiative, ctx.eventsPath(initiative))
@@ -572,6 +613,12 @@ export async function drive(
       )
     }
     surface = last.surface ?? surface
+    // The run's own acceptance command wins on resume for the same reason its
+    // surface does (D19): half a run verified and half unverified is two runs.
+    if (last.verify !== undefined && options.verify !== undefined && last.verify !== options.verify) {
+      opening.push(`keeping run ${last.id}'s recorded --verify (\`${last.verify}\`) over this driver's — start a new run to change it`)
+    }
+    verify = last.verify ?? verify
     opening.push(`resuming run ${last.id} — ${priorSessions} handoff(s) already recorded`)
     // The two budgets the RECORD cannot carry, said before the run rather
     // than discovered from a bill (D9). `threshold_pct`, `context_window`,
@@ -598,6 +645,7 @@ export async function drive(
   if (!resuming) {
     opening.push(`run ${runId} — ${adapter.name}, ${policy} policy, in ${cwd}`)
     if (surface !== undefined) opening.push(`  permissions: ${describeSurface(surface)}`)
+    if (verify !== undefined) opening.push(`  verify: ${verify}`)
   }
 
   // Everything a launch needs to know about WHERE a task runs (3.2): the
@@ -654,11 +702,82 @@ export async function drive(
         ...(contextWindow !== undefined ? { context_window: contextWindow } : {}),
         ...(maxSessions !== undefined ? { max_sessions: maxSessions } : {}),
         ...(surface !== undefined ? { surface } : {}),
+        ...(verify !== undefined ? { verify } : {}),
       },
       { session: 'cli', source: 'cli', actor: 'human' },
     )
   }
   for (const line of opening) progress(line)
+
+  // ---------------------------------------------------------------------
+  // The verification gate (r1-fixes 3.1, D19). `gate` runs the task's
+  // acceptance command, records the outcome, and on anything but a pass
+  // reopens the task — so the record, not this driver, says whether a done
+  // task was accepted. It is called in three places: after a session whose
+  // task is done, on resume for a task done before the driver's check landed
+  // (a crash between the two), and in the closing sweep, which re-checks
+  // every task this run accepted against the tree as it stands at the end.
+  // ---------------------------------------------------------------------
+  const verifyTimeoutMs = options.verifyTimeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS
+  const maxVerifyAttempts = options.maxVerifyAttempts ?? DEFAULT_MAX_VERIFY_ATTEMPTS
+  const runVerify = { ...(verify !== undefined ? { verify } : {}) }
+  type Gate = { applies: false } | { applies: true; passed: boolean; attempt: number; line: string; exhausted: boolean }
+  const gate = (folded: InitiativeState, taskId: string): Gate => {
+    const task = folded.phases.flatMap((p) => p.tasks).find((t) => t.id === taskId)
+    const run = folded.runs.find((r) => r.id === runId)
+    if (task === undefined || run === undefined || task.status !== 'done') return { applies: false }
+    const which = resolveVerify(task, runVerify, verifyTimeoutMs)
+    if (which === undefined) return { applies: false }
+    const dirs = verifyDirs(cwd, which.cwd)
+    const fingerprint = fingerprintTree(dirs.absolute)
+    if (verificationCovers(task.verification, which.cmd, fingerprint)) {
+      return { applies: true, passed: true, attempt: task.verification!.attempt, line: '', exhausted: false }
+    }
+    const attempt = attemptsSoFar(run, taskId) + 1
+    const approved = which.source === 'run' || commandAllowed(which.cmd, surface)
+    progress(`  verifying ${taskId} (attempt ${attempt}): ${which.cmd}${approved ? '' : ' — refused, outside the run\'s permission surface'}`)
+    const outcome: VerificationOutcome = approved
+      ? runVerification(which.cmd, dirs.absolute, which.timeout_ms)
+      : { result: 'refused', duration_ms: 0, diagnostics: 'plan-level verify command is not covered by the run\'s allow rules; nothing was run' }
+    ctx.appendAndProject(
+      initiative,
+      'verification_recorded',
+      {
+        run: runId,
+        task: taskId,
+        attempt,
+        command: which.cmd,
+        cwd: dirs.relative,
+        // No repository to fingerprint: record that honestly rather than a
+        // stand-in a later driver could mistake for a real tree.
+        checked: fingerprint ?? { head: 'none', tree: 'none' },
+        validator: ENGINE_VERSION,
+        result: outcome.result,
+        ...(outcome.exit_code !== undefined ? { exit_code: outcome.exit_code } : {}),
+        ...(outcome.signal !== undefined ? { signal: outcome.signal } : {}),
+        duration_ms: outcome.duration_ms,
+        timeout_ms: which.timeout_ms,
+        ...(outcome.diagnostics !== undefined ? { diagnostics: outcome.diagnostics } : {}),
+      },
+      { session: 'cli', source: 'cli', actor: 'human' },
+    )
+    const line = describeVerification(which.cmd, attempt, outcome)
+    if (outcome.result === 'pass') {
+      progress(`  ${line}`)
+      return { applies: true, passed: true, attempt, line, exhausted: false }
+    }
+    // Reopen: the claim was the agent's, the rejection is the record's, and
+    // a done task with a failed check must not sit in the plan as done.
+    ctx.appendAndProject(
+      initiative,
+      'task_status_changed',
+      { id: taskId, status: 'active', note: `reopened by the driver — ${line}` },
+      { session: 'cli', source: 'cli', actor: 'human' },
+    )
+    progress(`  ${line} — task reopened`)
+    return { applies: true, passed: false, attempt, line, exhausted: attempt >= maxVerifyAttempts }
+  }
+
   options.onStarted?.(runId)
 
   const maxStalls = options.maxStalls ?? DEFAULT_MAX_STALLS
@@ -731,8 +850,39 @@ export async function drive(
         stop = { reason: 'closed', note: `initiative is ${state.status}` }
         break
       }
-      const task = nextTask(state)
+      // Tasks done under this run with no check behind them (D19): a crash
+      // between the agent's done and the gate, or a task marked done by a
+      // session the driver never resolved. Checked before the queue is read,
+      // since a failed check puts the task back in it.
+      let reopened = false
+      const thisRun = state.runs.find((r) => r.id === runId)
+      for (const doneId of thisRun?.done_tasks ?? []) {
+        const task = state.phases.flatMap((p) => p.tasks).find((t) => t.id === doneId)
+        if (task === undefined || task.status !== 'done' || task.verification !== undefined) continue
+        const g = gate(state, doneId)
+        if (g.applies && !g.passed) {
+          reopened = true
+          if (g.exhausted) stop = { reason: 'stall', note: `${doneId} failed verification ${g.attempt} time(s); last: ${g.line}` }
+        }
+      }
+      if (stop !== undefined) break
+      if (reopened) continue
+      let task = nextTask(state)
       if (task === undefined) {
+        // The closing sweep (D19): every task this run accepted, re-checked
+        // against the tree as it now stands — a later session may have moved
+        // the code a pass was recorded on. A stale pass verifies again; a
+        // failure reopens the task and the loop goes on.
+        let stale = false
+        for (const doneId of thisRun?.done_tasks ?? []) {
+          const g = gate(state, doneId)
+          if (g.applies && !g.passed) {
+            stale = true
+            if (g.exhausted) stop = { reason: 'stall', note: `${doneId} failed verification ${g.attempt} time(s); last: ${g.line}` }
+          }
+        }
+        if (stop !== undefined) break
+        if (stale) continue
         stop = { reason: 'closed', note: 'no task left to run — every task is done, dropped or blocked' }
         break
       }
@@ -769,10 +919,16 @@ export async function drive(
       progress(
         `session ${launched + 1}: ${task.id} — ${task.title}${routed !== adapter ? ` via ${routed.name}` : ''}`,
       )
+      // What the last check said about this task, if it was reopened (D19).
+      const lastCheck = state.phases.flatMap((p) => p.tasks).find((t) => t.id === task.id)?.verification
+      const failure =
+        lastCheck !== undefined && lastCheck.result !== 'pass'
+          ? describeVerification(lastCheck.command, lastCheck.attempt, lastCheck)
+          : undefined
       const session = routed.launch({
         cwd,
         initiative,
-        prompt: renderPrompt(initiative, task, policy),
+        prompt: renderPrompt(initiative, task, policy, failure),
         task: { id: task.id, title: task.title },
         ...(route.model !== undefined ? { model: route.model } : {}),
         ...(route.effort !== undefined ? { effort: route.effort } : {}),
@@ -829,12 +985,23 @@ export async function drive(
       }
 
       const sessionId = resolved.session.id
-      const reason = handoffReason(beforeStatuses, after, task.id, sessionId, gauge?.nudged() === true)
+      let reason = handoffReason(beforeStatuses, after, task.id, sessionId, gauge?.nudged() === true)
       const tokens = exit.usage?.context_tokens
       // How the process ended travels with the handoff when it is worth
       // reading — a stall, or any exit that was not clean (D9). A clean
       // task_done says nothing a reader needs.
-      const detail = reason === 'stall' || !cleanExit(exit) ? describeExit(exit) : undefined
+      let detail = reason === 'stall' || !cleanExit(exit) ? describeExit(exit) : undefined
+      // The gate (D19): a task_done is accepted only on a recorded pass. A
+      // dropped task is never verified — it resolved, it was not tested.
+      let exhausted: string | undefined
+      if (reason === 'task_done' || reason === 'threshold') {
+        const g = gate(after, task.id)
+        if (g.applies && !g.passed) {
+          reason = 'verify_failed'
+          detail = g.line
+          if (g.exhausted) exhausted = `${task.id} failed verification ${g.attempt} time(s); last: ${g.line}`
+        }
+      }
       ctx.appendAndProject(
         initiative,
         'handoff',
@@ -863,6 +1030,10 @@ export async function drive(
 
       if (interrupted) {
         stop = interruptedStop()
+        break
+      }
+      if (exhausted !== undefined) {
+        stop = { reason: 'stall', note: exhausted }
         break
       }
       if (reason === 'needs_user') {

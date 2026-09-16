@@ -28,6 +28,9 @@ import {
   type RunStopReason,
   type RunSurface,
   type RunStoppedPayload,
+  type TaskVerify,
+  type VerificationRecordedPayload,
+  type VerificationResult,
   type RunStopRequestedPayload,
   type ReviewRecordedPayload,
   type ReviewScope,
@@ -72,6 +75,31 @@ export interface TaskState {
    * of a full-replace plan it survives only as long as the plan restates it.
    */
   route?: TaskRoute
+  /** The acceptance command (r1-fixes 3.1, D19), carried through from the plan like `route`. */
+  verify?: TaskVerify
+  /**
+   * The latest verification the driver recorded for this task (D19). A pass
+   * counts only while `checked` names the current tree and `command` is the
+   * one that would run now — the driver re-fingerprints before trusting it.
+   */
+  verification?: TaskVerification
+}
+
+/** One `verification_recorded`, as the task and the run keep it (D19). */
+export interface TaskVerification {
+  run: string
+  attempt: number
+  ts: string
+  command: string
+  cwd: string
+  checked: { head: string; tree: string }
+  validator: string
+  result: VerificationResult
+  exit_code?: number
+  signal?: string
+  duration_ms: number
+  timeout_ms: number
+  diagnostics?: string
 }
 
 export interface PhaseState {
@@ -240,8 +268,19 @@ export interface RunState {
    * under another is two runs wearing one id.
    */
   surface?: RunSurface
+  /** The run's default acceptance command (D19), when `--verify` stated one. */
+  verify?: string
   /** Log order. */
   handoffs: RunHandoff[]
+  /** Every verification this run recorded, log order (D19). */
+  verifications: { ts: string; task: string; attempt: number; result: VerificationResult }[]
+  /**
+   * Tasks that reached `done` while this run was open, log order, deduplicated
+   * (D19). What a resumed driver checks for a missing verification: a crash
+   * between the agent's done and the driver's check leaves the task here with
+   * no pass, so the resume verifies before it moves on.
+   */
+  done_tasks: string[]
   /**
    * When `sofar drive --stop` asked this run's driver to end it (in-session-drive
    * D2), log order. Envelope timestamps, because a driver honours only the
@@ -949,6 +988,7 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
     case 'handoff':
     case 'run_stopped':
     case 'run_stop_requested':
+    case 'verification_recorded':
       // Driver events are EXCLUDED from drift, deliberately (commit-attribution
       // D18 requires the class decided here). Drift asks whether the recorded
       // next_action is now wrong; these say how sessions were scheduled, never
@@ -1345,6 +1385,7 @@ function applyEvent(
           title: task.title,
           status: task.status ?? 'pending',
           ...(task.route !== undefined ? { route: task.route } : {}),
+          ...(task.verify !== undefined ? { verify: task.verify } : {}),
         })),
       }))
       break
@@ -1364,7 +1405,12 @@ function applyEvent(
         break
       }
       const phase = findOrCreatePhase(state, p.phase, warnings, lineNo)
-      phase.tasks.push({ id: p.id, title: p.title, status: p.status ?? 'pending' })
+      phase.tasks.push({
+        id: p.id,
+        title: p.title,
+        status: p.status ?? 'pending',
+        ...(p.verify !== undefined ? { verify: p.verify } : {}),
+      })
       break
     }
     case 'task_status_changed': {
@@ -1375,6 +1421,13 @@ function applyEvent(
         break
       }
       task.status = p.status
+      // A task done while a run is open is one that run must have verified
+      // before accepting (D19); kept on the run so a resumed driver can see a
+      // done task whose check never landed.
+      if (p.status === 'done') {
+        const open = state.runs.find((r) => r.stopped === undefined)
+        if (open !== undefined && !open.done_tasks.includes(p.id)) open.done_tasks.push(p.id)
+      }
       if (p.status === 'blocked' && p.note) {
         blockNotes.set(p.id, p.note)
       } else if (p.status !== 'blocked') {
@@ -1452,9 +1505,44 @@ function applyEvent(
         ...(p.context_window !== undefined ? { context_window: p.context_window } : {}),
         ...(p.max_sessions !== undefined ? { max_sessions: p.max_sessions } : {}),
         ...(p.surface !== undefined ? { surface: p.surface } : {}),
+        ...(p.verify !== undefined ? { verify: p.verify } : {}),
         handoffs: [],
+        verifications: [],
+        done_tasks: [],
         stop_requests: [],
       })
+      break
+    }
+    case 'verification_recorded': {
+      // Same rule as a handoff: the driver that records a verification minted
+      // its run first, so one with no run is a misroute and gets no stub.
+      const p = event.payload as unknown as VerificationRecordedPayload
+      const run = state.runs.find((r) => r.id === p.run)
+      if (!run) {
+        warnings.push(`line ${lineNo}: verification for run "${p.run}" that never started — skipped`)
+        break
+      }
+      run.verifications.push({ ts: event.ts, task: p.task, attempt: p.attempt, result: p.result })
+      const task = findTask(state, p.task)
+      if (!task) {
+        warnings.push(`line ${lineNo}: verification for task "${p.task}" not in the plan — kept on the run only`)
+        break
+      }
+      task.verification = {
+        run: p.run,
+        attempt: p.attempt,
+        ts: event.ts,
+        command: p.command,
+        cwd: p.cwd,
+        checked: { head: p.checked.head, tree: p.checked.tree },
+        validator: p.validator,
+        result: p.result,
+        ...(p.exit_code !== undefined ? { exit_code: p.exit_code } : {}),
+        ...(p.signal !== undefined ? { signal: p.signal } : {}),
+        duration_ms: p.duration_ms,
+        timeout_ms: p.timeout_ms,
+        ...(p.diagnostics !== undefined ? { diagnostics: p.diagnostics } : {}),
+      }
       break
     }
     case 'handoff': {

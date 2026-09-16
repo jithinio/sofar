@@ -1,0 +1,66 @@
+# CI (r1-fixes, run-owner ruling 2026-09-16): the push path runs the suite
+# and nothing timing-sensitive. The D18 read-path tripwire is the separate
+# manual job below, so no push pays an npm install of the pinned baseline,
+# and the SPEC keeps that tripwire as the first RC checklist step regardless.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: 'previous release to gate against (npm version of sofar.sh)'
+        required: true
+        default: '0.32.0'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm run typecheck
+
+  # Loose read-path tripwire (r1-fixes D18): a gross regression cannot reach
+  # an RC unnoticed. Wide budget on purpose — hosted noise cannot hide a 2×
+  # regression, and the ±10% gate runs by hand, interleaved, per the SPEC.
+  read-paths:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: install the pinned baseline
+        run: npm install --prefix "$RUNNER_TEMP/baseline" sofar.sh@${{ inputs.baseline }}
+      - name: read-path tripwire (repo fixture)
+        run: |
+          npm run bench:read-paths -- \
+            --baseline "$RUNNER_TEMP/baseline/node_modules/sofar.sh/dist/cli.js" \
+            --candidate packages/engine/dist/cli.js \
+            --fixture repo --session ci-tripwire --n 25 --budget 0.5 \
+            --record "$RUNNER_TEMP/read-paths.repo.json"
+      - name: read-path tripwire (i1000-10mb fixture)
+        run: |
+          npm run bench:read-paths -- \
+            --baseline "$RUNNER_TEMP/baseline/node_modules/sofar.sh/dist/cli.js" \
+            --candidate packages/engine/dist/cli.js \
+            --fixture i1000-10mb --n 25 --budget 0.5 \
+            --record "$RUNNER_TEMP/read-paths.i1000-10mb.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: read-paths
+          path: ${{ runner.temp }}/read-paths.*.json

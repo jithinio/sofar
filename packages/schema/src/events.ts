@@ -95,6 +95,23 @@ export interface PlanTaskInput {
   title: string
   status?: TaskStatus
   route?: TaskRoute
+  verify?: TaskVerify
+}
+
+/**
+ * The task's acceptance command (r1-fixes 3.1, D19): what `sofar drive` runs
+ * before it accepts the task as done. A shell command line, run in `cwd`
+ * relative to the launch directory (default the launch directory itself),
+ * killed after `timeout_ms`. The plan carries it like a route, and like a
+ * route it survives only as long as a full-replace plan restates it. An
+ * agent can write a plan, so the driver runs a plan-level command ONLY when
+ * it falls inside the run's recorded permission surface (D19) — the
+ * operator's `--verify` is the other, always-approved source.
+ */
+export interface TaskVerify {
+  cmd: string
+  cwd?: string
+  timeout_ms?: number
 }
 
 export interface PlanPhaseInput {
@@ -147,7 +164,7 @@ export interface PlanUpdatedPayload { plan: PlanStructure }
  * forgotten, and nothing else in the record explains it.
  */
 export interface PhaseStatusChangedPayload { phase: string; status: PhaseStatus; note?: string }
-export interface TaskAddedPayload { phase: string; id: string; title: string; status?: TaskStatus }
+export interface TaskAddedPayload { phase: string; id: string; title: string; status?: TaskStatus; verify?: TaskVerify }
 export interface TaskStatusChangedPayload { id: string; status: TaskStatus; note?: string }
 /**
  * `rule` (drift-hardening D1): optional standing-constraint clause — one short
@@ -258,9 +275,12 @@ export type RunPolicy = (typeof RUN_POLICIES)[number]
 /**
  * Why a driven session ended and the next one starts. `stall` is a session
  * that ended with no task change; `needs_user` is a write-back whose next
- * action names a decision only the operator can take.
+ * action names a decision only the operator can take; `verify_failed`
+ * (r1-fixes 3.1, D19) is a task the session marked done that the acceptance
+ * command then rejected — the driver reopened it, and the next session gets
+ * the failure.
  */
-export const HANDOFF_REASONS = ['task_done', 'threshold', 'stall', 'needs_user'] as const
+export const HANDOFF_REASONS = ['task_done', 'threshold', 'stall', 'needs_user', 'verify_failed'] as const
 export type HandoffReason = (typeof HANDOFF_REASONS)[number]
 
 /** Why the run itself ended — the stop rules, plus the two ways a run can die. */
@@ -304,6 +324,12 @@ export interface RunStartedPayload {
    * operator's mutable config said that day.
    */
   surface?: RunSurface
+  /**
+   * The run's default acceptance command (r1-fixes 3.1, D19): `--verify`,
+   * applied to every task that carries no `verify` of its own. Operator-
+   * stated, so it always runs; recorded so a resumed run keeps it.
+   */
+  verify?: string
 }
 
 /** What `run_started.surface` carries; the driver's own type is engine-side. */
@@ -331,6 +357,43 @@ export interface HandoffPayload {
    */
   detail?: string
 }
+/**
+ * How an acceptance command ended (r1-fixes 3.1, D19). `refused` never ran:
+ * a plan-level command outside the run's permission surface.
+ */
+export const VERIFICATION_RESULTS = ['pass', 'fail', 'timeout', 'error', 'refused'] as const
+export type VerificationResult = (typeof VERIFICATION_RESULTS)[number]
+
+/**
+ * The driver ran a task's acceptance command (r1-fixes 3.1, D19) — the
+ * record of WHAT was checked, on WHICH tree, and how it ended. Written by the
+ * driver before it accepts a `task_done`, and again on every retry; the fold
+ * keeps each task's latest. A pass counts only while `checked` still names
+ * the current tree and `command` is unchanged — the driver re-fingerprints
+ * before trusting one. Diagnostics are a bounded, redacted tail of the
+ * command's output (D9's precedent for driver diagnostics on the record).
+ */
+export interface VerificationRecordedPayload {
+  run: string
+  task: string
+  /** 1-based, per task per run. */
+  attempt: number
+  command: string
+  /** Relative to the launch directory; `.` for the launch directory itself. */
+  cwd: string
+  /** The tree the command ran on: HEAD, and a digest of every tracked change plus every untracked file. */
+  checked: { head: string; tree: string }
+  /** Engine version that ran it. */
+  validator: string
+  result: VerificationResult
+  exit_code?: number
+  signal?: string
+  duration_ms: number
+  timeout_ms: number
+  /** ≤1,024 chars: ANSI-stripped, redacted tail of stdout and stderr. */
+  diagnostics?: string
+}
+
 export interface RunStoppedPayload {
   run: string
   reason: RunStopReason
@@ -367,6 +430,7 @@ export interface KnownEventPayloads {
   handoff: HandoffPayload
   run_stopped: RunStoppedPayload
   run_stop_requested: RunStopRequestedPayload
+  verification_recorded: VerificationRecordedPayload
   correction: CorrectionPayload
 }
 
@@ -392,6 +456,7 @@ export const EVENT_TYPES = [
   'handoff',
   'run_stopped',
   'run_stop_requested',
+  'verification_recorded',
   'correction',
 ] as const satisfies readonly KnownEventType[]
 
@@ -481,8 +546,23 @@ function validatePlan(plan: unknown, errors: string[]): void {
         errors.push(`plan.phases[${pi}].tasks[${ti}].status: must be one of ${TASK_STATUSES.join('|')}`)
       }
       validateRoute(task.route, `plan.phases[${pi}].tasks[${ti}].route`, errors)
+      validateVerify(task.verify, `plan.phases[${pi}].tasks[${ti}].verify`, errors)
     })
   })
+}
+
+/** `verify` (r1-fixes 3.1, D19): a command line, an optional relative cwd, an optional positive timeout. */
+function validateVerify(verify: unknown, path: string, errors: string[]): void {
+  if (verify === undefined) return
+  if (!isObj(verify)) {
+    errors.push(`${path}: must be an object`)
+    return
+  }
+  if (!str(verify.cmd)) errors.push(`${path}.cmd: must be a non-empty string`)
+  if (!optNonEmptyStr(verify.cwd)) errors.push(`${path}.cwd: must be a non-empty string when present`)
+  if (verify.timeout_ms !== undefined && !(Number.isInteger(verify.timeout_ms) && (verify.timeout_ms as number) > 0)) {
+    errors.push(`${path}.timeout_ms: must be a positive integer when present`)
+  }
 }
 
 /** One status this build did not recognise, rewritten so the plan survives. */
@@ -577,6 +657,7 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (!str(p.id)) e.push('id: must be a non-empty string')
     if (!str(p.title)) e.push('title: must be a non-empty string')
     if (!optTaskStatus(p.status)) e.push(`status: must be one of ${TASK_STATUSES.join('|')}`)
+    validateVerify(p.verify, 'verify', e)
   },
   task_status_changed(p, e) {
     if (!str(p.id)) e.push('id: must be a non-empty string')
@@ -649,6 +730,7 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
   run_started(p, e) {
     if (!str(p.run)) e.push('run: must be a non-empty string')
     if (!str(p.adapter)) e.push('adapter: must be a non-empty string')
+    if (!optNonEmptyStr(p.verify)) e.push('verify: must be a non-empty string when present')
     if (!(RUN_POLICIES as readonly unknown[]).includes(p.policy)) {
       e.push(`policy: must be one of ${RUN_POLICIES.join('|')}`)
     }
@@ -708,6 +790,27 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
       e.push('tokens: must be a non-negative integer when present')
     }
     if (p.detail !== undefined && !str(p.detail)) e.push('detail: must be a non-empty string when present')
+  },
+  verification_recorded(p, e) {
+    if (!str(p.run)) e.push('run: must be a non-empty string')
+    if (!str(p.task)) e.push('task: must be a non-empty string')
+    if (!(Number.isInteger(p.attempt) && (p.attempt as number) >= 1)) e.push('attempt: must be a positive integer')
+    if (!str(p.command)) e.push('command: must be a non-empty string')
+    if (!str(p.cwd)) e.push('cwd: must be a non-empty string')
+    if (!isObj(p.checked) || !str(p.checked.head) || !str(p.checked.tree)) {
+      e.push('checked: must be {head, tree} of non-empty strings')
+    }
+    if (!str(p.validator)) e.push('validator: must be a non-empty string')
+    if (!(VERIFICATION_RESULTS as readonly unknown[]).includes(p.result)) {
+      e.push(`result: must be one of ${VERIFICATION_RESULTS.join('|')}`)
+    }
+    if (p.exit_code !== undefined && !Number.isInteger(p.exit_code)) e.push('exit_code: must be an integer when present')
+    if (!optNonEmptyStr(p.signal)) e.push('signal: must be a non-empty string when present')
+    if (!(Number.isInteger(p.duration_ms) && (p.duration_ms as number) >= 0)) e.push('duration_ms: must be a non-negative integer')
+    if (!(Number.isInteger(p.timeout_ms) && (p.timeout_ms as number) > 0)) e.push('timeout_ms: must be a positive integer')
+    if (p.diagnostics !== undefined && (!str(p.diagnostics) || (p.diagnostics as string).length > 1024)) {
+      e.push('diagnostics: must be a non-empty string of at most 1,024 chars when present')
+    }
   },
   run_stopped(p, e) {
     if (!str(p.run)) e.push('run: must be a non-empty string')
@@ -782,7 +885,7 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
   plan_updated: {
     writer: 'agent',
     summary: 'the WHOLE plan — a full replace: resend every phase and task each time, or the omitted ones vanish',
-    fields: `plan: {goal?, phases: [{name, status?: ${PHASE_STATUSES.join('|')}, tasks: [{id, title, status?: ${TASK_STATUSES.join('|')}, route?: {agent?, model?, effort?}}]}]}`,
+    fields: `plan: {goal?, phases: [{name, status?: ${PHASE_STATUSES.join('|')}, tasks: [{id, title, status?: ${TASK_STATUSES.join('|')}, route?: {agent?, model?, effort?}, verify?: {cmd, cwd?, timeout_ms?}}]}]}`,
     example: {
       plan: {
         goal: 'Ship the booking flow',
@@ -808,7 +911,7 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
   task_added: {
     writer: 'agent',
     summary: 'one task appended to an existing phase, without resending the plan',
-    fields: `phase, id, title, status?: ${TASK_STATUSES.join('|')}`,
+    fields: `phase, id, title, status?: ${TASK_STATUSES.join('|')}, verify?: {cmd, cwd?, timeout_ms?} (the acceptance command sofar drive runs before accepting the task)`,
     example: { phase: 'Phase 1 — Data model', id: '1.3', title: 'Seed data', status: 'pending' },
   },
   task_status_changed: {
@@ -876,7 +979,7 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
   run_started: {
     writer: 'driver',
     summary: 'a sofar drive run began',
-    fields: `run, adapter, policy: ${RUN_POLICIES.join('|')}, threshold_pct? and context_window? (both required for threshold), max_sessions?, surface?`,
+    fields: `run, adapter, policy: ${RUN_POLICIES.join('|')}, threshold_pct? and context_window? (both required for threshold), max_sessions?, surface?, verify? (the run's default acceptance command)`,
     example: { run: '01J00000000000000000000000', adapter: 'codex', policy: 'task' },
   },
   handoff: {
@@ -884,6 +987,24 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
     summary: 'a driven session ended and the next one starts',
     fields: `run, session_id, reason: ${HANDOFF_REASONS.join('|')}, task?, tokens?, detail? (how the process ended: exit, spawn error, last stderr line)`,
     example: { run: '01J00000000000000000000000', session_id: 's1', reason: 'task_done', task: '1.1' },
+  },
+  verification_recorded: {
+    writer: 'driver',
+    summary: "the driver ran a task's acceptance command before accepting it as done",
+    fields: `run, task, attempt, command, cwd, checked: {head, tree}, validator, result: ${VERIFICATION_RESULTS.join('|')}, exit_code?, signal?, duration_ms, timeout_ms, diagnostics? (≤1,024 chars)`,
+    example: {
+      run: '01J00000000000000000000000',
+      task: '1.1',
+      attempt: 1,
+      command: 'npm test -- --run',
+      cwd: '.',
+      checked: { head: '0123456789abcdef0123456789abcdef01234567', tree: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' },
+      validator: '0.33.0',
+      result: 'pass',
+      exit_code: 0,
+      duration_ms: 1200,
+      timeout_ms: 600000,
+    },
   },
   run_stopped: {
     writer: 'driver',

@@ -172,9 +172,11 @@ review_recorded (scope: phase|final, verdict: pass|findings|blocked,
 watermark?, phase?, findings? — a review that was actually performed;
 commit-attribution 4.4, see §Review) ·
 run_started (run, adapter, policy: task|threshold, threshold_pct? and
-context_window? — BOTH REQUIRED for `threshold`, max_sessions?) · handoff (run, session_id, reason:
-task_done|threshold|stall|needs_user, task?, tokens?, detail? — how the
-process ended, on stalls and unclean exits, r1-fixes D9) · run_stopped (run,
+context_window? — BOTH REQUIRED for `threshold`, max_sessions?, surface?,
+verify? — the run's default acceptance command, r1-fixes 3.1 D19) · handoff (run, session_id, reason:
+task_done|threshold|stall|needs_user|verify_failed, task?, tokens?, detail? — how the
+process ended, on stalls and unclean exits, r1-fixes D9; `verify_failed`
+since r1-fixes 3.1) · verification_recorded (run, task, attempt, command, cwd, checked {head, tree}, validator, result: pass|fail|timeout|error|refused, exit_code?, signal?, duration_ms, timeout_ms, diagnostics? ≤1,024 chars — the driver ran a task's acceptance command before accepting it, r1-fixes 3.1 D19) · run_stopped (run,
 reason: closed|needs_user|stall|cost_cap|max_sessions|interrupted|error,
 note? — REQUIRED for `error`; the three driver events ride on envelope
 session `cli`, since a run is not a session; session-driver 1.2, see
@@ -970,7 +972,7 @@ stream before the first launch, for the reason it states an inert cap at
 all — a cap that quietly restarts is the same silent trap as one that cannot
 fire.
 
-**Reasons.** handoff: `task_done` | `threshold` | `stall` (the session ended
+**Reasons.** handoff: `task_done` | `threshold` | `verify_failed` (r1-fixes 3.1, D19: the session marked its task done and the acceptance command rejected it — reopened, failure in the next prompt) | `stall` (the session ended
 with no task change) | `needs_user` (its write-back names a decision only
 the operator can take). stop: `closed` | `needs_user` | `stall` (N
 consecutive stalls) | `cost_cap` | `max_sessions` | `interrupted` |
@@ -989,6 +991,63 @@ clean (non-zero, or a spawn error) — a clean `task_done` carries none, and
 driver and a reader of the record see WHY, not just that the queue did not
 move. Diagnostic only: `reason` is still read from the fold (D5) and no
 exit code or stderr text is trusted to classify anything.
+
+**Verification gate (r1-fixes 3.1, D19).** A task the agent marked done is
+accepted only on a recorded PASS of its acceptance command on the tree it
+ran against. SOURCE: the task's `verify` {cmd, cwd?, timeout_ms?} from the
+plan (plan_updated / task_added; carried like `route`, restated or lost on a
+full replace), else the run's `--verify <cmd>` default, recorded in
+`run_started.verify` and taken from the record on `--resume` (the run's own
+wins, as its surface does). No built-in table (D8). PERMISSION: the command
+runs in the DRIVER's process with the operator's permissions, so it runs
+only when the operator approved it — `--verify` is that approval; a
+plan-level command, which an agent can write, runs only if the run's
+recorded surface would have let the agent run it (a `Bash(<prefix>:*)` rule
+the command starts with at a word boundary, or an exact `Bash(<cmd>)`),
+else the result is `refused` and nothing executes. Never wider than the
+launched agent's surface. RECORD: `verification_recorded` (writer: driver;
+the same misroute rule as a handoff — one for a run that never started is
+skipped) carries run, task, attempt (1-based per task per run), command,
+cwd (relative to the launch dir, `.` for it), `checked` {head: the commit;
+tree: sha256 over `git diff HEAD` and every untracked file's blob id, with
+`.sofar/` excluded on both sides — the record is what the gate writes to,
+not what it tests, and a fingerprint that moved with it would invalidate
+its own pass}, validator (engine version), result, exit_code?, signal?,
+duration_ms, timeout_ms (default 600 s; `--verify-timeout`; the task's
+`timeout_ms` wins) and diagnostics? — the ANSI-stripped, redacted last
+1,024 chars of stdout+stderr (D9's precedent). `{head: 'none', tree:
+'none'}` is recorded when there is no repository to fingerprint, and such a
+pass never covers anything. The fold keeps each task's latest as
+`task.verification`, every check on `run.verifications`, and on
+`run.done_tasks` every task that reached `done` while the run was open.
+INVALIDATION: a pass covers only while `command` is unchanged and the
+current fingerprint equals `checked`; the driver re-fingerprints before
+trusting one — stale means verify again. ELIGIBILITY: on a session whose
+task is done (handoff `task_done` or `threshold`) and a verify applies, the
+gate runs BEFORE the handoff is filed; a pass leaves the reason as it was,
+anything else reopens the task (`task_status_changed` → `active`, note
+`reopened by the driver — verification attempt N: \`cmd\` <how> — <last
+line>`), files the handoff as `verify_failed` with that line as `detail`,
+and the next session for the task gets the failure verbatim in its prompt
+(`The previous session marked this task done, but …`). Attempts count per
+task per run; once one task has failed `--max-verify-attempts` (default 3)
+times the run stops as `stall` naming it. A `dropped` task is never
+verified and never counted as verified: its handoff stays `task_done`, the
+record shows no check. RESUME AND CRASH: the driver holds nothing — on
+every turn, before reading the queue, it checks each of the run's
+`done_tasks` that is still `done` and carries no verification (a crash
+between the agent's done and the gate, or a done from a session the driver
+never resolved) and gates it first; a failure reopens it into the queue.
+CLOSING SWEEP: when the queue is empty, every task this run accepted is
+re-checked against the tree as it now stands — a later session may have
+moved the code a pass was recorded on; a covered pass runs nothing, a stale
+one verifies again, a failure reopens the task and the loop goes on. A run
+with no verify command anywhere records no verification and behaves exactly
+as before. SURFACES: plan.md appends `verify: \`cmd\`` and `verified pass
+@<head7> (attempt N)` or `verification <result> (attempt N, exit C)` to a
+task line; describeRun appends `, P/N verification(s) passed` when the run
+recorded any; sessions/<id>.md shows `verify_failed` like any reason.
+Records without checks render byte-identically.
 
 **Fold.** `runs[]` in log order; latestRun is the resume point — a run with
 no stop is still going, or its driver died without writing one, which is
@@ -3521,6 +3580,23 @@ stay the underlying derivation's, and exit codes are styling-independent.
   context's render; a direct append, a same-size rewrite with a newer mtime
   and a deleted log are all seen; a correction appended through the context
   refolds; the cache holds at most 8 slugs.
+- **Verification gate (r1-fixes 3.1):** with `--verify`, a driven task the
+  agent marks done gets a `verification_recorded` pass carrying the tree
+  fingerprint BEFORE its `task_done` handoff, `run_started.verify` holds the
+  command, `run.done_tasks` lists the task, plan.md says `verified pass
+  @<head7>`; a failing command reopens the task (note `reopened by the
+  driver`), hands off as `verify_failed` with the attempt line as detail, and
+  the next session's prompt carries the failure; the task is accepted once
+  the command passes (attempt 2); a task failing `--max-verify-attempts`
+  times stops the run as `stall` naming it, task left `active`. A plan-level
+  verify outside the run's surface records `refused` and runs nothing; inside
+  it, it runs. A dropped task records no verification. On `--resume`, a
+  task done under the run with no check is verified first on the RECORDED
+  command (the driver's `--verify` is ignored), before any launch; the
+  closing sweep re-checks a pass whose tree moved (attempt 2). The
+  fingerprint changes on an edit, a new file and a commit, is stable on a
+  clean tree, ignores `.sofar/`, and is null outside a repository. A run
+  with no verify command records nothing and renders as before.
 - **Read-path latency budget (r1-fixes D18):** `npm run bench:read-paths --
   --baseline <previous release cli.js> --candidate <RC cli.js> --fixture
   repo|i1000-10mb` times session-start, user-prompt, stop and statusline
