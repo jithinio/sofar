@@ -959,8 +959,12 @@ Session loop (every write is one \`sofar event append\` call):
 - DURING: log work as it happens with \`sofar event append <slug> --session <session-id> --source <tool>\` plus:
   task status:  \`--type task_status_changed --payload '{"id":"<task-id>","status":"pending|active|done|blocked|dropped"}'\`
   phase status: \`--type phase_status_changed --payload '{"phase":"<phase name as in the plan>","status":"active|done"}'\`
-  decisions:    \`--type decision_logged --payload '{"chose":"...","over":"...","because":"..."}'\`
+  decisions:    \`--type decision_logged --payload '{"chose":"...","over":"...","because":"...","rule":"..."}'\`
   notes:        \`--type note_added --payload '{"text":"..."}'\`
+  A decision's "rule" is ONE short imperative every later session must obey.
+  Add it when the operator states the choice for the whole project —
+  \`sofar status\` shows it to every later session as a standing constraint.
+  Omit it for a one-off choice.
   Every other event type, its fields and who writes it: \`sofar event types\`.
   Payload prose is WHY: files, commands, test outcomes and commits are
   captured by hooks and derived, never restated.

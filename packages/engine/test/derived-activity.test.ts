@@ -271,6 +271,11 @@ describe('guidance and the switch (D24 (5), (6))', () => {
     expect(prevAgents).not.toContain('is WHY')
     // The only difference is the clause: the ledger entry is the old block byte-exact.
     expect(PROTOCOL_BLOCK.replace(/ A note or summary is WHY:\n  files, commands, test outcomes and commits are captured by hooks and\n  derived, never restated\./, '')).toBe(prevClaude)
-    expect(AGENTS_PROTOCOL_BLOCK.replace(/  Payload prose is WHY: files, commands, test outcomes and commits are\n  captured by hooks and derived, never restated\.\n/, '')).toBe(prevAgents)
+    // 4.1.1 (L07, D27) edited the same unreleased block in place; strip its lines too.
+    const withoutL07 = AGENTS_PROTOCOL_BLOCK.replace(',"rule":"..."}', '}').replace(
+      /  A decision's "rule" is ONE short imperative[^\n]*\n(?:  [^\n]*\n){2}  Omit it for a one-off choice\.\n/,
+      '',
+    )
+    expect(withoutL07.replace(/  Payload prose is WHY: files, commands, test outcomes and commits are\n  captured by hooks and derived, never restated\.\n/, '')).toBe(prevAgents)
   })
 })

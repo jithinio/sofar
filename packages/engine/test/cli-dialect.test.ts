@@ -14,6 +14,8 @@ import { foldLog } from '../src/core/fold'
 import { runAppend, runEventTypes } from '../src/cli/event'
 import { AGENTS_PROTOCOL_BLOCK, runInit } from '../src/cli/init'
 import { runNew } from '../src/cli/new'
+import { runStatus } from '../src/cli/status'
+import { codexPinLine } from '../src/driver/codex'
 import type { Caps } from '../src/cli/ui'
 
 /**
@@ -253,5 +255,45 @@ describe('the AGENTS.md block teaches a project initiative with a plan (r1-fixes
       ['Phase 2 — Itineraries', 'pending'],
     ])
     expect(state.sessions.map((s) => [s.id, s.tool, s.summary])).toEqual([['cursor-s1', 'cursor', 'profile shipped']])
+  })
+})
+
+describe('the CLI surfaces teach the decision `rule` (r1-fixes 4.1.1, L07, D27)', () => {
+  // Round 1: CLI sofar cells recorded 0 rules across 43 decisions, MCP cells
+  // covered 6 of 6 planted decisions — and only the MCP schema named `rule`.
+  const CONDITION = /operator states the choice for the whole project/
+
+  it('the AGENTS block shows rule in the decision example, with when to add it', () => {
+    const decision = payloadsIn(AGENTS_PROTOCOL_BLOCK).find((p) => p.type === 'decision_logged')!
+    expect(Object.keys(JSON.parse(decision.json))).toEqual(['chose', 'over', 'because', 'rule'])
+    expect(AGENTS_PROTOCOL_BLOCK).toMatch(CONDITION)
+    expect(AGENTS_PROTOCOL_BLOCK).toContain('Omit it for a one-off choice.')
+  })
+
+  it('`sofar event types` carries the condition and a rule in its validating example', () => {
+    expect(EVENT_TYPE_REFERENCE.decision_logged.via).toMatch(CONDITION)
+    expect(runEventTypes('decision_logged').stdout).toMatch(CONDITION)
+    expect(EVENT_TYPE_REFERENCE.decision_logged.example).toHaveProperty('rule')
+    expect(runEventTypes('decision_logged').stdout).toContain('"rule":')
+  })
+
+  it('the driven codex preamble shows rule too', () => {
+    const line = codexPinLine('proj', 'S1')
+    expect(line).toContain('"because":"…","rule":"…"')
+    expect(line).toMatch(/operator states the choice for the/)
+  })
+
+  it('a decision logged as the block shows it reaches `sofar status` as a standing constraint', () => {
+    const root = initedRepo()
+    expect(runNew(root, 'proj', { bind: true, goal: 'g' }, PLAIN, PLAIN).exitCode).toBe(0)
+    const res = runAppend(root, {
+      type: 'decision_logged',
+      payload: JSON.stringify({ chose: 'x', over: 'y', because: 'z', rule: 'Always do x' }),
+      session: 'c1',
+      source: 'codex',
+      actor: 'agent',
+    })
+    expect(res.exitCode, res.stderr).toBe(0)
+    expect(runStatus(root, undefined, PLAIN, 100).stdout).toMatch(/Standing constraints[^\n]*\n[^\n]*Always do x/)
   })
 })
