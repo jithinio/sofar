@@ -53,7 +53,12 @@ export function describeRun(run: RunState): string {
   for (const h of run.handoffs) byReason.set(h.reason, (byReason.get(h.reason) ?? 0) + 1)
   const breakdown = [...byReason].map(([reason, n]) => `${n} ${reason}`).join(', ')
   const n = run.handoffs.length
-  const handoffs = `${n} handoff${n === 1 ? '' : 's'}${breakdown.length > 0 ? ` (${breakdown})` : ''}`
+  // Verifications (r1-fixes 3.1, D19), only when the run recorded any, so an
+  // unverified run's line is byte-identical to before the gate existed.
+  const passes = run.verifications.filter((v) => v.result === 'pass').length
+  const checks =
+    run.verifications.length > 0 ? `, ${passes}/${run.verifications.length} verification${run.verifications.length === 1 ? '' : 's'} passed` : ''
+  const handoffs = `${n} handoff${n === 1 ? '' : 's'}${breakdown.length > 0 ? ` (${breakdown})` : ''}${checks}`
   const fate =
     run.stop_reason !== undefined
       ? `stopped: ${run.stop_reason}${run.stop_note !== undefined ? ` — ${run.stop_note}` : ''}`

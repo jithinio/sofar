@@ -2,6 +2,8 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { afterAll, describe, expect, it } from 'vitest'
 import { validatePayload } from '@sofar/schema'
 import { runClose } from '../src/cli/close'
+import { applyClose } from '../src/mcp/close-initiative'
+import { createToolContext } from '../src/mcp/context'
 import { closedBanner } from '../src/cli/event'
 import { closeoutFindings, type CloseFindingKind } from '../src/core/closeout'
 import { makeEvent, type EventEnvelope, type MakeEventInput } from '../src/core/envelope'
@@ -9,7 +11,7 @@ import { foldLines, type InitiativeState } from '../src/core/fold'
 import { serializeEvent } from '../src/core/log'
 import { renderFullStatus } from '../src/projections/templates/status'
 import type { Caps } from '../src/cli/ui'
-import { callTool, connectServer, makeRepoFixture, type Fixture } from './helpers/mcp'
+import { makeRepoFixture, type Fixture } from './helpers/mcp'
 
 const PLAIN: Caps = { color: false, unicode: true, animate: false }
 
@@ -340,15 +342,10 @@ describe('both close surfaces record the same override (5.2)', () => {
     )
   }
 
-  it('sofar_close_initiative returns the findings AND still closes', async () => {
+  it('applyClose (behind `sofar close`; the MCP tool left in r1-fixes 2.4, D13) returns the findings AND still closes', () => {
     const fixture = fx()
     seed(fixture)
-    const { client } = await connectServer(fixture.root)
-    const { body } = await callTool<{ event_id: string; overrides: string[] }>(
-      client,
-      'sofar_close_initiative',
-      { status: 'done' },
-    )
+    const body = applyClose(createToolContext(fixture.root), fixture.slug, 'done')
     expect(body.event_id).not.toBeNull()
     expect(body.overrides.some((f) => f.includes('1.1'))).toBe(true)
     const events = readFileSync(fixture.eventsPath, 'utf8').trim().split('\n')

@@ -11,7 +11,8 @@ import { emit, ok, fail, type CmdResult } from './shared'
  * `sofar review [slug]` — print the evidence packet a reviewing session works
  * from (commit-attribution 4.2/4.3/4.6).
  *
- * The READ half of the review loop; `sofar_review` is the write half. Split
+ * The READ half of the review loop; `sofar event append --type review_recorded`
+ * is the write half (r1-fixes 2.4, D13 — it was the sofar_review tool). Split
  * deliberately: rendering is cheap and repeatable, recording a verdict is an
  * append, and a session must be able to re-read the packet without producing
  * another event every time it looks.

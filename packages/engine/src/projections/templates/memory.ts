@@ -21,7 +21,11 @@ export function renderMemory(state: InitiativeState): string {
   )
 
   state.memories.forEach((memory, index) => {
-    lines.push(`- **M${index + 1}** (${memory.ts}) — ${memory.text}`)
+    // A retired fact stays listed (history is append-only) but struck, with
+    // its successor named, so a reader never carries it into repo.md.
+    const body = memory.superseded_by !== undefined ? `~~${memory.text}~~ — superseded by ${memory.superseded_by}` : memory.text
+    const replaces = memory.supersedes !== undefined ? ` (supersedes ${memory.supersedes})` : ''
+    lines.push(`- **M${index + 1}** (${memory.ts})${replaces} — ${body}`)
   })
 
   return doc(lines)

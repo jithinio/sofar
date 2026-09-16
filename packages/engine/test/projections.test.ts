@@ -46,6 +46,18 @@ function populatedState(): InitiativeState {
   return state
 }
 
+/** A decision fixture for the D12 layout test — with or without a rule. */
+function decisionWithRule(i: number, rule?: string): InitiativeState['decisions'][number] {
+  return {
+    id: `01ARZ3NDEKTSV4RRFFQ69G5${String(i).padStart(3, '0')}`,
+    ts: '2026-08-01T00:00:00.000Z',
+    chose: `choice ${i}`,
+    over: `alternative ${i}`,
+    because: `reason ${i}`,
+    ...(rule !== undefined ? { rule } : {}),
+  }
+}
+
 /** Large synthetic initiative (acceptance: status must stay ≤10k chars). */
 function largeState(): InitiativeState {
   const state = emptyState()
@@ -319,21 +331,121 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     expect(status).toContain('- Phase 1 [active] 1/3')
     expect(status).toContain('Last session (claude-code')
     expect(status).toContain('wired the log core')
-    expect(status).toContain('chose a over b — c')
+    expect(status).toContain('- [D1] 2026-07-03 a — over b')
   })
 
-  it('surfaces a rejected-approaches ledger (over-only), excluding "(no alternative recorded)" (D-ledger)', () => {
+  it('decision index (r1-fixes 2.2, D11): handle-first lines carry chose and over, a placeholder over renders no clause, ≤5 decisions render no ledger', () => {
     const state = populatedState()
     state.decisions = [
       { id: '01ARZ3NDEKTSV4RRFFQ69G5F01', ts: '2026-07-03T00:00:00.000Z', chose: 'sqlite', over: 'postgres', because: 'zero ops' },
       { id: '01ARZ3NDEKTSV4RRFFQ69G5F02', ts: '2026-07-03T00:00:00.000Z', chose: 'x', over: '(no alternative recorded)', because: 'y' },
     ]
     const status = renderStatus(state)
-    // only the decision with a real alternative is counted + listed
-    expect(status).toContain('Rejected approaches — do NOT re-propose (1):')
-    expect(status).toContain('- postgres')
-    // the placeholder over is not promoted into the ledger as its own line
-    expect(status).not.toContain('- (no alternative recorded)')
+    expect(status).toContain('Recent decisions (2; full text in decisions.md):')
+    expect(status).toContain('- [D1] 2026-07-03 sqlite — over postgres')
+    expect(status).toContain('- [D2] 2026-07-03 x\n')
+    // the placeholder over is not promoted into the line, and `because` is on demand
+    expect(status).not.toContain('(no alternative recorded)')
+    expect(status).not.toContain('zero ops')
+    // nothing older than the window → no ledger at all
+    expect(status).not.toContain('rejected approaches')
+  })
+
+  it('decision index: the ledger lists only decisions OLDER than the window, so no over text renders twice (D11)', () => {
+    const state = populatedState()
+    state.decisions = Array.from({ length: 8 }, (_, i) => ({
+      id: `01ARZ3NDEKTSV4RRFFQ69G5F${String(i + 1).padStart(2, '0')}`,
+      ts: '2026-07-03T00:00:00.000Z',
+      chose: `choice ${i + 1} ${'c'.repeat(300)}`,
+      over: `alternative ${i + 1} ${'o'.repeat(200)}`,
+      because: `reason ${i + 1} ${'b'.repeat(300)}`,
+    }))
+    const status = renderStatus(state)
+    expect(status).toContain('Recent decisions (last 5 of 8; full text in decisions.md):')
+    expect(status).toContain('Earlier rejected approaches — do NOT re-propose (3 older):')
+    // window: D4..D8 with chose clipped at 120 and over clipped at 90 — separately,
+    // so the alternative survives however long the chose runs
+    for (const n of [4, 5, 6, 7, 8]) {
+      const line = status.split('\n').find((l) => l.startsWith(`- [D${n}] `))!
+      expect(line).toContain(`choice ${n} `)
+      expect(line).toContain(` — over alternative ${n} `)
+      expect(line.length).toBeLessThanOrEqual(`- [D${n}] 2026-07-03 `.length + 120 + ' — over '.length + 90)
+    }
+    // ledger: D1..D3 over-only, handle-first
+    for (const n of [1, 2, 3]) {
+      const line = status.split('\n').find((l) => l.startsWith(`- [D${n}] `))!
+      expect(line).toMatch(new RegExp(`^- \\[D${n}\\] alternative ${n} o+…$`))
+      expect(status).not.toContain(`choice ${n} `)
+    }
+    // every over text appears exactly once across both blocks
+    for (let n = 1; n <= 8; n++) expect(status.split(`alternative ${n} `).length - 1).toBe(1)
+    // and no rationale in the digest — decisions.md holds it
+    expect(status).not.toContain('reason ')
+    expect(status.indexOf('Earlier rejected')).toBeGreaterThan(status.indexOf('- [D8] '))
+    expect(status.indexOf('Next ids:')).toBeGreaterThan(status.indexOf('- [D3] '))
+  })
+
+  it('decision index: a ruled decision whose rule rendered above is marked and gets the short chose (constraints vs rules, D11)', () => {
+    const state = populatedState()
+    const long = `the whole design ${'d'.repeat(200)}`
+    state.decisions = [
+      { id: '01ARZ3NDEKTSV4RRFFQ69G5F01', ts: '2026-07-03T00:00:00.000Z', chose: long, over: 'alt', because: 'why', rule: 'Never do the thing.' },
+      { id: '01ARZ3NDEKTSV4RRFFQ69G5F02', ts: '2026-07-03T00:00:00.000Z', chose: long, over: 'alt2', because: 'why2' },
+    ]
+    const status = renderStatus(state)
+    expect(status).toContain('- [D1] Never do the thing.')
+    const ruled = status.split('\n').find((l) => l.startsWith('- [D1] 2026-07-03'))!
+    const plain = status.split('\n').find((l) => l.startsWith('- [D2] 2026-07-03'))!
+    expect(ruled).toContain('(rule above)')
+    expect(plain).not.toContain('(rule above)')
+    expect(ruled.length).toBeLessThan(plain.length)
+    expect(ruled).toContain(' — over alt')
+    // the rule text itself is never restated in the index line
+    expect(ruled).not.toContain('Never do the thing.')
+    // rule dropped by the standing budget → no marker, full chose budget
+    const many = Array.from({ length: 40 }, (_, i) => ({
+      id: `01ARZ3NDEKTSV4RRFFQ69G5F${String(i + 1).padStart(2, '0')}`,
+      ts: '2026-07-03T00:00:00.000Z',
+      chose: long,
+      over: `alt ${i + 1}`,
+      because: 'why',
+      rule: `Rule ${i + 1} — ${'x'.repeat(120)} end.`,
+    }))
+    state.decisions = many
+    const heavy = renderStatus(state)
+    expect(heavy).toMatch(/…and \d+ more \(see decisions\.md\)/)
+    const last = heavy.split('\n').find((l) => l.startsWith('- [D40] 2026-07-03'))!
+    expect(last).not.toContain('(rule above)')
+    expect(last.length).toBeGreaterThan(ruled.length)
+  })
+
+  it('decision index: the ledger yields to the hard cap so the protocol tail always renders (D11)', () => {
+    // 24 verbatim rules + 33 decisions + a summary at budget: the shape that
+    // rendered at exactly 10,000 chars before D11, with Next ids and the
+    // read-back — the lines read last — cut by enforceStatusLimit.
+    const state = populatedState()
+    state.goal = 'G'.repeat(600)
+    state.decisions = Array.from({ length: 33 }, (_, i) => ({
+      id: `01ARZ3NDEKTSV4RRFFQ69G5F${String(i + 1).padStart(2, '0')}`,
+      ts: '2026-07-03T00:00:00.000Z',
+      chose: `choice ${i + 1} ${'c'.repeat(300)}`,
+      over: `alternative ${i + 1} ${'o'.repeat(200)}`,
+      because: 'why',
+      ...(i < 24 ? { rule: `Rule ${i + 1} — ${'r'.repeat(60)} end.` } : {}),
+    }))
+    state.sessions = [
+      { id: 'sess-1', tool: 'claude-code', unwritten: 0, started: '2026-07-05T00:00:00.000Z', ended: '2026-07-05T01:00:00.000Z', summary: 's'.repeat(1_200), next_action: 'go' },
+    ]
+    state.current = { active_phase: 'Phase 1', next_action: 'n'.repeat(500), blocked_on: 'b'.repeat(500) }
+    const status = renderStatus(state, { repoMemory: 'R'.repeat(1_500), sessionId: 'sess-1' })
+    expect(status.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
+    expect(status).not.toContain(STATUS_TRUNCATION_MARKER)
+    expect(status).toContain('Next ids: D34 (decision), M1 (memory)')
+    expect(status).toContain('Read-back:')
+    expect(status).toContain('(generated by sofar')
+    // the ledger is what shrank: fewer entries, with the overflow pointer
+    expect(status).toContain('Earlier rejected approaches — do NOT re-propose (28 older):')
+    expect(status).toMatch(/- …and \d+ more \(see decisions\.md\)\n\nNext ids:/)
   })
 
   it('collapses done phases into one line; open phases stay itemized (6.2, token-opt)', () => {
@@ -386,18 +498,20 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     // 37 open phases (3 of the 40 are done and collapse into one line).
     expect(status).toContain('…and 25 more phases (see plan.md)')
     expect(status).toContain('- done: Phase 0, Phase 1, Phase 2 (24/24 tasks)')
-    expect(status).toContain('Recent decisions (last 5 of 60):')
-    expect(status).toContain('chose choice 59')
+    expect(status).toContain('Recent decisions (last 5 of 60; full text in decisions.md):')
+    expect(status).toContain('- [D60] 2026-07-03 choice 59')
     expect(status).toContain('summary 29')
   })
 
-  it('repo memory (6.5, BD40): section lands after the current block, before the phase tree, formatting kept', () => {
+  it('repo memory (6.5, BD40): section lands in the static head — after the goal, before the phase tree — formatting kept', () => {
     const memory = 'Run npm test before committing.\nNever push to main directly.'
     const status = renderStatus(populatedState(), { repoMemory: memory })
     expect(status).toContain('Repo memory (.sofar/repo.md):')
     expect(status).toContain(memory) // multi-line content preserved verbatim
-    expect(status.indexOf('Repo memory')).toBeGreaterThan(status.indexOf('Next action:'))
+    // D12: static head — rarer to change than any state-derived section
+    expect(status.indexOf('Repo memory')).toBeGreaterThan(status.indexOf('Goal:'))
     expect(status.indexOf('Repo memory')).toBeLessThan(status.indexOf('Phases:'))
+    expect(status.indexOf('Phases:')).toBeLessThan(status.indexOf('Progress:'))
   })
 
   it('repo memory is clipped to its own budget with a marker; missing/blank omits the section', () => {
@@ -486,12 +600,14 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     expect(renderStatus(fresh)).toContain('derived: 1 file (src/a.ts)')
   })
 
-  it('session id line (7.1, BD43): lands right under the title, clipped, cap intact', () => {
+  it('session id line (7.1, BD43): lands in the volatile tail — after the decisions, before the read-back — clipped, cap intact', () => {
     const status = renderStatus(populatedState(), { sessionId: 'claude-sess-42' })
     expect(status).toContain(
       'Session: claude-sess-42 — when calling sofar_start_session, pass this as session_id.',
     )
-    expect(status.indexOf('Session: claude-sess-42')).toBeLessThan(status.indexOf('Goal:'))
+    // D12: per-session by definition, so it is the last thing that changes
+    expect(status.indexOf('Session: claude-sess-42')).toBeGreaterThan(status.indexOf('Next ids:'))
+    expect(status.indexOf('Session: claude-sess-42')).toBeLessThan(status.indexOf('Read-back:'))
 
     // hostile external ids never blow the section, and the block omits the
     // line entirely when no id is known
@@ -542,8 +658,8 @@ describe('standing constraints — verbatim render contract (drift-hardening 2.1
     expect(status.indexOf('Standing constraints')).toBeGreaterThan(status.indexOf('Goal:'))
     expect(status.indexOf('Standing constraints')).toBeLessThan(status.indexOf('Progress:'))
     // the recent window did age D1 out — the premise of the immunity claim
-    expect(status).toContain('Recent decisions (last 5 of 7):')
-    expect(status).not.toContain('chose choice 1')
+    expect(status).toContain('Recent decisions (last 5 of 7; full text in decisions.md):')
+    expect(status).not.toContain('choice 1 ')
   })
 
   it('omits the section entirely when no decision carries a rule', () => {
@@ -559,7 +675,9 @@ describe('standing constraints — verbatim render contract (drift-hardening 2.1
     const status = renderStatus(state)
     expect(status).toContain('Standing constraints — obey verbatim (40):')
     expect(status).toMatch(/…and \d+ more \(see decisions\.md\)/)
-    const ruleLines = status.split('\n').filter((l) => l.startsWith('- [D'))
+    // the standing block only — the decision index (D11) also leads with [D<n>]
+    const standingBlock = status.slice(status.indexOf('Standing constraints'), status.indexOf('Progress:'))
+    const ruleLines = standingBlock.split('\n').filter((l) => l.startsWith('- [D'))
     expect(ruleLines.length).toBeGreaterThan(0)
     expect(ruleLines.length).toBeLessThan(40)
     // every rendered entry is whole — a clipped one would end with the ellipsis
@@ -594,6 +712,96 @@ describe('standing constraints — verbatim render contract (drift-hardening 2.1
     // nothing to restate → no protocol line; agent-only: never on the terminal surface
     expect(renderStatus(emptyState())).not.toContain('Read-back:')
     expect(renderFullStatus(populatedState())).not.toContain('Read-back:')
+  })
+
+  it('cache-stable layout (r1-fixes 2.3, D12): static head, record state, volatile tail; notices ride the tail; heavy record keeps the tail', () => {
+    const state = populatedState()
+    state.decisions = [decisionWithRule(1, 'Never do the thing.'), decisionWithRule(2)]
+    state.sessions = [
+      { id: 'sess-0', tool: 'claude-code', unwritten: 0, started: '2026-07-05T00:00:00.000Z', ended: '2026-07-05T01:00:00.000Z', summary: 'wired it', next_action: 'finish 1.2' },
+    ]
+    const git = { branch: 'main', head: 'abc1234', headFull: 'a'.repeat(40), upstream: null, upstreamFull: null, synced: false }
+    const status = renderStatus(state, {
+      repoMemory: 'Run npm test.',
+      sessionId: 'sess-a',
+      git: git as never,
+      neighbours: [{ initiative: 'other', paths: 2, decisions: 3 }] as never,
+      notices: ['⚠ Cold resume: ~2h since this record\'s last event', '', 'sofar: 3 commit(s) of this record are unverified'],
+    })
+    const at = (s: string) => status.indexOf(s)
+    // 1. static head
+    expect(at('Goal:')).toBeLessThan(at('Standing constraints'))
+    expect(at('Standing constraints')).toBeLessThan(at('Repo memory'))
+    expect(at('Repo memory')).toBeLessThan(at('Phases:'))
+    // 2. record state
+    expect(at('Phases:')).toBeLessThan(at('Progress:'))
+    expect(at('Progress:')).toBeLessThan(at('Next action:'))
+    expect(at('Next action:')).toBeLessThan(at('Last session'))
+    expect(at('Last session')).toBeLessThan(at('Recent decisions'))
+    expect(at('Recent decisions')).toBeLessThan(at('Next ids:'))
+    // 3. volatile tail, in this order, then the read-back and footer
+    expect(at('Next ids:')).toBeLessThan(at('Adjacent records'))
+    expect(at('Adjacent records')).toBeLessThan(at('Session: sess-a'))
+    expect(at('Session: sess-a')).toBeLessThan(at('Git: main @ abc1234'))
+    expect(at('Git: main @ abc1234')).toBeLessThan(at('⚠ Cold resume:'))
+    expect(at('⚠ Cold resume:')).toBeLessThan(at('sofar: 3 commit(s)'))
+    expect(at('sofar: 3 commit(s)')).toBeLessThan(at('Read-back:'))
+    expect(at('Read-back:')).toBeLessThan(at('(generated by sofar'))
+    // blank notices are dropped, non-blank ones render as given
+    expect(status).not.toMatch(/\n\n\n/)
+
+    // Byte-stability across sessions (felt-cost 1.2, restated by D12): same
+    // state, a different session id, sha and notice → identical up to the tail.
+    const other = renderStatus(state, {
+      repoMemory: 'Run npm test.',
+      sessionId: 'sess-b',
+      git: { ...git, head: 'def5678' } as never,
+      neighbours: [{ initiative: 'other', paths: 2, decisions: 3 }] as never,
+      notices: ['sofar: 4 commit(s) of this record are unverified'],
+    })
+    const tailStart = status.indexOf('Session: sess-a')
+    expect(other.startsWith(status.slice(0, tailStart))).toBe(true)
+    // and without any per-session input at all the head is the same bytes
+    expect(renderStatus(state, { repoMemory: 'Run npm test.' }).startsWith(status.slice(0, status.indexOf('Adjacent records')))).toBe(true)
+
+    // Heavy record: the ledger yields to the measured tail, so a long notice
+    // never pushes the read-back past the cap.
+    const heavy = populatedState()
+    heavy.goal = 'G'.repeat(600)
+    heavy.decisions = Array.from({ length: 33 }, (_, i) => ({
+      id: `01ARZ3NDEKTSV4RRFFQ69G5F${String(i + 1).padStart(2, '0')}`,
+      ts: '2026-07-03T00:00:00.000Z',
+      chose: `choice ${i + 1} ${'c'.repeat(300)}`,
+      over: `alternative ${i + 1} ${'o'.repeat(200)}`,
+      because: 'why',
+      ...(i < 24 ? { rule: `Rule ${i + 1} — ${'r'.repeat(60)} end.` } : {}),
+    }))
+    heavy.sessions = [
+      { id: 'sess-1', tool: 'claude-code', unwritten: 0, started: '2026-07-05T00:00:00.000Z', ended: '2026-07-05T01:00:00.000Z', summary: 's'.repeat(1_200), next_action: 'go' },
+    ]
+    heavy.current = { active_phase: 'Phase 1', next_action: 'n'.repeat(500), blocked_on: 'b'.repeat(500) }
+    const out = renderStatus(heavy, {
+      repoMemory: 'R'.repeat(1_500),
+      sessionId: 'sess-1',
+      git: git as never,
+      notices: ['N'.repeat(480), 'M'.repeat(300)],
+    })
+    expect(out.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
+    expect(out).not.toContain(STATUS_TRUNCATION_MARKER)
+    expect(out).toContain('N'.repeat(480))
+    expect(out).toContain('Read-back:')
+    expect(out).toMatch(/- …and \d+ more \(see decisions\.md\)/)
+  })
+
+  it('names the next D/M ids just before the read-back — digest-only, absent on a record with neither (r1-fixes 2.1, D10)', () => {
+    const state = populatedState()
+    const status = renderStatus(state)
+    const line = `Next ids: D${state.decisions.length + 1} (decision), M${state.memories.length + 1} (memory)`
+    expect(status).toContain(line)
+    expect(status.indexOf('Next ids:')).toBeGreaterThan(status.indexOf('Recent decisions'))
+    expect(status.indexOf('Next ids:')).toBeLessThan(status.indexOf('Read-back:'))
+    expect(renderStatus(emptyState())).not.toContain('Next ids:')
+    expect(renderFullStatus(state)).not.toContain('Next ids:')
   })
 
   it('decisions.md leads a ruled decision with its rule (2.2)', () => {

@@ -48,6 +48,19 @@ const validPayloads: Record<string, Record<string, unknown>> = {
   handoff: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSE', session_id: 's1', reason: 'task_done', task: '1.2', tokens: 84_000 },
   run_stopped: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSE', reason: 'needs_user', note: 'next action names a release' },
   run_stop_requested: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSE' },
+  verification_recorded: {
+    run: '01JZ8B3V0N5B4W8XK2M9QF7TSE',
+    task: '1.2',
+    attempt: 1,
+    command: 'npm test -- --run',
+    cwd: '.',
+    checked: { head: '0415062a1b2c3d4e5f60718293a4b5c6d7e8f900', tree: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' },
+    validator: '0.33.0',
+    result: 'pass',
+    exit_code: 0,
+    duration_ms: 1200,
+    timeout_ms: 600_000,
+  },
   correction: { ref: '01JZ8B3V0N5B4W8XK2M9QF7TSD' },
 }
 

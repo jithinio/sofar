@@ -8,6 +8,7 @@ import { appendEvent } from '../src/core/log'
 import type { Adapter, AgentSession, LaunchRequest, SessionExit } from '../src/driver/adapter'
 import {
   awaitSession,
+  describeExit,
   drive,
   handoffReason,
   nextTask,
@@ -271,6 +272,56 @@ describe('the loop', () => {
     expect(outcome.stop.reason).toBe('stall')
   })
 
+  it('a stall names how the process ended — on the progress line, the handoff, and the stop note (D9)', async () => {
+    const root = repo('stall-detail')
+    const crashed = worker(root, 'S1', {
+      complete: false,
+      exit: { code: 1, stderr_tail: '\x1b[31mERROR\x1b[0m codex_core: not logged in\n  run `codex login`\n\n' },
+    })
+    const adapter = new FakeAdapter([crashed, { ...crashed, session_id: 'S2' }])
+    const lines: string[] = []
+    const outcome = await drive(root, 'demo', { adapter, onProgress: (l) => lines.push(l) })
+
+    expect(outcome.handoffs.map((h) => h.detail)).toEqual([
+      'exit 1; stderr: run `codex login`',
+      'exit 1; stderr: run `codex login`',
+    ])
+    expect(lines.some((l) => l.includes('stall — session S1 (exit 1; stderr: run `codex login`)'))).toBe(true)
+    expect(outcome.stop.note).toBe('2 consecutive sessions with no task change; last: session S2 — exit 1; stderr: run `codex login`')
+    const handoffs = readFileSync(logPath(root), 'utf8')
+      .split('\n')
+      .filter((l) => l.includes('"handoff"'))
+      .map((l) => (JSON.parse(l) as { payload: { detail?: string } }).payload.detail)
+    expect(handoffs).toEqual(['exit 1; stderr: run `codex login`', 'exit 1; stderr: run `codex login`'])
+    // The record renders it where a reader looks.
+    const sessionMd = readFileSync(join(root, '.sofar', 'initiatives', 'demo', 'sessions', 'S1.md'), 'utf8')
+    expect(sessionMd).toContain('handed off: stall (exit 1; stderr: run `codex login`)')
+  })
+
+  it('a clean task_done carries no detail; an unclean one does (D9)', async () => {
+    const root = repo('done-detail')
+    const adapter = new FakeAdapter([worker(root, 'S1'), worker(root, 'S2', { exit: { code: 2, stderr_tail: 'hook failed' } })])
+    const outcome = await drive(root, 'demo', { adapter })
+    expect(outcome.handoffs.map((h) => [h.reason, h.detail])).toEqual([
+      ['task_done', undefined],
+      ['task_done', 'exit 2; stderr: hook failed'],
+    ])
+  })
+
+  it('an unresolved launch names the spawn error and stderr, in the progress line and the stop note (D9)', async () => {
+    const root = repo('unresolved-detail')
+    const ghost: FakeScript = {
+      logPath: logPath(root),
+      initiative: 'demo',
+      exit: { code: 127, spawn_error: 'spawn claude ENOENT' },
+    }
+    const lines: string[] = []
+    const outcome = await drive(root, 'demo', { adapter: new FakeAdapter([ghost]), onProgress: (l) => lines.push(l) })
+    expect(outcome.stop.reason).toBe('stall')
+    expect(outcome.stop.note).toContain('no session registered by fake since the launch (exit 127; could not spawn: spawn claude ENOENT)')
+    expect(lines.filter((l) => l.includes('could not spawn: spawn claude ENOENT'))).toHaveLength(2)
+  })
+
   it('files no handoff for a launch that registered no session, and counts it as a stall (D3)', async () => {
     const root = repo('unresolved')
     const ghost: FakeScript = { logPath: logPath(root), initiative: 'demo' }
@@ -386,6 +437,25 @@ describe('the loop', () => {
     const run = state(root).runs.at(-1)
     expect(run?.stopped).toBeDefined()
     expect(run?.stop_note).toContain('no message')
+  })
+})
+
+describe('describeExit — one line on how the process ended (D9)', () => {
+  it('reads the code or signal, the spawn error, and the last non-empty stderr line', () => {
+    expect(describeExit({ code: 0 })).toBe('exit 0')
+    expect(describeExit({ code: null, signal: 'SIGKILL' })).toBe('killed by SIGKILL')
+    expect(describeExit({ code: null })).toBe('exit unknown')
+    expect(describeExit({ code: 127, spawn_error: 'spawn x ENOENT' })).toBe('exit 127; could not spawn: spawn x ENOENT')
+    expect(describeExit({ code: 1, stderr_tail: 'a\n\x1b[1mfatal:\x1b[0m not logged in  \n\n' })).toBe('exit 1; stderr: fatal: not logged in')
+    expect(describeExit({ code: 1, stderr_tail: '\n  \n' })).toBe('exit 1')
+  })
+
+  it('keeps the END of an overlong line, where the cause sits', () => {
+    const long = `${'x'.repeat(500)} the actual reason`
+    const out = describeExit({ code: 1, stderr_tail: long })
+    expect(out.endsWith('the actual reason')).toBe(true)
+    expect(out.length).toBeLessThan(270)
+    expect(out).toContain('stderr: …')
   })
 })
 

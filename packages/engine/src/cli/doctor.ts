@@ -33,6 +33,7 @@ import {
   SOURCE_NOT_SINCE,
   type TailwindV4Detection,
 } from './scanners'
+import { detectFormatterHazards } from './formatters'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 import {
   createSpinner,
@@ -86,7 +87,7 @@ import {
  */
 
 export interface DoctorOptions {
-  /** Apply the safe scanner fix (@source not insertion). */
+  /** Apply the safe repairs: the Tailwind `@source not` insertion and the formatter/linter `.sofar` exclusions. */
   fix?: boolean
 }
 
@@ -105,6 +106,8 @@ interface Finding {
   text: string
   /** Optional indented follow-up line (a fix suggestion or detail). */
   hint?: string
+  /** True when --fix just applied this repair — counted in the summary. */
+  fixed?: boolean
 }
 
 interface Section {
@@ -721,12 +724,22 @@ function auditRepoMemory(rootDir: string, folded: Folded[]): Section {
   // repo-wide scope its author knew at capture time. Observation cannot reach
   // it — a fact that was never written down produces no citation behaviour to
   // read — so promotion is what puts it in front of this axis at all.
+  // A superseded memory (r1-fixes D8) is retired: its successor is what
+  // repo.md should name, so the old handle stops being reported. Resolved
+  // across every folded record here, since a supersession may cross records.
+  const retired = new Set(
+    folded.flatMap(({ state }) =>
+      (state?.memories ?? []).flatMap((memory) => (memory.supersedes !== undefined ? [memory.supersedes] : [])),
+    ),
+  )
   const promoted = folded.flatMap(({ slug, state }) =>
-    (state?.memories ?? []).map((memory, index) => ({
-      slug,
-      ordinal: index + 1,
-      text: memory.text,
-    })),
+    (state?.memories ?? [])
+      .map((memory, index) => ({
+        slug,
+        ordinal: index + 1,
+        text: memory.text,
+      }))
+      .filter((memory) => !retired.has(`${memory.slug} M${memory.ordinal}`)),
   )
 
   if (general.length === 0 && promoted.length === 0) {
@@ -880,6 +893,7 @@ function auditScanners(rootDir: string, fix: boolean, progress: ScanProgress): S
         findings.push({
           level: 'ok',
           text: `${rel}: added \`${sofarExclusionDirective(entry, rootDir)}\``,
+          fixed: true,
         })
         continue
       }
@@ -898,6 +912,55 @@ function auditScanners(rootDir: string, fix: boolean, progress: ScanProgress): S
 }
 
 // ---------------------------------------------------------------------------
+// 5. Formatter hazards (+ --fix) — r1-fixes 1.4, r1-fixes D7.
+// ---------------------------------------------------------------------------
+
+/**
+ * Biome, Prettier and markdownlint each process the whole tree by default,
+ * so a committed `.sofar/` — generated markdown and JSON nobody hand-edits —
+ * turns their checks red and sends the agent off to patch the tool's config
+ * (round 1: 3/7 runs). Same defence as the scanner axis (D-P10): configure
+ * the tool away from `.sofar` with the one exclusion it documents, never
+ * touch the record. Writes are withheld, with the exact line named, when the
+ * config cannot be round-tripped (comments) or Biome's dialect is unknown.
+ */
+function auditFormatters(rootDir: string, fix: boolean): Section {
+  const findings: Finding[] = []
+  const hazards = detectFormatterHazards(rootDir)
+  if (hazards.length === 0) {
+    findings.push({
+      level: 'ok',
+      text: 'no formatter or linter reaching .sofar detected (Biome, Prettier, markdownlint absent)',
+    })
+    return { title: 'Formatter hazards', findings }
+  }
+  for (const h of hazards) {
+    if (h.excluded) {
+      findings.push({ level: 'ok', text: `${h.label}: excludes .sofar (${h.file})` })
+      continue
+    }
+    if (fix && h.apply !== undefined) {
+      try {
+        h.apply()
+      } catch (err) {
+        findings.push({ level: 'fail', text: `${h.label}: fix failed — ${errMessage(err)}` })
+        continue
+      }
+      findings.push({ level: 'ok', text: `${h.label}: added ${h.directive} to ${h.file}`, fixed: true })
+      continue
+    }
+    findings.push({
+      level: 'fail',
+      text: `${h.label} will process .sofar/ — no exclusion in ${h.file}`,
+      hint: h.withheld !== undefined
+        ? `${h.withheld}: ${h.directive}`
+        : `fix: sofar doctor --fix   (or add ${h.directive} to ${h.file})`,
+    })
+  }
+  return { title: 'Formatter hazards', findings }
+}
+
+// ---------------------------------------------------------------------------
 // Command.
 // ---------------------------------------------------------------------------
 
@@ -913,7 +976,7 @@ function tallyOf(sections: Section[]): Tally {
     for (const f of section.findings) {
       if (f.level === 'fail') tally.fails++
       if (f.level === 'warn') tally.warns++
-      if (f.level === 'ok' && f.text.includes('added `@source not')) tally.fixesApplied++
+      if (f.fixed === true) tally.fixesApplied++
     }
   }
   return tally
@@ -1004,6 +1067,7 @@ export function runDoctor(
     auditGuards(rootDir, folded),
     auditRepoMemory(rootDir, folded),
     auditScanners(rootDir, fix, { caps: progress.caps ?? stderrCaps(), stream: progress.stream }),
+    auditFormatters(rootDir, fix),
   ]
 
   const tally = tallyOf(sections)

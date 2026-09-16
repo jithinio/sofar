@@ -28,7 +28,7 @@ export function renderPlan(state: InitiativeState): string {
         task.status === 'active' || task.status === 'blocked' || task.status === 'dropped'
           ? ` (${task.status})`
           : ''
-      lines.push(`- [${box}] ${task.id} ${task.title}${suffix}${routeSuffix(task)}`)
+      lines.push(`- [${box}] ${task.id} ${task.title}${suffix}${routeSuffix(task)}${verifySuffix(task)}`)
     }
     lines.push('')
   }
@@ -46,6 +46,26 @@ export function renderPlan(state: InitiativeState): string {
  * obeying — and since the run's own pins beat it, seeing the hint is half of
  * knowing why a session ran the model it did.
  */
+/**
+ * The acceptance command and the latest check (r1-fixes 3.1, D19): a done
+ * task reads as accepted only when the record says a pass was recorded, and
+ * a reopened one says what rejected it. Absent on tasks with neither, so a
+ * plan without verification renders exactly as before.
+ */
+function verifySuffix(task: TaskState): string {
+  const parts: string[] = []
+  if (task.verify !== undefined) parts.push(`verify: \`${task.verify.cmd}\``)
+  const v = task.verification
+  if (v !== undefined) {
+    parts.push(
+      v.result === 'pass'
+        ? `verified pass @${v.checked.head.slice(0, 7)} (attempt ${v.attempt})`
+        : `verification ${v.result} (attempt ${v.attempt}${v.exit_code !== undefined ? `, exit ${v.exit_code}` : ''})`,
+    )
+  }
+  return parts.length > 0 ? ` — ${parts.join('; ')}` : ''
+}
+
 function routeSuffix(task: TaskState): string {
   const route = task.route
   if (route === undefined) return ''

@@ -27,7 +27,7 @@ import { runLogin, runLink, runPush, runPull, runPullWatch } from './cloud'
 import { runUpgrade } from './upgrade'
 import { runCheckStatus, runRefresh, withUpdateNotice } from './update-check'
 import { writeAutoUpgrade } from './user-config'
-import { emit, fail, ok, readAllStdin } from './shared'
+import { emit, fail, ok, readAllStdin, readInput } from './shared'
 
 const program = new Command()
 
@@ -77,9 +77,12 @@ program
 program
   .command('doctor')
   .description(
-    'audit this repo: wiring integrity, record health, and tree-wide scanner hazards (Tailwind v4 ingesting .sofar); --fix inserts the @source not exclusion',
+    'audit this repo: wiring integrity, record health, and tree-wide tool hazards (Tailwind v4, Biome, Prettier, markdownlint reaching .sofar); --fix writes each tool\'s .sofar exclusion',
   )
-  .option('--fix', 'apply the safe scanner fix (insert `@source not "…/.sofar"` after the tailwindcss import)')
+  .option(
+    '--fix',
+    'apply the safe fixes: insert `@source not "…/.sofar"` after the tailwindcss import; add the .sofar exclusion to biome.json, .prettierignore, .markdownlintignore',
+  )
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((opts: { fix?: boolean; root?: string }) => {
     // withUpdateNotice touches stderr only — doctor's exit code is its verdict
@@ -224,14 +227,25 @@ program
   })
 
 program
-  .command('remember <text>')
+  .command('remember [text]')
   .description(
-    'promote an operational fact to repo memory — a release command, a failure mode, a convention future sessions must know; recorded as <slug> M<n> for .sofar/repo.md to name',
+    'promote an operational fact to repo memory — a release command, a failure mode, a convention future sessions must know; recorded as <slug> M<n> for .sofar/repo.md to name. Text inline, `-` for stdin (quoted heredoc), or @<file>',
   )
+  .option('--supersedes <handle>', 'the memory this fact replaces — `M<n>` in the target initiative or the qualified `<slug> M<n>`; the old one is retired, never edited')
   .option('--initiative <slug>', 'initiative to record it under (default: the branch-bound one)')
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action((text: string, opts: { initiative?: string; root?: string }) => {
-    emit(runRemember(rootOf(opts), text, opts.initiative !== undefined ? { initiative: opts.initiative } : {}))
+  .action(async (text: string | undefined, opts: { supersedes?: string; initiative?: string; root?: string }) => {
+    const input = await readInput(text, 'the text')
+    if (!input.ok) {
+      emit(fail(`sofar remember: ${input.error}`))
+      return
+    }
+    emit(
+      runRemember(rootOf(opts), input.text, {
+        ...(opts.initiative !== undefined ? { initiative: opts.initiative } : {}),
+        ...(opts.supersedes !== undefined ? { supersedes: opts.supersedes } : {}),
+      }),
+    )
   })
 
 program
@@ -362,6 +376,12 @@ program
   .option('--model <model>', "model for every launch — outranks any task's own route hint")
   .option('--effort <effort>', "effort for every launch — outranks any task's own route hint")
   .option('--resume', 'adopt the latest run when it has no stop, instead of refusing to start')
+  .option(
+    '--verify <cmd>',
+    'acceptance command run before a task the agent marked done is accepted (r1-fixes 3.1); a task\'s own plan `verify` wins',
+  )
+  .option('--verify-timeout <seconds>', 'kill an acceptance command that has not ended in this long (default 600)')
+  .option('--max-verify-attempts <n>', 'stop the run once one task has failed verification this many times (default 3)')
   .option(
     '--agent <name>',
     'default headless agent: claude-code (default) or codex — a task whose plan entry carries route.agent is launched with THAT one instead',

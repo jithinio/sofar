@@ -95,6 +95,23 @@ export interface PlanTaskInput {
   title: string
   status?: TaskStatus
   route?: TaskRoute
+  verify?: TaskVerify
+}
+
+/**
+ * The task's acceptance command (r1-fixes 3.1, D19): what `sofar drive` runs
+ * before it accepts the task as done. A shell command line, run in `cwd`
+ * relative to the launch directory (default the launch directory itself),
+ * killed after `timeout_ms`. The plan carries it like a route, and like a
+ * route it survives only as long as a full-replace plan restates it. An
+ * agent can write a plan, so the driver runs a plan-level command ONLY when
+ * it falls inside the run's recorded permission surface (D19) — the
+ * operator's `--verify` is the other, always-approved source.
+ */
+export interface TaskVerify {
+  cmd: string
+  cwd?: string
+  timeout_ms?: number
 }
 
 export interface PlanPhaseInput {
@@ -147,7 +164,7 @@ export interface PlanUpdatedPayload { plan: PlanStructure }
  * forgotten, and nothing else in the record explains it.
  */
 export interface PhaseStatusChangedPayload { phase: string; status: PhaseStatus; note?: string }
-export interface TaskAddedPayload { phase: string; id: string; title: string; status?: TaskStatus }
+export interface TaskAddedPayload { phase: string; id: string; title: string; status?: TaskStatus; verify?: TaskVerify }
 export interface TaskStatusChangedPayload { id: string; status: TaskStatus; note?: string }
 /**
  * `rule` (drift-hardening D1): optional standing-constraint clause — one short
@@ -188,7 +205,19 @@ export interface NoteAddedPayload { text: string }
  * repo-general from citation behaviour, because nothing derives a fact that was
  * never written down (repo-memory-capture D1).
  */
-export interface MemoryPromotedPayload { text: string }
+export interface MemoryPromotedPayload {
+  text: string
+  /**
+   * The QUALIFIED handle `<slug> M<n>` of the memory this one replaces
+   * (r1-fixes 1.5, D8). Facts go stale; the record is append-only, so the
+   * replacement is a new promotion that names the old one, and readers
+   * (memory.md, doctor's repo-memory axis) retire the old handle.
+   */
+  supersedes?: string
+}
+
+/** A qualified memory handle: `<slug> M<n>`. */
+export const MEMORY_HANDLE_RE = /^([a-z0-9-]+) M([1-9][0-9]*)$/
 
 /** What a review concluded. `blocked` means it could not be performed at all. */
 export const REVIEW_VERDICTS = ['pass', 'findings', 'blocked'] as const
@@ -246,9 +275,12 @@ export type RunPolicy = (typeof RUN_POLICIES)[number]
 /**
  * Why a driven session ended and the next one starts. `stall` is a session
  * that ended with no task change; `needs_user` is a write-back whose next
- * action names a decision only the operator can take.
+ * action names a decision only the operator can take; `verify_failed`
+ * (r1-fixes 3.1, D19) is a task the session marked done that the acceptance
+ * command then rejected — the driver reopened it, and the next session gets
+ * the failure.
  */
-export const HANDOFF_REASONS = ['task_done', 'threshold', 'stall', 'needs_user'] as const
+export const HANDOFF_REASONS = ['task_done', 'threshold', 'stall', 'needs_user', 'verify_failed'] as const
 export type HandoffReason = (typeof HANDOFF_REASONS)[number]
 
 /** Why the run itself ended — the stop rules, plus the two ways a run can die. */
@@ -297,6 +329,12 @@ export interface RunStartedPayload {
    * operator's mutable config said that day.
    */
   surface?: RunSurface
+  /**
+   * The run's default acceptance command (r1-fixes 3.1, D19): `--verify`,
+   * applied to every task that carries no `verify` of its own. Operator-
+   * stated, so it always runs; recorded so a resumed run keeps it.
+   */
+  verify?: string
 }
 
 /** What `run_started.surface` carries; the driver's own type is engine-side. */
@@ -319,7 +357,51 @@ export interface HandoffPayload {
    * @asType integer
    */
   tokens?: number
+  /**
+   * How the agent process ended, when that is worth knowing (r1-fixes 1.6,
+   * D9): the exit code or signal, a spawn error, the last stderr line. Set
+   * on stalls and on any unclean exit; never consulted for `reason`, which
+   * the driver reads from the fold alone (session-driver D5).
+   */
+  detail?: string
 }
+/**
+ * How an acceptance command ended (r1-fixes 3.1, D19). `refused` never ran:
+ * a plan-level command outside the run's permission surface.
+ */
+export const VERIFICATION_RESULTS = ['pass', 'fail', 'timeout', 'error', 'refused'] as const
+export type VerificationResult = (typeof VERIFICATION_RESULTS)[number]
+
+/**
+ * The driver ran a task's acceptance command (r1-fixes 3.1, D19) — the
+ * record of WHAT was checked, on WHICH tree, and how it ended. Written by the
+ * driver before it accepts a `task_done`, and again on every retry; the fold
+ * keeps each task's latest. A pass counts only while `checked` still names
+ * the current tree and `command` is unchanged — the driver re-fingerprints
+ * before trusting one. Diagnostics are a bounded, redacted tail of the
+ * command's output (D9's precedent for driver diagnostics on the record).
+ */
+export interface VerificationRecordedPayload {
+  run: string
+  task: string
+  /** 1-based, per task per run. */
+  attempt: number
+  command: string
+  /** Relative to the launch directory; `.` for the launch directory itself. */
+  cwd: string
+  /** The tree the command ran on: HEAD, and a digest of every tracked change plus every untracked file. */
+  checked: { head: string; tree: string }
+  /** Engine version that ran it. */
+  validator: string
+  result: VerificationResult
+  exit_code?: number
+  signal?: string
+  duration_ms: number
+  timeout_ms: number
+  /** ≤1,024 chars: ANSI-stripped, redacted tail of stdout and stderr. */
+  diagnostics?: string
+}
+
 export interface RunStoppedPayload {
   run: string
   reason: RunStopReason
@@ -356,6 +438,7 @@ export interface KnownEventPayloads {
   handoff: HandoffPayload
   run_stopped: RunStoppedPayload
   run_stop_requested: RunStopRequestedPayload
+  verification_recorded: VerificationRecordedPayload
   correction: CorrectionPayload
 }
 
@@ -381,6 +464,7 @@ export const EVENT_TYPES = [
   'handoff',
   'run_stopped',
   'run_stop_requested',
+  'verification_recorded',
   'correction',
 ] as const satisfies readonly KnownEventType[]
 
@@ -470,8 +554,23 @@ function validatePlan(plan: unknown, errors: string[]): void {
         errors.push(`plan.phases[${pi}].tasks[${ti}].status: must be one of ${TASK_STATUSES.join('|')}`)
       }
       validateRoute(task.route, `plan.phases[${pi}].tasks[${ti}].route`, errors)
+      validateVerify(task.verify, `plan.phases[${pi}].tasks[${ti}].verify`, errors)
     })
   })
+}
+
+/** `verify` (r1-fixes 3.1, D19): a command line, an optional relative cwd, an optional positive timeout. */
+function validateVerify(verify: unknown, path: string, errors: string[]): void {
+  if (verify === undefined) return
+  if (!isObj(verify)) {
+    errors.push(`${path}: must be an object`)
+    return
+  }
+  if (!str(verify.cmd)) errors.push(`${path}.cmd: must be a non-empty string`)
+  if (!optNonEmptyStr(verify.cwd)) errors.push(`${path}.cwd: must be a non-empty string when present`)
+  if (verify.timeout_ms !== undefined && !(Number.isInteger(verify.timeout_ms) && (verify.timeout_ms as number) > 0)) {
+    errors.push(`${path}.timeout_ms: must be a positive integer when present`)
+  }
 }
 
 /** One status this build did not recognise, rewritten so the plan survives. */
@@ -566,6 +665,7 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (!str(p.id)) e.push('id: must be a non-empty string')
     if (!str(p.title)) e.push('title: must be a non-empty string')
     if (!optTaskStatus(p.status)) e.push(`status: must be one of ${TASK_STATUSES.join('|')}`)
+    validateVerify(p.verify, 'verify', e)
   },
   task_status_changed(p, e) {
     if (!str(p.id)) e.push('id: must be a non-empty string')
@@ -608,6 +708,9 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
   },
   memory_promoted(p, e) {
     if (!str(p.text)) e.push('text: must be a non-empty string')
+    if (p.supersedes !== undefined && !(str(p.supersedes) && MEMORY_HANDLE_RE.test(p.supersedes as string))) {
+      e.push('supersedes: must be a qualified memory handle `<slug> M<n>` when present')
+    }
   },
   review_recorded(p, e) {
     if (!(REVIEW_SCOPES as readonly unknown[]).includes(p.scope)) {
@@ -635,6 +738,7 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
   run_started(p, e) {
     if (!str(p.run)) e.push('run: must be a non-empty string')
     if (!str(p.adapter)) e.push('adapter: must be a non-empty string')
+    if (!optNonEmptyStr(p.verify)) e.push('verify: must be a non-empty string when present')
     if (!(RUN_POLICIES as readonly unknown[]).includes(p.policy)) {
       e.push(`policy: must be one of ${RUN_POLICIES.join('|')}`)
     }
@@ -693,6 +797,28 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (p.tokens !== undefined && !(Number.isInteger(p.tokens) && (p.tokens as number) >= 0)) {
       e.push('tokens: must be a non-negative integer when present')
     }
+    if (p.detail !== undefined && !str(p.detail)) e.push('detail: must be a non-empty string when present')
+  },
+  verification_recorded(p, e) {
+    if (!str(p.run)) e.push('run: must be a non-empty string')
+    if (!str(p.task)) e.push('task: must be a non-empty string')
+    if (!(Number.isInteger(p.attempt) && (p.attempt as number) >= 1)) e.push('attempt: must be a positive integer')
+    if (!str(p.command)) e.push('command: must be a non-empty string')
+    if (!str(p.cwd)) e.push('cwd: must be a non-empty string')
+    if (!isObj(p.checked) || !str(p.checked.head) || !str(p.checked.tree)) {
+      e.push('checked: must be {head, tree} of non-empty strings')
+    }
+    if (!str(p.validator)) e.push('validator: must be a non-empty string')
+    if (!(VERIFICATION_RESULTS as readonly unknown[]).includes(p.result)) {
+      e.push(`result: must be one of ${VERIFICATION_RESULTS.join('|')}`)
+    }
+    if (p.exit_code !== undefined && !Number.isInteger(p.exit_code)) e.push('exit_code: must be an integer when present')
+    if (!optNonEmptyStr(p.signal)) e.push('signal: must be a non-empty string when present')
+    if (!(Number.isInteger(p.duration_ms) && (p.duration_ms as number) >= 0)) e.push('duration_ms: must be a non-negative integer')
+    if (!(Number.isInteger(p.timeout_ms) && (p.timeout_ms as number) > 0)) e.push('timeout_ms: must be a positive integer')
+    if (p.diagnostics !== undefined && (!str(p.diagnostics) || (p.diagnostics as string).length > 1024)) {
+      e.push('diagnostics: must be a non-empty string of at most 1,024 chars when present')
+    }
   },
   run_stopped(p, e) {
     if (!str(p.run)) e.push('run: must be a non-empty string')
@@ -712,6 +838,200 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
   correction(p, e) {
     if (!str(p.ref)) e.push('ref: must be a non-empty string (target event id)')
     if (!optStr(p.reason)) e.push('reason: must be a string')
+  },
+}
+
+/**
+ * Who appends an event type — what a CLI-dialect agent writes by hand, and
+ * what it must leave alone (r1-fixes 1.3). `command` types have a CLI command
+ * that appends them with the bookkeeping done; `hook` and `driver` types are
+ * mechanical, and an agent appending one forges a fact it did not observe.
+ */
+export const EVENT_WRITERS = ['agent', 'command', 'hook', 'driver'] as const
+export type EventWriter = (typeof EVENT_WRITERS)[number]
+
+export interface EventTypeReference {
+  writer: EventWriter
+  /** The command that appends it (`command`), or what to run around it. */
+  via?: string
+  /** One line: what the event records. */
+  summary: string
+  /** Field grammar: `name` required, `name?` optional, `a|b` an enum, rules in parens. */
+  fields: string
+  /** A payload that VALIDATES — the suite pins every one against validatePayload. */
+  example: Obj
+}
+
+/**
+ * The payload reference `sofar event types` prints (r1-fixes 1.3).
+ *
+ * The AGENTS.md dialect showed payloads for five event types and left the
+ * rest to discovery, so MCP-less agents spent tool calls reading source or
+ * appending until validation stopped refusing — plan_updated, a nested full
+ * replace, most of all. It lives HERE because payload shapes live only in
+ * this package (CLAUDE.md guard-rails): a reference kept beside the engine
+ * would be a second copy of the schema, free to drift from the validators.
+ * Drift is still possible in `fields` prose, so enums interpolate the same
+ * constants the validators read, and every `example` is validated by test.
+ * Keyed by KnownEventType, so a new event type does not compile without one.
+ */
+export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = {
+  initiative_created: {
+    writer: 'command',
+    via: 'sofar new <slug> --goal "<one line>"',
+    summary: 'a new initiative and its goal — one per project or roadmap, not per feature',
+    fields: 'slug ([a-z0-9-]+), goal',
+    example: { slug: 'my-project', goal: 'Ship the booking flow' },
+  },
+  initiative_status_changed: {
+    writer: 'command',
+    via: 'sofar close [slug] [--drop --reason <why> | --superseded-by <slug>]; sofar switch <slug> reopens',
+    summary: 'the initiative closed or reopened',
+    fields: `status: ${INITIATIVE_STATUSES.join('|')}, note? (required for dropped), successor? (required for superseded, else rejected), overrides?: string[]`,
+    example: { status: 'done', note: 'all phases shipped' },
+  },
+  plan_updated: {
+    writer: 'agent',
+    summary: 'the WHOLE plan — a full replace: resend every phase and task each time, or the omitted ones vanish',
+    fields: `plan: {goal?, phases: [{name, status?: ${PHASE_STATUSES.join('|')}, tasks: [{id, title, status?: ${TASK_STATUSES.join('|')}, route?: {agent?, model?, effort?}, verify?: {cmd, cwd?, timeout_ms?}}]}]}`,
+    example: {
+      plan: {
+        goal: 'Ship the booking flow',
+        phases: [
+          {
+            name: 'Phase 1 — Data model',
+            status: 'active',
+            tasks: [
+              { id: '1.1', title: 'Schema and migrations', status: 'active' },
+              { id: '1.2', title: 'Repository layer', status: 'pending' },
+            ],
+          },
+        ],
+      },
+    },
+  },
+  phase_status_changed: {
+    writer: 'agent',
+    summary: 'one phase changed status (name it exactly as in the plan)',
+    fields: `phase, status: ${PHASE_STATUSES.join('|')}, note? (say why when dropped)`,
+    example: { phase: 'Phase 1 — Data model', status: 'done' },
+  },
+  task_added: {
+    writer: 'agent',
+    summary: 'one task appended to an existing phase, without resending the plan',
+    fields: `phase, id, title, status?: ${TASK_STATUSES.join('|')}, verify?: {cmd, cwd?, timeout_ms?} (the acceptance command sofar drive runs before accepting the task)`,
+    example: { phase: 'Phase 1 — Data model', id: '1.3', title: 'Seed data', status: 'pending' },
+  },
+  task_status_changed: {
+    writer: 'agent',
+    summary: 'one task changed status',
+    fields: `id, status: ${TASK_STATUSES.join('|')}, note? (say why when blocked or dropped)`,
+    example: { id: '1.1', status: 'done' },
+  },
+  decision_logged: {
+    writer: 'agent',
+    summary: 'a design decision: what was chosen, over what, and why',
+    fields: 'chose, over, because, rule? (one imperative every later session must obey), guard? (path:<globs> or cmd:<globs>; only with rule)',
+    example: { chose: 'SQLite via better-sqlite3', over: 'Postgres', because: 'single-user local app, zero ops' },
+  },
+  session_started: {
+    writer: 'agent',
+    summary: 'register your session id — once; a repeat is a no-op',
+    fields: 'tool (your agent name), model?',
+    example: { tool: 'codex', model: 'gpt-5.6-sol' },
+  },
+  session_ended: {
+    writer: 'agent',
+    summary: 'the write-back the next session reads first — MANDATORY before finishing',
+    fields: 'summary, next_action (the single next step)',
+    example: { summary: 'Phase 1 done; tests pass', next_action: 'Start 2.1: booking API' },
+  },
+  session_closed: {
+    writer: 'hook',
+    summary: 'mechanical close from the SessionEnd hook',
+    fields: 'reason',
+    example: { reason: 'exit' },
+  },
+  file_touched: {
+    writer: 'hook',
+    summary: 'a file edit captured by the PostToolUse hook',
+    fields: 'path, op',
+    example: { path: 'src/app.ts', op: 'edit' },
+  },
+  command_run: {
+    writer: 'hook',
+    summary: 'a shell command captured by the PostToolUse hook',
+    fields: 'cmd',
+    example: { cmd: 'npm test' },
+  },
+  note_added: {
+    writer: 'agent',
+    summary: 'free-form context for later sessions (findings, measurements, caveats)',
+    fields: 'text',
+    example: { text: 'Hidden tests expect 422 on validation errors, not 400.' },
+  },
+  memory_promoted: {
+    writer: 'command',
+    via: 'sofar remember "<fact>" [--supersedes "<slug> M<n>"] [--initiative <slug>]  (or `sofar remember -` with the text on stdin, `sofar remember @<file>`)',
+    summary: 'an operational fact for repo memory (a release command, a failure mode) — not a decision',
+    fields: 'text, supersedes? (qualified handle `<slug> M<n>` of the fact this one replaces)',
+    example: { text: 'Run `bun test` from the repo root; per-package runs miss the setup file.' },
+  },
+  review_recorded: {
+    writer: 'agent',
+    via: 'sofar review [slug] prints the packet; append this after performing the review',
+    summary: 'a review that was actually performed',
+    fields: `scope: ${REVIEW_SCOPES.join('|')}, verdict: ${REVIEW_VERDICTS.join('|')}, watermark? (sha read through), phase?, findings?: string[] (required, non-empty, for findings)`,
+    example: { scope: 'phase', verdict: 'pass', phase: 'Phase 1 — Data model', watermark: 'abc1234' },
+  },
+  run_started: {
+    writer: 'driver',
+    summary: 'a sofar drive run began',
+    fields: `run, adapter, policy: ${RUN_POLICIES.join('|')}, threshold_pct? and context_window? (both required for threshold), max_sessions?, surface?, verify? (the run's default acceptance command)`,
+    example: { run: '01J00000000000000000000000', adapter: 'codex', policy: 'task' },
+  },
+  handoff: {
+    writer: 'driver',
+    summary: 'a driven session ended and the next one starts',
+    fields: `run, session_id, reason: ${HANDOFF_REASONS.join('|')}, task?, tokens?, detail? (how the process ended: exit, spawn error, last stderr line)`,
+    example: { run: '01J00000000000000000000000', session_id: 's1', reason: 'task_done', task: '1.1' },
+  },
+  verification_recorded: {
+    writer: 'driver',
+    summary: "the driver ran a task's acceptance command before accepting it as done",
+    fields: `run, task, attempt, command, cwd, checked: {head, tree}, validator, result: ${VERIFICATION_RESULTS.join('|')}, exit_code?, signal?, duration_ms, timeout_ms, diagnostics? (≤1,024 chars)`,
+    example: {
+      run: '01J00000000000000000000000',
+      task: '1.1',
+      attempt: 1,
+      command: 'npm test -- --run',
+      cwd: '.',
+      checked: { head: '0123456789abcdef0123456789abcdef01234567', tree: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' },
+      validator: '0.33.0',
+      result: 'pass',
+      exit_code: 0,
+      duration_ms: 1200,
+      timeout_ms: 600000,
+    },
+  },
+  run_stopped: {
+    writer: 'driver',
+    summary: 'a sofar drive run ended',
+    fields: `run, reason: ${RUN_STOP_REASONS.join('|')}, note? (required for error)`,
+    example: { run: '01J00000000000000000000000', reason: 'closed' },
+  },
+  run_stop_requested: {
+    writer: 'command',
+    via: 'sofar drive <slug> --stop',
+    summary: 'a request for a running drive to stop',
+    fields: 'run',
+    example: { run: '01J00000000000000000000000' },
+  },
+  correction: {
+    writer: 'agent',
+    summary: 'voids one earlier event by id (append the corrected event fresh after it)',
+    fields: 'ref (the bad event id), reason?',
+    example: { ref: '01J00000000000000000000000', reason: 'wrong task id' },
   },
 }
 

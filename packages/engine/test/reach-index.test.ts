@@ -17,7 +17,7 @@ import {
 } from '../src/core/index-reach'
 import { appendEvent } from '../src/core/log'
 import { runFind } from '../src/cli/find'
-import { callTool, connectServer, makeRepoFixture } from './helpers/mcp'
+import { makeRepoFixture } from './helpers/mcp'
 
 /**
  * record-index 3.4 — `sofar find`: traversal from a seed, with citations.
@@ -661,8 +661,8 @@ describe('3.5 lexical seeds — a question resolves to seeds', () => {
   })
 })
 
-describe('3.4 sofar_find — the agent-facing surface', () => {
-  it('answers over MCP, appends nothing, and rejects a budget out of range', async () => {
+describe('3.4 findFrom — the agent-facing surface, CLI-first since r1-fixes 2.4 (D13)', () => {
+  it('answers, appends nothing, and the CLI rejects a zero budget', () => {
     const fixture = makeRepoFixture()
     roots.push(fixture.root)
     const sofar = join(fixture.root, '.sofar')
@@ -671,12 +671,7 @@ describe('3.4 sofar_find — the agent-facing surface', () => {
     decide(sofar, fixture.slug, 'A', { chose: 'the indexed path' })
     const before = readFileSync(fixture.eventsPath, 'utf8')
 
-    const { client } = await connectServer(fixture.root)
-    const { isError, body } = await callTool<ReachResult>(client, 'sofar_find', {
-      seed: 'src/a.ts',
-      hops: 2,
-    })
-    expect(isError).toBe(false)
+    const body = findFrom(sofar, 'src/a.ts', { hops: 2 })
     expect(body.seed.kind).toBe('file')
     const decisions = body.groups.find((g) => g.kind === 'decision')!.hits
     expect(decisions[0]!.label).toBe('the indexed path')
@@ -685,24 +680,17 @@ describe('3.4 sofar_find — the agent-facing surface', () => {
     // A read is a read: the log is byte-identical after it.
     expect(readFileSync(fixture.eventsPath, 'utf8')).toBe(before)
 
-    const bad = await callTool(client, 'sofar_find', { seed: 'src/a.ts', hops: 9 })
-    expect(bad.isError).toBe(true)
+    expect(runFind(fixture.root, 'src/a.ts', { hops: 0 }).exitCode).toBe(1)
   })
 
-  it('will not resolve a bare D<n> from the branch — a read says nothing rather than the wrong thing', async () => {
+  it('will not resolve a bare D<n> from the branch — a read says nothing rather than the wrong thing', () => {
     const fixture = makeRepoFixture()
     roots.push(fixture.root)
     const sofar = join(fixture.root, '.sofar')
     start(sofar, fixture.slug, 'A')
     decide(sofar, fixture.slug, 'A')
 
-    const { client } = await connectServer(fixture.root)
-    const bare = await callTool<ReachResult>(client, 'sofar_find', { seed: 'D1' })
-    expect(bare.body.seed.kind).toBeNull()
-    const scoped = await callTool<ReachResult>(client, 'sofar_find', {
-      seed: 'D1',
-      initiative: fixture.slug,
-    })
-    expect(scoped.body.seed.kind).toBe('decision')
+    expect(findFrom(sofar, 'D1').seed.kind).toBeNull()
+    expect(findFrom(sofar, 'D1', { initiative: fixture.slug }).seed.kind).toBe('decision')
   })
 })

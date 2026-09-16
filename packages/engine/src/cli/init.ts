@@ -9,10 +9,11 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { effectiveHooksDir } from '../core/attribution'
 import { commonGitDir } from '../core/git'
 import { mcpRegistration } from '../mcp/register'
+import { detectFormatterHazards, hostShapedJSON } from './formatters'
 import { detectTailwindV4, SOURCE_NOT_SINCE } from './scanners'
 import { fail, ok, REPO_MD_STUB, type CmdResult } from './shared'
 import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui'
@@ -39,7 +40,12 @@ export const GIT_HOOK_MARKER = 'sofar prepare-commit-msg shim'
  * Hand-written files are sacred: repo.md is never overwritten; CLAUDE.md
  * outside (and inside) the markers is never touched once the block exists;
  * settings.json/.mcp.json are merged, never clobbered — unparseable JSON in
- * either aborts with exit 1 rather than risking user config.
+ * either aborts with exit 1 rather than risking user config. Both are written
+ * in the shape the host's own formatter would print (r1-fixes 1.4, D7:
+ * biome.json(c) > Prettier config > .editorconfig, short arrays on one
+ * line; the plain 2-space form when none is configured), so a Biome or
+ * Prettier pass over the repo leaves them byte-identical instead of churning
+ * them into the agent's next commit.
  *
  * Shim TEXT ships inside the bundle (esbuild `loader: {'.sh': 'text'}`) —
  * only dist/ is published, so init never reads src/hooks/ at runtime.
@@ -255,40 +261,11 @@ ${PROTOCOL_END}
 `
 
 /**
- * The BD19 total-jurisdiction protocol block. Clauses (a)–(c) are contract
- * (SPEC §CLI): record-only state, \`sofar new\` before unmatched work,
- * bindings resolve the record — plus the read-orient/write-back loop.
- *
- * Clause 1 names messages from other sessions (peer-messaging 3.1). Claude
- * Code sessions can message each other, and such a message is text between
- * two live sessions — "never conversation history or files" — that collapses
- * to a one-line row and dies with the session that heard it. Transport, never
- * storage: a finding that arrives that way is work state entering through a
- * channel the record cannot see, which is the first genuine hole in total
- * jurisdiction. Naming the channel is the whole fix, because the clause's
- * existing instruction already says what to do about it.
- *
- * START names RE-HOMING (session-orientation 1.1). The mechanism has always
- * been there — an explicit \`initiative\` on \`sofar_start_session\` beats the
- * branch (start-session.ts) and every surface follows the session's home
- * (resolveSessionFirst) — but nothing TOLD an agent to use it, so an agent
- * whose work moved to another record adopted the branch's initiative and
- * stayed mis-homed for its whole life. Not a cosmetic miss: \`sofar_end_session\`
- * is the ONE write tool that takes no \`initiative\`, so a mis-homed session
- * can route every decision correctly by hand and still file its write-back —
- * the event the next session reads first — in the wrong record.
- *
- * The rule of thumb is the load-bearing half: an \`initiative\` arg routes ONE
- * write, re-homing moves the SESSION. Without it the natural reading is that
- * per-call targeting is sufficient, which is exactly the failure.
- *
- * DRIVING (in-session-drive 2.4, D1) is how an operator's "run this in sofar
- * drive" becomes a run: every agent has a shell, none outlives an unattended
- * run, so the clause names --detach. The write-back comes FIRST because a
- * write-back filed after the run starts becomes the next action a driven
- * session resumes from; --detach refuses the other order when it can see it.
+ * The block before r1-fixes 2.1 (D10): every task change went through
+ * sofar_update_task and the write-back carried none; the START line did not
+ * yet name the next D/M ids the digest now ends with.
  */
-export const PROTOCOL_BLOCK = `${PROTOCOL_START}
+export const PROTOCOL_BLOCK_V6 = `${PROTOCOL_START}
 ## Sofar protocol (jurisdiction is total)
 
 This repo's work memory lives in sofar records under \`.sofar/\`.
@@ -339,6 +316,94 @@ Session loop:
 ${PROTOCOL_END}
 `
 
+/**
+ * The BD19 total-jurisdiction protocol block. Clauses (a)–(c) are contract
+ * (SPEC §CLI): record-only state, \`sofar new\` before unmatched work,
+ * bindings resolve the record — plus the read-orient/write-back loop.
+ *
+ * Clause 1 names messages from other sessions (peer-messaging 3.1). Claude
+ * Code sessions can message each other, and such a message is text between
+ * two live sessions — "never conversation history or files" — that collapses
+ * to a one-line row and dies with the session that heard it. Transport, never
+ * storage: a finding that arrives that way is work state entering through a
+ * channel the record cannot see, which is the first genuine hole in total
+ * jurisdiction. Naming the channel is the whole fix, because the clause's
+ * existing instruction already says what to do about it.
+ *
+ * START names RE-HOMING (session-orientation 1.1). The mechanism has always
+ * been there — an explicit \`initiative\` on \`sofar_start_session\` beats the
+ * branch (start-session.ts) and every surface follows the session's home
+ * (resolveSessionFirst) — but nothing TOLD an agent to use it, so an agent
+ * whose work moved to another record adopted the branch's initiative and
+ * stayed mis-homed for its whole life. Not a cosmetic miss: \`sofar_end_session\`
+ * is the ONE write tool that takes no \`initiative\`, so a mis-homed session
+ * can route every decision correctly by hand and still file its write-back —
+ * the event the next session reads first — in the wrong record.
+ *
+ * The rule of thumb is the load-bearing half: an \`initiative\` arg routes ONE
+ * write, re-homing moves the SESSION. Without it the natural reading is that
+ * per-call targeting is sufficient, which is exactly the failure.
+ *
+ * DRIVING (in-session-drive 2.4, D1) is how an operator's "run this in sofar
+ * drive" becomes a run: every agent has a shell, none outlives an unattended
+ * run, so the clause names --detach. The write-back comes FIRST because a
+ * write-back filed after the run starts becomes the next action a driven
+ * session resumes from; --detach refuses the other order when it can see it.
+ */
+export const PROTOCOL_BLOCK = `${PROTOCOL_START}
+## Sofar protocol (jurisdiction is total)
+
+This repo's work memory lives in sofar records under \`.sofar/\`.
+1. ALL work state lives in sofar records — never in tool memory, scratch
+   files, ad-hoc notes, or a message from another session. If it is worth
+   keeping, it goes in the record.
+2. Work that matches no existing initiative requires creating one first:
+   run \`sofar new <slug>\` before proceeding.
+3. Bindings (\`.sofar/bindings.json\`) resolve which record a session
+   serves — the current git branch selects the initiative.
+
+Session loop:
+- START: the SessionStart hook has ALREADY injected the record above —
+  goal, progress, next action, decisions, rejected approaches, and the
+  next D/M ids (cite the decision you are about to log by that id). Do not
+  call \`sofar_get_state\` to re-read it: that digest is the same
+  projection rendered with fewer fields, so it can only tell you less.
+  Reach for it only when the injected block is missing or truncated, or
+  to read a DIFFERENT initiative.
+  Do still call \`sofar_start_session\`, passing the \`session_id\` from the
+  injected context line ("Session: <id> — …"). It is not bookkeeping: it
+  pins which record your writes land in — without it they follow the
+  branch binding, which moves mid-session — and attaches them to YOUR
+  session rather than minting a separate id that orphans the
+  hook-registered one.
+- RE-HOME the moment the work turns out to belong to a DIFFERENT record
+  than the one injected: call \`sofar_start_session\` again with that
+  \`initiative\` (plus the same \`session_id\`). Passing \`initiative\` to any
+  other tool routes ONE write; re-homing moves the SESSION. That
+  distinction is the whole point — \`sofar_end_session\` takes no
+  \`initiative\` and always follows the home, so a session that only ever
+  targets writes one at a time still files its write-back, the event the
+  next session reads first, in the wrong record.
+- DURING: log decisions (\`sofar_log_decision\`) as they happen, and task
+  status changes with \`sofar_update_task\` — or, when several land together
+  at wrap-up, in \`sofar_end_session\`'s \`tasks\`. An operational fact you learn is
+  NOT a decision — a release command, a failure mode and how it is
+  diagnosed, a convention every later session needs. Promote it with
+  \`sofar_remember\` the moment you learn it, or it lives only in your own
+  context and dies with the session.
+- DRIVING: when the operator asks for the work to run under sofar drive
+  ("run this in sofar drive"), write back FIRST with \`sofar_end_session\`
+  — the run's first session resumes from your next action — then start it
+  with \`sofar drive <slug> --detach\`, adding \`--allow\` for what proving
+  a task needs (the test command) and \`--session-timeout\`. Relay what it
+  prints: the run id, every warning, how to stop it. Do not write to that
+  record again while the run goes. \`sofar drive <slug> --stop\` ends it.
+- BEFORE FINISHING: write back with \`sofar_end_session\` (summary +
+  next action, plus any task status changes not yet logged, in \`tasks\`).
+  The Stop hook blocks sessions that skip this.
+${PROTOCOL_END}
+`
+
 /** Superseded CLAUDE.md blocks, oldest first. */
 export const SHIPPED_PROTOCOL_BLOCKS: readonly string[] = [
   PROTOCOL_BLOCK_V1,
@@ -346,6 +411,7 @@ export const SHIPPED_PROTOCOL_BLOCKS: readonly string[] = [
   PROTOCOL_BLOCK_V3,
   PROTOCOL_BLOCK_V4,
   PROTOCOL_BLOCK_V5,
+  PROTOCOL_BLOCK_V6,
 ]
 
 /**
@@ -543,33 +609,8 @@ Prohibitions:
 ${PROTOCOL_END}
 `
 
-/**
- * The AGENTS.md convention dialect (task 5.1, BD31) — the same three BD19
- * total-jurisdiction clauses, but a CLI-only loop: AGENTS.md readers
- * (OpenCode, Codex, plain shells) cannot be assumed to have MCP, so every
- * step goes through \`sofar status\` / \`sofar event append\`. No hook
- * enforces write-back for these tools, hence the MANDATORY clause (the
- * compensating control — see docs/opencode-adapter.md).
- *
- * Clause 1 names messages in lockstep with PROTOCOL_BLOCK (peer-messaging
- * 3.1). The wording is deliberately tool-agnostic: an OpenCode or Codex
- * session cannot receive a Claude Code peer message, but the hazard the
- * clause guards against is any finding that arrives as transient text between
- * sessions, and the two dialects stating the same three clauses differently
- * would be worse than either statement alone.
- *
- * The RECORD line is this dialect's half of session-orientation 1.1, and the
- * hazard is sharper here than under MCP. \`sofar event append\` takes the slug
- * as a leading positional and resolves it through \`ctx.resolveInitiative\`,
- * which consults the BRANCH and never the session's home — so the CLI has no
- * re-homing at all, and no home to re-home to. The slug is per-append or it is
- * the branch's, every time. That makes the omission the older blocks shipped
- * unrecoverable rather than merely untidy: an agent that registered its
- * session_started under one record and then let the branch move sends the
- * session_ended somewhere else, and the MANDATORY write-back these tools have
- * instead of a Stop hook lands in a record nobody is reading.
- */
-export const AGENTS_PROTOCOL_BLOCK = `${PROTOCOL_START}
+/** Shipped in 0.32.0 (in-session-drive 2.4): V4 plus the DRIVING clause. */
+export const AGENTS_PROTOCOL_BLOCK_V5 = `${PROTOCOL_START}
 ## Sofar protocol (jurisdiction is total)
 
 This repo's work memory lives in sofar records under \`.sofar/\`. Drive
@@ -630,12 +671,192 @@ Prohibitions:
 ${PROTOCOL_END}
 `
 
+/**
+ * Built in r1-fixes 1.3 (not in a stable release; installed by local candidate
+ * builds and the round-2 bench worktrees): V5 plus \`--goal\`, the PLAN step,
+ * phase status and the \`sofar event types\` reference.
+ */
+export const AGENTS_PROTOCOL_BLOCK_V6 = `${PROTOCOL_START}
+## Sofar protocol (jurisdiction is total)
+
+This repo's work memory lives in sofar records under \`.sofar/\`. Drive
+the whole loop with the \`sofar\` CLI — no MCP support is required.
+1. ALL work state lives in sofar records — never in tool memory, scratch
+   files, ad-hoc notes, or a message from another session. If it is worth
+   keeping, it goes in the record.
+2. Work that matches no existing initiative requires creating one first:
+   run \`sofar new <slug> --goal "<one line>"\` before proceeding, then
+   append its plan (PLAN below). One initiative per project or roadmap —
+   its features and roadmap items are phases and tasks inside it, never
+   initiatives of their own.
+3. Bindings (\`.sofar/bindings.json\`) resolve which record a session
+   serves — the current git branch selects the initiative.
+
+Session loop (every write is one \`sofar event append\` call):
+- BEFORE any work: run \`sofar status\` and orient from it. Detail lives
+  in \`.sofar/initiatives/<slug>/plan.md\` and \`decisions.md\`. Do not
+  ask for context the record already answers.
+- RECORD: every append takes an optional LEADING slug —
+  \`sofar event append <slug> --type …\` — naming the record it lands in.
+  Omit it and the write follows the current branch's binding, which is not
+  the same thing as the record you registered in and can move mid-session.
+  So decide the slug once, before the first append, and pass it on EVERY
+  append this session — above all on the session_ended one, because a
+  write-back filed in the wrong record is the event the next session reads
+  first. If the work belongs to a record other than the one \`sofar status\`
+  shows, that is the slug to pass, every time; there is no session-level
+  re-homing on this path. \`sofar remember\` takes the same record as
+  \`--initiative <slug>\`, and follows the branch without it.
+- START: pick one unique session id, reuse it for every append this
+  session, and register it (repeating it is a harmless no-op):
+  \`sofar event append <slug> --type session_started --session <session-id> --source <tool> --payload '{"tool":"<tool>"}'\`
+  (<tool> is your agent's name — codex, cursor, opencode; any name works).
+- PLAN: a new initiative gets its plan before the first edit, and a plan
+  is replanned the same way when phases or tasks change. plan_updated is
+  a FULL replace — resend every phase and task, with statuses, each time:
+  \`sofar event append <slug> --session <session-id> --source <tool> --type plan_updated --payload '{"plan":{"goal":"<goal>","phases":[{"name":"Phase 1 — <name>","status":"active","tasks":[{"id":"1.1","title":"<task>","status":"pending"}]}]}}'\`
+- DURING: log work as it happens with \`sofar event append <slug> --session <session-id> --source <tool>\` plus:
+  task status:  \`--type task_status_changed --payload '{"id":"<task-id>","status":"pending|active|done|blocked|dropped"}'\`
+  phase status: \`--type phase_status_changed --payload '{"phase":"<phase name as in the plan>","status":"active|done"}'\`
+  decisions:    \`--type decision_logged --payload '{"chose":"...","over":"...","because":"..."}'\`
+  notes:        \`--type note_added --payload '{"text":"..."}'\`
+  Every other event type, its fields and who writes it: \`sofar event types\`.
+- DURING, for operational facts: a release command, a failure mode and how
+  it is diagnosed, a convention every later session needs is NOT a decision.
+  Promote it the moment you learn it with \`sofar remember "<fact>"\`, or it
+  lives only in your own context and dies with the session.
+- DRIVING: when the operator asks for the work to run under sofar drive
+  ("run this in sofar drive"), write back FIRST (the session_ended append
+  below) — the run's first session resumes from your next_action — then
+  start it with \`sofar drive <slug> --detach\`, adding \`--allow\` for what
+  proving a task needs (the test command) and \`--session-timeout\`. Relay
+  what it prints: the run id, every warning, how to stop it. Do not append
+  to that record again while the run goes. \`sofar drive <slug> --stop\`
+  ends it. A sandbox with no network cannot host a run.
+- BEFORE FINISHING (MANDATORY): write back —
+  \`sofar event append <slug> --type session_ended --session <session-id> --source <tool> --payload '{"summary":"<what happened>","next_action":"<single next step>"}'\`
+  A session that skips this abandons its state and the next session starts blind.
+
+Prohibitions:
+- Never hand-edit generated projections (plan.md, decisions.md,
+  sessions/*) — they are rebuilt from events.jsonl on every append.
+- Never edit events.jsonl directly — truth is append-only, via the CLI.
+- Corrections are new \`correction\` events referencing the bad event's id
+  (then append the corrected event fresh); history is never rewritten.
+${PROTOCOL_END}
+`
+
+/**
+ * The AGENTS.md convention dialect (task 5.1, BD31) — the same three BD19
+ * total-jurisdiction clauses, but a CLI-only loop: AGENTS.md readers
+ * (OpenCode, Codex, plain shells) cannot be assumed to have MCP, so every
+ * step goes through \`sofar status\` / \`sofar event append\`. No hook
+ * enforces write-back for these tools, hence the MANDATORY clause (the
+ * compensating control — see docs/opencode-adapter.md).
+ *
+ * Clause 1 names messages in lockstep with PROTOCOL_BLOCK (peer-messaging
+ * 3.1). The wording is deliberately tool-agnostic: an OpenCode or Codex
+ * session cannot receive a Claude Code peer message, but the hazard the
+ * clause guards against is any finding that arrives as transient text between
+ * sessions, and the two dialects stating the same three clauses differently
+ * would be worse than either statement alone.
+ *
+ * The RECORD line is this dialect's half of session-orientation 1.1, and the
+ * hazard is sharper here than under MCP. \`sofar event append\` takes the slug
+ * as a leading positional and resolves it through \`ctx.resolveInitiative\`,
+ * which consults the BRANCH and never the session's home — so the CLI has no
+ * re-homing at all, and no home to re-home to. The slug is per-append or it is
+ * the branch's, every time. That makes the omission the older blocks shipped
+ * unrecoverable rather than merely untidy: an agent that registered its
+ * session_started under one record and then let the branch move sends the
+ * session_ended somewhere else, and the MANDATORY write-back these tools have
+ * instead of a Stop hook lands in a record nobody is reading.
+ */
+export const AGENTS_PROTOCOL_BLOCK = `${PROTOCOL_START}
+## Sofar protocol (jurisdiction is total)
+
+This repo's work memory lives in sofar records under \`.sofar/\`. Drive
+the whole loop with the \`sofar\` CLI — no MCP support is required.
+1. ALL work state lives in sofar records — never in tool memory, scratch
+   files, ad-hoc notes, or a message from another session. If it is worth
+   keeping, it goes in the record.
+2. Work that matches no existing initiative requires creating one first:
+   run \`sofar new <slug> --goal "<one line>"\` before proceeding, then
+   append its plan (PLAN below). One initiative per project or roadmap —
+   its features and roadmap items are phases and tasks inside it, never
+   initiatives of their own.
+3. Bindings (\`.sofar/bindings.json\`) resolve which record a session
+   serves — the current git branch selects the initiative.
+
+Session loop (every write is one \`sofar event append\` call):
+- BEFORE any work: run \`sofar status\` and orient from it. Detail lives
+  in \`.sofar/initiatives/<slug>/plan.md\` and \`decisions.md\`. Do not
+  ask for context the record already answers.
+- RECORD: every append takes an optional LEADING slug —
+  \`sofar event append <slug> --type …\` — naming the record it lands in.
+  Omit it and the write follows the current branch's binding, which is not
+  the same thing as the record you registered in and can move mid-session.
+  So decide the slug once, before the first append, and pass it on EVERY
+  append this session — above all on the session_ended one, because a
+  write-back filed in the wrong record is the event the next session reads
+  first. If the work belongs to a record other than the one \`sofar status\`
+  shows, that is the slug to pass, every time; there is no session-level
+  re-homing on this path. \`sofar remember\` takes the same record as
+  \`--initiative <slug>\`, and follows the branch without it.
+- START: pick one unique session id, reuse it for every append this
+  session, and register it (repeating it is a harmless no-op):
+  \`sofar event append <slug> --type session_started --session <session-id> --source <tool> --payload '{"tool":"<tool>"}'\`
+  (<tool> is your agent's name — codex, cursor, opencode; any name works).
+- PLAN: a new initiative gets its plan before the first edit, and a plan
+  is replanned the same way when phases or tasks change. plan_updated is
+  a FULL replace — resend every phase and task, with statuses, each time:
+  \`sofar event append <slug> --session <session-id> --source <tool> --type plan_updated --payload '{"plan":{"goal":"<goal>","phases":[{"name":"Phase 1 — <name>","status":"active","tasks":[{"id":"1.1","title":"<task>","status":"pending"}]}]}}'\`
+- DURING: log work as it happens with \`sofar event append <slug> --session <session-id> --source <tool>\` plus:
+  task status:  \`--type task_status_changed --payload '{"id":"<task-id>","status":"pending|active|done|blocked|dropped"}'\`
+  phase status: \`--type phase_status_changed --payload '{"phase":"<phase name as in the plan>","status":"active|done"}'\`
+  decisions:    \`--type decision_logged --payload '{"chose":"...","over":"...","because":"..."}'\`
+  notes:        \`--type note_added --payload '{"text":"..."}'\`
+  Every other event type, its fields and who writes it: \`sofar event types\`.
+  Quotes, apostrophes or newlines in a payload: skip the shell quoting and
+  pass it on stdin under a quoted heredoc (\`--payload @<file>\` reads a file):
+      sofar event append <slug> --session <session-id> --source <tool> --type note_added --payload - <<'EOF'
+      {"text":"it's fine to write \\"anything\\" here"}
+      EOF
+- DURING, for operational facts: a release command, a failure mode and how
+  it is diagnosed, a convention every later session needs is NOT a decision.
+  Promote it the moment you learn it with \`sofar remember "<fact>"\` (text
+  with quotes: \`sofar remember - <<'EOF'\` … \`EOF\`), or it lives only in
+  your own context and dies with the session. An outdated fact is replaced,
+  never edited: \`sofar remember "<fact>" --supersedes "<slug> M<n>"\`.
+- DRIVING: when the operator asks for the work to run under sofar drive
+  ("run this in sofar drive"), write back FIRST (the session_ended append
+  below) — the run's first session resumes from your next_action — then
+  start it with \`sofar drive <slug> --detach\`, adding \`--allow\` for what
+  proving a task needs (the test command) and \`--session-timeout\`. Relay
+  what it prints: the run id, every warning, how to stop it. Do not append
+  to that record again while the run goes. \`sofar drive <slug> --stop\`
+  ends it. A sandbox with no network cannot host a run.
+- BEFORE FINISHING (MANDATORY): write back —
+  \`sofar event append <slug> --type session_ended --session <session-id> --source <tool> --payload '{"summary":"<what happened>","next_action":"<single next step>"}'\`
+  A session that skips this abandons its state and the next session starts blind.
+
+Prohibitions:
+- Never hand-edit generated projections (plan.md, decisions.md,
+  sessions/*) — they are rebuilt from events.jsonl on every append.
+- Never edit events.jsonl directly — truth is append-only, via the CLI.
+- Corrections are new \`correction\` events referencing the bad event's id
+  (then append the corrected event fresh); history is never rewritten.
+${PROTOCOL_END}
+`
+
 /** Superseded AGENTS.md blocks, oldest first. */
 export const SHIPPED_AGENTS_PROTOCOL_BLOCKS: readonly string[] = [
   AGENTS_PROTOCOL_BLOCK_V1,
   AGENTS_PROTOCOL_BLOCK_V2,
   AGENTS_PROTOCOL_BLOCK_V3,
   AGENTS_PROTOCOL_BLOCK_V4,
+  AGENTS_PROTOCOL_BLOCK_V5,
+  AGENTS_PROTOCOL_BLOCK_V6,
 ]
 
 // REPO_MD_STUB moved to ./shared (ui-free) so event.ts can import it without
@@ -788,7 +1009,7 @@ export function installStatusline(
 
   settings.statusLine = STATUSLINE_SETTINGS_ENTRY
   mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(path, stableJSON(settings))
+  writeFileSync(path, stableJSON(rootDir, path, settings))
   return { status: 'wired', path }
 }
 
@@ -816,7 +1037,7 @@ export function uninstallStatusline(
   }
 
   delete settings.statusLine
-  writeFileSync(path, stableJSON(settings))
+  writeFileSync(path, stableJSON(rootDir, path, settings))
   return { status: 'removed', path }
 }
 
@@ -892,8 +1113,17 @@ function readJSONObject(path: string, label: string): Obj {
   return decoded
 }
 
-function stableJSON(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`
+/**
+ * JSON in the host formatter's shape for a file under rootDir (r1-fixes D7),
+ * the plain 2-space form when no formatter is configured; a file outside the
+ * repo — the personal ~/.claude/settings.json — is nobody's formatter's
+ * business and always takes the plain form.
+ */
+function stableJSON(rootDir: string, path: string, value: unknown): string {
+  const rel = relative(rootDir, path)
+  const inside = rel !== '' && !rel.startsWith('..') && !isAbsolute(rel)
+  if (!inside) return `${JSON.stringify(value, null, 2)}\n`
+  return hostShapedJSON(rootDir, rel.split('\\').join('/'), value)
 }
 
 // ---------------------------------------------------------------------------
@@ -1096,7 +1326,7 @@ function mergeSettings(
     return { statuslineAbsent }
   }
   settings.hooks = hooks
-  report.push(`${writeIfChanged(path, stableJSON(settings))} .claude/settings.json${statuslineNote}`)
+  report.push(`${writeIfChanged(path, stableJSON(rootDir, path, settings))} .claude/settings.json${statuslineNote}`)
   return { statuslineAbsent }
 }
 
@@ -1115,7 +1345,7 @@ function mergeMcpJson(rootDir: string, report: string[]): void {
   }
   servers.sofar = mcpRegistration().mcpServers.sofar
   config.mcpServers = servers
-  report.push(`${writeIfChanged(path, stableJSON(config))} .mcp.json`)
+  report.push(`${writeIfChanged(path, stableJSON(rootDir, path, config))} .mcp.json`)
 }
 
 /**
@@ -1288,6 +1518,12 @@ export function runInit(
   if (!statusline && statuslineAbsent && !userStatuslineWired(options.home)) {
     lines.push('', STATUSLINE_HINT)
   }
+  // Formatter defence (r1-fixes 1.4, D7): a formatter or linter that will
+  // process .sofar/ gets the same treatment as the scanner below — init only
+  // names it, `sofar doctor --fix` writes each tool's exclusion. Before the
+  // scanner hint, which keeps the final slot (SPEC §CLI).
+  const formatters = formatterHint(rootDir)
+  if (formatters !== null) lines.push('', formatters)
   // Scanner defense (task 10.1, D-P10): if a tree-wide class scanner will
   // ingest .sofar/, raise the exclusion hint as the FINAL output. init only
   // flags it; `sofar doctor --fix` does the precise, path-aware insert.
@@ -1312,6 +1548,27 @@ export const STATUSLINE_HINT = [
   '  (a project statusLine shadows a personal ~/.claude/settings.json one —',
   '  skip this if you prefer yours)',
 ].join('\n')
+
+/**
+ * The formatter hint (r1-fixes 1.4) — printed when Biome, Prettier or
+ * markdownlint is present and would still reach into .sofar/. Like the
+ * scanner hint it names the fix and the hand-edit shape; unstyled for the
+ * same reason. Null when every detected tool already excludes the record.
+ */
+function formatterHint(rootDir: string): string | null {
+  const open = detectFormatterHazards(rootDir).filter((h) => !h.excluded)
+  if (open.length === 0) return null
+  const names = open.map((h) => h.label.replace(/ \(.*\)$/, ''))
+  const lines = [
+    `note: ${names.join(', ')} detected — ${open.length === 1 ? 'it' : 'they'} will process .sofar/ records`,
+    '  (generated files nobody hand-edits), so checks go red on them and every',
+    '  formatting pass rewrites the record. Keep it out of reach:',
+    '    run `sofar doctor --fix`',
+    '  or by hand:',
+  ]
+  for (const h of open) lines.push(`    ${h.file}: add ${h.directive}`)
+  return lines.join('\n')
+}
 
 /**
  * The Tailwind-v4 scanner hint (task 10.1) — printed as init's final output

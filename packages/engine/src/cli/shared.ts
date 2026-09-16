@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { ToolError } from '../mcp/context'
 
 /**
@@ -51,6 +52,40 @@ export async function readAllStdin(): Promise<string> {
     chunks.push(typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : (chunk as Buffer))
   }
   return Buffer.concat(chunks).toString('utf8')
+}
+
+/**
+ * A value an agent may not be able to quote safely (r1-fixes 1.5, D8):
+ * inline as given, `-` for stdin (a quoted heredoc carries any byte
+ * unchanged), or `@<path>` for a file. With the value omitted and stdin
+ * piped, stdin is read; omitted on a terminal is an error that names all
+ * three forms. Ends in a typed outcome so each command words the failure.
+ */
+export type InputResolution = { ok: true; text: string } | { ok: false; error: string }
+
+export async function readInput(value: string | undefined, label: string): Promise<InputResolution> {
+  if (value === undefined) {
+    if (process.stdin.isTTY) {
+      return {
+        ok: false,
+        error: `${label} is required — pass it inline, \`-\` to read it from stdin (use a quoted heredoc: <<'EOF' … EOF), or @<file>`,
+      }
+    }
+    return { ok: true, text: await readAllStdin() }
+  }
+  if (value === '-') return { ok: true, text: await readAllStdin() }
+  if (value.startsWith('@') && value.length > 1) {
+    const path = value.slice(1)
+    try {
+      return { ok: true, text: readFileSync(path, 'utf8') }
+    } catch (err) {
+      return {
+        ok: false,
+        error: `cannot read ${path}: ${errMessage(err)} (${label} starting with @ names a file; pass literal text on stdin with \`-\`)`,
+      }
+    }
+  }
+  return { ok: true, text: value }
 }
 
 /** Mirror a handler result onto the process (stdout/stderr/exit code). */

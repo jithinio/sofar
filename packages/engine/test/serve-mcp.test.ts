@@ -184,9 +184,6 @@ describe('MCP over HTTP on the serve daemon (speed T3)', () => {
       'sofar_update_plan',
       'sofar_add_note',
       'sofar_remember',
-      'sofar_review',
-      'sofar_close_initiative',
-      'sofar_find',
     ])
 
     // Identical script, identical results — the digest and portfolio views

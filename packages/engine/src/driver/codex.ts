@@ -250,6 +250,8 @@ export class CodexSession implements AgentSession {
           // unless the record registered it (D3).
           session_id: this.sessionId,
           ...(this.finalUsage !== undefined ? { usage: this.finalUsage } : {}),
+          ...(this.stderrTail.trim() !== '' ? { stderr_tail: this.stderrTail } : {}),
+          ...(this.spawnError !== undefined ? { spawn_error: this.spawnError } : {}),
         })
       }
       let exited: { code: number | null; signal: NodeJS.Signals | null } | undefined

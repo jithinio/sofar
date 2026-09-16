@@ -2,6 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { createToolContext, currentBranch, ToolError } from '../mcp/context'
 import { applyClose } from '../mcp/close-initiative'
 import { BindingsAbort, writeBinding } from '../core/bindings'
+import { QUICK_LANE } from '../core/lane'
 import { isClosedInitiativeStatus } from '@sofar/schema'
 import { SLUG_RE } from '@sofar/schema/tool-inputs'
 import { errMessage, fail, ok, type CmdResult } from './shared'
@@ -85,6 +86,17 @@ export function runNew(
     return fail(
       renderFailure(
         `sofar new: invalid slug "${slug}" — slugs are lowercase letters, digits, and hyphens only ([a-z0-9-]+)`,
+        errCaps,
+      ),
+    )
+  }
+
+  // The quick lane creates itself (r1-fixes 2.6, D14): it is the record an
+  // unbound branch falls back to, not one a branch is made for.
+  if (slug === QUICK_LANE) {
+    return fail(
+      renderFailure(
+        `sofar new: "${QUICK_LANE}" is the quick-work lane — it creates itself on the first edit of an unbound branch; give project work its own slug`,
         errCaps,
       ),
     )

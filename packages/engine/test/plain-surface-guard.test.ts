@@ -300,8 +300,9 @@ describe('behavioral guard — guaranteed-plain surfaces under FORCE_COLOR=1 + C
     expect(out).toContain('Repo memory (.sofar/repo.md):')
     expect(out).toContain('- done: Phase 0')
     expect(out).toContain('Last session (claude-code')
-    expect(out).toContain('Recent decisions')
-    expect(out).toContain('Rejected approaches — do NOT re-propose')
+    expect(out).toContain('Recent decisions (1; full text in decisions.md):')
+    expect(out).toContain('- [D1] ')
+    expect(out).toContain(' — over styling the agent-facing digest too')
 
     expect(out).not.toMatch(ESC)
     expect(out).not.toMatch(CONTROL)
