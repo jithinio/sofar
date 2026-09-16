@@ -6,15 +6,15 @@
 - Tool: claude-code
 - Model: claude-fable-5-1
 - Started: 2026-09-16T08:19:52.411Z
-- Ended: 2026-09-16T08:32:18.894Z
+- Ended: 2026-09-16T08:36:07.950Z
 
 ## Summary
 
-4.3 handoff packet delivered (note on 4.3; relayed to peer sofar-dd for bench-refresh's record). D23: the RC's only ablation switch is SOFAR_LESSONS; other levers attributed by their PREDICT observables, C1 measured once; switches for 2.1–2.4/2.6 go in the next release. 4.3 blocked on bench-refresh's freeze confirmation; round 1 still running.
+4.3 handoff packet delivered and acknowledged: filed in bench-refresh as note 01M2MNHAKF9JFZAEBBNNDNMC4C. D23 logged (SOFAR_LESSONS is the RC's only switch; other levers by PREDICT observables). Freeze not confirmable yet: round 1's Claude arms are paused on bench-refresh D17 cap until ~2026-09-22; round 2 still targets 179b8fd.
 
 ## Next action
 
-Wait for bench-refresh's reply on the addendum-chain freeze and round-2 start sha, then close 4.3. 4.4 after round-2 evidence passes D19. 4.1 waits for bench-refresh 4.1; 2.5 for self-improve 1.2; 3.2 and 5.1 ship in the next release, then tell sofar-cloud the version (D21).
+Nothing actionable before ~2026-09-22: 4.3 closes on bench-refresh's freeze confirmation (arrives as a peer message); 4.4 after round-2 evidence passes D19. 4.1 waits for bench-refresh 4.1; 2.5 for self-improve 1.2; 3.2 and 5.1 ship in the next release, then tell sofar-cloud the version (D21).
 
 ## Activity (derived from mechanical events)
 
