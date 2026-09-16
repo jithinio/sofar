@@ -47,6 +47,7 @@ import {
   type SpinnerStream,
   type Style,
 } from './ui'
+import { byCodeUnit } from '../core/order'
 
 /**
  * `sofar doctor [--fix]` (tasks 10.2/10.3 + 11.1/11.2/11.3) — audit a host repo:
@@ -582,10 +583,10 @@ function auditSplitSessions(folded: Folded[]): Section {
   const findings: Finding[] = []
   const split = [...footprints.entries()]
     .filter(([, list]) => list.length > 1)
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(([a], [b]) => byCodeUnit(a, b))
 
   for (const [id, list] of split) {
-    list.sort((a, b) => a.slug.localeCompare(b.slug))
+    list.sort((a, b) => byCodeUnit(a.slug, b.slug))
     const homes = list.filter((f) => f.registered).map((f) => f.slug)
     const leaked = list.filter((f) => !f.registered).map((f) => f.slug)
     const shape = homes.length > 1 ? 'torn' : 'leaked'

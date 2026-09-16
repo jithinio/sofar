@@ -4081,6 +4081,16 @@ stay the underlying derivation's, and exit codes are styling-independent.
   a retired decision is not a lesson and the switch restores it; the
   fold-parity suite passes with `FP-10-decision-supersession` and the
   earlier goldens unchanged.
+- **Code-unit order (r1-fixes 5.2, rust-core D6):** every sort of a path,
+  slug, session or event id or lexicon term on a shared surface goes through
+  `byCodeUnit` (core/order.ts) — plain `<`/`>` on strings, UTF-16 code-unit
+  order, what Rust's `str` orders by — and no engine source calls
+  `localeCompare`; `['readme.md','Zed.ts','a.ts','README.md']` sorts to
+  `README.md, Zed.ts, a.ts, readme.md`, `a-b` sorts before `ab`, a surrogate
+  pair sorts below U+FF5E (units, not code points), and two open sessions
+  sharing `readme.md`, `Zed.ts` and `README.md` list their conflicts in that
+  code-unit order; every projection golden and fold-parity golden is
+  byte-unchanged (all lowercase ASCII, where the orders agree).
 - **Repo memory capture:** `sofar remember <text>` and `sofar_remember`
   append memory_promoted and report the `<slug> M<n>` handle; ordinals follow
   log order; `memory.md` appears only once something is promoted; empty text

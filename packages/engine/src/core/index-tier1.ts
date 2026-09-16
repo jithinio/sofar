@@ -4,6 +4,7 @@ import { GRAPH_RESULT_CAP, matchRecordedPaths } from './adjacency'
 import { passOverRecord } from './index-pass'
 import { INDEX_SCHEMA_VERSION, readIndexFile, writeIndexFile } from './index-store'
 import { type IndexedEvent } from './index-tail'
+import { byCodeUnit } from './order'
 
 /**
  * Tier 1: the record graph, materialized and KEYED for lookup (record-index 3.1).
@@ -274,7 +275,7 @@ function declaredView(states: Record<string, SlugGuardState>): GuardIndex {
     guards.push(...(states[slug]?.guards ?? []).map((g) => ({ ...g })))
     decisions[slug] = states[slug]?.decisions ?? 0
   }
-  guards.sort((a, b) => (a.initiative === b.initiative ? a.ordinal - b.ordinal : a.initiative.localeCompare(b.initiative)))
+  guards.sort((a, b) => (a.initiative === b.initiative ? a.ordinal - b.ordinal : byCodeUnit(a.initiative, b.initiative)))
   return { guards, decisions }
 }
 
@@ -413,7 +414,7 @@ export function touchersOfPath(index: FileIndex, path: string): PathTouchers {
     ts: entry.ts,
     touches: entry.touches,
   }))
-  sessions.sort((a, b) => (a.ts !== b.ts ? (a.ts < b.ts ? 1 : -1) : a.id.localeCompare(b.id)))
+  sessions.sort((a, b) => (a.ts !== b.ts ? (a.ts < b.ts ? 1 : -1) : byCodeUnit(a.id, b.id)))
 
   if (sessions.length > GRAPH_RESULT_CAP) result.omitted = sessions.length - GRAPH_RESULT_CAP
   result.sessions = sessions.slice(0, GRAPH_RESULT_CAP)
@@ -515,7 +516,7 @@ export function neighbourRecords(
 /** Densest overlap first; decisions break ties, then the name, so it is total. */
 function rankNeighbours(found: NeighbourRecord[]): NeighbourRecord[] {
   return found.sort(
-    (a, b) => b.paths - a.paths || b.decisions - a.decisions || a.initiative.localeCompare(b.initiative),
+    (a, b) => b.paths - a.paths || b.decisions - a.decisions || byCodeUnit(a.initiative, b.initiative),
   )
 }
 
@@ -546,5 +547,5 @@ export function neighbouringInitiatives(
   }
   return [...counts.entries()]
     .map(([initiative, seen]) => ({ initiative, paths: seen.size }))
-    .sort((a, b) => b.paths - a.paths || a.initiative.localeCompare(b.initiative))
+    .sort((a, b) => b.paths - a.paths || byCodeUnit(a.initiative, b.initiative))
 }

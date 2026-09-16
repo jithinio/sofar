@@ -54,6 +54,7 @@ import {
   type TaskStatus,
   type TaskStatusChangedPayload,
 } from '@sofar/schema'
+import { byCodeUnit } from './order'
 
 /**
  * Fold/replay: events.jsonl → InitiativeState (SPEC §State).
@@ -1209,7 +1210,7 @@ export function openSessionFileConflicts(
   for (const [path, sessions] of byFile) {
     if (sessions.length >= 2) conflicts.push({ path, sessions })
   }
-  conflicts.sort((a, b) => a.path.localeCompare(b.path))
+  conflicts.sort((a, b) => byCodeUnit(a.path, b.path))
   return conflicts
 }
 

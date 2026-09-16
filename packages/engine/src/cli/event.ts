@@ -33,6 +33,7 @@ import { retireEnabled } from '../core/retire'
 import { readGitState, type GitState } from '../core/git'
 import { noteEngine, noteUpstream } from '../core/shipwatch'
 import { version as ENGINE_VERSION } from '../../package.json'
+import { byCodeUnit } from '../core/order'
 
 /** Commits walked for the SessionStart shipping notice — bounded per D6. */
 const SHIPPING_WINDOW = 30
@@ -1691,7 +1692,7 @@ export function guardNoticeLines(
 
   const ordered = [...hits].sort((a, b) => {
     if ((a.initiative === slug) !== (b.initiative === slug)) return a.initiative === slug ? 1 : -1
-    return a.initiative === b.initiative ? a.ordinal - b.ordinal : a.initiative.localeCompare(b.initiative)
+    return a.initiative === b.initiative ? a.ordinal - b.ordinal : byCodeUnit(a.initiative, b.initiative)
   })
 
   const rendered = renderSubject(domain, subject, rootDir)
