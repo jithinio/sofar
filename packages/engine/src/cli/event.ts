@@ -54,6 +54,7 @@ import {
 } from '../core/index-tier1'
 import { resolvePeers, type Peer } from '../core/peers'
 import { nudgeLine, readNudge } from '../driver/nudge'
+import { resolvePhaseOrThrow } from '../mcp/update-phase'
 import { redactCommand } from '../core/redact'
 import { recordDiagnostic } from '../core/diagnostics'
 import { clipDiagnosticText, DIAGNOSTIC_HEAD_CLIP } from '@sofar/schema/diagnostics'
@@ -2149,6 +2150,11 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
         const refusal = silentReversal(ctx.foldState(slug), draft)
         if (refusal !== null) throw new ToolError('invalid_input', refusal.message, refusal.errors)
       }
+    }
+    // A phase by number or in any case records the plan's own name, and a miss
+    // is refused rather than minting a phantom phase (r1-fixes 4.1.5, D32).
+    if (args.type === 'phase_status_changed' && typeof payload.phase === 'string') {
+      payload.phase = resolvePhaseOrThrow(ctx.foldState(slug).phases, payload.phase, slug).name
     }
     const session = args.session ?? adoptSession(ctx, rootDir, slug, args.type)
     // The id is only news when sofar chose it.

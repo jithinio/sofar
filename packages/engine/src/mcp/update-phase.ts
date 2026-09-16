@@ -36,18 +36,7 @@ export function updatePhase(ctx: ToolContext, args: UpdatePhaseArgs): UpdatePhas
   const slug = ctx.resolveWriteInitiative(args.initiative)
   const state = ctx.foldState(slug)
 
-  const phase = state.phases.find((p) => p.name === args.phase)
-  if (phase === undefined) {
-    const names = state.phases.map((p) => `"${p.name}"`)
-    const listed = names.slice(0, MAX_LISTED).join(', ')
-    const more = names.length > MAX_LISTED ? `, …+${names.length - MAX_LISTED} more` : ''
-    throw new ToolError(
-      'invalid_input',
-      names.length === 0
-        ? `initiative "${slug}" has no phases yet — record a plan with sofar_update_plan first`
-        : `phase "${args.phase}" not in the plan for "${slug}" — names must match exactly; this plan has ${listed}${more}`,
-    )
-  }
+  const phase = resolvePhaseOrThrow(state.phases, args.phase, slug)
 
   const note = args.note !== undefined && args.note.length > 0 ? args.note : undefined
   const unchanged = phase.status === args.status && note === phase.note
@@ -57,9 +46,52 @@ export function updatePhase(ctx: ToolContext, args: UpdatePhaseArgs): UpdatePhas
   }
   if (unchanged) return { ok: true, event_id: null, ...progress }
 
-  const payload: Record<string, unknown> = { phase: args.phase, status: args.status }
+  // The plan's own name is what gets recorded, whatever form addressed it.
+  const payload: Record<string, unknown> = { phase: phase.name, status: args.status }
   if (note !== undefined) payload.note = note
 
   const event = ctx.appendAndProject(slug, 'phase_status_changed', payload)
   return { ok: true, event_id: event.id, ...progress }
+}
+
+/**
+ * The phase a reference names (r1-fixes 4.1.5, L11, D32), or undefined on a
+ * miss or an ambiguous match. Round 1 spent two calls on invalid_input for
+ * names that were right in all but case or dash. Accepted, in order:
+ *  1. the exact name;
+ *  2. the name in any case, whitespace collapsed — when exactly one matches;
+ *  3. `3` or `Phase 3` (any case) — the one phase LABELLED `Phase 3` (then a
+ *     non-digit or the end); when no phase carries a `Phase <digits>` label,
+ *     the third phase by position.
+ * Never a substring or prefix: `wave 3` is ambiguous on real plans.
+ */
+export function resolvePhase<P extends { name: string }>(phases: readonly P[], ref: string): P | undefined {
+  const exact = phases.find((p) => p.name === ref)
+  if (exact !== undefined) return exact
+  const fold = (s: string): string => s.trim().replace(/\s+/g, ' ').toLowerCase()
+  const folded = phases.filter((p) => fold(p.name) === fold(ref))
+  if (folded.length === 1) return folded[0]
+  const number = /^(?:phase\s*)?(\d+)$/i.exec(ref.trim())?.[1]
+  if (number === undefined) return undefined
+  const labelled = (p: P, n: string): boolean => new RegExp(`^phase\\s*${n}(?!\\d)`, 'i').test(p.name.trim())
+  if (phases.some((p) => /^phase\s*\d/i.test(p.name.trim()))) {
+    const hits = phases.filter((p) => labelled(p, String(Number(number))))
+    return hits.length === 1 ? hits[0] : undefined
+  }
+  return phases[Number(number) - 1]
+}
+
+/** resolvePhase, or the typed miss both writers return — naming the plan's phases and the accepted forms. */
+export function resolvePhaseOrThrow<P extends { name: string }>(phases: readonly P[], ref: string, slug: string): P {
+  const phase = resolvePhase(phases, ref)
+  if (phase !== undefined) return phase
+  const names = phases.map((p) => `"${p.name}"`)
+  const listed = names.slice(0, MAX_LISTED).join(', ')
+  const more = names.length > MAX_LISTED ? `, …+${names.length - MAX_LISTED} more` : ''
+  throw new ToolError(
+    'invalid_input',
+    names.length === 0
+      ? `initiative "${slug}" has no phases yet — record a plan first (sofar_update_plan, or a plan_updated append)`
+      : `phase "${ref}" not in the plan for "${slug}" — name it exactly, in any case, or by number ("3", "Phase 3"); this plan has ${listed}${more}`,
+  )
 }

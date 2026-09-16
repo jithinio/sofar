@@ -384,7 +384,7 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       phase: {
         type: 'string',
         minLength: 1,
-        description: 'Phase name exactly as the plan spells it; an unknown name errors, listing the real ones.',
+        description: 'Phase name (any case) or number ("3"); an unknown one errors, listing the real ones.',
       },
       status: {
         enum: [...PHASE_STATUSES],

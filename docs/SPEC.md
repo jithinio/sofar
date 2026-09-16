@@ -2226,8 +2226,14 @@ instructions ride every initialize, so they stay short.
   state the record must be able to hold, and it is precisely what doctor's
   stale-phase axis and the close audit's phases_unresolved finding (§Review)
   report.
-  `phase` is the phase NAME, matched EXACTLY against the folded plan:
+  `phase` is the phase NAME, matched against the folded plan:
   plan_updated carries no phase ids, so the name is the only handle there is.
+  Since r1-fixes D32 it resolves, in order: the exact name; the name in any
+  case with whitespace collapsed, when unique; a bare number or `Phase <n>`
+  to the one phase labelled `Phase <n>` (position only when no phase name
+  carries such a label). The plan's own name is what gets recorded. The same
+  resolution guards `sofar event append --type phase_status_changed`, whose
+  miss is now refused the same way instead of minting a phase.
   A name that matches nothing is an invalid_input error naming the phases
   that do exist — NEVER the fold's create-on-miss, which is correct for a
   fold (never lose a logged fact) and wrong for a tool (a typo would mint a
