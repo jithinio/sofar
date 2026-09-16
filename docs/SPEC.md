@@ -2245,6 +2245,13 @@ instructions ride every initialize, so they stay short.
   # guard (drift-hardening D3): the machine-checkable half of that rule —
   # `path:`/`cmd:` globs (§Decision guards). Requires `rule`; a malformed
   # guard fails payload validation and appends nothing. Warns, never blocks.
+  # REVERSAL CHECK (r1-fixes D31), here and on `sofar event append --type
+  # decision_logged`, before any append: a decision whose distinguishing terms
+  # (chose minus over, over minus chose; core/lexicon's tokenizer) land on a
+  # STANDING decision's over and chose in the same record — overlap ≥ 1/3 of
+  # the smaller set, both directions, label-sized clauses (≤24 terms) only —
+  # is refused as invalid_input naming each reversed D<n>, unless `supersedes`
+  # names it or `because` cites it as a word (a narrower exception).
 - sofar_update_plan({initiative?, plan}) → ok   # full-structure replace;
   an omitted status means `pending`, NOT unchanged — restate every status
   you intend to keep, and expect a fold warning if a resolved one is dropped.

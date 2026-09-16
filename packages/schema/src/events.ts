@@ -1082,7 +1082,7 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
     fields: 'chose, over, because, rule? (one imperative every later session must obey), guard? (path:<globs> or cmd:<globs>; only with rule), supersedes? (D<n> of the earlier decision this one replaces), until? (task id — in force until it resolves; never with rule)',
     // The condition rides `via` (printed as `note:`), not `fields`: fields is
     // hashed into the schema fingerprint both implementations embed (D22).
-    via: 'add rule when the operator states the choice for the whole project — every later `sofar status` shows it as a standing constraint; omit it for a one-off choice',
+    via: 'add rule when the operator states the choice for the whole project — every later `sofar status` shows it as a standing constraint; omit it for a one-off choice. A decision that reverses a standing one is refused unless supersedes names it (or because cites it, for a narrower exception)',
     example: {
       chose: 'SQLite via better-sqlite3',
       over: 'Postgres',

@@ -1,5 +1,6 @@
 import type { LogDecisionArgs, ToolOkResult } from '@sofar/schema/tool-inputs'
-import type { ToolContext } from './context'
+import { silentReversal } from '../core/reversal'
+import { ToolError, type ToolContext } from './context'
 
 /**
  * sofar_log_decision — appends decision_logged {chose, over, because, rule?,
@@ -11,6 +12,9 @@ import type { ToolContext } from './context'
  */
 export function logDecision(ctx: ToolContext, args: LogDecisionArgs): ToolOkResult {
   const slug = ctx.resolveWriteInitiative(args.initiative)
+  // A silent reversal of a standing decision is refused before the append (r1-fixes 4.1.2, D31).
+  const refusal = silentReversal(ctx.foldState(slug), args)
+  if (refusal !== null) throw new ToolError('invalid_input', refusal.message, refusal.errors)
   const event = ctx.appendAndProject(slug, 'decision_logged', {
     chose: args.chose,
     over: args.over,

@@ -6,6 +6,7 @@ import { ensureIndexDir } from '../core/index-store'
 import { QUICK_LANE, QUICK_LANE_GOAL } from '../core/lane'
 import { lessonsEnabled, relevantLessons, type Lesson } from '../core/lessons'
 import { withFileLock } from '../core/lock'
+import { silentReversal } from '../core/reversal'
 import { clearSessionPointer, readSessionPointer, writeSessionPointer } from '../core/session-pointer'
 import type { Command } from 'commander'
 import { ulid } from 'ulid'
@@ -2139,6 +2140,16 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
 
     const ctx = createToolContext(rootDir)
     const slug = ctx.resolveInitiative(args.slug)
+    // Same refusal as sofar_log_decision (r1-fixes 4.1.2, D31); malformed
+    // payloads skip it and fail validation inside appendAndProject as before.
+    if (args.type === 'decision_logged') {
+      const { chose, over, because, supersedes } = payload
+      if (typeof chose === 'string' && typeof over === 'string' && typeof because === 'string') {
+        const draft = { chose, over, because, ...(typeof supersedes === 'string' ? { supersedes } : {}) }
+        const refusal = silentReversal(ctx.foldState(slug), draft)
+        if (refusal !== null) throw new ToolError('invalid_input', refusal.message, refusal.errors)
+      }
+    }
     const session = args.session ?? adoptSession(ctx, rootDir, slug, args.type)
     // The id is only news when sofar chose it.
     const named = args.session === undefined ? { session } : {}
