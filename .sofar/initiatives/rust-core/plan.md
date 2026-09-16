@@ -37,4 +37,4 @@ Progress: 5/18 tasks done (27%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: 1.4 first (the Rust port must read RC sources): re-record goldens and the perf baseline against 179b8fd with a reason per changed golden (r1-fixes 4.2's note lists them), keep the earlier sets, regenerate crates/sofar-schema from the RC schema; then 1.5/1.6 (shared property suite with r1-fixes per D14), then 2.3 fold ported against the r1-fixes commit that lands the incremental fold API (ask sofar-4c if not yet received), on top of log::decode_text.
+Next action: 1.4 first (the Rust port must read RC sources): re-record goldens and the perf baseline against 179b8fd with a reason per changed golden (r1-fixes 4.2's note lists them), keep the earlier sets, regenerate crates/sofar-schema from the RC schema; then propose the shared property-suite shape and stable test ids to r1-fixes (D14 note) before 1.5/1.6; then 2.3 fold ported against the r1-fixes commit that lands the incremental fold API (ask sofar-4c if not received), on top of log::decode_text.
