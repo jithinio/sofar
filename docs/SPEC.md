@@ -3535,12 +3535,22 @@ stay the underlying derivation's, and exit codes are styling-independent.
   sessions of 24 mechanical events each with a write-back, every tenth
   sibling leaving a session open on a path the bound record also edits),
   which the script generates deterministically so a scale-only regression
-  cannot hide behind a small-record pass. An RC CHECKLIST ITEM (4.2), not
-  CI: hosted runners' timing noise exceeds the budget, so the gate runs by
-  hand on a quiet machine against the pinned 0.32.0 as-shipped baseline
-  (`~/.bench/sofar-0.32.0`), and both tables are recorded in the RC's task
-  note as evidence, together with the ablation switch the round-2 addendum
-  needs (`SOFAR_LESSONS=off`; D20: priced separately, never summed).
+  cannot hide behind a small-record pass. PROCEDURE: interleaved, n ≥ 25,
+  the same record and session id for both binaries, against the pinned
+  0.32.0 as-shipped baseline (`~/.bench/sofar-0.32.0`); the 1-minute load
+  average is recorded at start and end (the script prints it and writes it
+  with `--record <file.json>`) — a loaded machine is fine, since
+  interleaving hits both binaries with the same load, but a load average
+  that changes by more than 50% during the run is a repeat (exit 3), never
+  a verdict. An RC CHECKLIST ITEM (4.2): hosted runners' noise exceeds the
+  ±10% budget, so the budget gate runs by hand and both tables (`--record`
+  JSON) go in the RC's task note as evidence, together with the ablation
+  switch the round-2 addendum needs (`SOFAR_LESSONS=off`; D20: priced
+  separately, never summed). TRIPWIRE: the same script with `--budget 0.5
+  --record` is the loose CI check — hosted noise cannot hide a 2×
+  regression, and a manual-only gate is one forgotten step from silence.
+  This repository has no CI today; until the operator adds one, the
+  tripwire runs as the first step of the RC checklist.
   Attribution per lever is by ablation (D5, D20): a lever's latency cost is
   stated beside its predicted gain, and one over budget gets cheaper or a
   flag defaulted off. Measured for the r1-fixes RC against 0.32.0 on

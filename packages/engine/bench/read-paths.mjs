@@ -8,7 +8,17 @@
  *
  *   npm run bench:read-paths -- --baseline ~/.bench/sofar-0.32.0/node_modules/sofar.sh/dist/cli.js \
  *       --candidate packages/engine/dist/cli.js [--fixture repo|i1000-10mb] [--root <repo>] [--session <id>] \
- *       [--n 25] [--budget 0.10]
+ *       [--n 25] [--budget 0.10] [--record <file.json>]
+ *
+ * Measurement under load is valid BECAUSE it is interleaved: baseline and
+ * candidate alternate spawn by spawn, so whatever the machine is doing hits
+ * both equally (rust-core confirmed the D18 numbers at load average 4.9–6.9
+ * while round 1 owned the box). What interleaving cannot cancel is load that
+ * CHANGES during the run, so the 1-minute load average is recorded at start
+ * and end, printed, and a change of more than 50% exits 3: repeat the run.
+ * `--record` writes the tables as JSON — the artefact a CI tripwire keeps
+ * (run there with a wide `--budget 0.5`: hosted noise cannot hide a 2×
+ * regression, and a manual-only gate is one forgotten step from silence).
  *
  * Two fixtures are pinned (D18), named as rust-core's perf cells are:
  * `repo` — a repo's own record, by default the cwd (this repo: 55
@@ -23,7 +33,7 @@
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, openSync, closeSync, writeSync, statSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { cpus, loadavg, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 // `npm run` moves cwd to the workspace; INIT_CWD is where the operator typed
@@ -184,7 +194,9 @@ const cases = {
 const p50 = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)]
 
 let over = 0
-console.log(`read paths on ${root} — n=${n} interleaved, budget +${Math.round(budget * 100)}%`)
+const loadStart = loadavg()[0]
+const results = []
+console.log(`read paths on ${root} — n=${n} interleaved, budget +${Math.round(budget * 100)}%, load avg ${loadStart.toFixed(2)} on ${cpus().length} cpus`)
 console.log(`baseline  ${baseline}\ncandidate ${candidate}`)
 for (const [name, [cmd, sub, input]] of Object.entries(cases)) {
   const t = { baseline: [], candidate: [] }
@@ -208,8 +220,29 @@ for (const [name, [cmd, sub, input]] of Object.entries(cases)) {
   const delta = c - b
   const ok = c <= b * (1 + budget)
   if (!ok) over++
+  results.push({ hook: name, baseline_p50_ms: Number(b.toFixed(1)), candidate_p50_ms: Number(c.toFixed(1)), delta_ms: Number(delta.toFixed(1)), delta_pct: Number(((delta / b) * 100).toFixed(1)), ok })
   console.log(
     `${name.padEnd(14)} baseline p50 ${b.toFixed(1)} ms   candidate p50 ${c.toFixed(1)} ms   Δ ${delta >= 0 ? '+' : ''}${delta.toFixed(1)} ms (${((delta / b) * 100).toFixed(1)}%)  ${ok ? 'ok' : 'OVER BUDGET'}`,
   )
 }
-process.exit(over > 0 ? 1 : 0)
+const loadEnd = loadavg()[0]
+const drift = loadStart > 0 ? Math.abs(loadEnd - loadStart) / loadStart : loadEnd > 0 ? 1 : 0
+console.log(`load avg ${loadStart.toFixed(2)} → ${loadEnd.toFixed(2)}${drift > 0.5 ? ' — changed by more than 50% during the run: REPEAT' : ''}`)
+if (args.record !== undefined) {
+  const out = {
+    fixture,
+    root,
+    session,
+    n,
+    budget,
+    baseline,
+    candidate,
+    load_avg: { start: Number(loadStart.toFixed(2)), end: Number(loadEnd.toFixed(2)), cpus: cpus().length },
+    recorded_at: new Date().toISOString(),
+    verdict: drift > 0.5 ? 'repeat' : over > 0 ? 'over-budget' : 'ok',
+    results,
+  }
+  writeFileSync(at(args.record), JSON.stringify(out, null, 2) + '\n')
+  console.log(`recorded ${at(args.record)}`)
+}
+process.exit(drift > 0.5 ? 3 : over > 0 ? 1 : 0)
