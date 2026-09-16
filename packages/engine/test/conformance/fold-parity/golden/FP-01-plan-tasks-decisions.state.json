@@ -1,0 +1,102 @@
+{
+  "state": {
+    "current": {
+      "active_phase": "Phase 2 — second",
+      "next_action": "do 1.2"
+    },
+    "cursor": "01KDVDNKRG1CVY50ZJ9M36D87T",
+    "decisions": [
+      {
+        "because": "z",
+        "chose": "x",
+        "id": "01KDVDNEW8GF2S4KPXRQA1CVY5",
+        "over": "y",
+        "ts": "2026-01-01T00:00:05.000Z"
+      }
+    ],
+    "drop_notes": {},
+    "files_touched": [],
+    "freshness": {
+      "events_since_writeback": {
+        "commands": 0,
+        "decisions": 0,
+        "files": 0,
+        "memories": 0,
+        "notes": 0,
+        "phases": 0,
+        "reviews": 0,
+        "tasks": 0
+      },
+      "last_writeback_ts": "2026-01-01T00:00:10.000Z",
+      "notes": [],
+      "unattributed_mutations": 0
+    },
+    "goal": "g",
+    "guard_violations": [],
+    "memories": [
+      {
+        "id": "01KDVDNJS84KPXRQA1CVY50ZJ9",
+        "text": "test command: npm test",
+        "ts": "2026-01-01T00:00:09.000Z"
+      }
+    ],
+    "phases": [
+      {
+        "name": "Phase 1 — first",
+        "status": "pending",
+        "tasks": [
+          {
+            "id": "1.4",
+            "status": "pending",
+            "title": "added",
+            "verify": {
+              "cmd": "make check",
+              "timeout_ms": 5000
+            }
+          }
+        ]
+      },
+      {
+        "name": "Phase 2 — second",
+        "status": "active",
+        "tasks": []
+      }
+    ],
+    "reviews": [],
+    "runs": [],
+    "sessions": [
+      {
+        "activity": {
+          "commands": 0,
+          "files": [],
+          "task_changes": [
+            "1.1 → done",
+            "1.2 → blocked"
+          ]
+        },
+        "ended": "2026-01-01T00:00:10.000Z",
+        "id": "A",
+        "model": "claude-fable-5",
+        "next_action": "do 1.2",
+        "started": "2026-01-01T00:00:03.000Z",
+        "summary": "did 1.1",
+        "tool": "claude-code",
+        "unwritten": 0
+      }
+    ],
+    "slug": "demo",
+    "status": "active",
+    "status_note": null,
+    "status_overrides": [],
+    "status_ts": null,
+    "successor": null,
+    "task_files": {}
+  },
+  "warnings": [
+    "line 2: invalid plan_updated payload (plan: must be an object) — skipped",
+    "line 4: task \"1.1\" not found — task_status_changed skipped",
+    "line 6: phase \"Phase 1 — first\" not in plan — created implicitly",
+    "line 7: task \"1.2\" not found — task_status_changed skipped",
+    "line 8: phase \"Phase 2 — second\" not in plan — created implicitly"
+  ]
+}

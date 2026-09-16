@@ -1,0 +1,10 @@
+{
+  "tail_at": 6,
+  "seeds": [
+    16,
+    17,
+    18
+  ],
+  "order_independence": true,
+  "note": "a driven run: surface, verify, a failed verification, the reopen, a verify_failed handoff, a stop request and the stop"
+}

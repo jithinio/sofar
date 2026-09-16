@@ -1,0 +1,64 @@
+{
+  "state": {
+    "current": {
+      "active_phase": null,
+      "next_action": "n"
+    },
+    "cursor": "01KDVDNEW8GF2S4KPXRQA1CVY5",
+    "decisions": [],
+    "drop_notes": {},
+    "files_touched": [
+      "src/a.ts"
+    ],
+    "freshness": {
+      "events_since_writeback": {
+        "commands": 0,
+        "decisions": 0,
+        "files": 0,
+        "memories": 0,
+        "notes": 0,
+        "phases": 0,
+        "reviews": 0,
+        "tasks": 0
+      },
+      "last_writeback_ts": "2026-01-01T00:00:05.000Z",
+      "notes": [],
+      "unattributed_mutations": 0
+    },
+    "goal": "g",
+    "guard_violations": [],
+    "memories": [],
+    "phases": [],
+    "reviews": [],
+    "runs": [],
+    "sessions": [
+      {
+        "activity": {
+          "commands": 0,
+          "files": [
+            "src/a.ts"
+          ],
+          "task_changes": []
+        },
+        "ended": "2026-01-01T00:00:05.000Z",
+        "id": "A",
+        "next_action": "n",
+        "started": "2026-01-01T00:00:03.000Z",
+        "summary": "s",
+        "tool": "claude-code",
+        "unwritten": 0
+      }
+    ],
+    "slug": "demo",
+    "status": "active",
+    "status_note": null,
+    "status_overrides": [],
+    "status_ts": null,
+    "successor": null,
+    "task_files": {}
+  },
+  "warnings": [
+    "line 2: invalid plan_updated payload (plan: must be an object) — skipped",
+    "line 7: session \"A\" already started — skipped"
+  ]
+}

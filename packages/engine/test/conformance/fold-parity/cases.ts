@@ -1,0 +1,222 @@
+/**
+ * The fold-parity cases (r1-fixes 5.1, D22), built from a FIXED clock so a
+ * case is the same bytes on every machine. `FOLD_PARITY_RECORD=1` rewrites
+ * cases/ and golden/ from these builders through the REFERENCE binary; every
+ * other run reads the committed files. Case ids are public API (D21): a
+ * rename needs a Decision naming old and new.
+ */
+
+export interface CaseSidecar {
+  /** Index the snapshot is cut at: lines[0..tail_at) are folded, lines[tail_at..] applied. */
+  tail_at: number
+  /** Seeds for the order-independence shuffles. */
+  seeds: number[]
+  /** The refusal the tail must produce, when the fast path cannot prove it; absent means it applies. */
+  refusal?: 'out_of_order_id' | 'correction' | 'invalid_line'
+  /** Whether the case takes part in order-independence (a case whose meaning depends on file order says false). */
+  order_independence: boolean
+  note: string
+}
+
+export interface FoldParityCase {
+  id: string
+  lines: string[]
+  sidecar: CaseSidecar
+}
+
+const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+
+/** A ulid from a fixed clock and a deterministic suffix — sortable, unique, the same bytes every run. */
+function ulidAt(ms: number, n: number): string {
+  let time = ''
+  let t = ms
+  for (let i = 0; i < 10; i++) {
+    time = CROCKFORD[t % 32] + time
+    t = Math.floor(t / 32)
+  }
+  let tail = ''
+  let x = (n * 2654435761) >>> 0
+  for (let i = 0; i < 16; i++) {
+    x = (x * 1664525 + 1013904223) >>> 0
+    tail += CROCKFORD[x % 32]
+  }
+  return time + tail
+}
+
+class Log {
+  readonly lines: string[] = []
+  readonly ids: string[] = []
+  private ms = Date.parse('2026-01-01T00:00:00Z')
+  private n = 0
+  constructor(private readonly slug: string) {}
+
+  /** One canonical line; `extra` merges into the envelope (for a deliberately odd envelope). */
+  ev(
+    type: string,
+    payload: Record<string, unknown>,
+    opts: { session?: string; source?: string; actor?: string; at?: number } = {},
+  ): string {
+    this.ms += 1000
+    this.n += 1
+    const id = ulidAt(opts.at ?? this.ms, this.n)
+    const line = JSON.stringify({
+      v: 1,
+      id,
+      ts: new Date(opts.at ?? this.ms).toISOString(),
+      initiative: this.slug,
+      session: opts.session ?? 'cli',
+      source: opts.source ?? (opts.session === undefined ? 'cli' : 'hook'),
+      actor: opts.actor ?? (opts.session === undefined ? 'human' : 'agent'),
+      type,
+      payload,
+    })
+    this.lines.push(line)
+    this.ids.push(id)
+    return id
+  }
+
+  raw(line: string): void {
+    this.lines.push(line)
+  }
+}
+
+const plan = (tasks: number, extra: Record<string, unknown> = {}) => ({
+  goal: 'a goal of realistic length for the parity suite',
+  phases: [
+    {
+      name: 'Phase 1 — first',
+      status: 'active',
+      tasks: Array.from({ length: tasks }, (_, i) => ({ id: `1.${i + 1}`, title: `task ${i + 1}`, ...(i === 0 ? { status: 'active' } : {}) })),
+    },
+    { name: 'Phase 2 — second', tasks: [{ id: '2.1', title: 'later', route: { agent: 'codex' }, verify: { cmd: 'npm test' } }] },
+  ],
+  ...extra,
+})
+
+export function buildCases(): FoldParityCase[] {
+  const cases: FoldParityCase[] = []
+
+  {
+    const l = new Log('demo')
+    l.ev('initiative_created', { slug: 'demo', goal: 'g' })
+    l.ev('plan_updated', plan(3))
+    l.ev('session_started', { tool: 'claude-code', model: 'claude-fable-5' }, { session: 'A' })
+    l.ev('task_status_changed', { id: '1.1', status: 'done' }, { session: 'A' })
+    l.ev('decision_logged', { chose: 'x', over: 'y', because: 'z' }, { session: 'A' })
+    l.ev('task_added', { phase: 'Phase 1 — first', id: '1.4', title: 'added', verify: { cmd: 'make check', timeout_ms: 5000 } }, { session: 'A' })
+    l.ev('task_status_changed', { id: '1.2', status: 'blocked', note: 'waiting' }, { session: 'A' })
+    l.ev('phase_status_changed', { phase: 'Phase 2 — second', status: 'active' }, { session: 'A' })
+    l.ev('memory_promoted', { text: 'test command: npm test' }, { session: 'A' })
+    l.ev('session_ended', { summary: 'did 1.1', next_action: 'do 1.2' }, { session: 'A' })
+    cases.push({ id: 'FP-01-plan-tasks-decisions', lines: l.lines, sidecar: { tail_at: 5, seeds: [1, 2, 3], order_independence: true, note: 'plan, task changes, a decision, a memory, a write-back' } })
+  }
+  {
+    const l = new Log('demo')
+    l.ev('initiative_created', { slug: 'demo', goal: 'g' })
+    l.ev('plan_updated', plan(2))
+    for (const s of ['A', 'B']) {
+      l.ev('session_started', { tool: s === 'A' ? 'claude-code' : 'codex' }, { session: s })
+      l.ev('file_touched', { path: 'src/shared.ts', op: 'edit' }, { session: s })
+      l.ev('file_touched', { path: `src/${s}.ts`, op: 'write' }, { session: s })
+      l.ev('command_run', { cmd: `npm test -- ${s}` }, { session: s })
+    }
+    l.ev('note_added', { text: 'a note from A' }, { session: 'A' })
+    l.ev('session_ended', { summary: 'A done', next_action: 'B continues' }, { session: 'A' })
+    l.ev('session_closed', { reason: 'exit' }, { session: 'B' })
+    l.ev('command_run', { cmd: 'ls' }, { session: 'ghost' })
+    cases.push({ id: 'FP-02-sessions-activity-writebacks', lines: l.lines, sidecar: { tail_at: 7, seeds: [4, 5, 6], order_independence: true, note: 'two sessions on one file, a write-back, a mechanical close, an unregistered session' } })
+  }
+  {
+    const l = new Log('demo')
+    l.ev('initiative_created', { slug: 'demo', goal: 'g' })
+    l.ev('plan_updated', plan(2))
+    l.ev('session_started', { tool: 'claude-code' }, { session: 'A' })
+    l.ev('decision_logged', { chose: 'keep shapes in schema', over: 'shapes in engine', because: 'one home', rule: 'Never put shapes in the engine.', guard: 'path:src/shapes/**' }, { session: 'A' })
+    l.ev('file_touched', { path: 'src/shapes/x.ts', op: 'write' }, { session: 'A' })
+    l.ev('file_touched', { path: 'src/shapes/x.ts', op: 'edit' }, { session: 'A' })
+    l.ev('decision_logged', { chose: 'no pushes', over: 'push', because: 'gated', rule: 'Never push unattended.', guard: 'cmd:*git push*' }, { session: 'A' })
+    l.ev('command_run', { cmd: 'git push origin main' }, { session: 'A' })
+    l.ev('task_status_changed', { id: '7.7', status: 'done' }, { session: 'A' })
+    l.ev('task_added', { phase: 'Phase 1 — first', id: '7.7', title: 'absorbed later' }, { session: 'A' })
+    l.ev('task_status_changed', { id: '8.8', status: 'active' }, { session: 'A' })
+    cases.push({ id: 'FP-03-guards-and-orphans', lines: l.lines, sidecar: { tail_at: 6, seeds: [7, 8, 9], order_independence: true, note: 'path and cmd guards crossed, one orphan absorbed by a later task_added and one left' } })
+  }
+  {
+    const l = new Log('demo')
+    l.ev('initiative_created', { slug: 'demo', goal: 'g' })
+    l.ev('plan_updated', plan(2))
+    l.ev('session_started', { tool: 'claude-code' }, { session: 'A' })
+    const wrong = l.ev('decision_logged', { chose: 'wrong', over: 'right', because: 'oops' }, { session: 'A' })
+    l.ev('file_touched', { path: 'src/a.ts', op: 'edit' }, { session: 'A' })
+    l.ev('correction', { ref: wrong, reason: 'logged in error' }, { session: 'A' })
+    l.ev('decision_logged', { chose: 'right', over: 'wrong', because: 'fixed' }, { session: 'A' })
+    cases.push({ id: 'FP-04-corrections-void-earlier', lines: l.lines, sidecar: { tail_at: 5, seeds: [10, 11, 12], refusal: 'correction', order_independence: true, note: 'the tail holds a correction voiding an event already folded: the fast path refuses, the full fold is the reference' } })
+  }
+  {
+    const l = new Log('demo')
+    const base = Date.parse('2026-01-01T00:00:00Z')
+    l.ev('initiative_created', { slug: 'demo', goal: 'g' })
+    l.ev('plan_updated', plan(2))
+    l.ev('session_started', { tool: 'claude-code' }, { session: 'A' })
+    l.ev('task_status_changed', { id: '1.1', status: 'done' }, { session: 'A' })
+    l.ev('task_status_changed', { id: '1.1', status: 'active' }, { session: 'A', at: base + 500 }) // an id from before the others, arriving late
+    l.ev('session_ended', { summary: 's', next_action: 'n' }, { session: 'A' })
+    cases.push({ id: 'FP-05-out-of-order-ids', lines: l.lines, sidecar: { tail_at: 4, seeds: [13, 14, 15], refusal: 'out_of_order_id', order_independence: true, note: 'a late-arriving earlier id: the convergent sort places it first, so 1.1 ends done; the fast path refuses the tail' } })
+  }
+  {
+    const l = new Log('demo')
+    l.ev('initiative_created', { slug: 'demo', goal: 'g' })
+    l.ev('plan_updated', plan(2))
+    l.ev('run_started', { run: '01J00000000000000000000000', adapter: 'claude-code', policy: 'task', surface: { permission_mode: 'acceptEdits', allow: ['Bash(npm test:*)'] }, verify: 'npm test' })
+    l.ev('session_started', { tool: 'claude-code' }, { session: 'A' })
+    l.ev('task_status_changed', { id: '1.1', status: 'done' }, { session: 'A' })
+    l.ev('session_ended', { summary: 's', next_action: 'n' }, { session: 'A' })
+    l.ev('verification_recorded', { run: '01J00000000000000000000000', task: '1.1', attempt: 1, command: 'npm test', cwd: '.', checked: { head: 'a'.repeat(40), tree: 'b'.repeat(64) }, validator: '0.33.0', result: 'fail', exit_code: 1, duration_ms: 10, timeout_ms: 600000, diagnostics: '1 failing' })
+    l.ev('task_status_changed', { id: '1.1', status: 'active', note: 'reopened by the driver' })
+    l.ev('handoff', { run: '01J00000000000000000000000', session_id: 'A', reason: 'verify_failed', task: '1.1', detail: 'verification attempt 1' })
+    l.ev('run_stop_requested', { run: '01J00000000000000000000000' })
+    l.ev('run_stopped', { run: '01J00000000000000000000000', reason: 'interrupted', note: 'stop requested' })
+    cases.push({ id: 'FP-06-driver-run-handoffs-verifications', lines: l.lines, sidecar: { tail_at: 6, seeds: [16, 17, 18], order_independence: true, note: 'a driven run: surface, verify, a failed verification, the reopen, a verify_failed handoff, a stop request and the stop' } })
+  }
+  {
+    const l = new Log('demo')
+    l.ev('initiative_created', { slug: 'demo', goal: 'g' })
+    l.ev('plan_updated', plan(2))
+    l.raw('{"v":1,"id":"01J0000000000000000000TORN","ts":"2026-01-01T00:00:03.000Z","initiative":"demo","sess')
+    l.ev('session_started', { tool: 'claude-code' }, { session: 'A' })
+    l.raw(JSON.stringify({ v: 1, id: ulidAt(Date.parse('2026-01-01T00:00:05Z'), 999), ts: '2026-01-01T00:00:05.000Z', initiative: 'demo', session: 'A', source: 'hook', actor: 'agent', type: 'telemetry_emitted', payload: { x: 1 } }))
+    l.raw(JSON.stringify({ v: 2, id: 'nope', type: 'note_added', payload: { text: 'bad envelope' } }))
+    l.raw('')
+    l.ev('note_added', { text: 'after the noise' }, { session: 'A' })
+    l.raw(JSON.stringify({ v: 1, id: ulidAt(Date.parse('2026-01-01T00:00:07Z'), 998), ts: '2026-01-01T00:00:07.000Z', initiative: 'demo', session: 'A', source: 'hook', actor: 'agent', type: 'task_status_changed', payload: { id: '1.1', status: 'sideways' } }))
+    l.ev('session_ended', { summary: 's', next_action: 'n' }, { session: 'A' })
+    cases.push({ id: 'FP-07-corrupt-and-unknown-lines', lines: l.lines, sidecar: { tail_at: 4, seeds: [19, 20, 21], refusal: 'invalid_line', order_independence: true, note: 'a torn line, an unknown type, a bad envelope, a blank line, an invalid payload: warnings keep file-order line numbers; the fast path refuses a tail holding a rejected line' } })
+  }
+  {
+    const l = new Log('demo')
+    l.ev('initiative_created', { slug: 'demo', goal: 'g' })
+    l.ev('plan_updated', plan(2))
+    l.ev('session_started', { tool: 'claude-code' }, { session: 'A' })
+    const dup = l.ev('file_touched', { path: 'src/a.ts', op: 'edit' }, { session: 'A' })
+    l.raw(l.lines[l.lines.length - 1]!) // the same line again, byte for byte (an idempotent re-import)
+    l.ev('session_ended', { summary: 's', next_action: 'n' }, { session: 'A' })
+    l.raw(l.lines[2]!) // the session_started once more
+    void dup
+    cases.push({ id: 'FP-08-duplicate-ids-stable-order', lines: l.lines, sidecar: { tail_at: 4, seeds: [22, 23, 24], refusal: 'out_of_order_id', order_independence: true, note: 'byte-identical duplicate lines (an idempotent re-import): the stable sort keeps file order and a shuffle folds the same; the tail re-imports an EARLIER line, so the fast path refuses it as out_of_order_id and the full fold is the reference' } })
+  }
+  return cases
+}
+
+/** A seeded Fisher–Yates over a copy: the same seed shuffles the same way on every machine. */
+export function shuffle<T>(items: readonly T[], seed: number): T[] {
+  const out = items.slice()
+  let x = (seed * 2654435761 + 1) >>> 0
+  for (let i = out.length - 1; i > 0; i--) {
+    x = (x * 1664525 + 1013904223) >>> 0
+    const j = x % (i + 1)
+    const t = out[i]!
+    out[i] = out[j]!
+    out[j] = t
+  }
+  return out
+}

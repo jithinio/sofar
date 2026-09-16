@@ -1,0 +1,11 @@
+{
+  "tail_at": 5,
+  "seeds": [
+    10,
+    11,
+    12
+  ],
+  "refusal": "correction",
+  "order_independence": true,
+  "note": "the tail holds a correction voiding an event already folded: the fast path refuses, the full fold is the reference"
+}

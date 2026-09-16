@@ -1788,7 +1788,8 @@ come from the engine's OWN fold, never a reimplementation):
 - "sofar.sh/engine" — foldLines/foldLog (deterministic, total,
   ulid-normative — EXACTLY the CLI's fold), InitiativeState + component
   types + the cross-session derivations, the cursor primitive (readEvents /
-  exportEvents / exportNDJSON / importNDJSON), and serializeEvent.
+  exportEvents / exportNDJSON / importNDJSON / readEventsSince), and
+  serializeEvent; and, since r1-fixes 5.1, the incremental fold below.
 - "sofar.sh/client" — the v2 sync client core (§Sync client;
   sync-client D1, Jul 2026).
 Laws: importing a subpath executes no CLI code and has no side effects; the
@@ -1798,6 +1799,63 @@ in published declarations (build-time specifier rewrite, L2); consumers use
 bundler-style module resolution. The @sofar/schema workspace package itself
 stays private and unpublished (D13: one stewarded npm name; the bare name
 also collides with a sofar-cloud-internal package).
+
+**Incremental fold (r1-fixes 5.1 — D20, D21, D22; next release after
+0.33.0-rc.1).** The same fold, retained between calls as a VERSIONED
+snapshot, so a consumer applies the tail instead of replaying the stream:
+`foldAll(events | lines, slug?)` and `foldFile(logPath, slug?)` return a
+Snapshot; `fold(snapshot, events | lines)` and `foldFileSince(snapshot,
+logPath, since?)` return a FoldStep — {ok: true, snapshot} or {ok: false,
+reason, detail} — and never mutate their input; `stateOf(snapshot)` is the
+FoldResult, finalized on a clone; `serializeSnapshot` / `parseSnapshot`
+round-trip the wire form, and `parseSnapshot` answers {ok: false, reason:
+'version', found, expected} or {ok: false, reason: 'corrupt', detail}.
+SNAPSHOT = {version: {engine: the sofar.sh package version, schema: sha256
+over packages/schema/schema-fingerprint.txt byte for byte — the committed
+artefact `npm run schema:emit` writes from schemaFingerprint(), pinned by a
+test}, cursor: the greatest id folded, prefix: {bytes, sha256, lines,
+last_line_sha256} — the UTF-8 bytes folded through the last consumed line's
+newline; after a VALUE tail the hash is `chain:` + sha256 of the previous
+hash and the tail, which a file check recognises and answers with the
+last-line hash — slug, checkpoint}. The version is a READABLE public field
+(D21). REFUSALS are a closed set, exact strings a second implementation
+must match (D22): `version`, `out_of_order_id` (an id below the cursor),
+`correction` (voids an event already folded), `invalid_line` (the decoder
+rejects a tail line), `cursor_mismatch` (a file's prefix no longer hashes
+to what the snapshot folded, or `since` is not the snapshot's line count).
+Every refusal is decided before anything is applied, and means "refold from
+all events", never "close enough". LAWS (D20's rule): a snapshot is derived
+state — not an event (validateEnvelope rejects it), never written under
+.sofar/ by the engine, never exported, imported or synced; no wall-clock
+and no environment input inside the fold; additive exports, and a snapshot
+layout change bumps the engine version, which invalidates every snapshot.
+`readEventsSince(logPath, cursor)` returns the envelope-valid events with
+id > cursor in id order and the cursor to continue from, skipping a
+canonically-prefixed line on its leading id without parsing it. THE SHARED
+SUITE — packages/engine/test/conformance/fold-parity/, one suite for both
+implementations, driven black-box through the hidden `sofar fold` command
+(`--events <jsonl> [--take <n>] [--snapshot <file> --since <n>]
+[--write-snapshot <file>]`, printing canonical JSON: keys sorted by code
+point recursively, arrays in order, JSON.stringify(v, null, 2) verbatim —
+{ok, cursor, version, state, warnings} or the refusal) with
+`SOFAR_CONFORMANCE_BIN` selecting the candidate and the built CLI as the
+reference. Cases `FP-01-plan-tasks-decisions` … `FP-08-duplicate-ids-stable-order`
+are RAW lines (corrupt and unknown lines included) with a sidecar
+{tail_at, seeds, refusal?, order_independence, note} and a golden {state,
+warnings} recorded through the reference (`FOLD_PARITY_RECORD=1`).
+Properties, public names (D21): `fold-parity/snapshot-plus-tail` — the
+head folded to a snapshot then the file tail applied equals the golden, or
+refuses with the sidecar's reason while the full fold still equals it;
+`fold-parity/order-independence` — three seeded shuffles fold to the
+golden's state (warnings are file-order line-numbered and compared only on
+the arrival-order run); `fold-parity/version-mismatch-refolds` — a snapshot
+with a bumped engine or schema version is refused with found and expected;
+`fold-parity/pure-of-clock-and-env` — two runs under different TZ, LANG and
+HOME equal the golden. FP-08's duplicates are byte-identical lines (an
+idempotent re-import), so it takes part in order-independence; its tail
+re-imports an EARLIER line, which the fast path refuses as
+`out_of_order_id` — the full fold is the reference there, as for FP-04
+(`correction`), FP-05 (`out_of_order_id`) and FP-07 (`invalid_line`).
 
 ## MCP tools (server name: sofar)
 
@@ -3580,6 +3638,19 @@ stay the underlying derivation's, and exit codes are styling-independent.
   context's render; a direct append, a same-size rewrite with a newer mtime
   and a deleted log are all seen; a correction appended through the context
   refolds; the cache holds at most 8 slugs.
+- **Incremental fold (r1-fixes 5.1):** the fold-parity suite passes
+  black-box against the built CLI on all eight cases — snapshot-plus-tail
+  equal to the golden (or the sidecar's refusal with the full fold equal),
+  three seeded shuffles equal on state, version mismatch refused with found
+  and expected, two environments equal — and the committed cases are what
+  cases.ts builds; the library: foldAll then fold(tail) equals the full fold
+  for every prefix without mutating its input, a parsed round-trip equals
+  the source, refusals are exactly FOLD_REFUSALS, foldFileSince applies a
+  file tail and answers cursor_mismatch on a rewritten prefix or a wrong
+  `since`, a snapshot fails validateEnvelope and export never carries one,
+  a frozen clock and an emptied environment fold identically, the committed
+  schema fingerprint equals schemaFingerprint() and SCHEMA_VERSION equals
+  the package version, readEventsSince returns only ids past the cursor.
 - **Verification gate (r1-fixes 3.1):** with `--verify`, a driven task the
   agent marks done gets a `verification_recorded` pass carrying the tree
   fingerprint BEFORE its `task_done` handoff, `run_started.verify` holds the
