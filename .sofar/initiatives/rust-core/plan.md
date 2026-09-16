@@ -4,7 +4,7 @@
 
 Goal: Move sofar's hot path to a native Rust core incrementally (rust-core D1): contract first, then sofar-core in Rust behind the same CLI and hook contract, integrated with TypeScript fallback, shipped as prebuilt binaries, and proven as its own benchmark arm that shrinks no held-out lead margin (bench-refresh D19). After parity, new hot-path code is Rust-only.
 
-Progress: 3/15 tasks done (20%)
+Progress: 4/15 tasks done (26%)
 
 ## Phase 1 — Contract [active] — 3/3 done
 
@@ -12,9 +12,9 @@ Progress: 3/15 tasks done (20%)
 - [x] 1.2 Black-box conformance suite in the TS repo: runs an implementation binary against golden fixtures (real records including this repo's 9.7 MB log, calib and smoke cells, corrupt and unknown lines, concurrent appends) and compares stdout, exit codes and record bytes. Green on TypeScript first.
 - [x] 1.3 Perf baseline harness: hook p50/p95 cold start and fold/digest latency at 10, 100 and 1,000 initiatives and 1–10 MB records, TypeScript numbers recorded as the target to beat
 
-## Phase 2 — Rust core [pending] — 0/6 done
+## Phase 2 — Rust core [pending] — 1/6 done
 
-- [ ] 2.1 Cargo workspace crates/sofar-core; schema codegen from packages/schema/src (no hand-written payload types); dependency list per D1
+- [x] 2.1 Cargo workspace crates/sofar-core; schema codegen from packages/schema/src (no hand-written payload types); dependency list per D1
 - [ ] 2.2 Event envelope and atomic O_APPEND append; unknown and corrupt lines skipped with a warning, never fatal, never rewritten
 - [ ] 2.3 Fold to initiative state with conformance parity
 - [ ] 2.4 Digest/status render byte-identical to the projection templates (golden tests), including the 10k char cap behaviour
@@ -34,4 +34,4 @@ Progress: 3/15 tasks done (20%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: Start 2.1 under D3/D9: consult current stable Rust docs, then create the Cargo workspace crates/sofar-core (toolchain 1.98.1, edition 2024, runtime crates serde/serde_json/ulid/lexopt) and the schema codegen from packages/schema/src (ts-json-schema-generator pinned to TS 5.9/6, typify spike, narrow emitter fallback, committed output with a regen-diff check). When rust-core rebases onto r1-fixes: re-record the conformance goldens from that named commit with a manifest and per-golden reasons, keeping the 0.32.0 set alongside (D11).
+Next action: 2.2 — event envelope and atomic O_APPEND append in crates/sofar-core: hand-write the v1 envelope (it lives in engine/src/core/envelope.ts, outside the schema package), the canonical serializer matching serializeEvent byte-for-byte (key order, JS number formatting — HOTPATH §Text-semantics pins), envelope + payload validation with the exact TypeScript error strings (fold warning parity, syn.corrupt golden), ulid minting, `git config user.email` identity (D7), and the sidecar-lock append protocol from D9; prove with the repo.append and concurrent-append conformance cases once 2.5 wires argv. Consult current Rust docs first (D3) — std File::lock (1.89), format_into (1.98).

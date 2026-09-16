@@ -1,0 +1,641 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/KnownEventPayloads",
+  "definitions": {
+    "KnownEventPayloads": {
+      "type": "object",
+      "properties": {
+        "initiative_created": {
+          "$ref": "#/definitions/InitiativeCreatedPayload"
+        },
+        "initiative_status_changed": {
+          "$ref": "#/definitions/InitiativeStatusChangedPayload"
+        },
+        "plan_updated": {
+          "$ref": "#/definitions/PlanUpdatedPayload"
+        },
+        "phase_status_changed": {
+          "$ref": "#/definitions/PhaseStatusChangedPayload"
+        },
+        "task_added": {
+          "$ref": "#/definitions/TaskAddedPayload"
+        },
+        "task_status_changed": {
+          "$ref": "#/definitions/TaskStatusChangedPayload"
+        },
+        "decision_logged": {
+          "$ref": "#/definitions/DecisionLoggedPayload"
+        },
+        "session_started": {
+          "$ref": "#/definitions/SessionStartedPayload"
+        },
+        "session_ended": {
+          "$ref": "#/definitions/SessionEndedPayload"
+        },
+        "session_closed": {
+          "$ref": "#/definitions/SessionClosedPayload"
+        },
+        "file_touched": {
+          "$ref": "#/definitions/FileTouchedPayload"
+        },
+        "command_run": {
+          "$ref": "#/definitions/CommandRunPayload"
+        },
+        "note_added": {
+          "$ref": "#/definitions/NoteAddedPayload"
+        },
+        "memory_promoted": {
+          "$ref": "#/definitions/MemoryPromotedPayload"
+        },
+        "review_recorded": {
+          "$ref": "#/definitions/ReviewRecordedPayload"
+        },
+        "run_started": {
+          "$ref": "#/definitions/RunStartedPayload"
+        },
+        "handoff": {
+          "$ref": "#/definitions/HandoffPayload"
+        },
+        "run_stopped": {
+          "$ref": "#/definitions/RunStoppedPayload"
+        },
+        "run_stop_requested": {
+          "$ref": "#/definitions/RunStopRequestedPayload"
+        },
+        "correction": {
+          "$ref": "#/definitions/CorrectionPayload"
+        }
+      },
+      "required": [
+        "initiative_created",
+        "initiative_status_changed",
+        "plan_updated",
+        "phase_status_changed",
+        "task_added",
+        "task_status_changed",
+        "decision_logged",
+        "session_started",
+        "session_ended",
+        "session_closed",
+        "file_touched",
+        "command_run",
+        "note_added",
+        "memory_promoted",
+        "review_recorded",
+        "run_started",
+        "handoff",
+        "run_stopped",
+        "run_stop_requested",
+        "correction"
+      ]
+    },
+    "InitiativeCreatedPayload": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "goal": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "slug",
+        "goal"
+      ]
+    },
+    "InitiativeStatusChangedPayload": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/InitiativeStatus"
+        },
+        "note": {
+          "type": "string"
+        },
+        "overrides": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "successor": {
+          "type": "string",
+          "description": "The slug this record continues in. REQUIRED for `superseded` and rejected on every other status — a successor on a `done` record is a contradiction the validator refuses rather than one the fold has to interpret. Recorded ONLY here, on the predecessor (initiative-supersession D1): the successor's side is derived at read time, never written on the successor."
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "description": "The initiative's own status changed. `note` is the reason, and it is REQUIRED for `dropped` (task-drop-state D3): a whole initiative abandoned with nothing said reads as forgotten rather than decided, and unlike a dropped task there is no surviving sibling work to infer the reason from.\n\nReopening is just another event with status `active` — history stays append-only, so a closed initiative is never a dead end in the log.\n\n`overrides` (commit-attribution 5.2) is what the close-time audit found still outstanding, recorded because the close went ahead anyway. It is the whole mechanism: a hard refusal on a solo tool grows a `--force` and the flag becomes the habit, while \"closed with 3 tasks outstanding, overridden\" rendered in the digest forever is a sentence its author has to live beside. Absent means the audit found nothing — never that it was skipped."
+    },
+    "InitiativeStatus": {
+      "type": "string",
+      "enum": [
+        "active",
+        "done",
+        "dropped",
+        "superseded"
+      ]
+    },
+    "PlanUpdatedPayload": {
+      "type": "object",
+      "properties": {
+        "plan": {
+          "$ref": "#/definitions/PlanStructure"
+        }
+      },
+      "required": [
+        "plan"
+      ]
+    },
+    "PlanStructure": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "type": "string"
+        },
+        "phases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PlanPhaseInput"
+          }
+        }
+      },
+      "required": [
+        "phases"
+      ],
+      "description": "Full plan structure carried by plan_updated (full replace, SPEC §MCP tools)."
+    },
+    "PlanPhaseInput": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/PhaseStatus"
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PlanTaskInput"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "tasks"
+      ]
+    },
+    "PhaseStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "active",
+        "done",
+        "blocked",
+        "dropped"
+      ]
+    },
+    "PlanTaskInput": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/TaskStatus"
+        },
+        "route": {
+          "$ref": "#/definitions/TaskRoute"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ]
+    },
+    "TaskStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "active",
+        "done",
+        "blocked",
+        "dropped"
+      ]
+    },
+    "TaskRoute": {
+      "type": "object",
+      "properties": {
+        "agent": {
+          "type": "string",
+          "description": "Adapter name the driver must launch this task with."
+        },
+        "model": {
+          "type": "string"
+        },
+        "effort": {
+          "type": "string"
+        }
+      },
+      "description": "Where a task wants to be run (session-driver 3.2, D10). Hints, not orders: anything the RUN states — the model/effort `run_started.surface` recorded, or the driver's own flags — wins over them, because a run whose second half ran a different model than its record names is two runs wearing one id. What the run leaves open, the task fills.\n\n`agent` names an ADAPTER (`claude-code`, `codex`), and it is the one field the driver cannot honour halfway: a run that cannot reach the named agent, or whose policy that agent cannot run, refuses to start rather than falling back to the default one.\n\nNothing else records the route: the plan carries the hint and the launched session's own `session_started` carries the tool and model it actually ran, so a third copy on the handoff would be the one that goes stale (D3)."
+    },
+    "PhaseStatusChangedPayload": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/PhaseStatus"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "phase",
+        "status"
+      ],
+      "description": "`note` (phase-lifecycle 2.1) is the same field task_status_changed carries, one level up, and required for `dropped` for the same reason: a phase abandoned without a stated reason is indistinguishable from one quietly forgotten, and nothing else in the record explains it."
+    },
+    "TaskAddedPayload": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/TaskStatus"
+        }
+      },
+      "required": [
+        "phase",
+        "id",
+        "title"
+      ]
+    },
+    "TaskStatusChangedPayload": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/TaskStatus"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status"
+      ]
+    },
+    "DecisionLoggedPayload": {
+      "type": "object",
+      "properties": {
+        "chose": {
+          "type": "string"
+        },
+        "over": {
+          "type": "string"
+        },
+        "because": {
+          "type": "string"
+        },
+        "rule": {
+          "type": "string"
+        },
+        "guard": {
+          "type": "string",
+          "description": "`guard` (drift-hardening D3): the mechanical half of the SAME clause — a `path:`/`cmd:` glob list (src/guards.ts) the fold matches against file_touched / command_run events logged after this decision. Valid only alongside `rule`: a guard with no clause has nothing to cite when it fires, and what it produces is a WARNING that never changes an exit code."
+        }
+      },
+      "required": [
+        "chose",
+        "over",
+        "because"
+      ],
+      "description": "`rule` (drift-hardening D1): optional standing-constraint clause — one short imperative every future session must obey. Its presence is what makes a decision a standing constraint; there is no separate flag. Render contract: verbatim on every surface, never clipped, never aged out — the C-abl ablation showed decisions are the load-bearing resume field, and clipped normative text is how dead ends recur."
+    },
+    "SessionStartedPayload": {
+      "type": "object",
+      "properties": {
+        "tool": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool"
+      ]
+    },
+    "SessionEndedPayload": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "next_action": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary",
+        "next_action"
+      ]
+    },
+    "SessionClosedPayload": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "description": "Mechanical session close (SessionEnd hook fallback). Deliberately has no summary/next_action: those belong to session_ended (the write-back) and a mechanical close must never clobber them during fold."
+    },
+    "FileTouchedPayload": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "op": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "op"
+      ]
+    },
+    "CommandRunPayload": {
+      "type": "object",
+      "properties": {
+        "cmd": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cmd"
+      ]
+    },
+    "NoteAddedPayload": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ]
+    },
+    "MemoryPromotedPayload": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "description": "A fact its author declares repo memory — operational knowledge that is not a decision (a release command, a failure mode) and so can never be observed as repo-general from citation behaviour, because nothing derives a fact that was never written down (repo-memory-capture D1)."
+    },
+    "ReviewRecordedPayload": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "$ref": "#/definitions/ReviewScope"
+        },
+        "verdict": {
+          "$ref": "#/definitions/ReviewVerdict"
+        },
+        "watermark": {
+          "type": "string",
+          "description": "Sha read through; omitted only when the range was empty."
+        },
+        "phase": {
+          "type": "string",
+          "description": "Phase name for a `phase` review; absent for `final`."
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "scope",
+        "verdict"
+      ],
+      "description": "A review that was actually performed (commit-attribution 4.4).\n\n`watermark` is the load-bearing field, not `verdict`. It is the sha the review read through, and it is what makes the NEXT review's range computable — watermark..HEAD filtered to this initiative's attributed commits (D9). Without it a range could only be derived from task timestamps, which is the time-window guess record-integrity D6 rejected. That is why a review is an EVENT and could never have been a note.\n\n`findings` are the ones that survived, one line each. An empty list with verdict `pass` is a legitimate outcome; an empty list with verdict `findings` is not, and validation rejects it — a review that reports findings must say what they were, or it is a rubber stamp wearing the wrong hat."
+    },
+    "ReviewScope": {
+      "type": "string",
+      "enum": [
+        "phase",
+        "final"
+      ]
+    },
+    "ReviewVerdict": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "findings",
+        "blocked"
+      ]
+    },
+    "RunStartedPayload": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string",
+          "description": "Run id minted by the driver (a ulid) — the key every handoff and the stop cite."
+        },
+        "adapter": {
+          "type": "string",
+          "description": "Adapter name, e.g. `claude-code`: which headless agent the run launches."
+        },
+        "policy": {
+          "$ref": "#/definitions/RunPolicy"
+        },
+        "threshold_pct": {
+          "type": "integer",
+          "description": "Context percentage at which a session is told to finish and hand off; REQUIRED for `threshold`."
+        },
+        "context_window": {
+          "type": "integer",
+          "description": "Tokens the session's context window holds — the DENOMINATOR `threshold_pct` is a percentage of, and REQUIRED for `threshold` for the same reason the percentage is: 80% of 200k and 80% of 1M are different runs, so a record carrying only the percentage cannot say what the last driver actually nudged at. Sofar never infers it from the model name — a model table it cannot keep true would mis-time every handoff silently — so the operator states it and the record keeps it (session-driver 2.3)."
+        },
+        "max_sessions": {
+          "type": "integer"
+        },
+        "surface": {
+          "$ref": "#/definitions/RunSurface",
+          "description": "The permission surface every session in the run was launched under (session-driver 2.4, D8) — what the driver PINNED, never what the session could ultimately do: the agent's settings file is one source among the operator's own and allow rules union across them. Absent on a run whose adapter pins nothing. `model`/`effort` are recorded here so a reader can tell a run that pinned them from one that left them to whatever the operator's mutable config said that day."
+        }
+      },
+      "required": [
+        "run",
+        "adapter",
+        "policy"
+      ]
+    },
+    "RunPolicy": {
+      "type": "string",
+      "enum": [
+        "task",
+        "threshold"
+      ]
+    },
+    "RunSurface": {
+      "type": "object",
+      "properties": {
+        "permission_mode": {
+          "type": "string"
+        },
+        "allow": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deny": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "model": {
+          "type": "string"
+        },
+        "effort": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "permission_mode",
+        "allow"
+      ],
+      "description": "What `run_started.surface` carries; the driver's own type is engine-side."
+    },
+    "HandoffPayload": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string",
+          "description": "The session that just ended — registered here by its own session_started."
+        },
+        "reason": {
+          "$ref": "#/definitions/HandoffReason"
+        },
+        "task": {
+          "type": "string",
+          "description": "Task the session was working, when the driver knows it."
+        },
+        "tokens": {
+          "type": "integer",
+          "description": "Context tokens the session held when it ended, when the adapter could report them."
+        }
+      },
+      "required": [
+        "run",
+        "session_id",
+        "reason"
+      ]
+    },
+    "HandoffReason": {
+      "type": "string",
+      "enum": [
+        "task_done",
+        "threshold",
+        "stall",
+        "needs_user"
+      ]
+    },
+    "RunStoppedPayload": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string"
+        },
+        "reason": {
+          "$ref": "#/definitions/RunStopReason"
+        },
+        "note": {
+          "type": "string",
+          "description": "What happened; REQUIRED for `error` — a run that died unexplained is one nobody can resume."
+        }
+      },
+      "required": [
+        "run",
+        "reason"
+      ]
+    },
+    "RunStopReason": {
+      "type": "string",
+      "enum": [
+        "closed",
+        "needs_user",
+        "stall",
+        "cost_cap",
+        "max_sessions",
+        "interrupted",
+        "error"
+      ]
+    },
+    "RunStopRequestedPayload": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "run"
+      ],
+      "description": "An operator asking the driver of `run` to end it from OUTSIDE the driver (in-session-drive D2) — `sofar drive --stop`, for a detached driver no ^C can reach. A request, never a stop: only the driver writes `run_stopped`, after reading the handoff of the session it signalled."
+    },
+    "CorrectionPayload": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ]
+    }
+  }
+}

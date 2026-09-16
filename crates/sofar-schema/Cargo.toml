@@ -1,0 +1,18 @@
+[package]
+name = "sofar-schema"
+description = "sofar event payload types, generated from packages/schema/src (rust-core D1)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

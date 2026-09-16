@@ -269,7 +269,10 @@ export interface RunStartedPayload {
   /** Adapter name, e.g. `claude-code`: which headless agent the run launches. */
   adapter: string
   policy: RunPolicy
-  /** Context percentage at which a session is told to finish and hand off; REQUIRED for `threshold`. */
+  /**
+   * Context percentage at which a session is told to finish and hand off; REQUIRED for `threshold`.
+   * @asType integer
+   */
   threshold_pct?: number
   /**
    * Tokens the session's context window holds — the DENOMINATOR
@@ -279,8 +282,10 @@ export interface RunStartedPayload {
    * driver actually nudged at. Sofar never infers it from the model name — a
    * model table it cannot keep true would mis-time every handoff silently —
    * so the operator states it and the record keeps it (session-driver 2.3).
+   * @asType integer
    */
   context_window?: number
+  /** @asType integer */
   max_sessions?: number
   /**
    * The permission surface every session in the run was launched under
@@ -309,7 +314,10 @@ export interface HandoffPayload {
   reason: HandoffReason
   /** Task the session was working, when the driver knows it. */
   task?: string
-  /** Context tokens the session held when it ended, when the adapter could report them. */
+  /**
+   * Context tokens the session held when it ended, when the adapter could report them.
+   * @asType integer
+   */
   tokens?: number
 }
 export interface RunStoppedPayload {

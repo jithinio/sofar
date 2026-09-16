@@ -3984,3 +3984,13 @@ stay the underlying derivation's, and exit codes are styling-independent.
   numbers are checked in as the target, a candidate run prints its ratio
   to that target per cell, and the gate fails a candidate whose p50 or
   p95 exceeds the target anywhere.
+- **Rust core, workspace (rust-core 2.1):** a Cargo workspace (`crates/`,
+  toolchain pinned by rust-toolchain.toml) whose payload types are
+  generated from packages/schema/src — TypeScript to a committed JSON
+  Schema, JSON Schema to a committed Rust module — with checks under
+  `npm test` and `cargo xtask schema --check` that fail when either
+  committed artefact is stale; no payload type is hand-written, every
+  payload in the conformance fixtures deserialises into its generated
+  type, and the hook binary owns exactly the argv shapes the fast path
+  owns (the five hooks and the statusline with `--root`), handing every
+  other shape back.
