@@ -1,8 +1,8 @@
 //! `sofar-core` — the native hook binary. Parses the shim argv grammar and
 //! dispatches: the six hooks (2.5), the hidden `fold` conformance command
-//! (2.3, D15) and plain `status` (2.4, D14); the statusline arrives with 2.6
-//! and exits 70 (`EX_SOFTWARE`) until then. A shape the TypeScript CLI owns
-//! exits 64 (`EX_USAGE`) so no caller can mistake it for a handled hook.
+//! (2.3, D15), plain `status` (2.4, D14) and the statusline (2.6). A shape
+//! the TypeScript CLI owns exits 64 (`EX_USAGE`) so no caller can mistake it
+//! for a handled hook.
 
 use std::io::{IsTerminal as _, Write as _};
 use std::process::ExitCode;
@@ -15,6 +15,7 @@ use sofar_core::post_tool::{handle_post_tool, handle_post_tool_failure};
 use sofar_core::resolve::resolve_root;
 use sofar_core::session_start::handle_session_start;
 use sofar_core::status_cli::run_status;
+use sofar_core::statusline::run_statusline;
 use sofar_core::user_prompt::{handle_session_end, handle_stop, handle_user_prompt};
 
 /// `mirror` in cli/index.ts: stdout verbatim, stderr with one trailing newline.
@@ -112,9 +113,20 @@ fn main() -> ExitCode {
             &resolve_root(root.as_deref()),
             &read_stdin(),
         )),
-        Dispatch::Owned(Owned::Statusline { .. }) => {
-            eprintln!("sofar-core: `statusline` is not implemented yet (rust-core 2.6)");
-            ExitCode::from(70)
+        Dispatch::Owned(Owned::Statusline { root, color }) => {
+            // Styled by default (the status bar renders ANSI even piped);
+            // `--no-color` or NO_COLOR present opts back into plain (D7).
+            let plain = color == Color::Off || std::env::var_os("NO_COLOR").is_some();
+            let line = run_statusline(&resolve_root(root.as_deref()), &read_stdin(), !plain);
+            mirror(&CmdResult {
+                exit_code: 0,
+                stdout: if line.is_empty() {
+                    String::new()
+                } else {
+                    format!("{line}\n")
+                },
+                stderr: String::new(),
+            })
         }
         Dispatch::NotOurs => {
             eprintln!("sofar-core: not a hook shape this binary owns — use the `sofar` CLI");

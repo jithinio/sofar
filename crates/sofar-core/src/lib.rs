@@ -9,10 +9,16 @@
 //! Modules by task: argv grammar (2.1: [`cli`]); envelope, canonical
 //! serializer, JS-semantics JSON, payload validation, identity, append and
 //! the tolerant decode, the registration lock (2.2: [`envelope`], [`json`],
-//! [`payload`], [`identity`], [`log`], [`lock`], [`layout`]); fold (2.3);
-//! digest, projections, full status and record resolution (2.4: [`status`],
-//! [`projections`], [`status_cli`], [`resolve`], [`git`]); hooks (2.5);
-//! statusline (2.6).
+//! [`payload`], [`identity`], [`log`], [`lock`], [`layout`]); fold (2.3:
+//! [`fold`], [`snapshot`], [`fold_cli`]); digest, projections, full status
+//! and record resolution (2.4: [`status`], [`projections`], [`status_cli`],
+//! [`resolve`], [`git`]); the six hooks (2.5: [`session_start`],
+//! [`post_tool`], [`user_prompt`], with [`append`], [`home`], [`hook`],
+//! [`warmth`], the derived index [`index_store`]/[`index_tail`]/[`index_pass`]/
+//! [`index_tier0`]/[`index_tier1`], [`shipwatch`], [`attribution`],
+//! [`diagnostics`], [`redact`], [`shell`], [`nudge`], [`peers`], [`lexicon`],
+//! [`lessons`], [`cross_conflicts`]); the statusline (2.6: [`statusline`],
+//! [`ui`], [`update_cache`]).
 
 pub mod append;
 pub mod atomic;
@@ -57,7 +63,10 @@ pub mod shipwatch;
 pub mod snapshot;
 pub mod status;
 pub mod status_cli;
+pub mod statusline;
 pub mod text;
+pub mod ui;
+pub mod update_cache;
 pub mod user_prompt;
 pub mod version;
 pub mod warmth;

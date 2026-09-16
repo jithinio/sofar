@@ -6,24 +6,26 @@
 - Tool: claude-code
 - Model: claude-fable-5-1
 - Started: 2026-09-16T11:11:38.837Z
-- Ended: 2026-09-16T11:43:22.732Z
+- Ended: 2026-09-16T12:26:08.782Z
 
 ## Summary
 
-After 2.4: merged r1-fixes d9b2878 (3.2 D25 retirement, 5.2 code-unit order) and mirrored D25 in Rust (fold rule, payload rules, schema regen, retire-aware digest/decisions). Proof: fold-parity 10/10 incl. FP-10, render-parity 93/1080 byte-identical (fold-parity cases added as records), conformance 27/27 unchanged, npm test 2356, clippy clean. M1 remembered (schema:emit needs build first).
+2.5 and 2.6 done: all six hooks and the statusline on sofar-core, proved 23/23 conformance cases in D29 mixed mode with every hook, status and statusline on the binary (reference drives only full-cli `event append`); V8 JSON.parse messages and redactCommand pinned by Node fixtures; D29 (per-step routing), D30 (lexicon word class, peer liveness) logged; 105 Rust tests, clippy clean, npm test 2356. Commits 4fb2db4 (session-start), 6257168 (six hooks), then 2.6 landing now.
 
 ## Next action
 
-Start 2.5 with the session-start hook (stdin JSON, resolveSessionFirst/homeInitiative, repo memory, git line, Tier 1 neighbours, hook notices, SOFAR_RETIRE/SOFAR_ACTIVITY read by the caller), proven black-box on repo.session-start and syn.* via SOFAR_CONFORMANCE_BIN; then post-tool/post-tool-failure/user-prompt/stop/session-end.
+Start 3.1: the boot stub (cli/boot.ts) dispatches the six hooks, statusline and plain status to a present sofar-core binary with TypeScript fallback and an explicit override env for debugging; then the UNFILTERED conformance run through the stub (event append falls through) becomes the standalone proof; add the `sofar status` stderr update notice (update_cache::notice_from) on the way.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 2 files (/private/tmp/claude-501/-Users-jins-IO-sofar-rust-core/a93f5d12-e3b9-4229-a2fe-ea2deffebfe4/scratchpad/gen-json-errors.mjs, /private/tmp/claude-501/-Users-jins-IO-sofar-rust-core/a93f5d12-e3b9-4229-a2fe-ea2deffebfe4/scratchpad/gen-redact.mjs), 204 commands, task changes: 2.4 → done, 2.5 → active, 2.5 → active
+- Derived: 2 files (/private/tmp/claude-501/-Users-jins-IO-sofar-rust-core/a93f5d12-e3b9-4229-a2fe-ea2deffebfe4/scratchpad/gen-json-errors.mjs, /private/tmp/claude-501/-Users-jins-IO-sofar-rust-core/a93f5d12-e3b9-4229-a2fe-ea2deffebfe4/scratchpad/gen-redact.mjs), 212 commands, task changes: 2.4 → done, 2.5 → active, 2.5 → active, 2.5 → done, 2.6 → done
 - Files:
   - /private/tmp/claude-501/-Users-jins-IO-sofar-rust-core/a93f5d12-e3b9-4229-a2fe-ea2deffebfe4/scratchpad/gen-json-errors.mjs
   - /private/tmp/claude-501/-Users-jins-IO-sofar-rust-core/a93f5d12-e3b9-4229-a2fe-ea2deffebfe4/scratchpad/gen-redact.mjs
-- Commands run: 204
+- Commands run: 212
 - Task changes:
   - 2.4 → done
   - 2.5 → active
   - 2.5 → active
+  - 2.5 → done
+  - 2.6 → done
