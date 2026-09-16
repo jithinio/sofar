@@ -88,6 +88,14 @@ pub struct DecisionState {
     pub because: String,
     pub rule: Option<String>,
     pub guard: Option<String>,
+    /// `D<n>` of the earlier decision this one replaces, as recorded (r1-fixes 3.2, D25).
+    pub supersedes: Option<String>,
+    /// Task id this decision is in force until, as recorded (D25); never with `rule`.
+    pub until: Option<String>,
+    /// 1-based ordinal of the decision that replaced this one (D25), set by the
+    /// fold when a later `supersedes` resolves here and is permitted (a rule
+    /// is replaced only by a rule). Retirement by `until` is derived at render.
+    pub superseded_by: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -788,15 +796,37 @@ fn apply_event(
                 state.drop_notes.remove(&id);
             }
         }
-        "decision_logged" => state.decisions.push(DecisionState {
-            id: event.id.clone(),
-            ts: event.ts.clone(),
-            chose: req_str(p, "chose"),
-            over: req_str(p, "over"),
-            because: req_str(p, "because"),
-            rule: opt_str(p, "rule"),
-            guard: opt_str(p, "guard"),
-        }),
+        "decision_logged" => {
+            let supersedes = opt_str(p, "supersedes");
+            let has_rule = p.get("rule").is_some_and(|v| v.as_str().is_some());
+            state.decisions.push(DecisionState {
+                id: event.id.clone(),
+                ts: event.ts.clone(),
+                chose: req_str(p, "chose"),
+                over: req_str(p, "over"),
+                because: req_str(p, "because"),
+                rule: opt_str(p, "rule"),
+                guard: opt_str(p, "guard"),
+                supersedes: supersedes.clone(),
+                until: opt_str(p, "until"),
+                superseded_by: None,
+            });
+            // Supersession (r1-fixes 3.2, D25): resolve `D<n>` against the
+            // decisions already folded — the log alone, no clock, no env.
+            // Inert when it points forward or at itself, or when a rule-less
+            // decision names a rule (a constraint is replaced only by one).
+            if let Some(handle) = supersedes
+                && let Some(n) = decision_handle(&handle)
+            {
+                let ordinal = state.decisions.len();
+                if n < ordinal
+                    && let Some(target) = state.decisions.get_mut(n - 1)
+                    && (target.rule.is_none() || has_rule)
+                {
+                    target.superseded_by = Some(ordinal as u64);
+                }
+            }
+        }
         "memory_promoted" => {
             let supersedes = opt_str(p, "supersedes");
             state.memories.push(MemoryState {
@@ -1027,6 +1057,16 @@ fn apply_event(
 
 /// `/^([a-z0-9-]+) M([1-9][0-9]*)$/` → (slug, n); a count too large for
 /// `usize` can never index a memory list and reads as no match.
+/// `DECISION_HANDLE_RE` (`/^D([1-9][0-9]*)$/`): the ordinal, or None. A
+/// value beyond `usize` cannot name a folded decision, so it is inert too.
+fn decision_handle(handle: &str) -> Option<usize> {
+    let digits = handle.strip_prefix('D')?;
+    if digits.is_empty() || digits.starts_with('0') || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    digits.parse().ok()
+}
+
 fn memory_handle(handle: &str) -> Option<(&str, usize)> {
     let (slug, n) = handle.split_once(" M")?;
     if !crate::payload::is_memory_handle(handle) {
@@ -1623,6 +1663,11 @@ impl DecisionState {
         put(&mut o, "because", &self.because);
         put_opt(&mut o, "rule", self.rule.as_deref());
         put_opt(&mut o, "guard", self.guard.as_deref());
+        put_opt(&mut o, "supersedes", self.supersedes.as_deref());
+        put_opt(&mut o, "until", self.until.as_deref());
+        if let Some(by) = self.superseded_by {
+            put_count(&mut o, "superseded_by", by);
+        }
         Json::Obj(o)
     }
 }
@@ -2087,6 +2132,12 @@ impl DecisionState {
             because: rs(o, "because")?,
             rule: os(o, "rule")?,
             guard: os(o, "guard")?,
+            supersedes: os(o, "supersedes")?,
+            until: os(o, "until")?,
+            superseded_by: match o.get("superseded_by") {
+                None => None,
+                Some(_) => Some(count(o, "superseded_by")?),
+            },
         })
     }
 }

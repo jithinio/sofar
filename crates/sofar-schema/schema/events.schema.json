@@ -366,6 +366,14 @@
         "guard": {
           "type": "string",
           "description": "`guard` (drift-hardening D3): the mechanical half of the SAME clause — a `path:`/`cmd:` glob list (src/guards.ts) the fold matches against file_touched / command_run events logged after this decision. Valid only alongside `rule`: a guard with no clause has nothing to cite when it fires, and what it produces is a WARNING that never changes an exit code."
+        },
+        "supersedes": {
+          "type": "string",
+          "description": "`supersedes` (r1-fixes 3.2, D25): the bare handle `D<n>` of an EARLIER decision in the SAME record this one replaces. The fold resolves it from the log alone and marks the target `superseded_by` this decision's ordinal; the digest then stops rendering the target. Per-record like the ordinals themselves. A rule-carrying target is retired ONLY by a rule-carrying superseder — standing rules never age out, they are only ever replaced by a new rule that names them; any other reference is recorded but inert (forward, self, rule mismatch)."
+        },
+        "until": {
+          "type": "string",
+          "description": "`until` (r1-fixes 3.2, D25): the id of a task in this record. The decision is in force until that task RESOLVES (done or dropped, as replayed) and then leaves the digest — validity derives from recorded events, never from a clock. REJECTED alongside `rule`: a standing constraint never ages out. An id the plan never names never retires."
         }
       },
       "required": [

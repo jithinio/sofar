@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { emptyState, foldLog, type InitiativeState } from '../../../src/core/fold'
+import { emptyState, foldLines, foldLog, type InitiativeState } from '../../../src/core/fold'
 import { renderDecisions } from '../../../src/projections/templates/decisions'
 import { renderMemory } from '../../../src/projections/templates/memory'
 import { renderPlan } from '../../../src/projections/templates/plan'
@@ -33,15 +33,42 @@ const FIXTURES = join(__dirname, '..', 'fixtures')
 const GOLDEN = join(__dirname, 'golden')
 
 interface RenderCase {
-  kind: 'records' | 'synthetic'
+  kind: 'records' | 'synthetic' | 'fold-parity'
   fixture: string
   slug: string
-  /** The fixture's `.sofar` dir. */
+  /** The fixture's `.sofar` dir (a fold-parity case has none: `sofar` is its cases dir). */
   sofar: string
+}
+
+const FOLD_PARITY_CASES = join(__dirname, '..', 'fold-parity', 'cases')
+
+/**
+ * The record slug of a fold-parity case: the `initiative` of its first
+ * parseable line (the builder's `new Log(slug)`), since the log sits in a
+ * shared cases dir rather than under `.sofar/initiatives/<slug>/`.
+ */
+function foldParitySlug(lines: string[]): string {
+  for (const line of lines) {
+    try {
+      const v = JSON.parse(line) as { initiative?: unknown }
+      if (typeof v.initiative === 'string' && v.initiative.length > 0) return v.initiative
+    } catch {
+      // corrupt line — the next may parse
+    }
+  }
+  return 'unknown'
 }
 
 export function renderCases(): RenderCase[] {
   const cases: RenderCase[] = []
+  // The fold-parity cases too (rust-core 2.4 + D25): synthetic logs built from
+  // a fixed clock, the only records that carry decision retirement fields.
+  if (existsSync(FOLD_PARITY_CASES)) {
+    for (const file of readdirSync(FOLD_PARITY_CASES).sort()) {
+      if (!file.endsWith('.jsonl')) continue
+      cases.push({ kind: 'fold-parity', fixture: 'cases', slug: file.slice(0, -'.jsonl'.length), sofar: FOLD_PARITY_CASES })
+    }
+  }
   for (const kind of ['records', 'synthetic'] as const) {
     const base = join(FIXTURES, kind)
     if (!existsSync(base)) continue
@@ -146,6 +173,10 @@ function sessionFileName(id: string): string {
 
 /** The record's state — a created-but-unwritten initiative is the empty state with its slug (runStatus). */
 export function stateOf(c: RenderCase): InitiativeState {
+  if (c.kind === 'fold-parity') {
+    const lines = readFileSync(join(c.sofar, `${c.slug}.jsonl`), 'utf8').split('\n')
+    return foldLines(lines, foldParitySlug(lines)).state
+  }
   const log = join(c.sofar, 'initiatives', c.slug, 'events.jsonl')
   const state = existsSync(log) ? foldLog(log).state : emptyState()
   if (state.slug === '') state.slug = c.slug

@@ -507,6 +507,16 @@ Budgets (chars = UTF-16 units, §Text-semantics pins):
 | NOTE_LINE 200 · MAX_NOTES 5 · TASK_FILES_LINE 300 · MAX_TASK_FILES 8 | |
 | NEIGHBOUR_LINE 200 · MAX_NEIGHBOURS 3 · DRIVEN_LINE 300 | |
 
+Decision retirement (r1-fixes 3.2, D25): a decision superseded by a later
+one (`superseded_by`, marked by the fold) or scoped by `until` to a task
+that has resolved leaves the block — the standing constraints skip a rule a
+later rule replaced, the decision window is the last 5 IN-FORCE decisions
+(`(N in force, M retired; …)` when any retired, byte-identical otherwise),
+an in-force decision carrying `supersedes` renders `(supersedes D<n>)`, and
+decisions.md marks every retired entry. `SOFAR_RETIRE=off` (also `0`,
+`false`) renders every decision as before; read at render time by the
+caller, never by the fold.
+
 `clip(text, max)`: collapse `\s+` → space, trim; over budget → first
 `max-1` units + `…`. `clipBlockDetect` keeps lines, cuts to `budget -
 len("\n"+marker)`, `trimEnd`, appends marker. `enforceStatusLimit` cuts to
@@ -601,10 +611,9 @@ core must reproduce the JS semantics, NOT the Rust defaults:
   before digits before letters, none of which is code-unit order, and a
   collation table is a multi-MB dependency. Code-unit order differs from
   code-POINT order only where a supplementary character (surrogate pair)
-  meets a BMP character above U+D7FF. Until r1-fixes 5.2 lands, the
-  TypeScript engine still uses `localeCompare` for conflicts, cross-conflict
-  holders, Tier 0 flattening, peers' ambiguity and several listings; no
-  fixture holds the mixed-case set that would show the difference.
+  meets a BMP character above U+D7FF. The TypeScript side is `core/order.ts`
+  `byCodeUnit` behind every shared-surface sort (r1-fixes 5.2, d9b2878; its
+  D26 forbids `localeCompare` on a shared-surface string).
 - P5 JSON numbers serialize per ECMAScript (`1e+21`, `1e-7`, no `.0`,
   shortest round-trip); `JSON.parse` accepts lone-surrogate escapes and
   keeps last-wins on duplicate keys; big integers lose precision to f64.

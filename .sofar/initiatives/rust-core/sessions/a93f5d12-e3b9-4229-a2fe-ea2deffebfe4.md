@@ -6,19 +6,19 @@
 - Tool: claude-code
 - Model: claude-fable-5-1
 - Started: 2026-09-16T11:11:38.837Z
-- Ended: 2026-09-16T11:33:55.723Z
+- Ended: 2026-09-16T11:43:22.732Z
 
 ## Summary
 
-2.4 done (1b5e319): status/projections/resolve/git ports, `status` in the binary (D27), render-parity 83/988 byte-identical (D28), repo.status black-box 9/9. Then a8810d3: HOTPATH P4 pin rewritten to D6; r1-fixes D25 landed as e9f93ab (mirror pending), r1-fixes 5.2 building the TS code-unit comparator.
+After 2.4: merged r1-fixes d9b2878 (3.2 D25 retirement, 5.2 code-unit order) and mirrored D25 in Rust (fold rule, payload rules, schema regen, retire-aware digest/decisions). Proof: fold-parity 10/10 incl. FP-10, render-parity 93/1080 byte-identical (fold-parity cases added as records), conformance 27/27 unchanged, npm test 2356, clippy clean. M1 remembered (schema:emit needs build first).
 
 ## Next action
 
-Start 2.5 with the session-start hook (stdin, resolveSessionFirst/homeInitiative, repo memory, git line, Tier 1 neighbours, notices), proven black-box on repo.session-start and syn.*; mirror r1-fixes D25 at e9f93ab (fold decision_logged rule, payload rules, cargo xtask schema, FP-10) first if it blocks fold-parity; note the r1-fixes 5.2 sha when the peer sends it.
+Start 2.5 with the session-start hook (stdin JSON, resolveSessionFirst/homeInitiative, repo memory, git line, Tier 1 neighbours, hook notices, SOFAR_RETIRE/SOFAR_ACTIVITY read by the caller), proven black-box on repo.session-start and syn.* via SOFAR_CONFORMANCE_BIN; then post-tool/post-tool-failure/user-prompt/stop/session-end.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 79 commands, task changes: 2.4 → done
-- Commands run: 79
+- Derived: 111 commands, task changes: 2.4 → done
+- Commands run: 111
 - Task changes:
   - 2.4 → done

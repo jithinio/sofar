@@ -23,6 +23,7 @@ import {
 } from './adjacency'
 import { extractCitations, type Citation } from './citations'
 import { decodeLines, foldLines, type InitiativeState } from './fold'
+import { byCodeUnit } from './order'
 
 /**
  * Record graph (SPEC §Record graph, record-graph 1.2): ONE mechanical,
@@ -772,7 +773,7 @@ export function relatedTasks(graph: RecordGraph, taskNode: string): RelatedTasks
     (a, b) =>
       b.shared_count - a.shared_count ||
       (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0) ||
-      a.id.localeCompare(b.id),
+      byCodeUnit(a.id, b.id),
   )
   result.omitted = Math.max(0, neighbours.length - GRAPH_RESULT_CAP)
   result.neighbours = neighbours.slice(0, GRAPH_RESULT_CAP)
@@ -831,7 +832,7 @@ export function repoGeneral(graph: RecordGraph): RepoGeneralDecision[] {
       b.cited_by.length - a.cited_by.length ||
       b.citations - a.citations ||
       (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0) ||
-      a.id.localeCompare(b.id),
+      byCodeUnit(a.id, b.id),
   )
   return rows
 }
@@ -843,7 +844,7 @@ function pathOf(graph: RecordGraph, fileNode: string): string {
 
 function byTsDescThenId<T extends { ts: string; id: string }>(a: T, b: T): number {
   if (a.ts !== b.ts) return a.ts < b.ts ? 1 : -1
-  return a.id.localeCompare(b.id)
+  return byCodeUnit(a.id, b.id)
 }
 
 function capList<T, K extends string>(

@@ -188,6 +188,25 @@ export interface DecisionLoggedPayload {
    * fires, and what it produces is a WARNING that never changes an exit code.
    */
   guard?: string
+  /**
+   * `supersedes` (r1-fixes 3.2, D25): the bare handle `D<n>` of an EARLIER
+   * decision in the SAME record this one replaces. The fold resolves it from
+   * the log alone and marks the target `superseded_by` this decision's
+   * ordinal; the digest then stops rendering the target. Per-record like the
+   * ordinals themselves. A rule-carrying target is retired ONLY by a
+   * rule-carrying superseder — standing rules never age out, they are only
+   * ever replaced by a new rule that names them; any other reference is
+   * recorded but inert (forward, self, rule mismatch).
+   */
+  supersedes?: string
+  /**
+   * `until` (r1-fixes 3.2, D25): the id of a task in this record. The
+   * decision is in force until that task RESOLVES (done or dropped, as
+   * replayed) and then leaves the digest — validity derives from recorded
+   * events, never from a clock. REJECTED alongside `rule`: a standing
+   * constraint never ages out. An id the plan never names never retires.
+   */
+  until?: string
 }
 export interface SessionStartedPayload { tool: string; model?: string }
 export interface SessionEndedPayload { session_id?: string; summary: string; next_action: string }
@@ -197,6 +216,13 @@ export interface SessionEndedPayload { session_id?: string; summary: string; nex
  * mechanical close must never clobber them during fold.
  */
 export interface SessionClosedPayload { reason: string }
+/*
+ * Integer-valued `number` fields carry `@asType integer` in their doc comment
+ * (rust-core 1.4): the Rust schema codegen reads it, and a number field added
+ * without it breaks the sofar-schema crate on rust-core's next merge. Real
+ * floats (precision, recall) stay unannotated.
+ */
+
 /**
  * Mechanical outcome fields (self-improve D2): OPTIONAL, additive, and the
  * ONLY outcome facts the durable record carries. `ok` is what the host said
@@ -233,6 +259,8 @@ export interface MemoryPromotedPayload {
 
 /** A qualified memory handle: `<slug> M<n>`. */
 export const MEMORY_HANDLE_RE = /^([a-z0-9-]+) M([1-9][0-9]*)$/
+/** A bare decision handle within one record: `D<n>` (r1-fixes 3.2, D25). */
+export const DECISION_HANDLE_RE = /^D([1-9][0-9]*)$/
 
 /** What a review concluded. `blocked` means it could not be performed at all. */
 export const REVIEW_VERDICTS = ['pass', 'findings', 'blocked'] as const
@@ -762,6 +790,17 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
       if (!str(p.rule)) e.push('guard: requires `rule` — a guard with no clause has nothing to cite')
       e.push(...guardSpecErrors(p.guard))
     }
+    // Retirement fields (r1-fixes 3.2, D25): shape only — resolution is the
+    // fold's, since only the replay knows which ordinals and tasks exist.
+    if (p.supersedes !== undefined && !(str(p.supersedes) && DECISION_HANDLE_RE.test(p.supersedes as string))) {
+      e.push('supersedes: must be the bare handle `D<n>` of an earlier decision in this record when present')
+    }
+    if (p.until !== undefined) {
+      if (!str(p.until)) e.push('until: must be a non-empty task id when present')
+      // A standing constraint never ages out — replace it with a new rule
+      // that names it (`supersedes`) instead of scheduling its expiry.
+      if (str(p.rule)) e.push('until: not allowed with `rule` — a standing constraint never ages out; supersede it with a new rule instead')
+    }
   },
   session_started(p, e) {
     if (!str(p.tool)) e.push('tool: must be a non-empty string')
@@ -1056,7 +1095,7 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
   decision_logged: {
     writer: 'agent',
     summary: 'a design decision: what was chosen, over what, and why',
-    fields: 'chose, over, because, rule? (one imperative every later session must obey), guard? (path:<globs> or cmd:<globs>; only with rule)',
+    fields: 'chose, over, because, rule? (one imperative every later session must obey), guard? (path:<globs> or cmd:<globs>; only with rule), supersedes? (D<n> of the earlier decision this one replaces), until? (task id — in force until it resolves; never with rule)',
     example: { chose: 'SQLite via better-sqlite3', over: 'Postgres', because: 'single-user local app, zero ops' },
   },
   session_started: {

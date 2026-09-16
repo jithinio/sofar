@@ -18,6 +18,7 @@ import { passOverRecord } from './index-pass'
 import { INDEX_SCHEMA_VERSION, readIndexFile, writeIndexFile } from './index-store'
 import type { IndexedEvent } from './index-tail'
 import { lexicalCounts, rankLexical, type LexicalDoc } from './lexicon'
+import { byCodeUnit } from './order'
 
 /**
  * The REACH half of Tier 1 (record-index 3.4): what `sofar find` traverses.
@@ -934,7 +935,7 @@ function group(hits: readonly ReachHit[]): ReachGroup[] {
       .filter((hit) => hit.kind === kind)
       .sort(
         (a, b) =>
-          a.hops - b.hops || (a.ts !== b.ts ? (a.ts < b.ts ? 1 : -1) : a.id.localeCompare(b.id)),
+          a.hops - b.hops || (a.ts !== b.ts ? (a.ts < b.ts ? 1 : -1) : byCodeUnit(a.id, b.id)),
       )
     if (of.length === 0) continue
     groups.push({

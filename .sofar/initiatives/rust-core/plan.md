@@ -37,4 +37,4 @@ Progress: 8/18 tasks done (44%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: Start 2.5 with the session-start hook (stdin, resolveSessionFirst/homeInitiative, repo memory, git line, Tier 1 neighbours, notices), proven black-box on repo.session-start and syn.*; mirror r1-fixes D25 at e9f93ab (fold decision_logged rule, payload rules, cargo xtask schema, FP-10) first if it blocks fold-parity; note the r1-fixes 5.2 sha when the peer sends it.
+Next action: Start 2.5 with the session-start hook (stdin JSON, resolveSessionFirst/homeInitiative, repo memory, git line, Tier 1 neighbours, hook notices, SOFAR_RETIRE/SOFAR_ACTIVITY read by the caller), proven black-box on repo.session-start and syn.* via SOFAR_CONFORMANCE_BIN; then post-tool/post-tool-failure/user-prompt/stop/session-end.

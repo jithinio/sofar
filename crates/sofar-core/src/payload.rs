@@ -153,6 +153,14 @@ pub fn is_initiative_slug(s: &str) -> bool {
             .all(|b| matches!(b, b'a'..=b'z' | b'0'..=b'9' | b'-'))
 }
 
+/// `DECISION_HANDLE_RE`: `/^D([1-9][0-9]*)$/` (r1-fixes 3.2, D25).
+#[must_use]
+pub fn is_decision_handle(handle: &str) -> bool {
+    handle.strip_prefix('D').is_some_and(|d| {
+        !d.is_empty() && !d.starts_with('0') && d.bytes().all(|b| b.is_ascii_digit())
+    })
+}
+
 /// `MEMORY_HANDLE_RE = /^([a-z0-9-]+) M([1-9][0-9]*)$/`.
 #[must_use]
 pub fn is_memory_handle(s: &str) -> bool {
@@ -477,6 +485,29 @@ fn validate_known(event_type: &str, p: &Object, e: &mut Vec<String>) {
                     "guard: requires `rule` — a guard with no clause has nothing to cite",
                 );
                 e.extend(guard_spec_errors(guard));
+            }
+            // Retirement fields (r1-fixes 3.2, D25): shape only — resolution
+            // is the fold's, since only the replay knows which ordinals exist.
+            if let Some(supersedes) = p.get("supersedes") {
+                must(
+                    e,
+                    supersedes.as_str().is_some_and(is_decision_handle),
+                    "supersedes: must be the bare handle `D<n>` of an earlier decision in this record when present",
+                );
+            }
+            if let Some(until) = p.get("until") {
+                must(
+                    e,
+                    str(Some(until)),
+                    "until: must be a non-empty task id when present",
+                );
+                // A standing constraint never ages out — replace it with a new
+                // rule that names it (`supersedes`) instead of scheduling its expiry.
+                must(
+                    e,
+                    !str(p.get("rule")),
+                    "until: not allowed with `rule` — a standing constraint never ages out; supersede it with a new rule instead",
+                );
             }
         }
         "session_started" => {

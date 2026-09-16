@@ -11,6 +11,7 @@ use std::path::Path;
 use crate::fold::empty_state;
 use crate::fold_cli::CmdResult;
 use crate::layout::Layout;
+use crate::projections::retire_enabled;
 use crate::resolve::resolve_initiative;
 use crate::snapshot::{fold_file, state_of};
 use crate::status::render_full_status;
@@ -58,7 +59,7 @@ pub fn run_status(root: &Path, slug: Option<&str>) -> CmdResult {
     }
     CmdResult {
         exit_code: 0,
-        stdout: render_full_status(&state),
+        stdout: render_full_status(&state, retire_enabled()),
         stderr: warnings
             .iter()
             .map(|w| format!("warning: {w}"))

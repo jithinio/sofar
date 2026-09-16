@@ -206,12 +206,49 @@ pub fn describe_freshness(counts: &FreshnessCounts) -> String {
 }
 
 /// `standingRules`: every decision carrying a rule with its 1-based ordinal.
+/// A rule a later rule replaced (`superseded_by`, r1-fixes 3.2, D25) is
+/// skipped while `retire` holds — `SOFAR_RETIRE=off` renders it as before.
 #[must_use]
-pub fn standing_rules(decisions: &[DecisionState]) -> Vec<(usize, &str)> {
+pub fn standing_rules(decisions: &[DecisionState], retire: bool) -> Vec<(usize, &str)> {
     decisions
         .iter()
         .enumerate()
+        .filter(|(_, d)| !(retire && d.superseded_by.is_some()))
         .filter_map(|(i, d)| d.rule.as_deref().map(|r| (i + 1, r)))
+        .collect()
+}
+
+/// `retireEnabled`: `SOFAR_RETIRE=off` (also `0`, `false`) renders every
+/// decision as if none were retired — read by the render callers, never the fold.
+#[must_use]
+pub fn retire_enabled() -> bool {
+    let Some(raw) = std::env::var_os("SOFAR_RETIRE") else {
+        return true;
+    };
+    let v = raw.to_string_lossy();
+    let v = js_trim(&v).to_lowercase();
+    !(v == "off" || v == "0" || v == "false")
+}
+
+/// `retiredOrdinals` (core/retire.ts): 1-based ordinals no longer in force —
+/// superseded, or scoped by `until` to a task that resolved (done or dropped).
+#[must_use]
+pub fn retired_ordinals(state: &InitiativeState) -> Vec<usize> {
+    let resolved: Vec<&str> = state
+        .phases
+        .iter()
+        .flat_map(|p| p.tasks.iter())
+        .filter(|t| matches!(t.status.as_str(), "done" | "dropped"))
+        .map(|t| t.id.as_str())
+        .collect();
+    state
+        .decisions
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| {
+            d.superseded_by.is_some() || d.until.as_deref().is_some_and(|u| resolved.contains(&u))
+        })
+        .map(|(i, _)| i + 1)
         .collect()
 }
 
@@ -221,8 +258,9 @@ pub fn standing_rules(decisions: &[DecisionState]) -> Vec<(usize, &str)> {
 pub fn standing_constraint_lines(
     decisions: &[DecisionState],
     budget: Option<usize>,
+    retire: bool,
 ) -> Vec<String> {
-    let standing = standing_rules(decisions);
+    let standing = standing_rules(decisions, retire);
     if standing.is_empty() {
         return Vec::new();
     }
@@ -532,14 +570,35 @@ pub fn render_decisions(state: &InitiativeState) -> String {
     if state.decisions.is_empty() {
         lines.push("(no decisions logged yet)".to_owned());
     }
-    for d in &state.decisions {
+    // Every decision, retired or not (r1-fixes 3.2, D25), marked with why.
+    let retired = retired_ordinals(state);
+    for (i, d) in state.decisions.iter().enumerate() {
+        let ordinal = i + 1;
+        let mut marks: Vec<String> = Vec::new();
+        if let Some(by) = d.superseded_by {
+            marks.push(format!("superseded by D{by}"));
+        } else if let Some(until) = &d.until {
+            marks.push(if retired.contains(&ordinal) {
+                format!("retired: {until} resolved")
+            } else {
+                format!("until {until}")
+            });
+        }
+        if let Some(supersedes) = &d.supersedes {
+            marks.push(format!("supersedes {supersedes}"));
+        }
+        let mark = if marks.is_empty() {
+            String::new()
+        } else {
+            format!("({}) ", marks.join("; "))
+        };
         let rule = d
             .rule
             .as_ref()
             .map(|r| format!("rule: **{r}** — "))
             .unwrap_or_default();
         lines.push(format!(
-            "- {} — {rule}chose **{}** over {} because {}",
+            "- {} — {mark}{rule}chose **{}** over {} because {}",
             d.ts, d.chose, d.over, d.because
         ));
     }

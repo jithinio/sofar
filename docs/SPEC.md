@@ -162,7 +162,10 @@ because, rule? — optional standing-constraint clause, one short imperative;
 presence makes the decision a standing constraint with a verbatim-render
 contract: never clipped, never aged out; drift-hardening D1 — guard? — the
 mechanical half of that same clause, a `path:`/`cmd:` glob list valid ONLY
-alongside `rule`; see §Decision guards, drift-hardening D3) ·
+alongside `rule`; see §Decision guards, drift-hardening D3 — supersedes? —
+the bare handle `D<n>` of an earlier decision in this record that this one
+replaces — until? — a task id this decision is in force until; never with
+`rule`; r1-fixes 3.2, D25) ·
 session_started (tool, model?) · session_ended (summary, next_action) ·
 session_closed (reason — mechanical close from the SessionEnd hook; never
 carries summary/next_action, added Phase 3, BD21) ·
@@ -2046,7 +2049,7 @@ implementations, driven black-box through the hidden `sofar fold` command
 point recursively, arrays in order, JSON.stringify(v, null, 2) verbatim —
 {ok, cursor, version, state, warnings} or the refusal) with
 `SOFAR_CONFORMANCE_BIN` selecting the candidate and the built CLI as the
-reference. Cases `FP-01-plan-tasks-decisions` … `FP-08-duplicate-ids-stable-order`
+reference. Cases `FP-01-plan-tasks-decisions` … `FP-10-decision-supersession`
 are RAW lines (corrupt and unknown lines included) with a sidecar
 {tail_at, seeds, refusal?, order_independence, note} and a golden {state,
 warnings} recorded through the reference (`FOLD_PARITY_RECORD=1`).
@@ -2131,7 +2134,15 @@ instructions ride every initialize, so they stay short.
   ledger is the section that yields to the hard cap: its budget is the
   smaller of 2,800 chars and what the 10,000-char limit leaves after a
   400-char reserve for the protocol tail, so `Next ids`, the read-back line
-  and the footer render whenever everything above the ledger fits. The AGENTS.md dialect keeps its orient-first step: MCP-less
+  and the footer render whenever everything above the ledger fits.
+  Retirement (r1-fixes 3.2, D25): a decision a later
+  one superseded, or scoped by `until` to a task that has resolved, leaves
+  Standing constraints, the window and the ledger — the window is the last
+  5 decisions IN FORCE, ordinals never renumber, the header reads `Recent
+  decisions (last 5 of <in force> in force, <k> retired; …)` and is
+  byte-identical to the above when nothing is retired, a superseder's line
+  carries `(supersedes D<n>)`, and `SOFAR_RETIRE=off` renders every decision
+  as before. The AGENTS.md dialect keeps its orient-first step: MCP-less
   tools have no hook injection for it to be redundant with.
 - sofar_start_session({initiative?, tool, model?, session_id?}) →
   {session_id} — session_id (from the SessionStart context "Session:" line)
@@ -2435,6 +2446,38 @@ DURING (their predecessors sit in the ledger as stale). (6) SWITCH:
 `SOFAR_ACTIVITY=off` (also `0`, `false`) removes the tests line, the commits
 line and the two description sentences — round 3's ablation arm (D5, D23);
 projections read no env and are unchanged by it.
+
+**Decision retirement (r1-fixes 3.2, D25) — stale decisions leave the digest
+without a model.** A record pays for every decision it ever logged: the
+rule verbatim, the `over` in the ledger. Two OPTIONAL fields on
+decision_logged let the author say when one is stale, and the fold resolves
+both from replayed events alone — NO wall-clock, NO env: a fold at any time
+yields the same state (the fold API's purity, D20). (1) `supersedes:
+"D<n>"` names an EARLIER decision of the SAME record this one replaces
+(per-record, like the ordinals; no cross-record form). The fold marks the
+target `superseded_by: <ordinal>` when the reference resolves and is
+permitted; a forward or self reference is recorded and inert. (2) `until:
+"<task id>"` scopes the decision to a task of this record: it is in force
+until that task RESOLVES (done or dropped, as replayed) — derived at read
+time from the task's final status (core/retire.ts), never stored; an id the
+plan never names never resolves. STANDING RULES NEVER AGE OUT: `until` is
+rejected by payload validation on a decision carrying `rule`, and a
+rule-carrying decision is retired ONLY by a superseder that itself carries
+`rule` — the fold leaves a rule-less superseder's reference inert — so the
+set of standing constraints only ever shrinks by an explicit new constraint
+that names the old one. COUNTERS: ordinals `D<n>` and `Next ids` count every
+decision, retired or not; a retired D7 is D7 in every citation. SURFACES:
+the SessionStart digest (renderStatus) and the relevant-lessons line drop
+retired decisions; the full status and the review packet demand only rules
+in force; decisions.md keeps every decision and marks the retired ones
+(`superseded by D<m>`, `until <task>`, `retired: <task> resolved`,
+`supersedes D<n>`); `sofar find` and the graph are unchanged. SWITCH:
+`SOFAR_RETIRE=off` (also `0`, `false`), read at RENDER time only, renders
+every surface as if nothing were retired — round 3's ablation arm (D5); the
+fold never reads it, so folded state and the fold-parity goldens
+(`FP-10-decision-supersession`) are the same bytes on both arms. PREDICT
+(stated before build): on the real record, retiring what later decisions
+replaced cuts the SessionStart digest ≥10% chars with C3 no worse.
 
 **Quick-work lane (r1-fixes 2.6, D14, D15).** The reserved slug `quick` is
 the standing per-repo record ad-hoc work lands in with no ceremony. It is a
@@ -4020,6 +4063,34 @@ stay the underlying derivation's, and exit codes are styling-independent.
   to exactly sofar_update_task and sofar_end_session and to neither under the
   switch; both protocol blocks contain the WHY clause and their V7
   predecessors classify as stale.
+- **Decision retirement (r1-fixes 3.2):** `supersedes` accepts only a bare
+  `D<n>`, `until` only a non-empty task id and never alongside `rule`; the
+  fold sets `superseded_by` on a resolved, permitted reference and leaves a
+  rule-less superseder of a rule, a forward reference and a self reference
+  inert, folding to the same marks from shuffled lines; retiredOrdinals adds
+  an `until` decision once its task is done or dropped and never for an id
+  the plan lacks; renderStatus drops retired decisions from Standing
+  constraints, the recent window (the last 5 in force) and the rejected
+  ledger while `Next ids` still counts them, marks a superseder
+  `(supersedes D<n>)` and heads the index `(<in force> in force, <k>
+  retired)`; a record with nothing retired renders byte-identically with
+  and without `SOFAR_RETIRE=off`, and with it a record with retirements
+  renders every decision as before, in renderStatus and renderFullStatus
+  alike; decisions.md keeps every decision with its retirement mark; the
+  review packet lists only rules in force and the complete rejected list;
+  a retired decision is not a lesson and the switch restores it; the
+  fold-parity suite passes with `FP-10-decision-supersession` and the
+  earlier goldens unchanged.
+- **Code-unit order (r1-fixes 5.2, rust-core D6):** every sort of a path,
+  slug, session or event id or lexicon term on a shared surface goes through
+  `byCodeUnit` (core/order.ts) — plain `<`/`>` on strings, UTF-16 code-unit
+  order, what Rust's `str` orders by — and no engine source calls
+  `localeCompare`; `['readme.md','Zed.ts','a.ts','README.md']` sorts to
+  `README.md, Zed.ts, a.ts, readme.md`, `a-b` sorts before `ab`, a surrogate
+  pair sorts below U+FF5E (units, not code points), and two open sessions
+  sharing `readme.md`, `Zed.ts` and `README.md` list their conflicts in that
+  code-unit order; every projection golden and fold-parity golden is
+  byte-unchanged (all lowercase ASCII, where the orders agree).
 - **Repo memory capture:** `sofar remember <text>` and `sofar_remember`
   append memory_promoted and report the `<slug> M<n>` handle; ordinals follow
   log order; `memory.md` appears only once something is promoted; empty text

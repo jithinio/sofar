@@ -93,6 +93,8 @@ synced, and any absence, staleness, or corruption falls back to reading the logs
 | `core/lexicon.ts` | Turns a question into seeds when nothing denotes it: tokenize, fold plurals and tenses, rank by IDF. No model, and every match returns the words that carried it. |
 | `core/lessons.ts` | Relevant lessons at the prompt (r1-fixes 3.3, D16): BM25-ranks the prompt against this initiative's decisions and stall handoffs with the lexicon's ranker, in-process from the fold — no model, no file read, two lines at most; bounded to the last 60 decisions and switchable off with `SOFAR_LESSONS=off` (D18). |
 | `core/derived.ts` | Derived activity (r1-fixes 2.5, D24): the closed test-command recognizer the fold uses to mark test-shaped `command_run` events, the `SOFAR_ACTIVITY` switch, and the "log only why" sentences the MCP server appends to two tool descriptions. Pure — the fold never reads the env. |
+| `core/retire.ts` | Decision retirement (r1-fixes 3.2, D25): which decisions have left the digest — superseded by a later one (`superseded_by`, set by the fold) or scoped by `until` to a task that resolved — derived from the record, never a clock; plus the `SOFAR_RETIRE` switch the renderers read. |
+| `core/order.ts` | One string order for every shared surface (r1-fixes 5.2, rust-core D6): `byCodeUnit`, UTF-16 code-unit comparison behind every sort of a path, slug, id or term — what Rust's `str` orders by; `localeCompare` is ICU collation and diverges on case and punctuation. |
 
 ### 4. Projections — state rendered to disk
 

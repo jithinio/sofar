@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { isClosedInitiativeStatus, type InitiativeStatus } from '@sofar/schema'
 import { foldLog, freshnessTotal } from './fold'
+import { byCodeUnit } from './order'
 
 /**
  * Initiative listing (initiative-list 1.2): the portfolio derivation behind
@@ -196,7 +197,7 @@ export function listInitiatives(rootDir: string): InitiativeListing {
     if ((a.last_event_id === null) !== (b.last_event_id === null)) {
       return a.last_event_id === null ? 1 : -1 // never-logged initiatives sink
     }
-    return a.slug.localeCompare(b.slug)
+    return byCodeUnit(a.slug, b.slug)
   })
 
   return { entries, warnings }

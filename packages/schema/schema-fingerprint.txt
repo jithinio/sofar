@@ -5,7 +5,7 @@ plan_updated: plan: {goal?, phases: [{name, status?: pending|active|done|blocked
 phase_status_changed: phase, status: pending|active|done|blocked|dropped, note? (say why when dropped)
 task_added: phase, id, title, status?: pending|active|done|blocked|dropped, verify?: {cmd, cwd?, timeout_ms?} (the acceptance command sofar drive runs before accepting the task)
 task_status_changed: id, status: pending|active|done|blocked|dropped, note? (say why when blocked or dropped)
-decision_logged: chose, over, because, rule? (one imperative every later session must obey), guard? (path:<globs> or cmd:<globs>; only with rule)
+decision_logged: chose, over, because, rule? (one imperative every later session must obey), guard? (path:<globs> or cmd:<globs>; only with rule), supersedes? (D<n> of the earlier decision this one replaces), until? (task id — in force until it resolves; never with rule)
 session_started: tool (your agent name), model?
 session_ended: summary, next_action (the single next step)
 session_closed: reason

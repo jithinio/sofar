@@ -1,5 +1,10 @@
 # Golden manifest (rust-core D11)
 
+Verified byte-unchanged against the TypeScript reference at **r1-fixes
+d9b2878** (3.2 decision retirement, D25, and 5.2 code-unit string order, D26,
+merged into rust-core after 2.4): every golden below is identical, so the
+set stands as recorded. The entries that follow describe the last re-record.
+
 Recorded from the TypeScript reference at **r1-fixes 4077c9a** (sofar.sh
 0.33.0-rc.1 sources plus r1-fixes 5.1 and 2.5 — the incremental fold and
 automatic outcome capture, D24 — and main's self-improve 1.1–3.3; @sofar/schema

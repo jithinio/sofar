@@ -2,6 +2,7 @@ import { ACTIVITY_LIST_CAP } from './adjacency'
 import { passOverRecord } from './index-pass'
 import { DEFAULT_META_FILE, INDEX_SCHEMA_VERSION, readIndexFile, writeIndexFile } from './index-store'
 import { type IndexedEvent } from './index-tail'
+import { byCodeUnit } from './order'
 
 /**
  * Tier 0: which sessions are OPEN, and which files they hold (record-index 2.1).
@@ -153,7 +154,7 @@ export function refreshTier0Known(sofarDir: string): Tier0Known[] {
     }
   }
   out.sort((a, b) =>
-    a.initiative === b.initiative ? a.session.localeCompare(b.session) : a.initiative.localeCompare(b.initiative),
+    a.initiative === b.initiative ? byCodeUnit(a.session, b.session) : byCodeUnit(a.initiative, b.initiative),
   )
   return out
 }
@@ -187,7 +188,7 @@ function flatten(disk: Tier0Disk): Tier0Session[] {
     }
   }
   out.sort((a, b) =>
-    a.initiative === b.initiative ? a.session.localeCompare(b.session) : a.initiative.localeCompare(b.initiative),
+    a.initiative === b.initiative ? byCodeUnit(a.session, b.session) : byCodeUnit(a.initiative, b.initiative),
   )
   return out
 }

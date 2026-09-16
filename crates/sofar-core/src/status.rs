@@ -13,8 +13,8 @@ use crate::git::GitState;
 use crate::json::{Json, js_to_string};
 use crate::projections::{
     clip, clip_block_detect, clip_detect, describe_activity, describe_freshness, describe_run,
-    phase_fraction, plural, progress_text, standing_constraint_lines, task_progress,
-    test_outcome_line,
+    phase_fraction, plural, progress_text, retired_ordinals, standing_constraint_lines,
+    task_progress, test_outcome_line,
 };
 use crate::text::{
     cmp_utf16, date_part, is_js_whitespace, js_trim, one_line, utf16_len, utf16_prefix,
@@ -362,7 +362,7 @@ pub struct NeighbourRecord {
 }
 
 /// `StatusOptions` — what the `SessionStart` hook hands the template.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StatusOptions {
     pub repo_memory: Option<String>,
     pub session_id: Option<String>,
@@ -372,6 +372,25 @@ pub struct StatusOptions {
     pub lane: bool,
     /// `activity !== false`: the D24 test line. `None`/`Some(true)` render it.
     pub activity: Option<bool>,
+    /// `retireEnabled()` (r1-fixes 3.2, D25): the TypeScript template reads
+    /// `SOFAR_RETIRE` itself; here the caller passes it (templates read no
+    /// env), defaulting to on.
+    pub retire: bool,
+}
+
+impl Default for StatusOptions {
+    fn default() -> Self {
+        Self {
+            repo_memory: None,
+            session_id: None,
+            git: None,
+            neighbours: Vec::new(),
+            notices: Vec::new(),
+            lane: false,
+            activity: None,
+            retire: true,
+        }
+    }
 }
 
 /// `lines.join('\n').length`, signed because the ledger budget it feeds can go negative.
@@ -442,7 +461,16 @@ pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String
         lines.push(String::new());
     }
 
-    let standing = standing_constraint_lines(&state.decisions, Some(STANDING_LEDGER_BUDGET));
+    // Retirement (r1-fixes 3.2, D25): a rule a later rule replaced, and below
+    // a decision superseded or scoped to a task that resolved, leave the block.
+    let retire = options.retire;
+    let retired: Vec<usize> = if retire {
+        retired_ordinals(state)
+    } else {
+        Vec::new()
+    };
+    let standing =
+        standing_constraint_lines(&state.decisions, Some(STANDING_LEDGER_BUDGET), retire);
     if !standing.is_empty() {
         lines.extend(standing.iter().cloned());
         lines.push(String::new());
@@ -893,9 +921,17 @@ pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String
     }
 
     if !state.decisions.is_empty() {
-        let total = state.decisions.len();
-        let recent = &state.decisions[total.saturating_sub(MAX_DECISIONS)..];
-        let older_count = total - recent.len();
+        // In-force decisions keep their ordinals (D25: ids never renumber);
+        // the window is the last 5 of THEM.
+        let in_force: Vec<(usize, &DecisionState)> = state
+            .decisions
+            .iter()
+            .enumerate()
+            .map(|(i, d)| (i + 1, d))
+            .filter(|(ordinal, _)| !retired.contains(ordinal))
+            .collect();
+        let recent = &in_force[in_force.len().saturating_sub(MAX_DECISIONS)..];
+        let older_count = in_force.len() - recent.len();
         let shown_rules: Vec<usize> = standing
             .iter()
             .filter_map(|line| {
@@ -904,16 +940,21 @@ pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String
                 digits[..end].parse().ok()
             })
             .collect();
-        let window = if older_count > 0 {
-            format!("last {} of {total}", recent.len())
+        let count = if older_count > 0 {
+            format!("last {} of {}", recent.len(), in_force.len())
         } else {
-            total.to_string()
+            in_force.len().to_string()
+        };
+        let window = if retired.is_empty() {
+            count
+        } else {
+            format!("{count} in force, {} retired", retired.len())
         };
         lines.push(format!(
             "Recent decisions ({window}; full text in decisions.md):"
         ));
-        for (i, d) in recent.iter().enumerate() {
-            let ordinal = older_count + i + 1;
+        for (ordinal, d) in recent {
+            let ordinal = *ordinal;
             let ruled = d.rule.is_some() && shown_rules.contains(&ordinal);
             let chose = clip(
                 &d.chose,
@@ -928,17 +969,27 @@ pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String
             } else {
                 String::new()
             };
+            let mut marks: Vec<String> = Vec::new();
+            if ruled {
+                marks.push("rule above".to_owned());
+            }
+            if retire && let Some(supersedes) = &d.supersedes {
+                marks.push(format!("supersedes {supersedes}"));
+            }
+            let mark = if marks.is_empty() {
+                String::new()
+            } else {
+                format!(" ({})", marks.join("; "))
+            };
             lines.push(format!(
-                "- [D{ordinal}] {}{} {chose}{over}",
-                date_part(&d.ts),
-                if ruled { " (rule above)" } else { "" }
+                "- [D{ordinal}] {}{mark} {chose}{over}",
+                date_part(&d.ts)
             ));
         }
 
-        let rejected: Vec<(usize, &DecisionState)> = state.decisions[..older_count]
+        let rejected: Vec<(usize, &DecisionState)> = in_force[..older_count]
             .iter()
-            .enumerate()
-            .map(|(i, d)| (i + 1, d))
+            .copied()
             .filter(|(_, d)| has_real_alternative(&d.over))
             .collect();
         if !rejected.is_empty() {
@@ -1013,9 +1064,10 @@ fn surface_list(surface: &Json, key: &str) -> Vec<String> {
 }
 
 /// `renderFullStatus`: plain `sofar status`, uncapped, with the per-task tree.
+/// `retire` is `retireEnabled()` (D25), read by the caller.
 #[must_use]
 #[allow(clippy::too_many_lines, reason = "a verbatim port of one template")]
-pub fn render_full_status(state: &InitiativeState) -> String {
+pub fn render_full_status(state: &InitiativeState, retire: bool) -> String {
     let mut lines: Vec<String> = Vec::new();
     lines.push(format!(
         "# {}",
@@ -1062,7 +1114,7 @@ pub fn render_full_status(state: &InitiativeState) -> String {
         }
     ));
 
-    let standing = standing_constraint_lines(&state.decisions, None);
+    let standing = standing_constraint_lines(&state.decisions, None, retire);
     if !standing.is_empty() {
         lines.push(String::new());
         lines.extend(standing);
@@ -1300,7 +1352,7 @@ mod tests {
             out,
             "# Sofar status: demo\n\nGoal: (none recorded)\n\nProgress: 0/0 tasks done (0%) across 0 phase(s)\nActive phase: (none)\n\n(generated by sofar — full detail in plan.md, decisions.md, sessions/)\n"
         );
-        let full = render_full_status(&state);
+        let full = render_full_status(&state, true);
         assert_eq!(
             full,
             "# demo\n\nGoal: (none recorded)\nProgress: 0/0 tasks done (0%) across 0 phase(s)\n\nNext action: (none recorded)\n"

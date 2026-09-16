@@ -47,7 +47,11 @@ fn cases() -> Vec<Case> {
         })
         .collect();
     ids.sort();
-    assert_eq!(ids.len(), 9, "the nine D22 cases (FP-09 from r1-fixes 2.5)");
+    assert_eq!(
+        ids.len(),
+        10,
+        "the ten D22 cases (FP-09 from r1-fixes 2.5, FP-10 from 3.2/D25)"
+    );
     ids.into_iter()
         .map(|id| {
             let path = dir.join("cases").join(format!("{id}.jsonl"));

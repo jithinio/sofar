@@ -30,6 +30,12 @@ pub struct DecisionLoggedPayload {
     pub over: ::std::string::String,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub rule: ::std::option::Option<::std::string::String>,
+    #[doc = "`supersedes` (r1-fixes 3.2, D25): the bare handle `D<n>` of an EARLIER decision in the SAME record this one replaces. The fold resolves it from the log alone and marks the target `superseded_by` this decision's ordinal; the digest then stops rendering the target. Per-record like the ordinals themselves. A rule-carrying target is retired ONLY by a rule-carrying superseder — standing rules never age out, they are only ever replaced by a new rule that names them; any other reference is recorded but inert (forward, self, rule mismatch)."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub supersedes: ::std::option::Option<::std::string::String>,
+    #[doc = "`until` (r1-fixes 3.2, D25): the id of a task in this record. The decision is in force until that task RESOLVES (done or dropped, as replayed) and then leaves the digest — validity derives from recorded events, never from a clock. REJECTED alongside `rule`: a standing constraint never ages out. An id the plan never names never retires."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub until: ::std::option::Option<::std::string::String>,
 }
 #[doc = "Mechanical outcome fields (self-improve D2): OPTIONAL, additive, and the ONLY outcome facts the durable record carries. `ok` is what the host said about the call — PostToolUse fires only on success, PostToolUseFailure only on failure — and `exit` is the process status when the host supplies one as a number. Absent means UNKNOWN (an engine or host that predates capture), never success. Everything richer — error text, output, timing — is a diagnostics row (src/diagnostics.ts), never a payload field."]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]

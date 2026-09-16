@@ -108,6 +108,7 @@ fn options_from(value: &Json) -> StatusOptions {
         notices,
         lane: o.get("lane").is_some_and(Json::is_true),
         activity: o.get("activity").map(Json::is_true),
+        retire: true,
     }
 }
 
@@ -149,7 +150,28 @@ fn goldens() -> Vec<Golden> {
         .collect()
 }
 
+/// The record slug of a fold-parity case: the `initiative` of its first
+/// parseable line, as the TypeScript side reads it.
+fn fold_parity_slug(text: &str) -> String {
+    text.split('\n')
+        .filter_map(|line| json::parse(line).ok())
+        .find_map(|v| {
+            v.as_obj()?
+                .get("initiative")?
+                .as_nonempty_str()
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| "unknown".to_owned())
+}
+
 fn state_for(g: &Golden) -> InitiativeState {
+    if g.kind == "fold-parity" {
+        let path = conformance_dir()
+            .join("fold-parity/cases")
+            .join(format!("{}.jsonl", g.slug));
+        let text = std::fs::read_to_string(&path).expect("fold-parity case");
+        return sofar_core::fold::fold_text(&text, &fold_parity_slug(&text)).state;
+    }
     let log = conformance_dir()
         .join("fixtures")
         .join(&g.kind)
@@ -215,7 +237,7 @@ fn every_surface_matches_the_typescript_golden_byte_for_byte() {
             &id,
             "status",
             by_name["status"],
-            &render_full_status(&state),
+            &render_full_status(&state, true),
         );
         for (variant, value) in options.js_ordered() {
             let name = format!("digest:{variant}");
