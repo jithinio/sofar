@@ -3522,18 +3522,33 @@ stay the underlying derivation's, and exit codes are styling-independent.
   and a deleted log are all seen; a correction appended through the context
   refolds; the cache holds at most 8 slugs.
 - **Read-path latency budget (r1-fixes D18):** `npm run bench:read-paths --
-  --baseline <previous release cli.js> --candidate <RC cli.js>` on the
-  real-record fixture (this repo's own record, a registered session id),
-  interleaved ABAB, n≥25, reports session-start, user-prompt, stop and
-  statusline p50 for both and exits 1 when any candidate p50 exceeds the
-  baseline's by more than 10%. Run by hand on a quiet machine before an RC;
-  the table goes in the RC's task note. Attribution per lever is by
-  ablation (D5, D20): a lever's latency cost is stated beside its predicted
-  gain, and one over budget gets cheaper or a flag defaulted off. Measured
-  for the r1-fixes RC against 0.32.0 on this record: session-start +0.5 ms,
-  user-prompt +3.4 (lessons line +1.5), stop +0.5, statusline +1.0 — all
-  within budget. With `SOFAR_LESSONS=off` the prompt hook renders no
-  lessons line; with 61 decisions folded the oldest is not a lesson.
+  --baseline <previous release cli.js> --candidate <RC cli.js> --fixture
+  repo|i1000-10mb` times session-start, user-prompt, stop and statusline
+  end to end, baseline and candidate interleaved ABAB, n≥25, and exits 1
+  when any candidate p50 exceeds the baseline's by more than 10%. TWO
+  fixtures are pinned, named as rust-core's conformance perf cells are
+  (`SOFAR_PERF_CELLS=repo,i1000-10mb` there), and the gate must pass on
+  BOTH: `repo` — this repository's own record (55 initiatives, 0.6 MB
+  bound log on main, a registered session id passed with `--session`), and
+  `i1000-10mb` — 1,000 initiatives sharing the `.sofar/` with a ≥10 MB
+  bound log (36–41k events: a plan, ten decisions with five guarded,
+  sessions of 24 mechanical events each with a write-back, every tenth
+  sibling leaving a session open on a path the bound record also edits),
+  which the script generates deterministically so a scale-only regression
+  cannot hide behind a small-record pass. An RC CHECKLIST ITEM (4.2), not
+  CI: hosted runners' timing noise exceeds the budget, so the gate runs by
+  hand on a quiet machine against the pinned 0.32.0 as-shipped baseline
+  (`~/.bench/sofar-0.32.0`), and both tables are recorded in the RC's task
+  note as evidence, together with the ablation switch the round-2 addendum
+  needs (`SOFAR_LESSONS=off`; D20: priced separately, never summed).
+  Attribution per lever is by ablation (D5, D20): a lever's latency cost is
+  stated beside its predicted gain, and one over budget gets cheaper or a
+  flag defaulted off. Measured for the r1-fixes RC against 0.32.0 on
+  `repo`: session-start +0.9 ms, user-prompt +2.9 (lessons line ~+1.5),
+  stop +0.1, statusline +0.7 — all within budget; rust-core's interleaved
+  re-run reported +0.1 / −0.4 / +1.4 / +1.1. With `SOFAR_LESSONS=off` the
+  prompt hook renders no lessons line; with 61 decisions folded the oldest
+  is not a lesson.
 - **Relevant lessons (r1-fixes 3.3):** with three decisions folded, a prompt
   that re-proposes the second's rejected approach in the subject's words
   renders `sofar: ruled out before — [D2] <its over> (matched: …)` first
