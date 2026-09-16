@@ -4,7 +4,7 @@
 
 Goal: A small, trustworthy improvement process whose every change has inspectable benefit, cost, evidence and reversal path (self-improve D1). Developer-side first: benchmark → loss study → bounded fix → held-out proof, beating an equal-budget direct-fix baseline net of full cost. In-product local adaptation only after repeated wins; private diagnostics never enter events.jsonl, git, export or sync.
 
-Progress: 6/14 tasks done (42%)
+Progress: 7/14 tasks done (50%)
 
 ## Phase 1 — Evidence contracts and capture [done] — 3/3 done
 
@@ -22,9 +22,9 @@ Progress: 6/14 tasks done (42%)
 - [x] 2.2 Precision and recall against the manual smoke and round-1 loss-study rows before any suggestion is trusted
 - [x] 2.3 Suggestions only: approval bound to an exact candidate hash, stale applications rejected, rejection and reversal history kept; offline replay limited to context-size and information-preservation checks
 
-## Phase 3 — Bounded fix loop (developer-side) [pending] — 0/4 done
+## Phase 3 — Bounded fix loop (developer-side) [pending] — 1/4 done
 
-- [ ] 3.1 Frozen evaluator outside the candidate's control: runner, hidden tests, fixtures, scoring and result capture live in a separate repo and process the candidate cannot write
+- [x] 3.1 Frozen evaluator outside the candidate's control: runner, hidden tests, fixtures, scoring and result capture live in a separate repo and process the candidate cannot write
 - [ ] 3.2 Durable spend ledger across restarts counting every attempt, retry and evaluation, aligned with bench-refresh D14 and D17
 - [ ] 3.3 Equal-budget baseline: the same agent directly fixing the same loss with the same feedback and spend; a loop change is kept only if it beats this baseline
 - [ ] 3.4 First manual cycle on one round-1 loss row: loop result vs direct-fix baseline vs the human-built r1-fixes change
@@ -36,4 +36,4 @@ Progress: 6/14 tasks done (42%)
 - [ ] 4.3 Public standing snapshot (downloads, stars, listings) reported separately and never used as a technical gate
 - [ ] 4.4 Expand autonomy, including any in-product local adaptation, only after 3 consecutive cycles beat the direct-fix baseline on unseen work
 
-Next action: Phase 3: frozen evaluator (3.1) outside the candidate's control.
+Next action: 3.2 durable spend ledger: turn runs/*/results/attempts.jsonl into a cross-run, restart-safe ledger (every attempt, retry, control and evaluation, cost or UNKNOWN), aligned with bench-refresh D14/D17, with a per-run --max-usd stop; log its contract as a Decision first.
