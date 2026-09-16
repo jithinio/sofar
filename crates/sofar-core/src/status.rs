@@ -121,7 +121,8 @@ pub fn latest_run(state: &InitiativeState) -> Option<&RunState> {
 
 /// `openSessionFiles`: (session, file) pairs of every live session's activity,
 /// the `+N more` sentinel skipped.
-fn open_session_files<'a>(
+#[must_use]
+pub fn open_session_files<'a>(
     state: &'a InitiativeState,
     also_live: Option<&str>,
 ) -> Vec<(&'a str, &'a str)> {

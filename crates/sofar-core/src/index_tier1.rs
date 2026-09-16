@@ -422,3 +422,103 @@ mod tests {
         fs::remove_dir_all(&dir).unwrap();
     }
 }
+
+// ---------------------------------------------------------------------------
+// Lookups the PostToolUse hook makes (guardsForSubject, resolvePaths, lastTouch).
+
+/// `guardsForSubject`: every decision whose guard claims this subject — a
+/// malformed guard compiles to nothing and never matches.
+#[must_use]
+pub fn guards_for_subject<'a>(
+    index: &'a GuardIndex,
+    domain: crate::guards::GuardDomain,
+    subject: &str,
+) -> Vec<&'a GuardedDecision> {
+    index
+        .guards
+        .iter()
+        .filter(|d| {
+            crate::guards::parse_guard(&d.guard)
+                .is_some_and(|g| g.domain == domain && crate::guards::guard_matches(&g, subject))
+        })
+        .collect()
+}
+
+/// The derived half, unioned repo-wide (`FileIndex`): path → session → (ts, touches).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct FileIndex {
+    pub files: Vec<(String, PathSessions)>,
+}
+
+/// `unionFiles` over the slugs in code-unit order.
+fn union_files(states: &[(String, SlugFileState)]) -> FileIndex {
+    let mut slugs: Vec<&(String, SlugFileState)> = states.iter().collect();
+    slugs.sort_by(|a, b| cmp_utf16(&a.0, &b.0));
+    let mut files: Vec<(String, PathSessions)> = Vec::new();
+    for (_, state) in slugs {
+        for (path, sessions) in &state.files {
+            let i = if let Some(i) = files.iter().position(|(p, _)| p == path) {
+                i
+            } else {
+                files.push((path.clone(), Vec::new()));
+                files.len() - 1
+            };
+            let by_session = &mut files[i].1;
+            for (session, (ts, touches)) in sessions {
+                match by_session.iter_mut().find(|(s, _)| s == session) {
+                    Some((_, (existing_ts, existing_touches))) => {
+                        *existing_touches += touches;
+                        if cmp_utf16(ts, existing_ts).is_gt() {
+                            existing_ts.clone_from(ts);
+                        }
+                    }
+                    None => by_session.push((session.clone(), (ts.clone(), *touches))),
+                }
+            }
+        }
+    }
+    FileIndex { files }
+}
+
+/// `refreshFiles`: bring the derived half up to date and union it.
+#[must_use]
+pub fn refresh_files(layout: &Layout) -> FileIndex {
+    union_files(&refresh_file_states(layout))
+}
+
+/// `resolvePaths` (`matchRecordedPaths`): the exact recorded path, else every
+/// recorded path ending in `/<query>`, sorted.
+#[must_use]
+pub fn resolve_paths(index: &FileIndex, path: &str) -> Vec<String> {
+    let query = path.strip_prefix("./").unwrap_or(path);
+    if index.files.iter().any(|(p, _)| p == query) {
+        return vec![query.to_owned()];
+    }
+    let suffix = format!("/{query}");
+    let mut matches: Vec<String> = index
+        .files
+        .iter()
+        .filter(|(p, _)| p.ends_with(&suffix))
+        .map(|(p, _)| p.clone())
+        .collect();
+    matches.sort_by(|a, b| cmp_utf16(a, b));
+    matches
+}
+
+/// `lastTouch`: when this session last touched the path, as the index recorded it.
+#[must_use]
+pub fn last_touch(index: &FileIndex, path: &str, session: &str) -> Option<String> {
+    let mut latest: Option<String> = None;
+    for recorded in resolve_paths(index, path) {
+        let Some((_, sessions)) = index.files.iter().find(|(p, _)| *p == recorded) else {
+            continue;
+        };
+        let Some((_, (ts, _))) = sessions.iter().find(|(s, _)| s == session) else {
+            continue;
+        };
+        if latest.as_deref().is_none_or(|l| cmp_utf16(ts, l).is_gt()) {
+            latest = Some(ts.clone());
+        }
+    }
+    latest
+}

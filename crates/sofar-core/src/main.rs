@@ -1,9 +1,8 @@
 //! `sofar-core` — the native hook binary. Parses the shim argv grammar and
-//! dispatches; the six hook handlers arrive with tasks 2.5 and 2.6, the hidden
-//! `fold` conformance command is here (2.3, D15) and plain `status` (2.4,
-//! D14). Until then an owned hook shape exits 70 (`EX_SOFTWARE`) with a
-//! one-line reason, and a shape the TypeScript CLI owns exits 64 (`EX_USAGE`)
-//! so no caller can mistake either for a handled hook.
+//! dispatches: the six hooks (2.5), the hidden `fold` conformance command
+//! (2.3, D15) and plain `status` (2.4, D14); the statusline arrives with 2.6
+//! and exits 70 (`EX_SOFTWARE`) until then. A shape the TypeScript CLI owns
+//! exits 64 (`EX_USAGE`) so no caller can mistake it for a handled hook.
 
 use std::io::{IsTerminal as _, Write as _};
 use std::process::ExitCode;
@@ -12,9 +11,11 @@ use sofar_core::cli::Hook;
 use sofar_core::cli::{Color, Dispatch, Owned, dispatch};
 use sofar_core::fold_cli::{CmdResult, run_fold};
 use sofar_core::hook::read_stdin;
+use sofar_core::post_tool::{handle_post_tool, handle_post_tool_failure};
 use sofar_core::resolve::resolve_root;
 use sofar_core::session_start::handle_session_start;
 use sofar_core::status_cli::run_status;
+use sofar_core::user_prompt::{handle_session_end, handle_stop, handle_user_prompt};
 
 /// `mirror` in cli/index.ts: stdout verbatim, stderr with one trailing newline.
 fn mirror(result: &CmdResult) -> ExitCode {
@@ -79,13 +80,38 @@ fn main() -> ExitCode {
             &resolve_root(root.as_deref()),
             &read_stdin(),
         )),
-        Dispatch::Owned(Owned::Event { hook, .. }) => {
-            eprintln!(
-                "sofar-core: `event {}` is not implemented yet (rust-core 2.5)",
-                hook.name()
-            );
-            ExitCode::from(70)
-        }
+        Dispatch::Owned(Owned::Event {
+            hook: Hook::PostTool,
+            root,
+        }) => mirror(&handle_post_tool(
+            &resolve_root(root.as_deref()),
+            &read_stdin(),
+        )),
+        Dispatch::Owned(Owned::Event {
+            hook: Hook::PostToolFailure,
+            root,
+        }) => mirror(&handle_post_tool_failure(
+            &resolve_root(root.as_deref()),
+            &read_stdin(),
+        )),
+        Dispatch::Owned(Owned::Event {
+            hook: Hook::UserPrompt,
+            root,
+        }) => mirror(&handle_user_prompt(
+            &resolve_root(root.as_deref()),
+            &read_stdin(),
+        )),
+        Dispatch::Owned(Owned::Event {
+            hook: Hook::Stop,
+            root,
+        }) => mirror(&handle_stop(&resolve_root(root.as_deref()), &read_stdin())),
+        Dispatch::Owned(Owned::Event {
+            hook: Hook::SessionEnd,
+            root,
+        }) => mirror(&handle_session_end(
+            &resolve_root(root.as_deref()),
+            &read_stdin(),
+        )),
         Dispatch::Owned(Owned::Statusline { .. }) => {
             eprintln!("sofar-core: `statusline` is not implemented yet (rust-core 2.6)");
             ExitCode::from(70)

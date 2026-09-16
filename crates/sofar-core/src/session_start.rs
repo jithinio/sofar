@@ -5,12 +5,13 @@
 
 use std::path::Path;
 
+use crate::append::fold_state;
 use crate::attribution::{
     CommitAttribution, commits_by_task, read_attribution, read_shipping_from,
 };
 use crate::date::{js_date_parse, js_round, now_ms};
 use crate::diagnostics::{RowInput, record_diagnostic};
-use crate::fold::{InitiativeState, empty_state};
+use crate::fold::InitiativeState;
 use crate::fold_cli::CmdResult;
 use crate::git::read_git_state;
 use crate::home::{LaneAvailability, ResolvedVia, lane_availability, resolve_session_first};
@@ -20,7 +21,6 @@ use crate::json::{Json, Object, number_to_string};
 use crate::layout::{Layout, initiative_slugs};
 use crate::projections::retire_enabled;
 use crate::shipwatch::note_upstream;
-use crate::snapshot::{fold_file, state_of};
 use crate::status::{
     QUICK_LANE, StatusOptions, enforce_status_limit, is_closed_initiative_status, render_status,
     session_id_line,
@@ -71,24 +71,6 @@ pub fn read_repo_memory(layout: &Layout) -> Option<String> {
         return None;
     }
     Some(text)
-}
-
-/// The folded state, a missing log folding to the empty state with the slug.
-#[must_use]
-pub fn fold_state(layout: &Layout, slug: &str) -> InitiativeState {
-    let log = layout.events_path(slug);
-    let mut state = if log.exists() {
-        match fold_file(&log, slug) {
-            Ok(snapshot) => state_of(&snapshot).state,
-            Err(_) => empty_state(),
-        }
-    } else {
-        empty_state()
-    };
-    if state.slug.is_empty() {
-        slug.clone_into(&mut state.slug);
-    }
-    state
 }
 
 /// `lastEventMs`: the newest parseable trailing line's `ts`.

@@ -14,10 +14,12 @@
 //! [`projections`], [`status_cli`], [`resolve`], [`git`]); hooks (2.5);
 //! statusline (2.6).
 
+pub mod append;
 pub mod atomic;
 pub mod attribution;
 pub mod cli;
 pub mod collections;
+pub mod cross_conflicts;
 pub mod date;
 pub mod derived;
 pub mod diagnostics;
@@ -33,21 +35,30 @@ pub mod identity;
 pub mod index_pass;
 pub mod index_store;
 pub mod index_tail;
+pub mod index_tier0;
 pub mod index_tier1;
 pub mod json;
 pub mod layout;
+pub mod lessons;
+pub mod lexicon;
 pub mod lock;
 pub mod log;
+pub mod nudge;
 pub mod payload;
+pub mod peers;
+pub mod post_tool;
 pub mod projections;
+pub mod redact;
 pub mod resolve;
 pub mod session_start;
 pub mod sha256;
+pub mod shell;
 pub mod shipwatch;
 pub mod snapshot;
 pub mod status;
 pub mod status_cli;
 pub mod text;
+pub mod user_prompt;
 pub mod version;
 pub mod warmth;
 

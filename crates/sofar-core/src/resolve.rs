@@ -248,3 +248,42 @@ mod tests {
         fs::remove_dir_all(&root).unwrap();
     }
 }
+
+/// Node's `path.posix.relative(from, to)`: both resolved against the cwd,
+/// the common leading segments dropped, `..` for each remaining `from`
+/// segment. `""` when equal.
+#[must_use]
+pub fn posix_relative(from: &str, to: &str) -> String {
+    let abs = |p: &str| -> String {
+        if p.starts_with('/') {
+            posix_normalize(p, false)
+        } else {
+            let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
+            posix_normalize(&format!("{}/{p}", cwd.to_string_lossy()), false)
+        }
+    };
+    let from = abs(from);
+    let to = abs(to);
+    if from == to {
+        return String::new();
+    }
+    let f: Vec<&str> = from.split('/').filter(|s| !s.is_empty()).collect();
+    let t: Vec<&str> = to.split('/').filter(|s| !s.is_empty()).collect();
+    let common = f.iter().zip(t.iter()).take_while(|(a, b)| a == b).count();
+    let mut parts: Vec<&str> = vec![".."; f.len() - common];
+    parts.extend_from_slice(&t[common..]);
+    parts.join("/")
+}
+
+#[cfg(test)]
+mod relative_tests {
+    use super::posix_relative;
+
+    #[test]
+    fn relative_follows_node() {
+        assert_eq!(posix_relative("/a/b", "/a/b/c/d.ts"), "c/d.ts");
+        assert_eq!(posix_relative("/a/b", "/a/c"), "../c");
+        assert_eq!(posix_relative("/a/b", "/a/b"), "");
+        assert_eq!(posix_relative("/a/b", "/x"), "../../x");
+    }
+}

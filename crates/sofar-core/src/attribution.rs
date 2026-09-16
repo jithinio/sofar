@@ -77,18 +77,62 @@ fn run_git(cwd: &Path, args: &[String]) -> Option<String> {
     }
 }
 
+/// `AttributionQuery`: the window, an optional range, and the first-push form.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AttributionQuery {
+    pub range: Option<String>,
+    pub max_count: Option<usize>,
+    pub first_push_of: Option<String>,
+}
+
 /// `readAttribution(rootDir, {maxCount})`.
 #[must_use]
 pub fn read_attribution(root: &Path, max_count: usize) -> Option<Vec<CommitAttribution>> {
+    read_attribution_query(
+        root,
+        &AttributionQuery {
+            max_count: Some(max_count),
+            ..AttributionQuery::default()
+        },
+    )
+}
+
+/// `readAttribution(rootDir, query)`: a range is a rev, never a flag; the
+/// first-push form subtracts every other origin ref.
+#[must_use]
+pub fn read_attribution_query(
+    root: &Path,
+    query: &AttributionQuery,
+) -> Option<Vec<CommitAttribution>> {
+    let max_count = query.max_count.unwrap_or(DEFAULT_MAX_COUNT);
     if max_count == 0 {
         return None;
     }
-    let args = vec![
+    let mut args = vec![
         "log".to_owned(),
         "--no-color".to_owned(),
         format!("--max-count={max_count}"),
         format!("--format={RS}%H{US}%(trailers:key={TRAILER_KEY},valueonly,separator=%x2C){US}%B"),
     ];
+    if let Some(range) = &query.range {
+        if range.is_empty() || range.starts_with('-') {
+            return None;
+        }
+        args.push(range.clone());
+    }
+    if let Some(branch) = &query.first_push_of {
+        if branch.is_empty()
+            || branch.starts_with('-')
+            || branch
+                .chars()
+                .any(|c| crate::text::is_js_whitespace(c) || matches!(c, '*' | '?' | '[' | ']'))
+        {
+            return None;
+        }
+        args.push("--not".to_owned());
+        args.push(format!("--exclude=origin/{branch}"));
+        args.push("--remotes=origin".to_owned());
+    }
     run_git(root, &args).map(|out| parse_attribution(&out))
 }
 
