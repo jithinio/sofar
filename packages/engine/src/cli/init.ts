@@ -948,15 +948,19 @@ Session loop (every write is one \`sofar event append\` call):
   shows, that is the slug to pass, every time; there is no session-level
   re-homing on this path. \`sofar remember\` takes the same record as
   \`--initiative <slug>\`, and follows the branch without it.
-- START: pick one unique session id, reuse it for every append this
-  session, and register it (repeating it is a harmless no-op):
-  \`sofar event append <slug> --type session_started --session <session-id> --source <tool> --payload '{"tool":"<tool>"}'\`
+- START: register this session WITHOUT --session (repeating it is a
+  harmless no-op):
+  \`sofar event append <slug> --type session_started --source <tool> --payload '{"tool":"<tool>"}'\`
   (<tool> is your agent's name — codex, cursor, opencode; any name works).
+  sofar joins the session your hooks already registered, or starts one and
+  prints its id, and every append without --session lands in that same
+  session — so never invent an id. Only when two sessions share this
+  worktree at once does each pass its own \`--session <id>\` on every append.
 - PLAN: a new initiative gets its plan before the first edit, and a plan
   is replanned the same way when phases or tasks change. plan_updated is
   a FULL replace — resend every phase and task, with statuses, each time:
-  \`sofar event append <slug> --session <session-id> --source <tool> --type plan_updated --payload '{"plan":{"goal":"<goal>","phases":[{"name":"Phase 1 — <name>","status":"active","tasks":[{"id":"1.1","title":"<task>","status":"pending"}]}]}}'\`
-- DURING: log work as it happens with \`sofar event append <slug> --session <session-id> --source <tool>\` plus:
+  \`sofar event append <slug> --source <tool> --type plan_updated --payload '{"plan":{"goal":"<goal>","phases":[{"name":"Phase 1 — <name>","status":"active","tasks":[{"id":"1.1","title":"<task>","status":"pending"}]}]}}'\`
+- DURING: log work as it happens with \`sofar event append <slug> --source <tool>\` plus:
   task status:  \`--type task_status_changed --payload '{"id":"<task-id>","status":"pending|active|done|blocked|dropped"}'\`
   phase status: \`--type phase_status_changed --payload '{"phase":"<phase name as in the plan>","status":"active|done"}'\`
   decisions:    \`--type decision_logged --payload '{"chose":"...","over":"...","because":"...","rule":"..."}'\`
@@ -970,7 +974,7 @@ Session loop (every write is one \`sofar event append\` call):
   captured by hooks and derived, never restated.
   Quotes, apostrophes or newlines in a payload: skip the shell quoting and
   pass it on stdin under a quoted heredoc (\`--payload @<file>\` reads a file):
-      sofar event append <slug> --session <session-id> --source <tool> --type note_added --payload - <<'EOF'
+      sofar event append <slug> --source <tool> --type note_added --payload - <<'EOF'
       {"text":"it's fine to write \\"anything\\" here"}
       EOF
 - DURING, for operational facts: a release command, a failure mode and how
@@ -988,7 +992,7 @@ Session loop (every write is one \`sofar event append\` call):
   to that record again while the run goes. \`sofar drive <slug> --stop\`
   ends it. A sandbox with no network cannot host a run.
 - BEFORE FINISHING (MANDATORY): write back —
-  \`sofar event append <slug> --type session_ended --session <session-id> --source <tool> --payload '{"summary":"<what happened>","next_action":"<single next step>"}'\`
+  \`sofar event append <slug> --type session_ended --source <tool> --payload '{"summary":"<what happened>","next_action":"<single next step>"}'\`
   A session that skips this abandons its state and the next session starts blind.
 
 Prohibitions:

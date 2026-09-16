@@ -1503,6 +1503,9 @@ rests on.
   reach.json          # TIER 1 REACH — clipped prose, citation handles, terms
   shipwatch.json      # NOT A TIER — per-session origin/<branch> marks
                       #   (commit-attribution 3.4); own version, no cursor
+  session.json        # NOT A TIER — the live-session pointer (r1-fixes
+                      #   D30): {session, writer: hook|cli, ts}, read by
+                      #   `sofar event append` with no --session
   locks/              # NOT A TIER — transient registration locks
                       #   (r1-fixes 1.2), <slug>.<sha256(session)>.lock,
                       #   removed on release; a crash leaves one that goes
@@ -2893,6 +2896,19 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   or when it cannot be created, the section runs unlocked (BD22 — the worst
   case is the duplicate the fold already skips). A registration in ANOTHER
   initiative is a different key, so re-homing is unchanged.
+  ONE ID PER LAUNCH (r1-fixes D30): idempotence cannot merge two ids, so
+  SessionStart, UserPromptSubmit, PostToolUse and PostToolUseFailure write
+  the host's session_id to `.sofar/.index/session.json` (writer `hook`),
+  and SessionEnd removes it while it still names that session.
+  `sofar event append` with no `--session` joins it: a session_started
+  adopts the pointer's id unless that session has ended (session_ended or
+  session_closed) in the target record, otherwise it mints `cli-<ulid>` and
+  writes it as the pointer (writer `cli`); every other type adopts the
+  pointer, or records `cli` when there is none. The result JSON then adds
+  `session`. An explicit `--session` always wins and never moves the
+  pointer. Last writer wins, so two sessions sharing one worktree pass
+  their own `--session`. Derived, never truth: no event records the
+  pointer, and a pointer write never changes a hook's output or exit.
   SELF-RECORDING COMMANDS ARE EXEMPT (record-hygiene D1): a Bash command
   whose every shell segment leads with `git` or `sofar` appends NOTHING.
   Both keep their own ledger — git its history, sofar the record itself —

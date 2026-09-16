@@ -641,7 +641,7 @@ describe('re-homing instruction (session-orientation 1.1)', () => {
     // `sofar event append` resolves its slug through the BRANCH and never a
     // session home, so every append carries it — above all the last one.
     expect(AGENTS_PROTOCOL_BLOCK).toContain(
-      '`sofar event append <slug> --type session_ended --session <session-id>',
+      '`sofar event append <slug> --type session_ended --source <tool>',
     )
     expect(AGENTS_PROTOCOL_BLOCK).toContain('there is no session-level')
     expect(AGENTS_PROTOCOL_BLOCK).toContain('`--initiative <slug>`, and follows the branch without it')

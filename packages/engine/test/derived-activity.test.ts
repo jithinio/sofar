@@ -271,11 +271,17 @@ describe('guidance and the switch (D24 (5), (6))', () => {
     expect(prevAgents).not.toContain('is WHY')
     // The only difference is the clause: the ledger entry is the old block byte-exact.
     expect(PROTOCOL_BLOCK.replace(/ A note or summary is WHY:\n  files, commands, test outcomes and commits are captured by hooks and\n  derived, never restated\./, '')).toBe(prevClaude)
-    // 4.1.1 (L07, D27) edited the same unreleased block in place; strip its lines too.
-    const withoutL07 = AGENTS_PROTOCOL_BLOCK.replace(',"rule":"..."}', '}').replace(
-      /  A decision's "rule" is ONE short imperative[^\n]*\n(?:  [^\n]*\n){2}  Omit it for a one-off choice\.\n/,
-      '',
-    )
+    // 4.1.1 (L07, D27) and 4.1.3 (L09, D30) edited the same unreleased block in
+    // place; undo their lines too.
+    const withoutL07 = AGENTS_PROTOCOL_BLOCK.replace(',"rule":"..."}', '}')
+      .replace(/  A decision's "rule" is ONE short imperative[^\n]*\n(?:  [^\n]*\n){2}  Omit it for a one-off choice\.\n/, '')
+      .replace(
+        /- START: register this session WITHOUT --session \(repeating it is a\n  harmless no-op\):\n(  [^\n]*\n  [^\n]*\n)(?:  [^\n]*\n){4}/,
+        '- START: pick one unique session id, reuse it for every append this\n  session, and register it (repeating it is a harmless no-op):\n$1',
+      )
+      .replace('--type session_started --source <tool>', '--type session_started --session <session-id> --source <tool>')
+      .replace('--type session_ended --source <tool>', '--type session_ended --session <session-id> --source <tool>')
+      .replaceAll('sofar event append <slug> --source <tool>', 'sofar event append <slug> --session <session-id> --source <tool>')
     expect(withoutL07.replace(/  Payload prose is WHY: files, commands, test outcomes and commits are\n  captured by hooks and derived, never restated\.\n/, '')).toBe(prevAgents)
   })
 })
