@@ -684,8 +684,13 @@ Milliseconds, p50 / p95. The same runner on 0.32.0 as shipped (a79c4a7,
 before 2.7) is kept as `perf/baseline.typescript-0.32.0-as-shipped.json`:
 there the appending hooks fold the log twice (handler + projection
 regeneration) and run at 610–621 ms p50 on a 10 MB log against 377–418 ms
-after the fix, and 92–99 ms against 71–85 ms at 1 MB; every read-only hook is
-unchanged within noise. What the numbers say, for the Rust work:
+after the fix, and 92–99 ms against 71–85 ms at 1 MB. Confirmed interleaved
+(rust-core D12: ABAB, n = 25, same record, load average 6–7 with round 1
+running; `perf/interleaved.i10-10mb.1545b55-vs-0.32.0.md`): post-tool 0.66×
+and session-end 0.65× of 0.32.0 on the 10 MB cell, every read-only hook
+1.00–1.02×; on this repo's real record the four read hooks are within
++0.1 to +1.4 ms of 0.32.0 under r1-fixes' own `bench:read-paths` harness.
+What the numbers say, for the Rust work:
 - Boot is ~32 ms of every hook (floor): node's own 22 ms plus the boot stub
   and the fast bundle. That is the part a native binary removes outright.
 - The fold scales with EVENT COUNT, not bytes: in-process `foldLog` is 13 ms

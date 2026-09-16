@@ -15,6 +15,7 @@ SOFAR_PERF=1 SOFAR_PERF_GATE=1 SOFAR_CONFORMANCE_BIN=… npx vitest run --projec
 SOFAR_PERF_CELLS=i10-1mb,repo,floor …                    # a subset (with RECORD: merged into the baseline)
 SOFAR_PERF_ITER=50 …                                     # spawns per measurement (default 20)
 SOFAR_PERF_TS_BIN="node /path/to/other/dist/cli.js" SOFAR_PERF_LABEL="why" …   # record from a TypeScript build on another branch
+SOFAR_PERF_AB_BIN="node /path/to/comparator/cli.js" …   # interleave every spawn with a comparator (ABAB); its stats land in `ab`
 ```
 
 Results land in `baseline.typescript.json` (+ `.md`) when recording, else in
@@ -71,6 +72,17 @@ directly, separating the engine's own work from node's boot.
 Sessions the matrix needs (an open session five edits past any write-back,
 one closable session per iteration) are registered through the binary
 itself, so a cell is prepared the same way for any implementation.
+
+## Method under load (rust-core D12)
+
+This machine runs benchmark rounds under launchd, so two single-order runs
+drift against each other at the 10 ms scale (a +11 ms read-path "regression"
+vanished to +0.1 ms when measured interleaved). Any claim below ±20 % is made
+only from an interleaved A/B: `SOFAR_PERF_AB_BIN` here for the scale cells
+and write paths, or r1-fixes' `npm run bench:read-paths` for the four read
+hooks on a real record (same table on both records); n ≥ 25, same record and
+session id, and the report's `load` header (1-minute load average at start
+and end) says what the machine was doing.
 
 ## Reading the baseline
 

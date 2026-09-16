@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import { cpus, platform, release, tmpdir } from 'node:os'
+import { cpus, loadavg, platform, release, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -36,6 +36,9 @@ import { BOUND_SLUG, SCALE_CELLS, writeScale, type ScaleCell } from './scale'
  *   SOFAR_PERF_GATE=1             fail unless every candidate p50 and p95 ≤ the recorded target
  *   SOFAR_PERF_CELLS=i10-1mb,repo run a subset of cells
  *   SOFAR_CONFORMANCE_BIN=…       measure another implementation
+ *   SOFAR_PERF_AB_BIN="node …/cli.js"  interleave every spawn with this comparator (ABAB, order
+ *                                 alternating per iteration) so machine drift cancels; the
+ *                                 comparator's stats land in `ab` next to each measure
  *
  * The in-process section (fold and digest render called directly) runs for
  * the TypeScript reference only: it separates the engine's own work from
@@ -49,6 +52,9 @@ const GATE = process.env.SOFAR_PERF_GATE === '1'
 /** A TypeScript build outside this tree to record as the reference (e.g. another branch's dist/cli.js). */
 const TS_BIN = process.env.SOFAR_PERF_TS_BIN?.trim()
 const LABEL = process.env.SOFAR_PERF_LABEL?.trim()
+/** A comparator binary spawned interleaved with the measured one (rust-core D12). */
+const AB_BIN = process.env.SOFAR_PERF_AB_BIN?.trim()
+const AB: readonly string[] | null = AB_BIN !== undefined && AB_BIN.length > 0 ? AB_BIN.split(/\s+/) : null
 const ONLY = new Set((process.env.SOFAR_PERF_CELLS ?? '').split(',').map((s) => s.trim()).filter((s) => s.length > 0))
 
 export const BASELINE_PATH = join(here, 'perf', 'baseline.typescript.json')
@@ -111,6 +117,8 @@ interface CellResult {
   boundLines: number
   totalBytes: number
   measures: Record<string, Stat>
+  /** The interleaved comparator's stats (SOFAR_PERF_AB_BIN), same keys as `measures`. */
+  ab?: Record<string, Stat>
 }
 
 interface InProcessResult {
@@ -128,6 +136,10 @@ interface PerfReport {
   recordedAt: string
   iterations: number
   machine: { cpu: string; cores: number; node: string; platform: string; release: string }
+  /** 1-minute load average at start and end: a loaded machine (round 1 running) drifts at the 10 ms scale. */
+  load: { start: number; end: number }
+  /** The comparator interleaved with every spawn, when SOFAR_PERF_AB_BIN was set. */
+  abCommand?: string[]
   commit: string | null
   /** Bare `node -e 0` spawn, for reference: the floor no JavaScript implementation can go below. */
   nodeSpawnMs: Stat
@@ -244,8 +256,12 @@ function binary(): { name: string; command: readonly string[] } {
 /** In-process timing needs this tree's engine to be the build under measurement. */
 const IN_PROCESS = CANDIDATE === undefined && (TS_BIN === undefined || TS_BIN.length === 0)
 
-function spawnTimed(cell: Cell, argv: readonly string[], stdin: string | Record<string, unknown> | undefined): { ms: number; exit: number | null; stderr: string } {
-  const { command } = binary()
+function spawnTimed(
+  cell: Cell,
+  argv: readonly string[],
+  stdin: string | Record<string, unknown> | undefined,
+  command: readonly string[] = binary().command,
+): { ms: number; exit: number | null; stderr: string } {
   const input = stdin === undefined ? '' : typeof stdin === 'string' ? stdin : JSON.stringify(stdin)
   const env = childEnv(cell.m)
   const startedAt = performance.now()
@@ -262,15 +278,34 @@ function spawnTimed(cell: Cell, argv: readonly string[], stdin: string | Record<
   return { ms, exit: result.status, stderr: result.stderr }
 }
 
-function measure(cell: Cell, m: Measure): Stat {
+/**
+ * ITER spawns of the measured binary; with a comparator, each iteration also
+ * spawns it, A-then-B on even iterations and B-then-A on odd, so a machine
+ * whose load drifts during the loop moves both sides alike. A comparator
+ * that needs distinct stdin per run (session-end's closable sessions,
+ * post-tool's edit paths) gets the iteration's twin (`i + ITER`).
+ */
+function measure(cell: Cell, m: Measure): { stat: Stat; ab?: Stat } {
   const samples: number[] = []
-  for (let i = 0; i < ITER; i++) {
+  const abSamples: number[] = []
+  const one = (i: number, command?: readonly string[]) => {
     m.before?.(cell)
-    const { ms, exit, stderr } = spawnTimed(cell, m.argv, m.stdin(i))
-    expect(exit, `${cell.name} / ${m.name} run ${i}: exit ${exit}\n${stderr}`).toBe(m.expectedExit)
-    samples.push(ms)
+    const { ms, exit, stderr } = spawnTimed(cell, m.argv, m.stdin(i), command)
+    expect(exit, `${cell.name} / ${m.name} run ${i}${command ? ' (comparator)' : ''}: exit ${exit}\n${stderr}`).toBe(m.expectedExit)
+    return ms
   }
-  return stat(samples)
+  for (let i = 0; i < ITER; i++) {
+    if (AB === null) {
+      samples.push(one(i))
+    } else if (i % 2 === 0) {
+      samples.push(one(i))
+      abSamples.push(one(i + ITER, AB))
+    } else {
+      abSamples.push(one(i + ITER, AB))
+      samples.push(one(i))
+    }
+  }
+  return { stat: stat(samples), ...(AB === null ? {} : { ab: stat(abSamples) }) }
 }
 
 /**
@@ -284,7 +319,7 @@ function prepare(cell: Cell): void {
     const r = spawnTimed(cell, ['event', 'post-tool'], edit(cell, OPEN_SESSION, `src/perf/drift-${i}.ts`))
     expect(r.exit, r.stderr).toBe(0)
   }
-  for (let i = 0; i < ITER; i++) {
+  for (let i = 0; i < (AB === null ? ITER : 2 * ITER); i++) {
     const r = spawnTimed(cell, ['event', 'post-tool'], edit(cell, closable(i), `src/perf/closable-${i}.ts`))
     expect(r.exit, r.stderr).toBe(0)
   }
@@ -380,7 +415,7 @@ function table(report: PerfReport, baseline: PerfReport | null): string {
   const lines: string[] = []
   lines.push(
     `perf baseline${report.label ? ` [${report.label}]` : ''} — ${report.implementation} (${report.command.join(' ')}) · ${report.iterations} spawns per cell · ${report.machine.cpu}, node ${report.machine.node} · commit ${report.commit ?? 'unknown'}`,
-    `node spawn floor: p50 ${fmt(report.nodeSpawnMs.p50)} ms · p95 ${fmt(report.nodeSpawnMs.p95)} ms`,
+    `node spawn floor: p50 ${fmt(report.nodeSpawnMs.p50)} ms · p95 ${fmt(report.nodeSpawnMs.p95)} ms · load avg ${report.load.start} → ${report.load.end}${report.abCommand ? ` · interleaved with ${report.abCommand.join(' ')}` : ''}`,
     '',
   )
   for (const cell of report.cells) {
@@ -390,12 +425,17 @@ function table(report: PerfReport, baseline: PerfReport | null): string {
         ? `## ${cell.name} — a root with no record`
         : `## ${cell.name} — ${cell.initiatives} initiatives, bound log ${(cell.boundBytes / 1e6).toFixed(1)} MB (${cell.boundLines} lines), ${(cell.totalBytes / 1e6).toFixed(1)} MB total`,
     )
-    lines.push(base ? '| command | p50 ms | p95 ms | min ms | vs target p50 | vs target p95 |' : '| command | p50 ms | p95 ms | min ms |')
-    lines.push(base ? '| --- | ---: | ---: | ---: | ---: | ---: |' : '| --- | ---: | ---: | ---: |')
+    const abCols = cell.ab !== undefined
+    lines.push(
+      `| command | p50 ms | p95 ms | min ms |${abCols ? ' comparator p50 | comparator p95 | vs comparator p50 |' : ''}${base ? ' vs target p50 | vs target p95 |' : ''}`,
+    )
+    lines.push(`| --- | ---: | ---: | ---: |${abCols ? ' ---: | ---: | ---: |' : ''}${base ? ' ---: | ---: |' : ''}`)
     for (const [name, s] of Object.entries(cell.measures)) {
+      const a = cell.ab?.[name]
       const b = base?.measures[name]
+      const abc = abCols ? (a ? ` ${fmt(a.p50)} | ${fmt(a.p95)} | ${ratio(s.p50, a.p50)} |` : ' | | |') : ''
       const cmp = b ? ` ${ratio(s.p50, b.p50)} | ${ratio(s.p95, b.p95)} |` : ''
-      lines.push(`| ${name} | ${fmt(s.p50)} | ${fmt(s.p95)} | ${fmt(s.min)} |${cmp}`)
+      lines.push(`| ${name} | ${fmt(s.p50)} | ${fmt(s.p95)} | ${fmt(s.min)} |${abc}${cmp}`)
     }
     lines.push('')
   }
@@ -440,6 +480,8 @@ describe.skipIf(!PERF)('perf baseline (rust-core 1.3)', () => {
     recordedAt: '',
     iterations: ITER,
     machine: machine(),
+    load: { start: round(loadavg()[0]!), end: 0 },
+    ...(AB === null ? {} : { abCommand: [...AB] }),
     commit: commitSha(),
     nodeSpawnMs: stat([0]),
     cells: [],
@@ -463,6 +505,7 @@ describe.skipIf(!PERF)('perf baseline (rust-core 1.3)', () => {
   })
 
   afterAll(() => {
+    report.load.end = round(loadavg()[0]!)
     const baseline = CANDIDATE === undefined ? null : readBaseline()
     const text = table(report, baseline)
     // eslint-disable-next-line no-console
@@ -492,7 +535,11 @@ describe.skipIf(!PERF)('perf baseline (rust-core 1.3)', () => {
         totalBytes: cell.totalBytes,
         measures: {},
       }
-      for (const m of measures(cell)) result.measures[m.name] = measure(cell, m)
+      for (const m of measures(cell)) {
+        const r = measure(cell, m)
+        result.measures[m.name] = r.stat
+        if (r.ab !== undefined) (result.ab ??= {})[m.name] = r.ab
+      }
       report.cells.push(result)
       if (IN_PROCESS) {
         // In-process, reference only: the engine's own work, no boot.
