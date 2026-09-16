@@ -66,4 +66,4 @@ Progress: 2/22 tasks done (9%)
 - [ ] 6.3 Replace stale public claims: one-pager R04 figures, install name @alignlabs/sofar, "adds nothing to your bill" next to --cost-cap
 
 Active phase: Phase 1 — Claim + round design
-Next action: Run owner: rule on rc.2 scope and create the memory-lead initiative
+Next action: Start an r1-fixes session to build Wave A, then cut rc.2
