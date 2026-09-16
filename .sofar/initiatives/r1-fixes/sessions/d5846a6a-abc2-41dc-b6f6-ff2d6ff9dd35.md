@@ -18,8 +18,8 @@ Nothing actionable before ~2026-09-22: 4.3 closes on bench-refresh's freeze conf
 
 ## Activity (derived from mechanical events)
 
-- Derived: 33 commands, task changes: 4.3 → blocked, 2.5 → pending
-- Commands run: 33
+- Derived: 61 commands, task changes: 4.3 → blocked, 2.5 → pending
+- Commands run: 61
 - Task changes:
   - 4.3 → blocked
   - 2.5 → pending

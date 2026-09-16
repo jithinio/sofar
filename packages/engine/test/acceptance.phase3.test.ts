@@ -227,8 +227,8 @@ describe('acceptance 2+3+4 — end-to-end smoke through the built CLI', () => {
 
     let events = logEvents(fixture.eventsPath)
     expect(events.map((e) => e.type)).toEqual(['session_started', 'file_touched', 'command_run'])
-    expect(events[1]!.payload).toEqual({ path: '/repo/src/thing.ts', op: 'edit' })
-    expect(events[2]!.payload).toEqual({ cmd: 'npm test' })
+    expect(events[1]!.payload).toEqual({ path: '/repo/src/thing.ts', op: 'edit', ok: true })
+    expect(events[2]!.payload).toEqual({ cmd: 'npm test', ok: true })
     for (const event of events) {
       expect(event.session).toBe(SESSION)
       expect(event.source).toBe('hook')

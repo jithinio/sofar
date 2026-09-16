@@ -8,7 +8,8 @@
     "outDir": "dist/types",
     "paths": {
       "@sofar/schema": ["../schema/src/events.ts"],
-      "@sofar/schema/tool-inputs": ["../schema/src/tool-inputs.ts"]
+      "@sofar/schema/tool-inputs": ["../schema/src/tool-inputs.ts"],
+      "@sofar/schema/diagnostics": ["../schema/src/diagnostics.ts"]
     }
   },
   "include": ["src/lib"]

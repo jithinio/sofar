@@ -4,7 +4,7 @@
 
 Goal: Author the public benchmark workload for bench-refresh, a travel itinerary planner specified and scaffolded so ~12 agent×memory arms can build it from one skeleton. Hidden tests score it; agent-added features are scored separately (bench-refresh D8). The best-scoring final repo is a future product candidate: live providers and an LLM Advisor swap in behind the skeleton's interfaces (D1).
 
-Progress: 5/9 tasks done (55%)
+Progress: 7/9 tasks done (77%)
 
 ## Phase 1 — Spec [active] — 2/2 done
 
@@ -16,11 +16,11 @@ Progress: 5/9 tasks done (55%)
 - [x] 2.1 Create the MIT skeleton repo: app shell, lint, test runner, NO memory tooling of any kind (arms add their own)
 - [x] 2.2 Provider interfaces plus deterministic fixture data: flights, hotels, climate/weather, FX, advisories, places/cafes/specialties, transport prices, language; a simulated clock for arrival-triggered features. The interfaces must be shaped so live providers can replace the fixtures later (D1).
 
-## Phase 3 — Chained tasks + hidden tests [pending] — 1/3 done
+## Phase 3 — Chained tasks + hidden tests [pending] — 3/3 done
 
 - [x] 3.1 Chain A (tuning): task prompts in session order, with operator-stated decisions planted in early sessions and exercised later; the shared initiative clause from bench-refresh D8
-- [ ] 3.2 Chain B (held-out): a disjoint task chain from the same skeleton, sealed from anyone tuning the engine
-- [ ] 3.3 Hidden acceptance tests per task (unit plus Playwright on stable test ids), kept OUTSIDE the skeleton; validate each against a sealed private reference solution: they pass on it and fail on the skeleton (active)
+- [x] 3.2 Chain B (held-out): a disjoint task chain from the same skeleton, sealed from anyone tuning the engine
+- [x] 3.3 Hidden acceptance tests per task (unit plus Playwright on stable test ids), kept OUTSIDE the skeleton; validate each against a sealed private reference solution: they pass on it and fail on the skeleton
 
 ## Phase 4 — Product candidate (after bench rounds) [pending] — 0/2 done
 
@@ -28,4 +28,4 @@ Progress: 5/9 tasks done (55%)
 - [ ] 4.2 Product track: swap in live providers (licensed flight, hotel, FX, weather and advisory APIs) and an LLM Advisor behind the same interfaces; user decides on release
 
 Active phase: Phase 1 — Spec
-Next action: travel-planner 3.3: add Playwright UI checks, then 3.2 chain B
+Next action: Run owner: close 3.3 (chain A and chain B tests both validated against sealed references); chain B enters the harness only at round-2 pre-registration

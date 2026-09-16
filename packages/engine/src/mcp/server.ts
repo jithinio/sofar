@@ -16,6 +16,7 @@ import {
 import { resolve } from 'node:path'
 import { version } from '../../package.json'
 import { createToolContext, ToolError, type ActiveSession, type ToolContext } from './context'
+import { recordDiagnostic } from '../core/diagnostics'
 import { getState } from './get-state'
 import { startSession } from './start-session'
 import { endSession } from './end-session'
@@ -89,6 +90,38 @@ function okResult(value: unknown): CallToolResult {
   return { content: [{ type: 'text', text }] }
 }
 
+/**
+ * One diagnostics row per MCP call, success or rejection (self-improve 1.2).
+ * This is where the MCP half of the bookkeeping denominator comes from: the
+ * PostToolUse matcher never sees mcp__sofar__* calls, so the server counts
+ * its own. Best-effort — a row that cannot be written changes nothing.
+ */
+function recordCall(
+  context: ToolContext,
+  tool: string,
+  data: { ok: boolean; code?: string; ms: number },
+): void {
+  try {
+    const active = context.session.get()
+    let initiative: string | undefined = active?.initiative
+    if (initiative === undefined) {
+      try {
+        initiative = context.resolveInitiative()
+      } catch {
+        initiative = undefined
+      }
+    }
+    recordDiagnostic(context.rootDir, {
+      kind: 'mcp_call',
+      data: { tool, ok: data.ok, ...(data.code !== undefined ? { code: data.code } : {}), ms: data.ms },
+      ...(initiative !== undefined ? { initiative } : {}),
+      ...(active !== undefined && active !== null ? { session: active.id, host: { tool: active.tool } } : {}),
+    })
+  } catch {
+    // never let diagnostics touch the tool result
+  }
+}
+
 function errorResult(error: ToolError): CallToolResult {
   return { isError: true, content: [{ type: 'text', text: JSON.stringify(error.toShape()) }] }
 }
@@ -132,6 +165,7 @@ export function createSofarServer(options: CreateSofarServerOptions = {}): Sofar
   server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToolResult> => {
     const name = request.params.name
     const args: unknown = request.params.arguments ?? {}
+    const started = Date.now()
     try {
       if (!isToolName(name)) {
         throw new ToolError(
@@ -146,12 +180,17 @@ export function createSofarServer(options: CreateSofarServerOptions = {}): Sofar
       // Runtime-validated above; the registry's per-tool arg types are
       // narrower than `unknown`, hence the cast.
       const handler = handlers[name] as (ctx: ToolContext, a: unknown) => unknown
-      return okResult(handler(context, args))
+      const result = okResult(handler(context, args))
+      recordCall(context, name, { ok: true, ms: Date.now() - started })
+      return result
     } catch (err) {
       const toolError =
         err instanceof ToolError
           ? err
           : new ToolError('io_error', err instanceof Error ? err.message : String(err))
+      // A typed rejection appends NOTHING to the record (no-write-on-invalid-
+      // input) — it lands only as a diagnostics row (self-improve D3 (5)).
+      recordCall(context, name, { ok: false, code: toolError.code, ms: Date.now() - started })
       return errorResult(toolError)
     }
   })
