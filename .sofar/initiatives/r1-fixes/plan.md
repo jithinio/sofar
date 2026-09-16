@@ -4,11 +4,9 @@
 
 Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
 
-Progress: 12/19 tasks done (63%)
+Progress: 13/20 tasks done (65%)
 
 ## Phase 1 — Wave 1: correctness and quick wins [done] — 6/6 done
-
-> All six wave-1 fixes shipped on r1-fixes (1.1 a4fc090…1.6), each with its predicted gain and ablation arm in its task note (D5).
 
 - [x] 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split sessions.
 - [x] 1.2 Session registration race: make hook registration idempotent under parallel hooks (event.ts:713-715; Cursor fires hooks in parallel). PREDICT: 0 duplicate session_started in round-2 cursor cells.
@@ -17,7 +15,7 @@ Progress: 12/19 tasks done (63%)
 - [x] 1.5 stdin/file input for `sofar remember` and `sofar event --payload`, quoted-heredoc examples, `remember --supersedes`. PREDICT: shell-mangling corrections → 0.
 - [x] 1.6 Drive diagnostics: carry the adapter's stderr tail, failure or spawn error into the stall note (drive.ts:776, adapter exit record). PREDICT: every launch failure names its cause.
 
-## Phase 2 — Wave 2: less bookkeeping, leaner context [active] — 5/6 done
+## Phase 2 — Wave 2: less bookkeeping, leaner context [active] — 6/7 done
 
 - [x] 2.1 Next D/M ids in the digest; drop the standing-constraint echo from update_task responses; batch task updates into end_session; MCP server instructions to load core tools in one ToolSearch. PREDICT: sofar share of tool calls 32–38% → ≤20%, −3 to −5 turns per session.
 - [x] 2.2 Deduplicate the digest (rejected approaches vs decision `over` text; constraints vs rules), index-first ≤6k chars with details on demand. PREDICT: S2+ digest −25% chars, no C2/C3 loss.
@@ -25,6 +23,7 @@ Progress: 12/19 tasks done (63%)
 - [x] 2.4 Tool surface: trim descriptions (repeated `initiative` text in ~10 tools); review, close and find CLI-first. PREDICT: MCP schemas 14.8k → ≤8k chars.
 - [ ] 2.5 Automatic capture through hooks: commits (task-id prefix), test pass/fail, files, errors recorded deterministically from PostToolUse/Stop; the model logs only why. PREDICT: sofar MCP/CLI calls per session −40%. (blocked)
 - [x] 2.6 Quick-work lane: ad-hoc fixes land in a standing per-repo maintenance record with no `sofar new`/plan ceremony, auto-captured by hooks, plus one line of why only when a decision was made; promote to an initiative when it grows. PREDICT: overhead ratio on 1–3 minute fixes ≤ 15% of task tokens with the fix recalled later.
+- [x] 2.7 Single fold per append: appending hooks and tools fold the log TWICE (handler, then regenerateProjections) — cache the fold in the process and apply the appended event incrementally, exactly, so the second fold is a finalize, not a replay (rust-core 1.3 finding, routed here by the run owner 2026-09-16). PREDICT: post-tool and session-end hook fold time p50 −40% or better on a ~10 MB record; projection bytes unchanged.
 
 ## Phase 3 — Wave 3: new capabilities [pending] — 1/3 done
 
@@ -34,11 +33,11 @@ Progress: 12/19 tasks done (63%)
 
 ## Phase 4 — Release [pending] — 0/4 done
 
-- [ ] 4.1 Fold in round 1's own loss-study rows (bench-refresh 4.1) as added tasks, each with a predicted gain
+- [ ] 4.1 Fold in round 1's own loss-study rows (bench-refresh 4.1) as added tasks, each with a predicted gain (blocked)
 - [ ] 4.2 Release candidate: full test suite and SPEC acceptance criteria, published ONLY as a local pinned build or the npm `next` tag — no stable publish (bench-refresh D20)
 - [ ] 4.3 Hand the release candidate to bench-refresh round 2, with the quick-work addendum chain frozen before it runs; attribute overlapping predicted gains by ablation, never by summing them (bench-refresh D20)
 - [ ] 4.4 Stable npm publish by the run owner, only after round-2 evidence passes the D19 held-out lead-margin gate (bench-refresh D20)
 
 Active phase: Phase 2 — Wave 2: less bookkeeping, leaner context
-Next action: Start Phase 4: r1-fixes 4.1 — fold round 1's own loss-study rows (bench-refresh 4.1) into the plan as added tasks, each with a predicted gain, via sofar_update_plan; 2.5, 3.1 and 3.2 stay blocked on their audit contracts.
-Blocked on: task 2.5: Blocked on self-improve 1.1/1.2 (self-improve D1, relayed by peer sofar-05). Outcome capture has one owner: self-improve 1.2 defines the outcome payload schema (packages/schema/src only) and a private local store that events.jsonl, git, export and sync never read. 2.5 consumes it and defines none of its own.; task 3.1: Audit blocker (bench-refresh D20, relayed by peer sofar-05): needs a persisted, restart-safe verification contract that invalidates on changed inputs before it is built.; task 3.2: Audit blocker (bench-refresh D20, relayed by peer sofar-05): valid_until must not use wall clock in replay, and must never age out standing rules. Contract first.
+Next action: Author the 3.1 verification contract as a Decision (persisted, restart-safe, invalidates on changed inputs — the audit blocker) and then build 3.1; or, if the operator prefers the RC first, r1-fixes 4.2 as a local pinned build under ~/.bench (no stable publish, bench-refresh D20). 4.1 waits for bench-refresh 4.1.
+Blocked on: task 2.5: Blocked on self-improve 1.1/1.2 (self-improve D1, relayed by peer sofar-05). Outcome capture has one owner: self-improve 1.2 defines the outcome payload schema (packages/schema/src only) and a private local store that events.jsonl, git, export and sync never read. 2.5 consumes it and defines none of its own.; task 3.1: Audit blocker (bench-refresh D20, relayed by peer sofar-05): needs a persisted, restart-safe verification contract that invalidates on changed inputs before it is built.; task 3.2: Audit blocker (bench-refresh D20, relayed by peer sofar-05): valid_until must not use wall clock in replay, and must never age out standing rules. Contract first.; task 4.1: Blocked on bench-refresh 4.1 (the round-1 loss study), which needs round 1 to finish: at 2026-09-16 the three round-1 ledgers still show a running session each (claude 64 done/73 failed/1 running; codex 17/0/1; cursor 44/1/1) and bench-refresh 4.1 is unchecked. The only rows that exist today are the calib/smoke PREVIEW rows, and every one of them is already a wave-1 task (1.1 empty-repo notice, 1.2 duplicate starts, 1.3 project-level initiative, 1.4 Biome, 1.5 shell mangling, 1.6 stall stderr). Nothing to fold in yet.

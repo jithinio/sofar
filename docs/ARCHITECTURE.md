@@ -55,7 +55,7 @@ Three consequences run through every design decision in the codebase:
 
 | module | what it derives |
 | --- | --- |
-| `core/fold.ts` | `InitiativeState` — the fold. Tolerant (corrupt lines skipped, never fatal), deterministic, ULID-ordered. Also `openSessionFiles`, `openSessionFileConflicts`, `overlappingWritebacks`, `sessionDebt`, `sessionGuardViolations`, `reviewWatermark`, `openFindings`. |
+| `core/fold.ts` | `InitiativeState` — the fold. Tolerant (corrupt lines skipped, never fatal), deterministic, ULID-ordered. Since r1-fixes 2.7 (D17) the replay is a retained `FoldCheckpoint` (`replayDecoded`, `appendToCheckpoint`, `finalizeFold`), so an appended event is applied without replaying the log. Also `openSessionFiles`, `openSessionFileConflicts`, `overlappingWritebacks`, `sessionDebt`, `sessionGuardViolations`, `reviewWatermark`, `openFindings`. |
 | `core/adjacency.ts` | Typed edges (`touched`, `ran`, `changed`, `worked`) and the derived `SessionActivity`. Caps live here (`ACTIVITY_LIST_CAP`, `TASK_FILES_CAP`). |
 | `core/graph.ts` | The cross-record adjacency graph — facts that outlive one log. **Never on the hot path**: it reads N logs where a shim can afford one. |
 | `core/citations.ts` | The citation grammar — scan handles from prose (lexical, permanent), bind them to initiatives (current, because `sofar new` changes the answer). Below `graph.ts` so the index can reach it. |
@@ -159,7 +159,7 @@ worse than no attribution.
 
 | module | tool |
 | --- | --- |
-| `mcp/server.ts`, `mcp/register.ts`, `mcp/context.ts` | Server, tool registration, tool context and initiative resolution. |
+| `mcp/server.ts`, `mcp/register.ts`, `mcp/context.ts` | Server, tool registration, tool context and initiative resolution. The context caches one fold checkpoint per slug by log size and mtime (D17): a hook or tool that appends folds once, not twice. |
 | `mcp/start-session.ts` | `sofar_start_session` — pins which record writes land in. |
 | `mcp/end-session.ts` | `sofar_end_session` — the write-back. Reports parallel write-backs and reachable peers. |
 | `mcp/log-decision.ts` | `sofar_log_decision` — including standing constraints and guards. |

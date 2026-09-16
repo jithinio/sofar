@@ -4,8 +4,17 @@ import { join, resolve, sep } from 'node:path'
 import { validatePayload, isClosedInitiativeStatus, isKnownEventType } from '@sofar/schema'
 import type { ToolErrorCode, ToolErrorShape } from '@sofar/schema/tool-inputs'
 import { makeEvent, SOURCES, type Actor, type EventEnvelope, type Source } from '../core/envelope'
-import { appendEvent } from '../core/log'
-import { foldLog, emptyState, type InitiativeState } from '../core/fold'
+import { appendEvent, serializeEvent } from '../core/log'
+import {
+  appendToCheckpoint,
+  countLines,
+  decodeLines,
+  emptyState,
+  finalizeFold,
+  replayDecoded,
+  type FoldCheckpoint,
+  type InitiativeState,
+} from '../core/fold'
 import { currentBranch } from '../core/git'
 import { ensureIndexDir } from '../core/index-store'
 import { QUICK_LANE } from '../core/lane'
@@ -479,14 +488,39 @@ export function createToolContext(rootDir: string): ToolContext {
     return resolveInitiative(explicit)
   }
 
+  // Fold cache (r1-fixes 2.7, D17): one replay per log per process. Keyed
+  // by the log's size and mtime, so any write this process did not make —
+  // another hook, a sibling server, a branch switch — misses and refolds;
+  // a write it DID make advances the checkpoint by exactly that line
+  // (appendAndProject below). Every hit returns finalizeFold's clone, so a
+  // caller may mutate what it gets. Bounded: the newest few slugs only.
+  const FOLD_CACHE_MAX = 8
+  const folds = new Map<string, { size: number; mtimeMs: number; cp: FoldCheckpoint }>()
+
+  function rememberFold(slug: string, entry: { size: number; mtimeMs: number; cp: FoldCheckpoint }): void {
+    folds.delete(slug)
+    folds.set(slug, entry)
+    while (folds.size > FOLD_CACHE_MAX) folds.delete(folds.keys().next().value as string)
+  }
+
   function foldState(slug: string): InitiativeState {
     const logPath = eventsPath(slug)
     let state: InitiativeState
     if (!existsSync(logPath)) {
+      folds.delete(slug)
       state = emptyState()
     } else {
       try {
-        state = foldLog(logPath).state
+        const st = statSync(logPath)
+        const hit = folds.get(slug)
+        if (hit !== undefined && hit.size === st.size && hit.mtimeMs === st.mtimeMs) {
+          state = finalizeFold(hit.cp).state
+        } else {
+          const lines = readFileSync(logPath, 'utf8').split('\n')
+          const cp = replayDecoded(decodeLines(lines), slug, countLines(lines))
+          rememberFold(slug, { size: st.size, mtimeMs: st.mtimeMs, cp })
+          state = finalizeFold(cp).state
+        }
       } catch (err) {
         throw new ToolError('io_error', `failed to read ${logPath}: ${errMessage(err)}`)
       }
@@ -521,7 +555,22 @@ export function createToolContext(rootDir: string): ToolContext {
       payload,
     })
     try {
-      appendEvent(eventsPath(slug), event)
+      const logPath = eventsPath(slug)
+      const hit = folds.get(slug)
+      appendEvent(logPath, event)
+      // Advance the checkpoint by the line just written (D17) — only when
+      // the log now measures exactly cached + this line, which proves no
+      // other writer landed in between. Any doubt drops the entry, and the
+      // fold below reads the file like any other miss.
+      if (hit !== undefined) {
+        const line = serializeEvent(event)
+        const st = statSync(logPath)
+        if (st.size === hit.size + Buffer.byteLength(line, 'utf8') + 1 && appendToCheckpoint(hit.cp, line) !== null) {
+          rememberFold(slug, { size: st.size, mtimeMs: st.mtimeMs, cp: hit.cp })
+        } else {
+          folds.delete(slug)
+        }
+      }
       regenerateProjections(initiativeDir(slug), foldState(slug))
     } catch (err) {
       if (err instanceof ToolError) throw err

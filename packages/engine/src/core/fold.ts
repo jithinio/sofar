@@ -703,97 +703,175 @@ export function decodeLines(lines: readonly string[]): DecodedLog {
   return { parsed, voided, warnings }
 }
 
-export function foldLines(lines: readonly string[], slug = ''): FoldResult {
-  const { parsed, voided, warnings } = decodeLines(lines)
+/**
+ * A replay in progress (r1-fixes 2.7, D17): the state as the loop left it
+ * plus every side table the loop carries, NOT yet finalized. Kept by the
+ * caller so the next appended event can be applied without replaying the
+ * log — a hook that appends once used to fold twice (handler, then
+ * regenerateProjections), and on an 11 MB log each fold is ~79 ms of which
+ * ~41 is this replay. Finalizing never touches it: `finalizeFold` derives on
+ * a CLONE, so a checkpoint can be finalized any number of times and each
+ * result is what a fresh fold of the same lines would return.
+ */
+export interface FoldCheckpoint {
+  slug: string
+  /** Un-finalized: no task_files, no session activity, no derived `current`. */
+  state: InitiativeState
+  warnings: string[]
+  voided: Set<string>
+  blockNotes: Map<string, string>
+  edges: GraphEdge[]
+  seenSessions: Set<string>
+  orphanCandidates: OrphanTaskEvent[]
+  guardCache: Map<string, CompiledGuard | null>
+  guardSeen: Set<string>
+  /** Greatest event id replayed so far — an append must not precede it. */
+  lastId: string
+  /** Lines of the log consumed, so an appended line gets the number a fresh read would give it. */
+  lineCount: number
+}
 
-  // Pass 2 — replay in id order.
-  const state = emptyState()
-  const blockNotes = new Map<string, string>() // task id → note from its blocking event
-  const edges: GraphEdge[] = [] // per-log adjacency, emitted as this replay goes (4.1/4.2)
-  const seenSessions = new Set<string>() // every session id on any event (record-integrity 2.1)
-  const orphanCandidates: OrphanTaskEvent[] = [] // task 12.2: replay-time skips, filtered against the final plan below
-  const guardCache = new Map<string, CompiledGuard | null>() // spec → compiled, once per fold (D3)
-  const guardSeen = new Set<string>() // decision + session + subject — one crossing, one violation
+/** The line count a fresh `split('\n')` implies: a trailing empty element is the final newline, not a line. */
+export function countLines(lines: readonly string[]): number {
+  return lines.length > 0 && lines[lines.length - 1] === '' ? lines.length - 1 : lines.length
+}
 
-  for (const { lineNo, event } of parsed) {
-    // Cursor tracks the last envelope-valid event: sync (export/import)
-    // moves events by envelope, regardless of payload validity.
-    state.cursor = event.id
+/** Pass 2 — replay in id order, retaining the accumulator. */
+export function replayDecoded(decoded: DecodedLog, slug = '', lineCount = 0): FoldCheckpoint {
+  const cp: FoldCheckpoint = {
+    slug,
+    state: emptyState(),
+    warnings: decoded.warnings,
+    voided: decoded.voided,
+    blockNotes: new Map<string, string>(), // task id → note from its blocking event
+    edges: [], // per-log adjacency, emitted as this replay goes (4.1/4.2)
+    seenSessions: new Set<string>(), // every session id on any event (record-integrity 2.1)
+    orphanCandidates: [], // task 12.2: replay-time skips, filtered against the final plan at finalize
+    guardCache: new Map<string, CompiledGuard | null>(), // spec → compiled, once per fold (D3)
+    guardSeen: new Set<string>(), // decision + session + subject — one crossing, one violation
+    lastId: '',
+    lineCount,
+  }
+  for (const line of decoded.parsed) replayOne(cp, line)
+  return cp
+}
 
-    if (voided.has(event.id)) continue
+/** One event through the loop body — the single definition both the replay and the append use. */
+function replayOne(cp: FoldCheckpoint, { lineNo, event }: ParsedLine): void {
+  const state = cp.state
+  if (event.id > cp.lastId) cp.lastId = event.id
+  // Cursor tracks the last envelope-valid event: sync (export/import)
+  // moves events by envelope, regardless of payload validity.
+  state.cursor = event.id
 
-    if (!isKnownEventType(event.type)) {
-      warnings.push(`line ${lineNo}: unknown event type "${event.type}" — skipped`)
-      continue
-    }
+  if (cp.voided.has(event.id)) return
 
-    // Forward compat (D2): a plan_updated from a newer engine may carry a
-    // status this build cannot read. Coerce those tasks rather than let one
-    // of them reject the whole plan — see coerceUnknownPlanStatuses.
-    if (event.type === 'plan_updated') {
-      for (const c of coerceUnknownPlanStatuses(event.payload)) {
-        warnings.push(
-          `line ${lineNo}: ${c.path} ("${c.subject}") has status "${c.status}", which this ` +
-            `build does not know — counted as pending; upgrade sofar to read it correctly`,
-        )
-      }
-    }
+  if (!isKnownEventType(event.type)) {
+    cp.warnings.push(`line ${lineNo}: unknown event type "${event.type}" — skipped`)
+    return
+  }
 
-    const payloadCheck = validatePayload(event.type, event.payload)
-    if (!payloadCheck.ok) {
-      warnings.push(`line ${lineNo}: invalid ${event.type} payload (${payloadCheck.errors.join('; ')}) — skipped`)
-      continue
-    }
-
-    if (event.session !== 'cli') seenSessions.add(event.session)
-    // The omitted half of the coercion above (plan-carry-forward D1). Runs
-    // BEFORE applyEvent because it needs the plan as it stands, which the
-    // full replace is about to overwrite.
-    if (event.type === 'plan_updated') {
-      for (const d of droppedResolvedStatuses(state, event.payload as unknown as PlanUpdatedPayload)) {
-        warnings.push(
-          `line ${lineNo}: ${d.path} ("${d.subject}") was ${d.was} and this plan omits its ` +
-            `status — counted as pending; restate a status to keep it`,
-        )
-      }
-    }
-    applyEvent(state, event, blockNotes, warnings, lineNo)
-    // Adjacency is emitted AFTER applyEvent, against the plan as it now
-    // stands: a task_status_changed that activates a task takes effect for
-    // the file_touched events that follow it, exactly as the pre-consolidation
-    // recordTaskFiles did (it read the same mutated state.phases).
-    edges.push(...edgesForEvent(event, slug, activeTaskIds(state)))
-    recordFreshness(state, event)
-    // Guards run AFTER applyEvent for the same reason adjacency does: the
-    // decisions in state are exactly those already logged, so a guard can
-    // only ever see the work that followed it (D3, non-retroactive).
-    recordGuardViolations(state, event, guardCache, guardSeen)
-
-    // Orphan candidate (task 12.2): a task_status_changed that applyEvent
-    // just skipped — the id is not (yet) in the plan.
-    if (event.type === 'task_status_changed') {
-      const p = event.payload as unknown as TaskStatusChangedPayload
-      if (findTask(state, p.id) === undefined) {
-        orphanCandidates.push({
-          event_id: event.id,
-          ts: event.ts,
-          session: event.session,
-          task_id: p.id,
-          status: p.status,
-        })
-      }
+  // Forward compat (D2): a plan_updated from a newer engine may carry a
+  // status this build cannot read. Coerce those tasks rather than let one
+  // of them reject the whole plan — see coerceUnknownPlanStatuses.
+  if (event.type === 'plan_updated') {
+    for (const c of coerceUnknownPlanStatuses(event.payload)) {
+      cp.warnings.push(
+        `line ${lineNo}: ${c.path} ("${c.subject}") has status "${c.status}", which this ` +
+          `build does not know — counted as pending; upgrade sofar to read it correctly`,
+      )
     }
   }
 
+  const payloadCheck = validatePayload(event.type, event.payload)
+  if (!payloadCheck.ok) {
+    cp.warnings.push(`line ${lineNo}: invalid ${event.type} payload (${payloadCheck.errors.join('; ')}) — skipped`)
+    return
+  }
+
+  if (event.session !== 'cli') cp.seenSessions.add(event.session)
+  // The omitted half of the coercion above (plan-carry-forward D1). Runs
+  // BEFORE applyEvent because it needs the plan as it stands, which the
+  // full replace is about to overwrite.
+  if (event.type === 'plan_updated') {
+    for (const d of droppedResolvedStatuses(state, event.payload as unknown as PlanUpdatedPayload)) {
+      cp.warnings.push(
+        `line ${lineNo}: ${d.path} ("${d.subject}") was ${d.was} and this plan omits its ` +
+          `status — counted as pending; restate a status to keep it`,
+      )
+    }
+  }
+  applyEvent(state, event, cp.blockNotes, cp.warnings, lineNo)
+  // Adjacency is emitted AFTER applyEvent, against the plan as it now
+  // stands: a task_status_changed that activates a task takes effect for
+  // the file_touched events that follow it, exactly as the pre-consolidation
+  // recordTaskFiles did (it read the same mutated state.phases).
+  cp.edges.push(...edgesForEvent(event, cp.slug, activeTaskIds(state)))
+  recordFreshness(state, event)
+  // Guards run AFTER applyEvent for the same reason adjacency does: the
+  // decisions in state are exactly those already logged, so a guard can
+  // only ever see the work that followed it (D3, non-retroactive).
+  recordGuardViolations(state, event, cp.guardCache, cp.guardSeen)
+
+  // Orphan candidate (task 12.2): a task_status_changed that applyEvent
+  // just skipped — the id is not (yet) in the plan.
+  if (event.type === 'task_status_changed') {
+    const p = event.payload as unknown as TaskStatusChangedPayload
+    if (findTask(state, p.id) === undefined) {
+      cp.orphanCandidates.push({
+        event_id: event.id,
+        ts: event.ts,
+        session: event.session,
+        task_id: p.id,
+        status: p.status,
+      })
+    }
+  }
+
+}
+
+/**
+ * Apply ONE line appended after the checkpoint's log, exactly as a fresh
+ * fold of log + line would — or return null when that cannot be proven
+ * cheaply, and the caller refolds: a line the decoder rejects (its warning
+ * would need the fresh numbering), a correction (it voids an event already
+ * replayed), or an id below the last replayed one (the convergent sort would
+ * place it earlier). Mutates and returns the checkpoint; a null leaves it
+ * unusable, since the log has moved past it.
+ */
+export function appendToCheckpoint(cp: FoldCheckpoint, line: string): FoldCheckpoint | null {
+  const decoded = decodeLines([line])
+  if (decoded.warnings.length > 0 || decoded.parsed.length !== 1) return null
+  const parsed = decoded.parsed[0]!
+  if (parsed.event.type === 'correction') return null
+  if (parsed.event.id < cp.lastId) return null
+  cp.lineCount += 1
+  replayOne(cp, { lineNo: cp.lineCount, event: parsed.event })
+  return cp
+}
+
+/**
+ * The post-loop passes, on a clone: task_files and activity from the edges,
+ * the derived `current`, the orphan filter against the final plan, the
+ * unregistered-session list. The checkpoint is left exactly as it was.
+ */
+export function finalizeFold(cp: FoldCheckpoint): FoldResult {
+  const state = structuredClone(cp.state)
+  const warnings = cp.warnings.slice()
+  const edges = cp.edges.slice()
   state.task_files = taskFilesFromEdges(edges)
   attachActivity(state, activityFromEdges(edges))
-  deriveCurrent(state, blockNotes)
+  deriveCurrent(state, cp.blockNotes)
   // Keep only ids the FINAL plan never absorbed (a later task_added /
   // plan_updated clears the candidate — that skip was ordering, not misroute).
-  const orphans = orphanCandidates.filter((c) => findTask(state, c.task_id) === undefined)
+  const orphans = cp.orphanCandidates.filter((c) => findTask(state, c.task_id) === undefined)
   const registered = new Set(state.sessions.map((s) => s.id))
-  const unregistered = [...seenSessions].filter((id) => !registered.has(id)).sort()
+  const unregistered = [...cp.seenSessions].filter((id) => !registered.has(id)).sort()
   return { state, warnings, orphan_task_events: orphans, edges, unregistered_sessions: unregistered }
+}
+
+export function foldLines(lines: readonly string[], slug = ''): FoldResult {
+  return finalizeFold(replayDecoded(decodeLines(lines), slug, countLines(lines)))
 }
 
 /** Task ids ACTIVE right now — the attribution window `worked` edges use. */

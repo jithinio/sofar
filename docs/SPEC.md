@@ -204,6 +204,29 @@ threshold_pct?, context_window?, max_sessions?, handoffs[ {ts, session_id, reaso
 tokens?} ], stopped?, stop_reason?, stop_note?} ], current: {active_phase,
 next_action, blocked_on?}, freshness, cursor: <last event id> }
 
+**One replay per log per process (r1-fixes 2.7, D17).** The fold is two
+passes — decode (parse, validate, void corrections, sort by id) and replay
+(the per-event loop) — followed by a finalize (task_files and activity from
+the edges, the derived `current`, the orphan filter, the unregistered list).
+`replayDecoded` returns the replay as a FoldCheckpoint — the un-finalized
+state plus every side table the loop carries — and `finalizeFold` derives on
+a structuredClone of it, so a checkpoint finalizes any number of times and
+each result deep-equals a fresh fold of the same lines. `appendToCheckpoint`
+applies ONE appended line through the same loop body when it is
+envelope-valid, not a correction, and its id is not below the last replayed
+id; anything else returns null and the caller refolds. ToolContext.foldState
+caches {size, mtimeMs, checkpoint} per slug (newest 8): a stat that matches
+serves a finalize; appendAndProject advances the checkpoint with the line it
+just wrote only when the post-append stat equals cached size + line bytes
+(no other writer landed in between), else drops the entry. Why: every
+appending hook and tool folded the log TWICE — the handler, then
+regenerateProjections — and on an 11 MB, 40,901-event log a fold is 79 ms
+(read 6, decode 33, replay and derive 41) while the clone is 0.6 ms.
+Measured, same log: handler fold + append with projections 150.5 → 87.6 ms
+p50 (−42%). Projection bytes are unchanged by construction; a rewrite of
+the log (same size, new mtime), a foreign append, a deleted log and a
+correction all miss and refold — a stale state is never served.
+
 ### Task statuses (task-drop-state D1)
 `blocked` and `dropped` are NOT synonyms. `blocked` means "wants to happen,
 cannot yet" — it stays outstanding and keeps nagging. `dropped` is terminal:
@@ -3480,6 +3503,18 @@ stay the underlying derivation's, and exit codes are styling-independent.
   chars on a two-session lane. A closed lane discards hook events and the
   notice names `sofar switch quick`; `sofar new quick` is refused; the
   statusline renders a lane-caught session as `quick`.
+- **One replay per log (r1-fixes 2.7):** for every prefix of a log that
+  exercises plan, tasks, guards, sessions, orphans, an unregistered session
+  and a write-back, `appendToCheckpoint` of the next line finalizes to a
+  FoldResult deep-equal to `foldLines` of the whole (state, warnings with
+  fresh line numbers, orphans, edges, unregistered); finalizing twice is
+  equal and mutating a result leaves the checkpoint untouched; a correction,
+  an id below the last replayed, a corrupt line and an invalid envelope
+  return null. Through ToolContext: a run of appends leaves foldState equal
+  to a fresh fold and plan.md/decisions.md byte-identical to a second
+  context's render; a direct append, a same-size rewrite with a newer mtime
+  and a deleted log are all seen; a correction appended through the context
+  refolds; the cache holds at most 8 slugs.
 - **Relevant lessons (r1-fixes 3.3):** with three decisions folded, a prompt
   that re-proposes the second's rejected approach in the subject's words
   renders `sofar: ruled out before — [D2] <its over> (matched: …)` first
