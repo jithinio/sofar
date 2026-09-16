@@ -4,7 +4,7 @@
 
 Goal: Move sofar's hot path to a native Rust core incrementally (rust-core D1): contract first, then sofar-core in Rust behind the same CLI and hook contract, integrated with TypeScript fallback, shipped as prebuilt binaries, and proven as its own benchmark arm that shrinks no held-out lead margin (bench-refresh D19). After parity, new hot-path code is Rust-only.
 
-Progress: 12/18 tasks done (66%)
+Progress: 13/18 tasks done (72%)
 
 ## Phase 1 — Contract [active] — 4/6 done
 
@@ -15,7 +15,9 @@ Progress: 12/18 tasks done (66%)
 - [ ] 1.5 team100 scale corpus and perf cell: a PARAMETERISED, exported synthetic-record generator (named writer profiles `agent` 14.3 ev/session 593 B/ev file_touched-heavy and `human` 21 ev/session 798 B/ev with a 1–4 KB session_ended tail, blend ratio, initiatives, writers, events per stream, heavy-tail size distribution) shaped like 100 users on one repo (~20 initiatives, ~500k events, largest log ≥50 MB, 100 session ids); report cold process and warm fold separately, the fold-cost curve vs events and vs bytes (name the log size crossing 100 ms and the full-refold ≥250 ms point), session-start digest, user-prompt, statusline, find/index build, memory high-water, digest and statusline cost as sessions[] grows to 100 writers; interleaved per D12; record the growth budget (MB and events per user per week) and every non-linear turn as an idea with a predicted gain, never built here
 - [ ] 1.6 Order-independence and merge conformance: a property test that the same event SET folds to an identical state under any arrival order (shuffle N times; duplicate ids, out-of-order session_started/ended, corrections; proptest shapes fine), and a union-merge test where N branches append to the SAME initiative's events.jsonl (merge=union .gitattributes path) plus across-initiative merges, asserting the merged fold equals the fold of the union and measuring merged-log fold time
 
-## Phase 2 — Rust core [active] — 6/6 done
+## Phase 2 — Rust core [done] — 6/6 done
+
+> All six tasks landed and proved by the 3.1–3.3 black-box runs.
 
 - [x] 2.1 Cargo workspace crates/sofar-core; schema codegen from packages/schema/src (no hand-written payload types); dependency list per D1
 - [x] 2.2 Event envelope and atomic O_APPEND append; unknown and corrupt lines skipped with a warning, never fatal, never rewritten
@@ -24,11 +26,13 @@ Progress: 12/18 tasks done (66%)
 - [x] 2.5 Hook handlers (session-start, user-prompt-submit, post-tool-use, stop, session-end) with conformance parity, including r1-fixes wave 1–2 behaviour
 - [x] 2.6 Statusline command parity
 
-## Phase 3 — Integration and distribution [pending] — 2/3 done
+## Phase 3 — Integration and distribution [done] — 3/3 done
+
+> 3.1 stub dispatch (D31), 3.2 platform packages and shims (D32), 3.3 gate green (D33). CI matrix unverified until the branch is pushed; nothing published.
 
 - [x] 3.1 TS entry points and hook shims dispatch to sofar-core when present, with TypeScript fallback and an explicit override for debugging
 - [x] 3.2 Prebuilt binaries per platform (darwin arm64/x64, linux x64/arm64, win32 x64) via npm optionalDependencies, plus a CI build matrix
-- [ ] 3.3 Gate green: 100% conformance on both implementations and perf targets beaten
+- [x] 3.3 Gate green: 100% conformance on both implementations and perf targets beaten
 
 ## Phase 4 — Prove and switch [pending] — 0/3 done
 
@@ -37,4 +41,4 @@ Progress: 12/18 tasks done (66%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: Push rust-core so the `core` matrix and `core-conformance` CI jobs run for the first time (fix runner labels if macos-15-intel/ubuntu-24.04-arm are unavailable), then start 3.3: re-record the TypeScript perf reference and measure both arms — SOFAR_CONFORMANCE_BIN=target/release/sofar-core (direct, what the shim execs) and SOFAR_CORE=… (through the stub) — with SOFAR_PERF_GATE=1 per D5/D10/D12; then 1.5/1.6 remain in Phase 1.
+Next action: User pushes rust-core (`git -C ~/IO/sofar-rust-core push -u origin rust-core`) so the core matrix and core-conformance jobs run; fix runner labels if macos-15-intel / ubuntu-24.04-arm are unavailable. Then Phase 1's open tasks: 1.6 (order-independence property test + union-merge conformance, shared with r1-fixes) before 1.5 (team100 corpus, parameterised generator, growth budget — measurement only, D12 interleaved). Mirror L09/L10 in the Rust core once r1-fixes lands them (golden re-record with reasons, D11). 4.1 waits on the round-2 addendum freeze at rc.2.

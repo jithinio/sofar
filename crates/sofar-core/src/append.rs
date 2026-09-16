@@ -4,35 +4,104 @@
 //! cross-process lock (r1-fixes 1.2); the quick lane is created on the first
 //! captured edit (r1-fixes 2.6, D14).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::SystemTime;
 
-use crate::envelope::{Envelope, MakeEventInput, make_event};
-use crate::fold::empty_state;
+use crate::envelope::{Envelope, MakeEventInput, make_event, serialize_event};
+use crate::fold::{
+    FoldCheckpoint, append_to_checkpoint, empty_state, finalize_fold, replay_decoded,
+};
 use crate::home::{LaneAvailability, lane_availability};
 use crate::json::{Json, Object};
 use crate::layout::Layout;
 use crate::lock::{LockOptions, with_file_lock};
-use crate::log::append_event;
+use crate::log::{append_event, decode_lines};
 use crate::payload::validate_payload;
 use crate::projections::regenerate_projections;
-use crate::snapshot::{fold_file, state_of};
 use crate::status::QUICK_LANE;
 
 /// The fixed goal the lane is created with (`QUICK_LANE_GOAL`).
 pub const QUICK_LANE_GOAL: &str = "Quick work — ad-hoc fixes on branches bound to no initiative. Hook-captured: no plan, no write-back; a decision gets one line of why. A thread that keeps returning deserves its own record (sofar new <slug>).";
+
+/// Fold cache (r1-fixes 2.7, D17; rust-core 3.3): one replay per log per
+/// process. Keyed by the log's size and mtime, so any write this process did
+/// not make — another hook, a sibling server, a branch switch — misses and
+/// refolds; a write it DID make advances the checkpoint by exactly that line
+/// ([`append_and_project`]). Every hit finalizes a clone, so a caller may
+/// mutate what it gets. Bounded: the newest few logs only. Without it an
+/// appending hook folded the log two to four times (registration check,
+/// handler state, post-append projections), which on a 10 MB log is where
+/// the native core lost to the TypeScript engine (perf 3.3, first run).
+const FOLD_CACHE_MAX: usize = 8;
+
+struct CachedFold {
+    size: u64,
+    mtime: Option<SystemTime>,
+    cp: FoldCheckpoint,
+}
+
+static FOLDS: Mutex<Vec<(PathBuf, CachedFold)>> = Mutex::new(Vec::new());
+
+fn with_folds<R>(f: impl FnOnce(&mut Vec<(PathBuf, CachedFold)>) -> R) -> R {
+    let mut guard = FOLDS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    f(&mut guard)
+}
+
+fn remember_fold(folds: &mut Vec<(PathBuf, CachedFold)>, log: &Path, entry: CachedFold) {
+    folds.retain(|(p, _)| p != log);
+    folds.push((log.to_path_buf(), entry));
+    while folds.len() > FOLD_CACHE_MAX {
+        folds.remove(0);
+    }
+}
+
+fn stat_log(log: &Path) -> Option<(u64, Option<SystemTime>)> {
+    let meta = std::fs::metadata(log).ok()?;
+    Some((meta.len(), meta.modified().ok()))
+}
+
+/// Forget every cached fold (tests, and any caller that rewrote a log).
+pub fn forget_folds() {
+    with_folds(Vec::clear);
+}
 
 /// The folded state of one record, a missing log folding to the empty state
 /// with its slug (`foldState`).
 #[must_use]
 pub fn fold_state(layout: &Layout, slug: &str) -> crate::fold::InitiativeState {
     let log = layout.events_path(slug);
-    let mut state = if log.exists() {
-        match fold_file(&log, slug) {
-            Ok(snapshot) => state_of(&snapshot).state,
-            Err(_) => empty_state(),
+    let mut state = match stat_log(&log) {
+        None => {
+            with_folds(|folds| folds.retain(|(p, _)| p != &log));
+            empty_state()
         }
-    } else {
-        empty_state()
+        Some((size, mtime)) => with_folds(|folds| {
+            if let Some((_, hit)) = folds.iter().find(|(p, _)| p == &log)
+                && hit.size == size
+                && hit.mtime == mtime
+            {
+                return finalize_fold(&hit.cp).state;
+            }
+            match std::fs::read(&log) {
+                Ok(bytes) => {
+                    let text = String::from_utf8_lossy(&bytes);
+                    let lines: Vec<&str> = text.split('\n').collect();
+                    let count = if lines.last() == Some(&"") {
+                        lines.len() - 1
+                    } else {
+                        lines.len()
+                    };
+                    let cp = replay_decoded(decode_lines(lines.iter().copied()), slug, count);
+                    let state = finalize_fold(&cp).state;
+                    remember_fold(folds, &log, CachedFold { size, mtime, cp });
+                    state
+                }
+                Err(_) => empty_state(),
+            }
+        }),
     };
     if state.slug.is_empty() {
         slug.clone_into(&mut state.slug);
@@ -68,8 +137,39 @@ pub fn append_and_project(
     if let Some(dir) = log.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
+    let before = with_folds(|folds| {
+        folds
+            .iter()
+            .find(|(p, _)| p == &log)
+            .map(|(_, hit)| hit.size)
+    });
     append_event(&log, &event)
         .map_err(|e| format!("failed to append {event_type} to initiative \"{slug}\": {e}"))?;
+    // Advance the checkpoint by the line just written (D17) — only when the
+    // log now measures exactly cached + this line, which proves no other
+    // writer landed in between. Any doubt drops the entry, and the fold
+    // below reads the file like any other miss.
+    if let Some(cached_size) = before {
+        let line = serialize_event(&event);
+        let advanced = stat_log(&log).is_some_and(|(size, mtime)| {
+            size == cached_size + line.len() as u64 + 1
+                && with_folds(|folds| {
+                    let Some(entry) = folds.iter_mut().find(|(p, _)| p == &log) else {
+                        return false;
+                    };
+                    if append_to_checkpoint(&mut entry.1.cp, &line) {
+                        entry.1.size = size;
+                        entry.1.mtime = mtime;
+                        true
+                    } else {
+                        false
+                    }
+                })
+        });
+        if !advanced {
+            with_folds(|folds| folds.retain(|(p, _)| p != &log));
+        }
+    }
     let state = fold_state(layout, slug);
     regenerate_projections(&layout.initiative_dir(slug), &state).map_err(|e| e.to_string())?;
     Ok(event)

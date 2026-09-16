@@ -5047,6 +5047,17 @@ stay the underlying derivation's, and exit codes are styling-independent.
   five binaries per push and runs the unfiltered mixed-install conformance
   suite on the one it built; publishing the platform packages before
   sofar.sh remains the human release step.
+- **Rust core, gate (rust-core 3.3):** the native core passes the whole
+  conformance suite as a mixed install (the shipped stub dispatching to it,
+  every case, no tag skipped) and every owned shape driven directly (the
+  cases whose bytes are commander's — `event append`, styled `status`,
+  `commit-trailer`, the argv grammar's error text — run on the TypeScript
+  reference, and nothing else does); the perf gate (`SOFAR_PERF_GATE=1`)
+  passes with every cell's p50 and p95 at or under a TypeScript reference
+  recorded in the same sitting, both reports committed beside the baseline;
+  and an appending hook folds its log once per process, advancing the
+  retained checkpoint by the line it wrote, exactly as the TypeScript engine
+  does (r1-fixes D17).
 - **Diagnostics store (self-improve 1.2):** a diagnostics row fails
   `validateEnvelope` and an import stream carrying one appends nothing; the
   store resolves under the XDG state dir keyed by the same clone hash as the

@@ -804,6 +804,20 @@ What the numbers say, for the Rust work:
   and ~130 ms cold (the registration scan and index rebuild); the other
   hooks pay < 10 ms for the same siblings.
 
+### The native core against this target (rust-core 3.3)
+
+`sofar-core` direct, gated against a reference re-recorded in the same
+sitting (`perf/gate.sofar-core.065e5f7.md`, `perf/baseline.typescript.md` at
+065e5f7): every cell's p50 and p95 at or under the target, p50 ratios 0.06×
+(floor: 1.7 ms against node's 21 ms boot) to 0.64×; the 10 MB cells
+0.47×–0.64×, i.e. the fold itself is roughly 2× node's on 35,903 lines and
+boot is gone. The first run failed nine 10 MB measures because the appending
+hooks folded two to four times per process; `append.rs` now carries the
+one-fold-per-process cache of r1-fixes 2.7 (D17) with the checkpoint advanced
+by the appended line (rust-core D33). Through the `sofar` stub instead of the
+shim (3.1's mixed install through node) the core is 0.8×–0.9× on read hooks —
+node's boot is the floor there, which is why 3.2's shims exec the binary.
+
 ## Open decisions (for the run owner)
 
 - O1 Sort collation (P4): keep ICU `localeCompare` (Rust would need ICU or

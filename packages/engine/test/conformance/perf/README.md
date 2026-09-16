@@ -25,13 +25,39 @@ the OS temp dir as `sofar-perf.<implementation>.json` / `.md`.
 ## The two baselines
 
 - `baseline.typescript.json` — THE target the Phase 3.3 gate reads: the
-  TypeScript engine with r1-fixes 2.7 (one fold per log per process on
-  appending hooks), recorded from that branch's build via `SOFAR_PERF_TS_BIN`
-  (rust-core D10). Its in-process section is carried over from the
-  as-shipped record, since 2.7 left `foldLog` itself unchanged.
+  TypeScript engine of this tree at rust-core 065e5f7 (r1-fixes 2.7's one
+  fold per log per process, plus the 2.5/5.1/5.2 merges the goldens are
+  pinned at), re-recorded in the same sitting as the 3.3 candidate runs
+  (rust-core D12) with the in-process section measured fresh.
+- `baseline.typescript-179b8fd.json` — the previous target: the RC as shipped,
+  recorded from the r1-fixes branch build via `SOFAR_PERF_TS_BIN` (rust-core
+  D10, 1.4), in-process section carried over from the as-shipped record.
+  Kept alongside per D11.
 - `baseline.typescript-0.32.0-as-shipped.json` — history: the same runner on
   0.32.0 at a79c4a7, before the double fold was removed. Never the gate; kept
   so the fix's own effect on the hot path stays visible.
+
+## The 3.3 gate (rust-core 3.3, 2026-09-16)
+
+Recorded in one sitting on the same machine (rust-core D12), reference first:
+
+- `gate.sofar-core.065e5f7.md` / `.json` — `sofar-core` direct (what the
+  hook shim execs after 3.2), `SOFAR_PERF_GATE=1`: every cell's p50 and p95
+  at or under the target; p50 ratios 0.06× (floor) to 0.64×, the 10 MB
+  cells 0.47×–0.64×. Load avg 3.9 → 7.2 (peer sessions on the machine).
+- `gate.sofar-core.065e5f7.before-fold-cache.md` — the first candidate run,
+  which FAILED nine 10 MB measures (post-tool Edit up to 1.17× p50, 1.50×
+  p95; session-end; cold session-start p95): the appending hooks folded the
+  log two to four times per process. `append.rs` now mirrors r1-fixes 2.7's
+  one-fold-per-process cache (D17) and advances the checkpoint by the
+  appended line (rust-core D33). Load avg 8.5 → 4.6 — noisy, but the fix
+  moved every 10 MB append measure from ~1.0–1.2× to ~0.55×, far outside
+  D12's ±20% band.
+- `stub-arm.065e5f7.md` / `.json` — `sofar` (node) dispatching to the core,
+  what a mixed install pays through node (rust-core 3.1): read hooks
+  0.8×–0.9×, `status` 0.6×, appending hooks ~1.0–1.1× BEFORE the fold cache
+  (informational, not re-run; never gated — the shim execs the binary
+  directly, 3.2). Load avg 4.6 → 3.4.
 
 ## Cells
 
