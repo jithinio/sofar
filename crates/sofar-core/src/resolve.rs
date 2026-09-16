@@ -108,12 +108,12 @@ pub fn read_bindings(layout: &Layout) -> Result<Vec<(String, String)>, ResolveEr
         return Ok(Vec::new());
     };
     let text = String::from_utf8_lossy(&bytes);
-    // V8's SyntaxError text is not reproduced (json.rs claims no message
-    // parity); no conformance case reaches this branch.
+    // `errMessage(err)` — V8's SyntaxError text, reproduced by json.rs
+    // (syn.lifecycle step 20 prints it).
     let decoded = json::parse(&text).map_err(|e| {
         ResolveError::IoError(format!(
-            ".sofar/bindings.json is not valid JSON: parse error at offset {}",
-            e.offset
+            ".sofar/bindings.json is not valid JSON: {}",
+            e.message(&text)
         ))
     })?;
     let Json::Obj(obj) = decoded else {

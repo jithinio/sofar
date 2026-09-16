@@ -21,7 +21,7 @@ Progress: 8/18 tasks done (44%)
 - [x] 2.2 Event envelope and atomic O_APPEND append; unknown and corrupt lines skipped with a warning, never fatal, never rewritten
 - [x] 2.3 Fold to initiative state with conformance parity
 - [x] 2.4 Digest/status render byte-identical to the projection templates (golden tests), including the 10k char cap behaviour
-- [ ] 2.5 Hook handlers (session-start, user-prompt-submit, post-tool-use, stop, session-end) with conformance parity, including r1-fixes wave 1–2 behaviour
+- [ ] 2.5 Hook handlers (session-start, user-prompt-submit, post-tool-use, stop, session-end) with conformance parity, including r1-fixes wave 1–2 behaviour (active)
 - [ ] 2.6 Statusline command parity
 
 ## Phase 3 — Integration and distribution [pending] — 0/3 done

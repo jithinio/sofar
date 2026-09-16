@@ -15,16 +15,25 @@
 //! statusline (2.6).
 
 pub mod atomic;
+pub mod attribution;
 pub mod cli;
 pub mod collections;
+pub mod date;
 pub mod derived;
+pub mod diagnostics;
 pub mod entropy;
 pub mod envelope;
 pub mod fold;
 pub mod fold_cli;
 pub mod git;
 pub mod guards;
+pub mod home;
+pub mod hook;
 pub mod identity;
+pub mod index_pass;
+pub mod index_store;
+pub mod index_tail;
+pub mod index_tier1;
 pub mod json;
 pub mod layout;
 pub mod lock;
@@ -32,11 +41,15 @@ pub mod log;
 pub mod payload;
 pub mod projections;
 pub mod resolve;
+pub mod session_start;
 pub mod sha256;
+pub mod shipwatch;
 pub mod snapshot;
 pub mod status;
 pub mod status_cli;
 pub mod text;
+pub mod version;
+pub mod warmth;
 
 #[cfg(test)]
 pub(crate) mod testing;

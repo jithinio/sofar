@@ -11,7 +11,7 @@ import {
   childEnv,
   cleanupScratch,
   goldenPath,
-  implementation,
+  implementation, implementationFor,
   materialize,
   recordDelta,
   renderGolden,
@@ -118,7 +118,7 @@ describe('concurrent appends through the CLI', () => {
 
 /** One writer process per appends batch: a shell loop is not portable, so drive the binary from node. */
 function runWriter(m: Materialized, writer: number, count: number): Promise<void> {
-  const { command } = implementation()
+  const { command } = implementationFor(['event', 'append'])
   const script = [
     "const { spawnSync } = require('node:child_process')",
     `const cmd = ${JSON.stringify(command)}`,

@@ -13,6 +13,7 @@ SOFAR_CONFORMANCE_BIN=target/release/sofar-core npx vitest run conformance   # a
 SOFAR_CONFORMANCE_RECORD=1 npx vitest run conformance     # re-record goldens (reference only)
 SOFAR_CONFORMANCE_SKIP=O2,O4,O5,full-cli …                # skip tagged cases
 SOFAR_CONFORMANCE_KEEP=1 …                                # keep scratch roots for inspection
+SOFAR_CONFORMANCE_CANDIDATE_STEPS='^event session-start' … # candidate runs only matching steps; the reference runs the rest
 ```
 
 ## Layout

@@ -8,9 +8,12 @@
 use std::io::{IsTerminal as _, Write as _};
 use std::process::ExitCode;
 
+use sofar_core::cli::Hook;
 use sofar_core::cli::{Color, Dispatch, Owned, dispatch};
 use sofar_core::fold_cli::{CmdResult, run_fold};
+use sofar_core::hook::read_stdin;
 use sofar_core::resolve::resolve_root;
+use sofar_core::session_start::handle_session_start;
 use sofar_core::status_cli::run_status;
 
 /// `mirror` in cli/index.ts: stdout verbatim, stderr with one trailing newline.
@@ -69,6 +72,13 @@ fn main() -> ExitCode {
             }
             mirror(&run_status(&resolve_root(root.as_deref()), slug.as_deref()))
         }
+        Dispatch::Owned(Owned::Event {
+            hook: Hook::SessionStart,
+            root,
+        }) => mirror(&handle_session_start(
+            &resolve_root(root.as_deref()),
+            &read_stdin(),
+        )),
         Dispatch::Owned(Owned::Event { hook, .. }) => {
             eprintln!(
                 "sofar-core: `event {}` is not implemented yet (rust-core 2.5)",

@@ -48,6 +48,18 @@ export const RECORD = process.env.SOFAR_CONFORMANCE_RECORD === '1'
 export const CANDIDATE = process.env.SOFAR_CONFORMANCE_BIN
 /** `SOFAR_CONFORMANCE_KEEP=1` leaves each case's scratch root on disk for inspection. */
 export const KEEP = process.env.SOFAR_CONFORMANCE_KEEP === '1'
+/**
+ * `SOFAR_CONFORMANCE_CANDIDATE_STEPS=<regex>` (rust-core 2.5): with a candidate
+ * named, only the steps whose argv (space-joined) matches run on it; every
+ * other step runs on the TypeScript reference, in the same scratch root. The
+ * golden comparison stays whole, so a half-ported binary is proved hook by
+ * hook while the reference still drives the rest — and mixed writers share
+ * one record, which is the 3.1 fallback world.
+ */
+export const CANDIDATE_STEPS =
+  process.env.SOFAR_CONFORMANCE_CANDIDATE_STEPS !== undefined && process.env.SOFAR_CONFORMANCE_CANDIDATE_STEPS.length > 0
+    ? new RegExp(process.env.SOFAR_CONFORMANCE_CANDIDATE_STEPS)
+    : null
 /** `SOFAR_CONFORMANCE_SKIP=O2,O4` skips cases carrying those tags (see README). */
 export const SKIP_TAGS = new Set(
   (process.env.SOFAR_CONFORMANCE_SKIP ?? '')
@@ -78,6 +90,7 @@ const REQUIRE_SHIM = [
 ].join('\n')
 
 let impl: Implementation | null = null
+let ref: Implementation | null = null
 
 /**
  * The implementation under test. With no candidate named, the TypeScript CLI
@@ -94,6 +107,20 @@ export function implementation(): Implementation {
     impl = { name: 'candidate', command: CANDIDATE.trim().split(/\s+/) }
     return impl
   }
+  impl = reference()
+  return impl
+}
+
+/** The implementation a step runs on: the candidate, unless CANDIDATE_STEPS excludes it. */
+export function implementationFor(argv: readonly string[]): Implementation {
+  const chosen = implementation()
+  if (chosen.name !== 'candidate' || CANDIDATE_STEPS === null) return chosen
+  return CANDIDATE_STEPS.test(argv.join(' ')) ? chosen : reference()
+}
+
+/** The TypeScript reference, built once. */
+function reference(): Implementation {
+  if (ref !== null) return ref
   const dir = join(scratch(), 'reference')
   mkdirSync(dir, { recursive: true })
   const shared = {
@@ -113,8 +140,8 @@ export function implementation(): Implementation {
   })
   buildSync({ ...shared, entryPoints: [join(ENGINE_SRC, 'cli', 'fast.ts')], outfile: join(dir, 'fast.js') })
   buildSync({ ...shared, entryPoints: [join(ENGINE_SRC, 'cli', 'index.ts')], outfile: join(dir, 'full.js') })
-  impl = { name: 'typescript', command: [process.execPath, join(dir, 'cli.js')] }
-  return impl
+  ref = { name: 'typescript', command: [process.execPath, join(dir, 'cli.js')] }
+  return ref
 }
 
 // ---------------------------------------------------------------------------
@@ -271,8 +298,8 @@ export function substitute(text: string, m: Materialized): string {
 
 export function runStep(m: Materialized, step: Step): StepOutcome {
   step.before?.(m)
-  const { command } = implementation()
   const argv = step.argv.map((a) => substitute(a, m))
+  const { command } = implementationFor(argv)
   const input = substitute(
     step.stdin === undefined ? '' : typeof step.stdin === 'string' ? step.stdin : JSON.stringify(step.stdin),
     m,

@@ -14,8 +14,10 @@
 //! - a lone-surrogate `\uD800`–`\uDFFF` escape decodes to U+FFFD (D13 — the
 //!   one ruled divergence; Rust strings cannot hold a lone surrogate).
 //!
-//! Parse errors carry no V8 message: the only surface that prints one is the
-//! TypeScript-owned `event append`; the fold just skips the line.
+//! Parse errors carry V8's message family, and [`ParseError::message`] prints
+//! the `SyntaxError` text Node prints (pinned by a fixture generated from
+//! Node): `sofar status` surfaces it for a corrupt bindings.json. The fold
+//! itself just skips a bad line.
 
 use std::fmt::Write as _;
 
@@ -208,11 +210,143 @@ fn array_index(key: &str) -> Option<u32> {
 // ---------------------------------------------------------------------------
 // Parsing
 
-/// Where `JSON.parse` would have thrown. The byte offset is for diagnostics
-/// only; no message parity is claimed (see the module doc).
+/// Why `JSON.parse` threw — V8's `JsonParser` message families
+/// (`src/json/json-parser.cc`), so [`ParseError::message`] can print the
+/// `SyntaxError` text Node prints where the engine surfaces it verbatim
+/// (`sofar status` on a corrupt bindings.json, `docs/HOTPATH.md` P5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ErrorKind {
+    /// `Unexpected end of JSON input`.
+    Eos,
+    /// A digit where none may follow (`01`).
+    UnexpectedNumber,
+    /// Any other token where a value or literal was expected — the context form.
+    UnexpectedToken,
+    ExpectedPropNameOrRBrace,
+    ExpectedCommaOrRBrack,
+    ExpectedCommaOrRBrace,
+    ExpectedDoubleQuotedPropertyName,
+    ExponentPartMissingNumber,
+    ExpectedColonAfterPropertyName,
+    UnterminatedString,
+    BadControlCharacter,
+    BadUnicodeEscape,
+    BadEscapedCharacter,
+    NoNumberAfterMinusSign,
+    UnexpectedNonWhiteSpaceCharacter,
+    UnterminatedFractionalNumber,
+    /// Nesting past [`MAX_DEPTH`] — V8 has no such limit (it overflows the
+    /// stack instead), so this message is this crate's own.
+    TooDeep,
+}
+
+/// Where and why `JSON.parse` would have thrown. `offset` is a BYTE offset
+/// into the source; the message reports it in UTF-16 units, as V8 does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParseError {
     pub offset: usize,
+    pub kind: ErrorKind,
+}
+
+/// V8 shows at most this many characters either side of an unexpected token.
+const MAX_CONTEXT_CHARACTERS: usize = 10;
+/// Sources shorter than this are quoted whole.
+const MIN_SOURCE_LENGTH_FOR_CONTEXT: usize = MAX_CONTEXT_CHARACTERS * 2 + 1;
+
+impl ParseError {
+    /// The `SyntaxError` message Node prints for this failure (V8 13, Node 24;
+    /// pinned by `tests/fixtures/js-json-errors.json`, generated from Node).
+    #[must_use]
+    pub fn message(&self, source: &str) -> String {
+        let units: Vec<u16> = source.encode_utf16().collect();
+        let pos = crate::text::utf16_len(&source[..self.offset.min(source.len())]);
+        let at = |pos: usize| {
+            // Line breaks are `\n`, `\r` and `\r\n` (Script position info); a
+            // U+2028 inside a string does not count.
+            let mut line = 1;
+            let mut line_start = 0;
+            let mut i = 0;
+            while i < pos.min(units.len()) {
+                match units[i] {
+                    0x0A => {
+                        line += 1;
+                        line_start = i + 1;
+                    }
+                    0x0D => {
+                        if units.get(i + 1) == Some(&0x0A) {
+                            i += 1;
+                        }
+                        line += 1;
+                        line_start = i + 1;
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+            format!(
+                "at position {pos} (line {line} column {})",
+                pos - line_start + 1
+            )
+        };
+        let text = |what: &str| format!("{what} in JSON {}", at(pos));
+        match self.kind {
+            ErrorKind::Eos => "Unexpected end of JSON input".to_owned(),
+            ErrorKind::UnexpectedNumber => text("Unexpected number"),
+            ErrorKind::ExpectedPropNameOrRBrace => text("Expected property name or '}'"),
+            ErrorKind::ExpectedCommaOrRBrack => text("Expected ',' or ']' after array element"),
+            ErrorKind::ExpectedCommaOrRBrace => text("Expected ',' or '}' after property value"),
+            ErrorKind::ExpectedDoubleQuotedPropertyName => {
+                text("Expected double-quoted property name")
+            }
+            ErrorKind::ExponentPartMissingNumber => text("Exponent part is missing a number"),
+            ErrorKind::ExpectedColonAfterPropertyName => text("Expected ':' after property name"),
+            ErrorKind::UnterminatedString => text("Unterminated string"),
+            ErrorKind::BadControlCharacter => text("Bad control character in string literal"),
+            ErrorKind::BadUnicodeEscape => text("Bad Unicode escape"),
+            ErrorKind::BadEscapedCharacter => text("Bad escaped character"),
+            ErrorKind::NoNumberAfterMinusSign => text("No number after minus sign"),
+            ErrorKind::UnexpectedNonWhiteSpaceCharacter => {
+                format!("Unexpected non-whitespace character after JSON {}", at(pos))
+            }
+            ErrorKind::UnterminatedFractionalNumber => text("Unterminated fractional number"),
+            ErrorKind::TooDeep => format!("Nesting deeper than {MAX_DEPTH} in JSON {}", at(pos)),
+            ErrorKind::UnexpectedToken => {
+                if matches!(source, "undefined" | "NaN" | "Infinity" | "[object Object]") {
+                    return format!("\"{source}\" is not valid JSON");
+                }
+                let unit = |i: usize| -> String {
+                    units.get(i).map_or_else(String::new, |u| {
+                        char::from_u32(u32::from(*u))
+                            .unwrap_or('\u{FFFD}')
+                            .to_string()
+                    })
+                };
+                let slice = |from: usize, to: usize| {
+                    String::from_utf16_lossy(&units[from.min(units.len())..to.min(units.len())])
+                };
+                let token = unit(pos);
+                let len = units.len();
+                if len < MIN_SOURCE_LENGTH_FOR_CONTEXT {
+                    format!("Unexpected token '{token}', \"{source}\" is not valid JSON")
+                } else if pos < MAX_CONTEXT_CHARACTERS {
+                    format!(
+                        "Unexpected token '{token}', \"{}\"... is not valid JSON",
+                        slice(0, pos + MAX_CONTEXT_CHARACTERS)
+                    )
+                } else if pos < len - MAX_CONTEXT_CHARACTERS {
+                    format!(
+                        "Unexpected token '{token}', ...\"{}\"... is not valid JSON",
+                        slice(pos - MAX_CONTEXT_CHARACTERS, pos + MAX_CONTEXT_CHARACTERS)
+                    )
+                } else {
+                    format!(
+                        "Unexpected token '{token}', ...\"{}\" is not valid JSON",
+                        slice(pos - MAX_CONTEXT_CHARACTERS, len)
+                    )
+                }
+            }
+        }
+    }
 }
 
 /// Nesting beyond this is treated as a parse error. V8 has no fixed limit,
@@ -232,7 +366,7 @@ pub fn parse(text: &str) -> Result<Json, ParseError> {
     let value = p.value()?;
     p.skip_ws();
     if p.pos != p.bytes.len() {
-        return Err(p.err());
+        return Err(p.err(ErrorKind::UnexpectedNonWhiteSpaceCharacter));
     }
     Ok(value)
 }
@@ -245,8 +379,20 @@ struct Parser<'a> {
 }
 
 impl Parser<'_> {
-    fn err(&self) -> ParseError {
-        ParseError { offset: self.pos }
+    fn err(&self, kind: ErrorKind) -> ParseError {
+        ParseError {
+            offset: self.pos,
+            kind,
+        }
+    }
+
+    /// The failure a value site reports: end of input, or the token there.
+    fn unexpected(&self) -> ParseError {
+        if self.pos >= self.bytes.len() {
+            self.err(ErrorKind::Eos)
+        } else {
+            self.err(ErrorKind::UnexpectedToken)
+        }
     }
 
     fn peek(&self) -> Option<u8> {
@@ -269,23 +415,25 @@ impl Parser<'_> {
             Some(b'f') => self.literal(b"false", Json::Bool(false)),
             Some(b'n') => self.literal(b"null", Json::Null),
             Some(b'-' | b'0'..=b'9') => self.number(),
-            _ => Err(self.err()),
+            _ => Err(self.unexpected()),
         }
     }
 
+    /// `ScanLiteral`: the first mismatching character is the unexpected token.
     fn literal(&mut self, word: &[u8], value: Json) -> Result<Json, ParseError> {
-        if self.bytes[self.pos..].starts_with(word) {
-            self.pos += word.len();
-            Ok(value)
-        } else {
-            Err(self.err())
+        for &expected in word {
+            if self.peek() != Some(expected) {
+                return Err(self.unexpected());
+            }
+            self.pos += 1;
         }
+        Ok(value)
     }
 
     fn enter(&mut self) -> Result<(), ParseError> {
         self.depth += 1;
         if self.depth > MAX_DEPTH {
-            Err(self.err())
+            Err(self.err(ErrorKind::TooDeep))
         } else {
             Ok(())
         }
@@ -301,15 +449,21 @@ impl Parser<'_> {
             self.depth -= 1;
             return Ok(Json::Obj(obj));
         }
+        let mut first = true;
         loop {
             self.skip_ws();
             if self.peek() != Some(b'"') {
-                return Err(self.err());
+                return Err(self.err(if first {
+                    ErrorKind::ExpectedPropNameOrRBrace
+                } else {
+                    ErrorKind::ExpectedDoubleQuotedPropertyName
+                }));
             }
+            first = false;
             let key = self.string()?;
             self.skip_ws();
             if self.peek() != Some(b':') {
-                return Err(self.err());
+                return Err(self.err(ErrorKind::ExpectedColonAfterPropertyName));
             }
             self.pos += 1;
             self.skip_ws();
@@ -323,7 +477,7 @@ impl Parser<'_> {
                     self.depth -= 1;
                     return Ok(Json::Obj(obj));
                 }
-                _ => return Err(self.err()),
+                _ => return Err(self.err(ErrorKind::ExpectedCommaOrRBrace)),
             }
         }
     }
@@ -349,7 +503,7 @@ impl Parser<'_> {
                     self.depth -= 1;
                     return Ok(Json::Arr(arr));
                 }
-                _ => return Err(self.err()),
+                _ => return Err(self.err(ErrorKind::ExpectedCommaOrRBrack)),
             }
         }
     }
@@ -360,14 +514,19 @@ impl Parser<'_> {
             self.pos += 1;
         }
         match self.peek() {
-            Some(b'0') => self.pos += 1,
+            Some(b'0') => {
+                self.pos += 1;
+                if matches!(self.peek(), Some(b'0'..=b'9')) {
+                    return Err(self.err(ErrorKind::UnexpectedNumber));
+                }
+            }
             Some(b'1'..=b'9') => self.digits(),
-            _ => return Err(self.err()),
+            _ => return Err(self.err(ErrorKind::NoNumberAfterMinusSign)),
         }
         if self.peek() == Some(b'.') {
             self.pos += 1;
             if !matches!(self.peek(), Some(b'0'..=b'9')) {
-                return Err(self.err());
+                return Err(self.err(ErrorKind::UnterminatedFractionalNumber));
             }
             self.digits();
         }
@@ -377,7 +536,7 @@ impl Parser<'_> {
                 self.pos += 1;
             }
             if !matches!(self.peek(), Some(b'0'..=b'9')) {
-                return Err(self.err());
+                return Err(self.err(ErrorKind::ExponentPartMissingNumber));
             }
             self.digits();
         }
@@ -386,7 +545,7 @@ impl Parser<'_> {
         self.text[start..self.pos]
             .parse::<f64>()
             .map(Json::Num)
-            .map_err(|_| self.err())
+            .map_err(|_| self.err(ErrorKind::UnexpectedNumber))
     }
 
     fn digits(&mut self) {
@@ -416,13 +575,15 @@ impl Parser<'_> {
                     self.pos += 1;
                     self.escape(&mut out)?;
                 }
-                _ => return Err(self.err()), // control character or EOF
+                Some(_) => return Err(self.err(ErrorKind::BadControlCharacter)),
+                None => return Err(self.err(ErrorKind::UnterminatedString)),
             }
         }
     }
 
     fn escape(&mut self, out: &mut String) -> Result<(), ParseError> {
-        let c = self.peek().ok_or_else(|| self.err())?;
+        let c = self.peek().ok_or_else(|| self.err(ErrorKind::Eos))?;
+        let at = self.err(ErrorKind::BadEscapedCharacter);
         self.pos += 1;
         match c {
             b'"' => out.push('"'),
@@ -458,19 +619,23 @@ impl Parser<'_> {
                     out.push(char::from_u32(u32::from(unit)).unwrap_or('\u{FFFD}'));
                 }
             }
-            _ => return Err(self.err()),
+            _ => return Err(at),
         }
         Ok(())
     }
 
+    /// Four hex digits; the first that is not one (or the end) is the error position.
     fn hex4(&mut self) -> Result<u16, ParseError> {
-        let slice = self
-            .bytes
-            .get(self.pos..self.pos + 4)
-            .ok_or_else(|| self.err())?;
         let mut v: u16 = 0;
-        for &b in slice {
-            let d = (b as char).to_digit(16).ok_or_else(|| self.err())?;
+        for i in 0..4 {
+            let d = self
+                .bytes
+                .get(self.pos + i)
+                .and_then(|b| (*b as char).to_digit(16));
+            let Some(d) = d else {
+                self.pos += i;
+                return Err(self.err(ErrorKind::BadUnicodeEscape));
+            };
             v = (v << 4) | u16::try_from(d).expect("a hex digit");
         }
         self.pos += 4;
@@ -622,6 +787,34 @@ pub fn write_number(out: &mut String, x: f64) {
         out.push('e');
         out.push(if e < 0 { '-' } else { '+' });
         let _ = write!(out, "{}", e.abs());
+    }
+}
+
+#[cfg(test)]
+mod error_message_tests {
+    use super::*;
+
+    /// Every row of `tests/fixtures/js-json-errors.json` (generated from
+    /// Node): the message this crate prints is the one V8 printed.
+    #[test]
+    fn messages_match_the_node_fixture() {
+        let text = include_str!("../tests/fixtures/js-json-errors.json");
+        let Json::Obj(fixture) = parse(text).unwrap() else {
+            panic!("fixture object")
+        };
+        let rows = fixture.get("rows").unwrap().as_arr().unwrap();
+        assert!(rows.len() > 80);
+        for row in rows {
+            let row = row.as_obj().unwrap();
+            let input = row.get("input").unwrap().as_str().unwrap();
+            let expected = row.get("message").unwrap();
+            let actual = parse(input).err().map(|e| e.message(input));
+            match expected {
+                Json::Null => assert!(actual.is_none(), "{input:?} should parse"),
+                Json::Str(m) => assert_eq!(actual.as_deref(), Some(m.as_str()), "{input:?}"),
+                _ => panic!("fixture row"),
+            }
+        }
     }
 }
 
