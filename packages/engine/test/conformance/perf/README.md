@@ -14,10 +14,22 @@ SOFAR_PERF=1 SOFAR_CONFORMANCE_BIN=target/release/sofar-core npx vitest run --pr
 SOFAR_PERF=1 SOFAR_PERF_GATE=1 SOFAR_CONFORMANCE_BIN=… npx vitest run --project perf         # the 3.3 gate: every p50 and p95 ≤ target
 SOFAR_PERF_CELLS=i10-1mb,repo,floor …                    # a subset (with RECORD: merged into the baseline)
 SOFAR_PERF_ITER=50 …                                     # spawns per measurement (default 20)
+SOFAR_PERF_TS_BIN="node /path/to/other/dist/cli.js" SOFAR_PERF_LABEL="why" …   # record from a TypeScript build on another branch
 ```
 
 Results land in `baseline.typescript.json` (+ `.md`) when recording, else in
 the OS temp dir as `sofar-perf.<implementation>.json` / `.md`.
+
+## The two baselines
+
+- `baseline.typescript.json` — THE target the Phase 3.3 gate reads: the
+  TypeScript engine with r1-fixes 2.7 (one fold per log per process on
+  appending hooks), recorded from that branch's build via `SOFAR_PERF_TS_BIN`
+  (rust-core D10). Its in-process section is carried over from the
+  as-shipped record, since 2.7 left `foldLog` itself unchanged.
+- `baseline.typescript-0.32.0-as-shipped.json` — history: the same runner on
+  0.32.0 at a79c4a7, before the double fold was removed. Never the gate; kept
+  so the fix's own effect on the hot path stays visible.
 
 ## Cells
 

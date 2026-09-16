@@ -34,4 +34,4 @@ Progress: 3/15 tasks done (20%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: Get the run owner's O1–O5 rulings (docs/HOTPATH.md §Open decisions) and verdicts on the 9 Rust research notes, then start 2.1 (Cargo workspace crates/sofar-core, schema codegen from packages/schema/src) per D3: consult current stable Rust docs first.
+Next action: Start 2.1 under D3/D9: consult current stable Rust docs, then create the Cargo workspace crates/sofar-core (toolchain 1.98.1, edition 2024, runtime crates serde/serde_json/ulid/lexopt) and the schema codegen from packages/schema/src (ts-json-schema-generator pinned to TS 5.9/6, typify spike, narrow emitter fallback, committed output with a regen-diff check). Separately, when rust-core rebases onto r1-fixes: re-record the conformance goldens from that named commit with a manifest and per-golden reasons, keeping the 0.32.0 set alongside (D11).

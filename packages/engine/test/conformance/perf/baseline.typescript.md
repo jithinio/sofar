@@ -1,96 +1,96 @@
-perf baseline — typescript (node dist/cli.js (built from source as build.mjs ships it)) · 20 spawns per cell · Apple M4 Pro, node v24.15.0
-node spawn floor: p50 19.0 ms · p95 20.9 ms
+perf baseline [r1-fixes with 2.7 single fold (the Phase 3.3 target)] — typescript (/usr/local/bin/node /Users/jins/IO/sofar-r1-fixes/packages/engine/dist/cli.js) · 20 spawns per cell · Apple M4 Pro, node v24.15.0 · commit a45ea21
+node spawn floor: p50 21.9 ms · p95 26.0 ms
 
 ## i10-1mb — 10 initiatives, bound log 1.0 MB (3595 lines), 1.0 MB total
 | command | p50 ms | p95 ms | min ms |
 | --- | ---: | ---: | ---: |
-| session-start (index warm) | 64.3 | 70.2 | 62.8 |
-| session-start (index cold) | 82.1 | 86.0 | 76.0 |
-| post-tool Edit | 91.6 | 95.9 | 86.6 |
-| user-prompt (nudge) | 60.7 | 66.5 | 57.5 |
-| stop (blocked) | 54.9 | 59.2 | 52.3 |
-| session-end | 93.4 | 113.7 | 89.3 |
-| statusline | 58.7 | 60.0 | 56.5 |
-| status <slug> (full CLI, plain) | 82.2 | 86.8 | 79.5 |
+| session-start (index warm) | 65.5 | 70.3 | 62.9 |
+| session-start (index cold) | 82.5 | 88.8 | 76.9 |
+| post-tool Edit | 76.2 | 79.9 | 70.5 |
+| user-prompt (nudge) | 57.8 | 59.5 | 56.4 |
+| stop (blocked) | 54.2 | 57.5 | 51.7 |
+| session-end | 70.7 | 73.0 | 68.7 |
+| statusline | 53.9 | 57.6 | 52.6 |
+| status <slug> (full CLI, plain) | 78.8 | 80.3 | 73.5 |
 
 ## i10-10mb — 10 initiatives, bound log 10.0 MB (35903 lines), 10.0 MB total
 | command | p50 ms | p95 ms | min ms |
 | --- | ---: | ---: | ---: |
-| session-start (index warm) | 312.5 | 323.2 | 301.1 |
-| session-start (index cold) | 429.8 | 443.0 | 419.9 |
-| post-tool Edit | 610.2 | 625.6 | 600.9 |
-| user-prompt (nudge) | 334.3 | 346.0 | 315.8 |
-| stop (blocked) | 332.4 | 344.6 | 319.4 |
-| session-end | 615.3 | 648.3 | 591.2 |
-| statusline | 321.5 | 330.9 | 294.3 |
-| status <slug> (full CLI, plain) | 309.8 | 322.9 | 296.4 |
+| session-start (index warm) | 295.1 | 303.3 | 289.9 |
+| session-start (index cold) | 424.3 | 445.2 | 411.8 |
+| post-tool Edit | 408.4 | 426.3 | 388.4 |
+| user-prompt (nudge) | 318.8 | 328.6 | 314.2 |
+| stop (blocked) | 310.7 | 338.4 | 306.3 |
+| session-end | 396.3 | 420.3 | 371.8 |
+| statusline | 319.5 | 332.8 | 313.0 |
+| status <slug> (full CLI, plain) | 300.7 | 311.4 | 292.4 |
 
 ## i100-1mb — 100 initiatives, bound log 1.0 MB (3595 lines), 1.3 MB total
 | command | p50 ms | p95 ms | min ms |
 | --- | ---: | ---: | ---: |
-| session-start (index warm) | 79.2 | 83.3 | 76.2 |
-| session-start (index cold) | 98.0 | 102.6 | 95.6 |
-| post-tool Edit | 94.0 | 99.1 | 88.6 |
-| user-prompt (nudge) | 66.3 | 77.5 | 63.4 |
-| stop (blocked) | 58.0 | 62.3 | 56.7 |
-| session-end | 89.8 | 96.0 | 86.8 |
-| statusline | 57.1 | 59.3 | 55.6 |
-| status <slug> (full CLI, plain) | 80.4 | 83.0 | 78.8 |
+| session-start (index warm) | 78.1 | 84.3 | 74.3 |
+| session-start (index cold) | 99.0 | 102.2 | 94.0 |
+| post-tool Edit | 81.7 | 84.0 | 75.3 |
+| user-prompt (nudge) | 61.7 | 64.5 | 59.4 |
+| stop (blocked) | 54.7 | 56.5 | 53.9 |
+| session-end | 71.9 | 75.8 | 69.5 |
+| statusline | 55.4 | 60.9 | 54.0 |
+| status <slug> (full CLI, plain) | 76.1 | 80.5 | 73.0 |
 
 ## i100-10mb — 100 initiatives, bound log 10.0 MB (35903 lines), 10.3 MB total
 | command | p50 ms | p95 ms | min ms |
 | --- | ---: | ---: | ---: |
-| session-start (index warm) | 311.6 | 317.7 | 307.8 |
-| session-start (index cold) | 454.1 | 488.1 | 436.7 |
-| post-tool Edit | 603.8 | 660.8 | 597.1 |
-| user-prompt (nudge) | 370.7 | 416.9 | 327.2 |
-| stop (blocked) | 328.2 | 364.4 | 322.4 |
-| session-end | 609.9 | 624.2 | 597.4 |
-| statusline | 324.2 | 333.2 | 297.7 |
-| status <slug> (full CLI, plain) | 309.9 | 328.0 | 302.9 |
+| session-start (index warm) | 313.0 | 327.9 | 303.1 |
+| session-start (index cold) | 431.3 | 447.4 | 422.7 |
+| post-tool Edit | 401.4 | 412.7 | 368.6 |
+| user-prompt (nudge) | 322.5 | 330.3 | 315.6 |
+| stop (blocked) | 310.6 | 324.4 | 305.2 |
+| session-end | 390.4 | 410.4 | 383.4 |
+| statusline | 315.7 | 330.8 | 307.6 |
+| status <slug> (full CLI, plain) | 304.3 | 320.2 | 295.5 |
 
 ## i1000-1mb — 1000 initiatives, bound log 1.0 MB (3595 lines), 3.5 MB total
 | command | p50 ms | p95 ms | min ms |
 | --- | ---: | ---: | ---: |
-| session-start (index warm) | 132.1 | 139.3 | 127.8 |
-| session-start (index cold) | 207.7 | 212.1 | 206.6 |
-| post-tool Edit | 97.5 | 99.3 | 96.1 |
-| user-prompt (nudge) | 72.2 | 76.5 | 71.0 |
-| stop (blocked) | 61.0 | 62.7 | 58.5 |
-| session-end | 98.9 | 112.9 | 90.8 |
-| statusline | 64.4 | 69.1 | 63.1 |
-| status <slug> (full CLI, plain) | 84.8 | 87.0 | 79.1 |
+| session-start (index warm) | 130.9 | 138.6 | 126.5 |
+| session-start (index cold) | 213.2 | 238.2 | 200.2 |
+| post-tool Edit | 85.0 | 96.0 | 82.4 |
+| user-prompt (nudge) | 77.3 | 86.3 | 75.6 |
+| stop (blocked) | 63.2 | 66.9 | 61.0 |
+| session-end | 83.3 | 87.7 | 76.4 |
+| statusline | 63.1 | 67.9 | 60.6 |
+| status <slug> (full CLI, plain) | 77.8 | 81.9 | 73.4 |
 
 ## i1000-10mb — 1000 initiatives, bound log 10.0 MB (35903 lines), 12.5 MB total
 | command | p50 ms | p95 ms | min ms |
 | --- | ---: | ---: | ---: |
-| session-start (index warm) | 371.6 | 386.2 | 360.6 |
-| session-start (index cold) | 564.5 | 589.2 | 552.1 |
-| post-tool Edit | 621.0 | 646.3 | 599.0 |
-| user-prompt (nudge) | 352.4 | 365.5 | 327.8 |
-| stop (blocked) | 329.4 | 336.3 | 323.2 |
-| session-end | 616.0 | 639.9 | 592.3 |
-| statusline | 332.3 | 344.4 | 312.6 |
-| status <slug> (full CLI, plain) | 314.5 | 333.0 | 303.2 |
+| session-start (index warm) | 373.3 | 396.4 | 362.9 |
+| session-start (index cold) | 556.7 | 572.8 | 541.1 |
+| post-tool Edit | 377.3 | 385.4 | 374.4 |
+| user-prompt (nudge) | 331.5 | 345.0 | 308.0 |
+| stop (blocked) | 317.0 | 321.9 | 294.2 |
+| session-end | 417.9 | 460.9 | 390.7 |
+| statusline | 341.1 | 391.0 | 307.9 |
+| status <slug> (full CLI, plain) | 313.9 | 335.2 | 303.2 |
 
 ## repo — 55 initiatives, bound log 0.6 MB (789 lines), 7.6 MB total
 | command | p50 ms | p95 ms | min ms |
 | --- | ---: | ---: | ---: |
-| session-start (index warm) | 63.6 | 68.2 | 62.2 |
-| session-start (index cold) | 125.7 | 135.7 | 120.9 |
-| post-tool Edit | 56.2 | 59.3 | 54.7 |
-| user-prompt (nudge) | 41.1 | 44.2 | 40.0 |
-| stop (blocked) | 34.9 | 38.9 | 33.5 |
-| session-end | 49.8 | 51.6 | 48.0 |
-| statusline | 36.2 | 37.7 | 33.9 |
-| status <slug> (full CLI, plain) | 57.4 | 62.1 | 56.3 |
+| session-start (index warm) | 75.1 | 77.6 | 73.3 |
+| session-start (index cold) | 140.6 | 143.9 | 137.4 |
+| post-tool Edit | 63.1 | 65.5 | 60.6 |
+| user-prompt (nudge) | 53.1 | 66.5 | 50.5 |
+| stop (blocked) | 39.4 | 43.0 | 36.7 |
+| session-end | 56.1 | 60.0 | 53.8 |
+| statusline | 42.0 | 43.6 | 39.9 |
+| status <slug> (full CLI, plain) | 63.6 | 66.8 | 59.1 |
 
 ## floor — a root with no record
 | command | p50 ms | p95 ms | min ms |
 | --- | ---: | ---: | ---: |
-| session-start (no record) | 27.1 | 28.0 | 25.8 |
+| session-start (no record) | 31.6 | 33.7 | 30.7 |
 
-## in-process (TypeScript reference only): fold of the bound log, digest render of the folded state
+## in-process (TypeScript reference only; carried over from the 0.32.0 as-shipped record — 2.7 left foldLog and renderStatus unchanged): fold of the bound log, digest render of the folded state
 | cell | fold p50 ms | fold p95 ms | render p50 ms | render p95 ms |
 | --- | ---: | ---: | ---: | ---: |
 | i10-1mb | 13.3 | 17.2 | 0.2 | 0.3 |

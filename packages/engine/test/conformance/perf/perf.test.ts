@@ -30,6 +30,9 @@ import { BOUND_SLUG, SCALE_CELLS, writeScale, type ScaleCell } from './scale'
  *   SOFAR_PERF=1                  run at all (skipped otherwise: minutes, not seconds)
  *   SOFAR_PERF_ITER=<n>           spawns per measurement (default 20)
  *   SOFAR_PERF_RECORD=1           write baseline.typescript.json (TypeScript reference only)
+ *   SOFAR_PERF_TS_BIN="node …/dist/cli.js"  record from a TypeScript build elsewhere (another branch);
+ *                                 the in-process section is carried over from the previous baseline
+ *   SOFAR_PERF_LABEL=…            free text stored in the report header (which build, why)
  *   SOFAR_PERF_GATE=1             fail unless every candidate p50 and p95 ≤ the recorded target
  *   SOFAR_PERF_CELLS=i10-1mb,repo run a subset of cells
  *   SOFAR_CONFORMANCE_BIN=…       measure another implementation
@@ -43,6 +46,9 @@ const PERF = process.env.SOFAR_PERF === '1'
 const ITER = Math.max(3, Number.parseInt(process.env.SOFAR_PERF_ITER ?? '20', 10) || 20)
 const RECORD = process.env.SOFAR_PERF_RECORD === '1'
 const GATE = process.env.SOFAR_PERF_GATE === '1'
+/** A TypeScript build outside this tree to record as the reference (e.g. another branch's dist/cli.js). */
+const TS_BIN = process.env.SOFAR_PERF_TS_BIN?.trim()
+const LABEL = process.env.SOFAR_PERF_LABEL?.trim()
 const ONLY = new Set((process.env.SOFAR_PERF_CELLS ?? '').split(',').map((s) => s.trim()).filter((s) => s.length > 0))
 
 export const BASELINE_PATH = join(here, 'perf', 'baseline.typescript.json')
@@ -109,11 +115,14 @@ interface CellResult {
 
 interface InProcessResult {
   name: string
+  recordedAt: string
   fold: Stat
   render: Stat
 }
 
 interface PerfReport {
+  /** Which build and why, free text. */
+  label?: string
   implementation: string
   command: string[]
   recordedAt: string
@@ -223,8 +232,20 @@ function measures(cell: Cell): Measure[] {
 // Spawning.
 // ---------------------------------------------------------------------------
 
+/** The binary under measurement: an external TypeScript build, the candidate, or the reference built from this tree. */
+function binary(): { name: string; command: readonly string[] } {
+  if (TS_BIN !== undefined && TS_BIN.length > 0) {
+    if (CANDIDATE !== undefined) throw new Error('SOFAR_PERF_TS_BIN and SOFAR_CONFORMANCE_BIN are exclusive')
+    return { name: 'typescript', command: TS_BIN.split(/\s+/) }
+  }
+  return implementation()
+}
+
+/** In-process timing needs this tree's engine to be the build under measurement. */
+const IN_PROCESS = CANDIDATE === undefined && (TS_BIN === undefined || TS_BIN.length === 0)
+
 function spawnTimed(cell: Cell, argv: readonly string[], stdin: string | Record<string, unknown> | undefined): { ms: number; exit: number | null; stderr: string } {
-  const { command } = implementation()
+  const { command } = binary()
   const input = stdin === undefined ? '' : typeof stdin === 'string' ? stdin : JSON.stringify(stdin)
   const env = childEnv(cell.m)
   const startedAt = performance.now()
@@ -332,8 +353,10 @@ function machine(): PerfReport['machine'] {
 }
 
 function commitSha(): string | null {
+  // An external build is described by ITS tree's commit, not this one's.
+  const cwd = TS_BIN !== undefined && TS_BIN.length > 0 ? join(TS_BIN.split(/\s+/).at(-1)!, '..') : here
   try {
-    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: here, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
   } catch {
     return null
   }
@@ -356,7 +379,7 @@ function fmt(ms: number): string {
 function table(report: PerfReport, baseline: PerfReport | null): string {
   const lines: string[] = []
   lines.push(
-    `perf baseline — ${report.implementation} (${report.command.join(' ')}) · ${report.iterations} spawns per cell · ${report.machine.cpu}, node ${report.machine.node}`,
+    `perf baseline${report.label ? ` [${report.label}]` : ''} — ${report.implementation} (${report.command.join(' ')}) · ${report.iterations} spawns per cell · ${report.machine.cpu}, node ${report.machine.node} · commit ${report.commit ?? 'unknown'}`,
     `node spawn floor: p50 ${fmt(report.nodeSpawnMs.p50)} ms · p95 ${fmt(report.nodeSpawnMs.p95)} ms`,
     '',
   )
@@ -389,9 +412,9 @@ function ratio(now: number, target: number): string {
   return target === 0 ? 'n/a' : `${(now / target).toFixed(2)}×`
 }
 
-function merge(previous: PerfReport | null, now: PerfReport): PerfReport {
+function merge(previous: PerfReport | null, now: PerfReport, keepCells: boolean): PerfReport {
   if (previous === null) return now
-  const cells = previous.cells.map((c) => now.cells.find((n) => n.name === c.name) ?? c)
+  const cells = keepCells ? previous.cells.map((c) => now.cells.find((n) => n.name === c.name) ?? c) : [...now.cells]
   for (const n of now.cells) if (!cells.some((c) => c.name === n.name)) cells.push(n)
   const inProcess = (previous.inProcess ?? []).map((c) => now.inProcess?.find((n) => n.name === c.name) ?? c)
   for (const n of now.inProcess ?? []) if (!inProcess.some((c) => c.name === n.name)) inProcess.push(n)
@@ -425,10 +448,16 @@ describe.skipIf(!PERF)('perf baseline (rust-core 1.3)', () => {
 
   beforeAll(() => {
     if (RECORD && CANDIDATE !== undefined) throw new Error('the baseline is recorded from the TypeScript reference only — unset SOFAR_CONFORMANCE_BIN')
-    const impl = implementation()
+    const impl = binary()
     report.implementation = impl.name
+    if (LABEL !== undefined && LABEL.length > 0) report.label = LABEL
     // The reference is built into a scratch dir whose path means nothing later.
-    report.command = impl.name === 'typescript' ? ['node', 'dist/cli.js (built from source as build.mjs ships it)'] : [...impl.command]
+    report.command =
+      TS_BIN !== undefined && TS_BIN.length > 0
+        ? [...impl.command]
+        : impl.name === 'typescript'
+          ? ['node', 'dist/cli.js (built from source as build.mjs ships it)']
+          : [...impl.command]
     report.recordedAt = new Date().toISOString()
     report.nodeSpawnMs = nodeSpawn()
   })
@@ -439,8 +468,9 @@ describe.skipIf(!PERF)('perf baseline (rust-core 1.3)', () => {
     // eslint-disable-next-line no-console
     console.log(`\n${text}`)
     const out = RECORD ? BASELINE_PATH : join(tmpdir(), `sofar-perf.${report.implementation}.json`)
-    // A partial record (SOFAR_PERF_CELLS) replaces only the cells it measured.
-    const written = RECORD && ONLY.size > 0 ? merge(readBaseline(), report) : report
+    // A partial record (SOFAR_PERF_CELLS) replaces only the cells it measured; an
+    // external-build record keeps the previous in-process section (fold code unchanged).
+    const written = RECORD && (ONLY.size > 0 || !IN_PROCESS) ? merge(readBaseline(), report, ONLY.size > 0) : report
     writeFileSync(out, `${JSON.stringify(written, null, 2)}\n`)
     writeFileSync(out.replace(/\.json$/, '.md'), `${table(written, baseline)}\n`)
     // eslint-disable-next-line no-console
@@ -464,7 +494,7 @@ describe.skipIf(!PERF)('perf baseline (rust-core 1.3)', () => {
       }
       for (const m of measures(cell)) result.measures[m.name] = measure(cell, m)
       report.cells.push(result)
-      if (CANDIDATE === undefined) {
+      if (IN_PROCESS) {
         // In-process, reference only: the engine's own work, no boot.
         const log = join(cell.m.root, '.sofar', 'initiatives', cell.slug, 'events.jsonl')
         const fold: number[] = []
@@ -479,7 +509,7 @@ describe.skipIf(!PERF)('perf baseline (rust-core 1.3)', () => {
           render.push(t2 - t1)
         }
         report.inProcess ??= []
-        report.inProcess.push({ name: cell.name, fold: stat(fold), render: stat(render) })
+        report.inProcess.push({ name: cell.name, recordedAt: new Date().toISOString(), fold: stat(fold), render: stat(render) })
       }
       if (!KEEP) rmSync(cell.m.dir, { recursive: true, force: true })
     })
