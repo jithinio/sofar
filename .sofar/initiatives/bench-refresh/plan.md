@@ -66,4 +66,4 @@ Progress: 2/22 tasks done (9%)
 - [ ] 6.3 Replace stale public claims: one-pager R04 figures, install name @alignlabs/sofar, "adds nothing to your bill" next to --cost-cap
 
 Active phase: Phase 1 — Claim + round design
-Next action: Record chain-B recursive tests pin in §2 when author sends it; owner sets R2-P11-P13.
+Next action: Owner sets R2-P11-P13 and approves §3.5; rest of §9 waits on rc.2 tag 09-22.
