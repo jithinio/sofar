@@ -30,7 +30,7 @@ exit: 1
 --- stdout
 (empty)
 --- stderr
-{"code":"invalid_input","message":"--payload is not valid JSON: Expected property name or '}' in JSON at position 1 (line 1 column 2)"}
+{"code":"invalid_input","message":"--payload is not valid JSON: Expected property name or '}' in JSON at position 1"}
 
 ## step 5: payload is not an object
 argv: ["event","append","--type","note_added","--payload","[1]"]

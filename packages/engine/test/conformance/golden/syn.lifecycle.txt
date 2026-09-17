@@ -352,7 +352,7 @@ exit: 1
 --- stdout
 (empty)
 --- stderr
-sofar status: .sofar/bindings.json is not valid JSON: Expected property name or '}' in JSON at position 1 (line 1 column 2) (usage: sofar status [slug])
+sofar status: .sofar/bindings.json is not valid JSON: Expected property name or '}' in JSON at position 1 (usage: sofar status [slug])
 
 ## step 21: bindings.json is an array
 argv: ["event","session-start"]

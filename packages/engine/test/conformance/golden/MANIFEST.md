@@ -1,5 +1,12 @@
 # Golden manifest (rust-core D11)
 
+Runtime-neutral since **rust-core D37** (after 17817db): the harness masks
+V8's JSON.parse position suffix (` (line N column M)`, Node ≥22) down to
+`in JSON at position N`, so repo.append and syn.lifecycle lost that suffix in
+their `--payload '{'` step and every golden now means the same bytes on Node
+20 and Node 24. No other byte moved; the reference and the stub-dispatched
+core both pass 27/27.
+
 Re-recorded from the TypeScript reference at **rust-core 17817db** (the
 wave-a merge: memory-lead Wave A 1.1–1.3 — D2 rule quote, D3 host-neutral
 Session line, D4 digest composition with the 6,000-unit cap — plus the

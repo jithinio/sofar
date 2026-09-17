@@ -385,7 +385,14 @@ export function mask(text: string, m: Materialized): string {
     })
     .replace(AGO_RE, '<AGO> ago')
     .replace(SINCE_RE, '~<AGO> since')
+    // V8's JSON.parse message grew a ` (line N column M)` suffix in Node 22
+    // (rust-core D37): the golden keeps the runtime-independent part, so the
+    // suite means the same bytes on Node 20 and Node 24. The CLI still prints
+    // whatever its runtime says; only the assertion is runtime-neutral.
+    .replace(V8_POSITION_SUFFIX_RE, '$1')
 }
+
+const V8_POSITION_SUFFIX_RE = /(in JSON at position \d+) \(line \d+ column \d+\)/g
 
 // ---------------------------------------------------------------------------
 // Record delta.

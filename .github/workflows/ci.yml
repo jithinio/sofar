@@ -20,17 +20,21 @@ on:
         default: '0.32.0'
 
 jobs:
-  # Node 24 everywhere the goldens run (rust-core 3.2): the conformance goldens
-  # carry V8's own JSON.parse text ("… at position 1 (line 1 column 2)" on
-  # Node 24, without the parenthetical on Node 20), and the core's message
-  # fixtures are generated from the same runtime (D13).
+  # The engine suite on the supported floor AND the current runtime (rust-core
+  # D37): package.json declares node >=18, and the conformance goldens are
+  # runtime-neutral (the harness masks V8's JSON.parse position suffix), so
+  # both must stay green.
   test:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 24]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
       - run: npm run build
@@ -110,7 +114,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 20
           cache: npm
       - run: npm ci
       - run: npm run build
