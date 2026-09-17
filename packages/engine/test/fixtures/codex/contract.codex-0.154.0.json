@@ -1,0 +1,162 @@
+{
+  "codex_version": "0.154.0",
+  "hooks": {
+    "events": {
+      "provenance": "read-from-binary",
+      "names": [
+        "PreToolUse",
+        "PermissionRequest",
+        "PostToolUse",
+        "PreCompact",
+        "PostCompact",
+        "SessionStart",
+        "SessionEnd",
+        "UserPromptSubmit",
+        "SubagentStart",
+        "SubagentStop",
+        "Stop",
+        "Interrupt"
+      ]
+    },
+    "config_files": {
+      "provenance": "read-from-docs",
+      "project": [".codex/hooks.json", ".codex/config.toml"],
+      "user": ["~/.codex/hooks.json", "~/.codex/config.toml"],
+      "project_layer_requires_trust": true
+    },
+    "config_shape": {
+      "provenance": "read-from-binary",
+      "top_level_keys": ["description", "hooks"],
+      "matcher_group_keys": ["matcher", "hooks"],
+      "handler_types": ["command", "mcp_tool", "prompt", "agent"],
+      "handler_types_that_run": ["command", "mcp_tool"],
+      "command_handler_keys": ["type", "command", "commandWindows", "timeout", "async", "statusMessage", "additionalContextLimit"],
+      "mcp_tool_handler_keys": ["type", "server", "tool", "input", "timeout", "statusMessage"]
+    },
+    "timeouts_seconds": {
+      "provenance": "read-from-docs",
+      "default": 600,
+      "SessionEnd": { "default": 1, "max": 3 },
+      "Interrupt": { "default": 1, "max": 3 }
+    },
+    "matcher_target": {
+      "provenance": "read-from-docs",
+      "PreToolUse": "tool_name",
+      "PermissionRequest": "tool_name",
+      "PostToolUse": "tool_name",
+      "PreCompact": "trigger",
+      "PostCompact": "trigger",
+      "SessionStart": "source",
+      "SessionEnd": "reason",
+      "SubagentStart": "agent_type",
+      "SubagentStop": "agent_type",
+      "UserPromptSubmit": null,
+      "Stop": null,
+      "Interrupt": null
+    },
+    "tool_names": {
+      "provenance": "read-from-docs",
+      "shell": "Bash",
+      "unified_exec": "Bash",
+      "file_edit": "apply_patch",
+      "file_edit_matcher_aliases": ["Edit", "Write"],
+      "mcp": "mcp__<server>__<tool>",
+      "edit_and_shell_input_field": "tool_input.command"
+    },
+    "apply_patch_markers": {
+      "provenance": "read-from-binary",
+      "begin": "*** Begin Patch",
+      "end": "*** End Patch",
+      "add": "*** Add File: ",
+      "update": "*** Update File: ",
+      "delete": "*** Delete File: ",
+      "move": "*** Move to: "
+    },
+    "plain_stdout": {
+      "provenance": "read-from-docs",
+      "SessionStart": "developer_context",
+      "UserPromptSubmit": "developer_context",
+      "SubagentStart": "developer_context",
+      "PreToolUse": "ignored",
+      "PermissionRequest": "ignored",
+      "PostToolUse": "ignored",
+      "PreCompact": "ignored",
+      "PostCompact": "ignored",
+      "Stop": "invalid",
+      "SubagentStop": "invalid",
+      "Interrupt": "invalid",
+      "SessionEnd": "advisory"
+    },
+    "exit_2_stderr": {
+      "provenance": "read-from-docs",
+      "PreToolUse": "block_tool_call",
+      "PostToolUse": "replace_tool_result_with_feedback",
+      "UserPromptSubmit": "block_prompt",
+      "Stop": "continue_with_reason_as_new_prompt",
+      "SubagentStop": "continue_subagent"
+    },
+    "additional_context_default_limit_tokens": {
+      "provenance": "read-from-docs",
+      "value": 2500
+    },
+    "trust": {
+      "provenance": "read-from-binary",
+      "state_table": "hooks.state.\"<key>\"",
+      "state_keys": ["enabled", "trusted_hash"],
+      "bypass_flag": "--dangerously-bypass-hook-trust",
+      "bypass_config_key": "bypass_hook_trust",
+      "bypass_flag_also_in_0.136.0": true
+    },
+    "feature_flag": {
+      "provenance": "read-from-docs",
+      "key": "features.hooks",
+      "default": true,
+      "deprecated_alias": "features.codex_hooks"
+    }
+  },
+  "mcp": {
+    "provenance": "read-from-binary",
+    "table": "mcp_servers",
+    "project_file": ".codex/config.toml",
+    "project_file_requires_trust": true,
+    "cli_add_writes": "~/.codex/config.toml",
+    "server_keys_seen": ["args", "env", "env_vars", "startup_timeout_sec", "tool_timeout_sec", "enabled_tools", "disabled_tools", "bearer_token_env_var"],
+    "project_trust_table": "projects.\"<path>\"",
+    "project_trust_key": "trust_level",
+    "project_trust_values": ["trusted", "untrusted"]
+  },
+  "agents_md": {
+    "provenance": "read-from-binary",
+    "filenames_in_precedence": ["AGENTS.override.md", "AGENTS.md"],
+    "fallback_filenames_key": "project_doc_fallback_filenames",
+    "fallback_filenames_default": [],
+    "max_bytes_key": "project_doc_max_bytes",
+    "max_bytes_default": 32768,
+    "reads_claude_md_by_default": false
+  },
+  "exec_json": {
+    "provenance": "read-from-binary",
+    "tag_field": "type",
+    "types": ["thread.started", "turn.started", "turn.completed", "turn.failed", "item.started", "item.updated", "item.completed", "error"],
+    "item_kinds": ["agent_message", "reasoning", "command_execution", "file_change", "mcp_tool_call", "collab_tool_call", "web_search", "todo_list"],
+    "usage_fields": ["input_tokens", "cached_input_tokens", "cache_write_input_tokens", "output_tokens", "reasoning_output_tokens"],
+    "flags_added_since_0.136.0": ["--approve-for-me", "--worktree", "--thread-source"],
+    "subcommands_added_since_0.136.0": ["fork"],
+    "examples": [
+      { "type": "thread.started", "thread_id": "019a4c2e-7d31-7b52-9f10-3c6a0e5d4b21" },
+      { "type": "turn.started" },
+      {
+        "type": "turn.completed",
+        "usage": {
+          "input_tokens": 21780,
+          "cached_input_tokens": 11008,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 131,
+          "reasoning_output_tokens": 46
+        }
+      },
+      { "type": "turn.failed", "error": { "message": "stream disconnected before completion" } },
+      { "type": "error", "message": "stream disconnected before completion" }
+    ]
+  }
+}

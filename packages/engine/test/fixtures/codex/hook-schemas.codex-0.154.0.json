@@ -1,0 +1,1327 @@
+{
+"post-tool-use.command.input": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "properties": {
+    "agent_id": {
+      "type": "string"
+    },
+    "agent_type": {
+      "type": "string"
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "PostToolUse",
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "permission_mode": {
+      "enum": [
+        "default",
+        "acceptEdits",
+        "plan",
+        "dontAsk",
+        "bypassPermissions"
+      ],
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "tool_input": true,
+    "tool_name": {
+      "type": "string"
+    },
+    "tool_response": true,
+    "tool_use_id": {
+      "type": "string"
+    },
+    "transcript_path": {
+      "$ref": "#/definitions/NullableString"
+    },
+    "turn_id": {
+      "description": "Codex extension: expose the active turn id to internal turn-scoped hooks.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "cwd",
+    "hook_event_name",
+    "model",
+    "permission_mode",
+    "session_id",
+    "tool_input",
+    "tool_name",
+    "tool_response",
+    "tool_use_id",
+    "transcript_path",
+    "turn_id"
+  ],
+  "title": "post-tool-use.command.input",
+  "type": "object"
+},
+"post-tool-use.command.output": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "BlockDecisionWire": {
+      "enum": [
+        "block"
+      ],
+      "type": "string"
+    },
+    "PostToolUseHookSpecificOutputWire": {
+      "additionalProperties": false,
+      "properties": {
+        "additionalContext": {
+          "default": null,
+          "type": "string"
+        },
+        "hookEventName": {
+          "const": "PostToolUse",
+          "type": "string"
+        },
+        "updatedMCPToolOutput": {
+          "default": null
+        }
+      },
+      "required": [
+        "hookEventName"
+      ],
+      "type": "object"
+    }
+  },
+  "properties": {
+    "continue": {
+      "default": true,
+      "type": "boolean"
+    },
+    "decision": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/BlockDecisionWire"
+        }
+      ],
+      "default": null
+    },
+    "hookSpecificOutput": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/PostToolUseHookSpecificOutputWire"
+        }
+      ],
+      "default": null
+    },
+    "reason": {
+      "default": null,
+      "type": "string"
+    },
+    "stopReason": {
+      "default": null,
+      "type": "string"
+    },
+    "suppressOutput": {
+      "default": false,
+      "type": "boolean"
+    },
+    "systemMessage": {
+      "default": null,
+      "type": "string"
+    }
+  },
+  "title": "post-tool-use.command.output",
+  "type": "object"
+},
+"permission-request.command.input": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "properties": {
+    "agent_id": {
+      "type": "string"
+    },
+    "agent_type": {
+      "type": "string"
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "PermissionRequest",
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "permission_mode": {
+      "enum": [
+        "default",
+        "acceptEdits",
+        "plan",
+        "dontAsk",
+        "bypassPermissions"
+      ],
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "tool_input": true,
+    "tool_name": {
+      "type": "string"
+    },
+    "transcript_path": {
+      "$ref": "#/definitions/NullableString"
+    },
+    "turn_id": {
+      "description": "Codex extension: expose the active turn id to internal turn-scoped hooks.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "cwd",
+    "hook_event_name",
+    "model",
+    "permission_mode",
+    "session_id",
+    "tool_input",
+    "tool_name",
+    "transcript_path",
+    "turn_id"
+  ],
+  "title": "permission-request.command.input",
+  "type": "object"
+},
+"permission-request.command.output": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "PermissionRequestBehaviorWire": {
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "type": "string"
+    },
+    "PermissionRequestDecisionWire": {
+      "additionalProperties": false,
+      "properties": {
+        "behavior": {
+          "$ref": "#/definitions/PermissionRequestBehaviorWire"
+        },
+        "interrupt": {
+          "default": false,
+          "description": "Reserved for future short-circuiting semantics.\n\nPermissionRequest hooks currently fail closed if this field is `true`.",
+          "type": "boolean"
+        },
+        "message": {
+          "default": null,
+          "type": "string"
+        },
+        "updatedInput": {
+          "default": null,
+          "description": "Reserved for a future input-rewrite capability.\n\nPermissionRequest hooks currently fail closed if this field is present."
+        },
+        "updatedPermissions": {
+          "default": null,
+          "description": "Reserved for a future permission-rewrite capability.\n\nPermissionRequest hooks currently fail closed if this field is present."
+        }
+      },
+      "required": [
+        "behavior"
+      ],
+      "type": "object"
+    },
+    "PermissionRequestHookSpecificOutputWire": {
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/PermissionRequestDecisionWire"
+            }
+          ],
+          "default": null
+        },
+        "hookEventName": {
+          "const": "PermissionRequest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hookEventName"
+      ],
+      "type": "object"
+    }
+  },
+  "properties": {
+    "continue": {
+      "default": true,
+      "type": "boolean"
+    },
+    "hookSpecificOutput": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/PermissionRequestHookSpecificOutputWire"
+        }
+      ],
+      "default": null
+    },
+    "stopReason": {
+      "default": null,
+      "type": "string"
+    },
+    "suppressOutput": {
+      "default": false,
+      "type": "boolean"
+    },
+    "systemMessage": {
+      "default": null,
+      "type": "string"
+    }
+  },
+  "title": "permission-request.command.output",
+  "type": "object"
+},
+"post-compact.command.input": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "properties": {
+    "agent_id": {
+      "type": "string"
+    },
+    "agent_type": {
+      "type": "string"
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "PostCompact",
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "transcript_path": {
+      "$ref": "#/definitions/NullableString"
+    },
+    "trigger": {
+      "enum": [
+        "manual",
+        "auto"
+      ],
+      "type": "string"
+    },
+    "turn_id": {
+      "description": "Codex extension: expose the active turn id to internal turn-scoped hooks.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "cwd",
+    "hook_event_name",
+    "model",
+    "session_id",
+    "transcript_path",
+    "trigger",
+    "turn_id"
+  ],
+  "title": "post-compact.command.input",
+  "type": "object"
+},
+"post-compact.command.output": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "continue": {
+      "default": true,
+      "type": "boolean"
+    },
+    "stopReason": {
+      "default": null,
+      "type": "string"
+    },
+    "suppressOutput": {
+      "default": false,
+      "type": "boolean"
+    },
+    "systemMessage": {
+      "default": null,
+      "type": "string"
+    }
+  },
+  "title": "post-compact.command.output",
+  "type": "object"
+},
+"pre-tool-use.command.input": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "properties": {
+    "agent_id": {
+      "type": "string"
+    },
+    "agent_type": {
+      "type": "string"
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "PreToolUse",
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "permission_mode": {
+      "enum": [
+        "default",
+        "acceptEdits",
+        "plan",
+        "dontAsk",
+        "bypassPermissions"
+      ],
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "tool_input": true,
+    "tool_name": {
+      "type": "string"
+    },
+    "tool_use_id": {
+      "type": "string"
+    },
+    "transcript_path": {
+      "$ref": "#/definitions/NullableString"
+    },
+    "turn_id": {
+      "description": "Codex extension: expose the active turn id to internal turn-scoped hooks.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "cwd",
+    "hook_event_name",
+    "model",
+    "permission_mode",
+    "session_id",
+    "tool_input",
+    "tool_name",
+    "tool_use_id",
+    "transcript_path",
+    "turn_id"
+  ],
+  "title": "pre-tool-use.command.input",
+  "type": "object"
+},
+"pre-tool-use.command.output": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "PreToolUseDecisionWire": {
+      "enum": [
+        "approve",
+        "block"
+      ],
+      "type": "string"
+    },
+    "PreToolUseHookSpecificOutputWire": {
+      "additionalProperties": false,
+      "properties": {
+        "additionalContext": {
+          "default": null,
+          "type": "string"
+        },
+        "hookEventName": {
+          "const": "PreToolUse",
+          "type": "string"
+        },
+        "permissionDecision": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/PreToolUsePermissionDecisionWire"
+            }
+          ],
+          "default": null
+        },
+        "permissionDecisionReason": {
+          "default": null,
+          "type": "string"
+        },
+        "updatedInput": {
+          "default": null
+        }
+      },
+      "required": [
+        "hookEventName"
+      ],
+      "type": "object"
+    },
+    "PreToolUsePermissionDecisionWire": {
+      "enum": [
+        "allow",
+        "deny",
+        "ask"
+      ],
+      "type": "string"
+    }
+  },
+  "properties": {
+    "continue": {
+      "default": true,
+      "type": "boolean"
+    },
+    "decision": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/PreToolUseDecisionWire"
+        }
+      ],
+      "default": null
+    },
+    "hookSpecificOutput": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/PreToolUseHookSpecificOutputWire"
+        }
+      ],
+      "default": null
+    },
+    "reason": {
+      "default": null,
+      "type": "string"
+    },
+    "stopReason": {
+      "default": null,
+      "type": "string"
+    },
+    "suppressOutput": {
+      "default": false,
+      "type": "boolean"
+    },
+    "systemMessage": {
+      "default": null,
+      "type": "string"
+    }
+  },
+  "title": "pre-tool-use.command.output",
+  "type": "object"
+},
+"pre-compact.command.input": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "properties": {
+    "agent_id": {
+      "type": "string"
+    },
+    "agent_type": {
+      "type": "string"
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "PreCompact",
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "transcript_path": {
+      "$ref": "#/definitions/NullableString"
+    },
+    "trigger": {
+      "enum": [
+        "manual",
+        "auto"
+      ],
+      "type": "string"
+    },
+    "turn_id": {
+      "description": "Codex extension: expose the active turn id to internal turn-scoped hooks.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "cwd",
+    "hook_event_name",
+    "model",
+    "session_id",
+    "transcript_path",
+    "trigger",
+    "turn_id"
+  ],
+  "title": "pre-compact.command.input",
+  "type": "object"
+},
+"pre-compact.command.output": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "continue": {
+      "default": true,
+      "type": "boolean"
+    },
+    "stopReason": {
+      "default": null,
+      "type": "string"
+    },
+    "suppressOutput": {
+      "default": false,
+      "type": "boolean"
+    },
+    "systemMessage": {
+      "default": null,
+      "type": "string"
+    }
+  },
+  "title": "pre-compact.command.output",
+  "type": "object"
+},
+"session-start.command.input": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "properties": {
+    "cwd": {
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "SessionStart",
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "permission_mode": {
+      "enum": [
+        "default",
+        "acceptEdits",
+        "plan",
+        "dontAsk",
+        "bypassPermissions"
+      ],
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "source": {
+      "enum": [
+        "startup",
+        "resume",
+        "clear",
+        "compact"
+      ],
+      "type": "string"
+    },
+    "transcript_path": {
+      "$ref": "#/definitions/NullableString"
+    }
+  },
+  "required": [
+    "cwd",
+    "hook_event_name",
+    "model",
+    "permission_mode",
+    "session_id",
+    "source",
+    "transcript_path"
+  ],
+  "title": "session-start.command.input",
+  "type": "object"
+},
+"session-start.command.output": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "SessionStartHookSpecificOutputWire": {
+      "additionalProperties": false,
+      "properties": {
+        "additionalContext": {
+          "default": null,
+          "type": "string"
+        },
+        "hookEventName": {
+          "const": "SessionStart",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hookEventName"
+      ],
+      "type": "object"
+    }
+  },
+  "properties": {
+    "continue": {
+      "default": true,
+      "type": "boolean"
+    },
+    "hookSpecificOutput": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/SessionStartHookSpecificOutputWire"
+        }
+      ],
+      "default": null
+    },
+    "stopReason": {
+      "default": null,
+      "type": "string"
+    },
+    "suppressOutput": {
+      "default": false,
+      "type": "boolean"
+    },
+    "systemMessage": {
+      "default": null,
+      "type": "string"
+    }
+  },
+  "title": "session-start.command.output",
+  "type": "object"
+},
+"session-end.command.input": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "properties": {
+    "cwd": {
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "SessionEnd",
+      "type": "string"
+    },
+    "reason": {
+      "const": "other",
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "transcript_path": {
+      "$ref": "#/definitions/NullableString"
+    }
+  },
+  "required": [
+    "cwd",
+    "hook_event_name",
+    "reason",
+    "session_id",
+    "transcript_path"
+  ],
+  "title": "session-end.command.input",
+  "type": "object"
+},
+"subagent-start.command.input": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "properties": {
+    "agent_id": {
+      "type": "string"
+    },
+    "agent_type": {
+      "type": "string"
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "SubagentStart",
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "permission_mode": {
+      "enum": [
+        "default",
+        "acceptEdits",
+        "plan",
+        "dontAsk",
+        "bypassPermissions"
+      ],
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "transcript_path": {
+      "$ref": "#/definitions/NullableString"
+    },
+    "turn_id": {
+      "description": "Codex extension: expose the active turn id to internal turn-scoped hooks.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "agent_id",
+    "agent_type",
+    "cwd",
+    "hook_event_name",
+    "model",
+    "permission_mode",
+    "session_id",
+    "transcript_path",
+    "turn_id"
+  ],
+  "title": "subagent-start.command.input",
+  "type": "object"
+},
+"subagent-start.command.output": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "SubagentStartHookSpecificOutputWire": {
+      "additionalProperties": false,
+      "properties": {
+        "additionalContext": {
+          "default": null,
+          "type": "string"
+        },
+        "hookEventName": {
+          "const": "SubagentStart",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hookEventName"
+      ],
+      "type": "object"
+    }
+  },
+  "properties": {
+    "continue": {
+      "default": true,
+      "type": "boolean"
+    },
+    "hookSpecificOutput": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/SubagentStartHookSpecificOutputWire"
+        }
+      ],
+      "default": null
+    },
+    "stopReason": {
+      "default": null,
+      "type": "string"
+    },
+    "suppressOutput": {
+      "default": false,
+      "type": "boolean"
+    },
+    "systemMessage": {
+      "default": null,
+      "type": "string"
+    }
+  },
+  "title": "subagent-start.command.output",
+  "type": "object"
+},
+"subagent-stop.command.input": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "properties": {
+    "agent_id": {
+      "type": "string"
+    },
+    "agent_transcript_path": {
+      "$ref": "#/definitions/NullableString"
+    },
+    "agent_type": {
+      "type": "string"
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "SubagentStop",
+      "type": "string"
+    },
+    "last_assistant_message": {
+      "$ref": "#/definitions/NullableString"
+    },
+    "model": {
+      "type": "string"
+    },
+    "permission_mode": {
+      "enum": [
+        "default",
+        "acceptEdits",
+        "plan",
+        "dontAsk",
+        "bypassPermissions"
+      ],
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "stop_hook_active": {
+      "type": "boolean"
+    },
+    "transcript_path": {
+      "$ref": "#/definitions/NullableString"
+    },
+    "turn_id": {
+      "description": "Codex extension: expose the active turn id to internal turn-scoped hooks.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "agent_id",
+    "agent_transcript_path",
+    "agent_type",
+    "cwd",
+    "hook_event_name",
+    "last_assistant_message",
+    "model",
+    "permission_mode",
+    "session_id",
+    "stop_hook_active",
+    "transcript_path",
+    "turn_id"
+  ],
+  "title": "subagent-stop.command.input",
+  "type": "object"
+},
+"subagent-stop.command.output": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "BlockDecisionWire": {
+      "enum": [
+        "block"
+      ],
+      "type": "string"
+    }
+  },
+  "properties": {
+    "continue": {
+      "default": true,
+      "type": "boolean"
+    },
+    "decision": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/BlockDecisionWire"
+        }
+      ],
+      "default": null
+    },
+    "reason": {
+      "default": null,
+      "description": "Claude requires `reason` when `decision` is `block`; we enforce that semantic rule during output parsing rather than in the JSON schema.",
+      "type": "string"
+    },
+    "stopReason": {
+      "default": null,
+      "type": "string"
+    },
+    "suppressOutput": {
+      "default": false,
+      "type": "boolean"
+    },
+    "systemMessage": {
+      "default": null,
+      "type": "string"
+    }
+  },
+  "title": "subagent-stop.command.output",
+  "type": "object"
+},
+"user-prompt-submit.command.input": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "properties": {
+    "agent_id": {
+      "type": "string"
+    },
+    "agent_type": {
+      "type": "string"
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "UserPromptSubmit",
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "permission_mode": {
+      "enum": [
+        "default",
+        "acceptEdits",
+        "plan",
+        "dontAsk",
+        "bypassPermissions"
+      ],
+      "type": "string"
+    },
+    "prompt": {
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "transcript_path": {
+      "$ref": "#/definitions/NullableString"
+    },
+    "turn_id": {
+      "description": "Codex extension: expose the active turn id to internal turn-scoped hooks.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "cwd",
+    "hook_event_name",
+    "model",
+    "permission_mode",
+    "prompt",
+    "session_id",
+    "transcript_path",
+    "turn_id"
+  ],
+  "title": "user-prompt-submit.command.input",
+  "type": "object"
+},
+"user-prompt-submit.command.output": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "BlockDecisionWire": {
+      "enum": [
+        "block"
+      ],
+      "type": "string"
+    },
+    "UserPromptSubmitHookSpecificOutputWire": {
+      "additionalProperties": false,
+      "properties": {
+        "additionalContext": {
+          "default": null,
+          "type": "string"
+        },
+        "hookEventName": {
+          "const": "UserPromptSubmit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hookEventName"
+      ],
+      "type": "object"
+    }
+  },
+  "properties": {
+    "continue": {
+      "default": true,
+      "type": "boolean"
+    },
+    "decision": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/BlockDecisionWire"
+        }
+      ],
+      "default": null
+    },
+    "hookSpecificOutput": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/UserPromptSubmitHookSpecificOutputWire"
+        }
+      ],
+      "default": null
+    },
+    "reason": {
+      "default": null,
+      "type": "string"
+    },
+    "stopReason": {
+      "default": null,
+      "type": "string"
+    },
+    "suppressOutput": {
+      "default": false,
+      "type": "boolean"
+    },
+    "systemMessage": {
+      "default": null,
+      "type": "string"
+    }
+  },
+  "title": "user-prompt-submit.command.output",
+  "type": "object"
+},
+"stop.command.input": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "properties": {
+    "cwd": {
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "Stop",
+      "type": "string"
+    },
+    "last_assistant_message": {
+      "$ref": "#/definitions/NullableString"
+    },
+    "model": {
+      "type": "string"
+    },
+    "permission_mode": {
+      "enum": [
+        "default",
+        "acceptEdits",
+        "plan",
+        "dontAsk",
+        "bypassPermissions"
+      ],
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "stop_hook_active": {
+      "type": "boolean"
+    },
+    "transcript_path": {
+      "$ref": "#/definitions/NullableString"
+    },
+    "turn_id": {
+      "description": "Codex extension: expose the active turn id to internal turn-scoped hooks.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "cwd",
+    "hook_event_name",
+    "last_assistant_message",
+    "model",
+    "permission_mode",
+    "session_id",
+    "stop_hook_active",
+    "transcript_path",
+    "turn_id"
+  ],
+  "title": "stop.command.input",
+  "type": "object"
+},
+"stop.command.output": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "BlockDecisionWire": {
+      "enum": [
+        "block"
+      ],
+      "type": "string"
+    }
+  },
+  "properties": {
+    "continue": {
+      "default": true,
+      "type": "boolean"
+    },
+    "decision": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/BlockDecisionWire"
+        }
+      ],
+      "default": null
+    },
+    "reason": {
+      "default": null,
+      "description": "Claude requires `reason` when `decision` is `block`; we enforce that semantic rule during output parsing rather than in the JSON schema.",
+      "type": "string"
+    },
+    "stopReason": {
+      "default": null,
+      "type": "string"
+    },
+    "suppressOutput": {
+      "default": false,
+      "type": "boolean"
+    },
+    "systemMessage": {
+      "default": null,
+      "type": "string"
+    }
+  },
+  "title": "stop.command.output",
+  "type": "object"
+},
+"interrupt.command.input": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "properties": {
+    "cwd": {
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "Interrupt",
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "permission_mode": {
+      "enum": [
+        "default",
+        "acceptEdits",
+        "plan",
+        "dontAsk",
+        "bypassPermissions"
+      ],
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "transcript_path": {
+      "$ref": "#/definitions/NullableString"
+    },
+    "turn_id": {
+      "description": "Codex extension: expose the active turn id to internal turn-scoped hooks.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "cwd",
+    "hook_event_name",
+    "model",
+    "permission_mode",
+    "session_id",
+    "transcript_path",
+    "turn_id"
+  ],
+  "title": "interrupt.command.input",
+  "type": "object"
+},
+"interrupt.command.output": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "systemMessage": {
+      "default": null,
+      "type": "string"
+    }
+  },
+  "title": "interrupt.command.output",
+  "type": "object"
+}
+}

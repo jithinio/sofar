@@ -1691,6 +1691,192 @@ stop each fired exactly once. Stop arrived with `loop_count: 0` and returned
 `followup_message`, the follow-up turn wrote session_ended, and no second
 stop fired. Evidence: r1-fixes note 01M2QE7G.
 
+## Codex host (agents-parity 1.1 contract, r1-fixes 7.2)
+This section records what Codex reads, sends and honours. It was captured
+without running inference (agents-parity D3) from three sources: codex-cli
+0.154.0's binary (`--help` and `strings`), codex-cli 0.136.0's `--help`, and the
+Codex hooks docs saved 2026-09-16. None of it is wired yet. Hooks, MCP and the
+write-back gate are agents-parity 2.1–2.3, and Codex stays in Tier 3
+(§Host tiers) until 3.2 proves them live. Each fact is marked (binary), (docs) or
+(unverified). The data is `packages/engine/test/fixtures/codex/`, whose README
+marks each field, and `codex-contract.test.ts` checks that the fixtures agree.
+Later tasks test against those files, never against remembered shapes.
+
+**Version.** Hooks and their trust gate exist in both installed releases:
+`--dangerously-bypass-hook-trust` appears in 0.136.0's `codex --help` (binary),
+and 0.154.0 embeds the hook schemas (binary). The first release with hooks is
+unverified because nothing older is installed. So the floor sofar can claim is
+0.136.0, and payload shapes are pinned to 0.154.0 only: 0.136.0's binary
+resolves under `~/.codex`, which the capture could not read. Hooks are on by
+default. `[features] hooks = false` turns them off, and `codex_hooks` is a
+deprecated alias for that key (docs).
+
+**Where hooks live.** Hooks are defined in `hooks.json` or in inline `[hooks]`
+tables in `config.toml`, beside each active config layer: `~/.codex/` and
+`<repo>/.codex/` (docs). Codex runs every matching hook from every source, and
+launches matching command hooks for one event concurrently. A layer holding both
+forms is merged, with a startup warning (docs). The project `.codex/` layer —
+hooks, MCP and settings alike — loads only for a trusted project,
+`projects."<path>".trust_level = "trusted"` (binary: "Project
+`.codex/config.toml`: settings for a trusted repository, including sandbox, MCP,
+hooks, model, and reasoning defaults."). Codex does not read
+`.claude/settings.json` hooks at runtime (unverified negative). The Claude
+config strings in the binary belong to its one-shot `/import`, which copies
+Claude Code hooks, MCP servers and instructions into `.codex/`. So unlike
+Cursor, there is no import to dedupe against.
+
+**Config shape (binary).** The file is `{description?, hooks: {<Event>:
+[{matcher?, hooks: [handler]}]}}`. A handler's `type` is `command` (keys
+`command`, `commandWindows`, `timeout`, `async`, `statusMessage`,
+`additionalContextLimit`) or `mcp_tool` (`server`, `tool`, `input`, `timeout`,
+`statusMessage`). Codex parses `prompt` and `agent` handlers but skips them
+(docs). There are twelve events: SessionStart, SessionEnd, UserPromptSubmit,
+PreToolUse, PermissionRequest, PostToolUse, PreCompact, PostCompact,
+SubagentStart, SubagentStop, Stop and Interrupt. None is PostToolUseFailure:
+PostToolUse also fires after a Bash command that exits non-zero (docs).
+
+Handler timeouts are in seconds, default 600; SessionEnd and Interrupt default
+to 1 and cap at 3 (docs). Commands run in the session cwd, which can be a
+subdirectory, so the docs advise resolving repo-local hook paths from the git
+root. `matcher` is a regex applied to one field per event (docs):
+- `tool_name` on PreToolUse, PermissionRequest and PostToolUse
+- `source` on SessionStart and `reason` on SessionEnd
+- `trigger` on PreCompact and PostCompact
+- `agent_type` on SubagentStart and SubagentStop
+- nothing on UserPromptSubmit, Stop and Interrupt, which ignore it
+
+**Review and trust.** A non-managed hook runs only after the operator reviews and
+trusts its exact definition in `/hooks`. Codex records trust against the
+definition's hash, so a new or edited hook is skipped until it is trusted again,
+and startup prints a warning that points at `/hooks` (docs). The trust state is
+`hooks.state."<key>"` with `enabled` and `trusted_hash` (binary); which config
+file holds it is unverified. For one invocation, `--dangerously-bypass-hook-trust`
+(in both versions) or the `bypass_hook_trust` override runs enabled hooks without
+trust, and Codex announces "Enabled hooks may run without review for this
+invocation." (binary). So `sofar init` cannot make its own hooks run. The
+operator trusts the project and trusts the hooks once, and any byte change to an
+entry asks again. That is the same once-per-hash approval Cursor applies to a
+project MCP server.
+
+**What a hook receives (binary).** One JSON object on stdin. The embedded
+draft-07 schemas are `additionalProperties: false`, so a field not listed is
+never sent. Common fields:
+- every event: `session_id` (the thread id; subagent hooks send the parent's,
+  docs), `transcript_path` (string or null), `cwd` and `hook_event_name`, whose
+  values are the PascalCase event names above
+- all but SessionEnd: `model`
+- turn-scoped events, i.e. all but SessionStart and SessionEnd: `turn_id`
+- all but SessionEnd, PreCompact and PostCompact: `permission_mode`, one of
+  `default`, `acceptEdits`, `plan`, `dontAsk`, `bypassPermissions`
+- tool, prompt and compaction events inside a subagent: optional `agent_id` and
+  `agent_type`
+
+Event-specific fields:
+- SessionStart: `source` (`startup`, `resume`, `clear` or `compact`)
+- SessionEnd: `reason`, always `other`
+- UserPromptSubmit: `prompt`
+- PostToolUse: `tool_name`, `tool_use_id`, `tool_input`, `tool_response`
+- Stop: `stop_hook_active`, `last_assistant_message` (string or null)
+
+These are Claude Code's field names, so the dialect gap Cursor needed a converter
+for is mostly absent. Tool names are where Codex differs (docs):
+- shell and unified exec: `Bash`
+- file edits: `apply_patch`, with the whole patch in `tool_input.command` and no
+  `file_path`. Paths sit on `*** Add File: `, `*** Update File: `,
+  `*** Delete File: ` and `*** Move to: ` lines (markers binary, grammar
+  unverified).
+- MCP tools: `mcp__<server>__<tool>`
+
+The `tool_response` shape for Bash and apply_patch is unverified. No field names
+the host or its version, so a Codex payload cannot be told from a Claude Code one
+by a `cursor_version`-style key.
+
+**What a hook may return (binary schemas, effects from docs).** Exit 0 with no
+output continues. Plain stdout:
+- becomes developer context on SessionStart, UserPromptSubmit and SubagentStart
+- is ignored on PreToolUse, PermissionRequest, PostToolUse, PreCompact and
+  PostCompact
+- is invalid on Stop, SubagentStop and Interrupt, which expect JSON when they
+  exit 0
+
+JSON output:
+- `hookSpecificOutput: {hookEventName, additionalContext}` on SessionStart,
+  UserPromptSubmit, PreToolUse, PostToolUse and SubagentStart
+- `decision: "block"` plus `reason`:
+  - UserPromptSubmit: blocks the prompt
+  - PostToolUse: replaces the tool result with the feedback
+  - Stop and SubagentStop: continue, with `reason` as a new user prompt
+- the common `continue`, `stopReason`, `systemMessage` and `suppressOutput`,
+  where the event supports them
+
+Exit 2 with the reason on stderr acts like `decision: "block"` on PreToolUse,
+PostToolUse, UserPromptSubmit, Stop and SubagentStop. Model-visible hook output
+over about 2,500 tokens is spilled: saved under
+`<temp_dir>/hook_outputs/<session_id>/` and replaced by a head-and-tail preview. A
+handler's `additionalContextLimit` moves that threshold for `additionalContext`,
+and 0 removes it (docs). Whether plain SessionStart stdout counts against that
+limit is unverified.
+
+**sofar's handlers measured against this.** Checked against the schemas in
+`codex-contract.test.ts`, today's handlers mostly already fit:
+- session-start and user-prompt print plain stdout, which is context on both
+  events
+- post-tool prints `hookSpecificOutput.additionalContext`, which is valid
+  PostToolUse output
+- the Stop gate exits 2 with its message on stderr, which becomes a continuation
+  prompt. `stop_hook_active` arrives under Claude Code's name, so the hold-once
+  guard reads it unchanged.
+- Cursor's `additional_context` and `followup_message` fail the schemas, so
+  `toCursor` must never serve Codex
+
+What 2.1 must still close:
+- host identity. There is no stdin marker, and `CODEX_THREAD_ID` is a string in
+  the binary but unverified as a hook variable. The environment was ruled out for
+  Cursor because a nested session inherits it.
+- edits arrive as apply_patch text, not Edit or Write with `file_path`
+- there is no PostToolUseFailure event
+- the 10,000-character digest sits at the 2,500-token spill threshold
+- SessionEnd has only 1–3 s
+
+**MCP.** Servers are `[mcp_servers.<name>]` tables in `config.toml` (binary), and
+the project `.codex/config.toml` is read for a trusted project (binary, the same
+string as above). `codex mcp add <name> -- <command…>` writes
+`~/.codex/config.toml`, the user level (binary). Server keys seen: `args`, `env`,
+`env_vars`, `startup_timeout_sec`, `tool_timeout_sec`, `enabled_tools`,
+`disabled_tools` and `bearer_token_env_var` (binary). `command` is inferred from
+`mcp add` (unverified). Codex never reads `.mcp.json` or `.cursor/mcp.json` at
+runtime, but its `/import` can copy `.mcp.json` servers into `.codex/config.toml`
+(binary, migration strings). SessionStart hooks may run before an MCP server is
+ready (docs). Whether Codex passes the thread id to an MCP server's environment
+is unverified, so `sofar_start_session` still takes the id from the injected
+Session line.
+
+**AGENTS.md (binary).** Codex reads project docs in this order:
+`AGENTS.override.md`, `AGENTS.md`, then `project_doc_fallback_filenames` (empty by
+default). They share a `project_doc_max_bytes` budget, default 32768, and a doc
+past it is truncated. `CLAUDE.md` is read only when configured as a fallback, so a
+Codex session sees the AGENTS.md protocol block alone. The walk from repo root to
+cwd is unverified.
+
+**`codex exec --json` since the 0.136.0 adapter (binary).** The line types are
+unchanged: `thread.started`, `turn.started`, `turn.completed`, `turn.failed`,
+`item.started`, `item.updated`, `item.completed` and `error`. Every type the
+adapter reads survives. The usage names beside `TurnCompletedEvent` now include
+`cache_write_input_tokens`, and `total_tokens` is not among them (struct
+membership inferred).
+
+`codex exec` adds `fork`, `--approve-for-me`, `--worktree` and `--thread-source`.
+Every flag the adapter passes (`--json`, `--skip-git-repo-check`, `-m`, `-s`,
+`-c`) exists in both versions. Top-level `-a` now lists only `on-request` and
+`never`, and `approval_policy` is still a config key.
+
+Hooks apply to exec. A driven session in a project whose hooks are untrusted runs
+none of them unless it is launched with `--dangerously-bypass-hook-trust`. That
+is a 3.1 question, as is whether exec trusts the project layer at all
+(unverified). The binary also computes a `non_cached_input`, which suggests
+`input_tokens` already counts cached tokens. The adapter adds the two, so its
+context figure may double-count (unverified).
+
 ## Derived index (record-index — local, incremental, never truth)
 Every cross-record question — which initiatives hold open sessions, who else
 has this file, what guards this path, what else bears on this work — costs a

@@ -1,0 +1,143 @@
+{
+  "session-start.startup": {
+    "schema": "session-start.command.input",
+    "payload": {
+      "session_id": "019a4c2e-7d31-7b52-9f10-3c6a0e5d4b21",
+      "transcript_path": "/home/op/.codex/sessions/rollout-019a4c2e.jsonl",
+      "cwd": "/tmp/repo",
+      "hook_event_name": "SessionStart",
+      "model": "gpt-5.6-terra",
+      "permission_mode": "default",
+      "source": "startup"
+    }
+  },
+  "session-start.compact": {
+    "schema": "session-start.command.input",
+    "payload": {
+      "session_id": "019a4c2e-7d31-7b52-9f10-3c6a0e5d4b21",
+      "transcript_path": null,
+      "cwd": "/tmp/repo",
+      "hook_event_name": "SessionStart",
+      "model": "gpt-5.6-terra",
+      "permission_mode": "default",
+      "source": "compact"
+    }
+  },
+  "user-prompt-submit": {
+    "schema": "user-prompt-submit.command.input",
+    "payload": {
+      "session_id": "019a4c2e-7d31-7b52-9f10-3c6a0e5d4b21",
+      "transcript_path": "/home/op/.codex/sessions/rollout-019a4c2e.jsonl",
+      "cwd": "/tmp/repo",
+      "hook_event_name": "UserPromptSubmit",
+      "model": "gpt-5.6-terra",
+      "permission_mode": "default",
+      "turn_id": "019a4c2f-0a11-7c00-8d2e-5b7f9a1c3e40",
+      "prompt": "run the tests and fix what fails"
+    }
+  },
+  "post-tool-use.bash": {
+    "schema": "post-tool-use.command.input",
+    "payload": {
+      "session_id": "019a4c2e-7d31-7b52-9f10-3c6a0e5d4b21",
+      "transcript_path": "/home/op/.codex/sessions/rollout-019a4c2e.jsonl",
+      "cwd": "/tmp/repo",
+      "hook_event_name": "PostToolUse",
+      "model": "gpt-5.6-terra",
+      "permission_mode": "default",
+      "turn_id": "019a4c2f-0a11-7c00-8d2e-5b7f9a1c3e40",
+      "tool_name": "Bash",
+      "tool_use_id": "call_bash_1",
+      "tool_input": { "command": "npm test" },
+      "tool_response": "Tests  12 passed (12)"
+    }
+  },
+  "post-tool-use.bash-nonzero": {
+    "schema": "post-tool-use.command.input",
+    "payload": {
+      "session_id": "019a4c2e-7d31-7b52-9f10-3c6a0e5d4b21",
+      "transcript_path": "/home/op/.codex/sessions/rollout-019a4c2e.jsonl",
+      "cwd": "/tmp/repo",
+      "hook_event_name": "PostToolUse",
+      "model": "gpt-5.6-terra",
+      "permission_mode": "default",
+      "turn_id": "019a4c2f-0a11-7c00-8d2e-5b7f9a1c3e40",
+      "tool_name": "Bash",
+      "tool_use_id": "call_bash_2",
+      "tool_input": { "command": "npm run typecheck" },
+      "tool_response": "src/a.ts(3,1): error TS2304: Cannot find name 'x'."
+    }
+  },
+  "post-tool-use.apply-patch": {
+    "schema": "post-tool-use.command.input",
+    "payload": {
+      "session_id": "019a4c2e-7d31-7b52-9f10-3c6a0e5d4b21",
+      "transcript_path": "/home/op/.codex/sessions/rollout-019a4c2e.jsonl",
+      "cwd": "/tmp/repo",
+      "hook_event_name": "PostToolUse",
+      "model": "gpt-5.6-terra",
+      "permission_mode": "default",
+      "turn_id": "019a4c2f-0a11-7c00-8d2e-5b7f9a1c3e40",
+      "tool_name": "apply_patch",
+      "tool_use_id": "call_patch_1",
+      "tool_input": {
+        "command": "*** Begin Patch\n*** Update File: src/a.ts\n@@\n-const x = 1\n+const x = 2\n*** Add File: src/b.ts\n+export const y = 3\n*** Delete File: src/old.ts\n*** Update File: src/c.ts\n*** Move to: src/d.ts\n@@\n-a\n+b\n*** End Patch"
+      },
+      "tool_response": "Success. Updated the following files:\nM src/a.ts\nA src/b.ts\nD src/old.ts\nM src/d.ts"
+    }
+  },
+  "post-tool-use.mcp": {
+    "schema": "post-tool-use.command.input",
+    "payload": {
+      "session_id": "019a4c2e-7d31-7b52-9f10-3c6a0e5d4b21",
+      "transcript_path": "/home/op/.codex/sessions/rollout-019a4c2e.jsonl",
+      "cwd": "/tmp/repo",
+      "hook_event_name": "PostToolUse",
+      "model": "gpt-5.6-terra",
+      "permission_mode": "default",
+      "turn_id": "019a4c2f-0a11-7c00-8d2e-5b7f9a1c3e40",
+      "tool_name": "mcp__sofar__sofar_update_task",
+      "tool_use_id": "call_mcp_1",
+      "tool_input": { "task_id": "1.1", "status": "done" },
+      "tool_response": { "content": [{ "type": "text", "text": "{\"ok\":true}" }] }
+    }
+  },
+  "stop.first": {
+    "schema": "stop.command.input",
+    "payload": {
+      "session_id": "019a4c2e-7d31-7b52-9f10-3c6a0e5d4b21",
+      "transcript_path": "/home/op/.codex/sessions/rollout-019a4c2e.jsonl",
+      "cwd": "/tmp/repo",
+      "hook_event_name": "Stop",
+      "model": "gpt-5.6-terra",
+      "permission_mode": "default",
+      "turn_id": "019a4c2f-0a11-7c00-8d2e-5b7f9a1c3e40",
+      "stop_hook_active": false,
+      "last_assistant_message": "All tests pass."
+    }
+  },
+  "stop.held": {
+    "schema": "stop.command.input",
+    "payload": {
+      "session_id": "019a4c2e-7d31-7b52-9f10-3c6a0e5d4b21",
+      "transcript_path": "/home/op/.codex/sessions/rollout-019a4c2e.jsonl",
+      "cwd": "/tmp/repo",
+      "hook_event_name": "Stop",
+      "model": "gpt-5.6-terra",
+      "permission_mode": "default",
+      "turn_id": "019a4c2f-0a11-7c00-8d2e-5b7f9a1c3e40",
+      "stop_hook_active": true,
+      "last_assistant_message": null
+    }
+  },
+  "session-end": {
+    "schema": "session-end.command.input",
+    "payload": {
+      "session_id": "019a4c2e-7d31-7b52-9f10-3c6a0e5d4b21",
+      "transcript_path": "/home/op/.codex/sessions/rollout-019a4c2e.jsonl",
+      "cwd": "/tmp/repo",
+      "hook_event_name": "SessionEnd",
+      "reason": "other"
+    }
+  }
+}
