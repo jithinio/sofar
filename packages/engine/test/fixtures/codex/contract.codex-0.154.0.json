@@ -95,6 +95,19 @@
       "Stop": "continue_with_reason_as_new_prompt",
       "SubagentStop": "continue_subagent"
     },
+    "stop_hook_active": {
+      "provenance": "read-from-docs",
+      "Stop": "Whether this turn was already continued by Stop",
+      "SubagentStop": "Whether this subagent was already continued",
+      "continuation": "decision block (or exit 2 with the reason on stderr) creates a new continuation prompt that acts as a new user prompt, using reason as that prompt text"
+    },
+    "stop_runtime": {
+      "provenance": "read-from-binary",
+      "runner": "codex_core::hook_runtime::run_turn_stop_hooks",
+      "exit_2_without_stderr": "Stop hook exited with code 2 but did not write a continuation prompt to stderr",
+      "block_without_reason": "Stop hook requested continuation without a prompt; ignoring the block.",
+      "memory_consolidation": "Memory consolidation was rejected by a Stop hook."
+    },
     "additional_context_default_limit_tokens": {
       "provenance": "read-from-docs",
       "value": 2500

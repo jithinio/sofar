@@ -69,3 +69,11 @@ Details inside a section:
   1.1's `--help` read.
 - `agents_md.reads_claude_md_by_default: false` comes from the empty fallback
   default. The directory walk (repo root to cwd) is unverified.
+- `hooks.stop_hook_active` and `hooks.stop_runtime` were added in agents-parity
+  2.3. The first quotes the docs' field table and Stop section. The second holds
+  strings found by `grep -a` over the 0.154.0 binary: the Stop runner's symbol
+  and three messages. That the runner fires once per turn is read from its name,
+  and whether a continuation keeps the turn's `turn_id` is unverified.
+  `memory_consolidation` shows that a Stop hook can reject Codex's
+  memory-consolidation subagent. Whether a project's hooks run for that thread
+  is unverified.

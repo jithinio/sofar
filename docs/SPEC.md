@@ -1696,9 +1696,10 @@ This section records what Codex reads, sends and honours. It was captured
 without running inference (agents-parity D3) from three sources: codex-cli
 0.154.0's binary (`--help` and `strings`), codex-cli 0.136.0's `--help`, and the
 Codex hooks docs saved 2026-09-16. Hooks are wired since agents-parity 2.1
-(the "Wired" paragraph below) and the MCP server since 2.2 (after the
-**MCP** paragraph). The write-back gate's protocol text is 2.3, and Codex
-stays in Tier 3 (§Host tiers) until 3.2 proves them live. Each fact is marked (binary), (docs) or
+(the "Wired" paragraph below), the MCP server since 2.2 (after the
+**MCP** paragraph), and the write-back gate and protocol text since 2.3 (after
+the **AGENTS.md** paragraph). Codex stays in Tier 3 (§Host tiers) until 3.2
+proves them live. Each fact is marked (binary), (docs) or
 (unverified). The data is `packages/engine/test/fixtures/codex/`, whose README
 marks each field, and `codex-contract.test.ts` checks that the fixtures agree.
 Later tasks test against those files, never against remembered shapes.
@@ -1946,6 +1947,40 @@ default). They share a `project_doc_max_bytes` budget, default 32768, and a doc
 past it is truncated. `CLAUDE.md` is read only when configured as a fallback, so a
 Codex session sees the AGENTS.md protocol block alone. The walk from repo root to
 cwd is unverified.
+
+**Write-back gate and protocol text (agents-parity 2.3, D8).** The gate is the
+Stop handler every host runs (§Hooks), with no Codex branch.
+- Loop cap. Codex runs Stop hooks once per turn (binary:
+  `codex_core::hook_runtime::run_turn_stop_hooks`) and has no `loop_limit` key
+  (binary handler keys). `stop_hook_active` means "whether this turn was already
+  continued by Stop" (docs), so the hold-once guard holds an indebted session at
+  most once per turn, as on Claude Code. A turn that ends while the debt still
+  stands is held once again.
+- Output. A hold is exit 2 with the message on stderr, which Codex turns into a
+  continuation prompt (docs). Codex ignores an exit 2 with empty stderr (binary:
+  "Stop hook exited with code 2 but did not write a continuation prompt to
+  stderr"), so the message is never empty. Every release is exit 0 with empty
+  stdout, because plain stdout is invalid on Stop.
+- Release. The gate lets the session stop after either write-back: a
+  `sofar_end_session` with the Session line's id, or `sofar event append
+  --type session_ended` with no `--session`. That append joins the session the
+  SessionStart hook pointed the worktree at.
+- Protocol text. The AGENTS.md block is Codex's only block, so both of its facts
+  name Codex. INJECTED lists Codex among the hooked hosts and adds that their
+  Stop hook blocks a session that ends without writing back, which the CLAUDE.md
+  block also says. MCP TOOLS says Codex loads the tools from a trusted project's
+  `.codex/config.toml`. The CLI loop is unchanged. r1-fixes 6.7's block, which
+  0.33.0-rc.2 carries, is in the shipped ledger, so init refreshes it and doctor
+  reports it as stale.
+- Limits stated, not worked around. Whether a continuation keeps the turn's
+  `turn_id` is unverified, and 3.2 checks `stop_hook_active` on it live. A
+  Stop hook can reject Codex's memory-consolidation subagent (binary: "Memory
+  consolidation was rejected by a Stop hook."). The gate holds only a session
+  the record registered that owes a write-back, and whether a project's hooks
+  run for that thread is unverified. Whether `codex exec` fires Stop is 3.1's
+  question.
+- Tests (`codex-host.test.ts`, D4): the contract fixture's `stop_hook_active`
+  and `stop_runtime` sections.
 
 **`codex exec --json` since the 0.136.0 adapter (binary).** The line types are
 unchanged: `thread.started`, `turn.started`, `turn.completed`, `turn.failed`,
@@ -3643,7 +3678,8 @@ Shims contain no logic — they invoke the sofar CLI.
   block is the CLI convention dialect for MCP-less tools — added Phase 5,
   BD31). Since r1-fixes 6.7 (D37) an AGENTS.md reader may also have sofar's
   hooks and MCP tools (Cursor reads AGENTS.md, and CLAUDE.md too when both
-  are wired), so the block opens with the two facts that decide the loop:
+  are wired; Codex reads AGENTS.md alone, and both facts name it since
+  agents-parity 2.3, D8), so the block opens with the two facts that decide the loop:
   a record already INJECTED by the hooks is oriented from, never re-read
   with `sofar status`; with `sofar_*` tools available the writes go through
   them — `sofar_start_session` first with the "Session:" line's id, then
@@ -5749,6 +5785,25 @@ stay the underlying derivation's, and exit codes are styling-independent.
   config, and otherwise fails naming `sofar init --agents codex` or the
   user-level step. A repo whose only Codex file is the table counts as wired
   for Codex.
+- **Codex write-back gate and protocol text (agents-parity 2.3):** the contract
+  fixture shows no loop key among codex 0.154.0's handler keys, Stop run per
+  turn, and `stop_hook_active` defined per turn. With a session registered by
+  the SessionStart fixture and indebted by the apply_patch fixture, Stop
+  dispatched with `--host codex`:
+  - holds with exit 2, empty stdout and a non-empty stderr
+  - releases the same turn once `stop_hook_active` is true
+  - holds the next turn again
+  - releases every turn after `sofar event append --type session_ended` with
+    no `--session`, which lands on the hook's session
+  - or after `sofar_start_session` and `sofar_end_session` with that id
+
+  A session with no debt is never held. Every release is exit 0 with empty
+  output. sofar's Codex hooks wire no SubagentStop. The AGENTS.md block names
+  Codex in INJECTED and MCP TOOLS and says the Stop hook blocks a session that
+  ends without writing back. Its CLI loop names no MCP tool, and it fits
+  `project_doc_max_bytes`. With those lines undone it is r1-fixes 6.7's block,
+  the last ledger entry. On a Codex repo carrying that block, doctor reports it
+  as stale and init refreshes it.
 - **Rule fidelity (memory-lead 1.2):** decision_logged accepts `quote` with a
   `rule` up to 300 chars and rejects it without one, empty, or longer. The
   round-1 pair (rule "…reject anything else with 4xx.", quote "Reject

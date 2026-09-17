@@ -4,14 +4,24 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import type { EventEnvelope } from '../src/core/envelope'
-import { STOP_BLOCK_MESSAGE, SUBCOMMANDS, type HookResult } from '../src/cli/event'
+import { runDoctor } from '../src/cli/doctor'
+import { runAppend, STOP_BLOCK_MESSAGE, SUBCOMMANDS, type HookResult } from '../src/cli/event'
 import { parseHookFlags } from '../src/cli/fast'
 import { patchedFiles, toCodex, type HookName } from '../src/cli/host'
-import { CODEX_HOOKS, CODEX_SHIM_DIR, CODEX_SHIMS, codexHookCommand, runInit } from '../src/cli/init'
+import {
+  AGENTS_PROTOCOL_BLOCK,
+  CODEX_HOOKS,
+  CODEX_SHIM_DIR,
+  CODEX_SHIMS,
+  codexHookCommand,
+  PROTOCOL_BLOCK,
+  runInit,
+  SHIPPED_AGENTS_PROTOCOL_BLOCKS,
+} from '../src/cli/init'
 import { runNew } from '../src/cli/new'
 import { runUninit } from '../src/cli/uninit'
 import { checkSchema, CONTRACT, type Json, type Obj, PAYLOADS } from './helpers/codex'
-import { makeRepoFixture, type Fixture } from './helpers/mcp'
+import { callTool, connectServer, makeRepoFixture, type Fixture } from './helpers/mcp'
 
 /**
  * Codex as a hook host (agents-parity 2.1, D5). Every payload here is a
@@ -175,6 +185,121 @@ describe('a Codex session end to end, through the hook table', () => {
     const events = logEvents(fixture.eventsPath)
     expect(events.find((e) => e.type === 'session_started')?.payload).toEqual({ tool: 'claude-code' })
     expect(events.find((e) => e.type === 'command_run')?.payload).toEqual({ cmd: 'npm run typecheck', ok: true })
+  })
+})
+
+describe('the write-back gate on Codex (agents-parity 2.3, D8)', () => {
+  const hooks = CONTRACT.hooks as Obj
+
+  it('rests on what codex 0.154.0 honours: Stop runs per turn, no native limit, and a hold needs a prompt', () => {
+    expect((hooks.stop_runtime as Obj).runner).toBe('codex_core::hook_runtime::run_turn_stop_hooks')
+    expect((hooks.stop_hook_active as Obj).Stop).toBe('Whether this turn was already continued by Stop')
+    // No loop_limit (Cursor's cap) among the keys Codex parses: the flag is the only cap.
+    expect(((hooks.config_shape as Obj).command_handler_keys as string[]).filter((k) => /loop/i.test(k))).toEqual([])
+    expect((hooks.exit_2_stderr as Obj).Stop).toBe('continue_with_reason_as_new_prompt')
+    expect((hooks.plain_stdout as Obj).Stop).toBe('invalid')
+    // Codex ignores an exit 2 with nothing on stderr, so the hold always says something.
+    expect(STOP_BLOCK_MESSAGE.trim()).not.toBe('')
+    // sofar wires no SubagentStop, so a subagent finishing is never held.
+    expect(Object.keys(CODEX_HOOKS)).not.toContain('SubagentStop')
+  })
+
+  /** Stop in one turn, checked to be a form Codex accepts: a hold with a prompt, or a silent release. */
+  function stop(root: string, turn: string, continued: boolean): number {
+    const out = run('stop', root, payload(continued ? 'stop.held' : 'stop.first', { turn_id: turn }))
+    if (out.exitCode === 2) expect({ stdout: out.stdout, prompt: out.stderr.trim() !== '' }).toEqual({ stdout: '', prompt: true })
+    else expect(out).toEqual({ exitCode: 0, stdout: '', stderr: '' })
+    return out.exitCode
+  }
+
+  it('holds an indebted session once per turn, until a CLI write-back with no --session releases it', () => {
+    const fixture = fx()
+    run('session-start', fixture.root, payload('session-start.startup'))
+    run('post-tool', fixture.root, payload('post-tool-use.apply-patch'))
+
+    expect(stop(fixture.root, 'turn-1', false)).toBe(2)
+    expect(stop(fixture.root, 'turn-1', true)).toBe(0) // the cap: this turn was already continued
+    expect(stop(fixture.root, 'turn-2', false)).toBe(2) // the debt stands, so the next turn is held once too
+
+    const back = runAppend(fixture.root, {
+      slug: fixture.slug,
+      type: 'session_ended',
+      payload: JSON.stringify({ summary: 'patched', next_action: 'review' }),
+      source: 'codex',
+      actor: 'agent',
+    })
+    expect(back.exitCode).toBe(0)
+    // It joined the session the hook registered, so the gate sees it.
+    expect(logEvents(fixture.eventsPath).find((e) => e.type === 'session_ended')?.session).toBe(SESSION)
+    expect(stop(fixture.root, 'turn-3', false)).toBe(0)
+  })
+
+  it('releases after the MCP write-back the AGENTS.md block asks for', async () => {
+    const fixture = fx()
+    run('session-start', fixture.root, payload('session-start.startup'))
+    run('post-tool', fixture.root, payload('post-tool-use.apply-patch'))
+    expect(stop(fixture.root, 'turn-1', false)).toBe(2)
+
+    const { client } = await connectServer(fixture.root)
+    try {
+      const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', { tool: 'codex', session_id: SESSION })
+      expect(started.body.session_id).toBe(SESSION)
+      const ended = await callTool(client, 'sofar_end_session', { session_id: SESSION, summary: 'patched', next_action: 'review' })
+      expect(ended.isError).toBe(false)
+    } finally {
+      await client.close()
+    }
+    expect(stop(fixture.root, 'turn-1', true)).toBe(0)
+    expect(stop(fixture.root, 'turn-2', false)).toBe(0)
+  })
+
+  it('never holds a session that owes nothing', () => {
+    const fixture = fx()
+    run('session-start', fixture.root, payload('session-start.startup'))
+    expect(stop(fixture.root, 'turn-1', false)).toBe(0)
+  })
+})
+
+describe('the AGENTS.md block a Codex session reads (agents-parity 2.3, D8)', () => {
+  const [preamble = '', cliLoop] = AGENTS_PROTOCOL_BLOCK.split('Session loop on the CLI:')
+  const v8 = SHIPPED_AGENTS_PROTOCOL_BLOCKS[SHIPPED_AGENTS_PROTOCOL_BLOCKS.length - 1]!
+
+  it('names Codex among the hooked and MCP-equipped hosts, and states the Stop gate', () => {
+    expect(preamble).toContain("sofar's hooks loaded the record (Cursor, Codex,\n  Claude Code)")
+    expect(preamble).toContain("Codex loads them from a trusted\n  project's `.codex/config.toml`")
+    expect(preamble).toContain('Their Stop hook blocks a session that ends without writing back.')
+    // CLAUDE.md states the same gate, so a session loading both hears one answer.
+    expect(PROTOCOL_BLOCK).toContain('The Stop hook blocks sessions\n  that skip this.')
+    expect(cliLoop).toBeDefined()
+    expect(cliLoop).not.toContain('sofar_')
+  })
+
+  it('is the 6.7 block with only those lines changed, and the 6.7 block is in the ledger', () => {
+    const undone = AGENTS_PROTOCOL_BLOCK.replace(
+      '(Cursor, Codex,\n  Claude Code). Orient from it; do NOT run `sofar status` to read it again.\n  Their Stop hook blocks a session that ends without writing back.\n',
+      '(Cursor, Claude Code).\n  Orient from it; do NOT run `sofar status` to read it again.\n',
+    ).replace(
+      "server; Codex loads them from a trusted\n  project's `.codex/config.toml`). Then write through them, not the\n  CLI: call",
+      'server). Then write through them, not the\n  CLI: call',
+    )
+    expect(undone).toBe(v8)
+    expect(v8).not.toContain('Codex,')
+  })
+
+  it("fits within Codex's project-doc budget", () => {
+    const budget = (CONTRACT.agents_md as Obj).max_bytes_default as number
+    expect(Buffer.byteLength(AGENTS_PROTOCOL_BLOCK, 'utf8')).toBeLessThan(budget)
+  })
+
+  it('refreshes a Codex repo on the 6.7 block, which doctor reports as stale first', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sofar-codex-block-'))
+    roots.push(root)
+    execFileSync('git', ['init', '-b', 'main'], { cwd: root, stdio: 'ignore' })
+    runInit(root, { agents: ['codex'] }, plain, plain)
+    writeFileSync(join(root, 'AGENTS.md'), v8)
+    expect(runDoctor(root, {}, plain).stdout).toContain('AGENTS.md protocol block is from an older sofar')
+    expect(runInit(root, { agents: ['codex'] }, plain, plain).stdout).toContain('updated AGENTS.md (protocol block refreshed)')
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe(AGENTS_PROTOCOL_BLOCK)
   })
 })
 
