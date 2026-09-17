@@ -996,8 +996,9 @@ ${PROTOCOL_END}
 export const AGENTS_PROTOCOL_BLOCK = `${PROTOCOL_START}
 ## Sofar protocol (jurisdiction is total)
 
-This repo's work memory lives in sofar records under \`.sofar/\`. Drive
-the whole loop with the \`sofar\` CLI — no MCP support is required.
+This repo's work memory lives in sofar records under \`.sofar/\`. Any
+agent can drive the whole loop with the \`sofar\` CLI below — no MCP
+support is required.
 1. ALL work state lives in sofar records — never in tool memory, scratch
    files, ad-hoc notes, or a message from another session. If it is worth
    keeping, it goes in the record.
@@ -1009,8 +1010,23 @@ the whole loop with the \`sofar\` CLI — no MCP support is required.
 3. Bindings (\`.sofar/bindings.json\`) resolve which record a session
    serves — the current git branch selects the initiative.
 
-Session loop (every write is one \`sofar event append\` call):
-- BEFORE any work: run \`sofar status\` and orient from it. Detail lives
+Two facts about THIS session decide how you use the loop:
+- INJECTED: a "# Sofar status" block with a "Session:" line is already
+  in your context — sofar's hooks loaded the record (Cursor, Claude Code).
+  Orient from it; do NOT run \`sofar status\` to read it again.
+- MCP TOOLS: \`sofar_*\` tools are available (Cursor lists them once the
+  operator approves the sofar MCP server). Then write through them, not the
+  CLI: call \`sofar_start_session\` first with the \`session_id\` from the
+  "Session:" line, and finish with ONE \`sofar_end_session\` call — summary
+  and next action, plus the session's \`decisions\`, \`tasks\`, \`phases\`,
+  \`memories\` and \`notes\`. A memory is an operational fact every later
+  session needs (a release command, a failure mode and its diagnosis, a
+  convention); anything about this work is a note.
+Without MCP tools, every write is one \`sofar event append\` call:
+
+Session loop on the CLI:
+- BEFORE any work: unless the record is already INJECTED (above),
+  run \`sofar status\` and orient from it. Detail lives
   in \`.sofar/initiatives/<slug>/plan.md\` and \`decisions.md\`. Do not
   ask for context the record already answers.
 - RECORD: every append takes an optional LEADING slug —

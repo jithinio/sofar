@@ -192,7 +192,13 @@ describe('sofar init on a fresh repo', () => {
     expect(agentsMd).toContain('--type session_started') // start via event append
     expect(agentsMd).toContain('--type session_ended') // write-back via event append
     expect(agentsMd).toContain('MANDATORY') // compensating control for no Stop hook
-    expect(agentsMd).not.toContain('sofar_') // no MCP tool names — dialect is CLI-only
+    // r1-fixes 6.7: an AGENTS.md reader may have hooks and MCP tools (Cursor),
+    // so the preamble names them — but the CLI loop itself stays MCP-free.
+    const [preamble, cliLoop] = agentsMd.split('Session loop on the CLI:')
+    expect(cliLoop).toBeDefined()
+    expect(cliLoop).not.toContain('sofar_') // no MCP tool names in the CLI loop
+    expect(preamble).toContain('do NOT run `sofar status` to read it again')
+    expect(preamble).toContain('call `sofar_start_session` first')
   })
 
   it('is byte-level idempotent: second run changes no file (acceptance bullet 2)', () => {

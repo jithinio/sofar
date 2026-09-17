@@ -3338,7 +3338,16 @@ Shims contain no logic — they invoke the sofar CLI.
   registered it; see §Cursor host), append
   protocol blocks to CLAUDE.md and AGENTS.md (idempotent; the AGENTS.md
   block is the CLI convention dialect for MCP-less tools — added Phase 5,
-  BD31).
+  BD31). Since r1-fixes 6.7 (D37) an AGENTS.md reader may also have sofar's
+  hooks and MCP tools (Cursor reads AGENTS.md, and CLAUDE.md too when both
+  are wired), so the block opens with the two facts that decide the loop:
+  a record already INJECTED by the hooks is oriented from, never re-read
+  with `sofar status`; with `sofar_*` tools available the writes go through
+  them — `sofar_start_session` first with the "Session:" line's id, then
+  ONE `sofar_end_session` carrying decisions, tasks, phases, memories and
+  notes, with the memory/note boundary stated. The CLI loop that follows
+  names no MCP tool, and agreeing with the CLAUDE.md block is the invariant:
+  both blocks loading in one Cursor session must never give two answers.
   ONLY THE AGENTS PICKED are set up (r1-fixes 7.1, D35, D36). Each agent owns
   its files: Claude Code `.claude/settings.json`, `.mcp.json`, CLAUDE.md;
   Cursor `.cursor/hooks.json`, `.cursor/mcp.json`, AGENTS.md; Codex AGENTS.md
