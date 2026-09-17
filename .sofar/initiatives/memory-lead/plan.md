@@ -33,7 +33,7 @@ Progress: 0/17 tasks done (0%)
 
 ## Phase 5 — Proof: held-out Chain L (round 3) [pending] — 0/4 done
 
-- [ ] 5.1 Chain L design and budget: ~30 sessions, ~24 planted decisions (guarded, superseded once or twice, why-only), segments across Claude, Codex, fresh clone, concurrent worktrees and a forced compaction. Arms MUST include a native-memory-SYNCED arm (memory dir carried across machines, clones and teammates; Codex idle gate 0) standing in for future cloud memory. Scoped to the D17 cap before authoring.
+- [ ] 5.1 Chain L design and budget: ~30 sessions, ~24 planted decisions (guarded, superseded once or twice, why-only), segments across Claude, Codex, fresh clone, concurrent worktrees and a forced compaction. Arms MUST include a native-memory-SYNCED arm (memory dir carried across machines, clones and teammates; Codex idle gate 0) standing in for future cloud memory. Scoped to the D17 cap before authoring. (active)
 - [ ] 5.2 Author Chain L, hidden tests and a sealed reference by an author blind to fix-building; mutation-validate every planted decision
 - [ ] 5.3 Round-3 pre-registration frozen with lead predictions (≥25–30%, target 2×) against the synced native arm
 - [ ] 5.4 Run round 3, report per claim with per-rep values; publish only what clears the pre-registered margin
