@@ -41,4 +41,4 @@ Progress: 14/18 tasks done (77%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: Push rust-core (user or sofar-4c with the owner's yes) so PR #2 CI runs the core matrix, core-conformance and Windows lock fix on the mirror. Then: file the team100 interleaved numbers when the detached rerun ends (scratchpad team100b.sh), close 1.5 with the perf README/HOTPATH write-up and the quadratic-fold idea already noted. Watch for wave-a's next contracts (V8 protocol block is TypeScript-only; L07/L08 if they land) and the rc.2 pin at 2026-09-22 — re-record goldens against the rc.2 commit then.
+Next action: Push rust-core (user, or sofar-4c under the owner's yes) so PR #2's CI runs on the fixes and the mirror. Then file the team100 interleaved numbers when the detached rerun ends (scratchpad team100b.sh → perf/team100.*.sofar-core.*), write the 1.5 findings into the perf README and HOTPATH, and mark 1.5 done. Re-record goldens once more against the rc.2 commit when it is pinned (2026-09-22); re-check the sessions-quadratic idea against r1-fixes planning.
