@@ -1672,6 +1672,25 @@ from the fold, as for every adapter (session-driver D3). A resumed chat
 conversation id from its environment, so `sofar_start_session` still takes
 the id from the injected Session line.
 
+**Which `sofar` Cursor runs (live finding, r1-fixes M6).** Cursor rebuilds
+PATH from the user's login shell for its hooks, ignoring the PATH it was
+launched with. A bare `sofar` in the shims resolves to whatever that shell
+finds, usually the global install, and the stdio MCP server very likely
+resolves the same way. An older sofar there prints plain text that Cursor
+drops, so the symptom is a session that never receives the digest. A
+harness that pins a build must pin it in the login shell's startup files
+or by absolute path, and prove the resolution before trusting a result.
+
+**Proven live (r1-fixes 6.3/6.5/6.7, 2026-09-17, cursor-agent
+2026.09.15-d2fe57e, tree from `sofar init --agents claude-code,cursor`).**
+Print mode: sessionStart fired, the injected digest let the model state the
+record's next action and its Session id without a command or a file read,
+and it registered and wrote back through the MCP tools as tool `cursor`.
+Interactive mode: sessionStart, beforeSubmitPrompt, postToolUse (Write) and
+stop each fired exactly once. Stop arrived with `loop_count: 0` and returned
+`followup_message`, the follow-up turn wrote session_ended, and no second
+stop fired. Evidence: r1-fixes note 01M2QE7G.
+
 ## Derived index (record-index — local, incremental, never truth)
 Every cross-record question — which initiatives hold open sessions, who else
 has this file, what guards this path, what else bears on this work — costs a
