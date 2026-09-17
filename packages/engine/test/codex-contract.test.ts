@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { CodexAdapter } from '../src/driver/codex'
-import { checkSchema as check, CONTRACT, isObj, type Json, type Obj, PAYLOADS, SCHEMAS } from './helpers/codex'
+import { checkSchema as check, CONTRACT, isObj, type Json, LIVE_PAYLOADS, type Obj, PAYLOADS, SCHEMAS } from './helpers/codex'
 
 /**
  * The Codex contract capture (agents-parity 1.1). The fixtures under
@@ -77,6 +77,20 @@ describe('the payload fixtures', () => {
     const events = new Set(Object.values(PAYLOADS).map((p) => p.payload.hook_event_name))
     expect([...events].sort()).toEqual(['PostToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit'])
     expect(SCHEMAS['post-tool-use-failure.command.input']).toBeUndefined()
+  })
+
+  it('match what a live codex 0.154.0 session sent (3.2, D12): same schemas, and tool_response is the model-facing text', () => {
+    for (const [name, { schema, payload }] of Object.entries(LIVE_PAYLOADS)) {
+      expect({ name, errors: check(schema, payload) }).toEqual({ name, errors: [] })
+      expect(PAYLOADS[name]?.schema, name).toBe(schema)
+    }
+    // The illustrative fixtures guessed these two; the live run settles them.
+    expect(LIVE_PAYLOADS['post-tool-use.bash']!.payload.tool_response).toBe('hello\n')
+    expect(LIVE_PAYLOADS['post-tool-use.apply-patch']!.payload.tool_response).toMatch(
+      /^Exit code: 0\nWall time: .*\nOutput:\nSuccess\. Updated the following files:\nA \/tmp\/repo\/notes\.txt\n$/,
+    )
+    const [first, held] = [LIVE_PAYLOADS['stop.first']!.payload, LIVE_PAYLOADS['stop.held']!.payload]
+    expect([first.stop_hook_active, held.stop_hook_active, first.turn_id === held.turn_id]).toEqual([false, true, true])
   })
 
   it('are held to the schema, not merely parsed — an extra or missing field fails', () => {

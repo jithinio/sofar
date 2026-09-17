@@ -19,6 +19,10 @@ export const SCHEMAS = codexFixture<Record<string, Obj>>('hook-schemas.codex-0.1
 export const PAYLOADS = codexFixture<Record<string, { schema: string; payload: Obj }>>(
   'hook-payloads.codex-0.154.0.json',
 )
+/** Captured from a live codex 0.154.0 session in agents-parity 3.2 (D12); paths normalized, every value real. */
+export const LIVE_PAYLOADS = codexFixture<Record<string, { schema: string; payload: Obj }>>(
+  'hook-payloads.codex-0.154.0.live.json',
+)
 export const CONTRACT = codexFixture<Obj>('contract.codex-0.154.0.json')
 
 export const isObj = (v: Json | undefined): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v)

@@ -42,6 +42,21 @@ are the binary's; every VALUE is made up. Specifically unverified:
   `thread_id`) and the transcript_path layout are unverified. The docs example
   uses `thr_123` and `/workspace/.codex/rollout.jsonl`.
 
+## hook-payloads.codex-0.154.0.live.json — read-from-live-run (D12)
+
+The same keys, captured from a live codex-cli 0.154.0 session in agents-parity
+3.2 on 2026-09-17, with the operator's consent (D11). Model: `gpt-reserve`,
+Codex's fallback when the account is at its usage limit. The file keeps the hook
+stdin exactly as sent. The only edits are the project path, changed to
+`/tmp/repo`, and the Codex home, changed to `/home/user/.codex`. Every other
+value is real: ids, turn_ids, `last_assistant_message`, and the tool responses.
+codex-contract.test.ts holds each payload to the schema its illustrative twin
+names. The live run settles two points the illustrative file left unverified:
+- `tool_response` for Bash is the command's stdout as a string (`"hello\n"`);
+  for apply_patch it is the model-facing text (`"Exit code: 0\nWall time:
+  …\nOutput:\nSuccess. Updated the following files:\nA <path>\n"`).
+- A held Stop fires again in the SAME turn with `stop_hook_active: true`.
+
 ## contract.codex-0.154.0.json — mark per section
 
 Facts other than hook schemas, each section tagged with its `provenance`:
