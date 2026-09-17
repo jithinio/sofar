@@ -167,7 +167,9 @@ reason: closed|needs_user|stall|cost_cap|max_sessions|interrupted|error,
 note? — REQUIRED for `error`; the three driver events ride on envelope
 session `cli`, since a run is not a session; session-driver 1.2, see
 §Driver) · run_stop_requested (run — an operator asking a driver to end its
-run from outside it; in-session-drive D2, see §Driver) · correction (ref) ·
+run from outside it; in-session-drive D2, see §Driver) · run_adopted (run,
+epoch — an integer ≥2 a `--resume` claims, `run_started` being epoch 1; the
+fencing token of drive-visibility 2.2, see the Driver section) · correction (ref) ·
 suggestion_proposed (candidate, signal, evidence, count, cutoff?, engine,
 detector_version, trust {protocol, verdict, precision, recall, judged} — a
 loss row from a TRUSTED detector, never a cause and never a fix) ·
@@ -949,7 +951,12 @@ died unexplained is one nobody can resume.
 
 **Fold.** `runs[]` in log order; latestRun is the resume point — a run with
 no stop is still going, or its driver died without writing one, which is
-the same fact as far as the record can tell. No stubs: a handoff or stop
+the same fact as far as the record can tell. The run lock tells them apart
+on the machine that ran it, and nowhere else (see One driver per run below).
+Each run carries its adoptions in replay order and its OWNER: the highest
+epoch, the adoption whose id sorts first on a tie; an adoption for a run
+that never started, or naming an epoch below 2, is skipped with a warning.
+No stubs: a handoff or stop
 for a run that never started is skipped with a warning (the session_closed
 rule); a duplicate start or a second stop is skipped and the first kept. A
 handoff attaches to the REGISTERED session it names (the attachActivity
@@ -961,8 +968,11 @@ says, so they cannot stale the next action.
 **Render.** The digest carries one budgeted `Driven:` line for the latest
 run — adapter, policy, handoffs by reason in log order, running or stopped
 and why; a record no driver ever ran renders byte-identically to before.
-`sofar status` lists every run and every handoff; sessions/<id>.md names
-the run that handed the session off.
+`sofar status` lists every run and every handoff, and beside the latest
+unstopped run says `running`, `driver gone` or `liveness unknown` from the
+run lock; sessions/<id>.md names the run that handed the session off.
+Liveness is NEVER rendered into a generated file — plan.md, the digest and
+sessions/*.md project the record, and a lock is not in it.
 
 **Adapter (D3, D9).** A process wrapper and nothing more: `launch(request)` →
 a handle with `usage()`, optional `nudge()`, `kill()`, `wait()`;
@@ -1127,7 +1137,10 @@ with the message as the note. Whatever ends it, a `run_stopped` lands behind
 it — a run with no stop is one the next driver has to ask the operator about,
 so `sofar drive` REFUSES to start over an unstopped run and offers
 `--resume`, which adopts that run id and its recorded `max_sessions` rather
-than minting a second run over the same work.
+than minting a second run over the same work. Where the run lock says a
+driver still holds the run, `--resume` is refused too and the refusal names
+`sofar drive --stop` and `sofar status`; where it says the driver is gone, the
+refusal says so; where it cannot say, the refusal keeps today's words.
 
 **Handoff reasons come from the fold (D5).** `needs_user` is the named task
 sitting in `blocked` — the record's existing word for "wants to happen,
@@ -1216,7 +1229,10 @@ has no terminal, so ^C cannot reach it, and whatever replaces ^C must not be
 state the driver holds — no pid in the record (a machine-local number in a
 committed log, and a reused one signals a stranger), no pid file beside it.
 `sofar drive [slug] --stop` appends `run_stop_requested` for the latest run
-with no stop, refusing when there is none, and then watches the fold for up to
+with no stop, refusing when there is none. When the run lock says the run's
+driver is gone, it appends nothing, says so at once and names `--resume`,
+since a request nobody holds the run to read is the 30s wait below for
+nothing. Otherwise it watches the fold for up to
 30s: a `run_stopped` for that run is reported with its reason; none is
 reported as requested-but-unacknowledged, which is what a request to a driver
 that already died looks like (`--resume` adopts such a run; a later request
@@ -1227,9 +1243,12 @@ reads requests from the fold before every launch, and during a session from a
 2s poll that reads only the bytes appended since its last tick and folds only
 when those bytes name a stop request — driven sessions write on every tool
 call, so a fold per tick, or even per growth, would cost more than the session
-it watches. The byte scan decides nothing; the fold counts the requests. A request counts only when its envelope
-`ts` is at or after the moment this driver took the run, so one left behind
-for a dead driver cannot stop the `--resume` that follows it. The stop's
+it watches. The byte scan decides nothing; the fold counts the requests. A
+request counts only when its id sorts after the run's latest adoption
+(`run_started` for a run never resumed), so one left behind for a dead
+driver cannot stop the `--resume` that follows it. It compares two record
+ids rather than a driver's private clock reading (drive-visibility 2.2), so
+every reader of the fold agrees which requests apply. The stop's
 note says a request ended the run rather than a signal.
 
 **Clean launch environment (in-session-drive D3).** A session is launched
@@ -1248,6 +1267,126 @@ adapters therefore delete one named list before spawning: `CLAUDECODE`,
 Vertex switches, `ANTHROPIC_*` and `CODEX_HOME` route the operator's own auth
 (D1) and pass through untouched. Variables the driver itself sets
 (`SOFAR_DRIVE_NUDGE`) are applied after the deletion.
+
+**One driver per run (drive-visibility D2, D3).** A driver holds an
+exclusive flock-semantics lock on `<state base>/runs/<run id>.lock` — the
+state base is `$XDG_STATE_HOME/sofar`, else `~/.local/state/sofar` — from
+the moment it takes the run (`run_started`, or its own `run_adopted`) until
+its process ends. The kernel releases it when the process dies by ANY path,
+kill -9 included, and keeps it through SIGSTOP and sleep. No launched session
+inherits it (the descriptor is close-on-exec; measured: a session still running after
+its driver's kill -9 leaves the lock free), so it answers "is that driver
+alive" — not "is its session" — with no pid, no heartbeat and nothing
+written: the file
+is empty, per user rather than per clone (a run id is a ulid, unique
+without one), NEVER unlinked — unlinking a lock someone may hold splits it
+into two files two holders can each lock — and refused, as the diagnostics
+store is, when the state base would resolve inside the repo. One primitive
+for every reader, because the readers are Node today and Rust and Swift
+next (rust-core D1 moves status, the statusline and the hooks; the Mac app
+folds through the Rust core): Rust takes it with `File::try_lock`, Swift
+with `flock`, Node on macOS by holding a descriptor opened with
+`O_EXLOCK|O_NONBLOCK` (verified to contend with `flock`), Node on Linux by
+holding a `flock(1)` child on a pipe from the driver, so the child exits and
+the lock falls the moment the driver does. fcntl/lockf locks, SQLite locks,
+sockets and pid files are out: they do not contend with flock on Linux, or
+fail inside the agent sandboxes `--detach` is launched from, or carry a pid.
+
+A claim retries for 500ms before reporting the lock held, since a reader's
+probe holds it for an instant. A probe takes a SHARED lock non-blockingly and
+releases it at once, so probes never block one another, and reads three
+answers: HELD (a driver on this machine runs the run), FREE (a driver ran it
+here and is gone — the file outlives it by design) or ABSENT (no driver ran
+it under this state base: another machine, another user, a GUI app with a
+different environment, or a run older than the lock). ABSENT is `liveness
+unknown`, NEVER `driver gone`: every reader that renders liveness renders
+that. Where the lock cannot be taken — Linux without `flock(1)`, Windows
+until sofar-core ships, a state base inside the repo — the opening lines say
+liveness is unavailable for this run (D9), and the run proceeds as before.
+
+**Fencing a takeover (drive-visibility 2.2).** The lock is machine-local; a
+record syncs. A `--resume` therefore appends `run_adopted {run, epoch}` with
+one more than the run's highest epoch before its first launch, and the
+fold's OWNER is the highest epoch, the first-sorting id on a tie. A driver
+reads ownership from the fold before every launch and, during a session,
+from the same 2s byte scan that finds stop requests, folding only when the
+new bytes name a `run_adopted`. A driver that finds it no longer owns its
+run STEPS DOWN: it signals nothing — a live session is real work whose
+write-back the new owner resumes from — waits for that session to exit,
+files no handoff and no `run_stopped` (the run is someone else's now), says
+it was fenced by epoch N on its progress stream and exits 1. One event per
+takeover, never a heartbeat. Across machines it detects only once the
+adoption has synced in; it does not prevent a race that sync has not yet
+shown, and says nothing about whether the old driver is alive.
+
+**Keeping the Mac awake (drive-visibility D5).** On macOS, with keep-awake on,
+the driver spawns `caffeinate -i -w <its own pid>` when it takes the run;
+`-w` ends the assertion by itself when the driver exits, so nothing is
+cleaned up and no pid is stored. The setting is `drive.keep_awake` (boolean)
+in `~/.config/sofar/config.json` beside `auto_upgrade`; `sofar drive
+--keep-awake-setting <on|off>` writes it and starts nothing, as `sofar
+upgrade --auto` does for its own. Per run, `--keep-awake` / `--no-keep-awake`
+win and are not saved. Unset and on a TTY — the foreground driver, or the
+`--detach` caller before it spawns — sofar asks once and saves the answer.
+Unset and with no TTY, it NEVER prompts: the opening lines say keep-awake is
+unset and how to set it, so an agent relaying them asks the operator in chat,
+and a run with no per-run flag re-reads the setting before every launch, so
+the answer takes effect from the next session. The opening lines also say
+that idle sleep is blocked and lid-close sleep is not. Elsewhere than macOS
+the setting is inert, and a run that asked for it says so.
+
+**Watching a run (drive-visibility 3.1–3.6).** Progress already lands in the
+record as it happens; these surfaces carry it to where the operator is,
+and none of them is the only way to learn it — `sofar status` stays the
+answer every host can reach (see the Host tiers section).
+- `sofar drive [slug] --await` blocks at zero cost on the latest unstopped
+  run, polling every 2s by byte scan and lock probe, and exits with ONE
+  line: on `run_stopped` (exit 0; a `needs_user` stop names the blocked task
+  and its note, which is the operator's question), or when the lock goes
+  FREE with no stop recorded (exit 2, naming `--resume`). With the lock
+  ABSENT it waits on the record alone and says so first. No deadline; exit 1
+  when there is nothing to await. Built for an agent's background shell,
+  where it costs no tokens until the one line that needs acting on.
+- `sofar drive [slug] --follow` prints one plain line per handoff, task
+  status change, adoption, stop request and stop, and exits on `run_stopped`
+  or a FREE lock — for a terminal, or for narration the operator asked for.
+  It is not the agent default: every line under an agent's monitor is a
+  model turn, and Claude Code ends a monitor after 30 minutes (2.1.271).
+- The UserPromptSubmit shim adds one drive line —
+  `sofar drive: run <id> <running|driver gone|stopped: reason> · <n>
+  handoffs · now on <task> · <done>/<total>` — for the session's initiative
+  when its latest run is unstopped or stopped since this session began, and
+  ONLY when that run's newest event or task change is newer than the id this
+  session last saw. The last-seen id lives per session under the per-clone
+  state dir; a lost or unreadable one repeats the line, never silences it.
+- The statusline appends `drive <task>`, `drive gone` or `drive <stop
+  reason>` after the initiative's progress, the last only for a stop newer
+  than the session's start, within the statusline laws (words over glyphs).
+  The Claude desktop app does not render statusLine (claude-code#41456).
+- The protocol block tells an agent, after `--detach`, to run `sofar drive
+  <slug> --await` in its background shell and relay the line it prints; a
+  host with no background shell points the operator at the prompt line, the
+  statusline or `sofar status`.
+
+**Sync and presence during a run (drive-visibility D4, D6 — paid).** For a
+LINKED repo (`.sofar/remote.json` plus a credential for its api_url), the
+driver pushes the driven initiative's stream while it runs — at each
+handoff, at the stop, and trailing 15s after the log last grew — through
+`pushStream`, one push at a time, so the doorbell rings mid-run. It also
+sends presence: at start, at each handoff, at the stop, every 30s ±10%
+jitter, and at once when a 5s local tick sees the wall clock jump past two
+ticks (the machine slept); each ping carries `{run, slug, task?, state, seq,
+boot, interval_s}` and nothing else, has a 10s timeout, and is dropped on
+failure, never queued or retried — the next tick replaces it. Presence is
+never an event. Entitlement is the server's: a refusal the server marks as
+one (status and code are its contract, drive-visibility 4.3), and 401/404
+likewise, ends drive-time sync for the rest of the run, stated once on the
+progress stream; the engine carries no plan check of its own
+(drive-visibility D6). No push
+or ping failure ever delays a launch, changes a reason or stops a run, and
+an unlinked repo sends nothing. Concurrent pushes of one stream from the
+driver and an operator are safe by construction: push is idempotent by
+event id, and a cursor moved backwards only re-sends duplicates.
 
 **What the driver is not (D2).** Not a session, not an agent loop, never an
 inference: it launches existing headless agents through the adapter
@@ -1344,8 +1483,19 @@ than a name-less variant is deliberate: "another record's work landed and you
 can do nothing about it" is noise, and a line that cannot be acted on trains
 the reader to skim the ones that can.
 
-**Tier 3 — no hooks at all** (Codex, Grok, OpenCode, anything on the AGENTS.md
-dialect). Nothing fires on its own, because nothing runs between prompts. The
+**Codex is moving from Tier 3 to Tier 2.** codex-cli 0.136.0 ships hooks as a
+stable feature, on by default (`codex features list`), with UserPromptSubmit,
+PostToolUse and Stop among them; once `sofar init` installs Codex's hooks
+file (drive-visibility 3.2), Codex receives every Tier 2 line. Until then it
+reads as Tier 3 below.
+
+**A Tier 1 host is not Tier 1 in every surface.** The Claude desktop app runs
+the hooks but does not render `statusLine` (claude-code#41456, open since
+2026-03-31), so a statusline segment is a terminal-only convenience and never
+the carrier of anything a session must learn.
+
+**Tier 3 — no hooks at all** (Grok, OpenCode, anything on the AGENTS.md
+dialect, and Codex until its hooks are installed). Nothing fires on its own, because nothing runs between prompts. The
 same facts are all still REACHABLE, and the dialect's orient-first step is what
 reaches them: `sofar status` renders the record with its staleness signals, and
 `sofar review` renders the packet. The loss is latency and prompting, never
@@ -4202,6 +4352,40 @@ stay the underlying derivation's, and exit codes are styling-independent.
   and handed off `task_done` ($0.06); a `--stop` sent while session 2 was
   starting was acknowledged in 11s with the run `interrupted`, that launch
   unresolved (exit 143) and no process left behind.
+- **Drive visibility (drive-visibility):** one run has one driver, and an
+  operator can tell a live run from a dead one without asking an agent.
+  A driver holds `<state base>/runs/<run>.lock` for its whole life: a second
+  `sofar drive` and a `--resume` on the same machine are REFUSED while it is
+  held, including while the holder is SIGSTOPped; after kill -9 the lock is
+  FREE — even while a session that driver launched is still running, since
+  no child inherits the lock — status says `driver gone`, and `--resume`
+  succeeds. The lock file is
+  empty, outside the repo, never unlinked, and refused when the state base
+  would resolve inside the repo; a lock taken by Node is seen as held by
+  `flock` (the Rust and Swift primitive), and a probe never blocks another
+  probe. A run no lock was ever taken for reads `liveness unknown`, never
+  `driver gone`, on every surface. `run_adopted` REJECTS an epoch below 2;
+  the fold skips an adoption for a run that never started (warning, no
+  stub) and names the owner by highest epoch, first id on a tie; a driver
+  whose run was adopted at a higher epoch launches nothing more, files no
+  handoff or stop, and exits 1 once its live session ends; a stop request
+  sorting before the latest adoption is ignored. `--stop` against a FREE
+  lock appends nothing and returns at once. `--await` exits 0 with one line
+  on any `run_stopped` (naming the blocked task and its note for
+  `needs_user`), 2 when the lock goes FREE with no stop, and 1 with nothing
+  to await; `--follow` prints one line per handoff, task change, adoption,
+  request and stop, and exits on either end. The prompt line appears when
+  the run changed since the session last saw it and not otherwise, and a
+  lost last-seen file repeats it; the statusline shows the run's task, gone
+  or stop reason. On macOS, keep-awake on holds a `caffeinate` assertion
+  for exactly the driver's life (`pmset -g assertions`); unset with no TTY
+  never prompts and says so in the opening lines; the setting is re-read
+  before each launch. No liveness appears in any generated file. For a
+  linked repo the driver pushes during the run and sends presence carrying
+  only `{run, slug, task?, state, seq, boot, interval_s}`; an unlinked repo
+  sends nothing; an entitlement refusal ends drive-time sync once, stated,
+  and a failing or refusing API never delays a launch, changes a reason or
+  stops a run (injected fetch).
 - **Diagnostics store (self-improve 1.2):** a diagnostics row fails
   `validateEnvelope` and an import stream carrying one appends nothing; the
   store resolves under the XDG state dir keyed by the same clone hash as the
