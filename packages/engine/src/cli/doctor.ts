@@ -18,6 +18,9 @@ import { AGENT_LABELS, AGENTS } from './agents'
 import {
   AGENTS_PROTOCOL_BLOCK,
   classifyProtocolBlock,
+  CODEX_SHIM_DIR,
+  CODEX_SHIMS,
+  codexHookCommand,
   CURSOR_HOOKS,
   hookCommand,
   PROTOCOL_BLOCK,
@@ -297,6 +300,28 @@ function auditWiring(rootDir: string): Section {
       mcpHasSofar(rootDir, '.cursor/mcp.json')
         ? { level: 'ok', text: '.cursor/mcp.json sofar server registered' }
         : { level: 'fail', text: '.cursor/mcp.json sofar server not registered', hint: repair },
+    )
+  }
+
+  // Codex's own shims and hooks.json (agents-parity 2.1, D5). The command is
+  // matched as it sits in the file, JSON-escaped, since it opens with a quote.
+  if (wired.has('codex')) {
+    const missingCodexShims = CODEX_SHIMS.filter(
+      (shim) => !existsSync(join(rootDir, CODEX_SHIM_DIR, shim.file)),
+    ).map((shim) => shim.file)
+    findings.push(
+      missingCodexShims.length === 0
+        ? { level: 'ok', text: `Codex hook shims installed (${CODEX_SHIMS.length}/${CODEX_SHIMS.length})` }
+        : { level: 'fail', text: `Codex hook shims missing: ${missingCodexShims.join(', ')}`, hint: repair },
+    )
+    const codexHooksPath = join(rootDir, '.codex', 'hooks.json')
+    const missingCodexHooks = CODEX_SHIMS.filter(
+      (shim) => !fileHas(codexHooksPath, JSON.stringify(codexHookCommand(shim.file))),
+    ).map((shim) => shim.event)
+    findings.push(
+      missingCodexHooks.length === 0
+        ? { level: 'ok', text: '.codex/hooks.json hooks wired' }
+        : { level: 'fail', text: `.codex/hooks.json missing hooks: ${missingCodexHooks.join(', ')}`, hint: repair },
     )
   }
 

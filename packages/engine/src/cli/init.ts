@@ -28,6 +28,7 @@ import {
   type PickerOutput,
 } from './agents'
 import { detectFormatterHazards, hostShapedJSON } from './formatters'
+import type { HookName } from './host'
 import { detectTailwindV4, SOURCE_NOT_SINCE } from './scanners'
 import { fail, ok, REPO_MD_STUB, type CmdResult } from './shared'
 import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui'
@@ -1310,29 +1311,94 @@ export function uninstallStatusline(
 interface ShimSpec {
   file: string
   event: 'SessionStart' | 'UserPromptSubmit' | 'PostToolUse' | 'PostToolUseFailure' | 'Stop' | 'SessionEnd'
+  /** The `sofar event` subcommand the shim runs. */
+  hook: HookName
   matcher?: string
   text: string
 }
 
 /** Order here is the order entries land in settings.json. */
 export const SHIMS: readonly ShimSpec[] = [
-  { file: 'session-start.sh', event: 'SessionStart', text: sessionStartShim },
-  { file: 'user-prompt-submit.sh', event: 'UserPromptSubmit', text: userPromptSubmitShim },
+  { file: 'session-start.sh', event: 'SessionStart', hook: 'session-start', text: sessionStartShim },
+  { file: 'user-prompt-submit.sh', event: 'UserPromptSubmit', hook: 'user-prompt', text: userPromptSubmitShim },
   {
     file: 'post-tool-use.sh',
     event: 'PostToolUse',
+    hook: 'post-tool',
     matcher: 'Edit|Write|MultiEdit|Bash',
     text: postToolUseShim,
   },
   {
     file: 'post-tool-use-failure.sh',
     event: 'PostToolUseFailure',
+    hook: 'post-tool-failure',
     matcher: 'Edit|Write|MultiEdit|Bash',
     text: postToolUseFailureShim,
   },
-  { file: 'stop.sh', event: 'Stop', text: stopShim },
-  { file: 'session-end.sh', event: 'SessionEnd', text: sessionEndShim },
+  { file: 'stop.sh', event: 'Stop', hook: 'stop', text: stopShim },
+  { file: 'session-end.sh', event: 'SessionEnd', hook: 'session-end', text: sessionEndShim },
 ]
+
+/**
+ * Codex's hooks (agents-parity 2.1, D5). Codex keeps its own shims in its own
+ * directory whichever other agents are wired: it imports no Claude hook at
+ * runtime, so there is nothing to dedupe against, and a Codex-only project
+ * carries no other agent's files. The `sofar/` subdirectory keeps a user's
+ * `.codex/hooks/stop.sh` safe.
+ */
+export const CODEX_SHIM_DIR = '.codex/hooks/sofar'
+
+/**
+ * What each Codex event's .codex/hooks.json entry carries besides its command.
+ * Events absent here have no Codex hook: Codex has no PostToolUseFailure, and
+ * its PostToolUse fires after a failing Bash command as well.
+ *
+ * - `Bash|apply_patch` are the tool names Codex reports for shell and edits.
+ * - `additionalContextLimit: 0` passes the whole digest to the model. Codex
+ *   otherwise spills context over ~2,500 tokens to a file and shows a preview.
+ * - `timeout: 3` is SessionEnd's ceiling; its default of 1 s is tight for a
+ *   fold and an append.
+ *
+ * D5: every byte of an entry is trust-hashed, so change the shim, not these.
+ */
+export const CODEX_HOOKS: Readonly<
+  Partial<Record<ShimSpec['event'], { matcher?: string; timeout?: number; additionalContextLimit?: number }>>
+> = {
+  SessionStart: { additionalContextLimit: 0 },
+  UserPromptSubmit: {},
+  PostToolUse: { matcher: 'Bash|apply_patch' },
+  Stop: {},
+  SessionEnd: { timeout: 3 },
+}
+
+/**
+ * A Codex shim. Codex's payload names no host and its hooks run in the session
+ * cwd, which can be a subdirectory, so the shim names both: the host, and the
+ * repo root three directories above the shim itself.
+ */
+function codexShim(shim: ShimSpec): string {
+  return [
+    '#!/bin/sh',
+    `# sofar ${shim.event} shim for Codex — no logic here (BD4); the CLI owns behavior.`,
+    '# Codex names no host on stdin and runs hooks in the session cwd, so this',
+    '# names both: the host, and the repo root above .codex/hooks/sofar/ (agents-parity D5).',
+    `exec sofar event ${shim.hook} --host codex --root "$(dirname "$0")/../../.."`,
+    '',
+  ].join('\n')
+}
+
+export const CODEX_SHIMS: readonly ShimSpec[] = SHIMS.filter((shim) => CODEX_HOOKS[shim.event] !== undefined).map(
+  (shim) => ({ ...shim, text: codexShim(shim) }),
+)
+
+/**
+ * The command .codex/hooks.json runs a shim by: from the git root, the form
+ * Codex's docs advise, since a session started in a subdirectory would miss a
+ * relative path.
+ */
+export function codexHookCommand(file: string): string {
+  return `"$(git rev-parse --show-toplevel)/${CODEX_SHIM_DIR}/${file}"`
+}
 
 export function hookCommand(file: string, home: ShimHome = 'claude'): string {
   return `${SHIM_HOMES[home].prefix}${file}`
@@ -1363,12 +1429,14 @@ function mcpRegistersSofar(path: string): boolean {
 /**
  * The agents this repo is already wired for, read from the files themselves
  * (D36: no stored selection to drift from them). Any one of an agent's own
- * files counts, so doctor can name what a partial install is missing. Codex
- * owns no file but AGENTS.md until r1-fixes 7.3/7.4, so the block stands for it.
+ * files counts, so doctor can name what a partial install is missing.
+ * AGENTS.md is shared with Cursor, so it no longer stands for Codex now that
+ * Codex owns .codex/hooks.json (agents-parity 2.1).
  */
 export function wiredAgents(rootDir: string): AgentId[] {
   const settings = readText(join(rootDir, '.claude', 'settings.json'))
   const cursorHooks = readText(join(rootDir, '.cursor', 'hooks.json'))
+  const codexHooks = readText(join(rootDir, '.codex', 'hooks.json'))
   const wired: Record<AgentId, boolean> = {
     'claude-code':
       runsShimFrom(settings, 'claude') ||
@@ -1378,15 +1446,16 @@ export function wiredAgents(rootDir: string): AgentId[] {
       runsShimFrom(cursorHooks, 'claude') ||
       runsShimFrom(cursorHooks, 'cursor') ||
       mcpRegistersSofar(join(rootDir, '.cursor', 'mcp.json')),
-    codex: readText(join(rootDir, 'AGENTS.md')).includes(PROTOCOL_START),
+    codex: CODEX_SHIMS.some((shim) => codexHooks.includes(`${CODEX_SHIM_DIR}/${shim.file}`)),
   }
   return AGENTS.filter((id) => wired[id])
 }
 
 /**
- * Where the shims live for this set of agents: Claude Code's directory when
- * Claude Code is among them or any hook config here already runs a shim from
- * it, Cursor's otherwise. Codex takes Claude Code's until 7.3 gives it hooks.
+ * Where the shared Claude Code and Cursor shims live for this set of agents:
+ * Claude Code's directory when Claude Code is among them or any hook config
+ * here already runs a shim from it, Cursor's otherwise. Codex's shims are its
+ * own (CODEX_SHIM_DIR, D5) and never move.
  */
 export function shimHomeFor(rootDir: string, agents: ReadonlySet<AgentId>): ShimHome {
   if (agents.has('claude-code')) return 'claude'
@@ -1580,11 +1649,10 @@ function installGitHook(rootDir: string, report: string[]): void {
   report.push('created .git/hooks/prepare-commit-msg')
 }
 
-function installShims(rootDir: string, home: ShimHome, report: string[]): void {
-  const { dir } = SHIM_HOMES[home]
+function installShims(rootDir: string, dir: string, shims: readonly ShimSpec[], report: string[]): void {
   const hooksDir = join(rootDir, dir)
   mkdirSync(hooksDir, { recursive: true })
-  for (const shim of SHIMS) {
+  for (const shim of shims) {
     const path = join(hooksDir, shim.file)
     const change = writeIfChanged(path, shim.text) // shims are sofar-owned: kept current
     if ((statSync(path).mode & 0o777) !== 0o755) chmodSync(path, 0o755)
@@ -1798,6 +1866,73 @@ function mergeCursorHooks(rootDir: string, home: ShimHome, add: boolean, report:
 }
 
 /**
+ * Merge sofar's hooks into .codex/hooks.json (agents-parity 2.1, D5). The file
+ * has Claude Code's shape — matcher groups each holding a `hooks` array — so it
+ * merges the way settings.json does: an entry already running our command is
+ * left as the user has it, which matters doubly here, because Codex asks the
+ * operator to trust any entry again once its bytes change. Returns the change,
+ * so init can say what Codex still needs.
+ */
+function mergeCodexHooks(rootDir: string, report: string[]): Change {
+  const rel = '.codex/hooks.json'
+  const path = join(rootDir, rel)
+  const config = readJSONObject(path, rel)
+
+  if (config.hooks !== undefined && !isObj(config.hooks)) {
+    throw new InitAbort(`${rel} has a non-object "hooks" key — refusing to modify it.`)
+  }
+  const hooks: Obj = isObj(config.hooks) ? config.hooks : {}
+
+  let added = 0
+  for (const shim of CODEX_SHIMS) {
+    const existing = hooks[shim.event]
+    if (existing !== undefined && !Array.isArray(existing)) {
+      throw new InitAbort(`${rel} hooks.${shim.event} is not an array — refusing to modify it.`)
+    }
+    const entries: unknown[] = Array.isArray(existing) ? existing : []
+    const command = codexHookCommand(shim.file)
+    if (!hasCommand(entries, command)) {
+      const { matcher, timeout, additionalContextLimit } = CODEX_HOOKS[shim.event] ?? {}
+      entries.push({
+        ...(matcher !== undefined ? { matcher } : {}),
+        hooks: [
+          {
+            type: 'command',
+            command,
+            ...(timeout !== undefined ? { timeout } : {}),
+            ...(additionalContextLimit !== undefined ? { additionalContextLimit } : {}),
+          },
+        ],
+      })
+      added++
+    }
+    hooks[shim.event] = entries
+  }
+
+  if (added === 0 && existsSync(path)) {
+    report.push(`unchanged ${rel}`)
+    return 'unchanged'
+  }
+  config.hooks = hooks
+  mkdirSync(dirname(path), { recursive: true })
+  const change = writeIfChanged(path, stableJSON(rootDir, path, config))
+  report.push(`${change} ${rel}`)
+  return change
+}
+
+/**
+ * Printed when init has just written sofar's entries into .codex/hooks.json:
+ * Codex loads a project's hooks only for a trusted project, and runs a hook
+ * only once the operator has reviewed its exact entry. init never writes that
+ * trust — the gate is the operator's (D5).
+ */
+export const CODEX_HOOKS_HINT = [
+  'note: Codex runs project hooks only in a trusted project, after you review them.',
+  '  Trust the project when Codex asks, then open /hooks in Codex and trust',
+  "  sofar's hooks. Codex asks again whenever a hook entry changes.",
+].join('\n')
+
+/**
  * Printed when init has just registered sofar in .cursor/mcp.json: Cursor
  * starts no project MCP server until the operator approves it, and init never
  * writes that approval — the gate is the operator's (D34).
@@ -1943,9 +2078,11 @@ export function runInit(
   const picked = new Set(options.agents ?? AGENTS)
   const claude = picked.has('claude-code')
   const cursor = picked.has('cursor')
+  const codex = picked.has('codex')
   const report: string[] = []
   let statuslineAbsent = false
   let cursorMcp: Change = 'unchanged'
+  let codexHooks: Change = 'unchanged'
   try {
     initSofarDir(rootDir, report)
     ensureGitattributes(rootDir, report)
@@ -1955,7 +2092,8 @@ export function runInit(
     const home = shimHomeFor(rootDir, picked)
     const cursorOnOwnShims =
       home === 'claude' && runsShimFrom(readText(join(rootDir, '.cursor', 'hooks.json')), 'cursor')
-    if (claude || cursor || cursorOnOwnShims) installShims(rootDir, home, report)
+    if (claude || cursor || cursorOnOwnShims) installShims(rootDir, SHIM_HOMES[home].dir, SHIMS, report)
+    if (codex) installShims(rootDir, CODEX_SHIM_DIR, CODEX_SHIMS, report)
     installGitHook(rootDir, report)
     if (claude) {
       statuslineAbsent = mergeSettings(rootDir, statusline, report).statuslineAbsent
@@ -1966,11 +2104,13 @@ export function runInit(
     if (cursor || cursorOnOwnShims) mergeCursorHooks(rootDir, home, cursor, report)
     if (cursorOnOwnShims) removeCursorShims(rootDir, report)
     if (cursor) cursorMcp = mergeMcpJson(rootDir, '.cursor/mcp.json', report)
+    if (codex) codexHooks = mergeCodexHooks(rootDir, report)
     if (claude) {
       appendProtocolBlock(rootDir, 'CLAUDE.md', PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS, report)
     }
-    // AGENTS.md is the file Cursor always reads and Codex's only one (D36).
-    if (cursor || picked.has('codex')) {
+    // AGENTS.md is the file Cursor always reads and the only protocol file
+    // Codex reads (D36).
+    if (cursor || codex) {
       appendProtocolBlock(
         rootDir,
         'AGENTS.md',
@@ -2003,6 +2143,9 @@ export function runInit(
   // Cursor's MCP approval (r1-fixes 6.2, D34): said once, on the run that
   // registered the server, since a re-run changes nothing Cursor must approve.
   if (cursorMcp !== 'unchanged') lines.push('', CURSOR_MCP_HINT)
+  // Codex's hook trust (D5), on the same terms: said on the run that wrote the
+  // entries, since only a changed entry needs reviewing again.
+  if (codexHooks !== 'unchanged') lines.push('', CODEX_HOOKS_HINT)
   // Formatter defence (r1-fixes 1.4, D7): a formatter or linter that will
   // process .sofar/ gets the same treatment as the scanner below — init only
   // names it, `sofar doctor --fix` writes each tool's exclusion. Before the

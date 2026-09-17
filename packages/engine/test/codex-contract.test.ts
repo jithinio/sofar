@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { CodexAdapter } from '../src/driver/codex'
+import { checkSchema as check, CONTRACT, isObj, type Json, type Obj, PAYLOADS, SCHEMAS } from './helpers/codex'
 
 /**
  * The Codex contract capture (agents-parity 1.1). The fixtures under
@@ -17,83 +18,6 @@ import { CodexAdapter } from '../src/driver/codex'
  * adapter reads. Later tasks build on the fixtures, so a hand edit that drifts
  * one away from the binary fails here first.
  */
-
-type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
-type Obj = { [key: string]: Json }
-
-function fixture<T>(name: string): T {
-  return JSON.parse(readFileSync(new URL(`./fixtures/codex/${name}`, import.meta.url), 'utf8')) as T
-}
-
-const SCHEMAS = fixture<Record<string, Obj>>('hook-schemas.codex-0.154.0.json')
-const PAYLOADS = fixture<Record<string, { schema: string; payload: Obj }>>('hook-payloads.codex-0.154.0.json')
-const CONTRACT = fixture<Obj>('contract.codex-0.154.0.json')
-
-const isObj = (v: Json | undefined): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v)
-
-function typeOf(value: Json): string {
-  if (value === null) return 'null'
-  if (Array.isArray(value)) return 'array'
-  return typeof value === 'number' ? 'number' : typeof value
-}
-
-/**
- * The draft-07 subset Codex's generated hook schemas use: type, const, enum,
- * required, additionalProperties false, $ref into definitions, allOf, and the
- * boolean `true` schema. Anything else in a schema is a new construct, and
- * failing on it beats silently accepting a payload.
- */
-function validate(schema: Json, value: Json, root: Obj, path = '$'): string[] {
-  if (schema === true) return []
-  if (!isObj(schema)) return [`${path}: unsupported schema ${JSON.stringify(schema)}`]
-  const errors: string[] = []
-  for (const key of Object.keys(schema)) {
-    const known = ['$schema', 'title', 'description', 'default', 'definitions', 'type', 'const', 'enum', 'required', 'additionalProperties', 'properties', '$ref', 'allOf']
-    if (!known.includes(key)) errors.push(`${path}: unsupported keyword ${key}`)
-  }
-  if (typeof schema.$ref === 'string') {
-    const name = schema.$ref.replace('#/definitions/', '')
-    const definitions = root.definitions
-    const target = isObj(definitions) ? definitions[name] : undefined
-    if (target === undefined) return [`${path}: unresolved ${schema.$ref}`]
-    errors.push(...validate(target, value, root, path))
-  }
-  if (Array.isArray(schema.allOf)) {
-    // Every allOf in these schemas wraps a nullable $ref next to `default: null`.
-    if (value !== null) for (const part of schema.allOf) errors.push(...validate(part, value, root, path))
-  }
-  if (schema.type !== undefined) {
-    const allowed = Array.isArray(schema.type) ? schema.type : [schema.type]
-    const actual = typeOf(value)
-    const ok = allowed.some((t) => t === actual || (t === 'integer' && Number.isInteger(value)))
-    if (!ok) errors.push(`${path}: ${actual} is not ${allowed.join('|')}`)
-  }
-  if (schema.const !== undefined && value !== schema.const) errors.push(`${path}: not ${JSON.stringify(schema.const)}`)
-  if (Array.isArray(schema.enum) && !schema.enum.includes(value)) errors.push(`${path}: ${JSON.stringify(value)} not in enum`)
-  if (isObj(value)) {
-    const properties = isObj(schema.properties) ? schema.properties : {}
-    if (Array.isArray(schema.required)) {
-      for (const key of schema.required) {
-        if (typeof key === 'string' && !(key in value)) errors.push(`${path}: missing ${key}`)
-      }
-    }
-    for (const [key, child] of Object.entries(value)) {
-      const sub = properties[key]
-      if (sub === undefined) {
-        if (schema.additionalProperties === false) errors.push(`${path}: unexpected ${key}`)
-        continue
-      }
-      errors.push(...validate(sub, child, root, `${path}.${key}`))
-    }
-  }
-  return errors
-}
-
-function check(title: string, value: Json): string[] {
-  const schema = SCHEMAS[title]
-  if (schema === undefined) return [`no schema ${title}`]
-  return validate(schema, value, schema)
-}
 
 describe('the hook schemas embedded in codex 0.154.0', () => {
   const titles = Object.keys(SCHEMAS)

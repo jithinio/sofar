@@ -1,8 +1,10 @@
+import { resolve } from 'node:path'
 import type { HookResult } from './event'
 
 /**
- * Hook hosts (r1-fixes 6.3–6.6, D34): ONE set of shims serves Claude Code and
- * Cursor, and this module is the whole difference between them.
+ * Hook hosts (r1-fixes 6.3–6.6, D34; agents-parity 2.1, D5): ONE set of
+ * handlers serves Claude Code, Cursor and Codex, and this module is the whole
+ * difference between them.
  *
  * Cursor runs the same shim files — natively from .cursor/hooks.json, or as
  * "third-party" hooks read out of .claude/settings.json — but it speaks its own
@@ -23,6 +25,14 @@ import type { HookResult } from './event'
  * pins it (§Cursor host). The handlers stay Claude-shaped and byte-identical for Claude Code:
  * `forHost` converts a Cursor payload on the way in and the result on the way
  * out, and a Claude Code invocation passes straight through.
+ *
+ * Codex (read from codex-cli 0.154.0 and its docs, SPEC §Codex host) already
+ * sends Claude Code's field names, so its payload needs no conversion. What
+ * it lacks is any field naming the host, so its shims declare it
+ * (`--host codex`, D5). Three differences remain (D6): `apply_patch` edits
+ * (parsed by `patchedFiles`), a PostToolUse that also fires after a failing
+ * command, and context carried as `hookSpecificOutput` JSON so the digest can
+ * be exempted from Codex's 2,500-token spill.
  */
 
 type Obj = Record<string, unknown>
@@ -32,12 +42,37 @@ export type HookName = 'session-start' | 'post-tool' | 'post-tool-failure' | 'us
 
 /** Which agent fired a hook — recorded on session registration and diagnostics rows. */
 export interface HookHost {
-  tool: 'claude-code' | 'cursor'
+  tool: 'claude-code' | 'cursor' | 'codex'
   /** The host's own version string, when its payload names one. */
   version?: string
 }
 
 export const CLAUDE_CODE_HOST: HookHost = { tool: 'claude-code' }
+export const CODEX_HOST: HookHost = { tool: 'codex' }
+
+/**
+ * Hosts whose payload names no host, so their shims must, as
+ * `sofar event <hook> --host <id>` (D5). A host that can be told from stdin
+ * never needs the flag.
+ */
+export const DECLARED_HOSTS = ['codex'] as const
+export type DeclaredHost = (typeof DECLARED_HOSTS)[number]
+
+export function isDeclaredHost(value: string): value is DeclaredHost {
+  return (DECLARED_HOSTS as readonly string[]).includes(value)
+}
+
+/**
+ * Does this host fire PostToolUse only for a call that succeeded? Claude Code
+ * and Cursor do, and send failures to PostToolUseFailure. Codex has no failure
+ * event and fires PostToolUse after a Bash command that exits non-zero as well
+ * (docs), with no verified exit status on the payload. So a Codex firing says
+ * nothing about the outcome, and the event records none: absent `ok` means
+ * unknown, never success.
+ */
+export function postToolProvesSuccess(host: HookHost): boolean {
+  return host.tool !== 'codex'
+}
 
 /**
  * Cursor's per-carrier cap on injected context, measured after trimming. Above
@@ -135,16 +170,85 @@ export function toCursor(name: HookName, result: HookResult): HookResult {
   return { ...result, stdout: json({ additional_context: clipped }) }
 }
 
+/** The Codex event whose context carrier each context-bearing hook fills. */
+const CODEX_CONTEXT_EVENTS: Readonly<Partial<Record<HookName, string>>> = {
+  'session-start': 'SessionStart',
+  'user-prompt': 'UserPromptSubmit',
+}
+
 /**
- * Serve a hook handler to whichever host fired it. A payload that cannot be a
- * Cursor one (the substring check spares every Claude Code call a second
- * parse on the 100ms hook path) reaches the handler untouched.
+ * A handler's Claude Code result, as Codex reads it. Codex takes plain stdout
+ * as context on SessionStart and UserPromptSubmit, but the docs say nothing on
+ * whether plain text is exempt from its ~2,500-token spill, and a 10,000-char
+ * digest sits right at that line. A spilled digest reaches the model as a
+ * head-and-tail preview. So both carry `hookSpecificOutput.additionalContext`,
+ * the one form `additionalContextLimit` (0 on sofar's SessionStart entry) is
+ * documented to govern. Post-tool JSON, the Stop gate's exit 2 and every
+ * empty result already fit Codex's schemas and pass through.
+ */
+export function toCodex(name: HookName, result: HookResult): HookResult {
+  const event = CODEX_CONTEXT_EVENTS[name]
+  if (event === undefined) return result
+  const context = contextOf(name, result.stdout)
+  if (context === null) return { ...result, stdout: '' }
+  return { ...result, stdout: json({ hookSpecificOutput: { hookEventName: event, additionalContext: context } }) }
+}
+
+/**
+ * The file headers of an `apply_patch` body, which Codex's edits carry whole
+ * in `tool_input.command` with no `file_path`. The markers were read from codex
+ * 0.154.0's binary; the grammar around them is unverified (SPEC §Codex host).
+ */
+const PATCH_HEADERS: ReadonlyArray<readonly [marker: string, op: string]> = [
+  ['*** Add File: ', 'write'],
+  ['*** Update File: ', 'edit'],
+  ['*** Delete File: ', 'delete'],
+]
+const PATCH_MOVE = '*** Move to: '
+
+/**
+ * Every file one `apply_patch` touches, in patch order, resolved against the
+ * session cwd the payload names (a patch path is relative to it, and Claude
+ * Code's absolute `file_path` is the form the record already holds). A move
+ * touches two paths: its source is gone (`delete`) and its destination is
+ * written (`write`). Hunk lines never start with `***`, so a header cannot be
+ * mistaken inside a hunk.
+ */
+export function patchedFiles(patch: string, cwd: string | null): Array<{ path: string; op: string }> {
+  const at = (path: string): string => (cwd === null ? path : resolve(cwd, path))
+  const files: Array<{ path: string; op: string }> = []
+  for (const raw of patch.split('\n')) {
+    const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw
+    if (line.startsWith(PATCH_MOVE)) {
+      const to = line.slice(PATCH_MOVE.length).trim()
+      const from = files[files.length - 1]
+      if (to.length > 0 && from !== undefined && from.op === 'edit') {
+        from.op = 'delete'
+        files.push({ path: at(to), op: 'write' })
+      }
+      continue
+    }
+    for (const [marker, op] of PATCH_HEADERS) {
+      if (!line.startsWith(marker)) continue
+      const path = line.slice(marker.length).trim()
+      if (path.length > 0) files.push({ path: at(path), op })
+    }
+  }
+  return files
+}
+
+/**
+ * Serve a hook handler to whichever host fired it. A host its shim declares
+ * (Codex) is served as declared. Otherwise a payload that cannot be a Cursor
+ * one (the substring check spares every Claude Code call a second parse on the
+ * 100ms hook path) reaches the handler untouched.
  */
 export function forHost(
   name: HookName,
-  handler: (rootDir: string, input: string) => HookResult,
-): (rootDir: string, input: string) => HookResult {
-  return (rootDir, input) => {
+  handler: (rootDir: string, input: string, host?: HookHost) => HookResult,
+): (rootDir: string, input: string, declared?: DeclaredHost) => HookResult {
+  return (rootDir, input, declared) => {
+    if (declared === 'codex') return toCodex(name, handler(rootDir, input, CODEX_HOST))
     if (!input.includes('"cursor_version"')) return handler(rootDir, input)
     let hook: Obj
     try {

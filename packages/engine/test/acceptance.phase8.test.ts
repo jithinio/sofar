@@ -166,6 +166,18 @@ describe('acceptance 1 — uninit round-trips (hash-based)', () => {
       join(root, '.cursor', 'mcp.json'),
       stableJSON({ mcpServers: { other: { command: 'other-server', args: [] } } }),
     )
+    // and Codex's (agents-parity 2.1): settings.json's shape, and a hooks dir of its own
+    mkdirSync(join(root, '.codex', 'hooks'), { recursive: true })
+    writeFileSync(
+      join(root, '.codex', 'hooks.json'),
+      stableJSON({
+        hooks: {
+          PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo pre' }] }],
+          SessionStart: [{ hooks: [{ type: 'command', command: 'echo user-start' }] }],
+        },
+      }),
+    )
+    writeFileSync(join(root, '.codex', 'hooks', 'stop.sh'), '#!/bin/sh\necho mine\n')
     writeFileSync(join(root, '.claude', 'hooks', 'my-hook.sh'), '#!/bin/sh\necho mine\n')
     writeFileSync(join(root, '.gitattributes'), '*.png binary\n')
     const before = hashTree(root)

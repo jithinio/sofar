@@ -1695,9 +1695,10 @@ stop fired. Evidence: r1-fixes note 01M2QE7G.
 This section records what Codex reads, sends and honours. It was captured
 without running inference (agents-parity D3) from three sources: codex-cli
 0.154.0's binary (`--help` and `strings`), codex-cli 0.136.0's `--help`, and the
-Codex hooks docs saved 2026-09-16. None of it is wired yet. Hooks, MCP and the
-write-back gate are agents-parity 2.1–2.3, and Codex stays in Tier 3
-(§Host tiers) until 3.2 proves them live. Each fact is marked (binary), (docs) or
+Codex hooks docs saved 2026-09-16. Hooks are wired since agents-parity 2.1
+(the "Wired" paragraph below). MCP and the write-back gate's protocol text
+are 2.2–2.3, and Codex stays in Tier 3 (§Host tiers) until 3.2 proves them
+live. Each fact is marked (binary), (docs) or
 (unverified). The data is `packages/engine/test/fixtures/codex/`, whose README
 marks each field, and `codex-contract.test.ts` checks that the fixtures agree.
 Later tasks test against those files, never against remembered shapes.
@@ -1829,7 +1830,7 @@ limit is unverified.
 - Cursor's `additional_context` and `followup_message` fail the schemas, so
   `toCursor` must never serve Codex
 
-What 2.1 must still close:
+What 2.1 had to close, and how it did (next paragraph):
 - host identity. There is no stdin marker, and `CODEX_THREAD_ID` is a string in
   the binary but unverified as a hook variable. The environment was ruled out for
   Cursor because a nested session inherits it.
@@ -1837,6 +1838,48 @@ What 2.1 must still close:
 - there is no PostToolUseFailure event
 - the 10,000-character digest sits at the 2,500-token spill threshold
 - SessionEnd has only 1–3 s
+
+**Wired (agents-parity 2.1, D5).** `sofar init --agents codex` writes five
+shims to `.codex/hooks/sofar/` and one matcher group per event to
+`.codex/hooks.json`. The events are SessionStart, UserPromptSubmit,
+PostToolUse (matcher `Bash|apply_patch`), Stop and SessionEnd. Codex's shims
+are its own whichever agents are picked. Codex imports no Claude hook at
+runtime, so there is nothing to dedupe against, and a Codex-only repo carries
+no `.claude/`.
+- Commands. Each entry runs
+  `"$(git rev-parse --show-toplevel)/.codex/hooks/sofar/<shim>"`, the git-root
+  form the docs advise, because hooks run in the session cwd. SessionStart adds
+  `additionalContextLimit: 0` and SessionEnd adds `timeout: 3`, its ceiling.
+- Shims. Each runs `exec sofar event <hook> --host codex --root
+  "$(dirname "$0")/../../.."`. They name the host, which no payload field does,
+  and the repo root, which cwd may not be.
+- Trust. Every byte of an entry is trust-hashed, so behaviour changes go in the
+  shim or the CLI, never the entry (D5 rule). Script contents are not in the
+  hash (docs: trust covers "the hook definition"). A run that writes the file
+  prints the note that Codex needs the project and its hooks trusted.
+- IN (D6). A declared Codex payload is not converted, since the names are already
+  Claude Code's. It registers the session as tool `codex`. apply_patch appends
+  one file_touched per patched file (§Hooks). Bash's command_run and
+  apply_patch's file_touched carry NO `ok`: PostToolUse also fires after a
+  non-zero exit, and neither `tool_response` shape is verified. An absent `ok`
+  means unknown, never success. A diagnostics row records `ok: null`.
+- OUT (D6). Session-start and user-prompt context becomes
+  `{"hookSpecificOutput": {"hookEventName", "additionalContext"}}`, the form
+  `additionalContextLimit` is documented to govern, so the digest is never
+  spilled to a preview. Post-tool JSON, the Stop gate's exit 2 with the message
+  on stderr, and empty results already fit Codex's schemas and pass through.
+  `toCursor` never serves a declared Codex call.
+- Tests. Every shape is tested against the fixtures and the embedded output
+  schemas (`codex-host.test.ts`, D4). One case runs the hooks.json commands
+  from a subdirectory through the built CLI.
+
+Limits stated, not worked around:
+- A `[hooks]` table in `.codex/config.toml` beside the written `hooks.json` is
+  merged by Codex with a startup warning. init writes JSON only.
+- `sofar` is found on whatever PATH Codex gives its hooks, which is unverified,
+  so the r1-fixes M6 caution applies.
+- Whether `codex exec` loads trusted project hooks is 3.1's question.
+- The apply_patch grammar beyond the header markers is unverified.
 
 **MCP.** Servers are `[mcp_servers.<name>]` tables in `config.toml` (binary), and
 the project `.codex/config.toml` is read for a trusted project (binary, the same
@@ -3002,6 +3045,10 @@ initiatives:` suffix, or a `sofar new` hint when none exist
 Claude Code runs them from .claude/settings.json and Cursor from
 .cursor/hooks.json; Cursor's payloads and outputs are converted at the
 dispatch, and every behaviour below holds for both hosts (§Cursor host).
+Codex runs its own five copies from .codex/hooks.json, each declaring
+`--host codex`; every behaviour below holds for Codex too, except where
+§Codex host says otherwise (no PostToolUseFailure, no asserted `ok`, JSON
+context carriers).
 - SessionStart shim → `sofar event session-start` then prints the status
   projection to stdout (context injection). The block carries a
   `Session: <id> — when calling sofar_start_session, pass this as
@@ -3345,7 +3392,12 @@ dispatch, and every behaviour below holds for both hosts (§Cursor host).
   file_touched / command_run from stdin JSON (tool_name, tool_input),
   preceded by a session_started for an unregistered session (lazy
   registration, record-hygiene D2; envelope session "cli" is never
-  registered).
+  registered). An `apply_patch` call (Codex, matcher `Bash|apply_patch`)
+  appends ONE file_touched per file its patch names, in patch order:
+  `*** Add File:` → `write`, `*** Update File:` → `edit`, `*** Delete File:`
+  → `delete`, and an update followed by `*** Move to:` → `delete` on the
+  source plus `write` on the destination. Paths are resolved against the
+  payload's `cwd`. The session registers once per call.
   REGISTRATION IS IDEMPOTENT PER (initiative, session) (r1-fixes 1.2): a
   log holds at most one session_started per session, whichever path
   registers it — this hook, sofar_start_session's unknown-id branch, or
@@ -3555,9 +3607,10 @@ Shims contain no logic — they invoke the sofar CLI.
   both blocks loading in one Cursor session must never give two answers.
   ONLY THE AGENTS PICKED are set up (r1-fixes 7.1, D35, D36). Each agent owns
   its files: Claude Code `.claude/settings.json`, `.mcp.json`, CLAUDE.md;
-  Cursor `.cursor/hooks.json`, `.cursor/mcp.json`, AGENTS.md; Codex AGENTS.md
-  (its hooks and MCP entry are r1-fixes 7.3/7.4). `.sofar/`, `.gitattributes`
-  and the git hook are shared and always installed. `--agents` takes
+  Cursor `.cursor/hooks.json`, `.cursor/mcp.json`, AGENTS.md; Codex
+  `.codex/hooks.json`, its shims in `.codex/hooks/sofar/`, and AGENTS.md
+  (agents-parity 2.1, D5; its MCP entry is agents-parity 2.2). `.sofar/`,
+  `.gitattributes` and the git hook are shared and always installed. `--agents` takes
   `claude-code`, `cursor`, `codex` comma-separated, or `all`; an unknown name
   exits 1 and writes nothing. Without the flag, when stdin and stderr are a
   terminal (not CI, not TERM=dumb), init asks with a multi-select drawn on
@@ -3583,7 +3636,13 @@ Shims contain no logic — they invoke the sofar CLI.
   entries are repointed in place (other keys kept) even when Cursor was not
   picked, and the old copies removed, because Cursor fires each hook once
   only when its command matches settings.json's byte for byte
-  (§Cursor host). No selection is stored — the files are the selection. The
+  (§Cursor host). Codex's shims never share or move: they live in
+  `.codex/hooks/sofar/` whichever agents are picked, and `.codex/hooks.json`
+  runs them as `"$(git rev-parse --show-toplevel)/.codex/hooks/sofar/<shim>"`
+  (§Codex host). Merge rules are settings.json's, and a run that writes
+  `.codex/hooks.json` prints the hook-trust note, since Codex runs no project
+  hook until the operator trusts it in /hooks. No selection is stored — the
+  files are the selection. The
   statusline hint and `--statusline` apply only with Claude Code picked;
   without it `--statusline` reports `skipped statusLine (Claude Code not
   selected)`. Writes the union-merge rule for committed event logs to
@@ -3662,7 +3721,9 @@ Shims contain no logic — they invoke the sofar CLI.
   checked — Claude Code when settings.json runs a shim, .mcp.json registers
   sofar or CLAUDE.md carries the block; Cursor when .cursor/hooks.json runs a
   shim from either home or .cursor/mcp.json registers sofar; Codex when
-  AGENTS.md carries the block — each unwired agent gets one ok line naming
+  .codex/hooks.json runs one of its shims (AGENTS.md is shared with Cursor,
+  so it no longer stands for Codex, agents-parity 2.1), checked for its five
+  shims and its five hooks.json entries — each unwired agent gets one ok line naming
   `sofar init --agents <id>`, a partial install's repair hint names its own
   agents, and a record with no agent wired at all FAILs; plus the
   ATTRIBUTION check (commit-attribution 2.4), which is deliberately EMPIRICAL
@@ -3788,7 +3849,8 @@ Shims contain no logic — they invoke the sofar CLI.
   context and `sofar status` (rendered only when open sessions overlap, D-P11).
 - `sofar uninit [--purge]` — exact inverse of init, surgical: remove the
   hook shims from either home (`.claude/hooks/`, or `.cursor/hooks/sofar/`
-  for a repo set up without Claude Code — r1-fixes 7.1), every agent's
+  for a repo set up without Claude Code — r1-fixes 7.1) and Codex's from
+  `.codex/hooks/sofar/` (other files in `.codex/hooks/` kept), every agent's
   entries whichever agents were picked, `.git/hooks/prepare-commit-msg` ONLY while it still carries
   the `sofar prepare-commit-msg shim` marker (D7 — a user's own hook that calls
   `sofar commit-trailer` is the user's file, and `.git/hooks` has no other
@@ -3992,8 +4054,10 @@ Shims contain no logic — they invoke the sofar CLI.
   — the v2 sync client against api.sofar.sh; full contract in
   §Sync client (sync-client, Jul 2026).
 - `sofar event <subcommand>` — append-side surface: session-start,
-  post-tool, post-tool-failure, stop, session-end are internal subcommands for
-  the hook shims;
+  user-prompt, post-tool, post-tool-failure, stop, session-end are internal
+  subcommands for the hook shims, taking `--root <dir>` and `--host codex`,
+  which a Codex shim passes because Codex's payload names no host
+  (§Codex host); any other `--host` value exits 1;
   `event append --type <event_type> --payload <json-object> [--session <id>]
   [--source <tool>] [--actor <actor>] [slug]` is the convention-dialect
   surface for MCP-less tools — validate payload, append ONE event,
@@ -5577,9 +5641,11 @@ stay the underlying derivation's, and exit codes are styling-independent.
 - **Agent picker (r1-fixes 7.1):** `sofar init --agents claude-code` writes
   no `.cursor/` and no AGENTS.md; `--agents cursor` writes no `.claude/`,
   CLAUDE.md or `.mcp.json`, its shims executable under
-  `.cursor/hooks/sofar/`; `--agents codex` writes only AGENTS.md beside the
-  shared files. Each is byte-idempotent, and a Cursor-only init round-trips
-  byte-clean through `uninit --purge`. Adding Cursor to a Claude Code repo
+  `.cursor/hooks/sofar/`; `--agents codex` writes only `.codex/hooks.json`,
+  its five executable shims under `.codex/hooks/sofar/`, and AGENTS.md beside
+  the shared files. Each is byte-idempotent, and a Cursor-only or Codex-only
+  init round-trips byte-clean through `uninit --purge`; adding Codex to a
+  Claude Code and Cursor repo changes none of their bytes. Adding Cursor to a Claude Code repo
   leaves `.claude/settings.json`, `.mcp.json` and CLAUDE.md byte-identical;
   adding Claude Code to a Cursor repo leaves every Cursor event with exactly
   the settings.json command, removes `.cursor/hooks/`, and a following
@@ -5589,6 +5655,27 @@ stay the underlying derivation's, and exit codes are styling-independent.
   exits 1 with nothing written; an unknown `--agents` name exits 1. doctor on
   a Cursor-only repo passes with no `.claude/settings.json` line and names
   Claude Code as not set up.
+- **Codex hooks (agents-parity 2.1):** `.codex/hooks.json` uses only keys and
+  events codex 0.154.0 parses (contract fixture `config_shape`). On the 0.154.0
+  payload fixtures dispatched with `--host codex`:
+  - session-start prints SessionStart output valid against the embedded schema,
+    carrying the Session line
+  - Bash appends command_run with no `ok`, including after a non-zero exit, and
+    registers the session as `codex`
+  - the fixture apply_patch appends five file_touched (edit, write, delete,
+    delete, write) resolved against `cwd`
+  - an MCP call appends nothing
+  - Stop holds an indebted session with exit 2 once, and `stop_hook_active`
+    releases it
+  - SessionEnd appends session_closed `{reason: "other"}`
+
+  The same Bash payload without `--host` registers `claude-code`. The hot path
+  accepts `--host codex` and `--host=codex` beside `--root` and leaves any other
+  host to commander. Run by their hooks.json command from a subdirectory through
+  the built CLI, the shims put the digest in schema-valid context and the edits
+  in the repo root's record as `codex`. init merges beside a user's own
+  hooks.json entries and `.codex/hooks/` files, and uninit removes only
+  sofar's.
 - **Rule fidelity (memory-lead 1.2):** decision_logged accepts `quote` with a
   `rule` up to 300 chars and rejects it without one, empty, or longer. The
   round-1 pair (rule "…reject anything else with 4xx.", quote "Reject

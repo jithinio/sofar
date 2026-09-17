@@ -73,7 +73,15 @@ import {
 } from '../mcp/context'
 import { enforceStatusLimit, renderStatus, sessionIdLine } from '../projections/templates/status'
 import { REPO_MD_STUB, readInput } from './shared'
-import { forHost, hookHost, type HookHost } from './host'
+import {
+  DECLARED_HOSTS,
+  forHost,
+  hookHost,
+  patchedFiles,
+  postToolProvesSuccess,
+  type DeclaredHost,
+  type HookHost,
+} from './host'
 
 /**
  * `sofar event <subcommand>` — the internal surface hook shims call
@@ -693,9 +701,10 @@ function adjacentRecords(sofarDir: string, slug: string): NeighbourRecord[] {
   }
 }
 
-export function handleSessionStart(rootDir: string, input: string): HookResult {
+export function handleSessionStart(rootDir: string, input: string, declared?: HookHost): HookResult {
   try {
     const hook = parseHook(input)
+    const host = declared ?? hookHost(hook)
     const sessionId = strField(hook, 'session_id')
     // Hand the host's id to CLI appends that omit --session (r1-fixes 4.1.3, D29)
     // — before resolution, because an unbound session's appends name a slug.
@@ -772,7 +781,7 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
       kind: 'injection',
       initiative: slug,
       session: sessionId ?? 'cli',
-      host: hookHost(hook),
+      host,
       data: {
         hook: 'SessionStart',
         bytes: status.length,
@@ -809,25 +818,43 @@ interface ClassifiedCall {
  * that by appending nothing — a read appends nothing either. Not reading
  * would leave `cmd:*git push*`-shaped rules permanently unenforceable, since
  * no event about a push is ever written for the fold to test.
+ *
+ * One call can touch several files: Codex's `apply_patch` carries a whole
+ * multi-file patch (agents-parity 2.1), so the result is every classified
+ * subject, in order, and empty for a call that is not ours.
  */
-function classifyToolCall(hook: Obj): ClassifiedCall | null {
+function classifyToolCall(hook: Obj): ClassifiedCall[] {
   const toolName = strField(hook, 'tool_name')
   const toolInput = isObj(hook.tool_input) ? hook.tool_input : {}
   if (toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'Write') {
     const path = strField(toolInput, 'file_path')
-    if (path === null) return null
-    return {
+    if (path === null) return []
+    return [
+      {
+        toolName,
+        type: 'file_touched',
+        payload: { path, op: toolName === 'Write' ? 'write' : 'edit' },
+        domain: 'path',
+        subject: path,
+        exempt: false,
+      },
+    ]
+  }
+  if (toolName === 'apply_patch') {
+    const patch = strField(toolInput, 'command')
+    if (patch === null) return []
+    return patchedFiles(patch, strField(hook, 'cwd')).map(({ path, op }) => ({
       toolName,
-      type: 'file_touched',
-      payload: { path, op: toolName === 'Write' ? 'write' : 'edit' },
-      domain: 'path',
+      type: 'file_touched' as const,
+      payload: { path, op },
+      domain: 'path' as const,
       subject: path,
       exempt: false,
-    }
+    }))
   }
   if (toolName === 'Bash') {
     const cmd = strField(toolInput, 'command')
-    if (cmd === null) return null
+    if (cmd === null) return []
     // Redact BEFORE the append, because there is no after: the log is
     // append-only and committed, so a credential that lands here is a
     // credential in everyone's clone forever (security-hardening 3.1).
@@ -835,19 +862,21 @@ function classifyToolCall(hook: Obj): ClassifiedCall | null {
     // commands are considered self-recording.
     const redacted = redactCommand(cmd)
     const head = cmd.trimStart().split(/\s+/, 1)[0] ?? ''
-    return {
-      toolName,
-      type: 'command_run',
-      payload: { cmd: redacted },
-      domain: 'cmd',
-      // The guard matches what the record HOLDS, not what was typed, so the
-      // hook and the fold can never disagree about whether a rule fired.
-      subject: redacted,
-      exempt: isSelfRecordingCommand(cmd),
-      ...(head.length > 0 ? { head: head.slice(0, DIAGNOSTIC_HEAD_CLIP) } : {}),
-    }
+    return [
+      {
+        toolName,
+        type: 'command_run',
+        payload: { cmd: redacted },
+        domain: 'cmd',
+        // The guard matches what the record HOLDS, not what was typed, so the
+        // hook and the fold can never disagree about whether a rule fired.
+        subject: redacted,
+        exempt: isSelfRecordingCommand(cmd),
+        ...(head.length > 0 ? { head: head.slice(0, DIAGNOSTIC_HEAD_CLIP) } : {}),
+      },
+    ]
   }
-  return null
+  return []
 }
 
 /**
@@ -877,9 +906,10 @@ function registerLazily(ctx: ToolContext, slug: string, session: string, host: H
  * because the store is outside the tree. No guard notice here: the notice
  * comments on an edit just made, and this call did not make one.
  */
-export function handlePostToolFailure(rootDir: string, input: string): HookResult {
+export function handlePostToolFailure(rootDir: string, input: string, declared?: HookHost): HookResult {
   try {
     const hook = parseHook(input)
+    const host = declared ?? hookHost(hook)
     const session = strField(hook, 'session_id') ?? 'cli'
     if (session !== 'cli') writeSessionPointer(rootDir, session, 'hook') // D29
     // Same routing as the success path (r1-fixes 2.6, D14): nothing resolves
@@ -889,18 +919,21 @@ export function handlePostToolFailure(rootDir: string, input: string): HookResul
     if (bound === null) return { ...OK }
     const { ctx, slug } = bound
 
-    const call = classifyToolCall(hook)
-    if (call === null) return { ...OK }
-    const { type, exempt, head } = call
+    const calls = classifyToolCall(hook)
+    const [call] = calls
+    if (call === undefined) return { ...OK }
+    const { head } = call
+    const exempt = calls.every((c) => c.exempt)
 
     const exit = typeof hook.exit_code === 'number' ? hook.exit_code : null
     const interrupt = typeof hook.is_interrupt === 'boolean' ? hook.is_interrupt : null
-    if (!exempt) {
-      registerLazily(ctx, slug, session, hookHost(hook))
+    if (!exempt) registerLazily(ctx, slug, session, host)
+    for (const { type, payload, exempt: self } of calls) {
+      if (self) continue
       ctx.appendAndProject(
         slug,
         type,
-        { ...call.payload, ok: false, ...(type === 'command_run' && exit !== null ? { exit } : {}) },
+        { ...payload, ok: false, ...(type === 'command_run' && exit !== null ? { exit } : {}) },
         { session, source: 'hook' },
       )
     }
@@ -914,7 +947,7 @@ export function handlePostToolFailure(rootDir: string, input: string): HookResul
       kind: 'tool_failure',
       initiative: slug,
       session,
-      host: hookHost(hook),
+      host,
       data: {
         tool: call.toolName,
         ...(head !== undefined ? { head } : {}),
@@ -931,7 +964,8 @@ export function handlePostToolFailure(rootDir: string, input: string): HookResul
 
 /**
  * PostToolUse (task 3.3) — mechanical file_touched / command_run events.
- * Edit|MultiEdit → {op:'edit'}, Write → {op:'write'}, Bash → command_run;
+ * Edit|MultiEdit → {op:'edit'}, Write → {op:'write'}, Bash → command_run,
+ * apply_patch → one file_touched per file it names (agents-parity 2.1);
  * any other tool_name (or missing fields) appends nothing.
  *
  * Two record-hygiene rules apply here (D1/D2):
@@ -946,9 +980,10 @@ export function handlePostToolFailure(rootDir: string, input: string): HookResul
  * PostToolUse additionalContext. See guardNotice for why this hook and not the
  * prompt line, and why the read runs before the append.
  */
-export function handlePostTool(rootDir: string, input: string): HookResult {
+export function handlePostTool(rootDir: string, input: string, declared?: HookHost): HookResult {
   try {
     const hook = parseHook(input)
+    const host = declared ?? hookHost(hook)
     const session = strField(hook, 'session_id') ?? 'cli'
     // The first shell call (`sofar status`) lands here before the agent's own
     // session_started, so a host with no SessionStart still hands its id over (D29).
@@ -974,38 +1009,51 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
     const injected = (lines: readonly string[]): HookResult =>
       lines.length === 0 ? { ...OK } : { ...OK, stdout: postToolContext(lines) }
 
-    const call = classifyToolCall(hook)
-    if (call === null) return injected(driven)
-    const { type, domain, subject, exempt, head } = call
+    const calls = classifyToolCall(hook)
+    const [call] = calls
+    if (call === undefined) return injected(driven)
+    const { head } = call
+    const exempt = calls.every((c) => c.exempt)
 
-    // The host fired PostToolUse, which it does only for a call that
-    // succeeded — so `ok` is what the host said, not an inference from output
-    // (self-improve D2). `exit` rides along only when the host hands a number.
+    // A host that fires PostToolUse only for a call that succeeded makes `ok`
+    // what the host said, not an inference from output (self-improve D2).
+    // Codex fires it after a failing command too, so there `ok` is unknown
+    // and left off unless the host reports an interruption. `exit` rides
+    // along only when the host hands a number.
     const response = isObj(hook.tool_response) ? hook.tool_response : null
     const interrupted =
       response !== null && (response.interrupted === true || response.timed_out === true)
     const exit = response !== null && typeof response.exit_code === 'number' ? response.exit_code : null
-    const ok = !interrupted
-    const payload: Obj = {
-      ...call.payload,
-      ok,
-      ...(type === 'command_run' && exit !== null ? { exit } : {}),
-    }
+    const ok = interrupted ? false : postToolProvesSuccess(host) ? true : undefined
 
-    // Before the append, never after: the notice asks what this session has
-    // already been told, and the current edit is not yet part of that history.
-    const notice = guardNotice(ctx.sofarDir, rootDir, slug, session, domain, subject)
-
-    if (!exempt) {
-      // Lazy registration: one fold to see whether this session is already in
-      // the log — the same read the Stop and UserPromptSubmit shims already do
-      // on every invocation, and it only precedes an append that folds anyway.
-      // A new session re-checks under a lock (r1-fixes 1.2): hosts that fire
-      // hooks in parallel (Cursor) otherwise registered it once per process.
-      // "cli" is never a session identity (the fold skips it), so it is never
-      // registered.
-      registerLazily(ctx, slug, session, hookHost(hook))
-      ctx.appendAndProject(slug, type, payload, { session, source: 'hook' })
+    const notice: string[] = []
+    let registered = false
+    for (const { type, domain, subject, payload, exempt: self } of calls) {
+      // Before the append, never after: the notice asks what this session has
+      // already been told, and the current edit is not yet part of that history.
+      notice.push(...guardNotice(ctx.sofarDir, rootDir, slug, session, domain, subject))
+      if (self) continue
+      if (!registered) {
+        // Lazy registration: one fold to see whether this session is already in
+        // the log — the same read the Stop and UserPromptSubmit shims already do
+        // on every invocation, and it only precedes an append that folds anyway.
+        // A new session re-checks under a lock (r1-fixes 1.2): hosts that fire
+        // hooks in parallel (Cursor) otherwise registered it once per process.
+        // "cli" is never a session identity (the fold skips it), so it is never
+        // registered.
+        registerLazily(ctx, slug, session, host)
+        registered = true
+      }
+      ctx.appendAndProject(
+        slug,
+        type,
+        {
+          ...payload,
+          ...(ok !== undefined ? { ok } : {}),
+          ...(type === 'command_run' && exit !== null ? { exit } : {}),
+        },
+        { session, source: 'hook' },
+      )
     }
 
     // The private row (self-improve D3): written for EVERY classified call,
@@ -1021,10 +1069,10 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
       kind: 'tool_outcome',
       initiative: slug,
       session,
-      host: hookHost(hook),
+      host,
       data: {
         tool: call.toolName,
-        ok,
+        ok: ok ?? null,
         exit,
         ...(head !== undefined ? { head } : {}),
         ...(exempt ? { exempt: true } : {}),
@@ -2312,11 +2360,12 @@ export async function readStdin(): Promise<string> {
  * so a hook can never exist on one path and not the other. Every handler is
  * served through forHost (r1-fixes 6.3–6.6, D34): the handlers speak Claude
  * Code's hook dialect, and a Cursor invocation is converted on both sides.
+ * The third argument is the host a shim declares with `--host` (Codex, D5).
  */
 export const SUBCOMMANDS: ReadonlyArray<{
   name: string
   description: string
-  handler: (rootDir: string, input: string) => HookResult
+  handler: (rootDir: string, input: string, host?: DeclaredHost) => HookResult
 }> = [
   {
     name: 'session-start',
@@ -2327,7 +2376,7 @@ export const SUBCOMMANDS: ReadonlyArray<{
   {
     name: 'post-tool',
     description:
-      'PostToolUse hook: append mechanical file_touched (Edit|Write|MultiEdit) / command_run (Bash) events, and surface any repo-wide guarded rule the subject crosses',
+      'PostToolUse hook: append mechanical file_touched (Edit|Write|MultiEdit|apply_patch) / command_run (Bash) events, and surface any repo-wide guarded rule the subject crosses',
     handler: forHost('post-tool', handlePostTool),
   },
   {
@@ -2422,13 +2471,20 @@ export function registerEventCommand(program: Command): void {
     })
 
   for (const { name, description, handler } of SUBCOMMANDS) {
-    event
-      .command(name)
+    const hook = event.command(name)
+    // createOption, not `new Option`: commander stays a type-only import here,
+    // so the hot-path bundle never carries it (cli/fast.ts).
+    hook
       .description(description)
       .option('--root <dir>', 'repo root containing .sofar/ (default: current directory)')
-      .action(async (opts: { root?: string }) => {
+      .addOption(
+        hook
+          .createOption('--host <tool>', 'the agent firing the hook, for hosts whose payload does not name one')
+          .choices(DECLARED_HOSTS),
+      )
+      .action(async (opts: { root?: string; host?: DeclaredHost }) => {
         const input = await readStdin()
-        mirror(handler(resolve(opts.root ?? process.cwd()), input))
+        mirror(handler(resolve(opts.root ?? process.cwd()), input, opts.host))
       })
   }
 }
