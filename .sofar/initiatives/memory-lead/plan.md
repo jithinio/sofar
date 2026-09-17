@@ -39,4 +39,4 @@ Progress: 3/17 tasks done (17%)
 - [ ] 5.4 Run round 3, report per claim with per-rep values; publish only what clears the pre-registered margin
 
 Active phase: Phase 1 — Wave A: parity at native overhead (ships in 0.33.0-rc.2)
-Next action: Fast-forward r1-fixes to wave-a (tree owner or user), then track 1.4 rust-core parity.
+Next action: User merges r1-fixes into ~/IO/sofar-rust-core so rust-core-2f can finish 1.4 parity.
