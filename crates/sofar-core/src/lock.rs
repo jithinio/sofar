@@ -77,6 +77,15 @@ fn acquire(lock_path: &Path, options: LockOptions) -> Option<String> {
                 return Some(token);
             }
             Err(e) if e.kind() == ErrorKind::AlreadyExists => {}
+            // Windows: a lock another holder has just unlinked stays DELETE
+            // PENDING while any handle to it is open (a reader in `release`
+            // or the stale check), and `create_new` then reports
+            // PermissionDenied rather than AlreadyExists. That is contention,
+            // not an unwritable directory — retry until the deadline. Unix
+            // keeps the immediate degrade: PermissionDenied there means the
+            // index dir cannot be written, and waiting would only stall a hook.
+            #[cfg(windows)]
+            Err(e) if e.kind() == ErrorKind::PermissionDenied => {}
             Err(_) => return None,
         }
         // `Date.now() - mtimeMs > staleMs`: a future mtime is never stale.

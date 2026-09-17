@@ -113,7 +113,7 @@ describe('concurrent appends through the CLI', () => {
     expect(status.stderr).toBe('')
     expect(status.stdout).toContain(`writer 0 note ${PER_WRITER - 1}`)
     if (!KEEP) rmSync(m.dir, { recursive: true, force: true })
-  })
+  }, 120_000) // 100 node spawns: seconds here, tens of seconds on a hosted runner; a timeout mid-run leaves children whose cwd the cleanup deletes
 })
 
 /** One writer process per appends batch: a shell loop is not portable, so drive the binary from node. */

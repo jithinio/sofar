@@ -23,7 +23,7 @@ argv: ["event","post-tool"]
 stdin: {"session_id":"conf-session","transcript_path":"<ROOT>/transcript.jsonl","cwd":"<ROOT>","hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"<ROOT>/packages/engine/src/core/fold.ts","old_string":"a","new_string":"b"},"tool_response":{}}
 exit: 0
 --- stdout
-{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"sofar: [architecture-map D1] standing rule guards packages/engine/src/core/fold.ts — \"Every module added under packages/*/src must get a line in docs/ARCHITECTURE.md in the same change — the suite fails until it does, and that failure is the cheapest moment to write it.\" (guard: path:packages/engine/src/**,packages/schema/src/**) — obey it verbatim, or log a decision that supersedes it.\nsofar: [phase-lifecycle D2] standing rule guards packages/engine/src/core/fold.ts — \"Never derive phase status from task status — not in the fold, not as a side effect of a task write. Doctor's stale-phase axis and closeout's phases_unresolved finding both exist to say \"tasks done, phase not finished\", and derivation deletes that sentence.\" (guard: path:**/core/fold.ts,**/core/closeout.ts) — obey it verbatim, or log a decision that supersedes it."}}
+{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"sofar: [architecture-map D1] standing rule guards <ROOT>/packages/engine/src/core/fold.ts — \"Every module added under packages/*/src must get a line in docs/ARCHITECTURE.md in the same change — the suite fails until it does, and that failure is the cheapest moment to write it.\" (guard: path:packages/engine/src/**,packages/schema/src/**) — obey it verbatim, or log a decision that supersedes it.\nsofar: [phase-lifecycle D2] standing rule guards <ROOT>/packages/engine/src/core/fold.ts — \"Never derive phase status from task status — not in the fold, not as a side effect of a task write. Doctor's stale-phase axis and closeout's phases_unresolved finding both exist to say \"tasks done, phase not finished\", and derivation deletes that sentence.\" (guard: path:**/core/fold.ts,**/core/closeout.ts) — obey it verbatim, or log a decision that supersedes it."}}
 --- stderr
 (empty)
 
@@ -41,7 +41,7 @@ argv: ["event","post-tool"]
 stdin: {"session_id":"conf-session","transcript_path":"<ROOT>/transcript.jsonl","cwd":"<ROOT>","hook_event_name":"PostToolUse","tool_name":"MultiEdit","tool_input":{"file_path":"<ROOT>/packages/engine/src/cli/event.ts","edits":[]}}
 exit: 0
 --- stdout
-{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"sofar: [architecture-map D1] standing rule guards packages/engine/src/cli/event.ts — \"Every module added under packages/*/src must get a line in docs/ARCHITECTURE.md in the same change — the suite fails until it does, and that failure is the cheapest moment to write it.\" (guard: path:packages/engine/src/**,packages/schema/src/**) — obey it verbatim, or log a decision that supersedes it.\nsofar: [commit-attribution D15] standing rule guards packages/engine/src/cli/event.ts — \"The live shipping line is edge-triggered: mark the ref on every look and announce only a transition — never restate it statelessly, and never treat a missing upstream ref as unwatchable.\" (guard: path:packages/engine/src/core/shipwatch.ts,packages/engine/src/cli/event.ts) — obey it verbatim, or log a decision that supersedes it.\nsofar: …and 2 more standing rule(s) guard this, in commit-attribution — read their decisions.md."}}
+{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"sofar: [architecture-map D1] standing rule guards <ROOT>/packages/engine/src/cli/event.ts — \"Every module added under packages/*/src must get a line in docs/ARCHITECTURE.md in the same change — the suite fails until it does, and that failure is the cheapest moment to write it.\" (guard: path:packages/engine/src/**,packages/schema/src/**) — obey it verbatim, or log a decision that supersedes it.\nsofar: [commit-attribution D15] standing rule guards <ROOT>/packages/engine/src/cli/event.ts — \"The live shipping line is edge-triggered: mark the ref on every look and announce only a transition — never restate it statelessly, and never treat a missing upstream ref as unwatchable.\" (guard: path:packages/engine/src/core/shipwatch.ts,packages/engine/src/cli/event.ts) — obey it verbatim, or log a decision that supersedes it.\nsofar: …and 2 more standing rule(s) guard this, in commit-attribution — read their decisions.md."}}
 --- stderr
 (empty)
 
@@ -230,7 +230,7 @@ Fable 5.1 (1M) · root:rust-core · rust-core 1/15 · ctx 42% · cache 90% ✓
 (empty)
 
 ## record delta
-=== .sofar/initiatives/rust-core/events.jsonl (appended 2516 bytes after 28249 unchanged)
+=== .sofar/initiatives/rust-core/events.jsonl (appended 3210 bytes after 28249 unchanged)
 {"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"session_started","payload":{"tool":"claude-code"}}
 {"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"file_touched","payload":{"ok":true,"op":"edit","path":"<ROOT>/packages/engine/src/core/fold.ts"}}
 {"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"conf-session","source":"hook","actor":"agent","user":"conformance@example.invalid","type":"file_touched","payload":{"ok":true,"op":"write","path":"<ROOT>/docs/NEW.md"}}
@@ -279,7 +279,7 @@ Progress: 1/15 tasks done (6%)
 
 Active phase: Phase 1 — Contract
 Next action: read the golden
-=== .sofar/initiatives/rust-core/sessions/conf-session.md (added, 588 bytes)
+=== .sofar/initiatives/rust-core/sessions/conf-session.md (added, 1216 bytes)
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
 
 # Session conf-session

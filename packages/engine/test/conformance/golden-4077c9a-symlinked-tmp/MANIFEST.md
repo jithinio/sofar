@@ -1,29 +1,5 @@
 # Golden manifest (rust-core D11)
 
-Re-recorded from the TypeScript reference at **rust-core 6af34c4** (engine
-sources unchanged on the hot path since the d9b2878 verification below; the
-recording tree carries rust-core 3.1–3.3 and 1.6) for ONE reason, harness
-portability, found by the first Linux CI run (draft PR #2, rust-core 3.2):
-`<ROOT>` is now the PHYSICAL scratch path (`realpathSync`), and every byte
-count in a record-delta header is computed over the masked text. Before this,
-macOS's `/var` → `/private/var` symlink put every `<ROOT>`-substituted hook
-path OUTSIDE the child's physical root, so the goldens held the absolute-path
-branch of `relative(root, path)` — a branch Linux never takes — and counts
-that embedded the recording machine's tmpdir length. 16 goldens changed, all
-for that reason and only in those bytes: guard notices and stored paths are
-now relative to the root (`packages/engine/src/core/fold.ts`, not
-`<ROOT>/packages/…`), and the `appended N bytes` / `added, N bytes` counts
-shrank by the masked prefix. Changed: cell.calib-1, cell.round-1-sofar,
-cell.smoke-4-drive, cell.smoke-4-sofar, repo.append, repo.branch-elsewhere,
-repo.drive-nudge, repo.hook-lifecycle, repo.peers, syn.baseline, syn.corrupt,
-syn.guards, syn.lifecycle, syn.many, syn.no-git, syn.unicode. Unchanged (11):
-argv.fast-path, open.O2-update-segment, open.O4-styled-status,
-open.O5-commit-trailer, repo.session-start, repo.status, repo.statusline,
-syn.budget, syn.no-record, and the two fixture-only entries. The previous set
-is kept as `../golden-4077c9a-symlinked-tmp/`. Verified 27/27 on the
-reference under both a symlinked and a physical tmpdir, and 27/27 through
-the stub dispatching to `target/release/sofar-core`.
-
 Verified byte-unchanged against the TypeScript reference at **r1-fixes
 d9b2878** (3.2 decision retirement, D25, and 5.2 code-unit string order, D26,
 merged into rust-core after 2.4): every golden below is identical, so the

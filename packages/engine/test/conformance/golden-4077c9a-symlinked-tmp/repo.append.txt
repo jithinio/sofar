@@ -206,9 +206,9 @@ Files touched (13):
 (empty)
 
 ## record delta
-=== .sofar/initiatives/felt-cost/events.jsonl (appended 212 bytes after 98263 unchanged)
+=== .sofar/initiatives/felt-cost/events.jsonl (appended 252 bytes after 98263 unchanged)
 {"v":1,"id":"<ULID>","ts":"<TS>","initiative":"felt-cost","session":"conf-cli","source":"cli","actor":"human","user":"conformance@example.invalid","type":"note_added","payload":{"text":"note on another record"}}
-=== .sofar/initiatives/rust-core/events.jsonl (appended 969 bytes after 28249 unchanged)
+=== .sofar/initiatives/rust-core/events.jsonl (appended 1129 bytes after 28249 unchanged)
 {"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"cli","source":"cli","actor":"agent","user":"conformance@example.invalid","type":"note_added","payload":{"text":"conformance note"}}
 {"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"cli","source":"cli","actor":"agent","user":"conformance@example.invalid","type":"note_added","payload":{"text":"x"}}
 {"v":1,"id":"<ULID>","ts":"<TS>","initiative":"rust-core","session":"cli","source":"cli","actor":"agent","user":"conformance@example.invalid","type":"task_status_changed","payload":{"id":"9.9","status":"done"}}

@@ -7,6 +7,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
@@ -93,7 +94,13 @@ export interface Implementation {
 
 let scratchRoot: string | null = null
 export function scratch(): string {
-  if (scratchRoot === null) scratchRoot = mkdtempSync(join(tmpdir(), 'sofar-conformance-'))
+  // The PHYSICAL path (rust-core 3.2, first Linux CI run): macOS's tmpdir is
+  // `/var/…`, a symlink to `/private/var/…`, and a child's `process.cwd()` is
+  // the physical path — so a `<ROOT>`-substituted hook path was OUTSIDE the
+  // child's root on macOS and inside it on Linux, and the goldens recorded the
+  // absolute-path branch of `relative(root, path)` that Linux never takes.
+  // Resolving here makes `<ROOT>` the same path the child sees, everywhere.
+  if (scratchRoot === null) scratchRoot = realpathSync(mkdtempSync(join(tmpdir(), 'sofar-conformance-')))
   return scratchRoot
 }
 
@@ -427,6 +434,12 @@ export function recordDelta(m: Materialized): RecordDelta {
   const all = [...new Set([...beforeFiles, ...afterFiles])].sort(compareCodePoints)
   const lines: string[] = []
   const rewrittenLogs: string[] = []
+  // Byte counts over the MASKED text: a stored path carries the scratch root,
+  // whose length is the machine's (tmpdir layout, user name), so a raw count
+  // would pin the golden to the recording machine while the text beside it
+  // masks that very path. A wrong count still fails — it just counts what the
+  // golden shows.
+  const bytes = (text: string): number => Buffer.byteLength(mask(text, m), 'utf8')
   for (const rel of all) {
     const inBefore = beforeFiles.includes(rel)
     const inAfter = afterFiles.includes(rel)
@@ -438,16 +451,16 @@ export function recordDelta(m: Materialized): RecordDelta {
     }
     const now = readFileSync(join(after, rel))
     if (!inBefore) {
-      lines.push(`=== .sofar/${rel} (added, ${now.length} bytes)`, body(now.toString('utf8'), m))
+      lines.push(`=== .sofar/${rel} (added, ${bytes(now.toString('utf8'))} bytes)`, body(now.toString('utf8'), m))
       continue
     }
     const was = readFileSync(join(m.fixtureSofar!, rel))
     if (was.equals(now)) continue
     if (now.length > was.length && now.subarray(0, was.length).equals(was)) {
       const tail = now.subarray(was.length).toString('utf8')
-      lines.push(`=== .sofar/${rel} (appended ${now.length - was.length} bytes after ${was.length} unchanged)`, body(tail, m))
+      lines.push(`=== .sofar/${rel} (appended ${bytes(tail)} bytes after ${was.length} unchanged)`, body(tail, m))
     } else {
-      lines.push(`=== .sofar/${rel} (rewritten, ${now.length} bytes)`, body(now.toString('utf8'), m))
+      lines.push(`=== .sofar/${rel} (rewritten, ${bytes(now.toString('utf8'))} bytes)`, body(now.toString('utf8'), m))
       if (isLog) rewrittenLogs.push(rel)
     }
   }
