@@ -536,6 +536,9 @@ program
         model?: string
         effort?: string
         resume?: boolean
+        verify?: string
+        verifyTimeout?: string
+        maxVerifyAttempts?: string
         agent?: string
         bin?: string
         agentArg?: string[]
@@ -577,6 +580,9 @@ program
           ...(opts.model !== undefined ? { model: opts.model } : {}),
           ...(opts.effort !== undefined ? { effort: opts.effort } : {}),
           ...(opts.resume === true ? { resume: true } : {}),
+          ...(opts.verify !== undefined ? { verify: opts.verify } : {}),
+          ...(opts.verifyTimeout !== undefined ? { verifyTimeout: opts.verifyTimeout } : {}),
+          ...(opts.maxVerifyAttempts !== undefined ? { maxVerifyAttempts: opts.maxVerifyAttempts } : {}),
           ...(opts.agent !== undefined ? { agent: opts.agent } : {}),
           ...(opts.bin !== undefined ? { bin: opts.bin } : {}),
           ...(opts.agentArg !== undefined ? { agentArgs: opts.agentArg } : {}),
