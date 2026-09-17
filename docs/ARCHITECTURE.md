@@ -146,7 +146,8 @@ worse than no attribution.
 | `cli/fold.ts` | `sofar fold` (hidden) — the black-box face of the incremental fold for the shared fold-parity suite: fold raw lines, or apply a file tail to a serialized snapshot, print canonical state JSON. |
 | `cli/review.ts` | `sofar review` — prints the evidence packet (read half); the packet ends with the `sofar event append --type review_recorded` command that records the verdict (write half; r1-fixes 2.4, D13). |
 | `cli/commit-trailer.ts` | `sofar commit-trailer` — the prepare-commit-msg worker that stamps `Sofar-Initiative:` from the session that made the commit (D5). Session-only resolution; never fails a commit. |
-| `cli/init.ts` | `sofar init` — hooks (`.claude/settings.json` and `.cursor/hooks.json`), MCP wiring (`.mcp.json` and `.cursor/mcp.json`), protocol block, `.gitattributes`. Owns the protocol-block ledger. |
+| `cli/init.ts` | `sofar init` — for the agents picked, hooks (`.claude/settings.json` and `.cursor/hooks.json`), MCP wiring (`.mcp.json` and `.cursor/mcp.json`) and protocol blocks; `.gitattributes` for all. Decides where the shims live and which agents a repo is already wired for (r1-fixes 7.1, D36). Owns the protocol-block ledger. |
+| `cli/agents.ts` | The agents `sofar init` can set up (Claude Code, Cursor, Codex): the `--agents` grammar, which agents this machine has, and the terminal multi-select picker (r1-fixes 7.1, D36). Writes no file. |
 | `cli/uninit.ts` | `sofar uninit` — removes what init wrote. |
 | `cli/new.ts` | `sofar new` — create an initiative, bind the branch. |
 | `cli/close.ts` | `sofar close` — close an initiative, unbind its branches. |

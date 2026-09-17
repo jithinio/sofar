@@ -1550,7 +1550,11 @@ defines that event, and Claude's PostToolUseFailure is not imported at all.
 Merge rules are settings.json's: an entry already running our command is
 left as the user has it, unparseable JSON aborts init (Cursor accepts
 comments in hooks.json; such a file must be wired by hand), `sofar uninit`
-strips exactly our entries and `doctor` reports each file.
+strips exactly our entries and `doctor` reports each file. A repo set up
+for Cursor WITHOUT Claude Code (r1-fixes 7.1, D36) has no settings.json to
+dedupe against, so its entries run `$CURSOR_PROJECT_DIR/.cursor/hooks/sofar/<shim>`
+and carry no `.claude/`; adding Claude Code later repoints them to the
+`$CLAUDE_PROJECT_DIR/.claude/hooks/` form, restoring the byte-identical rule.
 
 **Limits stated, not worked around.** Headless `cursor-agent -p` fires no
 stop, beforeSubmitPrompt or afterAgentResponse hook, so no write-back gate
@@ -3170,7 +3174,7 @@ dispatch, and every behaviour below holds for both hosts (§Cursor host).
 Shims contain no logic — they invoke the sofar CLI.
 
 ## CLI
-- `sofar init` — create .sofar/, write repo.md stub, install hook shims
+- `sofar init [--agents <list>]` — create .sofar/, write repo.md stub, install hook shims
   (including git's own `.git/hooks/prepare-commit-msg`, never clobbering —
   commit-attribution D7, §Hooks)
   + .claude/settings.json hooks block, emit .mcp.json registration, the
@@ -3180,7 +3184,34 @@ Shims contain no logic — they invoke the sofar CLI.
   registered it; see §Cursor host), append
   protocol blocks to CLAUDE.md and AGENTS.md (idempotent; the AGENTS.md
   block is the CLI convention dialect for MCP-less tools — added Phase 5,
-  BD31). Writes the union-merge rule for committed event logs to
+  BD31).
+  ONLY THE AGENTS PICKED are set up (r1-fixes 7.1, D35, D36). Each agent owns
+  its files: Claude Code `.claude/settings.json`, `.mcp.json`, CLAUDE.md;
+  Cursor `.cursor/hooks.json`, `.cursor/mcp.json`, AGENTS.md; Codex AGENTS.md
+  (its hooks and MCP entry are r1-fixes 7.3/7.4). `.sofar/`, `.gitattributes`
+  and the git hook are shared and always installed. `--agents` takes
+  `claude-code`, `cursor`, `codex` comma-separated, or `all`; an unknown name
+  exits 1 and writes nothing. Without the flag, when stdin and stderr are a
+  terminal (not CI, not TERM=dumb), init asks with a multi-select drawn on
+  stderr — arrows or j/k move, space toggles, `a` toggles all, enter
+  confirms (never on an empty selection), esc or ctrl-c exits 1 with nothing
+  written — pre-selecting the agents found on this machine (binary on PATH
+  or `~/.claude`, `~/.cursor`, `~/.codex`) or already wired in the repo, and
+  every agent when none is found. With no terminal and no flag, every agent:
+  scripts and agent shells get what init wrote before it asked. Re-running
+  with another agent adds that agent's files and leaves the others' bytes
+  alone. The shims live in `.claude/hooks/` whenever Claude Code is picked or
+  any hook config already runs them from there; a repo without Claude Code
+  keeps them in `.cursor/hooks/sofar/`, run as
+  `$CURSOR_PROJECT_DIR/.cursor/hooks/sofar/<shim>`, so a Cursor-only repo
+  carries no `.claude/`. Adding Claude Code later moves them: Cursor's
+  entries are repointed in place (other keys kept) even when Cursor was not
+  picked, and the old copies removed, because Cursor fires each hook once
+  only when its command matches settings.json's byte for byte
+  (§Cursor host). No selection is stored — the files are the selection. The
+  statusline hint and `--statusline` apply only with Claude Code picked;
+  without it `--statusline` reports `skipped statusLine (Claude Code not
+  selected)`. Writes the union-merge rule for committed event logs to
   .gitattributes — the exact line `.sofar/**/events.jsonl merge=union`
   (team-readiness T2): file created when missing, otherwise MERGED (rule
   appended, user content byte-preserved — never clobbered); idempotent,
@@ -3251,7 +3282,14 @@ Shims contain no logic — they invoke the sofar CLI.
   (the personal `~/.claude/settings.json`) always takes the plain form, since
   no repo formatter runs on it.
 - `sofar doctor [--fix]` — audit a host repo across eight axes: (1) wiring
-  integrity (init's shims/settings/.mcp.json/protocol blocks intact), plus the
+  integrity (init's shims/settings/.mcp.json/protocol blocks intact) PER
+  AGENT (r1-fixes 7.1, D36): only the agents the repo is wired for are
+  checked — Claude Code when settings.json runs a shim, .mcp.json registers
+  sofar or CLAUDE.md carries the block; Cursor when .cursor/hooks.json runs a
+  shim from either home or .cursor/mcp.json registers sofar; Codex when
+  AGENTS.md carries the block — each unwired agent gets one ok line naming
+  `sofar init --agents <id>`, a partial install's repair hint names its own
+  agents, and a record with no agent wired at all FAILs; plus the
   ATTRIBUTION check (commit-attribution 2.4), which is deliberately EMPIRICAL
   rather than diagnostic: it asks whether the last 20 commits actually carry
   trailers, not why they might not. Attribution goes silently off for several
@@ -3374,7 +3412,9 @@ Shims contain no logic — they invoke the sofar CLI.
   `source(none)`). The concurrent-edit signal also surfaces in the SessionStart
   context and `sofar status` (rendered only when open sessions overlap, D-P11).
 - `sofar uninit [--purge]` — exact inverse of init, surgical: remove the
-  five hook shims, `.git/hooks/prepare-commit-msg` ONLY while it still carries
+  hook shims from either home (`.claude/hooks/`, or `.cursor/hooks/sofar/`
+  for a repo set up without Claude Code — r1-fixes 7.1), every agent's
+  entries whichever agents were picked, `.git/hooks/prepare-commit-msg` ONLY while it still carries
   the `sofar prepare-commit-msg shim` marker (D7 — a user's own hook that calls
   `sofar commit-trailer` is the user's file, and `.git/hooks` has no other
   owner to ask), our settings.json hook entries (matched on the shim path),
@@ -5159,3 +5199,18 @@ stay the underlying derivation's, and exit codes are styling-independent.
   and names the replacement; `reject` and `revert` without `--reason` exit 1;
   `revert` works on a stale approval and leaves proposed/approved/reverted in
   the log in order; the lifecycle leaves `events_since_writeback` unchanged.
+- **Agent picker (r1-fixes 7.1):** `sofar init --agents claude-code` writes
+  no `.cursor/` and no AGENTS.md; `--agents cursor` writes no `.claude/`,
+  CLAUDE.md or `.mcp.json`, its shims executable under
+  `.cursor/hooks/sofar/`; `--agents codex` writes only AGENTS.md beside the
+  shared files. Each is byte-idempotent, and a Cursor-only init round-trips
+  byte-clean through `uninit --purge`. Adding Cursor to a Claude Code repo
+  leaves `.claude/settings.json`, `.mcp.json` and CLAUDE.md byte-identical;
+  adding Claude Code to a Cursor repo leaves every Cursor event with exactly
+  the settings.json command, removes `.cursor/hooks/`, and a following
+  all-agent init changes nothing. With no terminal and no flag, init writes
+  every agent's files (the pre-7.1 tree). In a pseudo-terminal the picker
+  pre-selects found agents, toggles on space, confirms on enter, and ctrl-c
+  exits 1 with nothing written; an unknown `--agents` name exits 1. doctor on
+  a Cursor-only repo passes with no `.claude/settings.json` line and names
+  Claude Code as not set up.

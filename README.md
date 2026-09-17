@@ -59,8 +59,11 @@ sofar new password-reset --goal "Let users reset a forgotten password"
 sofar status
 ```
 
-`sofar init` sets up the record and connects your tools. It is safe to run
-twice and only adds what is missing.
+`sofar init` sets up the record and connects your tools. It asks which
+agents to set up (Claude Code, Cursor, Codex), with the ones it finds on your
+machine already ticked, and writes files only for those. Scripts can pass
+`--agents cursor,codex` or `--agents all`. It is safe to run twice and only
+adds what is missing; run it again with another agent to add that one.
 
 After that, work as usual. In Claude Code the assistant keeps the record
 current on its own. Other tools follow a short instruction block that `init`
@@ -130,7 +133,7 @@ and the result still reads correctly.
 
 | Command | What it does |
 | --- | --- |
-| `sofar init` | Set up the record here and connect your tools |
+| `sofar init` | Set up the record here and connect your tools — asks which agents, or `--agents claude-code,cursor,codex` / `all` |
 | `sofar new <name>` | Start a piece of work and tie it to the current branch — `--supersedes <a>,<b>` when it takes over earlier initiatives, which are closed pointing here |
 | `sofar switch <name>` | Point the current branch at a different initiative (reopens it if it was closed) |
 | `sofar close [name]` | Mark work finished — `--drop --reason <why>` if it was abandoned, `--superseded-by <name>` if it continues in another initiative — and take every branch off it |

@@ -214,9 +214,14 @@ export const SIGNALS: readonly SignalSpec[] = [
 
 /** Read the clone's hook wiring and store state — the facts the live layer degrades against. */
 export function readSignalEnvironment(rootDir: string, env: StateEnv = process.env): SignalEnvironment {
-  const settingsPath = join(rootDir, '.claude', 'settings.json')
-  const settings = existsSync(settingsPath) ? safeRead(settingsPath) : ''
-  const wired = (shim: string): boolean => settings.includes(`.claude/hooks/${shim}`)
+  // Claude Code's settings or Cursor's hooks.json, from either shim home — a
+  // repo set up for Cursor alone keeps its shims under .cursor/hooks/sofar/
+  // (r1-fixes 7.1, D36).
+  const configs = [join(rootDir, '.claude', 'settings.json'), join(rootDir, '.cursor', 'hooks.json')]
+    .map((path) => (existsSync(path) ? safeRead(path) : ''))
+    .join('\n')
+  const wired = (shim: string): boolean =>
+    configs.includes(`.claude/hooks/${shim}`) || configs.includes(`.cursor/hooks/sofar/${shim}`)
   return {
     post_tool_hook: wired('post-tool-use.sh'),
     post_tool_failure_hook: wired('post-tool-use-failure.sh'),

@@ -15,6 +15,7 @@ import {
   isSofarStatusline,
   PROTOCOL_END,
   PROTOCOL_START,
+  SHIM_HOMES,
   SHIMS,
 } from './init'
 import { hostShapedJSON } from './formatters'
@@ -26,8 +27,9 @@ import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui
  * of `sofar init`, surgical: remove ONLY what init installed and preserve
  * every byte of user content around it.
  *
- *   - the five hook shims in .claude/hooks/ (other files there are sacred;
- *     directories go only when THIS run emptied them)
+ *   - the hook shims in .claude/hooks/, or in .cursor/hooks/sofar/ for a repo
+ *     set up without Claude Code (r1-fixes 7.1, D36) — other files there are
+ *     sacred; directories go only when THIS run emptied them
  *   - settings.json hook entries whose command points at one of our five
  *     shims (matched on the shim path substring); emptied matcher groups,
  *     event arrays, and the hooks key itself are pruned
@@ -87,8 +89,10 @@ function stableJSON(rootDir: string, rel: string, value: unknown): string {
   return hostShapedJSON(rootDir, rel, value)
 }
 
-/** A settings command is ours iff it points at one of the five shim paths. */
-const SHIM_PATH_SUBSTRINGS = SHIMS.map((shim) => `.claude/hooks/${shim.file}`)
+/** A hook command is ours iff it points at one of the shim paths, in either home. */
+const SHIM_PATH_SUBSTRINGS = Object.values(SHIM_HOMES).flatMap(({ dir }) =>
+  SHIMS.map((shim) => `${dir}/${shim.file}`),
+)
 
 function isShimCommand(hook: unknown): boolean {
   return (
@@ -102,13 +106,13 @@ function isShimCommand(hook: unknown): boolean {
 // Steps — each pushes "removed …"/"updated …" report lines (changes only).
 // ---------------------------------------------------------------------------
 
-function removeShims(rootDir: string, report: string[]): number {
+function removeShims(rootDir: string, dir: string, report: string[]): number {
   let removed = 0
   for (const shim of SHIMS) {
-    const path = join(rootDir, '.claude', 'hooks', shim.file)
+    const path = join(rootDir, dir, shim.file)
     if (!existsSync(path)) continue
     unlinkSync(path)
-    report.push(`removed .claude/hooks/${shim.file}`)
+    report.push(`removed ${dir}/${shim.file}`)
     removed++
   }
   return removed
@@ -365,7 +369,8 @@ export function runUninit(
   const notes: string[] = []
 
   try {
-    const shimsRemoved = removeShims(rootDir, report)
+    const shimsRemoved = removeShims(rootDir, SHIM_HOMES.claude.dir, report)
+    const cursorShimsRemoved = removeShims(rootDir, SHIM_HOMES.cursor.dir, report)
     removeGitHook(rootDir, report)
     const settingsDeleted = stripSettings(rootDir, purge, report)
     stripMcp(rootDir, '.mcp.json', purge, report)
@@ -379,7 +384,13 @@ export function runUninit(
     // that was already empty before uninit touched anything.
     const hooksDirRemoved = shimsRemoved > 0 && removeDirIfEmpty(rootDir, '.claude/hooks', report)
     if (hooksDirRemoved || settingsDeleted) removeDirIfEmpty(rootDir, '.claude', report)
-    if (cursorHooksDeleted || cursorMcpDeleted) removeDirIfEmpty(rootDir, '.cursor', report)
+    const cursorShimDirRemoved =
+      cursorShimsRemoved > 0 &&
+      removeDirIfEmpty(rootDir, SHIM_HOMES.cursor.dir, report) &&
+      removeDirIfEmpty(rootDir, '.cursor/hooks', report)
+    if (cursorHooksDeleted || cursorMcpDeleted || cursorShimDirRemoved) {
+      removeDirIfEmpty(rootDir, '.cursor', report)
+    }
 
     const sofarDir = join(rootDir, '.sofar')
     if (existsSync(sofarDir)) {

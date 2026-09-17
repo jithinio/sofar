@@ -3,9 +3,12 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   realpathSync,
+  rmdirSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { homedir } from 'node:os'
@@ -13,6 +16,17 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { effectiveHooksDir } from '../core/attribution'
 import { commonGitDir } from '../core/git'
 import { mcpRegistration } from '../mcp/register'
+import {
+  AGENTS,
+  type AgentId,
+  agentsOnMachine,
+  type MachineProbe,
+  orderAgents,
+  parseAgents,
+  pickAgents,
+  type PickerInput,
+  type PickerOutput,
+} from './agents'
 import { detectFormatterHazards, hostShapedJSON } from './formatters'
 import { detectTailwindV4, SOURCE_NOT_SINCE } from './scanners'
 import { fail, ok, REPO_MD_STUB, type CmdResult } from './shared'
@@ -1029,7 +1043,19 @@ export { REPO_MD_STUB } from './shared'
  */
 export const GITATTRIBUTES_LINE = '.sofar/**/events.jsonl merge=union'
 
-const HOOK_COMMAND_PREFIX = '$CLAUDE_PROJECT_DIR/.claude/hooks/'
+/**
+ * Where the hook shims live, and the command prefix every host's config runs
+ * them by (r1-fixes 7.1, D36). Claude Code's directory whenever Claude Code is
+ * wired, so Cursor's entries stay byte-identical to settings.json's and fire
+ * once (D34). A repo without Claude Code keeps them under Cursor's own
+ * directory, in a `sofar/` subdirectory so a user's `.cursor/hooks/stop.sh`
+ * is never overwritten.
+ */
+export const SHIM_HOMES = {
+  claude: { dir: '.claude/hooks', prefix: '$CLAUDE_PROJECT_DIR/.claude/hooks/' },
+  cursor: { dir: '.cursor/hooks/sofar', prefix: '$CURSOR_PROJECT_DIR/.cursor/hooks/sofar/' },
+} as const
+export type ShimHome = keyof typeof SHIM_HOMES
 
 /**
  * Seconds between statusline re-renders. Claude Code re-runs a statusLine
@@ -1081,6 +1107,12 @@ export interface InitOptions {
    * the suite, which is exactly the non-hermeticity it exists to avoid.
    */
   home?: string
+  /**
+   * The agents to set up (r1-fixes 7.1, D36); every agent when absent. Only
+   * the picked agents' files are written — .sofar/, .gitattributes and the
+   * git hook are shared and always installed.
+   */
+  agents?: readonly AgentId[]
 }
 
 export type StatuslineInstall =
@@ -1224,8 +1256,66 @@ export const SHIMS: readonly ShimSpec[] = [
   { file: 'session-end.sh', event: 'SessionEnd', text: sessionEndShim },
 ]
 
-export function hookCommand(file: string): string {
-  return `${HOOK_COMMAND_PREFIX}${file}`
+export function hookCommand(file: string, home: ShimHome = 'claude'): string {
+  return `${SHIM_HOMES[home].prefix}${file}`
+}
+
+/** Does any hook config in this repo run a shim from this home? */
+function runsShimFrom(text: string, home: ShimHome): boolean {
+  return SHIMS.some((shim) => text.includes(`${SHIM_HOMES[home].dir}/${shim.file}`))
+}
+
+function readText(path: string): string {
+  try {
+    return existsSync(path) ? readFileSync(path, 'utf8') : ''
+  } catch {
+    return ''
+  }
+}
+
+function mcpRegistersSofar(path: string): boolean {
+  try {
+    const config: unknown = JSON.parse(readText(path))
+    return isObj(config) && isObj(config.mcpServers) && 'sofar' in config.mcpServers
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The agents this repo is already wired for, read from the files themselves
+ * (D36: no stored selection to drift from them). Any one of an agent's own
+ * files counts, so doctor can name what a partial install is missing. Codex
+ * owns no file but AGENTS.md until r1-fixes 7.3/7.4, so the block stands for it.
+ */
+export function wiredAgents(rootDir: string): AgentId[] {
+  const settings = readText(join(rootDir, '.claude', 'settings.json'))
+  const cursorHooks = readText(join(rootDir, '.cursor', 'hooks.json'))
+  const wired: Record<AgentId, boolean> = {
+    'claude-code':
+      runsShimFrom(settings, 'claude') ||
+      mcpRegistersSofar(join(rootDir, '.mcp.json')) ||
+      readText(join(rootDir, 'CLAUDE.md')).includes(PROTOCOL_START),
+    cursor:
+      runsShimFrom(cursorHooks, 'claude') ||
+      runsShimFrom(cursorHooks, 'cursor') ||
+      mcpRegistersSofar(join(rootDir, '.cursor', 'mcp.json')),
+    codex: readText(join(rootDir, 'AGENTS.md')).includes(PROTOCOL_START),
+  }
+  return AGENTS.filter((id) => wired[id])
+}
+
+/**
+ * Where the shims live for this set of agents: Claude Code's directory when
+ * Claude Code is among them or any hook config here already runs a shim from
+ * it, Cursor's otherwise. Codex takes Claude Code's until 7.3 gives it hooks.
+ */
+export function shimHomeFor(rootDir: string, agents: ReadonlySet<AgentId>): ShimHome {
+  if (agents.has('claude-code')) return 'claude'
+  for (const config of [join('.claude', 'settings.json'), join('.cursor', 'hooks.json')]) {
+    if (runsShimFrom(readText(join(rootDir, config)), 'claude')) return 'claude'
+  }
+  return agents.has('cursor') ? 'cursor' : 'claude'
 }
 
 // ---------------------------------------------------------------------------
@@ -1412,14 +1502,37 @@ function installGitHook(rootDir: string, report: string[]): void {
   report.push('created .git/hooks/prepare-commit-msg')
 }
 
-function installShims(rootDir: string, report: string[]): void {
-  const hooksDir = join(rootDir, '.claude', 'hooks')
+function installShims(rootDir: string, home: ShimHome, report: string[]): void {
+  const { dir } = SHIM_HOMES[home]
+  const hooksDir = join(rootDir, dir)
   mkdirSync(hooksDir, { recursive: true })
   for (const shim of SHIMS) {
     const path = join(hooksDir, shim.file)
     const change = writeIfChanged(path, shim.text) // shims are sofar-owned: kept current
     if ((statSync(path).mode & 0o777) !== 0o755) chmodSync(path, 0o755)
-    report.push(`${change} .claude/hooks/${shim.file}`)
+    report.push(`${change} ${dir}/${shim.file}`)
+  }
+}
+
+/**
+ * Remove the shims a Cursor-only install kept under `.cursor/hooks/sofar/`
+ * once Claude Code's directory holds them (D36), and the subdirectory with
+ * them. Only our file names in our own subdirectory are touched.
+ */
+function removeCursorShims(rootDir: string, report: string[]): void {
+  const { dir } = SHIM_HOMES.cursor
+  let removed = 0
+  for (const shim of SHIMS) {
+    const path = join(rootDir, dir, shim.file)
+    if (!existsSync(path)) continue
+    unlinkSync(path)
+    report.push(`removed ${dir}/${shim.file} (shims now in ${SHIM_HOMES.claude.dir}/)`)
+    removed++
+  }
+  if (removed === 0) return
+  for (const rel of [dir, dirname(dir)]) {
+    const path = join(rootDir, rel)
+    if (existsSync(path) && readdirSync(path).length === 0) rmdirSync(path)
   }
 }
 
@@ -1548,8 +1661,14 @@ export const CURSOR_HOOKS: Readonly<
  * fires stop and prompt hooks only when hooks.json defines that event, and an
  * imported stop hook has no loop cap. Merged like settings.json — an entry with
  * our command already present is left as the user has it.
+ *
+ * `home` is where the shims live (D36). When it is Claude Code's, an entry
+ * still running the Cursor-only copy is repointed in place — its other keys
+ * kept — because only a byte-identical command stops Cursor firing the
+ * imported Claude hook beside it (D34). `add` is false when Cursor was not
+ * picked this run: its entries are only repointed, never added to.
  */
-function mergeCursorHooks(rootDir: string, report: string[]): void {
+function mergeCursorHooks(rootDir: string, home: ShimHome, add: boolean, report: string[]): void {
   const rel = '.cursor/hooks.json'
   const path = join(rootDir, rel)
   const config = readJSONObject(path, rel)
@@ -1560,6 +1679,7 @@ function mergeCursorHooks(rootDir: string, report: string[]): void {
   const hooks: Obj = isObj(config.hooks) ? config.hooks : {}
 
   let added = 0
+  let moved = 0
   for (const shim of SHIMS) {
     const { event, matcher, loop_limit } = CURSOR_HOOKS[shim.event]
     const existing = hooks[event]
@@ -1567,8 +1687,17 @@ function mergeCursorHooks(rootDir: string, report: string[]): void {
       throw new InitAbort(`${rel} hooks.${event} is not an array — refusing to modify it.`)
     }
     const entries: unknown[] = Array.isArray(existing) ? existing : []
-    const command = hookCommand(shim.file)
-    if (!entries.some((entry) => isObj(entry) && entry.command === command)) {
+    const command = hookCommand(shim.file, home)
+    if (home === 'claude') {
+      const stale = hookCommand(shim.file, 'cursor')
+      for (const entry of entries) {
+        if (isObj(entry) && entry.command === stale) {
+          entry.command = command
+          moved++
+        }
+      }
+    }
+    if (add && !entries.some((entry) => isObj(entry) && entry.command === command)) {
       entries.push({
         command,
         ...(matcher !== undefined ? { matcher } : {}),
@@ -1576,17 +1705,18 @@ function mergeCursorHooks(rootDir: string, report: string[]): void {
       })
       added++
     }
-    hooks[event] = entries
+    if (entries.length > 0) hooks[event] = entries
   }
 
-  if (added === 0 && existsSync(path)) {
+  if (added === 0 && moved === 0 && existsSync(path)) {
     report.push(`unchanged ${rel}`)
     return
   }
   if (config.version === undefined) config.version = 1 // Cursor requires it; first key in a new file
   config.hooks = hooks
   mkdirSync(dirname(path), { recursive: true })
-  report.push(`${writeIfChanged(path, stableJSON(rootDir, path, config))} ${rel}`)
+  const note = moved > 0 ? ` (hooks repointed to ${SHIM_HOMES.claude.dir}/)` : ''
+  report.push(`${writeIfChanged(path, stableJSON(rootDir, path, config))} ${rel}${note}`)
 }
 
 /**
@@ -1732,26 +1862,45 @@ export function runInit(
   errCaps: Caps = stderrCaps(),
 ): CmdResult {
   const statusline = options.statusline === true
+  const picked = new Set(options.agents ?? AGENTS)
+  const claude = picked.has('claude-code')
+  const cursor = picked.has('cursor')
   const report: string[] = []
   let statuslineAbsent = false
   let cursorMcp: Change = 'unchanged'
   try {
     initSofarDir(rootDir, report)
     ensureGitattributes(rootDir, report)
-    installShims(rootDir, report)
+    // Shims serve every hooked agent from one home (D36). A Cursor-only
+    // install that now gains Claude Code moves them, and Cursor's entries
+    // follow even when Cursor itself was not picked this run.
+    const home = shimHomeFor(rootDir, picked)
+    const cursorOnOwnShims =
+      home === 'claude' && runsShimFrom(readText(join(rootDir, '.cursor', 'hooks.json')), 'cursor')
+    if (claude || cursor || cursorOnOwnShims) installShims(rootDir, home, report)
     installGitHook(rootDir, report)
-    statuslineAbsent = mergeSettings(rootDir, statusline, report).statuslineAbsent
-    mergeMcpJson(rootDir, '.mcp.json', report)
-    mergeCursorHooks(rootDir, report)
-    cursorMcp = mergeMcpJson(rootDir, '.cursor/mcp.json', report)
-    appendProtocolBlock(rootDir, 'CLAUDE.md', PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS, report)
-    appendProtocolBlock(
-      rootDir,
-      'AGENTS.md',
-      AGENTS_PROTOCOL_BLOCK,
-      SHIPPED_AGENTS_PROTOCOL_BLOCKS,
-      report,
-    )
+    if (claude) {
+      statuslineAbsent = mergeSettings(rootDir, statusline, report).statuslineAbsent
+      mergeMcpJson(rootDir, '.mcp.json', report)
+    } else if (statusline) {
+      report.push('skipped statusLine (Claude Code not selected)')
+    }
+    if (cursor || cursorOnOwnShims) mergeCursorHooks(rootDir, home, cursor, report)
+    if (cursorOnOwnShims) removeCursorShims(rootDir, report)
+    if (cursor) cursorMcp = mergeMcpJson(rootDir, '.cursor/mcp.json', report)
+    if (claude) {
+      appendProtocolBlock(rootDir, 'CLAUDE.md', PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS, report)
+    }
+    // AGENTS.md is the file Cursor always reads and Codex's only one (D36).
+    if (cursor || picked.has('codex')) {
+      appendProtocolBlock(
+        rootDir,
+        'AGENTS.md',
+        AGENTS_PROTOCOL_BLOCK,
+        SHIPPED_AGENTS_PROTOCOL_BLOCKS,
+        report,
+      )
+    }
   } catch (err) {
     if (err instanceof InitAbort) return fail(renderFailure(`sofar init: ${err.message}`, errCaps))
     throw err
@@ -1770,7 +1919,7 @@ export function runInit(
   // the personal ~/.claude/settings.json already wires it (D15): that file
   // applies to every project, so a project with no statusLine of its own is
   // already showing sofar's line and there is nothing to opt into.
-  if (!statusline && statuslineAbsent && !userStatuslineWired(options.home)) {
+  if (claude && !statusline && statuslineAbsent && !userStatuslineWired(options.home)) {
     lines.push('', STATUSLINE_HINT)
   }
   // Cursor's MCP approval (r1-fixes 6.2, D34): said once, on the run that
@@ -1789,6 +1938,38 @@ export function runInit(
   const hint = scannerHint(rootDir)
   if (hint !== null) lines.push('', hint)
   return ok(`${lines.join('\n')}\n`)
+}
+
+export interface AgentPrompt {
+  input: PickerInput
+  output: PickerOutput
+  /** True only when input and output are both a live terminal (not CI, not TERM=dumb). */
+  interactive: boolean
+  caps: Caps
+  /** Machine probe override — tests only. */
+  machine?: MachineProbe
+}
+
+export type AgentChoice = { agents: AgentId[] } | { error: string } | { cancelled: true }
+
+/**
+ * Which agents this init run sets up (r1-fixes 7.1, D36). The `--agents` flag
+ * wins. Without it a terminal gets the picker, pre-selecting the agents found
+ * on this machine or already wired in this repo (every agent when none is
+ * found, so enter alone keeps today's result). With no terminal — a script,
+ * CI, an agent's shell — every agent, which is what init did before it asked.
+ */
+export async function resolveInitAgents(
+  rootDir: string,
+  flag: string | undefined,
+  prompt: AgentPrompt,
+): Promise<AgentChoice> {
+  if (flag !== undefined) return parseAgents(flag)
+  if (!prompt.interactive) return { agents: [...AGENTS] }
+  const found = orderAgents([...agentsOnMachine(prompt.machine), ...wiredAgents(rootDir)])
+  const preselected = found.length > 0 ? found : [...AGENTS]
+  const agents = await pickAgents(preselected, found, prompt.input, prompt.output, prompt.caps)
+  return agents === null ? { cancelled: true } : { agents }
 }
 
 /**
