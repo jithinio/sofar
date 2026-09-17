@@ -17,6 +17,7 @@ import { clip } from '../projections/templates/shared'
 import {
   AGENTS_PROTOCOL_BLOCK,
   classifyProtocolBlock,
+  CURSOR_HOOKS,
   hookCommand,
   PROTOCOL_BLOCK,
   SHIMS,
@@ -131,8 +132,8 @@ function fileHas(path: string, needle: string): boolean {
   }
 }
 
-function mcpHasSofar(rootDir: string): boolean {
-  const path = join(rootDir, '.mcp.json')
+function mcpHasSofar(rootDir: string, rel: string): boolean {
+  const path = join(rootDir, rel)
   if (!existsSync(path)) return false
   try {
     const cfg = JSON.parse(readFileSync(path, 'utf8')) as unknown
@@ -245,9 +246,26 @@ function auditWiring(rootDir: string): Section {
   )
 
   findings.push(
-    mcpHasSofar(rootDir)
+    mcpHasSofar(rootDir, '.mcp.json')
       ? { level: 'ok', text: '.mcp.json sofar server registered' }
       : { level: 'fail', text: '.mcp.json sofar server not registered', hint: repair },
+  )
+
+  // Cursor's copies (r1-fixes 6.2/6.6, D34). Cursor reads neither .mcp.json nor
+  // a hook it cannot dedupe against, so each is checked in Cursor's own file.
+  const cursorHooksPath = join(rootDir, '.cursor', 'hooks.json')
+  const missingCursorHooks = SHIMS.filter((shim) => !fileHas(cursorHooksPath, hookCommand(shim.file))).map(
+    (shim) => CURSOR_HOOKS[shim.event].event,
+  )
+  findings.push(
+    missingCursorHooks.length === 0
+      ? { level: 'ok', text: '.cursor/hooks.json hooks wired' }
+      : { level: 'fail', text: `.cursor/hooks.json missing hooks: ${missingCursorHooks.join(', ')}`, hint: repair },
+  )
+  findings.push(
+    mcpHasSofar(rootDir, '.cursor/mcp.json')
+      ? { level: 'ok', text: '.cursor/mcp.json sofar server registered' }
+      : { level: 'fail', text: '.cursor/mcp.json sofar server not registered', hint: repair },
   )
 
   // Presence is not enough (speed-2 T6): a block installed by an older sofar

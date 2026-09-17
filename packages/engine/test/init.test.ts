@@ -17,6 +17,8 @@ import {
   AGENTS_PROTOCOL_BLOCK_V3,
   AGENTS_PROTOCOL_BLOCK_V4,
   classifyProtocolBlock,
+  CURSOR_HOOKS,
+  CURSOR_MCP_HINT,
   GITATTRIBUTES_LINE,
   hookCommand,
   PROTOCOL_BLOCK,
@@ -506,7 +508,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
     expect(result.exitCode).toBe(0)
     // The report block ends at the blank line before the (unstyled) hint.
     const lines = (result.stdout.split('\n\n')[0] ?? '').split('\n')
-    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (14 changes)')
+    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (16 changes)')
     expect(lines[0]).toBe('\x1b[2m  └ created .sofar/repo.md\x1b[22m')
     for (const line of lines.slice(0, -1)) {
       expect(line.startsWith('\x1b[2m  └ ')).toBe(true)
@@ -530,11 +532,15 @@ describe('confirmation styling (cli-ui 2.5)', () => {
         'created .git/hooks/prepare-commit-msg',
         'created .claude/settings.json',
         'created .mcp.json',
+        'created .cursor/hooks.json',
+        'created .cursor/mcp.json',
         'created CLAUDE.md (sofar protocol block)',
         'created AGENTS.md (sofar protocol block)',
-        'sofar init: done (14 changes)',
+        'sofar init: done (16 changes)',
         '',
         STATUSLINE_HINT,
+        '',
+        CURSOR_MCP_HINT,
         '',
       ].join('\n'),
     )
@@ -693,5 +699,76 @@ describe('re-homing instruction (session-orientation 1.1)', () => {
     expect(claude).toContain('sofar drive <slug> --detach')
     expect(claude.split(PROTOCOL_START).length - 1).toBe(1)
     expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe(AGENTS_PROTOCOL_BLOCK)
+  })
+})
+
+describe('Cursor wiring (r1-fixes 6.2/6.6, D34)', () => {
+  it('writes .cursor/hooks.json with commands byte-identical to settings.json, so Cursor fires each once', () => {
+    const root = freshRepo()
+    expect(runInit(root).exitCode).toBe(0)
+    const cursor = readJSON(join(root, '.cursor', 'hooks.json')) as {
+      version: number
+      hooks: Record<string, Array<Record<string, unknown>>>
+    }
+    const claude = readJSON(join(root, '.claude', 'settings.json')) as {
+      hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>
+    }
+    expect(cursor.version).toBe(1)
+    for (const shim of SHIMS) {
+      const spec = CURSOR_HOOKS[shim.event]
+      const [entry] = cursor.hooks[spec.event] ?? []
+      expect(entry?.command, spec.event).toBe(hookCommand(shim.file))
+      expect(entry?.command).toBe(claude.hooks[shim.event]?.[0]?.hooks[0]?.command)
+      expect(entry?.matcher).toBe(spec.matcher)
+      expect(entry?.loop_limit).toBe(spec.loop_limit)
+    }
+    expect(cursor.hooks.stop?.[0]?.loop_limit).toBe(1)
+    expect(cursor.hooks.postToolUse?.[0]?.matcher).toBe('Shell|Write')
+  })
+
+  it('registers the same sofar server in .cursor/mcp.json as in .mcp.json', () => {
+    const root = freshRepo()
+    runInit(root)
+    const cursor = readJSON(join(root, '.cursor', 'mcp.json')) as { mcpServers: Record<string, unknown> }
+    const claude = readJSON(join(root, '.mcp.json')) as { mcpServers: Record<string, unknown> }
+    expect(cursor.mcpServers.sofar).toEqual(claude.mcpServers.sofar)
+  })
+
+  it('is idempotent, and names the Cursor approval only on the run that registered the server', () => {
+    const root = freshRepo()
+    expect(runInit(root).stdout).toContain(CURSOR_MCP_HINT)
+    const before = hashTree(root)
+    const again = runInit(root)
+    expect(again.stdout).toContain('unchanged .cursor/hooks.json')
+    expect(again.stdout).toContain('unchanged .cursor/mcp.json')
+    expect(again.stdout).not.toContain(CURSOR_MCP_HINT)
+    expect(hashTree(root)).toEqual(before)
+  })
+
+  it("merges into the user's Cursor files and keeps their own sofar entry", () => {
+    const root = freshRepo()
+    mkdirSync(join(root, '.cursor'), { recursive: true })
+    writeFileSync(
+      join(root, '.cursor', 'hooks.json'),
+      `${JSON.stringify({ version: 1, hooks: { sessionStart: [{ command: 'echo mine' }] } }, null, 2)}\n`,
+    )
+    const custom = { command: 'npx', args: ['sofar.sh', 'mcp'] }
+    writeFileSync(join(root, '.cursor', 'mcp.json'), `${JSON.stringify({ mcpServers: { sofar: custom } }, null, 2)}\n`)
+    expect(runInit(root).exitCode).toBe(0)
+    const hooks = readJSON(join(root, '.cursor', 'hooks.json')) as { hooks: Record<string, Array<{ command: string }>> }
+    expect(hooks.hooks.sessionStart?.map((e) => e.command)).toEqual(['echo mine', hookCommand('session-start.sh')])
+    const mcp = readJSON(join(root, '.cursor', 'mcp.json')) as { mcpServers: Record<string, unknown> }
+    expect(mcp.mcpServers.sofar).toEqual(custom)
+  })
+
+  it('refuses to modify an unparseable .cursor/hooks.json', () => {
+    const root = freshRepo()
+    mkdirSync(join(root, '.cursor'), { recursive: true })
+    writeFileSync(join(root, '.cursor', 'hooks.json'), '{ not json')
+    const plain = { color: false, unicode: true, animate: false }
+    const result = runInit(root, {}, plain, plain)
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('.cursor/hooks.json is not valid JSON')
+    expect(readFileSync(join(root, '.cursor', 'hooks.json'), 'utf8')).toBe('{ not json')
   })
 })

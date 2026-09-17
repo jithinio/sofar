@@ -1492,23 +1492,113 @@ function mergeSettings(
   return { statuslineAbsent }
 }
 
-function mergeMcpJson(rootDir: string, report: string[]): void {
-  const path = join(rootDir, '.mcp.json')
-  const config = readJSONObject(path, '.mcp.json')
+/**
+ * Merge the sofar server into an MCP config file: `.mcp.json` for Claude Code,
+ * `.cursor/mcp.json` for Cursor, which never reads a root .mcp.json for a
+ * project (r1-fixes 6.2, D34). Same entry, same theirs-wins rule. Returns the
+ * change, so init can say what Cursor still needs from the operator.
+ */
+function mergeMcpJson(rootDir: string, rel: string, report: string[]): Change {
+  const path = join(rootDir, rel)
+  const config = readJSONObject(path, rel)
 
   if (config.mcpServers !== undefined && !isObj(config.mcpServers)) {
-    throw new InitAbort('.mcp.json has a non-object "mcpServers" key — refusing to modify it.')
+    throw new InitAbort(`${rel} has a non-object "mcpServers" key — refusing to modify it.`)
   }
   const servers: Obj = isObj(config.mcpServers) ? config.mcpServers : {}
 
   if (servers.sofar !== undefined && existsSync(path)) {
-    report.push('unchanged .mcp.json') // user may have customized the entry — theirs wins
-    return
+    report.push(`unchanged ${rel}`) // user may have customized the entry — theirs wins
+    return 'unchanged'
   }
   servers.sofar = mcpRegistration().mcpServers.sofar
   config.mcpServers = servers
-  report.push(`${writeIfChanged(path, stableJSON(rootDir, path, config))} .mcp.json`)
+  mkdirSync(dirname(path), { recursive: true })
+  const change = writeIfChanged(path, stableJSON(rootDir, path, config))
+  report.push(`${change} ${rel}`)
+  return change
 }
+
+/**
+ * Cursor's native event for each shim (r1-fixes 6.6, D34), with the fields its
+ * hooks.json takes per entry. The COMMAND is not here on purpose: it is the
+ * shim's hookCommand, byte-identical to the .claude/settings.json entry,
+ * because Cursor also runs .claude/settings.json hooks and drops a Claude hook
+ * only when the event AND the command string match one of its own — any other
+ * spelling fires every shim twice, in parallel.
+ *
+ * `Shell|Write` are Cursor's tool names (it folds Edit into Write). The stop
+ * gate's loop_limit of 1 matches Claude Code's stop_hook_active: hold a session
+ * once, never loop it.
+ */
+export const CURSOR_HOOKS: Readonly<
+  Record<ShimSpec['event'], { event: string; matcher?: string; loop_limit?: number }>
+> = {
+  SessionStart: { event: 'sessionStart' },
+  UserPromptSubmit: { event: 'beforeSubmitPrompt' },
+  PostToolUse: { event: 'postToolUse', matcher: 'Shell|Write' },
+  PostToolUseFailure: { event: 'postToolUseFailure', matcher: 'Shell|Write' },
+  Stop: { event: 'stop', loop_limit: 1 },
+  SessionEnd: { event: 'sessionEnd' },
+}
+
+/**
+ * Merge sofar's hooks into .cursor/hooks.json (r1-fixes 6.6, D34). Native
+ * entries are needed even though Cursor imports the Claude ones: its CLI UI
+ * fires stop and prompt hooks only when hooks.json defines that event, and an
+ * imported stop hook has no loop cap. Merged like settings.json — an entry with
+ * our command already present is left as the user has it.
+ */
+function mergeCursorHooks(rootDir: string, report: string[]): void {
+  const rel = '.cursor/hooks.json'
+  const path = join(rootDir, rel)
+  const config = readJSONObject(path, rel)
+
+  if (config.hooks !== undefined && !isObj(config.hooks)) {
+    throw new InitAbort(`${rel} has a non-object "hooks" key — refusing to modify it.`)
+  }
+  const hooks: Obj = isObj(config.hooks) ? config.hooks : {}
+
+  let added = 0
+  for (const shim of SHIMS) {
+    const { event, matcher, loop_limit } = CURSOR_HOOKS[shim.event]
+    const existing = hooks[event]
+    if (existing !== undefined && !Array.isArray(existing)) {
+      throw new InitAbort(`${rel} hooks.${event} is not an array — refusing to modify it.`)
+    }
+    const entries: unknown[] = Array.isArray(existing) ? existing : []
+    const command = hookCommand(shim.file)
+    if (!entries.some((entry) => isObj(entry) && entry.command === command)) {
+      entries.push({
+        command,
+        ...(matcher !== undefined ? { matcher } : {}),
+        ...(loop_limit !== undefined ? { loop_limit } : {}),
+      })
+      added++
+    }
+    hooks[event] = entries
+  }
+
+  if (added === 0 && existsSync(path)) {
+    report.push(`unchanged ${rel}`)
+    return
+  }
+  if (config.version === undefined) config.version = 1 // Cursor requires it; first key in a new file
+  config.hooks = hooks
+  mkdirSync(dirname(path), { recursive: true })
+  report.push(`${writeIfChanged(path, stableJSON(rootDir, path, config))} ${rel}`)
+}
+
+/**
+ * Printed when init has just registered sofar in .cursor/mcp.json: Cursor
+ * starts no project MCP server until the operator approves it, and init never
+ * writes that approval — the gate is the operator's (D34).
+ */
+export const CURSOR_MCP_HINT = [
+  'note: Cursor starts a project MCP server only after you approve it once.',
+  '  Approve `sofar` when Cursor asks (Settings → MCP), or run:',
+  '    cursor-agent mcp enable sofar',
+].join('\n')
 
 /**
  * The marker-delimited span of a protocol block, trailing newline EXCLUDED so
@@ -1644,13 +1734,16 @@ export function runInit(
   const statusline = options.statusline === true
   const report: string[] = []
   let statuslineAbsent = false
+  let cursorMcp: Change = 'unchanged'
   try {
     initSofarDir(rootDir, report)
     ensureGitattributes(rootDir, report)
     installShims(rootDir, report)
     installGitHook(rootDir, report)
     statuslineAbsent = mergeSettings(rootDir, statusline, report).statuslineAbsent
-    mergeMcpJson(rootDir, report)
+    mergeMcpJson(rootDir, '.mcp.json', report)
+    mergeCursorHooks(rootDir, report)
+    cursorMcp = mergeMcpJson(rootDir, '.cursor/mcp.json', report)
     appendProtocolBlock(rootDir, 'CLAUDE.md', PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS, report)
     appendProtocolBlock(
       rootDir,
@@ -1680,6 +1773,9 @@ export function runInit(
   if (!statusline && statuslineAbsent && !userStatuslineWired(options.home)) {
     lines.push('', STATUSLINE_HINT)
   }
+  // Cursor's MCP approval (r1-fixes 6.2, D34): said once, on the run that
+  // registered the server, since a re-run changes nothing Cursor must approve.
+  if (cursorMcp !== 'unchanged') lines.push('', CURSOR_MCP_HINT)
   // Formatter defence (r1-fixes 1.4, D7): a formatter or linter that will
   // process .sofar/ gets the same treatment as the scanner below — init only
   // names it, `sofar doctor --fix` writes each tool's exclusion. Before the

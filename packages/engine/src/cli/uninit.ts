@@ -36,6 +36,8 @@ import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui
  *     retuned refreshInterval) — a customized statusLine is user config,
  *     kept (init-statusline D1, statusline-refresh D1)
  *   - .mcp.json's mcpServers.sofar (other servers/keys untouched)
+ *   - Cursor's copies (r1-fixes 6.2/6.6): .cursor/hooks.json entries running
+ *     one of our shims, and .cursor/mcp.json's mcpServers.sofar
  *   - the marker-delimited protocol blocks in CLAUDE.md / AGENTS.md, plus
  *     exactly one adjacent blank-line seam so pre-init spacing is restored
  *
@@ -189,21 +191,60 @@ function stripSettings(rootDir: string, purge: boolean, report: string[]): boole
   return false
 }
 
-function stripMcp(rootDir: string, purge: boolean, report: string[]): void {
-  const path = join(rootDir, '.mcp.json')
-  if (!existsSync(path)) return
-  const config = readJSONObject(path, '.mcp.json')
-  if (!isObj(config.mcpServers) || !('sofar' in config.mcpServers)) return
+/** `.mcp.json` (Claude Code) or `.cursor/mcp.json` (Cursor, r1-fixes 6.2) — the same entry, stripped the same way. */
+function stripMcp(rootDir: string, rel: string, purge: boolean, report: string[]): boolean {
+  const path = join(rootDir, rel)
+  if (!existsSync(path)) return false
+  const config = readJSONObject(path, rel)
+  if (!isObj(config.mcpServers) || !('sofar' in config.mcpServers)) return false
 
   delete config.mcpServers.sofar
   if (Object.keys(config.mcpServers).length === 0) delete config.mcpServers
   if (purge && Object.keys(config).length === 0) {
     unlinkSync(path)
-    report.push('removed .mcp.json (nothing left after sofar server entry removed)')
-    return
+    report.push(`removed ${rel} (nothing left after sofar server entry removed)`)
+    return true
   }
-  writeFileSync(path, stableJSON(rootDir, '.mcp.json', config), 'utf8')
-  report.push('updated .mcp.json (sofar server entry removed)')
+  writeFileSync(path, stableJSON(rootDir, rel, config), 'utf8')
+  report.push(`updated ${rel} (sofar server entry removed)`)
+  return false
+}
+
+/**
+ * Strip sofar's entries from .cursor/hooks.json (r1-fixes 6.6) — Cursor's
+ * entries are flat `{command, …}` objects, matched by the same shim command
+ * test as settings.json. A file left holding only `version` carries no
+ * configuration, so --purge removes it.
+ */
+function stripCursorHooks(rootDir: string, purge: boolean, report: string[]): boolean {
+  const rel = '.cursor/hooks.json'
+  const path = join(rootDir, rel)
+  if (!existsSync(path)) return false
+  const config = readJSONObject(path, rel)
+  if (!isObj(config.hooks)) return false
+  const hooks = config.hooks
+
+  let changed = false
+  for (const eventName of Object.keys(hooks)) {
+    const entries = hooks[eventName]
+    if (!Array.isArray(entries)) continue
+    const kept = entries.filter((entry) => !isShimCommand(entry))
+    if (kept.length === entries.length) continue
+    changed = true
+    if (kept.length === 0) delete hooks[eventName]
+    else hooks[eventName] = kept
+  }
+  if (!changed) return false
+  if (Object.keys(hooks).length === 0) delete config.hooks
+  const leftover = Object.keys(config).filter((key) => key !== 'version')
+  if (purge && leftover.length === 0) {
+    unlinkSync(path)
+    report.push(`removed ${rel} (nothing left after sofar hook entries removed)`)
+    return true
+  }
+  writeFileSync(path, stableJSON(rootDir, rel, config), 'utf8')
+  report.push(`updated ${rel} (sofar hook entries removed)`)
+  return false
 }
 
 /**
@@ -327,7 +368,9 @@ export function runUninit(
     const shimsRemoved = removeShims(rootDir, report)
     removeGitHook(rootDir, report)
     const settingsDeleted = stripSettings(rootDir, purge, report)
-    stripMcp(rootDir, purge, report)
+    stripMcp(rootDir, '.mcp.json', purge, report)
+    const cursorHooksDeleted = stripCursorHooks(rootDir, purge, report)
+    const cursorMcpDeleted = stripMcp(rootDir, '.cursor/mcp.json', purge, report)
     stripGitattributes(rootDir, purge, report)
     stripProtocolBlock(rootDir, 'CLAUDE.md', purge, report, warnings)
     stripProtocolBlock(rootDir, 'AGENTS.md', purge, report, warnings)
@@ -336,6 +379,7 @@ export function runUninit(
     // that was already empty before uninit touched anything.
     const hooksDirRemoved = shimsRemoved > 0 && removeDirIfEmpty(rootDir, '.claude/hooks', report)
     if (hooksDirRemoved || settingsDeleted) removeDirIfEmpty(rootDir, '.claude', report)
+    if (cursorHooksDeleted || cursorMcpDeleted) removeDirIfEmpty(rootDir, '.cursor', report)
 
     const sofarDir = join(rootDir, '.sofar')
     if (existsSync(sofarDir)) {

@@ -150,6 +150,22 @@ describe('acceptance 1 — uninit round-trips (hash-based)', () => {
       join(root, '.mcp.json'),
       stableJSON({ mcpServers: { other: { command: 'other-server', args: [] } } }),
     )
+    // Cursor's copies (r1-fixes 6.2/6.6): the same merge-and-strip promise
+    mkdirSync(join(root, '.cursor'), { recursive: true })
+    writeFileSync(
+      join(root, '.cursor', 'hooks.json'),
+      stableJSON({
+        version: 1,
+        hooks: {
+          afterFileEdit: [{ command: 'echo edited' }],
+          sessionStart: [{ command: 'echo user-start' }],
+        },
+      }),
+    )
+    writeFileSync(
+      join(root, '.cursor', 'mcp.json'),
+      stableJSON({ mcpServers: { other: { command: 'other-server', args: [] } } }),
+    )
     writeFileSync(join(root, '.claude', 'hooks', 'my-hook.sh'), '#!/bin/sh\necho mine\n')
     writeFileSync(join(root, '.gitattributes'), '*.png binary\n')
     const before = hashTree(root)

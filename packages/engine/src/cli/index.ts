@@ -56,7 +56,7 @@ function rootOf(opts: { root?: string }): string {
 program
   .command('init')
   .description(
-    'make this repo sofar-ready: .sofar/, hook shims + settings, .mcp.json entry, CLAUDE.md + AGENTS.md protocol blocks (idempotent)',
+    'make this repo sofar-ready: .sofar/, hook shims + settings, .mcp.json entry, Cursor hooks + MCP entry, CLAUDE.md + AGENTS.md protocol blocks (idempotent)',
   )
   .option(
     '--statusline',
