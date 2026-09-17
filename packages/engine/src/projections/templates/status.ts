@@ -460,7 +460,7 @@ function taskTestsLine(state: InitiativeState, task: TaskState): string | null {
 export function sessionIdLine(sessionId: string | null | undefined): string | null {
   const id = sessionId?.trim() ?? ''
   if (id.length === 0) return null
-  return `Session: ${clip(id, SESSION_ID_BUDGET)} — when calling sofar_start_session, pass this as session_id.`
+  return `Session: ${clip(id, SESSION_ID_BUDGET)} — adopted on Claude Code; else pass to sofar_start_session.`
 }
 
 export function renderStatus(state: InitiativeState, options?: StatusOptions): string {
@@ -770,8 +770,10 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
     tail.push('')
   }
 
-  // Session identity (task 7.1, BD43): the id the agent must hand back to
-  // sofar_start_session. Per-session by definition, so it sits in the tail.
+  // Session identity (task 7.1, BD43): the id a host without adoption hands
+  // back to sofar_start_session — Claude Code's MCP server adopts it from
+  // CLAUDE_CODE_SESSION_ID (memory-lead 1.1, D3), so the line names both.
+  // Per-session by definition, so it sits in the tail.
   const idLine = sessionIdLine(options?.sessionId)
   if (idLine !== null) tail.push(idLine)
 

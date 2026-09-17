@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { TOOL_INPUT_SCHEMAS, TOOL_NAMES, type ToolName } from '@sofar/schema/tool-inputs'
-import { createSofarServer, CORE_TOOLS, SERVER_INSTRUCTIONS, SERVER_NAME } from '../src/mcp/server'
+import { ALWAYS_LOADED_TOOLS, createSofarServer, SERVER_INSTRUCTIONS, SERVER_NAME, serverInstructions } from '../src/mcp/server'
 import { PROTOCOL_BLOCK } from '../src/cli/init'
 import { foldLog, type InitiativeState } from '../src/core/fold'
 import { GENERATED_HEADER } from '../src/projections/templates/shared'
@@ -499,16 +499,20 @@ describe('less bookkeeping (r1-fixes 2.1, D10)', () => {
     await client.close()
   })
 
-  it('the server declares instructions: one ToolSearch for the core tools, no get_state re-read', async () => {
+  it('the server declares instructions: write back once, no get_state re-read, start_session only without adoption', async () => {
     const fixture = makeRepoFixture()
     const { client } = await connectServer(fixture.root)
     const instructions = client.getInstructions()
     expect(instructions).toBe(SERVER_INSTRUCTIONS)
-    expect(instructions).toContain('ONE ToolSearch')
-    expect(instructions).toContain(`select:${CORE_TOOLS.map((t) => `mcp__sofar__${t}`).join(',')}`)
     expect(instructions).toContain('do not call sofar_get_state')
-    for (const tool of CORE_TOOLS) expect(TOOL_NAMES).toContain(tool)
+    expect(instructions).toContain('Call sofar_start_session first')
+    expect(instructions).toContain('Write back once, at wrap-up')
+    for (const tool of ALWAYS_LOADED_TOOLS) expect(TOOL_NAMES).toContain(tool)
     expect(instructions!.length).toBeLessThan(900)
+    // Memory-lead D3: a server that adopted Claude Code's session id asks for no start step.
+    expect(serverInstructions(true)).not.toContain('Call sofar_start_session first')
+    expect(serverInstructions(true)).toContain('only to re-home')
+    expect(serverInstructions(true).length).toBeLessThan(900)
     await client.close()
   })
 

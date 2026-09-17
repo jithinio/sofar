@@ -611,7 +611,8 @@ program
   .description('start the stdio MCP server (server name: sofar) exposing the SPEC §MCP tools')
   .option('--root <dir>', 'repo root containing .sofar/ (default: current directory)')
   .action(async (opts: { root?: string }) => {
-    const handle = createSofarServer({ rootDir: opts.root })
+    // A stdio child of one Claude Code session adopts that session (memory-lead D3).
+    const handle = createSofarServer({ rootDir: opts.root, hostSessionId: process.env.CLAUDE_CODE_SESSION_ID })
     await handle.connectStdio()
     // stdio transport keeps the process alive until the client disconnects
   })

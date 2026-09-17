@@ -603,7 +603,7 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
   it('session id line (7.1, BD43): lands in the volatile tail — after the decisions, before the read-back — clipped, cap intact', () => {
     const status = renderStatus(populatedState(), { sessionId: 'claude-sess-42' })
     expect(status).toContain(
-      'Session: claude-sess-42 — when calling sofar_start_session, pass this as session_id.',
+      "Session: claude-sess-42 — adopted on Claude Code; else pass to sofar_start_session.",
     )
     // D12: per-session by definition, so it is the last thing that changes
     expect(status.indexOf('Session: claude-sess-42')).toBeGreaterThan(status.indexOf('Next ids:'))

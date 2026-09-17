@@ -56,7 +56,7 @@ describe('SessionStart before any initiative exists (r1-fixes 1.1)', () => {
     expect(out.stdout).toMatch(/^# Sofar: no initiative yet/)
     // The same adopt-by-id line the status block carries, byte for byte.
     expect(out.stdout).toContain(
-      'Session: claude-s1 — when calling sofar_start_session, pass this as session_id.',
+      "Session: claude-s1 — adopted on Claude Code; else pass to sofar_start_session.",
     )
     const create = out.stdout.indexOf('sofar new <slug> --goal')
     const adopt = out.stdout.indexOf('sofar_start_session with the session_id above')
@@ -137,7 +137,7 @@ describe('the unbound notice with records present also carries the id (r1-fixes 
     runNew(root, 'demo', { bind: false }, PLAIN, PLAIN)
     const out = handleSessionStart(root, hook(root))
     expect(out.stdout).toMatch(/^# Sofar: this branch is not bound to an initiative/)
-    expect(out.stdout).toContain('Session: claude-s1 — when calling sofar_start_session')
+    expect(out.stdout).toContain('Session: claude-s1 — adopted on Claude Code; else pass to sofar_start_session')
     expect(out.stdout).toMatch(/sofar switch <slug>.*demo/)
     expect(out.stdout).toMatch(/Then call sofar_start_session with the session_id above\./)
   })

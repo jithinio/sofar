@@ -2201,17 +2201,38 @@ re-imports an EARLIER line, which the fast path refuses as
 
 ## MCP tools (server name: sofar)
 
-**Server instructions (r1-fixes 2.1, D10).** The server declares MCP
-`instructions` at initialize — SERVER_INSTRUCTIONS in mcp/server.ts, which
-Claude Code renders into the agent's system prompt. Three sentences, under
-900 chars: the record is already injected by the SessionStart hook so
-sofar_get_state is not re-read; a client that defers tools loads the CORE
-five (start_session, update_task, log_decision, remember, end_session) in
-ONE ToolSearch `select:` call and the rest on demand; start_session comes
-first with the injected session id, decisions and facts are logged as they
-happen, task changes at wrap-up ride end_session's `tasks`, and every
-session ends with end_session. The protocol block carries the loop itself;
-instructions ride every initialize, so they stay short.
+**Server instructions (r1-fixes 2.1, D10; memory-lead 1.1, D3).** The
+server declares MCP `instructions` at initialize — serverInstructions(adopted)
+in mcp/server.ts, which Claude Code renders into the agent's system prompt.
+Four sentences, under 900 chars either way: the record is already injected by
+the SessionStart hook so sofar_get_state is not re-read; with an adopted host
+session, sofar_start_session is only for re-homing, otherwise it comes first
+with the injected session id; the session writes back ONCE, at wrap-up, and
+sofar_end_session carries its decisions, task changes (a new task with its
+title), phase changes, memories and notes, with sofar_log_decision mid-session
+only for a decision a concurrent session must see first; review, close and
+find are CLI. SERVER_INSTRUCTIONS is the non-adopted text. The protocol block
+carries the loop itself; instructions ride every initialize, so they stay
+short.
+
+**Session adoption and always-load (memory-lead 1.1, D3).** `sofar mcp`
+passes CLAUDE_CODE_SESSION_ID (set by Claude Code ≥2.1.154 on its stdio MCP
+servers, ≥2.1.163 on resume — the id its hooks receive) to
+createSofarServer as `hostSessionId`; the serve daemon and tests never do.
+Before any tool other than sofar_start_session runs while no session is
+active, the server calls adoptHostSession: the session's HOME initiative
+(homeInitiative) wins, the branch binding is the fallback, a known id is
+pinned with no append and an unknown one is registered through
+registerSession with {tool: "claude-code"} — exactly sofar_start_session
+with that id and no `initiative`. Best-effort: when neither home nor branch
+resolves, nothing is pinned and the tool raises its own typed error. An
+explicit sofar_start_session always wins and re-homes. tools/list carries
+`_meta: {"anthropic/alwaysLoad": true}` on ALWAYS_LOADED_TOOLS —
+sofar_end_session and sofar_log_decision — which Claude Code honours by
+skipping tool-search deferral for that tool (verified in 2.1.270–2.1.274,
+memory-lead M1); the other seven stay deferred. The SessionStart `Session:`
+line reads `Session: <id> — adopted on Claude Code; else pass to
+sofar_start_session.`
 - sofar_get_state({initiative?, view?}) → progressive disclosure (token-opt):
   view "digest" (DEFAULT) returns the summary-dense orientation projection as
   text (goal, active/next task, next action, phase summary, last-session
@@ -2295,7 +2316,9 @@ instructions ride every initialize, so they stay short.
   sessions/<id>.md while its event still stands in the log. Events after a
   session_ended are already routine (hooks emit them) and a repeat
   session_ended is legal and last-wins.
-  ALWAYS called, even though get_state at start is not (speed-2 T5a): the
+  Called whenever no session is ADOPTED (memory-lead D3: Claude Code's
+  `sofar mcp` adopts CLAUDE_CODE_SESSION_ID, see §MCP tools), even though
+  get_state at start is not (speed-2 T5a): the
   call's load-bearing effect is ctx.session.set(), not the event. Without an
   active session, resolveWriteInitiative falls back to the branch binding —
   which moves mid-session — so writes land wherever the branch now points,
@@ -2303,15 +2326,35 @@ instructions ride every initialize, so they stay short.
   task changes from the session (sessions/<id>.md loses them; the Stop
   write-back linkage breaks). That is the record-integrity misroute class,
   and the side-index workaround for it is already rejected.
-- sofar_end_session({session_id, summary, next_action, tasks?}) → {ok,
-  event_id, tasks_applied?, parallel_writebacks?, rebound?}  # the write-back.
-  `tasks` (r1-fixes 2.1, D10) is an ordered list of {task_id, status, note?}
-  — sofar_update_task's fields and rules — validated AS A WHOLE before any
-  append (one bad entry files nothing, not the good ones and not the
-  write-back: `invalid_input` naming the entry), then appended in order under
-  the session BEFORE session_ended, so the fold the write-back is read by
-  already counts them (task_done needs both halves, session-driver D5).
-  `tasks_applied` is present iff `tasks` was passed; without it the result is
+- sofar_end_session({session_id?, summary, next_action, tasks?, phases?,
+  decisions?, memories?, notes?}) → {ok, event_id, tasks_applied?,
+  decisions?, memories?, warnings?, parallel_writebacks?, rebound?}  # the
+  write-back. `session_id` is optional since memory-lead D3: omitted, the
+  ACTIVE session (adopted or started) is ended; with none, `invalid_input`
+  names the injected "Session:" line.
+  THE BATCH (r1-fixes 2.1, D10 for `tasks`; memory-lead 1.1, D3 for the rest)
+  is planned and validated AS A WHOLE against one fold before any append —
+  one bad entry files nothing, not the good ones and not the write-back:
+  `invalid_input` naming the entry (`tasks[1] (9.9): …`). Entries:
+  `tasks` {task_id, status, note?, title?, phase?} — a task the plan has
+  appends task_status_changed; one it lacks WITH a title appends task_added
+  {phase, id, title, status} into `phase` (resolved like
+  sofar_update_phase; default the active phase), plus a task_status_changed
+  carrying `note` when one is given; one it lacks WITHOUT a title is refused
+  (the fold would skip it with a warning). `phases` {phase, status, note?} —
+  resolved and idempotent exactly as sofar_update_phase. `decisions` —
+  sofar_log_decision's arguments minus `initiative`, checked by its input
+  validator, the decision_logged payload validator and the D31 reversal
+  check against the record PLUS the batch's earlier decisions. `memories`
+  and `notes` — non-empty strings, appended as memory_promoted {text} and
+  note_added {text}. Appended in order — tasks, phases, decisions, memories,
+  notes — under the session BEFORE session_ended, with projections
+  regenerated ONCE (on the session_ended append), so the fold the write-back
+  is read by already counts them (task_done needs both halves,
+  session-driver D5). `tasks_applied` is present iff `tasks` was passed;
+  `decisions` lists the `D<n>` handles and `memories` the `<slug> M<n>`
+  handles the batch took, and `warnings` carries §Rule fidelity's warning
+  for each batched rule; each is omitted when empty, so a bare write-back is
   byte-identical to before. `rebound` names the
   branch binding this write-back moved ({branch, from, to}), omitted when
   none moved — the rebind contract and its four guards are stated with the
@@ -5271,3 +5314,24 @@ stay the underlying derivation's, and exit codes are styling-independent.
   event append` both append and return `warnings` naming `4xx` and the
   ordinal, return none for a faithful rule, and a quote without a rule
   appends nothing. The `rule` description says to word it as the operator did.
+- **Overhead cut (memory-lead 1.1):** a server created with a
+  `hostSessionId` and never sent sofar_start_session files a decision and a
+  bare `sofar_end_session({summary, next_action})` under that id, registering
+  it once with {tool: "claude-code"}; a session the hooks registered in
+  another initiative is adopted THERE with no second registration; an
+  explicit sofar_start_session still wins; an unbound branch with no home
+  pins nothing and log_decision returns `unknown_initiative`; with no host
+  id and no start, end_session without session_id is `invalid_input` naming
+  the "Session:" line. tools/list marks exactly sofar_end_session and
+  sofar_log_decision with `_meta["anthropic/alwaysLoad"]` and still lists
+  sofar_update_plan. One end_session call files tasks (two existing, one
+  added into the active phase, one added into phase "2"), two phase changes,
+  two decisions (D1, D2, the rule-fidelity warning for D1), a memory
+  (`demo M1`) and a note, in that order before session_ended, all under the
+  session, with plan.md and decisions.md current; an unknown task without a
+  title, an unknown phase, a decision missing `because`, carrying
+  `initiative`, or carrying a quote without a rule each file nothing; a batch
+  whose second decision reverses its first is refused naming `decisions[1]`
+  and accepted with `supersedes: "D1"`; an unchanged phase files nothing.
+  serverInstructions(true) has no start step, both variants stay under 900
+  chars, and the tool surface stays ≤8,000 chars.

@@ -35,6 +35,47 @@ export function startSession(ctx: ToolContext, args: StartSessionArgs): { sessio
     if (home !== null) slug = home
   }
 
+  return pinSession(ctx, slug, args)
+}
+
+/**
+ * Adopt the host's own session (memory-lead 1.1, D3): Claude Code ≥2.1.154
+ * hands its stdio MCP servers CLAUDE_CODE_SESSION_ID — the id its hooks
+ * register — so `sofar mcp` needs no sofar_start_session call to know whose
+ * writes these are. The server calls this before any tool but
+ * sofar_start_session while no session is active, and it does exactly what
+ * that call would with the id and no `initiative`: the session's HOME wins
+ * (the hooks usually registered it already), the branch is the fallback, a
+ * known id is pinned without an append, an unknown one is registered.
+ *
+ * Best-effort (BD22): when neither home nor branch resolves — an unbound
+ * branch with no lane — nothing is pinned and the tool runs exactly as it did
+ * before adoption existed, raising its own typed error if it needs a record.
+ * Returns whether a session is now active.
+ */
+export function adoptHostSession(ctx: ToolContext, sessionId: string): boolean {
+  try {
+    let branchSlug: string | null = null
+    try {
+      branchSlug = ctx.resolveInitiative(undefined)
+    } catch {
+      branchSlug = null
+    }
+    const home = homeInitiative(ctx.sofarDir, sessionId, branchSlug)
+    const slug = home !== null ? ctx.resolveInitiative(home) : branchSlug
+    if (slug === null) return false
+    pinSession(ctx, slug, { tool: HOST_TOOL, session_id: sessionId })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** The tool an adopted session is recorded under: the env var is Claude Code's. */
+export const HOST_TOOL = 'claude-code'
+
+/** Adopt a known id (pin only) or register an unknown or omitted one, then pin it. */
+function pinSession(ctx: ToolContext, slug: string, args: StartSessionArgs): { session_id: string } {
   if (args.session_id !== undefined) {
     const existing = ctx.foldState(slug).sessions.find((s) => s.id === args.session_id)
     if (existing !== undefined) {

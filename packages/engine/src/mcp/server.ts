@@ -19,7 +19,7 @@ import { version } from '../../package.json'
 import { createToolContext, ToolError, type ActiveSession, type ToolContext } from './context'
 import { recordDiagnostic } from '../core/diagnostics'
 import { getState } from './get-state'
-import { startSession } from './start-session'
+import { adoptHostSession, startSession } from './start-session'
 import { endSession } from './end-session'
 import { updateTask } from './update-task'
 import { updatePhase } from './update-phase'
@@ -46,31 +46,38 @@ export const SERVER_NAME = 'sofar'
 // manifest's version.
 export const SERVER_VERSION = version
 
-/** The five tools a session needs; the rest load on demand. */
-export const CORE_TOOLS = [
-  'sofar_start_session',
-  'sofar_update_task',
-  'sofar_log_decision',
-  'sofar_remember',
-  'sofar_end_session',
-] as const
+/**
+ * The tools a normal session calls, marked always-loaded (memory-lead 1.1,
+ * D3): tools/list gives each `_meta["anthropic/alwaysLoad"]: true`, which
+ * Claude Code (verified 2.1.270–2.1.274, memory-lead M1) honours by skipping
+ * tool-search deferral — round 1 paid a ToolSearch request per session to
+ * load them. The rest stay deferred: the write-back carries their normal use.
+ */
+export const ALWAYS_LOADED_TOOLS = ['sofar_end_session', 'sofar_log_decision'] as const
 
 /**
  * Server instructions (MCP initialize; r1-fixes 2.1, D10) — the client shows
- * them in the agent's system prompt. Round 1 spent one ToolSearch per
- * deferred tool and a get_state per session re-reading what the SessionStart
- * hook had already injected; the three sentences below name the one-call
- * load and the no-reread rule, and say where task changes may ride. Kept
- * short on purpose: the protocol block carries the loop, and instructions
- * ride every initialize. The fourth sentence (r1-fixes 2.4, D13) names the
- * three operations that left the tool list for the CLI.
+ * them in the agent's system prompt. Per process since memory-lead 1.1 (D3):
+ * a server that adopted Claude Code's session id says no start step is
+ * needed; any other (Cursor, an older Claude Code, the serve daemon) keeps
+ * the start_session sentence. Kept short on purpose: the protocol block
+ * carries the loop, and instructions ride every initialize. The last sentence
+ * (r1-fixes 2.4, D13) names the three operations that left the tool list for
+ * the CLI.
  */
-export const SERVER_INSTRUCTIONS = [
-  "sofar keeps this repo's work record. The SessionStart hook already injected it (goal, next action, decisions, rejected approaches, next D/M ids): do not call sofar_get_state to re-read it.",
-  `If these tools are deferred, load the core set in ONE ToolSearch call: "select:${CORE_TOOLS.map((t) => `mcp__sofar__${t}`).join(',')}". Load the others only when needed.`,
-  'Call sofar_start_session first, with the session_id from the injected "Session:" line. Log decisions and remembered facts as they happen; task status changes that land at wrap-up ride sofar_end_session\'s `tasks`. Always finish with sofar_end_session.',
-  'Reviews, closing and reach queries are CLI: `sofar review` (the packet ends with the command that records the verdict), `sofar close`, `sofar find <seed>`.',
-].join('\n')
+export function serverInstructions(adopted: boolean): string {
+  return [
+    "sofar keeps this repo's work record. The SessionStart hook already injected it (goal, next action, decisions, rejected approaches, next D/M ids): do not call sofar_get_state to re-read it.",
+    adopted
+      ? "This session is adopted from Claude Code's session id: call sofar_start_session only to re-home into another initiative."
+      : 'Call sofar_start_session first, with the session_id from the injected "Session:" line.',
+    "Write back once, at wrap-up: sofar_end_session carries the session's decisions, task changes (a new task with its title), phase changes, memories and notes. Call sofar_log_decision mid-session only for a decision a concurrent session must see first; load other sofar tools only when needed.",
+    'Reviews, closing and reach queries are CLI: `sofar review` (the packet ends with the command that records the verdict), `sofar close`, `sofar find <seed>`.',
+  ].join('\n')
+}
+
+/** The instructions of a server with no host session to adopt. */
+export const SERVER_INSTRUCTIONS = serverInstructions(false)
 
 const handlers: { [K in ToolName]: (ctx: ToolContext, args: ToolArgs[K]) => unknown } = {
   sofar_get_state: getState,
@@ -130,6 +137,14 @@ function errorResult(error: ToolError): CallToolResult {
 export interface CreateSofarServerOptions {
   /** Repo root containing .sofar/ — defaults to process.cwd(). */
   rootDir?: string
+  /**
+   * The host's session id to adopt (memory-lead 1.1, D3). Only `sofar mcp`
+   * passes it, from CLAUDE_CODE_SESSION_ID: that server is a stdio child of
+   * ONE Claude Code session. The serve daemon is shared by many clients and
+   * never passes it, and tests opt in — the suite itself may run inside a
+   * Claude Code session whose id must not leak into fixtures.
+   */
+  hostSessionId?: string
 }
 
 export interface SofarServerHandle {
@@ -149,11 +164,13 @@ export interface SofarServerHandle {
 export function createSofarServer(options: CreateSofarServerOptions = {}): SofarServerHandle {
   const rootDir = resolve(options.rootDir ?? process.cwd())
   const context = createToolContext(rootDir)
+  const hostSessionId = options.hostSessionId?.trim() || undefined
 
   const server = new Server(
     { name: SERVER_NAME, version: SERVER_VERSION },
-    { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
+    { capabilities: { tools: {} }, instructions: serverInstructions(hostSessionId !== undefined) },
   )
+  const alwaysLoaded: readonly string[] = ALWAYS_LOADED_TOOLS
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: TOOL_DEFS.map((tool) => ({
@@ -163,6 +180,7 @@ export function createSofarServer(options: CreateSofarServerOptions = {}): Sofar
       // ablation arm (SOFAR_ACTIVITY=off) removes the telling with the showing.
       description: withActivityGuidance(tool.name, tool.description),
       inputSchema: tool.inputSchema,
+      ...(alwaysLoaded.includes(tool.name) ? { _meta: { 'anthropic/alwaysLoad': true } } : {}),
     })),
   }))
 
@@ -180,6 +198,11 @@ export function createSofarServer(options: CreateSofarServerOptions = {}): Sofar
       const check = validateToolInput(name, args)
       if (!check.ok) {
         throw new ToolError('invalid_input', `invalid arguments for ${name}`, check.errors)
+      }
+      // Adopt the host's session before the first tool that is not itself
+      // the explicit start (D3) — once per process, whatever tool comes first.
+      if (hostSessionId !== undefined && name !== 'sofar_start_session' && context.session.get() === null) {
+        adoptHostSession(context, hostSessionId)
       }
       // Runtime-validated above; the registry's per-tool arg types are
       // narrower than `unknown`, hence the cast.
