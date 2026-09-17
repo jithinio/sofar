@@ -41,4 +41,4 @@ Progress: 14/18 tasks done (77%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: Push rust-core (user, or sofar-4c under the owner's yes) so PR #2's CI runs on the fixes and the mirror. Then file the team100 interleaved numbers when the detached rerun ends (scratchpad team100b.sh → perf/team100.*.sofar-core.*), write the 1.5 findings into the perf README and HOTPATH, and mark 1.5 done. Re-record goldens once more against the rc.2 commit when it is pinned (2026-09-22); re-check the sessions-quadratic idea against r1-fixes planning.
+Next action: Report PR #2's results on ba0a627 (core-conformance = the mirror through the stub on Linux) and, once 5b6fb50 is pushed, the Windows fold-parity job; fix anything still red on the branch. Then file the team100 interleaved numbers when the detached rerun ends and close 1.5 (perf README + HOTPATH write-up; the quadratic sessions idea is already noted). Re-record goldens against the rc.2 commit when it is pinned (2026-09-22).
