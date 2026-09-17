@@ -505,7 +505,9 @@ Session loop:
   call \`sofar_get_state\` to re-read it: that digest is the same
   projection rendered with fewer fields, so it can only tell you less.
   Reach for it only when the injected block is missing or truncated, or
-  to read a DIFFERENT initiative.
+  to read a DIFFERENT initiative. The files under \`.sofar/\` are
+  projections of the same record: open one only for full text the block
+  points to.
   On Claude Code, sofar's tools adopt this session from its own id: there is
   no start call. Elsewhere, call \`sofar_start_session\` first with the
   \`session_id\` from the injected "Session:" line — it pins which record

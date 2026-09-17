@@ -292,7 +292,7 @@ describe('behavioral guard — guaranteed-plain surfaces under FORCE_COLOR=1 + C
     expect(out.startsWith(`# Sofar status: ${fixture.slug}`)).toBe(true)
     expect(out).toContain('Session: sess-guard-3')
     expect(out).toContain('Goal: lock the plain surfaces')
-    expect(out).toContain('Active phase: Phase 1 — guard')
+    expect(out).toContain('  in Phase 1 — guard')
     expect(out).toContain('Next action: verify plain surfaces byte-for-byte')
     expect(out).toContain('⚠ next action may be stale')
     expect(out).toContain('Notes since write-back')

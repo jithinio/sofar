@@ -612,6 +612,72 @@ the operator did not say it, log the rule as they worded it with supersedes
 D<n>."]` after the append, where `D<n>` is the ordinal the decision took.
 Absent when nothing is unquoted or there is no quote.
 
+### Digest composition (memory-lead 1.3, D4)
+renderStatus — the SessionStart block and the get_state digest — replaced
+r1-fixes D12's volatility order with what a resuming session needs at the two
+ends it weights most: the next task's spec FIRST, the standing constraints
+LAST. renderFullStatus (`sofar status`) and every projection are unchanged.
+HARD CAP STATUS_CHAR_LIMIT = 6,000.
+
+ORDER (a section with nothing to say renders nothing; blocks are separated by
+one blank line):
+1. `# Sofar status: <slug>` (lane: `# Sofar: quick-work lane (<slug>)`),
+   `Goal: <≤400>`, and in the lane its three how-lines.
+2. FOCUS TASK (not in the lane): the active phase's first `active` task, else
+   its first `pending`, else its first `blocked`; with none, the same pick in
+   each phase not `done`/`dropped`, in plan order. `Current task:` (status
+   active) or `Next task:` `<id> <title ≤1,000>`, then `  in <phase ≤100>
+   <phase mark> <done/total>`; for an active task the `  files:` and
+   `  tests:` lines (speed T4, r1-fixes D24); then up to 6 other open tasks
+   of that phase as `  - <id> <title ≤80>` (` (active)`/` (blocked)` when not
+   pending) and `  - …and N more (plan.md)`.
+3. `Next action: <≤500>`, the parallel write-backs, the staleness line, the
+   notes since write-back, `Blocked on:` and the concurrent-edit lines — as
+   before.
+4. `Last session (…):` with its summary (YIELDING, precedence 4, preferred
+   450; omitted when fewer than 120 chars remain for it); `Driven:`; the
+   lane's recent quick work; the derived-resume and unwritten-session lines.
+5. `Phases:` (open phases itemized ≤12, done and dropped collapsed) and
+   `Progress: …`.
+6. MEMORY (YIELDING, precedence 1, preferred 1,100): this record's
+   memory_promoted entries not superseded, header `Memory (<n>; full text in
+   memory.md):`, ranked by RELEVANCE to the focus; the first two that share a
+   term with it as `- [M<n>] <text ≤280>`, then every other one as `- [M<n>]
+   <text ≤80>` while they fit (a 40-char overflow reserve held), then
+   `- …and N more in memory.md`.
+7. REPO MEMORY (YIELDING, precedence 2, preferred 600; omitted under 300):
+   `Repo memory (.sofar/repo.md):` and the text clipped with the truncation
+   marker. The SessionStart hook strips the `sofar init` stub preamble before
+   passing it; a TOP-LEVEL bullet (`- ` or `* ` at column 0, with its
+   indented continuation lines) naming `<slug> M<n>` for a memory section 6
+   rendered is dropped as that memory's copy.
+8. DECISION INDEX (YIELDING, precedence 3, preferred 1,450 — window ≤1,000
+   plus ledger ≤450; §MCP tools gives the line shapes): the ledger's header
+   and count pointer are reserved first when a ledger exists, the window
+   keeps its NEWEST lines that fit, and ledger entries fill what remains
+   (40-char overflow reserve) before `- …and N more (see decisions.md)`.
+   HEADS: a chose or over is whitespace-collapsed, cut at the earliest of
+   `; `, ` — `, `: `, ` (` found at index ≥24, then clipped.
+9. `Next ids: …`, `Adjacent records …`, `Session: …` and `Git: …`, then the
+   hook notices — as before.
+10. STANDING CONSTRAINTS (PROTECTED): standingConstraintLines with a focus —
+    ranked by RELEVANCE, ties newest (highest ordinal) first — under the
+    2,000-char whole-entry budget, the first entry always whole.
+11. `Read-back: …` (PROTECTED; unchanged condition), then the footer
+    (PROTECTED).
+
+RELEVANCE: the focus is the focus task's title, its phase's name and the next
+action (empty in the lane); an item's score is the number of distinct
+core/lexicon stems (lexicalCounts) it shares with the focus; order is score
+descending, then ordinal descending. A rule's text is its rule and quote.
+
+YIELD: every fixed and protected block is measured (joined lines plus one
+newline each); the yielding blocks are then rendered in precedence order,
+each with min(preferred, 6,000 − everything measured so far − 2), a
+non-positive budget rendering nothing. If the unprotected text still exceeds
+6,000 − the protected text − 3, it is cut to fit with `…truncated — run sofar
+status for full detail` on its own line, and the protected end follows whole.
+
 ## Record graph (repo-wide adjacency derivation — record-graph 1.1)
 `buildGraph(rootDir)` (core/graph.ts) is ONE mechanical, read-side adjacency
 derivation over every `.sofar/initiatives/*/events.jsonl` in the repo. It
@@ -2270,24 +2336,23 @@ sofar_start_session.`
   is about to log without a fold, a get_state or a `sofar find`; digest-only
   like the read-back line, and rendered only once the record holds a
   decision or a memory (a fresh record's D1/M1 needs no line).
-  Decision index (r1-fixes 2.2, D11) — index-first, nothing rendered twice:
+  COMPOSITION (memory-lead 1.3, D4 — §Digest composition gives the order,
+  the budgets and the yield rules; what follows is the decision index inside
+  it). Decision index (r1-fixes 2.2, D11) — index-first, nothing rendered twice:
   `Recent decisions (<N> | last 5 of <N>; full text in decisions.md):` then
-  one line per decision in the last-5 window, `- [D<n>] <date> <chose ≤120>
-  — over <over ≤90>` — fields clipped SEPARATELY so the rejected alternative
+  one line per decision in the last-5 window, `- [D<n>] <date> <chose head
+  ≤90> — over <over head ≤70>` (heads per §Digest composition) — fields clipped SEPARATELY so the rejected alternative
   survives however long `chose` runs; `because` is on demand in decisions.md
   (the old 280-char `chose … over … — because` concatenation clipped inside
   `chose` on every real record, so the rationale it promised was already
   absent); a placeholder over (`(no alternative recorded)`) renders no over
-  clause. A decision whose rule rendered in Standing constraints above is
-  marked `(rule above)` with a 60-char chose — the rule IS its operative
+  clause. A decision whose rule rendered in Standing constraints below is
+  marked `(rule below)` with a 60-char chose head — the rule IS its operative
   content, and the index does not restate it. Then `Earlier rejected
-  approaches — do NOT re-propose (<K> older):` lists `- [D<n>] <over ≤90>`
+  approaches — do NOT re-propose (<K> older):` lists `- [D<n>] <over head ≤70>`
   for decisions OUTSIDE the window only (real alternatives only), so no
   `over` text appears twice and a record of ≤5 decisions has no ledger. The
-  ledger is the section that yields to the hard cap: its budget is the
-  smaller of 2,800 chars and what the 10,000-char limit leaves after a
-  400-char reserve for the protocol tail, so `Next ids`, the read-back line
-  and the footer render whenever everything above the ledger fits.
+  window and the ledger yield together (§Digest composition).
   Retirement (r1-fixes 3.2, D25): a decision a later
   one superseded, or scoped by `until` to a task that has resolved, leaves
   Standing constraints, the window and the ledger — the window is the last
@@ -2847,7 +2912,8 @@ dispatch, and every behaviour below holds for both hosts (§Cursor host).
   session; D6 forbids this on the per-prompt path and it is deliberately not
   placed there. Best-effort: any failure is silence.
   HARD LIMIT:
-  output ≤10,000 chars — projection generator must guarantee this.
+  output ≤6,000 chars (memory-lead D4; 10,000 before) — projection generator
+  must guarantee this, cutting before the protected end (§Digest composition).
 - UserPromptSubmit shim (felt-cost 4.1/4.2, D5) → the batch-complete nudge:
   when the prompt's session_id is registered AND sessionDebt(state, me) —
   THIS session's own unwritten mutations plus unattributed drift, the same
@@ -4113,7 +4179,7 @@ stay the underlying derivation's, and exit codes are styling-independent.
 - **Phase 2:** each tool call appends exactly its event and projections
   regenerate; invalid payloads rejected with typed errors; get_state resolves
   initiative from branch binding.
-- **Phase 3:** SessionStart output verified ≤10k chars on a large synthetic
+- **Phase 3:** SessionStart output verified ≤6k chars (10k before memory-lead D4) on a large synthetic
   initiative; Stop shim blocks a session lacking session_ended when
   gate-relevant drift is nonzero (drift-signal 1.2) and passes one that has
   written back; stop_hook_active loop guard verified; PostToolUse produces
@@ -5343,3 +5409,28 @@ stay the underlying derivation's, and exit codes are styling-independent.
   PROTOCOL_BLOCK_V8, the last SHIPPED_PROTOCOL_BLOCKS entry, and classifies
   as stale. A live Claude Code (2.1.274) `sofar mcp` child carries its
   parent session's CLAUDE_CODE_SESSION_ID (checked 2026-09-17).
+- **Digest composition (memory-lead 1.3):** renderStatus orders Goal before
+  the focus task before Next action before Last session before Phases before
+  Progress before Memory before Repo memory before Recent decisions before
+  Next ids before Adjacent records before `Session:` before `Git:` before the
+  notices before Standing constraints before Read-back before the footer; two
+  renders differing only in session id, sha and notices are identical up to
+  `Session:` and in their constraints block. The focus task renders its
+  title whole to 1,000 chars with its phase line and open siblings; an empty
+  record renders no Progress. A ruled decision in the window is marked
+  `(rule below)`; with no shared focus terms 40 rules rank newest first, so
+  D1 is the one dropped. On a 24-rule, 33-decision record with a 600-char
+  goal, 500-char next action and blocked line, repo memory at 1,500 and
+  780 chars of notices, the block is ≤6,000 chars with no truncation marker,
+  the ledger header and `…and N more (see decisions.md)` present, and the
+  read-back rendered; with every section at its worst the cut lands before
+  the protected end and the read-back still renders. On a record shaped like
+  round 1's S9 (synthetic text: a 400-char spec as the first task of a pending
+  phase with no active phase, eight 500-char memories, ten long rules of
+  which one names the task's terms): line 5 is `Next task: chat <spec>`
+  whole, the relevant memory is first at 280 chars and the rest are heads,
+  that rule leads the constraints with the rest newest first, window and
+  ledger lines stop at their first clause boundary, and the block is ≤6,000
+  chars. The SessionStart hook drops the `sofar init` stub preamble from
+  repo.md and omits a stub-only file; dropMemoryCopies removes only
+  top-level bullets naming a rendered `<slug> M<n>`.

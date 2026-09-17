@@ -6,6 +6,7 @@ import {
   type SessionActivity,
 } from '../../core/fold'
 import type { TestOutcome } from '../../core/adjacency'
+import { lexicalCounts } from '../../core/lexicon'
 import { renderRule } from '../../core/rule-fidelity'
 
 /**
@@ -117,8 +118,12 @@ export function standingConstraintLines(
   decisions: readonly DecisionState[],
   budget?: number,
   retire = true,
+  focus?: ReadonlySet<string>,
 ): string[] {
-  const standing = standingRules(decisions, retire)
+  // The digest passes a focus (memory-lead D4): most relevant first, so the
+  // budget drops the least relevant rules instead of the newest.
+  const inOrder = standingRules(decisions, retire)
+  const standing = focus === undefined ? inOrder : rankByRelevance(inOrder, focus, (d) => `${d.rule} ${d.quote ?? ''}`)
   if (standing.length === 0) return []
   // A quoted rule has a source that outranks its wording (memory-lead D2);
   // the header says so only when one exists, so quote-less records render
@@ -139,6 +144,23 @@ export function standingConstraintLines(
     lines.push(`- …and ${standing.length - shown} more (see decisions.md)`)
   }
   return lines
+}
+
+/**
+ * Stable relevance order (D4): distinct lexicon terms shared with the focus,
+ * most first; ties newest (highest ordinal) first — so with no focus the
+ * newest lead, and a budget drops the oldest rather than the newest.
+ */
+export function rankByRelevance<T extends { ordinal: number }>(items: readonly T[], focus: ReadonlySet<string>, text: (item: T) => string): T[] {
+  return items
+    .map((item) => ({ item, score: relevanceScore(text(item), focus) }))
+    .sort((a, b) => b.score - a.score || b.item.ordinal - a.item.ordinal)
+    .map((x) => x.item)
+}
+
+/** Distinct lexicon terms (core/lexicon stems) `text` shares with `focus`. */
+export function relevanceScore(text: string, focus: ReadonlySet<string>): number {
+  return Object.keys(lexicalCounts(text)).filter((t) => focus.has(t)).length
 }
 
 /** Join non-empty template sections into a document with a trailing newline. */

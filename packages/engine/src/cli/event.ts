@@ -342,8 +342,11 @@ function ensureLane(rootDir: string): boolean {
 function readRepoMemory(rootDir: string): string | null {
   try {
     const text = readFileSync(join(rootDir, '.sofar', 'repo.md'), 'utf8')
-    if (text.trim().length === 0 || text.trim() === REPO_MD_STUB.trim()) return null
-    return text
+    // The stub's preamble is init boilerplate, not memory (memory-lead D4):
+    // what the operator added after it is what the digest spends its budget on.
+    const body = text.startsWith(REPO_MD_STUB) ? text.slice(REPO_MD_STUB.length) : text
+    if (body.trim().length === 0) return null
+    return body
   } catch {
     return null
   }

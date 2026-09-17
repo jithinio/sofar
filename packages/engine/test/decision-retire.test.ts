@@ -164,7 +164,7 @@ describe('digest (renderStatus)', () => {
     expect(text).not.toContain('[D3]')
     expect(text).toContain('Recent decisions (3 in force, 3 retired; full text in decisions.md):')
     expect(text).toContain('[D5] ')
-    expect(text).toMatch(/- \[D6\] \d{4}-\d{2}-\d{2} \(rule above; supersedes D2\) never call a model, even locally/)
+    expect(text).toMatch(/- \[D6\] \d{4}-\d{2}-\d{2} \(rule below; supersedes D2\) never call a model, even locally/)
     expect(text).toContain('Next ids: D7 (decision)')
   })
   it('the window is the last 5 in force and the ledger holds only older in-force decisions', () => {
