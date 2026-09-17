@@ -1,6 +1,10 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { createInterface } from 'node:readline'
 import { randomUUID } from 'node:crypto'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createInterface } from 'node:readline'
+import { NUDGE_ENV, writeNudge, type NudgeDetail } from './nudge'
 import type { PermissionSurface } from './permissions'
 import type {
   Adapter,
@@ -26,9 +30,11 @@ import { launchEnv } from './adapter'
  * `codex exec --json` pointed at an unreachable provider so the run cost
  * nothing:
  *
- * - `{"type":"thread.started","thread_id":"01a050e6-…"}` — codex's OWN id, not
- *   the record's. Nothing marries them: codex runs no sofar hook, so unlike
- *   Claude Code this transport does not show a record session id.
+ * - `{"type":"thread.started","thread_id":"01a050e6-…"}` — codex's own id,
+ *   which its hooks send as `session_id` once sofar's Codex hooks are wired
+ *   and trusted (agents-parity 2.1, 3.1). The docs call that field the
+ *   "Current Codex session id"; that it equals this thread id is inferred, and
+ *   agents-parity 3.2 checks it live.
  * - `{"type":"turn.started"}` / `{"type":"turn.completed","usage":{…}}` /
  *   `{"type":"turn.failed","error":{"message":…}}`
  * - `{"type":"error","message":"…"}` — a turn-level failure, kept for the exit
@@ -45,26 +51,36 @@ import { launchEnv } from './adapter'
  * so the parse is tolerant: an unrecognised shape yields no usage rather than
  * a wrong number.
  *
- * Four things it cannot do, declared rather than worked around:
+ * Three things it cannot do, declared rather than worked around:
  *
  * 1. NO LIVE GAUGE. Usage arrives with `turn.completed`, which is to say after
- *    the session has ended. A gauge that only reads after the fact is not a
- *    gauge, so `capabilities.usage` is false and `policyUnavailable` refuses
- *    the threshold policy here. The final numbers still ride `SessionExit`.
- * 2. NO NUDGE. There is no channel into a running `codex exec` — stdin is
- *    closed at spawn and no sofar hook is wired into codex.
- * 3. NO PERMISSION RULES. Codex speaks a sandbox enum and an approval policy,
+ *    the session has ended, and no hook payload carries a token count. A gauge
+ *    that only reads after the fact is not a gauge, so `capabilities.usage` is
+ *    false and `policyUnavailable` refuses the threshold policy here. The
+ *    final numbers still ride `SessionExit`.
+ * 2. NO PERMISSION RULES. Codex speaks a sandbox enum and an approval policy,
  *    not per-tool allow/deny. The surface's MODE maps; its rules do not, and
  *    `capabilities.permission_rules` is false so the driver says so.
- * 4. NO COST. Nothing in the transport reports money, so `--cost-cap` is inert
+ * 3. NO COST. Nothing in the transport reports money, so `--cost-cap` is inert
  *    and the driver says that too.
  *
- * And one thing it does differently: the session id is ASSIGNED, not observed.
- * The adapter mints it, writes it into the pin line, and reports it on exit —
- * but it is still only an id, and `resolveLaunchedSession` believes it solely
- * because the record registered it (D3). A session that ignored the
- * instruction falls through to the tool-and-time diff, which is the path
- * Claude Code's hook-supplied id never exercises.
+ * What sofar's Codex hooks now give it (agents-parity 3.1; agents-parity D9
+ * revises session-driver D9):
+ *
+ * - A NUDGE. Claude Code's channel, unchanged: `SOFAR_DRIVE_NUDGE` names a
+ *   file in the child's env, `nudge()` creates it, and Codex's PostToolUse
+ *   shim returns the nudge as `hookSpecificOutput.additionalContext`. It needs
+ *   the hooks to run, as Claude Code's does, and it needs Codex to hand its
+ *   env to hook commands, which is unverified (3.2).
+ * - SESSION IDENTITY FROM THE HOOK. The exit reports the thread id as
+ *   `session_id`: the id the hooks registered, the way Claude Code's init line
+ *   shows the id its SessionStart hook handed the record. The adapter cannot
+ *   know at launch whether Codex trusts this project's hooks, so it still
+ *   mints an id for a session whose hooks never run, puts it in the pin line
+ *   as the fallback, and reports it as `assigned_session_id`. The pin line
+ *   says to use ONE of them. `resolveLaunchedSession` believes either only
+ *   because the record registered it (D3), so a parallel codex session never
+ *   turns a launch into an ambiguity.
  */
 
 export interface CodexOptions {
@@ -78,7 +94,7 @@ export interface CodexOptions {
 
 export const CODEX_CAPABILITIES: AdapterCapabilities = {
   usage: false,
-  nudge: false,
+  nudge: true,
   model: true,
   effort: true,
   permission_rules: false,
@@ -124,24 +140,43 @@ export function codexPermissionArgs(surface: PermissionSurface): string[] {
 
 /**
  * The preamble a driven codex session opens with. It does two jobs Claude
- * Code's `pinLine` does not have to: it hands over the session id (codex has
- * no hook to inject one, so the driver assigns it), and it translates the
- * protocol into the CLI dialect, because codex carries no sofar MCP server.
+ * Code's `pinLine` does not have to, both because the driver cannot know at
+ * launch whether Codex trusts this project's hooks and MCP server.
+ *
+ * It settles the session id: the injected Session line's when sofar's hook ran
+ * (the id the hooks already record under), the driver's assigned one only when
+ * none arrived. Never both — one launch writing under two ids is the split
+ * r1-fixes D30 removed for Cursor. The CLI commands therefore spell `<id>`,
+ * never the assigned id, which a hooked session would otherwise copy.
+ *
+ * And it spells the protocol twice: sofar's MCP tools for a session that has
+ * them (agents-parity 2.2), the CLI dialect for one that does not.
  *
  * `tool` is stated exactly, and it is load-bearing: `resolveLaunchedSession`
  * matches candidate sessions on the adapter's name, so a session registered
  * under any other tool is invisible to the driver that launched it.
  */
 export function codexPinLine(initiative: string, sessionId: string, sofarBin = 'sofar'): string {
-  const append = `${sofarBin} event append ${initiative} --session ${sessionId} --source codex --type`
+  const append = `${sofarBin} event append ${initiative} --session <id> --source codex --type`
   return [
     `This session is driven by sofar and serves the initiative \`${initiative}\`.`,
-    `Your session id is ${sessionId} — use it on every sofar call, unchanged.`,
     '',
-    'You have no sofar MCP tools. Use the `sofar` CLI instead, from the repo root.',
-    'Before anything else, register this session:',
+    'Your session id: if sofar\'s hook injected a "Session: <id>" line into your',
+    'context, that id is yours, and the hooks already record your work under it.',
+    'Only if no Session line arrived (Codex has not trusted this project\'s hooks),',
+    `use the id the driver assigned: ${sessionId}`,
+    'Use that one id on every sofar call, unchanged. Never use both.',
+    '',
+    `If you have sofar MCP tools, call sofar_start_session with initiative "${initiative}",`,
+    'tool "codex" and your session id before anything else. If no record was',
+    'injected, read it with sofar_get_state. Log decisions (sofar_log_decision) and',
+    'task status (sofar_update_task) as they happen, and write back LAST, before you',
+    'commit, with one sofar_end_session.',
+    '',
+    'If you have no sofar MCP tools, use the `sofar` CLI from the repo root, with your',
+    'session id in place of <id>. Before anything else, register this session:',
     `  ${append} session_started --payload '{"tool":"codex"}'`,
-    'Read the record you are serving with:',
+    'If no record was injected, read the record you are serving with:',
     `  ${sofarBin} status ${initiative}`,
     'Log a decision, and set the task status, as they happen — note the task',
     'key is `id`, not `task_id`:',
@@ -197,9 +232,12 @@ const STDERR_TAIL = 4096
 const STDOUT_DRAIN_GRACE_MS = 2_000
 
 export class CodexSession implements AgentSession {
-  /** The session id the driver ASSIGNED and the prompt asked for — never one codex reported. */
-  readonly sessionId: string
-  /** Codex's own thread id, from `thread.started`. Diagnostics only: the record never sees it. */
+  /** The fallback id the driver ASSIGNED, for a session whose hooks never ran. */
+  readonly assignedSessionId: string
+  /**
+   * Codex's own id, from `thread.started` — the id its hooks register the
+   * session under, and reported on exit as the shown session id.
+   */
   threadId: string | undefined
   /** Last STDERR_TAIL chars of stderr — codex writes its tracing there, and it is what to show on a bad exit. */
   stderrTail = ''
@@ -207,6 +245,10 @@ export class CodexSession implements AgentSession {
   failure: string | undefined
   /** Set when the binary could not be spawned at all. */
   spawnError: string | undefined
+  /** Where `nudge()` writes; the child's hooks read it through `SOFAR_DRIVE_NUDGE`. */
+  readonly nudgePath: string
+  /** The session's own temp dir, holding the nudge file; removed once the child is gone. */
+  readonly sessionDir: string
 
   /**
    * Usage from `turn.completed`. NOT returned by `usage()`: it exists only
@@ -218,16 +260,22 @@ export class CodexSession implements AgentSession {
   private readonly child: ChildProcess
 
   constructor(request: LaunchRequest, options: CodexOptions) {
-    this.sessionId = randomUUID()
+    this.assignedSessionId = randomUUID()
+    // Built before the temp dir: an unmappable mode throws here, and must not
+    // leave a dir behind for a launch that never happened.
+    const args = codexArgs(request, this.assignedSessionId, options)
     // Never the calling agent's session identity (in-session-drive D3).
     const env = launchEnv(request.env)
+    this.sessionDir = mkdtempSync(join(env.TMPDIR ?? tmpdir(), 'sofar-drive-'))
+    this.nudgePath = join(this.sessionDir, 'nudge')
+    env[NUDGE_ENV] = this.nudgePath
 
     // stdin is closed at once, verified: with it piped, codex prints "Reading
     // additional input from stdin" and waits, even when a prompt was given on
     // the command line. Detached for the same reason as the Claude adapter —
     // codex spawns MCP servers and hook shims that would outlive it holding
     // the stdout pipe open.
-    this.child = spawn(options.bin ?? 'codex', codexArgs(request, this.sessionId, options), {
+    this.child = spawn(options.bin ?? 'codex', args, {
       cwd: request.cwd,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -246,12 +294,20 @@ export class CodexSession implements AgentSession {
       const settle = (code: number | null, signal: NodeJS.Signals | null): void => {
         if (settled) return
         settled = true
+        // The child is gone, so the nudge has no reader left (the Claude Code
+        // adapter's reasoning, and its rule: cleanup never costs the exit).
+        try {
+          rmSync(this.sessionDir, { recursive: true, force: true })
+        } catch {
+          // Left behind; the run is unaffected.
+        }
         resolve({
           code,
           ...(signal !== null ? { signal } : {}),
-          // Assigned, not observed — and the driver still refuses to believe it
-          // unless the record registered it (D3).
-          session_id: this.sessionId,
+          // Both are only ids: the driver believes either solely because the
+          // record registered it (D3).
+          ...(this.threadId !== undefined ? { session_id: this.threadId } : {}),
+          assigned_session_id: this.assignedSessionId,
           ...(this.finalUsage !== undefined ? { usage: this.finalUsage } : {}),
           ...(this.stderrTail.trim() !== '' ? { stderr_tail: this.stderrTail } : {}),
           ...(this.spawnError !== undefined ? { spawn_error: this.spawnError } : {}),
@@ -320,6 +376,10 @@ export class CodexSession implements AgentSession {
    */
   usage(): Usage | undefined {
     return undefined
+  }
+
+  nudge(detail: NudgeDetail = {}): void {
+    writeNudge(this.nudgePath, detail)
   }
 
   /** Signal the whole process group; fall back to the child alone where groups are unavailable. */

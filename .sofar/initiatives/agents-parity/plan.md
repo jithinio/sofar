@@ -4,7 +4,7 @@
 
 Goal: Make sofar fully compatible with Codex, the way Phase 6 of r1-fixes did for Cursor: capture Codex's hook, MCP, AGENTS.md and exec contracts from the installed binaries and docs, then native hooks, MCP registration, the write-back gate, protocol text and a revised drive adapter, proven live with the operator's consent. Carries r1-fixes tasks 7.2–7.7 (r1-fixes D35). Built on branch agents-parity and merged into r1-fixes only after tag v0.33.0-rc.2 (bench-refresh 01M2Q79R).
 
-Progress: 4/6 tasks done (66%)
+Progress: 5/6 tasks done (83%)
 
 ## Phase 1 — Codex contract [done] — 1/1 done
 
@@ -16,10 +16,10 @@ Progress: 4/6 tasks done (66%)
 - [x] 2.2 (r1-fixes 7.4) Codex MCP: init registers the sofar server where Codex reads project MCP config, or states the one user-level step when it cannot; uninit and doctor mirror it, and the agent map counts it. PREDICT: sofar MCP calls in Codex sofar cells 0 → ≥1 per session; invalid `--payload` JSON errors → 0.
 - [x] 2.3 (r1-fixes 7.5) Codex write-back gate and protocol text: the Stop hook holds a Codex session that owes a write-back, loop-capped; the AGENTS.md block tells an agent that has sofar hooks and MCP tools to follow the MCP loop, consistent with r1-fixes 6.7's reconciliation of the CLAUDE.md and AGENTS.md blocks. New block text moves the old one into the shipped ledger (init.ts). PREDICT: Codex sessions ending with record debt and no session_ended → 0.
 
-## Phase 3 — Codex drive and proof [pending] — 0/2 done
+## Phase 3 — Codex drive and proof [pending] — 1/2 done
 
-- [ ] 3.1 (r1-fixes 7.6) Codex drive adapter: revise the session-driver D9 capability declarations for what hooks now give a driven Codex session (session identity from the hook, nudge channel), keeping every inert option stated; prove it with the fake-transport tests, not live runs (D3). PREDICT: codex-drive stalls from unknown session identity → 0.
+- [x] 3.1 (r1-fixes 7.6) Codex drive adapter: revise the session-driver D9 capability declarations for what hooks now give a driven Codex session (session identity from the hook, nudge channel), keeping every inert option stated; prove it with the fake-transport tests, not live runs (D3). PREDICT: codex-drive stalls from unknown session identity → 0.
 - [ ] 3.2 (r1-fixes 7.7) Proof: a live Codex end-to-end on a scratch repo (init with the picker → oriented session → MCP writes → write-back gate → drive run), plus SPEC updates (§Host tiers moves Codex out of Tier 3, §Hooks, §CLI, §Driver) and acceptance criteria. NEEDS THE OPERATOR'S CONSENT for the Codex usage it spends (D3): a driven session writes the SPEC and acceptance text it can, then marks this task blocked with the exact live steps as the ask, and never runs live Codex inference itself.
 
 Active phase: Phase 2 — Codex integration
-Next action: Build 3.1 Codex drive adapter (see the 2.3 handoff note).
+Next action: Do 3.2: write the SPEC/acceptance text, then block on the live Codex steps (see 3.1 note).

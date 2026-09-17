@@ -35,8 +35,9 @@ export interface AdapterCapabilities {
   usage: boolean
   /**
    * The adapter can tell a RUNNING session to finish the current task, write
-   * back and end its turn — the threshold nudge. Claude Code delivers it as
-   * hook additionalContext; an agent with no such channel cannot be packed.
+   * back and end its turn — the threshold nudge. Claude Code and codex deliver
+   * it as PostToolUse hook additionalContext; an agent with no such channel
+   * cannot be packed.
    */
   nudge: boolean
   /** `launch()` honours a `model` hint (per-task routing, 3.2). */
@@ -197,6 +198,12 @@ export interface SessionExit {
    * diffing the fold — see `resolveLaunchedSession`.
    */
   session_id?: string
+  /**
+   * An id the adapter handed the session to use when its hooks cannot supply
+   * one (codex, agents-parity 3.1). Tried after `session_id`, and believed
+   * under the same rule: only when the record registered it.
+   */
+  assigned_session_id?: string
   /** The last usage the adapter saw, when it saw any. */
   usage?: Usage
   /**
@@ -263,7 +270,12 @@ export type LaunchedSession =
 
 /**
  * Which record session a launch became. The adapter's word is taken when the
- * transport showed an id AND the record registered it; otherwise the
+ * transport showed an id AND the record registered it. An adapter may hold a
+ * second id it assigned (`assigned_session_id`), tried after the shown one.
+ * Both are provably this launch's, so when the record registered both — a
+ * session whose hooks recorded under one id while it wrote under the other —
+ * the one that wrote back is taken, else the shown one; choosing between the
+ * launch's own ids files nothing on someone else's work. Otherwise the
  * candidates are the sessions registered at or after the launch, by an agent
  * of the adapter's name, that the caller had not already seen. One candidate
  * is the answer. Several is parallel work the driver did not start, and it
@@ -285,10 +297,11 @@ export function resolveLaunchedSession(
   tool: string,
   known: ReadonlySet<string> = new Set(),
 ): LaunchedSession {
-  if (exit.session_id !== undefined) {
-    const named = state.sessions.find((s) => s.id === exit.session_id)
-    if (named !== undefined) return { kind: 'found', session: named }
-  }
+  const named = [exit.session_id, exit.assigned_session_id]
+    .map((id) => (id === undefined ? undefined : state.sessions.find((s) => s.id === id)))
+    .filter((s): s is SessionState => s !== undefined)
+  const own = named.find((s) => wroteBack(state, s.id)) ?? named[0]
+  if (own !== undefined) return { kind: 'found', session: own }
   const candidates = state.sessions.filter(
     (s) => s.tool === tool && s.started >= launchedAt && !known.has(s.id),
   )

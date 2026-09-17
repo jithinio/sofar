@@ -1318,11 +1318,11 @@ from stdin" and waits, even with a prompt on the command line.
 It is the second adapter, and it proves the contract by fitting BADLY. An
 adapter written from the agent the contract was designed around shows only
 that the contract describes that agent; codex disagrees on every axis, and
-`sofar drive` runs against it unchanged anyway. Four capabilities are false.
-Usage arrives with `turn.completed`, i.e. after the session has ended, so
-`usage()` returns undefined forever and the threshold policy is refused —
-the final numbers ride `SessionExit` instead, where a post-mortem cannot be
-mistaken for a gauge. There is no channel into a running exec, so no nudge.
+`sofar drive` runs against it unchanged anyway. Three capabilities are false.
+Usage arrives with `turn.completed`, i.e. after the session has ended, and no
+hook payload carries a token count, so `usage()` returns undefined forever
+and the threshold policy is refused — the final numbers ride `SessionExit`
+instead, where a post-mortem cannot be mistaken for a gauge.
 Codex's permission vocabulary is a sandbox enum, not rules: the surface's
 MODE maps (`acceptEdits`/`default`/`dontAsk` → `workspace-write`,
 `bypassPermissions` → `danger-full-access`, `plan` → `read-only`, always with
@@ -1330,16 +1330,45 @@ MODE maps (`acceptEdits`/`default`/`dontAsk` → `workspace-write`,
 approval prompt), its rules do not, and a mode with no codex meaning throws
 instead of launching under one nobody chose. Nothing reports cost.
 
-Two things it does differently. The session id is ASSIGNED, not observed: the
-adapter mints it and writes it into the pin line, because codex runs no sofar
-hook to inject one — and `resolveLaunchedSession` still believes it only
-because the record registered it (D3), so a session that ignored the
-instruction falls through to the tool-and-time diff. And codex carries no
-sofar MCP server, so the pin line hands over the CLI dialect
-(`sofar event append <slug> --session <id> --source codex --type …`) with the
-payload keys spelled out, `task_status_changed` above all: the key is `id`,
-not `task_id`, and a session told otherwise stalls silently having done the
-work.
+**What Codex's hooks give it (agents-parity 3.1; agents-parity D9 revises
+session-driver D9).** Once `sofar init --agents codex` has wired the hooks
+and the MCP server (§Codex host) and Codex trusts them, a driven session is
+no longer reachable only through its prompt.
+- Nudge: `capabilities.nudge` is true, by Claude Code's channel. The child
+  gets `SOFAR_DRIVE_NUDGE`, `nudge()` creates that file, and Codex's
+  PostToolUse shim returns the nudge line as
+  `hookSpecificOutput.additionalContext`, which Codex's output schema
+  accepts. The threshold policy is still refused, now naming only the
+  missing gauge.
+- Session identity from the hook: the exit's `session_id` is
+  `thread.started.thread_id`, the id Codex's hooks register the session
+  under. Codex's docs call the hook field the "Current Codex session id";
+  that it equals the exec thread id is inferred.
+- A fallback id: the adapter cannot know at launch whether Codex trusts the
+  hooks, so it still mints an id, puts it in the pin line as the fallback,
+  and reports it as `assigned_session_id`. `resolveLaunchedSession` tries
+  the shown id, then the assigned one, and believes either only because the
+  record registered it (D3). When both are registered it takes the one that
+  wrote back, else the shown one. Both are provably this launch's, so a
+  parallel codex session never turns a launch into an ambiguity.
+- One id, never both. The pin line says to use the injected Session line's
+  id, and the assigned id only when no Session line arrived. Its commands
+  spell `<id>`, never the assigned id, which a hooked session would copy: one
+  launch writing under two ids is the split r1-fixes D30 removed for Cursor.
+- Both dialects. The pin line spells sofar's MCP loop (`sofar_start_session`
+  with tool `"codex"`) for a session that has the tools, and the CLI dialect
+  (`sofar event append <slug> --session <id> --source codex --type …`) for
+  one that does not. The payload keys are spelled out, `task_status_changed`
+  above all: the key is `id`, not `task_id`, and a session told otherwise
+  stalls silently having done the work.
+- Stated, not worked around. The adapter never passes
+  `--dangerously-bypass-hook-trust`, which skips the operator's review of
+  every enabled hook; an operator who wants it passes it through
+  `--agent-args`. A session whose hooks do not run gets no injected record,
+  no nudge and no write-back gate, and resolves by its assigned id. Whether
+  Codex hands its environment to hook commands, and whether the thread id
+  equals the hooks' `session_id`, are unverified. agents-parity 3.2 checks
+  both live.
 
 **The loop (2.2).** Fold → next task → launch → wait → handoff, repeat. The
 next task is the one already `active` in the active phase, else its first
@@ -1697,8 +1726,9 @@ without running inference (agents-parity D3) from three sources: codex-cli
 0.154.0's binary (`--help` and `strings`), codex-cli 0.136.0's `--help`, and the
 Codex hooks docs saved 2026-09-16. Hooks are wired since agents-parity 2.1
 (the "Wired" paragraph below), the MCP server since 2.2 (after the
-**MCP** paragraph), and the write-back gate and protocol text since 2.3 (after
-the **AGENTS.md** paragraph). Codex stays in Tier 3 (§Host tiers) until 3.2
+**MCP** paragraph), the write-back gate and protocol text since 2.3 (after
+the **AGENTS.md** paragraph), and the revised drive adapter since 3.1 (the
+**Driven** paragraph, last). Codex stays in Tier 3 (§Host tiers) until 3.2
 proves them live. Each fact is marked (binary), (docs) or
 (unverified). The data is `packages/engine/test/fixtures/codex/`, whose README
 marks each field, and `codex-contract.test.ts` checks that the fixtures agree.
@@ -1879,7 +1909,8 @@ Limits stated, not worked around:
   merged by Codex with a startup warning. init writes JSON only.
 - `sofar` is found on whatever PATH Codex gives its hooks, which is unverified,
   so the r1-fixes M6 caution applies.
-- Whether `codex exec` loads trusted project hooks is 3.1's question.
+- Whether `codex exec` loads trusted project hooks is unverified. The drive
+  adapter works either way (the **Driven** paragraph below).
 - The apply_patch grammar beyond the header markers is unverified.
 
 **MCP.** Servers are `[mcp_servers.<name>]` tables in `config.toml` (binary), and
@@ -1977,8 +2008,10 @@ Stop handler every host runs (§Hooks), with no Codex branch.
   Stop hook can reject Codex's memory-consolidation subagent (binary: "Memory
   consolidation was rejected by a Stop hook."). The gate holds only a session
   the record registered that owes a write-back, and whether a project's hooks
-  run for that thread is unverified. Whether `codex exec` fires Stop is 3.1's
-  question.
+  run for that thread is unverified. Whether `codex exec` fires Stop is still
+  unverified. A driven session does not depend on it, because the driver
+  judges the write-back from the fold (session-driver D3). 3.2 checks it
+  live.
 - Tests (`codex-host.test.ts`, D4): the contract fixture's `stop_hook_active`
   and `stop_runtime` sections.
 
@@ -1995,11 +2028,42 @@ Every flag the adapter passes (`--json`, `--skip-git-repo-check`, `-m`, `-s`,
 `never`, and `approval_policy` is still a config key.
 
 Hooks apply to exec. A driven session in a project whose hooks are untrusted runs
-none of them unless it is launched with `--dangerously-bypass-hook-trust`. That
-is a 3.1 question, as is whether exec trusts the project layer at all
-(unverified). The binary also computes a `non_cached_input`, which suggests
-`input_tokens` already counts cached tokens. The adapter adds the two, so its
-context figure may double-count (unverified).
+none of them unless it is launched with `--dangerously-bypass-hook-trust`.
+Whether exec trusts the project layer at all is unverified. The binary also
+computes a `non_cached_input`, which suggests `input_tokens` already counts
+cached tokens. The adapter adds the two, so its context figure may
+double-count (unverified).
+
+**Driven (agents-parity 3.1, D9).** The drive adapter now works whether or
+not Codex runs the project's hooks. The adapter cannot tell which at launch,
+because trust is per hook hash and the file holding it is unverified.
+- Hooks run. The session takes its id from the injected Session line and
+  writes through the MCP tools, or through the CLI with that id. The exit
+  shows the `thread.started` id, the one the hooks registered. The
+  PostToolUse shim carries the driver's nudge, and the Stop gate holds the
+  same session it registered.
+- Hooks do not run. The session uses the id the adapter assigned in the pin
+  line, and the exit reports that id as `assigned_session_id`.
+- Either way, `resolveLaunchedSession` resolves the launch exactly, beside a
+  parallel codex session in the same record (§Driver).
+- The adapter never passes `--dangerously-bypass-hook-trust`. An operator
+  who wants it passes it through `--agent-args`.
+- Unverified, for 3.2 live:
+  - that the hooks' `session_id` equals exec's `thread_id` (docs: "Current
+    Codex session id")
+  - that Codex hands its environment, and so `SOFAR_DRIVE_NUDGE`, to hook
+    commands. The docs name only the variables Codex adds for plugin hooks.
+  - whether exec fires Stop
+  - whether exec loads the project's hooks and MCP server
+- Tests (`adapter-codex.test.ts`, D4). A stub `codex` fires the real
+  `.codex/hooks.json` commands through the built CLI, with the 0.154.0
+  payload fixtures and its thread id, then follows the pin line.
+  - Hooks run, beside a parallel codex session: `sofar drive` hands off
+    `task_done` on the thread id. Every file_touched sits on that session.
+    Stop holds it before the write-back and releases it after.
+  - Hooks untrusted: the handoff names the assigned id.
+  - Nudge: the nudge line reaches the PostToolUse output, valid against
+    Codex's schema.
 
 ## Derived index (record-index — local, incremental, never truth)
 Every cross-record question — which initiatives hold open sessions, who else
@@ -5402,7 +5466,8 @@ stay the underlying derivation's, and exit codes are styling-independent.
   nudge, naming the missing half. `wroteBack` is false while a session runs,
   true once its session_ended is in the log, and false for an exit-0 session
   that never wrote back. `resolveLaunchedSession` takes a transport-shown id
-  the record registered, otherwise diffs the fold by tool and launch time,
+  the record registered, then an adapter-assigned one (agents-parity 3.1),
+  otherwise diffs the fold by tool and launch time,
   ignores sessions registered before the launch or by other tools, reports
   none when nothing registered, and REFUSES to choose between two
   candidates. A scripted fake adapter drives all of it.
@@ -5468,25 +5533,40 @@ stay the underlying derivation's, and exit codes are styling-independent.
   digest line does not.
 - **Codex adapter (session-driver 3.1):** tested against a stubbed `codex`,
   never the real one, replaying line shapes captured from codex-cli 0.136.0.
-  It declares `usage`, `nudge`, `permission_rules` and `cost` all false;
-  `policyUnavailable` refuses the threshold policy naming both missing halves,
-  and `inertOptions` says the allow/deny rules do not reach it and that
-  `--cost-cap` can never fire — and says nothing when nothing is inert. Each
+  It declares `usage`, `permission_rules` and `cost` false and `nudge` true
+  (agents-parity 3.1); `policyUnavailable` refuses the threshold policy
+  naming only the missing gauge, and `inertOptions` says the allow/deny rules
+  do not reach it and that `--cost-cap` can never fire — and says nothing
+  when nothing is inert. Each
   permission mode maps to a sandbox with `approval_policy="never"`, an
   unmappable mode throws instead of launching, and the argv carries the mode
   but not the rules. The argv asks for `--json`, skips the git check, routes
   `-m` and `model_reasoning_effort`, and puts the prompt LAST. The pin line
-  hands over the assigned session id, the CLI dialect, and `{"tool":"codex"}`.
-  `thread_id` is kept for diagnostics and never reported as the record session
-  id; the exit carries the ASSIGNED id, the final usage from `turn.completed`
+  settles ONE id — the injected Session line's, the assigned id only when none
+  arrived, which appears once and never inside a command — spells the MCP
+  loop and the CLI dialect with `<id>`, and states `{"tool":"codex"}`. The
+  exit shows `thread_id` as `session_id` and the assigned id as
+  `assigned_session_id` (the assigned id alone when no `thread.started`
+  arrived), the final usage from `turn.completed`
   while `usage()` stays undefined throughout, the stderr tail on a bad exit,
-  127 for a missing binary, and skips an unparseable or unknown line. And the
-  PROOF: `sofar drive` runs unchanged against it — a stub that reads its
-  session id and task id out of the prompt and writes the record with the CLI
-  dialect produces a `task_done` handoff naming the session codex registered,
+  127 for a missing binary, and skips an unparseable or unknown line. The
+  child's env names a nudge file that `nudge()` creates, and the session's
+  temp dir is gone after exit. `resolveLaunchedSession` answers a launch
+  exactly by either id beside a parallel codex session the diff alone finds
+  ambiguous, and takes the id that wrote back when both registered. And the
+  PROOF: `sofar drive` runs unchanged against it — a stub whose hooks never
+  ran reads its assigned id and task id out of the prompt and writes the
+  record with the CLI dialect, producing a `task_done` handoff naming the
+  session codex registered,
   a clean fold with no warnings, tokens from `turn.completed`, and a run that
   ends `closed`; the same stub marking the task `blocked` produces
-  `needs_user` and stops the run.
+  `needs_user` and stops the run. With the hooks in play (agents-parity 3.1),
+  a stub `codex` firing the real `.codex/hooks.json` commands through the
+  built CLI hands off `task_done` on the thread id beside a parallel codex
+  session, with every file_touched on that one session and Stop holding it
+  before the write-back and releasing it after. With hooks untrusted it hands
+  off on the assigned id, and a nudge reaches the PostToolUse output valid
+  against Codex's schema.
 - **Per-task routing (session-driver 3.2):** a plan task carries
   `route {agent?, model?, effort?}` — validated strictly (a non-object route,
   or an empty agent/model/effort, rejects the payload), folded onto the task,
