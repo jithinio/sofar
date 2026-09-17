@@ -68,7 +68,7 @@ CLI reports the error:
 | `event session-end [--root D]` | handleSessionEnd |
 | `statusline [--root D] [--no-color] [--color]` | runStatusline |
 | `fold --events F [--take N] [--snapshot S --since N] [--write-snapshot W]` | runFold (hidden conformance shape — the incremental fold under SPEC §Library surface (library-surface, L1/L2 — added for sofar-cloud + D11); owned by `sofar-core` directly under rust-core D15, never routed by the shim) |
-| `status [slug] [--root D] [--no-color] [--color]` | runStatus, PLAIN only (rust-core D14, 2.4): `sofar-core` owns this shape and applies the stdout colour ladder of `cli/ui/caps.ts` itself — `NO_COLOR` > `--no-color` > `FORCE_COLOR` > `--color` > (TTY and `TERM` ≠ dumb); a render that would be styled exits 64 for the TypeScript CLI. `--watch`, a second positional or any other option is commander's (exit 64). The stderr update notice (`withUpdateNotice`) is rendered from the cache with the stderr caps ladder (rust-core 3.1: `status_cli::with_update_notice`); the refresh claim is the stub's. |
+| `status [slug] [--root D] [--no-color] [--color]` | runStatus, PLAIN only (rust-core D14, 2.4); an UNBOUND branch with no slug (r1-fixes L10, D28: the orientation line, the most recently active initiative and the listing at exit 0) is the TypeScript CLI's — the core exits 64 for it and the stub falls back (rust-core D31, memory-lead 1.4): `sofar-core` owns this shape and applies the stdout colour ladder of `cli/ui/caps.ts` itself — `NO_COLOR` > `--no-color` > `FORCE_COLOR` > `--color` > (TTY and `TERM` ≠ dumb); a render that would be styled exits 64 for the TypeScript CLI. `--watch`, a second positional or any other option is commander's (exit 64). The stderr update notice (`withUpdateNotice`) is rendered from the cache with the stderr caps ladder (rust-core 3.1: `status_cli::with_update_notice`); the refresh claim is the stub's. |
 
 `event append …` is full-CLI only (commander: `--type` and `--payload`
 required; `--session` default `cli`; `--source` default `cli`; `--actor`
@@ -97,6 +97,22 @@ conformance` — every case, no tag skipped.
 The templates and both status renders are proved on every fixture initiative
 by the render-parity goldens (`packages/engine/test/conformance/render-parity`,
 rust-core 2.4): in-process on each side, options embedded per golden.
+
+Every hook handler is served through the host dialect (r1-fixes 6.3–6.6,
+D34; `cli/host.ts`, `host.rs`): a payload carrying a string `cursor_version`
+is converted on the way in (`conversation_id` → `session_id`, `Shell` →
+`Bash`, `error_message` → `error`, `tool_output` → `tool_response.stdout`,
+`loop_count` → `stop_hook_active`) and the result on the way out (context as
+`{"additional_context": …}`, the Stop gate's exit 2 as exit 0 with
+`{"followup_message": …}`, per-prompt and per-tool context clipped to 10,000
+units with `…`); a Claude Code payload passes through untouched. The host's
+tool (`claude-code` / `cursor`) is what session registration and the
+diagnostics rows record. Every hook also maintains the per-worktree
+live-session pointer `.sofar/.index/session.json` = `{session, writer, ts}`
+(r1-fixes L09, D29/D30; `session_pointer.rs`): session-start, post-tool,
+post-tool-failure and user-prompt write `{writer: "hook"}` when the id changed
+(never for `cli`), session-end removes it only when it still names that
+session; `event append` without `--session` joins it (TypeScript only).
 
 ## Hook input (all six `event` subcommands)
 
@@ -508,6 +524,17 @@ session}.ts` — short, port verbatim.
 
 ## Status block (`renderStatus`) and full status
 
+Since the wave-a merge (rust-core 17817db, memory-lead 1.4) the digest is
+memory-lead D4's composition — docs/SPEC.md §Digest composition is the byte
+contract (the next task's spec first; memory, repo memory, the decision index
+and the last session yielding to the 6,000-unit cap in that precedence; the
+standing constraints last, ranked by relevance to the focus with the
+operator's quote beside a rule, memory-lead D2; minutiae heads on decision
+fields) with D3's host-neutral line `Session: <id> — adopted on Claude Code;
+else pass to sofar_start_session.`; `status.rs` mirrors it and the
+render-parity goldens (94, re-recorded at 17817db) prove it. The paragraphs
+below describe the section grammar the composition reuses.
+
 `renderStatus(state, opts)` is the SessionStart injection and the
 `get_state` digest; byte-stable for an unchanged record
 (SPEC §Architectural invariants). Section order: `# Sofar status: <slug>` · `Session: <id> —
@@ -605,6 +632,7 @@ message file (commit-trailer).
 | `XDG_STATE_HOME` | update cache path |
 | `SOFAR_NO_UPDATE_CHECK`, `CI`, `VITEST`, `NODE_ENV=test` | suppress the update refresh spawn |
 | `SOFAR_CORE` | boot stub (rust-core 3.1): path of the native core; `0`/empty = TypeScript; unset = the platform package |
+| `SOFAR_RETIRE` | `off`/`0`/`false` renders every decision as if none were retired (r1-fixes D25) |
 | `SOFAR_CORE_DISPATCHED` | set by the stub for the core it spawns: exit-64 diagnostics stay silent |
 | `CLAUDE_CODE_SESSION_ID` | commit-trailer only |
 | `GIT_CONFIG_*`, git's own env | inherited by the `git config user.email` spawn |

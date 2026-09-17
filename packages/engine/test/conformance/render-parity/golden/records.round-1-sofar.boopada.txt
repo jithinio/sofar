@@ -56,7 +56,7 @@
     ]
   }
 }
-== status (13175 bytes) ==
+== status (13174 bytes) ==
 # boopada
 
 Goal: Boopada trip planner (apps/web Next.js + @workspace/providers fixtures, SQLite, bun monorepo): profile → bucket list → trips → itinerary editing/view → location to-dos → suggestions & transport costs → curation advisor → chat command box. One roadmap piece per session.
@@ -131,7 +131,7 @@ Phases:
 Next action: Ask the operator to review and commit the uncommitted phase-10 changes (git status in the repo root). Then ask how the demo went and what to do next: close the initiative with sofar_close_initiative, or pick from the open contract questions in the latest decision log — reject activities that run past midnight or appear twice on a day, un-plan a bucket item when its trip is deleted, scope undo to a trip, or add a chat command to add a day.
 
 ⚠ Staleness:
-- last write-back summary exceeds the SessionStart budget (1200 chars) and is clipped there — full text in sessions/300a0377-164d-4966-a268-03034d8d54c6.md
+- last write-back summary exceeds the SessionStart budget (450 chars) and is clipped there — full text in sessions/300a0377-164d-4966-a268-03034d8d54c6.md
 
 Last session (claude-code, ended 2026-09-15T15:45:50.574Z):
   Phase 10 "Demo polish" (operator: go through the whole app end to end before tomorrow's demo, fix rough edges, add what helps the demo). Walked every page with headless-Chrome screenshots, ran a subagent API bug hunt against a live build, then drove the real UI with playwright-core. Fixes: city ids like "toString" were accepted then 500'd the trip (Object.hasOwn in trips/appendDay/activities); unsupported verbs now JSON 405 via methodNotAllowed() in every route; catch-all → app/api/[[...path]] (bare /api JSON 404); apps/web/proxy.ts turns malformed %-escapes into JSON 404; undoing an applied replace_item now reverses the whole swap (migration 7 deletions.replaced_by_item_id + linkReplacement); double-submit guards on add activity / suggestion Add / advice Apply; clipped time inputs; item rows on narrow screens; transport tables aligned. Added: POST /api/sample-trip + "Load a sample trip" button (Tokyo & Kyoto starting today, day 2 always triggers lighten_day + over_budget, day 1 arrival with to-dos and ideas; fills only blank profile interests/budget); shared SiteNav; home dashboard (featured current/next trip via new tripTiming(), today's items + to-dos, overview cards); /trips readable dates, timing badges, create navigates to the trip; lib/dates.ts formatDate; app/icon.svg; README "Running a demo" script. Tests: test/demo-polish.test.ts (10); web 160 pass, providers 17; lint (2 pre-existing warnings in packages/ui) and typecheck clean; build + start on a fresh DB verified with a click-through, 0 console errors. Not changed on purpose (decision logged): past-midnight/duplicate activity adds still accepted by the API, deleting a trip leaves its bucket item planned, undo is still a global stack. Nothing committed.
@@ -158,86 +158,83 @@ Files touched (20):
 - /Users/jins/IO/bench-cells/boopada/round-1/claude-sofar/r1/repo/apps/web/lib/server/chat.ts
 - /Users/jins/IO/bench-cells/boopada/round-1/claude-sofar/r1/repo/README.md
 
-== digest:plain (8074 bytes) ==
+== digest:plain (6030 bytes) ==
 # Sofar status: boopada
 
 Goal: Boopada trip planner (apps/web Next.js + @workspace/providers fixtures, SQLite, bun monorepo): profile → bucket list → trips → itinerary editing/view → location to-dos → suggestions & transport costs → curation advisor → chat command box. One roadmap piece per session.
 
-Standing constraints — obey verbatim (12):
-- [D1] Every money value in the API is {amount_minor: integer, currency: ISO code} in minor units — never decimal strings or floats; convert provider QuotedPrice via apps/web/lib/money.ts.
-- [D2] Interests must be one of the provider activity categories (culture, food, nature, adventure, nightlife, wellness, tour); reject anything else with 4xx.
-- [D3] Add schema changes only as new entries appended to MIGRATIONS in apps/web/lib/server/db.ts (never edit a shipped migration); access SQLite only through that adapter.
-- [D4] API validation errors are 400 with code "validation_error" and error.fields[]; malformed JSON is 400 "invalid_json"; unknown /api paths 404 "not_found" (app/api/[...path]). Use route()/ApiError from apps/web/lib/server/api.ts for every new handler.
-- [D6] Never hard-delete traveller data or add delete confirmations: delete via softDelete() (lib/server/deletions.ts, register the entity there), and every list, total and suggestion query must exclude rows with deleted_at set (and children of deleted parents).
-- [D8] Decide "today"/"now" for a trip day only in that day's city's time zone (providers City.timeZone) via lib/server/trip-time.ts — never the server zone or UTC.
-- [D10] Every amount shown to the traveller is in the profile home currency, converted with fx.getRates(home) via convertMoney (exact, half-even to home minor unit); keep the provider quote alongside as *_local.
-- [D12] Day and trip totals are sums of the rounded home-currency item `cost` values, computed only via tripSummary() (lib/server/summary.ts) — never re-convert summed local amounts.
-- [D17] Create suggestions only via offer() in lib/server/suggestions.ts with an action type registered in its ACTIONS (check + apply); a suggestion is exactly {id, kind, reason, action:{type,...params}} and extra info goes inside action params.
-- …and 3 more (see decisions.md)
-
-Phases:
-- done: 1. Traveller profile, 2. Bucket list, 3. Trips, 4. Itinerary editing, 5. Itinerary view, 6. Location to-dos, 7. Suggestions & transport, 8. Curation advisor, 9. Chat, 10. Demo polish (40/40 tasks)
-
-Progress: 40/40 tasks done (100%) across 10 phase(s)
-Active phase: (none)
 Next action: Ask the operator to review and commit the uncommitted phase-10 changes (git status in the repo root). Then ask how the demo went and what to do next: close the initiative with sofar_close_initiative, or pick from the open contract questions in the latest decision log — reject activities that run past midnight or appear twice on a day, un-plan a bucket item when its trip is deleted, scope undo to a trip, or add a chat command to add a day.
 
 Last session (claude-code, ended 2026-09-15T15:45:50.574Z):
-  Phase 10 "Demo polish" (operator: go through the whole app end to end before tomorrow's demo, fix rough edges, add what helps the demo). Walked every page with headless-Chrome screenshots, ran a subagent API bug hunt against a live build, then drove the real UI with playwright-core. Fixes: city ids like "toString" were accepted then 500'd the trip (Object.hasOwn in trips/appendDay/activities); unsupported verbs now JSON 405 via methodNotAllowed() in every route; catch-all → app/api/[[...path]] (bare /api JSON 404); apps/web/proxy.ts turns malformed %-escapes into JSON 404; undoing an applied replace_item now reverses the whole swap (migration 7 deletions.replaced_by_item_id + linkReplacement); double-submit guards on add activity / suggestion Add / advice Apply; clipped time inputs; item rows on narrow screens; transport tables aligned. Added: POST /api/sample-trip + "Load a sample trip" button (Tokyo & Kyoto starting today, day 2 always triggers lighten_day + over_budget, day 1 arrival with to-dos and ideas; fills only blank profile interests/budget); shared SiteNav; home dashboard (featured current/next tr… (clipped — full text in sessions/300a0377-164d-4966-a268-03034d8d54c6.md)
+  Phase 10 "Demo polish" (operator: go through the whole app end to end before tomorrow's demo, fix rough edges, add what helps the demo). Walked every page with headless-Chrome screenshots, ran a subagent API bug hunt against a live build, then drove the real UI with playwright-core. Fixes: city ids like "toStri… (clipped — full text in sessions/300a0377-164d-4966-a268-03034d8d54c6.md)
+
+Phases:
+- done: 1. Traveller profile, 2. Bucket list, 3. Trips, 4. Itinerary editing, 5. Itinerary view, 6. Location to-dos, 7. Suggestions & transport, 8. Curation advisor, 9. Chat, 10. Demo polish (40/40 tasks)
+Progress: 40/40 tasks done (100%) across 10 phase(s)
+
+Memory (10; full text in memory.md):
+- [M8] Curation advisor (phase 8): rules only in detectAdvice() (apps/web/lib/server/advisor.ts, pure, no suggestions.ts import); published via tripAdvice() in lib/server/suggestions.ts through offer(); ACTIONS gained remove_item / move_item / replace_item (stored refs: trip_id, trip_d…
+- [M5] Pricing (boopada phase 4): anything that renders money for the traveller needs a `Pricing` ({home, rates}) from `await getPricing()` in apps/web/lib/server/pricing.ts, fetched once per request, then sync `inHome(pricing, money)`. So getTrip/listTrips/requireTrip/deleteTrip, getI…
+- [M9] Chat (phase 9): POST /api/chat → runChat() in apps/web/lib/server/chat.ts, a ta…
+- [M2] Gotchas: (1) biome.json excludes `.sofar` — sofar's generated .sofar/.index/*.j…
+- [M10] Driving the real UI (boopada phase 10): no Playwright in the repo, but playwrig…
+- [M7] Suggestions (phase 7): every suggester goes through offer(kind, storedAction, r…
+- [M6] To-dos: logic lives in apps/web/lib/server/todos.ts; "now" (day_index, city_id,…
+- …and 3 more in memory.md
 
 Recent decisions (last 5 of 28; full text in decisions.md):
-- [D24] 2026-09-15 Extras beyond spec: (1) chat UI components/trip-chat.tsx at the top of the /trips/{id} aside ("Ask Boopada"): chat-inpu… — over API-only chat; persisting chat history in SQLite (not needed: every effect is already in …
-- [D25] 2026-09-15 POST /api/sample-trip → 201 trip: createSampleTrip() in lib/server/sample-trip.ts builds "Tokyo & Kyoto" (Tokyo 3 night… — over A SQL fixture/seed script run from the CLI; wiping the DB before seeding; a fixed start d…
-- [D26] 2026-09-15 Undoing an applied replace_item reverses the whole swap: migration 7 adds deletions.replaced_by_item_id; replaceItemAct… — over Keeping D25 as shipped (swap → undo left both activities on the day, doubling the day tot…
-- [D27] 2026-09-15 API hardening from the demo bug hunt: city ids checked with Object.hasOwn (trips legs, POST days, /api/activities — "to… — over Tightening addActivity (reject past-midnight/duplicates) — shipped tests add hanoi-act-2 …
-- [D28] 2026-09-15 Demo-polish extras: (1) shared top nav components/site-nav.tsx on every page (data-testid site-nav, aria-current) repla… — over Per-trip totals on the /trips list (client refresh via GET /api/trips has no summary, and…
+- [D24] 2026-09-15 Extras beyond spec: (1) chat UI components/trip-chat.tsx at the top of the /trips/{id} as… — over API-only chat; persisting chat history in SQLite
+- [D25] 2026-09-15 POST /api/sample-trip → 201 trip — over A SQL fixture/seed script run from the CLI
+- [D26] 2026-09-15 Undoing an applied replace_item reverses the whole swap — over Keeping D25 as shipped (swap → undo left both activities on the day, …
+- [D27] 2026-09-15 (rule below) API hardening from the demo bug hunt — over Tightening addActivity (reject past-midnight/duplicates)
+- [D28] 2026-09-15 Demo-polish extras: (1) shared top nav components/site-nav.tsx on every page — over Per-trip totals on the /trips list
 Earlier rejected approaches — do NOT re-propose (23 older):
-- [D1] Decimal strings or floats (the prototype used decimal strings and totals drifted)
+- [D1] Decimal strings or floats
 - [D2] Free-text interests
-- [D3] better-sqlite3 (native build, no Bun support in tests), forcing `bun --bun next start` (N…
-- [D4] Strict full-replace PUT, rejecting unknown keys, first-error-only responses
-- [D5] Hard-coded code lists; forcing budget currency = home currency at the API
-- [D6] Hard DELETE; "are you sure?" dialogs; per-entity undo endpoints; single-level undo that f…
-- [D7] Decimal/float daily spend; string/UUID ids; 204 delete with no body; 410 for deleted ids;…
-- [D8] Server-local or UTC dates; storing instants/midnights per day
-- [D9] Storing each day's date/index (breaks when phase 4 inserts/removes days); a separate legs…
-- [D10] Showing provider-local prices; float conversion; storing converted home amounts (goes sta…
-- [D11] Returning bare 204s; storing day index on items (breaks on day removal); re-reading activ…
-- [D12] Converting summed local amounts per currency (totals would not equal the visible sum of i…
-- [D13] A read-only view with editing moved to /trips/{id}/edit or behind an edit toggle (would b…
-- [D14] Storing day_index on todos; hard delete or 204; a separate done-list endpoint; ordering o…
-- [D15] Only the current leg's days; only today's to-dos; judging arrival by UTC/server date; com…
-- [D16] API-only to-do creation (no way to add to-dos from the app); a banner that hides when the…
-- [D17] Stateless ids encoding the action (ugly, leak internals, break when days renumber); stori…
-- [D18] Proposing 10:00 whenever that slot is free even if later items exist; returning suggestio…
-- [D19] API-only suggestions with no way to apply from the app; transport under /api/transport?ci…
-- [D20] Advice kinds with bespoke apply endpoints (/api/trips/{id}/advice/{n}/apply); only checki…
-- [D21] Reporting advice without an applicable fix; ≥ instead of > thresholds; comparing budgets …
-- [D22] A bare list of kinds with "Apply" and no preview of what it will do; silently no-op-ing s…
-- [D23] 4xx for every unmatched command (a chat box would show errors for ordinary typos); fuzzy/…
+- [D3] better-sqlite3 (native build, no Bun support in tests), forcing `bun …
+- [D4] Strict full-replace PUT, rejecting unknown keys, first-error-only res…
+- [D5] Hard-coded code lists; forcing budget currency = home currency at the…
+- [D6] Hard DELETE; "are you sure?" dialogs
+- …and 17 more (see decisions.md)
 
 Next ids: D29 (decision), M11 (memory)
+
+Standing constraints — obey verbatim (12):
+- [D12] Day and trip totals are sums of the rounded home-currency item `cost` values, computed only via tripSummary() (lib/server/summary.ts) — never re-convert summed local amounts.
+- [D8] Decide "today"/"now" for a trip day only in that day's city's time zone (providers City.timeZone) via lib/server/trip-time.ts — never the server zone or UTC.
+- [D6] Never hard-delete traveller data or add delete confirmations: delete via softDelete() (lib/server/deletions.ts, register the entity there), and every list, total and suggestion query must exclude rows with deleted_at set (and children of deleted parents).
+- [D3] Add schema changes only as new entries appended to MIGRATIONS in apps/web/lib/server/db.ts (never edit a shipped migration); access SQLite only through that adapter.
+- [D2] Interests must be one of the provider activity categories (culture, food, nature, adventure, nightlife, wellness, tour); reject anything else with 4xx.
+- [D23] Chat (lib/server/chat.ts) only parses and dispatches: every chat mutation must call the existing server function for it (addActivity, removeItem, undoLastDeletion, applySuggestion, updateProfile) — never write SQL or advisor logic in chat.
+- [D27] Every new app/api route file must export methodNotAllowed(...) for the HTTP verbs it does not implement, and must check ids against provider maps with Object.hasOwn, never `in`.
+- [D20] Advisor rules live only in detectAdvice() (lib/server/advisor.ts); publish advice only via tripAdvice() in suggestions.ts, and apply advice only via POST /api/suggestions/{id}/apply, which must re-detect it.
+- [D17] Create suggestions only via offer() in lib/server/suggestions.ts with an action type registered in its ACTIONS (check + apply); a suggestion is exactly {id, kind, reason, action:{type,...params}} and extra info goes inside action params.
+- …and 3 more (see decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:hook (9958 bytes) ==
+== digest:hook (6065 bytes) ==
 # Sofar status: boopada
 
 Goal: Boopada trip planner (apps/web Next.js + @workspace/providers fixtures, SQLite, bun monorepo): profile → bucket list → trips → itinerary editing/view → location to-dos → suggestions & transport costs → curation advisor → chat command box. One roadmap piece per session.
 
-Standing constraints — obey verbatim (12):
-- [D1] Every money value in the API is {amount_minor: integer, currency: ISO code} in minor units — never decimal strings or floats; convert provider QuotedPrice via apps/web/lib/money.ts.
-- [D2] Interests must be one of the provider activity categories (culture, food, nature, adventure, nightlife, wellness, tour); reject anything else with 4xx.
-- [D3] Add schema changes only as new entries appended to MIGRATIONS in apps/web/lib/server/db.ts (never edit a shipped migration); access SQLite only through that adapter.
-- [D4] API validation errors are 400 with code "validation_error" and error.fields[]; malformed JSON is 400 "invalid_json"; unknown /api paths 404 "not_found" (app/api/[...path]). Use route()/ApiError from apps/web/lib/server/api.ts for every new handler.
-- [D6] Never hard-delete traveller data or add delete confirmations: delete via softDelete() (lib/server/deletions.ts, register the entity there), and every list, total and suggestion query must exclude rows with deleted_at set (and children of deleted parents).
-- [D8] Decide "today"/"now" for a trip day only in that day's city's time zone (providers City.timeZone) via lib/server/trip-time.ts — never the server zone or UTC.
-- [D10] Every amount shown to the traveller is in the profile home currency, converted with fx.getRates(home) via convertMoney (exact, half-even to home minor unit); keep the provider quote alongside as *_local.
-- [D12] Day and trip totals are sums of the rounded home-currency item `cost` values, computed only via tripSummary() (lib/server/summary.ts) — never re-convert summed local amounts.
-- [D17] Create suggestions only via offer() in lib/server/suggestions.ts with an action type registered in its ACTIONS (check + apply); a suggestion is exactly {id, kind, reason, action:{type,...params}} and extra info goes inside action params.
-- …and 3 more (see decisions.md)
+Next action: Ask the operator to review and commit the uncommitted phase-10 changes (git status in the repo root). Then ask how the demo went and what to do next: close the initiative with sofar_close_initiative, or pick from the open contract questions in the latest decision log — reject activities that run past midnight or appear twice on a day, un-plan a bucket item when its trip is deleted, scope undo to a trip, or add a chat command to add a day.
+
+Phases:
+- done: 1. Traveller profile, 2. Bucket list, 3. Trips, 4. Itinerary editing, 5. Itinerary view, 6. Location to-dos, 7. Suggestions & transport, 8. Curation advisor, 9. Chat, 10. Demo polish (40/40 tasks)
+Progress: 40/40 tasks done (100%) across 10 phase(s)
+
+Memory (10; full text in memory.md):
+- [M8] Curation advisor (phase 8): rules only in detectAdvice() (apps/web/lib/server/advisor.ts, pure, no suggestions.ts import); published via tripAdvice() in lib/server/suggestions.ts through offer(); ACTIONS gained remove_item / move_item / replace_item (stored refs: trip_id, trip_d…
+- [M5] Pricing (boopada phase 4): anything that renders money for the traveller needs a `Pricing` ({home, rates}) from `await getPricing()` in apps/web/lib/server/pricing.ts, fetched once per request, then sync `inHome(pricing, money)`. So getTrip/listTrips/requireTrip/deleteTrip, getI…
+- [M9] Chat (phase 9): POST /api/chat → runChat() in apps/web/lib/server/chat.ts, a ta…
+- [M2] Gotchas: (1) biome.json excludes `.sofar` — sofar's generated .sofar/.index/*.j…
+- [M10] Driving the real UI (boopada phase 10): no Playwright in the repo, but playwrig…
+- [M7] Suggestions (phase 7): every suggester goes through offer(kind, storedAction, r…
+- [M6] To-dos: logic lives in apps/web/lib/server/todos.ts; "now" (day_index, city_id,…
+- …and 3 more in memory.md
 
 Repo memory (.sofar/repo.md):
 # Repo memory
@@ -251,77 +248,45 @@ Sofar never generates or overwrites this file; initiative state lives in
 
 - Runtimes (boopada M1): `next start` runs on Node 24, `bun test` on Bun. SQLite goes
   through `apps/web/lib/server/db.ts` only (node:sqlite / bun:sqlite loaded at runtime);
-  schema changes are new entries appended to `MIGRATIONS`. Web tests call route handlers
-  directly with `BOOPADA_DB_PATH` pointing at a temp file.
-- Gotchas (boopada M2): `.sofar` is excluded from Biome (generated index JSON fails lint).
-  Smoke-test `bun run start` on a random free `PORT` — other local next servers occupy
-  fixed ports and curl will hit them silently.
-- Dynamic routes (boopada M3): `route<{ params: Promise<{ id: string }> }>(…)`; `route()`
-  keeps the context arg optional. `bun run typecheck` includes Next's generated
-  `.next/types/validator.ts`, so bad handler signatures fail there (TS2344) even when
-  `bun test` passes.
-- Deleting (boopada D6): soft delete only, via `softDelete()` in
-  `apps/web/lib/server/deletions.ts`; register new entities in its `ENTITIES`.
-- Trip dates (boopada M4, D8): a day's index/date are derived from live `trip_days` rows
-  in position order (date = start_date + index − 1) — never stored. "Today" for a day is
-  judged only in th
+  schema changes are new entries appended to `MIGRATIONS`. W
 …truncated — read .sofar/repo.md for the rest
 
-Phases:
-- done: 1. Traveller profile, 2. Bucket list, 3. Trips, 4. Itinerary editing, 5. Itinerary view, 6. Location to-dos, 7. Suggestions & transport, 8. Curation advisor, 9. Chat, 10. Demo polish (40/40 tasks)
-
-Progress: 40/40 tasks done (100%) across 10 phase(s)
-Active phase: (none)
-Next action: Ask the operator to review and commit the uncommitted phase-10 changes (git status in the repo root). Then ask how the demo went and what to do next: close the initiative with sofar_close_initiative, or pick from the open contract questions in the latest decision log — reject activities that run past midnight or appear twice on a day, un-plan a bucket item when its trip is deleted, scope undo to a trip, or add a chat command to add a day.
-
-Last session (claude-code, ended 2026-09-15T15:45:50.574Z):
-  Phase 10 "Demo polish" (operator: go through the whole app end to end before tomorrow's demo, fix rough edges, add what helps the demo). Walked every page with headless-Chrome screenshots, ran a subagent API bug hunt against a live build, then drove the real UI with playwright-core. Fixes: city ids like "toString" were accepted then 500'd the trip (Object.hasOwn in trips/appendDay/activities); unsupported verbs now JSON 405 via methodNotAllowed() in every route; catch-all → app/api/[[...path]] (bare /api JSON 404); apps/web/proxy.ts turns malformed %-escapes into JSON 404; undoing an applied replace_item now reverses the whole swap (migration 7 deletions.replaced_by_item_id + linkReplacement); double-submit guards on add activity / suggestion Add / advice Apply; clipped time inputs; item rows on narrow screens; transport tables aligned. Added: POST /api/sample-trip + "Load a sample trip" button (Tokyo & Kyoto starting today, day 2 always triggers lighten_day + over_budget, day 1 arrival with to-dos and ideas; fills only blank profile interests/budget); shared SiteNav; home dashboard (featured current/next tr… (clipped — full text in sessions/300a0377-164d-4966-a268-03034d8d54c6.md)
-
 Recent decisions (last 5 of 28; full text in decisions.md):
-- [D24] 2026-09-15 Extras beyond spec: (1) chat UI components/trip-chat.tsx at the top of the /trips/{id} aside ("Ask Boopada"): chat-inpu… — over API-only chat; persisting chat history in SQLite (not needed: every effect is already in …
-- [D25] 2026-09-15 POST /api/sample-trip → 201 trip: createSampleTrip() in lib/server/sample-trip.ts builds "Tokyo & Kyoto" (Tokyo 3 night… — over A SQL fixture/seed script run from the CLI; wiping the DB before seeding; a fixed start d…
-- [D26] 2026-09-15 Undoing an applied replace_item reverses the whole swap: migration 7 adds deletions.replaced_by_item_id; replaceItemAct… — over Keeping D25 as shipped (swap → undo left both activities on the day, doubling the day tot…
-- [D27] 2026-09-15 API hardening from the demo bug hunt: city ids checked with Object.hasOwn (trips legs, POST days, /api/activities — "to… — over Tightening addActivity (reject past-midnight/duplicates) — shipped tests add hanoi-act-2 …
-- [D28] 2026-09-15 Demo-polish extras: (1) shared top nav components/site-nav.tsx on every page (data-testid site-nav, aria-current) repla… — over Per-trip totals on the /trips list (client refresh via GET /api/trips has no summary, and…
+- [D25] 2026-09-15 POST /api/sample-trip → 201 trip — over A SQL fixture/seed script run from the CLI
+- [D26] 2026-09-15 Undoing an applied replace_item reverses the whole swap — over Keeping D25 as shipped (swap → undo left both activities on the day, …
+- [D27] 2026-09-15 (rule below) API hardening from the demo bug hunt — over Tightening addActivity (reject past-midnight/duplicates)
+- [D28] 2026-09-15 Demo-polish extras: (1) shared top nav components/site-nav.tsx on every page — over Per-trip totals on the /trips list
 Earlier rejected approaches — do NOT re-propose (23 older):
-- [D1] Decimal strings or floats (the prototype used decimal strings and totals drifted)
+- [D1] Decimal strings or floats
 - [D2] Free-text interests
-- [D3] better-sqlite3 (native build, no Bun support in tests), forcing `bun --bun next start` (N…
-- [D4] Strict full-replace PUT, rejecting unknown keys, first-error-only responses
-- [D5] Hard-coded code lists; forcing budget currency = home currency at the API
-- [D6] Hard DELETE; "are you sure?" dialogs; per-entity undo endpoints; single-level undo that f…
-- [D7] Decimal/float daily spend; string/UUID ids; 204 delete with no body; 410 for deleted ids;…
-- [D8] Server-local or UTC dates; storing instants/midnights per day
-- [D9] Storing each day's date/index (breaks when phase 4 inserts/removes days); a separate legs…
-- [D10] Showing provider-local prices; float conversion; storing converted home amounts (goes sta…
-- [D11] Returning bare 204s; storing day index on items (breaks on day removal); re-reading activ…
-- [D12] Converting summed local amounts per currency (totals would not equal the visible sum of i…
-- [D13] A read-only view with editing moved to /trips/{id}/edit or behind an edit toggle (would b…
-- [D14] Storing day_index on todos; hard delete or 204; a separate done-list endpoint; ordering o…
-- [D15] Only the current leg's days; only today's to-dos; judging arrival by UTC/server date; com…
-- [D16] API-only to-do creation (no way to add to-dos from the app); a banner that hides when the…
-- [D17] Stateless ids encoding the action (ugly, leak internals, break when days renumber); stori…
-- [D18] Proposing 10:00 whenever that slot is free even if later items exist; returning suggestio…
-- [D19] API-only suggestions with no way to apply from the app; transport under /api/transport?ci…
-- [D20] Advice kinds with bespoke apply endpoints (/api/trips/{id}/advice/{n}/apply); only checki…
-- [D21] Reporting advice without an applicable fix; ≥ instead of > thresholds; comparing budgets …
-- [D22] A bare list of kinds with "Apply" and no preview of what it will do; silently no-op-ing s…
-- [D23] 4xx for every unmatched command (a chat box would show errors for ordinary typos); fuzzy/…
+- …and 21 more (see decisions.md)
 
 Next ids: D29 (decision), M11 (memory)
 
-Session: boopada-session — when calling sofar_start_session, pass this as session_id.
+Session: boopada-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: boopada @ a1b2c3d — differs from origin/boopada (fedcba9) — unpushed work
 
 Recent work elsewhere: round-1-sofar touched 2 files 3h ago (see sofar status round-1-sofar).
 
 3 commits of this record are unverified — no origin ref to compare.
 
+Standing constraints — obey verbatim (12):
+- [D12] Day and trip totals are sums of the rounded home-currency item `cost` values, computed only via tripSummary() (lib/server/summary.ts) — never re-convert summed local amounts.
+- [D8] Decide "today"/"now" for a trip day only in that day's city's time zone (providers City.timeZone) via lib/server/trip-time.ts — never the server zone or UTC.
+- [D6] Never hard-delete traveller data or add delete confirmations: delete via softDelete() (lib/server/deletions.ts, register the entity there), and every list, total and suggestion query must exclude rows with deleted_at set (and children of deleted parents).
+- [D3] Add schema changes only as new entries appended to MIGRATIONS in apps/web/lib/server/db.ts (never edit a shipped migration); access SQLite only through that adapter.
+- [D2] Interests must be one of the provider activity categories (culture, food, nature, adventure, nightlife, wellness, tour); reject anything else with 4xx.
+- [D23] Chat (lib/server/chat.ts) only parses and dispatches: every chat mutation must call the existing server function for it (addActivity, removeItem, undoLastDeletion, applySuggestion, updateProfile) — never write SQL or advisor logic in chat.
+- [D27] Every new app/api route file must export methodNotAllowed(...) for the HTTP verbs it does not implement, and must check ids against provider maps with Object.hasOwn, never `in`.
+- [D20] Advisor rules live only in detectAdvice() (lib/server/advisor.ts); publish advice only via tripAdvice() in suggestions.ts, and apply advice only via POST /api/suggestions/{id}/apply, which must re-detect it.
+- [D17] Create suggestions only via offer() in lib/server/suggestions.ts with an action type registered in its ACTIONS (check + apply); a suggestion is exactly {id, kind, reason, action:{type,...params}} and extra info goes inside action params.
+- …and 3 more (see decisions.md)
+
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:lane (9011 bytes) ==
+== digest:lane (6135 bytes) ==
 # Sofar: quick-work lane (boopada)
 
 Goal: Boopada trip planner (apps/web Next.js + @workspace/providers fixtures, SQLite, bun monorepo): profile → bucket list → trips → itinerary editing/view → location to-dos → suggestions & transport costs → curation advisor → chat command box. One roadmap piece per session.
@@ -330,21 +295,6 @@ This branch is bound to no initiative, so the hooks capture edits and commands h
 - Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
 - Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
 
-Standing constraints — obey verbatim (12):
-- [D1] Every money value in the API is {amount_minor: integer, currency: ISO code} in minor units — never decimal strings or floats; convert provider QuotedPrice via apps/web/lib/money.ts.
-- [D2] Interests must be one of the provider activity categories (culture, food, nature, adventure, nightlife, wellness, tour); reject anything else with 4xx.
-- [D3] Add schema changes only as new entries appended to MIGRATIONS in apps/web/lib/server/db.ts (never edit a shipped migration); access SQLite only through that adapter.
-- [D4] API validation errors are 400 with code "validation_error" and error.fields[]; malformed JSON is 400 "invalid_json"; unknown /api paths 404 "not_found" (app/api/[...path]). Use route()/ApiError from apps/web/lib/server/api.ts for every new handler.
-- [D6] Never hard-delete traveller data or add delete confirmations: delete via softDelete() (lib/server/deletions.ts, register the entity there), and every list, total and suggestion query must exclude rows with deleted_at set (and children of deleted parents).
-- [D8] Decide "today"/"now" for a trip day only in that day's city's time zone (providers City.timeZone) via lib/server/trip-time.ts — never the server zone or UTC.
-- [D10] Every amount shown to the traveller is in the profile home currency, converted with fx.getRates(home) via convertMoney (exact, half-even to home minor unit); keep the provider quote alongside as *_local.
-- [D12] Day and trip totals are sums of the rounded home-currency item `cost` values, computed only via tripSummary() (lib/server/summary.ts) — never re-convert summed local amounts.
-- [D17] Create suggestions only via offer() in lib/server/suggestions.ts with an action type registered in its ACTIONS (check + apply); a suggestion is exactly {id, kind, reason, action:{type,...params}} and extra info goes inside action params.
-- …and 3 more (see decisions.md)
-
-Last session (claude-code, ended 2026-09-15T15:45:50.574Z):
-  Phase 10 "Demo polish" (operator: go through the whole app end to end before tomorrow's demo, fix rough edges, add what helps the demo). Walked every page with headless-Chrome screenshots, ran a subagent API bug hunt against a live build, then drove the real UI with playwright-core. Fixes: city ids like "toString" were accepted then 500'd the trip (Object.hasOwn in trips/appendDay/activities); unsupported verbs now JSON 405 via methodNotAllowed() in every route; catch-all → app/api/[[...path]] (bare /api JSON 404); apps/web/proxy.ts turns malformed %-escapes into JSON 404; undoing an applied replace_item now reverses the whole swap (migration 7 deletions.replaced_by_item_id + linkReplacement); double-submit guards on add activity / suggestion Add / advice Apply; clipped time inputs; item rows on narrow screens; transport tables aligned. Added: POST /api/sample-trip + "Load a sample trip" button (Tokyo & Kyoto starting today, day 2 always triggers lighten_day + over_budget, day 1 arrival with to-dos and ideas; fills only blank profile interests/budget); shared SiteNav; home dashboard (featured current/next tr… (clipped — full text in sessions/300a0377-164d-4966-a268-03034d8d54c6.md)
-
 Recent quick work (11 sessions, 28 decisions since 2026-09-15; last 5):
 - 2026-09-15 claude-code — 1 file (/Users/jins/IO/bench-cells/boopada/round-1/claude-sofar/r1/repo/README.md), 48 commands, task changes: polish-audit → done, polish-ui → done, demo-seed → done, home-dashboard → done, polish-tests → done
 - 2026-09-15 claude-code — 1 file (/Users/jins/IO/bench-cells/boopada/round-1/claude-sofar/r1/repo/apps/web/lib/server/chat.ts), 9 commands, task changes: chat-api → done, chat-ui → done, chat-tests → done, chat → done
@@ -352,185 +302,146 @@ Recent quick work (11 sessions, 28 decisions since 2026-09-15; last 5):
 - 2026-09-15 claude-code — 10 commands, task changes: suggestions-core → done, suggestions-day → done, transport-api → done, suggestions-page → done, suggestions-tests → done, suggestions-transport → done
 - 2026-09-15 claude-code — 1 file (/Users/jins/IO/bench-cells/boopada/round-1/claude-sofar/r1/repo/apps/web/components/arrival-banner.tsx), 5 commands, task changes: todos-api → active, todos-api → done, todos-now → done, todos-page → active, todos-page → done, todos-tests → done, location-todos → done
 
+Memory (10; full text in memory.md):
+- [M10] Driving the real UI (boopada phase 10): no Playwright in the repo, but playwrig…
+- [M9] Chat (phase 9): POST /api/chat → runChat() in apps/web/lib/server/chat.ts, a ta…
+- [M8] Curation advisor (phase 8): rules only in detectAdvice() (apps/web/lib/server/a…
+- [M7] Suggestions (phase 7): every suggester goes through offer(kind, storedAction, r…
+- [M6] To-dos: logic lives in apps/web/lib/server/todos.ts; "now" (day_index, city_id,…
+- [M5] Pricing (boopada phase 4): anything that renders money for the traveller needs …
+- [M4] Trip dates (boopada D8): day index/date are derived from live `trip_days` rows …
+- [M3] Dynamic route handlers: wrap with route<Context>() from apps/web/lib/server/api…
+- [M2] Gotchas: (1) biome.json excludes `.sofar` — sofar's generated .sofar/.index/*.j…
+- [M1] Runtime split: `bun run start`/`next start` runs on Node 24 (next's node sheban…
+
 Recent decisions (last 5 of 28; full text in decisions.md):
-- [D24] 2026-09-15 Extras beyond spec: (1) chat UI components/trip-chat.tsx at the top of the /trips/{id} aside ("Ask Boopada"): chat-inpu… — over API-only chat; persisting chat history in SQLite (not needed: every effect is already in …
-- [D25] 2026-09-15 POST /api/sample-trip → 201 trip: createSampleTrip() in lib/server/sample-trip.ts builds "Tokyo & Kyoto" (Tokyo 3 night… — over A SQL fixture/seed script run from the CLI; wiping the DB before seeding; a fixed start d…
-- [D26] 2026-09-15 Undoing an applied replace_item reverses the whole swap: migration 7 adds deletions.replaced_by_item_id; replaceItemAct… — over Keeping D25 as shipped (swap → undo left both activities on the day, doubling the day tot…
-- [D27] 2026-09-15 API hardening from the demo bug hunt: city ids checked with Object.hasOwn (trips legs, POST days, /api/activities — "to… — over Tightening addActivity (reject past-midnight/duplicates) — shipped tests add hanoi-act-2 …
-- [D28] 2026-09-15 Demo-polish extras: (1) shared top nav components/site-nav.tsx on every page (data-testid site-nav, aria-current) repla… — over Per-trip totals on the /trips list (client refresh via GET /api/trips has no summary, and…
+- [D25] 2026-09-15 POST /api/sample-trip → 201 trip — over A SQL fixture/seed script run from the CLI
+- [D26] 2026-09-15 Undoing an applied replace_item reverses the whole swap — over Keeping D25 as shipped (swap → undo left both activities on the day, …
+- [D27] 2026-09-15 (rule below) API hardening from the demo bug hunt — over Tightening addActivity (reject past-midnight/duplicates)
+- [D28] 2026-09-15 Demo-polish extras: (1) shared top nav components/site-nav.tsx on every page — over Per-trip totals on the /trips list
 Earlier rejected approaches — do NOT re-propose (23 older):
-- [D1] Decimal strings or floats (the prototype used decimal strings and totals drifted)
+- [D1] Decimal strings or floats
 - [D2] Free-text interests
-- [D3] better-sqlite3 (native build, no Bun support in tests), forcing `bun --bun next start` (N…
-- [D4] Strict full-replace PUT, rejecting unknown keys, first-error-only responses
-- [D5] Hard-coded code lists; forcing budget currency = home currency at the API
-- [D6] Hard DELETE; "are you sure?" dialogs; per-entity undo endpoints; single-level undo that f…
-- [D7] Decimal/float daily spend; string/UUID ids; 204 delete with no body; 410 for deleted ids;…
-- [D8] Server-local or UTC dates; storing instants/midnights per day
-- [D9] Storing each day's date/index (breaks when phase 4 inserts/removes days); a separate legs…
-- [D10] Showing provider-local prices; float conversion; storing converted home amounts (goes sta…
-- [D11] Returning bare 204s; storing day index on items (breaks on day removal); re-reading activ…
-- [D12] Converting summed local amounts per currency (totals would not equal the visible sum of i…
-- [D13] A read-only view with editing moved to /trips/{id}/edit or behind an edit toggle (would b…
-- [D14] Storing day_index on todos; hard delete or 204; a separate done-list endpoint; ordering o…
-- [D15] Only the current leg's days; only today's to-dos; judging arrival by UTC/server date; com…
-- [D16] API-only to-do creation (no way to add to-dos from the app); a banner that hides when the…
-- [D17] Stateless ids encoding the action (ugly, leak internals, break when days renumber); stori…
-- [D18] Proposing 10:00 whenever that slot is free even if later items exist; returning suggestio…
-- [D19] API-only suggestions with no way to apply from the app; transport under /api/transport?ci…
-- [D20] Advice kinds with bespoke apply endpoints (/api/trips/{id}/advice/{n}/apply); only checki…
-- [D21] Reporting advice without an applicable fix; ≥ instead of > thresholds; comparing budgets …
-- [D22] A bare list of kinds with "Apply" and no preview of what it will do; silently no-op-ing s…
-- [D23] 4xx for every unmatched command (a chat box would show errors for ordinary typos); fuzzy/…
+- [D3] better-sqlite3 (native build, no Bun support in tests), forcing `bun …
+- …and 20 more (see decisions.md)
 
 Next ids: D29 (decision), M11 (memory)
 
-Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: boopada @ a1b2c3d — differs from origin/boopada (fedcba9) — unpushed work
+
+Standing constraints — obey verbatim (12):
+- [D27] Every new app/api route file must export methodNotAllowed(...) for the HTTP verbs it does not implement, and must check ids against provider maps with Object.hasOwn, never `in`.
+- [D23] Chat (lib/server/chat.ts) only parses and dispatches: every chat mutation must call the existing server function for it (addActivity, removeItem, undoLastDeletion, applySuggestion, updateProfile) — never write SQL or advisor logic in chat.
+- [D20] Advisor rules live only in detectAdvice() (lib/server/advisor.ts); publish advice only via tripAdvice() in suggestions.ts, and apply advice only via POST /api/suggestions/{id}/apply, which must re-detect it.
+- [D17] Create suggestions only via offer() in lib/server/suggestions.ts with an action type registered in its ACTIONS (check + apply); a suggestion is exactly {id, kind, reason, action:{type,...params}} and extra info goes inside action params.
+- [D12] Day and trip totals are sums of the rounded home-currency item `cost` values, computed only via tripSummary() (lib/server/summary.ts) — never re-convert summed local amounts.
+- [D10] Every amount shown to the traveller is in the profile home currency, converted with fx.getRates(home) via convertMoney (exact, half-even to home minor unit); keep the provider quote alongside as *_local.
+- [D8] Decide "today"/"now" for a trip day only in that day's city's time zone (providers City.timeZone) via lib/server/trip-time.ts — never the server zone or UTC.
+- [D6] Never hard-delete traveller data or add delete confirmations: delete via softDelete() (lib/server/deletions.ts, register the entity there), and every list, total and suggestion query must exclude rows with deleted_at set (and children of deleted parents).
+- [D4] API validation errors are 400 with code "validation_error" and error.fields[]; malformed JSON is 400 "invalid_json"; unknown /api paths 404 "not_found" (app/api/[...path]). Use route()/ApiError from apps/web/lib/server/api.ts for every new handler.
+- …and 3 more (see decisions.md)
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:quiet (8161 bytes) ==
+== digest:quiet (6083 bytes) ==
 # Sofar status: boopada
 
 Goal: Boopada trip planner (apps/web Next.js + @workspace/providers fixtures, SQLite, bun monorepo): profile → bucket list → trips → itinerary editing/view → location to-dos → suggestions & transport costs → curation advisor → chat command box. One roadmap piece per session.
 
-Standing constraints — obey verbatim (12):
-- [D1] Every money value in the API is {amount_minor: integer, currency: ISO code} in minor units — never decimal strings or floats; convert provider QuotedPrice via apps/web/lib/money.ts.
-- [D2] Interests must be one of the provider activity categories (culture, food, nature, adventure, nightlife, wellness, tour); reject anything else with 4xx.
-- [D3] Add schema changes only as new entries appended to MIGRATIONS in apps/web/lib/server/db.ts (never edit a shipped migration); access SQLite only through that adapter.
-- [D4] API validation errors are 400 with code "validation_error" and error.fields[]; malformed JSON is 400 "invalid_json"; unknown /api paths 404 "not_found" (app/api/[...path]). Use route()/ApiError from apps/web/lib/server/api.ts for every new handler.
-- [D6] Never hard-delete traveller data or add delete confirmations: delete via softDelete() (lib/server/deletions.ts, register the entity there), and every list, total and suggestion query must exclude rows with deleted_at set (and children of deleted parents).
-- [D8] Decide "today"/"now" for a trip day only in that day's city's time zone (providers City.timeZone) via lib/server/trip-time.ts — never the server zone or UTC.
-- [D10] Every amount shown to the traveller is in the profile home currency, converted with fx.getRates(home) via convertMoney (exact, half-even to home minor unit); keep the provider quote alongside as *_local.
-- [D12] Day and trip totals are sums of the rounded home-currency item `cost` values, computed only via tripSummary() (lib/server/summary.ts) — never re-convert summed local amounts.
-- [D17] Create suggestions only via offer() in lib/server/suggestions.ts with an action type registered in its ACTIONS (check + apply); a suggestion is exactly {id, kind, reason, action:{type,...params}} and extra info goes inside action params.
-- …and 3 more (see decisions.md)
-
-Phases:
-- done: 1. Traveller profile, 2. Bucket list, 3. Trips, 4. Itinerary editing, 5. Itinerary view, 6. Location to-dos, 7. Suggestions & transport, 8. Curation advisor, 9. Chat, 10. Demo polish (40/40 tasks)
-
-Progress: 40/40 tasks done (100%) across 10 phase(s)
-Active phase: (none)
 Next action: Ask the operator to review and commit the uncommitted phase-10 changes (git status in the repo root). Then ask how the demo went and what to do next: close the initiative with sofar_close_initiative, or pick from the open contract questions in the latest decision log — reject activities that run past midnight or appear twice on a day, un-plan a bucket item when its trip is deleted, scope undo to a trip, or add a chat command to add a day.
 
 Last session (claude-code, ended 2026-09-15T15:45:50.574Z):
-  Phase 10 "Demo polish" (operator: go through the whole app end to end before tomorrow's demo, fix rough edges, add what helps the demo). Walked every page with headless-Chrome screenshots, ran a subagent API bug hunt against a live build, then drove the real UI with playwright-core. Fixes: city ids like "toString" were accepted then 500'd the trip (Object.hasOwn in trips/appendDay/activities); unsupported verbs now JSON 405 via methodNotAllowed() in every route; catch-all → app/api/[[...path]] (bare /api JSON 404); apps/web/proxy.ts turns malformed %-escapes into JSON 404; undoing an applied replace_item now reverses the whole swap (migration 7 deletions.replaced_by_item_id + linkReplacement); double-submit guards on add activity / suggestion Add / advice Apply; clipped time inputs; item rows on narrow screens; transport tables aligned. Added: POST /api/sample-trip + "Load a sample trip" button (Tokyo & Kyoto starting today, day 2 always triggers lighten_day + over_budget, day 1 arrival with to-dos and ideas; fills only blank profile interests/budget); shared SiteNav; home dashboard (featured current/next tr… (clipped — full text in sessions/300a0377-164d-4966-a268-03034d8d54c6.md)
+  Phase 10 "Demo polish" (operator: go through the whole app end to end before tomorrow's demo, fix rough edges, add what helps the demo). Walked every page with headless-Chrome screenshots, ran a subagent API bug hunt against a live build, then drove the real UI with playwright-c… (clipped — full text in sessions/300a0377-164d-4966-a268-03034d8d54c6.md)
+
+Phases:
+- done: 1. Traveller profile, 2. Bucket list, 3. Trips, 4. Itinerary editing, 5. Itinerary view, 6. Location to-dos, 7. Suggestions & transport, 8. Curation advisor, 9. Chat, 10. Demo polish (40/40 tasks)
+Progress: 40/40 tasks done (100%) across 10 phase(s)
+
+Memory (10; full text in memory.md):
+- [M8] Curation advisor (phase 8): rules only in detectAdvice() (apps/web/lib/server/advisor.ts, pure, no suggestions.ts import); published via tripAdvice() in lib/server/suggestions.ts through offer(); ACTIONS gained remove_item / move_item / replace_item (stored refs: trip_id, trip_d…
+- [M5] Pricing (boopada phase 4): anything that renders money for the traveller needs a `Pricing` ({home, rates}) from `await getPricing()` in apps/web/lib/server/pricing.ts, fetched once per request, then sync `inHome(pricing, money)`. So getTrip/listTrips/requireTrip/deleteTrip, getI…
+- [M9] Chat (phase 9): POST /api/chat → runChat() in apps/web/lib/server/chat.ts, a ta…
+- [M2] Gotchas: (1) biome.json excludes `.sofar` — sofar's generated .sofar/.index/*.j…
+- [M10] Driving the real UI (boopada phase 10): no Playwright in the repo, but playwrig…
+- [M7] Suggestions (phase 7): every suggester goes through offer(kind, storedAction, r…
+- [M6] To-dos: logic lives in apps/web/lib/server/todos.ts; "now" (day_index, city_id,…
+- …and 3 more in memory.md
 
 Recent decisions (last 5 of 28; full text in decisions.md):
-- [D24] 2026-09-15 Extras beyond spec: (1) chat UI components/trip-chat.tsx at the top of the /trips/{id} aside ("Ask Boopada"): chat-inpu… — over API-only chat; persisting chat history in SQLite (not needed: every effect is already in …
-- [D25] 2026-09-15 POST /api/sample-trip → 201 trip: createSampleTrip() in lib/server/sample-trip.ts builds "Tokyo & Kyoto" (Tokyo 3 night… — over A SQL fixture/seed script run from the CLI; wiping the DB before seeding; a fixed start d…
-- [D26] 2026-09-15 Undoing an applied replace_item reverses the whole swap: migration 7 adds deletions.replaced_by_item_id; replaceItemAct… — over Keeping D25 as shipped (swap → undo left both activities on the day, doubling the day tot…
-- [D27] 2026-09-15 API hardening from the demo bug hunt: city ids checked with Object.hasOwn (trips legs, POST days, /api/activities — "to… — over Tightening addActivity (reject past-midnight/duplicates) — shipped tests add hanoi-act-2 …
-- [D28] 2026-09-15 Demo-polish extras: (1) shared top nav components/site-nav.tsx on every page (data-testid site-nav, aria-current) repla… — over Per-trip totals on the /trips list (client refresh via GET /api/trips has no summary, and…
+- [D24] 2026-09-15 Extras beyond spec: (1) chat UI components/trip-chat.tsx at the top of the /trips/{id} as… — over API-only chat; persisting chat history in SQLite
+- [D25] 2026-09-15 POST /api/sample-trip → 201 trip — over A SQL fixture/seed script run from the CLI
+- [D26] 2026-09-15 Undoing an applied replace_item reverses the whole swap — over Keeping D25 as shipped (swap → undo left both activities on the day, …
+- [D27] 2026-09-15 (rule below) API hardening from the demo bug hunt — over Tightening addActivity (reject past-midnight/duplicates)
+- [D28] 2026-09-15 Demo-polish extras: (1) shared top nav components/site-nav.tsx on every page — over Per-trip totals on the /trips list
 Earlier rejected approaches — do NOT re-propose (23 older):
-- [D1] Decimal strings or floats (the prototype used decimal strings and totals drifted)
+- [D1] Decimal strings or floats
 - [D2] Free-text interests
-- [D3] better-sqlite3 (native build, no Bun support in tests), forcing `bun --bun next start` (N…
-- [D4] Strict full-replace PUT, rejecting unknown keys, first-error-only responses
-- [D5] Hard-coded code lists; forcing budget currency = home currency at the API
-- [D6] Hard DELETE; "are you sure?" dialogs; per-entity undo endpoints; single-level undo that f…
-- [D7] Decimal/float daily spend; string/UUID ids; 204 delete with no body; 410 for deleted ids;…
-- [D8] Server-local or UTC dates; storing instants/midnights per day
-- [D9] Storing each day's date/index (breaks when phase 4 inserts/removes days); a separate legs…
-- [D10] Showing provider-local prices; float conversion; storing converted home amounts (goes sta…
-- [D11] Returning bare 204s; storing day index on items (breaks on day removal); re-reading activ…
-- [D12] Converting summed local amounts per currency (totals would not equal the visible sum of i…
-- [D13] A read-only view with editing moved to /trips/{id}/edit or behind an edit toggle (would b…
-- [D14] Storing day_index on todos; hard delete or 204; a separate done-list endpoint; ordering o…
-- [D15] Only the current leg's days; only today's to-dos; judging arrival by UTC/server date; com…
-- [D16] API-only to-do creation (no way to add to-dos from the app); a banner that hides when the…
-- [D17] Stateless ids encoding the action (ugly, leak internals, break when days renumber); stori…
-- [D18] Proposing 10:00 whenever that slot is free even if later items exist; returning suggestio…
-- [D19] API-only suggestions with no way to apply from the app; transport under /api/transport?ci…
-- [D20] Advice kinds with bespoke apply endpoints (/api/trips/{id}/advice/{n}/apply); only checki…
-- [D21] Reporting advice without an applicable fix; ≥ instead of > thresholds; comparing budgets …
-- [D22] A bare list of kinds with "Apply" and no preview of what it will do; silently no-op-ing s…
-- [D23] 4xx for every unmatched command (a chat box would show errors for ordinary typos); fuzzy/…
+- [D3] better-sqlite3 (native build, no Bun support in tests), forcing `bun …
+- [D4] Strict full-replace PUT, rejecting unknown keys, first-error-only res…
+- [D5] Hard-coded code lists; forcing budget currency = home currency at the…
+- [D6] Hard DELETE; "are you sure?" dialogs
+- …and 17 more (see decisions.md)
 
 Next ids: D29 (decision), M11 (memory)
 
-Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (12):
+- [D12] Day and trip totals are sums of the rounded home-currency item `cost` values, computed only via tripSummary() (lib/server/summary.ts) — never re-convert summed local amounts.
+- [D8] Decide "today"/"now" for a trip day only in that day's city's time zone (providers City.timeZone) via lib/server/trip-time.ts — never the server zone or UTC.
+- [D6] Never hard-delete traveller data or add delete confirmations: delete via softDelete() (lib/server/deletions.ts, register the entity there), and every list, total and suggestion query must exclude rows with deleted_at set (and children of deleted parents).
+- [D3] Add schema changes only as new entries appended to MIGRATIONS in apps/web/lib/server/db.ts (never edit a shipped migration); access SQLite only through that adapter.
+- [D2] Interests must be one of the provider activity categories (culture, food, nature, adventure, nightlife, wellness, tour); reject anything else with 4xx.
+- [D23] Chat (lib/server/chat.ts) only parses and dispatches: every chat mutation must call the existing server function for it (addActivity, removeItem, undoLastDeletion, applySuggestion, updateProfile) — never write SQL or advisor logic in chat.
+- [D27] Every new app/api route file must export methodNotAllowed(...) for the HTTP verbs it does not implement, and must check ids against provider maps with Object.hasOwn, never `in`.
+- [D20] Advisor rules live only in detectAdvice() (lib/server/advisor.ts); publish advice only via tripAdvice() in suggestions.ts, and apply advice only via POST /api/suggestions/{id}/apply, which must re-detect it.
+- [D17] Create suggestions only via offer() in lib/server/suggestions.ts with an action type registered in its ACTIONS (check + apply); a suggestion is exactly {id, kind, reason, action:{type,...params}} and extra info goes inside action params.
+- …and 3 more (see decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (10100 bytes) ==
+== digest:cap (6042 bytes) ==
 # Sofar status: boopada
 
 Goal: Boopada trip planner (apps/web Next.js + @workspace/providers fixtures, SQLite, bun monorepo): profile → bucket list → trips → itinerary editing/view → location to-dos → suggestions & transport costs → curation advisor → chat command box. One roadmap piece per session.
 
-Standing constraints — obey verbatim (12):
-- [D1] Every money value in the API is {amount_minor: integer, currency: ISO code} in minor units — never decimal strings or floats; convert provider QuotedPrice via apps/web/lib/money.ts.
-- [D2] Interests must be one of the provider activity categories (culture, food, nature, adventure, nightlife, wellness, tour); reject anything else with 4xx.
-- [D3] Add schema changes only as new entries appended to MIGRATIONS in apps/web/lib/server/db.ts (never edit a shipped migration); access SQLite only through that adapter.
-- [D4] API validation errors are 400 with code "validation_error" and error.fields[]; malformed JSON is 400 "invalid_json"; unknown /api paths 404 "not_found" (app/api/[...path]). Use route()/ApiError from apps/web/lib/server/api.ts for every new handler.
-- [D6] Never hard-delete traveller data or add delete confirmations: delete via softDelete() (lib/server/deletions.ts, register the entity there), and every list, total and suggestion query must exclude rows with deleted_at set (and children of deleted parents).
-- [D8] Decide "today"/"now" for a trip day only in that day's city's time zone (providers City.timeZone) via lib/server/trip-time.ts — never the server zone or UTC.
-- [D10] Every amount shown to the traveller is in the profile home currency, converted with fx.getRates(home) via convertMoney (exact, half-even to home minor unit); keep the provider quote alongside as *_local.
-- [D12] Day and trip totals are sums of the rounded home-currency item `cost` values, computed only via tripSummary() (lib/server/summary.ts) — never re-convert summed local amounts.
-- [D17] Create suggestions only via offer() in lib/server/suggestions.ts with an action type registered in its ACTIONS (check + apply); a suggestion is exactly {id, kind, reason, action:{type,...params}} and extra info goes inside action params.
-- …and 3 more (see decisions.md)
-
-Repo memory (.sofar/repo.md):
-# Repo memory
-
-Hand-written, repo-scoped notes for agents working here: conventions,
-commands, gotchas — anything true of the repo across all initiatives.
-Sofar never generates or overwrites this file; initiative state lives in
-.sofar/initiatives/<slug>/ instead.
-
-## Boopada repo notes
-
-- Runtimes (boopada M1): `next start` runs on Node 24, `bun test` on Bun. SQLite goes
-  through `apps/web/lib/server/db.ts` only (node:sqlite / bun:sqlite loaded at runtime);
-  schema changes are new entries appended to `MIGRATIONS`. Web tests call route handlers
-  directly with `BOOPADA_DB_PATH` pointing at a temp file.
-- Gotchas (boopada M2): `.sofar` is excluded from Biome (generated index JSON fails lint).
-  Smoke-test `bun run start` on a random free `PORT` — other local next servers occupy
-  fixed ports and curl will hit them silently.
-- Dynamic routes (boopada M3): `route<{ params: Promise<{ id: string }> }>(…)`; `route()`
-  keeps the context arg optional. `bun run typecheck` includes Next's generated
-  `.next/types/validator.ts`, so bad handler signatures fail there (TS2344) even when
-  `bun test` passes.
-- Deleting (boopada D6): soft delete only, via `softDelete()` in
-  `apps/web/lib/server/deletions.ts`; register new entities in its `ENTITIES`.
-- Trip dates (boopada M4, D8): a day's index/date are derived from live `trip_days` rows
-  in position order (date = start_date + index − 1) — never stored. "Today" for a day is
-  judged only in th
-…truncated — read .sofar/repo.md for the rest
+Next action: Ask the operator to review and commit the uncommitted phase-10 changes (git status in the repo root). Then ask how the demo went and what to do next: close the initiative with sofar_close_initiative, or pick from the open contract questions in the latest decision log — reject activities that run past midnight or appear twice on a day, un-plan a bucket item when its trip is deleted, scope undo to a trip, or add a chat command to add a day.
 
 Phases:
 - done: 1. Traveller profile, 2. Bucket list, 3. Trips, 4. Itinerary editing, 5. Itinerary view, 6. Location to-dos, 7. Suggestions & transport, 8. Curation advisor, 9. Chat, 10. Demo polish (40/40 tasks)
-
 Progress: 40/40 tasks done (100%) across 10 phase(s)
-Active phase: (none)
-Next action: Ask the operator to review and commit the uncommitted phase-10 changes (git status in the repo root). Then ask how the demo went and what to do next: close the initiative with sofar_close_initiative, or pick from the open contract questions in the latest decision log — reject activities that run past midnight or appear twice on a day, un-plan a bucket item when its trip is deleted, scope undo to a trip, or add a chat command to add a day.
 
-Last session (claude-code, ended 2026-09-15T15:45:50.574Z):
-  Phase 10 "Demo polish" (operator: go through the whole app end to end before tomorrow's demo, fix rough edges, add what helps the demo). Walked every page with headless-Chrome screenshots, ran a subagent API bug hunt against a live build, then drove the real UI with playwright-core. Fixes: city ids like "toString" were accepted then 500'd the trip (Object.hasOwn in trips/appendDay/activities); unsupported verbs now JSON 405 via methodNotAllowed() in every route; catch-all → app/api/[[...path]] (bare /api JSON 404); apps/web/proxy.ts turns malformed %-escapes into JSON 404; undoing an applied replace_item now reverses the whole swap (migration 7 deletions.replaced_by_item_id + linkReplacement); double-submit guards on add activity / suggestion Add / advice Apply; clipped time inputs; item rows on narrow screens; transport tables aligned. Added: POST /api/sample-trip + "Load a sample trip" button (Tokyo & Kyoto starting today, day 2 always triggers lighten_day + over_budget, day 1 arrival with to-dos and ideas; fills only blank profile interests/budget); shared SiteNav; home dashboard (featured current/next tr… (clipped — full text in sessions/300a0377-164d-4966-a268-03034d8d54c6.md)
-
-Recent decisions (last 5 of 28; full text in decisions.md):
-- [D24] 2026-09-15 Extras beyond spec: (1) chat UI components/trip-chat.tsx at the top of the /trips/{id} aside ("Ask Boopada"): chat-inpu… — over API-only chat; persisting chat history in SQLite (not needed: every effect is already in …
-- [D25] 2026-09-15 POST /api/sample-trip → 201 trip: createSampleTrip() in lib/server/sample-trip.ts builds "Tokyo & Kyoto" (Tokyo 3 night… — over A SQL fixture/seed script run from the CLI; wiping the DB before seeding; a fixed start d…
-- [D26] 2026-09-15 Undoing an applied replace_item reverses the whole swap: migration 7 adds deletions.replaced_by_item_id; replaceItemAct… — over Keeping D25 as shipped (swap → undo left both activities on the day, doubling the day tot…
-- [D27] 2026-09-15 API hardening from the demo bug hunt: city ids checked with Object.hasOwn (trips legs, POST days, /api/activities — "to… — over Tightening addActivity (reject past-midnight/duplicates) — shipped tests add hanoi-act-2 …
-- [D28] 2026-09-15 Demo-polish extras: (1) shared top nav components/site-nav.tsx on every page (data-testid site-nav, aria-current) repla… — over Per-trip totals on the /trips list (client refresh via GET /api/trips has no summary, and…
-Earlier rejected approaches — do NOT re-propose (23 older):
-- …and 23 more (see decisions.md)
 
 Next ids: D29 (decision), M11 (memory)
 
-Session: boopada-session — when calling sofar_start_session, pass this as session_id.
+Session: boopada-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: boopada @ a1b2c3d — differs from origin/boopada (fedcba9) — unpushed work
 
 Recent work elsewhere: round-1-sofar touched 2 files 3h ago (see sofar status round-1-sofar).
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
+
+Standing constraints — obey verbatim (12):
+- [D12] Day and trip totals are sums of the rounded home-currency item `cost` values, computed only via tripSummary() (lib/server/summary.ts) — never re-convert summed local amounts.
+- [D8] Decide "today"/"now" for a trip day only in that day's city's time zone (providers City.timeZone) via lib/server/trip-time.ts — never the server zone or UTC.
+- [D6] Never hard-delete traveller data or add delete confirmations: delete via softDelete() (lib/server/deletions.ts, register the entity there), and every list, total and suggestion query must exclude rows with deleted_at set (and children of deleted parents).
+- [D3] Add schema changes only as new entries appended to MIGRATIONS in apps/web/lib/server/db.ts (never edit a shipped migration); access SQLite only through that adapter.
+- [D2] Interests must be one of the provider activity categories (culture, food, nature, adventure, nightlife, wellness, tour); reject anything else with 4xx.
+- [D23] Chat (lib/server/chat.ts) only parses and dispatches: every chat mutation must call the existing server function for it (addActivity, removeItem, undoLastDeletion, applySuggestion, updateProfile) — never write SQL or advisor logic in chat.
+- [D27] Every new app/api route file must export methodNotAllowed(...) for the HTTP verbs it does not implement, and must check ids against provider maps with Object.hasOwn, never `in`.
+- [D20] Advisor rules live only in detectAdvice() (lib/server/advisor.ts); publish advice only via tripAdvice() in suggestions.ts, and apply advice only via POST /api/suggestions/{id}/apply, which must re-detect it.
+- [D17] Create suggestions only via offer() in lib/server/suggestions.ts with an action type registered in its ACTIONS (check + apply); a suggestion is exactly {id, kind, reason, action:{type,...params}} and extra info goes inside action params.
+- …and 3 more (see decisions.md)
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
 == plan (6847 bytes) ==
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->

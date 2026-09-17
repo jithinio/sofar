@@ -367,6 +367,10 @@
           "type": "string",
           "description": "`guard` (drift-hardening D3): the mechanical half of the SAME clause — a `path:`/`cmd:` glob list (src/guards.ts) the fold matches against file_touched / command_run events logged after this decision. Valid only alongside `rule`: a guard with no clause has nothing to cite when it fires, and what it produces is a WARNING that never changes an exit code."
         },
+        "quote": {
+          "type": "string",
+          "description": "`quote` (memory-lead 1.2, D2): the operator's own words the rule came from, copied exactly — ≤ RULE_QUOTE_MAX chars, valid only alongside `rule`. The rule is the agent's restatement; the quote is its source, and every surface that renders the rule renders the quote beside it, flagging the status codes, paths and values the rule adds (engine core/rule-fidelity.ts). Round 1 lost a test to a rule that added \"with 4xx\" to an operator's \"Reject anything else\"."
+        },
         "supersedes": {
           "type": "string",
           "description": "`supersedes` (r1-fixes 3.2, D25): the bare handle `D<n>` of an EARLIER decision in the SAME record this one replaces. The fold resolves it from the log alone and marks the target `superseded_by` this decision's ordinal; the digest then stops rendering the target. Per-record like the ordinals themselves. A rule-carrying target is retired ONLY by a rule-carrying superseder — standing rules never age out, they are only ever replaced by a new rule that names them; any other reference is recorded but inert (forward, self, rule mismatch)."

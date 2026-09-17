@@ -158,6 +158,23 @@ pub fn lane_open(layout: &Layout) -> bool {
 }
 
 /// `resolveInitiative(explicit?)`.
+/// `unboundStatus` applies (r1-fixes 4.1.4, L10, D28): the repo carries a
+/// record and the branch is not bound at all — as opposed to bound to a
+/// directory that is gone, or a bindings.json that cannot be read.
+#[must_use]
+pub fn unbound_status_applies(layout: &Layout) -> bool {
+    if !layout.sofar_dir.exists() {
+        return false;
+    }
+    if let Some(branch) = crate::git::current_branch(&layout.root) {
+        return match read_bindings(layout) {
+            Ok(bindings) => !bindings.iter().any(|(b, _)| *b == branch),
+            Err(_) => false,
+        };
+    }
+    true
+}
+
 pub fn resolve_initiative(layout: &Layout, explicit: Option<&str>) -> Result<String, ResolveError> {
     let slug = if let Some(s) = explicit {
         s.to_owned()

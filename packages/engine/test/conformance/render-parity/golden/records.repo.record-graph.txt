@@ -178,38 +178,34 @@ Files touched (29):
 - /Users/jins/IO/sofar/.sofar/repo.md
 - /private/tmp/claude-501/-Users-jins-IO-sofar/709b7eb6-a594-438c-8154-59f2434bf653/scratchpad/exempt.ts
 
-== digest:plain (3636 bytes) ==
+== digest:plain (2493 bytes) ==
 # Sofar status: record-graph
 
-Goal: One mechanical, read-side adjacency derivation over the existing event logs, repo-wide — subsuming the bespoke per-edge reducers (task_files, activity), unlocking cross-initiative provenance the per-initiative fold drops, and deriving repo-general decisions from citation behaviour instead of a declared scope. Zero new event types, zero new capture, zero model calls, retroactive over every existing record; never in the hot path.
+Goal: One mechanical, read-side adjacency derivation over the existing event logs, repo-wide — subsuming the bespoke per-edge reducers (task_files, activity), unlocking cross-initiative provenance the per-initiative fold drops, and deriving repo-general decisions from citation behaviour instead of a declared scope. Zero new event types, zero new capture, zero model calls, retroactive over every existin…
 
-Phases:
-- done: Primitive, Queries, Surface, Consolidation, Review fixes (19/19 tasks)
-
-Progress: 19/19 tasks done (100%) across 5 phase(s)
-Active phase: (none)
 Next action: record-graph is complete — no further work planned.
 
 Last session (claude-code, ended 2026-08-13T14:57:43.214Z):
   Phase-close repair from phase-lifecycle 4.3 (D5). No work on record-graph itself: read plan.md, judged the Review fixes phase genuinely finished (4/4 tasks, 19/19 overall, record reads complete), appended phase_status_changed done. Next action carried forward verbatim.
 
+Phases:
+- done: Primitive, Queries, Surface, Consolidation, Review fixes (19/19 tasks)
+Progress: 19/19 tasks done (100%) across 5 phase(s)
+
 Recent decisions (last 5 of 15; full text in decisions.md):
-- [D11] 2026-08-03 GO on consolidation, implemented by putting the shared primitive BELOW both readers: core/adjacency.ts owns the node/ed… — over having fold.ts import core/graph.ts (the literal reading of "re-express over the graph pr…
-- [D12] 2026-08-03 4.3: unregistered_sessions, overlappingWritebacks and openSessionFileConflicts STAY in the fold — they are single-log b… — over following task_files and activity into the shared adjacency primitive for symmetry
-- [D13] 2026-08-04 5.1: citation qualifier matched by LOOKBACK — the handle regex matches alone and the word directly before it is checked… — over the shipped optional-qualifier alternation (a miscased/unknown qualifier silently degrade…
-- [D14] 2026-08-04 5.2: orphan task nodes minted for BOTH `changed` and `worked` endpoints, with status following the log's LAST `changed`… — over leaving worked endpoints unresolvable (raw node id leaking into `sofar why`, neighbours s…
-- [D15] 2026-08-04 5.3 (amends D5): BD&lt;n&gt; and D-&lt;label&gt; are OUTSIDE the citation grammar entirely — never matched, so never re… — over honouring D5's original clause by recording them as dangling entries
+- [D11] 2026-08-03 GO on consolidation, implemented by putting the shared primitive BELOW both readers — over having fold.ts import core/graph.ts
+- [D12] 2026-08-03 4.3: unregistered_sessions, overlappingWritebacks and openSessionFileConflicts STAY in th… — over following task_files and activity into the shared adjacency primitive…
+- [D13] 2026-08-04 5.1: citation qualifier matched by LOOKBACK — over the shipped optional-qualifier alternation
+- [D14] 2026-08-04 5.2: orphan task nodes minted for BOTH `changed` and `worked` endpoints, with status foll… — over leaving worked endpoints unresolvable
+- [D15] 2026-08-04 5.3 (amends D5): BD&lt;n&gt — over honouring D5's original clause by recording them as dangling entries
 Earlier rejected approaches — do NOT re-propose (10 older):
-- [D1] A semantic/knowledge graph in the graphify sense — LLM entity+relation extraction, embedd…
-- [D2] Feeding graph results into the SessionStart block, get_state digest, or UserPromptSubmit …
-- [D3] Adding a declared `scope: repo|initiative` field to the decision_logged payload, with a d…
-- [D4] A flat node table with deduped (from,to) pairs and a count attribute, which is the conven…
-- [D5] The plan's looser sketch — D&lt;n&gt;, BD&lt;n&gt;, &lt;slug&gt; D&lt;n&gt;, speed T&lt;n…
-- [D6] 2.4 as written — mirroring activity's precedent literally by appending a "+N more" STRING…
-- [D7] Canonicalizing paths at build time — stripping the repo root and any leading .claude/work…
-- [D8] prose/similarity matching between the decision's `chose` text and repo.md, accepting an u…
-- [D9] searching every initiative for a bare task id and reporting whatever matched (or picking …
-- [D10] the import-graph walk alone (the plain-surface-guard precedent applied verbatim)
+- [D1] A semantic/knowledge graph in the graphify sense
+- [D2] Feeding graph results into the SessionStart block, get_state digest, …
+- [D3] Adding a declared `scope
+- [D4] A flat node table with deduped
+- [D5] The plan's looser sketch
+- [D6] 2.4 as written — mirroring activity's precedent literally by appendin…
+- …and 4 more (see decisions.md)
 
 Next ids: D16 (decision), M1 (memory)
 
@@ -217,10 +213,19 @@ Read-back: before acting, restate goal, next action, and standing constraints in
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:hook (5839 bytes) ==
+== digest:hook (3757 bytes) ==
 # Sofar status: record-graph
 
-Goal: One mechanical, read-side adjacency derivation over the existing event logs, repo-wide — subsuming the bespoke per-edge reducers (task_files, activity), unlocking cross-initiative provenance the per-initiative fold drops, and deriving repo-general decisions from citation behaviour instead of a declared scope. Zero new event types, zero new capture, zero model calls, retroactive over every existing record; never in the hot path.
+Goal: One mechanical, read-side adjacency derivation over the existing event logs, repo-wide — subsuming the bespoke per-edge reducers (task_files, activity), unlocking cross-initiative provenance the per-initiative fold drops, and deriving repo-general decisions from citation behaviour instead of a declared scope. Zero new event types, zero new capture, zero model calls, retroactive over every existin…
+
+Next action: record-graph is complete — no further work planned.
+
+Last session (claude-code, ended 2026-08-13T14:57:43.214Z):
+  Phase-close repair from phase-lifecycle 4.3 (D5). No work on record-graph itself: read plan.md, judged the Review fixes phase genuinely finished (4/4 tasks, 19/19 overall, record reads complete), appended phase_status_changed done. Next action carried forward verbatim.
+
+Phases:
+- done: Primitive, Queries, Surface, Consolidation, Review fixes (19/19 tasks)
+Progress: 19/19 tasks done (100%) across 5 phase(s)
 
 Repo memory (.sofar/repo.md):
 # Repo memory — sofar
@@ -232,51 +237,22 @@ Repo memory (.sofar/repo.md):
   docs still say harness — that is history, never rewritten.
 - Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
   acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
 …truncated — read .sofar/repo.md for the rest
 
-Phases:
-- done: Primitive, Queries, Surface, Consolidation, Review fixes (19/19 tasks)
-
-Progress: 19/19 tasks done (100%) across 5 phase(s)
-Active phase: (none)
-Next action: record-graph is complete — no further work planned.
-
-Last session (claude-code, ended 2026-08-13T14:57:43.214Z):
-  Phase-close repair from phase-lifecycle 4.3 (D5). No work on record-graph itself: read plan.md, judged the Review fixes phase genuinely finished (4/4 tasks, 19/19 overall, record reads complete), appended phase_status_changed done. Next action carried forward verbatim.
-
 Recent decisions (last 5 of 15; full text in decisions.md):
-- [D11] 2026-08-03 GO on consolidation, implemented by putting the shared primitive BELOW both readers: core/adjacency.ts owns the node/ed… — over having fold.ts import core/graph.ts (the literal reading of "re-express over the graph pr…
-- [D12] 2026-08-03 4.3: unregistered_sessions, overlappingWritebacks and openSessionFileConflicts STAY in the fold — they are single-log b… — over following task_files and activity into the shared adjacency primitive for symmetry
-- [D13] 2026-08-04 5.1: citation qualifier matched by LOOKBACK — the handle regex matches alone and the word directly before it is checked… — over the shipped optional-qualifier alternation (a miscased/unknown qualifier silently degrade…
-- [D14] 2026-08-04 5.2: orphan task nodes minted for BOTH `changed` and `worked` endpoints, with status following the log's LAST `changed`… — over leaving worked endpoints unresolvable (raw node id leaking into `sofar why`, neighbours s…
-- [D15] 2026-08-04 5.3 (amends D5): BD&lt;n&gt; and D-&lt;label&gt; are OUTSIDE the citation grammar entirely — never matched, so never re… — over honouring D5's original clause by recording them as dangling entries
+- [D11] 2026-08-03 GO on consolidation, implemented by putting the shared primitive BELOW both readers — over having fold.ts import core/graph.ts
+- [D12] 2026-08-03 4.3: unregistered_sessions, overlappingWritebacks and openSessionFileConflicts STAY in th… — over following task_files and activity into the shared adjacency primitive…
+- [D13] 2026-08-04 5.1: citation qualifier matched by LOOKBACK — over the shipped optional-qualifier alternation
+- [D14] 2026-08-04 5.2: orphan task nodes minted for BOTH `changed` and `worked` endpoints, with status foll… — over leaving worked endpoints unresolvable
+- [D15] 2026-08-04 5.3 (amends D5): BD&lt;n&gt — over honouring D5's original clause by recording them as dangling entries
 Earlier rejected approaches — do NOT re-propose (10 older):
-- [D1] A semantic/knowledge graph in the graphify sense — LLM entity+relation extraction, embedd…
-- [D2] Feeding graph results into the SessionStart block, get_state digest, or UserPromptSubmit …
-- [D3] Adding a declared `scope: repo|initiative` field to the decision_logged payload, with a d…
-- [D4] A flat node table with deduped (from,to) pairs and a count attribute, which is the conven…
-- [D5] The plan's looser sketch — D&lt;n&gt;, BD&lt;n&gt;, &lt;slug&gt; D&lt;n&gt;, speed T&lt;n…
-- [D6] 2.4 as written — mirroring activity's precedent literally by appending a "+N more" STRING…
-- [D7] Canonicalizing paths at build time — stripping the repo root and any leading .claude/work…
-- [D8] prose/similarity matching between the decision's `chose` text and repo.md, accepting an u…
-- [D9] searching every initiative for a bare task id and reporting whatever matched (or picking …
-- [D10] the import-graph walk alone (the plain-surface-guard precedent applied verbatim)
+- [D1] A semantic/knowledge graph in the graphify sense
+- [D2] Feeding graph results into the SessionStart block, get_state digest, …
+- [D3] Adding a declared `scope
+- [D4] A flat node table with deduped
+- [D5] The plan's looser sketch
+- [D6] 2.4 as written — mirroring activity's precedent literally by appendin…
+- …and 4 more (see decisions.md)
 
 Next ids: D16 (decision), M1 (memory)
 
@@ -286,7 +262,7 @@ Adjacent records — 22 decisions across 5 other initiatives that have worked th
 - gamma — 4 shared files, 2 decisions
 …and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: record-graph-session — when calling sofar_start_session, pass this as session_id.
+Session: record-graph-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: record-graph @ a1b2c3d — differs from origin/record-graph (fedcba9) — unpushed work
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
@@ -297,10 +273,10 @@ Read-back: before acting, restate goal, next action, and standing constraints in
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:lane (5756 bytes) ==
+== digest:lane (4633 bytes) ==
 # Sofar: quick-work lane (record-graph)
 
-Goal: One mechanical, read-side adjacency derivation over the existing event logs, repo-wide — subsuming the bespoke per-edge reducers (task_files, activity), unlocking cross-initiative provenance the per-initiative fold drops, and deriving repo-general decisions from citation behaviour instead of a declared scope. Zero new event types, zero new capture, zero model calls, retroactive over every existing record; never in the hot path.
+Goal: One mechanical, read-side adjacency derivation over the existing event logs, repo-wide — subsuming the bespoke per-edge reducers (task_files, activity), unlocking cross-initiative provenance the per-initiative fold drops, and deriving repo-general decisions from citation behaviour instead of a declared scope. Zero new event types, zero new capture, zero model calls, retroactive over every existin…
 
 This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
 - Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
@@ -317,122 +293,75 @@ Recent quick work (7 sessions, 15 decisions since 2026-08-03; last 5):
 - 2026-08-03 claude-code — 5 files (/Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar/packages/engine/src/core/graph.ts, /Users/jins/IO/sofar/packages/engine/test/graph.test.ts, /Users/jins/IO/sofar/packages/engine/test/graph-queries.test.ts), 38 commands, task changes: 1.1 → active, 2.4 → active, 2.4 → done, 2.1 → done, 2.2 → done, 2.3 → done
 
 Recent decisions (last 5 of 15; full text in decisions.md):
-- [D11] 2026-08-03 GO on consolidation, implemented by putting the shared primitive BELOW both readers: core/adjacency.ts owns the node/ed… — over having fold.ts import core/graph.ts (the literal reading of "re-express over the graph pr…
-- [D12] 2026-08-03 4.3: unregistered_sessions, overlappingWritebacks and openSessionFileConflicts STAY in the fold — they are single-log b… — over following task_files and activity into the shared adjacency primitive for symmetry
-- [D13] 2026-08-04 5.1: citation qualifier matched by LOOKBACK — the handle regex matches alone and the word directly before it is checked… — over the shipped optional-qualifier alternation (a miscased/unknown qualifier silently degrade…
-- [D14] 2026-08-04 5.2: orphan task nodes minted for BOTH `changed` and `worked` endpoints, with status following the log's LAST `changed`… — over leaving worked endpoints unresolvable (raw node id leaking into `sofar why`, neighbours s…
-- [D15] 2026-08-04 5.3 (amends D5): BD&lt;n&gt; and D-&lt;label&gt; are OUTSIDE the citation grammar entirely — never matched, so never re… — over honouring D5's original clause by recording them as dangling entries
+- [D11] 2026-08-03 GO on consolidation, implemented by putting the shared primitive BELOW both readers — over having fold.ts import core/graph.ts
+- [D12] 2026-08-03 4.3: unregistered_sessions, overlappingWritebacks and openSessionFileConflicts STAY in th… — over following task_files and activity into the shared adjacency primitive…
+- [D13] 2026-08-04 5.1: citation qualifier matched by LOOKBACK — over the shipped optional-qualifier alternation
+- [D14] 2026-08-04 5.2: orphan task nodes minted for BOTH `changed` and `worked` endpoints, with status foll… — over leaving worked endpoints unresolvable
+- [D15] 2026-08-04 5.3 (amends D5): BD&lt;n&gt — over honouring D5's original clause by recording them as dangling entries
 Earlier rejected approaches — do NOT re-propose (10 older):
-- [D1] A semantic/knowledge graph in the graphify sense — LLM entity+relation extraction, embedd…
-- [D2] Feeding graph results into the SessionStart block, get_state digest, or UserPromptSubmit …
-- [D3] Adding a declared `scope: repo|initiative` field to the decision_logged payload, with a d…
-- [D4] A flat node table with deduped (from,to) pairs and a count attribute, which is the conven…
-- [D5] The plan's looser sketch — D&lt;n&gt;, BD&lt;n&gt;, &lt;slug&gt; D&lt;n&gt;, speed T&lt;n…
-- [D6] 2.4 as written — mirroring activity's precedent literally by appending a "+N more" STRING…
-- [D7] Canonicalizing paths at build time — stripping the repo root and any leading .claude/work…
-- [D8] prose/similarity matching between the decision's `chose` text and repo.md, accepting an u…
-- [D9] searching every initiative for a bare task id and reporting whatever matched (or picking …
-- [D10] the import-graph walk alone (the plain-surface-guard precedent applied verbatim)
+- [D1] A semantic/knowledge graph in the graphify sense
+- [D2] Feeding graph results into the SessionStart block, get_state digest, …
+- [D3] Adding a declared `scope
+- [D4] A flat node table with deduped
+- [D5] The plan's looser sketch
+- [D6] 2.4 as written — mirroring activity's precedent literally by appendin…
+- …and 4 more (see decisions.md)
 
 Next ids: D16 (decision), M1 (memory)
 
-Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: record-graph @ a1b2c3d — differs from origin/record-graph (fedcba9) — unpushed work
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:quiet (3723 bytes) ==
+== digest:quiet (2579 bytes) ==
 # Sofar status: record-graph
 
-Goal: One mechanical, read-side adjacency derivation over the existing event logs, repo-wide — subsuming the bespoke per-edge reducers (task_files, activity), unlocking cross-initiative provenance the per-initiative fold drops, and deriving repo-general decisions from citation behaviour instead of a declared scope. Zero new event types, zero new capture, zero model calls, retroactive over every existing record; never in the hot path.
+Goal: One mechanical, read-side adjacency derivation over the existing event logs, repo-wide — subsuming the bespoke per-edge reducers (task_files, activity), unlocking cross-initiative provenance the per-initiative fold drops, and deriving repo-general decisions from citation behaviour instead of a declared scope. Zero new event types, zero new capture, zero model calls, retroactive over every existin…
 
-Phases:
-- done: Primitive, Queries, Surface, Consolidation, Review fixes (19/19 tasks)
-
-Progress: 19/19 tasks done (100%) across 5 phase(s)
-Active phase: (none)
 Next action: record-graph is complete — no further work planned.
 
 Last session (claude-code, ended 2026-08-13T14:57:43.214Z):
   Phase-close repair from phase-lifecycle 4.3 (D5). No work on record-graph itself: read plan.md, judged the Review fixes phase genuinely finished (4/4 tasks, 19/19 overall, record reads complete), appended phase_status_changed done. Next action carried forward verbatim.
 
+Phases:
+- done: Primitive, Queries, Surface, Consolidation, Review fixes (19/19 tasks)
+Progress: 19/19 tasks done (100%) across 5 phase(s)
+
 Recent decisions (last 5 of 15; full text in decisions.md):
-- [D11] 2026-08-03 GO on consolidation, implemented by putting the shared primitive BELOW both readers: core/adjacency.ts owns the node/ed… — over having fold.ts import core/graph.ts (the literal reading of "re-express over the graph pr…
-- [D12] 2026-08-03 4.3: unregistered_sessions, overlappingWritebacks and openSessionFileConflicts STAY in the fold — they are single-log b… — over following task_files and activity into the shared adjacency primitive for symmetry
-- [D13] 2026-08-04 5.1: citation qualifier matched by LOOKBACK — the handle regex matches alone and the word directly before it is checked… — over the shipped optional-qualifier alternation (a miscased/unknown qualifier silently degrade…
-- [D14] 2026-08-04 5.2: orphan task nodes minted for BOTH `changed` and `worked` endpoints, with status following the log's LAST `changed`… — over leaving worked endpoints unresolvable (raw node id leaking into `sofar why`, neighbours s…
-- [D15] 2026-08-04 5.3 (amends D5): BD&lt;n&gt; and D-&lt;label&gt; are OUTSIDE the citation grammar entirely — never matched, so never re… — over honouring D5's original clause by recording them as dangling entries
+- [D11] 2026-08-03 GO on consolidation, implemented by putting the shared primitive BELOW both readers — over having fold.ts import core/graph.ts
+- [D12] 2026-08-03 4.3: unregistered_sessions, overlappingWritebacks and openSessionFileConflicts STAY in th… — over following task_files and activity into the shared adjacency primitive…
+- [D13] 2026-08-04 5.1: citation qualifier matched by LOOKBACK — over the shipped optional-qualifier alternation
+- [D14] 2026-08-04 5.2: orphan task nodes minted for BOTH `changed` and `worked` endpoints, with status foll… — over leaving worked endpoints unresolvable
+- [D15] 2026-08-04 5.3 (amends D5): BD&lt;n&gt — over honouring D5's original clause by recording them as dangling entries
 Earlier rejected approaches — do NOT re-propose (10 older):
-- [D1] A semantic/knowledge graph in the graphify sense — LLM entity+relation extraction, embedd…
-- [D2] Feeding graph results into the SessionStart block, get_state digest, or UserPromptSubmit …
-- [D3] Adding a declared `scope: repo|initiative` field to the decision_logged payload, with a d…
-- [D4] A flat node table with deduped (from,to) pairs and a count attribute, which is the conven…
-- [D5] The plan's looser sketch — D&lt;n&gt;, BD&lt;n&gt;, &lt;slug&gt; D&lt;n&gt;, speed T&lt;n…
-- [D6] 2.4 as written — mirroring activity's precedent literally by appending a "+N more" STRING…
-- [D7] Canonicalizing paths at build time — stripping the repo root and any leading .claude/work…
-- [D8] prose/similarity matching between the decision's `chose` text and repo.md, accepting an u…
-- [D9] searching every initiative for a bare task id and reporting whatever matched (or picking …
-- [D10] the import-graph walk alone (the plain-surface-guard precedent applied verbatim)
+- [D1] A semantic/knowledge graph in the graphify sense
+- [D2] Feeding graph results into the SessionStart block, get_state digest, …
+- [D3] Adding a declared `scope
+- [D4] A flat node table with deduped
+- [D5] The plan's looser sketch
+- [D6] 2.4 as written — mirroring activity's precedent literally by appendin…
+- …and 4 more (see decisions.md)
 
 Next ids: D16 (decision), M1 (memory)
 
-Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (10081 bytes) ==
+== digest:cap (6034 bytes) ==
 # Sofar status: record-graph
 
-Goal: One mechanical, read-side adjacency derivation over the existing event logs, repo-wide — subsuming the bespoke per-edge reducers (task_files, activity), unlocking cross-initiative provenance the per-initiative fold drops, and deriving repo-general decisions from citation behaviour instead of a declared scope. Zero new event types, zero new capture, zero model calls, retroactive over every existing record; never in the hot path.
+Goal: One mechanical, read-side adjacency derivation over the existing event logs, repo-wide — subsuming the bespoke per-edge reducers (task_files, activity), unlocking cross-initiative provenance the per-initiative fold drops, and deriving repo-general decisions from citation behaviour instead of a declared scope. Zero new event types, zero new capture, zero model calls, retroactive over every existin…
 
-Repo memory (.sofar/repo.md):
-# Repo memory — sofar
-
-- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
-  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
-  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
-  aliases (pre-publish). Historical event/projection text and the archived
-  docs still say harness — that is history, never rewritten.
-- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
-  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
-…truncated — read .sofar/repo.md for the rest
+Next action: record-graph is complete — no further work planned.
 
 Phases:
 - done: Primitive, Queries, Surface, Consolidation, Review fixes (19/19 tasks)
-
 Progress: 19/19 tasks done (100%) across 5 phase(s)
-Active phase: (none)
-Next action: record-graph is complete — no further work planned.
 
-Last session (claude-code, ended 2026-08-13T14:57:43.214Z):
-  Phase-close repair from phase-lifecycle 4.3 (D5). No work on record-graph itself: read plan.md, judged the Review fixes phase genuinely finished (4/4 tasks, 19/19 overall, record reads complete), appended phase_status_changed done. Next action carried forward verbatim.
-
-Recent decisions (last 5 of 15; full text in decisions.md):
-- [D11] 2026-08-03 GO on consolidation, implemented by putting the shared primitive BELOW both readers: core/adjacency.ts owns the node/ed… — over having fold.ts import core/graph.ts (the literal reading of "re-express over the graph pr…
-- [D12] 2026-08-03 4.3: unregistered_sessions, overlappingWritebacks and openSessionFileConflicts STAY in the fold — they are single-log b… — over following task_files and activity into the shared adjacency primitive for symmetry
-- [D13] 2026-08-04 5.1: citation qualifier matched by LOOKBACK — the handle regex matches alone and the word directly before it is checked… — over the shipped optional-qualifier alternation (a miscased/unknown qualifier silently degrade…
-- [D14] 2026-08-04 5.2: orphan task nodes minted for BOTH `changed` and `worked` endpoints, with status following the log's LAST `changed`… — over leaving worked endpoints unresolvable (raw node id leaking into `sofar why`, neighbours s…
-- [D15] 2026-08-04 5.3 (amends D5): BD&lt;n&gt; and D-&lt;label&gt; are OUTSIDE the citation grammar entirely — never matched, so never re… — over honouring D5's original clause by recording them as dangling entries
-Earlier rejected approaches — do NOT re-propose (10 older):
-- …and 10 more (see decisions.md)
 
 Next ids: D16 (decision), M1 (memory)
 
@@ -442,15 +371,19 @@ Adjacent records — 22 decisions across 5 other initiatives that have worked th
 - gamma — 4 shared files, 2 decisions
 …and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: record-graph-session — when calling sofar_start_session, pass this as session_id.
+Session: record-graph-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: record-graph @ a1b2c3d — differs from origin/record-graph (fedcba9) — unpushed work
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
 == plan (4264 bytes) ==
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->

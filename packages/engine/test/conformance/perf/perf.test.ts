@@ -6,7 +6,7 @@ import { performance } from 'node:perf_hooks'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { foldLog } from '../../../src/core/fold'
 import { renderStatus } from '../../../src/projections/templates/status'
-import { CANDIDATE, FIXTURES, IS_CANDIDATE, KEEP, childEnv, cleanupScratch, here, implementation, materialize, type Materialized } from '../harness'
+import { CANDIDATE, FIXTURES, IS_CANDIDATE, KEEP, childEnv, cleanupScratch, here, implementation, materialize, reference, type Materialized } from '../harness'
 import { BOUND_SLUG, SCALE_CELLS, writeScale, type ScaleCell } from './scale'
 import { BOUND as TEAM_BOUND, TEAM100, TEAM_CELLS, growthBudget, writeCorpus, type CorpusSpec, type CorpusSummary } from './corpus'
 
@@ -110,6 +110,8 @@ interface Measure {
   expectedExit: number
   /** Run before EVERY spawn, outside the timed window. */
   before?: (cell: Cell) => void
+  /** A command other than the measured binary — for a surface the candidate does not own (`find` is the full CLI's). */
+  command?: readonly string[]
 }
 
 interface CellResult {
@@ -299,7 +301,7 @@ function measure(cell: Cell, m: Measure): { stat: Stat; ab?: Stat } {
   const abSamples: number[] = []
   const one = (i: number, command?: readonly string[]) => {
     m.before?.(cell)
-    const { ms, exit, stderr } = spawnTimed(cell, m.argv, m.stdin(i), command)
+    const { ms, exit, stderr } = spawnTimed(cell, m.argv, m.stdin(i), command ?? m.command)
     expect(exit, `${cell.name} / ${m.name} run ${i}${command ? ' (comparator)' : ''}: exit ${exit}\n${stderr}`).toBe(m.expectedExit)
     return ms
   }
@@ -393,10 +395,9 @@ function corpusCell(spec: CorpusSpec): Cell & { corpus: CorpusSummary } {
 }
 
 /** One spawn under the OS `time` utility: its maximum resident set size in MB, or null where unavailable. */
-function rssMB(cell: Cell, argv: readonly string[], stdin: string | Record<string, unknown> | undefined): number | null {
+function rssMB(cell: Cell, argv: readonly string[], stdin: string | Record<string, unknown> | undefined, command: readonly string[] = binary().command): number | null {
   const flag = platform() === 'darwin' ? '-l' : platform() === 'linux' ? '-v' : null
   if (flag === null || !existsSync('/usr/bin/time')) return null
-  const command = binary().command
   const input = stdin === undefined ? '' : typeof stdin === 'string' ? stdin : JSON.stringify(stdin)
   const r = spawnSync('/usr/bin/time', [flag, ...command, ...argv], { cwd: cell.m.root, input, env: childEnv(cell.m), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
   const line = r.stderr.split('\n').find((l) => /maximum resident set size/i.test(l))
@@ -638,7 +639,9 @@ describe.skipIf(!PERF)('perf baseline (rust-core 1.3)', () => {
       const matrix = measures(cell)
       if (spec.team) {
         // rust-core 1.5: the find/index build, and the corpus the cell came from.
-        matrix.push({ name: 'find <slug> (graph + index build)', argv: ['find', cell.slug], stdin: () => undefined, expectedExit: 0, before: dropIndex })
+        // `find` is the full CLI's (never a hook shape, D15/D16): measured on the
+        // reference build whichever binary the cell measures.
+        matrix.push({ name: 'find <slug> (graph + index build, TypeScript)', argv: ['find', cell.slug], stdin: () => undefined, expectedExit: 0, before: dropIndex, command: reference().command })
         result.corpus = (cell as Cell & { corpus: CorpusSummary }).corpus
       }
       for (const m of matrix) {
@@ -650,7 +653,7 @@ describe.skipIf(!PERF)('perf baseline (rust-core 1.3)', () => {
         const rss: Record<string, number> = {}
         for (const m of matrix) {
           if (m.name.startsWith('session-start (index cold)')) continue
-          const v = rssMB(cell, m.argv, m.stdin(0))
+          const v = rssMB(cell, m.argv, m.stdin(0), m.command)
           if (v !== null) rss[m.name] = v
         }
         if (Object.keys(rss).length > 0) result.rssMB = rss

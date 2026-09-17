@@ -15,6 +15,7 @@ use sofar_core::cli::Hook;
 use sofar_core::cli::{Color, Dispatch, Owned, dispatch};
 use sofar_core::fold_cli::{CmdResult, run_fold};
 use sofar_core::hook::read_stdin;
+use sofar_core::host::for_host;
 use sofar_core::post_tool::{handle_post_tool, handle_post_tool_failure};
 use sofar_core::resolve::resolve_root;
 use sofar_core::session_start::handle_session_start;
@@ -116,42 +117,57 @@ fn main() -> ExitCode {
         Dispatch::Owned(Owned::Event {
             hook: Hook::SessionStart,
             root,
-        }) => mirror(&handle_session_start(
-            &resolve_root(root.as_deref()),
-            &read_stdin(),
-        )),
+        }) => {
+            let root = resolve_root(root.as_deref());
+            mirror(&for_host(Hook::SessionStart, &read_stdin(), |input| {
+                handle_session_start(&root, input)
+            }))
+        }
         Dispatch::Owned(Owned::Event {
             hook: Hook::PostTool,
             root,
-        }) => mirror(&handle_post_tool(
-            &resolve_root(root.as_deref()),
-            &read_stdin(),
-        )),
+        }) => {
+            let root = resolve_root(root.as_deref());
+            mirror(&for_host(Hook::PostTool, &read_stdin(), |input| {
+                handle_post_tool(&root, input)
+            }))
+        }
         Dispatch::Owned(Owned::Event {
             hook: Hook::PostToolFailure,
             root,
-        }) => mirror(&handle_post_tool_failure(
-            &resolve_root(root.as_deref()),
-            &read_stdin(),
-        )),
+        }) => {
+            let root = resolve_root(root.as_deref());
+            mirror(&for_host(Hook::PostToolFailure, &read_stdin(), |input| {
+                handle_post_tool_failure(&root, input)
+            }))
+        }
         Dispatch::Owned(Owned::Event {
             hook: Hook::UserPrompt,
             root,
-        }) => mirror(&handle_user_prompt(
-            &resolve_root(root.as_deref()),
-            &read_stdin(),
-        )),
+        }) => {
+            let root = resolve_root(root.as_deref());
+            mirror(&for_host(Hook::UserPrompt, &read_stdin(), |input| {
+                handle_user_prompt(&root, input)
+            }))
+        }
         Dispatch::Owned(Owned::Event {
             hook: Hook::Stop,
             root,
-        }) => mirror(&handle_stop(&resolve_root(root.as_deref()), &read_stdin())),
+        }) => {
+            let root = resolve_root(root.as_deref());
+            mirror(&for_host(Hook::Stop, &read_stdin(), |input| {
+                handle_stop(&root, input)
+            }))
+        }
         Dispatch::Owned(Owned::Event {
             hook: Hook::SessionEnd,
             root,
-        }) => mirror(&handle_session_end(
-            &resolve_root(root.as_deref()),
-            &read_stdin(),
-        )),
+        }) => {
+            let root = resolve_root(root.as_deref());
+            mirror(&for_host(Hook::SessionEnd, &read_stdin(), |input| {
+                handle_session_end(&root, input)
+            }))
+        }
         Dispatch::Owned(Owned::Statusline { root, color }) => {
             // Styled by default (the status bar renders ANSI even piped);
             // `--no-color` or NO_COLOR present opts back into plain (D7).

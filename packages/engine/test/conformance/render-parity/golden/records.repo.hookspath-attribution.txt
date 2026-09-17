@@ -80,7 +80,7 @@
     ]
   }
 }
-== status (3829 bytes) ==
+== status (3986 bytes) ==
 # hookspath-attribution
 
 Goal: sofar init refuses to install the prepare-commit-msg hook whenever core.hooksPath is set, even when it points at .git/hooks itself — which is what it points at in brillo, so attribution is silently unavailable there for no reason. Resolve the configured path and install into it when it IS the effective hooks dir; when it is genuinely elsewhere (husky, lefthook), keep skipping but name the real directory and the exact line to add, because 'install it there by hand' names no path and the current wording claims .git/hooks is inert when it is not.
@@ -101,6 +101,7 @@ Next action: Nothing outstanding here — 0.27.0 is published and pushed; if a f
 
 ⚠ Staleness:
 - next action may be stale: 1 event since the last write-back (2026-08-13T14:45:00.515Z) — 1 note
+- last write-back summary exceeds the SessionStart budget (450 chars) and is clipped there — full text in sessions/7bfc9c05-d59f-4704-9d19-258fb95451a7.md
 
 Notes since write-back (1):
 - 2026-08-13T14:46:28.865Z FIELD CONFIRMATION, 2026-08-13: the user re-ran `sofar init` in brillo on 0.27.0 and it worked — the hook installs where core.hooksPath points at the repo's own .git/hooks, which is the exact configuration that produced the original report. The loop this initiative opened on is closed end to end: field report, diagnosis, fix, release, and confirmation from the same repo that raised it.
@@ -112,43 +113,57 @@ Files touched (2):
 - /Users/jins/IO/sofar/packages/engine/src/cli/init.ts
 - /Users/jins/IO/sofar/docs/SPEC.md
 
-== digest:plain (2822 bytes) ==
+== digest:plain (2529 bytes) ==
 # Sofar status: hookspath-attribution
 
-Goal: sofar init refuses to install the prepare-commit-msg hook whenever core.hooksPath is set, even when it points at .git/hooks itself — which is what it points at in brillo, so attribution is silently unavailable there for no reason. Resolve the configured path and install into it when it IS the effective hooks dir; when it is genuinely elsewhere (husky, lefthook), keep skipping but name the real directory and the exact line to add, because 'install it there by hand' names no path and the current wording claims .git/hooks is inert when it is not.
+Goal: sofar init refuses to install the prepare-commit-msg hook whenever core.hooksPath is set, even when it points at .git/hooks itself — which is what it points at in brillo, so attribution is silently unavailable there for no reason. Resolve the configured path and install into it when it IS the effective hooks dir; when it is genuinely elsewhere (husky, lefthook), keep skipping but name the real di…
 
-Standing constraints — obey verbatim (1):
-- [D1] Ask git where hooks actually live (effectiveHooksDir) — never assume `<common>/hooks`, and never write into a hooks directory that is tracked in the user's repo.
-
-Phases:
-- done: Phase 1 (5/5 tasks)
-
-Progress: 5/5 tasks done (100%) across 1 phase(s)
-Active phase: (none)
 Next action: Nothing outstanding here — 0.27.0 is published and pushed; if a future push 500s, retry before diagnosing: this outage cleared on its own after roughly seven minutes with reads working throughout.
 ⚠ next action may be stale: 1 event since write-back (1 note)
 Notes since write-back:
 - 2026-08-13 FIELD CONFIRMATION, 2026-08-13: the user re-ran `sofar init` in brillo on 0.27.0 and it worked — the hook installs where core.hooksPath points at the repo's own .git/hooks, which is the ex…
 
 Last session (claude-code, ended 2026-08-13T14:45:00.515Z):
-  0.27.0 is published on npm and the three local commits are pushed — main and origin/main are both df7d9b5. The GitHub Internal Server Error that blocked pushing for roughly seven minutes was isolated before it cleared: reads worked throughout (ls-remote returned the head), a single-commit push failed, and a push to a brand-new throwaway ref failed too, so it was the repository's write path rather than our commits, the branch, or size (26 objects). GitHub's own status reported Git Operations operational, so it was repo-scoped rather than a platform incident, and SSH was not a usable fallback here (no key configured — publickey denied). It then succeeded on a plain retry with no change on our side. No stray probe ref was left on the remote, because that push was rejected as well.
+  0.27.0 is published on npm and the three local commits are pushed — main and origin/main are both df7d9b5. The GitHub Internal Server Error that blocked pushing for roughly seven minutes was isolated before it cleared: reads worked throughout (ls-remote returned the head), a single-commit push failed, and a pus… (clipped — full text in sessions/7bfc9c05-d59f-4704-9d19-258fb95451a7.md)
+
+Phases:
+- done: Phase 1 (5/5 tasks)
+Progress: 5/5 tasks done (100%) across 1 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] VERIFYING A PACKED BUILD: put the tarball's bin FIRST on PATH, or you are testing the installed engine and not the artifact. The prepare-commit-msg shim resolves `sofar` from PATH by design (D5: no absolute path, so it survives any install layout), so `npm install -g --prefix <t…
 
 Recent decisions (1; full text in decisions.md):
-- [D1] 2026-08-13 (rule above) Resolve `core.hooksPath` and compare it against `<common>/h… — over Treating any `core.hooksPath` as a skip (the 0.26.0 behaviour), and the opposite extreme …
+- [D1] 2026-08-13 (rule below) Resolve `core.hooksPath` and compare it against `<common>/h… — over Treating any `core.hooksPath` as a skip
 
 Next ids: D2 (decision), M2 (memory)
+
+Standing constraints — obey verbatim (1):
+- [D1] Ask git where hooks actually live (effectiveHooksDir) — never assume `<common>/hooks`, and never write into a hooks directory that is tracked in the user's repo.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:hook (4980 bytes) ==
+== digest:hook (3748 bytes) ==
 # Sofar status: hookspath-attribution
 
-Goal: sofar init refuses to install the prepare-commit-msg hook whenever core.hooksPath is set, even when it points at .git/hooks itself — which is what it points at in brillo, so attribution is silently unavailable there for no reason. Resolve the configured path and install into it when it IS the effective hooks dir; when it is genuinely elsewhere (husky, lefthook), keep skipping but name the real directory and the exact line to add, because 'install it there by hand' names no path and the current wording claims .git/hooks is inert when it is not.
+Goal: sofar init refuses to install the prepare-commit-msg hook whenever core.hooksPath is set, even when it points at .git/hooks itself — which is what it points at in brillo, so attribution is silently unavailable there for no reason. Resolve the configured path and install into it when it IS the effective hooks dir; when it is genuinely elsewhere (husky, lefthook), keep skipping but name the real di…
 
-Standing constraints — obey verbatim (1):
-- [D1] Ask git where hooks actually live (effectiveHooksDir) — never assume `<common>/hooks`, and never write into a hooks directory that is tracked in the user's repo.
+Next action: Nothing outstanding here — 0.27.0 is published and pushed; if a future push 500s, retry before diagnosing: this outage cleared on its own after roughly seven minutes with reads working throughout.
+⚠ next action may be stale: 1 event since write-back (1 note)
+Notes since write-back:
+- 2026-08-13 FIELD CONFIRMATION, 2026-08-13: the user re-ran `sofar init` in brillo on 0.27.0 and it worked — the hook installs where core.hooksPath points at the repo's own .git/hooks, which is the ex…
+
+Last session (claude-code, ended 2026-08-13T14:45:00.515Z):
+  0.27.0 is published on npm and the three local commits are pushed — main and origin/main are both df7d9b5. The GitHub Internal Server Error that blocked pushing for roughly seven minutes was isolated before it cleared: reads worked throughout (ls-remote returned the head), a single-commit push failed, and a pus… (clipped — full text in sessions/7bfc9c05-d59f-4704-9d19-258fb95451a7.md)
+
+Phases:
+- done: Phase 1 (5/5 tasks)
+Progress: 5/5 tasks done (100%) across 1 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] VERIFYING A PACKED BUILD: put the tarball's bin FIRST on PATH, or you are testing the installed engine and not the artifact. The prepare-commit-msg shim resolves `sofar` from PATH by design (D5: no absolute path, so it survives any install layout), so `npm install -g --prefix <t…
 
 Repo memory (.sofar/repo.md):
 # Repo memory — sofar
@@ -160,39 +175,10 @@ Repo memory (.sofar/repo.md):
   docs still say harness — that is history, never rewritten.
 - Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
   acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
 …truncated — read .sofar/repo.md for the rest
 
-Phases:
-- done: Phase 1 (5/5 tasks)
-
-Progress: 5/5 tasks done (100%) across 1 phase(s)
-Active phase: (none)
-Next action: Nothing outstanding here — 0.27.0 is published and pushed; if a future push 500s, retry before diagnosing: this outage cleared on its own after roughly seven minutes with reads working throughout.
-⚠ next action may be stale: 1 event since write-back (1 note)
-Notes since write-back:
-- 2026-08-13 FIELD CONFIRMATION, 2026-08-13: the user re-ran `sofar init` in brillo on 0.27.0 and it worked — the hook installs where core.hooksPath points at the repo's own .git/hooks, which is the ex…
-
-Last session (claude-code, ended 2026-08-13T14:45:00.515Z):
-  0.27.0 is published on npm and the three local commits are pushed — main and origin/main are both df7d9b5. The GitHub Internal Server Error that blocked pushing for roughly seven minutes was isolated before it cleared: reads worked throughout (ls-remote returned the head), a single-commit push failed, and a push to a brand-new throwaway ref failed too, so it was the repository's write path rather than our commits, the branch, or size (26 objects). GitHub's own status reported Git Operations operational, so it was repo-scoped rather than a platform incident, and SSH was not a usable fallback here (no key configured — publickey denied). It then succeeded on a plain retry with no change on our side. No stray probe ref was left on the remote, because that push was rejected as well.
-
 Recent decisions (1; full text in decisions.md):
-- [D1] 2026-08-13 (rule above) Resolve `core.hooksPath` and compare it against `<common>/h… — over Treating any `core.hooksPath` as a skip (the 0.26.0 behaviour), and the opposite extreme …
+- [D1] 2026-08-13 (rule below) Resolve `core.hooksPath` and compare it against `<common>/h… — over Treating any `core.hooksPath` as a skip
 
 Next ids: D2 (decision), M2 (memory)
 
@@ -201,130 +187,102 @@ Adjacent records — 8 decisions across 2 other initiatives that have worked thi
 - beta — 1 shared file, 1 decision
 Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: hookspath-attribution-session — when calling sofar_start_session, pass this as session_id.
+Session: hookspath-attribution-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/hookspath-attribution @ a1b2c3d — in sync with origin/feature/hookspath-attribution
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
+Standing constraints — obey verbatim (1):
+- [D1] Ask git where hooks actually live (effectiveHooksDir) — never assume `<common>/hooks`, and never write into a hooks directory that is tracked in the user's repo.
+
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:lane (3047 bytes) ==
+== digest:lane (2575 bytes) ==
 # Sofar: quick-work lane (hookspath-attribution)
 
-Goal: sofar init refuses to install the prepare-commit-msg hook whenever core.hooksPath is set, even when it points at .git/hooks itself — which is what it points at in brillo, so attribution is silently unavailable there for no reason. Resolve the configured path and install into it when it IS the effective hooks dir; when it is genuinely elsewhere (husky, lefthook), keep skipping but name the real directory and the exact line to add, because 'install it there by hand' names no path and the current wording claims .git/hooks is inert when it is not.
+Goal: sofar init refuses to install the prepare-commit-msg hook whenever core.hooksPath is set, even when it points at .git/hooks itself — which is what it points at in brillo, so attribution is silently unavailable there for no reason. Resolve the configured path and install into it when it IS the effective hooks dir; when it is genuinely elsewhere (husky, lefthook), keep skipping but name the real di…
 
 This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
 - Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
 - Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
 
-Standing constraints — obey verbatim (1):
-- [D1] Ask git where hooks actually live (effectiveHooksDir) — never assume `<common>/hooks`, and never write into a hooks directory that is tracked in the user's repo.
-
 Notes since write-back:
 - 2026-08-13 FIELD CONFIRMATION, 2026-08-13: the user re-ran `sofar init` in brillo on 0.27.0 and it worked — the hook installs where core.hooksPath points at the repo's own .git/hooks, which is the ex…
+
 Last session (claude-code, ended 2026-08-13T14:45:00.515Z):
-  0.27.0 is published on npm and the three local commits are pushed — main and origin/main are both df7d9b5. The GitHub Internal Server Error that blocked pushing for roughly seven minutes was isolated before it cleared: reads worked throughout (ls-remote returned the head), a single-commit push failed, and a push to a brand-new throwaway ref failed too, so it was the repository's write path rather than our commits, the branch, or size (26 objects). GitHub's own status reported Git Operations operational, so it was repo-scoped rather than a platform incident, and SSH was not a usable fallback here (no key configured — publickey denied). It then succeeded on a plain retry with no change on our side. No stray probe ref was left on the remote, because that push was rejected as well.
+  0.27.0 is published on npm and the three local commits are pushed — main and origin/main are both df7d9b5. The GitHub Internal Server Error that blocked pushing for roughly seven minutes was isolated before it cleared: reads worked throughout (ls-remote returned the head), a single-commit push failed, and a pus… (clipped — full text in sessions/7bfc9c05-d59f-4704-9d19-258fb95451a7.md)
 
 Recent quick work (1 session, 1 decision since 2026-08-13):
 - 2026-08-13 claude-code — 2 files (/Users/jins/IO/sofar/packages/engine/src/cli/init.ts, /Users/jins/IO/sofar/docs/SPEC.md), 55 commands
 
+Memory (1; full text in memory.md):
+- [M1] VERIFYING A PACKED BUILD: put the tarball's bin FIRST on PATH, or you are testi…
+
 Recent decisions (1; full text in decisions.md):
-- [D1] 2026-08-13 (rule above) Resolve `core.hooksPath` and compare it against `<common>/h… — over Treating any `core.hooksPath` as a skip (the 0.26.0 behaviour), and the opposite extreme …
+- [D1] 2026-08-13 (rule below) Resolve `core.hooksPath` and compare it against `<common>/h… — over Treating any `core.hooksPath` as a skip
 
 Next ids: D2 (decision), M2 (memory)
 
-Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/hookspath-attribution @ a1b2c3d — in sync with origin/feature/hookspath-attribution
-
-(generated by sofar — full detail in plan.md, decisions.md, sessions/)
-
-== digest:quiet (2909 bytes) ==
-# Sofar status: hookspath-attribution
-
-Goal: sofar init refuses to install the prepare-commit-msg hook whenever core.hooksPath is set, even when it points at .git/hooks itself — which is what it points at in brillo, so attribution is silently unavailable there for no reason. Resolve the configured path and install into it when it IS the effective hooks dir; when it is genuinely elsewhere (husky, lefthook), keep skipping but name the real directory and the exact line to add, because 'install it there by hand' names no path and the current wording claims .git/hooks is inert when it is not.
 
 Standing constraints — obey verbatim (1):
 - [D1] Ask git where hooks actually live (effectiveHooksDir) — never assume `<common>/hooks`, and never write into a hooks directory that is tracked in the user's repo.
 
-Phases:
-- done: Phase 1 (5/5 tasks)
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-Progress: 5/5 tasks done (100%) across 1 phase(s)
-Active phase: (none)
+== digest:quiet (2615 bytes) ==
+# Sofar status: hookspath-attribution
+
+Goal: sofar init refuses to install the prepare-commit-msg hook whenever core.hooksPath is set, even when it points at .git/hooks itself — which is what it points at in brillo, so attribution is silently unavailable there for no reason. Resolve the configured path and install into it when it IS the effective hooks dir; when it is genuinely elsewhere (husky, lefthook), keep skipping but name the real di…
+
 Next action: Nothing outstanding here — 0.27.0 is published and pushed; if a future push 500s, retry before diagnosing: this outage cleared on its own after roughly seven minutes with reads working throughout.
 ⚠ next action may be stale: 1 event since write-back (1 note)
 Notes since write-back:
 - 2026-08-13 FIELD CONFIRMATION, 2026-08-13: the user re-ran `sofar init` in brillo on 0.27.0 and it worked — the hook installs where core.hooksPath points at the repo's own .git/hooks, which is the ex…
 
 Last session (claude-code, ended 2026-08-13T14:45:00.515Z):
-  0.27.0 is published on npm and the three local commits are pushed — main and origin/main are both df7d9b5. The GitHub Internal Server Error that blocked pushing for roughly seven minutes was isolated before it cleared: reads worked throughout (ls-remote returned the head), a single-commit push failed, and a push to a brand-new throwaway ref failed too, so it was the repository's write path rather than our commits, the branch, or size (26 objects). GitHub's own status reported Git Operations operational, so it was repo-scoped rather than a platform incident, and SSH was not a usable fallback here (no key configured — publickey denied). It then succeeded on a plain retry with no change on our side. No stray probe ref was left on the remote, because that push was rejected as well.
+  0.27.0 is published on npm and the three local commits are pushed — main and origin/main are both df7d9b5. The GitHub Internal Server Error that blocked pushing for roughly seven minutes was isolated before it cleared: reads worked throughout (ls-remote returned the head), a single-commit push failed, and a pus… (clipped — full text in sessions/7bfc9c05-d59f-4704-9d19-258fb95451a7.md)
+
+Phases:
+- done: Phase 1 (5/5 tasks)
+Progress: 5/5 tasks done (100%) across 1 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] VERIFYING A PACKED BUILD: put the tarball's bin FIRST on PATH, or you are testing the installed engine and not the artifact. The prepare-commit-msg shim resolves `sofar` from PATH by design (D5: no absolute path, so it survives any install layout), so `npm install -g --prefix <t…
 
 Recent decisions (1; full text in decisions.md):
-- [D1] 2026-08-13 (rule above) Resolve `core.hooksPath` and compare it against `<common>/h… — over Treating any `core.hooksPath` as a skip (the 0.26.0 behaviour), and the opposite extreme …
+- [D1] 2026-08-13 (rule below) Resolve `core.hooksPath` and compare it against `<common>/h… — over Treating any `core.hooksPath` as a skip
 
 Next ids: D2 (decision), M2 (memory)
 
-Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (1):
+- [D1] Ask git where hooks actually live (effectiveHooksDir) — never assume `<common>/hooks`, and never write into a hooks directory that is tracked in the user's repo.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (10059 bytes) ==
+== digest:cap (6038 bytes) ==
 # Sofar status: hookspath-attribution
 
-Goal: sofar init refuses to install the prepare-commit-msg hook whenever core.hooksPath is set, even when it points at .git/hooks itself — which is what it points at in brillo, so attribution is silently unavailable there for no reason. Resolve the configured path and install into it when it IS the effective hooks dir; when it is genuinely elsewhere (husky, lefthook), keep skipping but name the real directory and the exact line to add, because 'install it there by hand' names no path and the current wording claims .git/hooks is inert when it is not.
+Goal: sofar init refuses to install the prepare-commit-msg hook whenever core.hooksPath is set, even when it points at .git/hooks itself — which is what it points at in brillo, so attribution is silently unavailable there for no reason. Resolve the configured path and install into it when it IS the effective hooks dir; when it is genuinely elsewhere (husky, lefthook), keep skipping but name the real di…
 
-Standing constraints — obey verbatim (1):
-- [D1] Ask git where hooks actually live (effectiveHooksDir) — never assume `<common>/hooks`, and never write into a hooks directory that is tracked in the user's repo.
-
-Repo memory (.sofar/repo.md):
-# Repo memory — sofar
-
-- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
-  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
-  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
-  aliases (pre-publish). Historical event/projection text and the archived
-  docs still say harness — that is history, never rewritten.
-- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
-  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
-…truncated — read .sofar/repo.md for the rest
-
-Phases:
-- done: Phase 1 (5/5 tasks)
-
-Progress: 5/5 tasks done (100%) across 1 phase(s)
-Active phase: (none)
 Next action: Nothing outstanding here — 0.27.0 is published and pushed; if a future push 500s, retry before diagnosing: this outage cleared on its own after roughly seven minutes with reads working throughout.
 ⚠ next action may be stale: 1 event since write-back (1 note)
 Notes since write-back:
 - 2026-08-13 FIELD CONFIRMATION, 2026-08-13: the user re-ran `sofar init` in brillo on 0.27.0 and it worked — the hook installs where core.hooksPath points at the repo's own .git/hooks, which is the ex…
 
-Last session (claude-code, ended 2026-08-13T14:45:00.515Z):
-  0.27.0 is published on npm and the three local commits are pushed — main and origin/main are both df7d9b5. The GitHub Internal Server Error that blocked pushing for roughly seven minutes was isolated before it cleared: reads worked throughout (ls-remote returned the head), a single-commit push failed, and a push to a brand-new throwaway ref failed too, so it was the repository's write path rather than our commits, the branch, or size (26 objects). GitHub's own status reported Git Operations operational, so it was repo-scoped rather than a platform incident, and SSH was not a usable fallback here (no key configured — publickey denied). It then succeeded on a plain retry with no change on our side. No stray probe ref was left on the remote, because that push was rejected as well.
+Phases:
+- done: Phase 1 (5/5 tasks)
+Progress: 5/5 tasks done (100%) across 1 phase(s)
 
-Recent decisions (1; full text in decisions.md):
-- [D1] 2026-08-13 (rule above) Resolve `core.hooksPath` and compare it against `<common>/h… — over Treating any `core.hooksPath` as a skip (the 0.26.0 behaviour), and the opposite extreme …
 
 Next ids: D2 (decision), M2 (memory)
 
@@ -333,15 +291,22 @@ Adjacent records — 8 decisions across 2 other initiatives that have worked thi
 - beta — 1 shared file, 1 decision
 Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: hookspath-attribution-session — when calling sofar_start_session, pass this as session_id.
+Session: hookspath-attribution-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/hookspath-attribution @ a1b2c3d — in sync with origin/feature/hookspath-attribution
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
+
+Standing constraints — obey verbatim (1):
+- [D1] Ask git where hooks actually live (effectiveHooksDir) — never assume `<common>/hooks`, and never write into a hooks directory that is tracked in the user's repo.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
 == plan (2144 bytes) ==
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->

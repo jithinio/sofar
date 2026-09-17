@@ -80,7 +80,7 @@
     ]
   }
 }
-== status (26267 bytes) ==
+== status (26266 bytes) ==
 # r1-fixes
 
 Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
@@ -113,7 +113,7 @@ Phases:
 Next action: Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
 
 ⚠ Staleness:
-- last write-back summary exceeds the SessionStart budget (1200 chars) and is clipped there — full text in sessions/codex-r1-audit-20260915-01.md
+- last write-back summary exceeds the SessionStart budget (450 chars) and is clipped there — full text in sessions/codex-r1-audit-20260915-01.md
 
 Last session (codex, ended 2026-09-15T15:48:08.237Z):
   # r1-fixes: technical direction and competitive audit
@@ -231,24 +231,33 @@ Make sofar the most dependable way to continue verified work across coding agent
 ## Handoff
 Audit findings are in the main checkout's r1-fixes record, while active implementation is in a separate worktree with a divergent record copy. Preserve both histories through the normal append-only merge/reconciliation process. No implementation approvals or changes to D19 were made here.
 
-== digest:plain (2781 bytes) ==
+== digest:plain (2718 bytes) ==
 # Sofar status: r1-fixes
 
-Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
+Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0…
+
+Next task: 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split sessions.
+  in Phase 1 — Wave 1: correctness and quick wins [active] 0/6
+  - 1.2 Session registration race: make hook registration idempotent under parallel…
+  - 1.3 CLI agents: `sofar event types` payload reference; plan, phase and goal lin…
+  - 1.4 Formatter defence: doctor check and fix for Biome (plus Prettier and markdo…
+  - 1.5 stdin/file input for `sofar remember` and `sofar event --payload`, quoted-h…
+  - 1.6 Drive diagnostics: carry the adapter's stderr tail, failure or spawn error …
+
+Next action: Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
+
+Last session (codex, ended 2026-09-15T15:48:08.237Z):
+  # r1-fixes: technical direction and competitive audit Date: 2026-09-15. Audit only. Recommendations below are not adopted decisions or implementation changes. ## Verdict Keep the initiative. It targets real friction and follows established context/harness engineering practice, but its present plan does not establish industry l… (clipped — full text in sessions/codex-r1-audit-20260915-01.md)
 
 Phases:
 - Phase 1 — Wave 1: correctness and quick wins [active] 0/6
 - Phase 2 — Wave 2: less bookkeeping, leaner context [pending] 0/6
 - Phase 3 — Wave 3: new capabilities [pending] 0/3
 - Phase 4 — Release [pending] 0/3
-
 Progress: 0/18 tasks done (0%) across 4 phase(s)
-Active phase: Phase 1 — Wave 1: correctness and quick wins — 0/6 tasks done
-Next task: 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split…
-Next action: Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
 
-Last session (codex, ended 2026-09-15T15:48:08.237Z):
-  # r1-fixes: technical direction and competitive audit Date: 2026-09-15. Audit only. Recommendations below are not adopted decisions or implementation changes. ## Verdict Keep the initiative. It targets real friction and follows established context/harness engineering practice, but its present plan does not establish industry leadership. The strongest opportunity is to combine low bookkeeping, precise decision history, cross-agent continuity, and completion backed by independent, replayable evidence. Leadership must be measured against direct memory/harness competitors as well as native agent memory. Scope: all 18 r1-fixes tasks; bench-refresh goal, decisions and frozen round-1 pre-registration; self-improve dependencies; targeted engine/schema/SPEC reads; primary-source research. Main baseline was 8b4c33c. The separate implementation worktree had task 1.1 committed as 7f097a9 and task 1.2 active. Main's 0/18 projection was behind that worktree. I independently ran first-session-notice.test.ts in the implementation worktree: 8/8 passed. That validates the targeted behavior, not the predicted token savings. No implement… (clipped — full text in sessions/codex-r1-audit-20260915-01.md)
+Memory (1; full text in memory.md):
+- [M1] Audit 2026-09-15: main at 8b4c33c and the r1-fixes worktree have separate record copies. Implementation is in /Users/jins/IO/sofar-r1-fixes; task 1.1 is committed there at 7f097a9 and 1.2 is active. The main copy still reports 0/18. Inspect the worktree record for implementation…
 
 Next ids: D1 (decision), M2 (memory)
 
@@ -256,10 +265,33 @@ Read-back: before acting, restate goal, next action, and standing constraints in
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:hook (4900 bytes) ==
+== digest:hook (3898 bytes) ==
 # Sofar status: r1-fixes
 
-Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
+Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0…
+
+Next task: 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split sessions.
+  in Phase 1 — Wave 1: correctness and quick wins [active] 0/6
+  - 1.2 Session registration race: make hook registration idempotent under parallel…
+  - 1.3 CLI agents: `sofar event types` payload reference; plan, phase and goal lin…
+  - 1.4 Formatter defence: doctor check and fix for Biome (plus Prettier and markdo…
+  - 1.5 stdin/file input for `sofar remember` and `sofar event --payload`, quoted-h…
+  - 1.6 Drive diagnostics: carry the adapter's stderr tail, failure or spawn error …
+
+Next action: Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
+
+Last session (codex, ended 2026-09-15T15:48:08.237Z):
+  # r1-fixes: technical direction and competitive audit Date: 2026-09-15. Audit only. Recommendations below are not adopted decisions or implementation changes. ## Verdict Keep the initiative. It targets real friction and follows established context/harness engineering practice, but its present plan does not establish industry l… (clipped — full text in sessions/codex-r1-audit-20260915-01.md)
+
+Phases:
+- Phase 1 — Wave 1: correctness and quick wins [active] 0/6
+- Phase 2 — Wave 2: less bookkeeping, leaner context [pending] 0/6
+- Phase 3 — Wave 3: new capabilities [pending] 0/3
+- Phase 4 — Release [pending] 0/3
+Progress: 0/18 tasks done (0%) across 4 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] Audit 2026-09-15: main at 8b4c33c and the r1-fixes worktree have separate record copies. Implementation is in /Users/jins/IO/sofar-r1-fixes; task 1.1 is committed there at 7f097a9 and 1.2 is active. The main copy still reports 0/18. Inspect the worktree record for implementation…
 
 Repo memory (.sofar/repo.md):
 # Repo memory — sofar
@@ -271,37 +303,7 @@ Repo memory (.sofar/repo.md):
   docs still say harness — that is history, never rewritten.
 - Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
   acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
 …truncated — read .sofar/repo.md for the rest
-
-Phases:
-- Phase 1 — Wave 1: correctness and quick wins [active] 0/6
-- Phase 2 — Wave 2: less bookkeeping, leaner context [pending] 0/6
-- Phase 3 — Wave 3: new capabilities [pending] 0/3
-- Phase 4 — Release [pending] 0/3
-
-Progress: 0/18 tasks done (0%) across 4 phase(s)
-Active phase: Phase 1 — Wave 1: correctness and quick wins — 0/6 tasks done
-Next task: 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split…
-Next action: Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
-
-Last session (codex, ended 2026-09-15T15:48:08.237Z):
-  # r1-fixes: technical direction and competitive audit Date: 2026-09-15. Audit only. Recommendations below are not adopted decisions or implementation changes. ## Verdict Keep the initiative. It targets real friction and follows established context/harness engineering practice, but its present plan does not establish industry leadership. The strongest opportunity is to combine low bookkeeping, precise decision history, cross-agent continuity, and completion backed by independent, replayable evidence. Leadership must be measured against direct memory/harness competitors as well as native agent memory. Scope: all 18 r1-fixes tasks; bench-refresh goal, decisions and frozen round-1 pre-registration; self-improve dependencies; targeted engine/schema/SPEC reads; primary-source research. Main baseline was 8b4c33c. The separate implementation worktree had task 1.1 committed as 7f097a9 and task 1.2 active. Main's 0/18 projection was behind that worktree. I independently ran first-session-notice.test.ts in the implementation worktree: 8/8 passed. That validates the targeted behavior, not the predicted token savings. No implement… (clipped — full text in sessions/codex-r1-audit-20260915-01.md)
 
 Next ids: D1 (decision), M2 (memory)
 
@@ -310,7 +312,7 @@ Adjacent records — 8 decisions across 2 other initiatives that have worked thi
 - beta — 1 shared file, 1 decision
 Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: r1-fixes-session — when calling sofar_start_session, pass this as session_id.
+Session: r1-fixes-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/r1-fixes @ a1b2c3d — in sync with origin/feature/r1-fixes
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
@@ -321,101 +323,88 @@ Read-back: before acting, restate goal, next action, and standing constraints in
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:lane (2487 bytes) ==
+== digest:lane (1795 bytes) ==
 # Sofar: quick-work lane (r1-fixes)
 
-Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
+Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0…
 
 This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
 - Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
 - Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
 
 Last session (codex, ended 2026-09-15T15:48:08.237Z):
-  # r1-fixes: technical direction and competitive audit Date: 2026-09-15. Audit only. Recommendations below are not adopted decisions or implementation changes. ## Verdict Keep the initiative. It targets real friction and follows established context/harness engineering practice, but its present plan does not establish industry leadership. The strongest opportunity is to combine low bookkeeping, precise decision history, cross-agent continuity, and completion backed by independent, replayable evidence. Leadership must be measured against direct memory/harness competitors as well as native agent memory. Scope: all 18 r1-fixes tasks; bench-refresh goal, decisions and frozen round-1 pre-registration; self-improve dependencies; targeted engine/schema/SPEC reads; primary-source research. Main baseline was 8b4c33c. The separate implementation worktree had task 1.1 committed as 7f097a9 and task 1.2 active. Main's 0/18 projection was behind that worktree. I independently ran first-session-notice.test.ts in the implementation worktree: 8/8 passed. That validates the targeted behavior, not the predicted token savings. No implement… (clipped — full text in sessions/codex-r1-audit-20260915-01.md)
+  # r1-fixes: technical direction and competitive audit Date: 2026-09-15. Audit only. Recommendations below are not adopted decisions or implementation changes. ## Verdict Keep the initiative. It targets real friction and follows established context/harness engineering practice, but its present plan does not establish industry l… (clipped — full text in sessions/codex-r1-audit-20260915-01.md)
 
 Recent quick work (2 sessions, 0 decisions since 2026-09-15):
 - 2026-09-15 claude-code — 3 commands
 
+Memory (1; full text in memory.md):
+- [M1] Audit 2026-09-15: main at 8b4c33c and the r1-fixes worktree have separate recor…
+
 Next ids: D1 (decision), M2 (memory)
 
-Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/r1-fixes @ a1b2c3d — in sync with origin/feature/r1-fixes
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:quiet (2868 bytes) ==
+== digest:quiet (2804 bytes) ==
 # Sofar status: r1-fixes
 
-Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
+Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0…
+
+Next task: 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split sessions.
+  in Phase 1 — Wave 1: correctness and quick wins [active] 0/6
+  - 1.2 Session registration race: make hook registration idempotent under parallel…
+  - 1.3 CLI agents: `sofar event types` payload reference; plan, phase and goal lin…
+  - 1.4 Formatter defence: doctor check and fix for Biome (plus Prettier and markdo…
+  - 1.5 stdin/file input for `sofar remember` and `sofar event --payload`, quoted-h…
+  - 1.6 Drive diagnostics: carry the adapter's stderr tail, failure or spawn error …
+
+Next action: Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
+
+Last session (codex, ended 2026-09-15T15:48:08.237Z):
+  # r1-fixes: technical direction and competitive audit Date: 2026-09-15. Audit only. Recommendations below are not adopted decisions or implementation changes. ## Verdict Keep the initiative. It targets real friction and follows established context/harness engineering practice, but its present plan does not establish industry l… (clipped — full text in sessions/codex-r1-audit-20260915-01.md)
 
 Phases:
 - Phase 1 — Wave 1: correctness and quick wins [active] 0/6
 - Phase 2 — Wave 2: less bookkeeping, leaner context [pending] 0/6
 - Phase 3 — Wave 3: new capabilities [pending] 0/3
 - Phase 4 — Release [pending] 0/3
-
 Progress: 0/18 tasks done (0%) across 4 phase(s)
-Active phase: Phase 1 — Wave 1: correctness and quick wins — 0/6 tasks done
-Next task: 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split…
-Next action: Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
 
-Last session (codex, ended 2026-09-15T15:48:08.237Z):
-  # r1-fixes: technical direction and competitive audit Date: 2026-09-15. Audit only. Recommendations below are not adopted decisions or implementation changes. ## Verdict Keep the initiative. It targets real friction and follows established context/harness engineering practice, but its present plan does not establish industry leadership. The strongest opportunity is to combine low bookkeeping, precise decision history, cross-agent continuity, and completion backed by independent, replayable evidence. Leadership must be measured against direct memory/harness competitors as well as native agent memory. Scope: all 18 r1-fixes tasks; bench-refresh goal, decisions and frozen round-1 pre-registration; self-improve dependencies; targeted engine/schema/SPEC reads; primary-source research. Main baseline was 8b4c33c. The separate implementation worktree had task 1.1 committed as 7f097a9 and task 1.2 active. Main's 0/18 projection was behind that worktree. I independently ran first-session-notice.test.ts in the implementation worktree: 8/8 passed. That validates the targeted behavior, not the predicted token savings. No implement… (clipped — full text in sessions/codex-r1-audit-20260915-01.md)
+Memory (1; full text in memory.md):
+- [M1] Audit 2026-09-15: main at 8b4c33c and the r1-fixes worktree have separate record copies. Implementation is in /Users/jins/IO/sofar-r1-fixes; task 1.1 is committed there at 7f097a9 and 1.2 is active. The main copy still reports 0/18. Inspect the worktree record for implementation…
 
 Next ids: D1 (decision), M2 (memory)
 
-Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (10061 bytes) ==
+== digest:cap (6052 bytes) ==
 # Sofar status: r1-fixes
 
-Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
+Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0…
 
-Repo memory (.sofar/repo.md):
-# Repo memory — sofar
+Next task: 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split sessions.
+  in Phase 1 — Wave 1: correctness and quick wins [active] 0/6
+  - 1.2 Session registration race: make hook registration idempotent under parallel…
+  - 1.3 CLI agents: `sofar event types` payload reference; plan, phase and goal lin…
+  - 1.4 Formatter defence: doctor check and fix for Biome (plus Prettier and markdo…
+  - 1.5 stdin/file input for `sofar remember` and `sofar event --payload`, quoted-h…
+  - 1.6 Drive diagnostics: carry the adapter's stderr tail, failure or spawn error …
 
-- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
-  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
-  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
-  aliases (pre-publish). Historical event/projection text and the archived
-  docs still say harness — that is history, never rewritten.
-- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
-  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
-…truncated — read .sofar/repo.md for the rest
+Next action: Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
 
 Phases:
 - Phase 1 — Wave 1: correctness and quick wins [active] 0/6
 - Phase 2 — Wave 2: less bookkeeping, leaner context [pending] 0/6
 - Phase 3 — Wave 3: new capabilities [pending] 0/3
 - Phase 4 — Release [pending] 0/3
-
 Progress: 0/18 tasks done (0%) across 4 phase(s)
-Active phase: Phase 1 — Wave 1: correctness and quick wins — 0/6 tasks done
-Next task: 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split…
-Next action: Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
-
-Last session (codex, ended 2026-09-15T15:48:08.237Z):
-  # r1-fixes: technical direction and competitive audit Date: 2026-09-15. Audit only. Recommendations below are not adopted decisions or implementation changes. ## Verdict Keep the initiative. It targets real friction and follows established context/harness engineering practice, but its present plan does not establish industry leadership. The strongest opportunity is to combine low bookkeeping, precise decision history, cross-agent continuity, and completion backed by independent, replayable evidence. Leadership must be measured against direct memory/harness competitors as well as native agent memory. Scope: all 18 r1-fixes tasks; bench-refresh goal, decisions and frozen round-1 pre-registration; self-improve dependencies; targeted engine/schema/SPEC reads; primary-source research. Main baseline was 8b4c33c. The separate implementation worktree had task 1.1 committed as 7f097a9 and task 1.2 active. Main's 0/18 projection was behind that worktree. I independently ran first-session-notice.test.ts in the implementation worktree: 8/8 passed. That validates the targeted behavior, not the predicted token savings. No implement… (clipped — full text in sessions/codex-r1-audit-20260915-01.md)
 
 Next ids: D1 (decision), M2 (memory)
 
@@ -424,15 +413,19 @@ Adjacent records — 8 decisions across 2 other initiatives that have worked thi
 - beta — 1 shared file, 1 decision
 Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: r1-fixes-session — when calling sofar_start_session, pass this as session_id.
+Session: r1-fixes-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/r1-fixes @ a1b2c3d — in sync with origin/feature/r1-fixes
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
 == plan (4626 bytes) ==
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->

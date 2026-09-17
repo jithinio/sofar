@@ -110,7 +110,7 @@
     ]
   }
 }
-== status (4340 bytes) ==
+== status (4339 bytes) ==
 # boopada-planner
 
 Goal: Build Boopada, a trip planner, one roadmap piece per session. Monorepo (bun, Next.js apps/web, @workspace/providers fixture bundle), SQLite at BOOPADA_DB_PATH, JSON API under /api, one traveller, no login.
@@ -149,22 +149,23 @@ Phases:
 Next action: Start roadmap piece 3, trips (task P3-trips): create a trip from legs of cities and nights with a draft day-by-day plan. Add migration 3 with a nullable deleted_at on every trip table, register trips in SOFT_DELETABLE (lib/deletions.ts) and lib/undo.ts per D5 so a trip delete logs ONE deletion and its children share the deleted_at, validate city ids like lib/bucket.ts does, and consider letting a leg start from a bucket item.
 
 ⚠ Staleness:
-- last write-back summary exceeds the SessionStart budget (1200 chars) and is clipped there — full text in sessions/1fdc5dfb-a750-4766-bb09-94c211ad3703.md
+- last write-back summary exceeds the SessionStart budget (450 chars) and is clipped there — full text in sessions/1fdc5dfb-a750-4766-bb09-94c211ad3703.md
 
 Last session (claude-code, ended 2026-09-15T09:07:00.406Z):
   Shipped phase 2, the bucket list, in c4d31f2. Built: migration 2 in apps/web/lib/db.ts (bucket_items + deletions tables; added a transaction() helper); lib/bucket.ts (store + create/patch validation, unknown_city via providers.locale.getCity, Money per D1); lib/deletions.ts (softDelete, undoLatestDeletion, canUndo, SOFT_DELETABLE registry); lib/undo.ts (maps a restored entity to its reader); routes app/api/bucket (GET list, POST 201), app/api/bucket/[id] (GET/PATCH/DELETE, 404 not_found for deleted or malformed ids) and app/api/undo (POST, 409 nothing_to_undo); /bucket page with add, delete and an Undo bar (testids bucket-item-{id}, bucket-add, bucket-delete-{id}, bucket-undo); home links. New error codes: unknown_city, nothing_to_undo. Decisions: D5 is the app-wide soft delete rule (the user's cross-app decision: no hard delete, no confirmation, undo by log seq), plus the bucket item shape. Memory M3 covers the shared bun test process and resetProviders; it is cited in .sofar/repo.md, which also now documents the soft-delete convention. The extras beyond spec are listed in a note. lint, typecheck, test (11 new bucket tests, 36 web total) and build all green; smoke-tested with bun run start on a v1 DB, which migrated to v2 with every route curled.
 
-== digest:plain (4448 bytes) ==
+== digest:plain (4313 bytes) ==
 # Sofar status: boopada-planner
 
 Goal: Build Boopada, a trip planner, one roadmap piece per session. Monorepo (bun, Next.js apps/web, @workspace/providers fixture bundle), SQLite at BOOPADA_DB_PATH, JSON API under /api, one traveller, no login.
 
-Standing constraints — obey verbatim (5):
-- [D1] Never put a decimal string or float money value in an API request or response — always {amount_minor, currency} integer minor units.
-- [D2] Reject any interest that is not one of the seven provider activity categories; never accept free text.
-- [D3] Open SQLite only through apps/web/lib/db.ts — never import bun:sqlite or node:sqlite directly.
-- [D4] Never reach a Node builtin that Turbopack externalises (node:sqlite) via import or createRequire in apps/web — use process.getBuiltinModule.
-- [D5] Never hard-DELETE a traveller-made row or ask for delete confirmation — soft-delete through softDelete() in apps/web/lib/deletions.ts, and filter `deleted_at is null` in every list, total and suggestion.
+Next task: P3-trips Create a trip from legs of cities and nights, with a draft day-by-day plan
+  in 3. Trips [pending] 0/1
+
+Next action: Start roadmap piece 3, trips (task P3-trips): create a trip from legs of cities and nights with a draft day-by-day plan. Add migration 3 with a nullable deleted_at on every trip table, register trips in SOFT_DELETABLE (lib/deletions.ts) and lib/undo.ts per D5 so a trip delete logs ONE deletion and its children share the deleted_at, validate city ids like lib/bucket.ts does, and consider letting a leg start from a bucket item.
+
+Last session (claude-code, ended 2026-09-15T09:07:00.406Z):
+  Shipped phase 2, the bucket list, in c4d31f2. Built: migration 2 in apps/web/lib/db.ts (bucket_items + deletions tables; added a transaction() helper); lib/bucket.ts (store + create/patch validation, unknown_city via providers.locale.getCity, Money per D1); lib/deletions.ts (softDelete, undoLatestDeletion, canU… (clipped — full text in sessions/1fdc5dfb-a750-4766-bb09-94c211ad3703.md)
 
 Phases:
 - 3. Trips [pending] 0/1
@@ -175,40 +176,63 @@ Phases:
 - 8. Curation advisor [pending] 0/1
 - 9. Chat command box [pending] 0/1
 - done: 1. Traveller profile, 2. Bucket list (5/5 tasks)
-
 Progress: 5/12 tasks done (41%) across 9 phase(s)
-Active phase: (none)
-Next action: Start roadmap piece 3, trips (task P3-trips): create a trip from legs of cities and nights with a draft day-by-day plan. Add migration 3 with a nullable deleted_at on every trip table, register trips in SOFT_DELETABLE (lib/deletions.ts) and lib/undo.ts per D5 so a trip delete logs ONE deletion and its children share the deleted_at, validate city ids like lib/bucket.ts does, and consider letting a leg start from a bucket item.
 
-Last session (claude-code, ended 2026-09-15T09:07:00.406Z):
-  Shipped phase 2, the bucket list, in c4d31f2. Built: migration 2 in apps/web/lib/db.ts (bucket_items + deletions tables; added a transaction() helper); lib/bucket.ts (store + create/patch validation, unknown_city via providers.locale.getCity, Money per D1); lib/deletions.ts (softDelete, undoLatestDeletion, canUndo, SOFT_DELETABLE registry); lib/undo.ts (maps a restored entity to its reader); routes app/api/bucket (GET list, POST 201), app/api/bucket/[id] (GET/PATCH/DELETE, 404 not_found for deleted or malformed ids) and app/api/undo (POST, 409 nothing_to_undo); /bucket page with add, delete and an Undo bar (testids bucket-item-{id}, bucket-add, bucket-delete-{id}, bucket-undo); home links. New error codes: unknown_city, nothing_to_undo. Decisions: D5 is the app-wide soft delete rule (the user's cross-app decision: no hard delete, no confirmation, undo by log seq), plus the bucket item shape. Memory M3 covers the shared bun test process and resetProviders; it is cited in .sofar/repo.md, which also now documents the soft-delete convention. The extras beyond spec are listed in a note. lint, typecheck, test (11 … (clipped — full text in sessions/1fdc5dfb-a750-4766-bb09-94c211ad3703.md)
+Memory (3; full text in memory.md):
+- [M3] `bun test` runs every apps/web test file in ONE process, so module caches are shared: set BOOPADA_DB_PATH per file in beforeAll (getDb caches per path), and a file that sets BOOPADA_NOW must call `resetProviders()` after setting it and again after deleting it in afterAll, or the…
+- [M2] A green `bun run build` does NOT prove the app runs: Next 16 builds with Turbopack and route handlers are only executed on request. Smoke-test every session with `cd apps/web && PORT=3987 BOOPADA_DB_PATH=/tmp/x/b.sqlite bun run start` then curl the routes — that is how the node:…
+- [M1] Provider gotcha: `providers.fx.getRates(base)` omits `base` itself from `rates`…
 
 Recent decisions (last 5 of 6; full text in decisions.md):
-- [D2] 2026-09-15 (rule above) Interests are exactly the providers' seven activity categor… — over Free-text interest tags
-- [D3] 2026-09-15 (rule above) One SQLite handle opened through createRequire: bun:sqlite … — over Importing bun:sqlite directly, or better-sqlite3
-- [D4] 2026-09-15 (rule above) Load node:sqlite through `process.getBuiltinModule("node:sq… — over createRequire for both, which D3 originally chose
-- [D5] 2026-09-15 (rule above) App-wide soft delete: every traveller-made table has a null… — over Hard DELETE with a confirm dialog; a per-feature trash table; ordering undo by deleted_at…
-- [D6] 2026-09-15 Bucket item shape: { id (integer), title, city_id | null, notes | null, estimated_daily_spend: Money | null, created_at… — over Free-text city names; decimal-string spend; PUT full replace
+- [D2] 2026-09-15 (rule below) Interests are exactly the providers' seven activity categor… — over Free-text interest tags
+- [D3] 2026-09-15 (rule below) One SQLite handle opened through createRequire — over Importing bun:sqlite directly, or better-sqlite3
+- [D4] 2026-09-15 (rule below) Load node:sqlite through `process.getBuiltinModule("node:sq… — over createRequire for both, which D3 originally chose
+- [D5] 2026-09-15 (rule below) App-wide soft delete: every traveller-made table has a null… — over Hard DELETE with a confirm dialog
+- [D6] 2026-09-15 Bucket item shape: { id (integer), title, city_id | null, notes | null, estimated_daily_s… — over Free-text city names; decimal-string spend
 Earlier rejected approaches — do NOT re-propose (1 older):
-- [D1] Decimal strings or floats, as the providers quote and as the earlier prototype used
+- [D1] Decimal strings or floats, as the providers quote and as the earlier …
 
 Next ids: D7 (decision), M4 (memory)
+
+Standing constraints — obey verbatim (5):
+- [D5] Never hard-DELETE a traveller-made row or ask for delete confirmation — soft-delete through softDelete() in apps/web/lib/deletions.ts, and filter `deleted_at is null` in every list, total and suggestion.
+- [D3] Open SQLite only through apps/web/lib/db.ts — never import bun:sqlite or node:sqlite directly.
+- [D4] Never reach a Node builtin that Turbopack externalises (node:sqlite) via import or createRequire in apps/web — use process.getBuiltinModule.
+- [D2] Reject any interest that is not one of the seven provider activity categories; never accept free text.
+- [D1] Never put a decimal string or float money value in an API request or response — always {amount_minor, currency} integer minor units.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:hook (6648 bytes) ==
+== digest:hook (5576 bytes) ==
 # Sofar status: boopada-planner
 
 Goal: Build Boopada, a trip planner, one roadmap piece per session. Monorepo (bun, Next.js apps/web, @workspace/providers fixture bundle), SQLite at BOOPADA_DB_PATH, JSON API under /api, one traveller, no login.
 
-Standing constraints — obey verbatim (5):
-- [D1] Never put a decimal string or float money value in an API request or response — always {amount_minor, currency} integer minor units.
-- [D2] Reject any interest that is not one of the seven provider activity categories; never accept free text.
-- [D3] Open SQLite only through apps/web/lib/db.ts — never import bun:sqlite or node:sqlite directly.
-- [D4] Never reach a Node builtin that Turbopack externalises (node:sqlite) via import or createRequire in apps/web — use process.getBuiltinModule.
-- [D5] Never hard-DELETE a traveller-made row or ask for delete confirmation — soft-delete through softDelete() in apps/web/lib/deletions.ts, and filter `deleted_at is null` in every list, total and suggestion.
+Next task: P3-trips Create a trip from legs of cities and nights, with a draft day-by-day plan
+  in 3. Trips [pending] 0/1
+
+Next action: Start roadmap piece 3, trips (task P3-trips): create a trip from legs of cities and nights with a draft day-by-day plan. Add migration 3 with a nullable deleted_at on every trip table, register trips in SOFT_DELETABLE (lib/deletions.ts) and lib/undo.ts per D5 so a trip delete logs ONE deletion and its children share the deleted_at, validate city ids like lib/bucket.ts does, and consider letting a leg start from a bucket item.
+
+Last session (claude-code, ended 2026-09-15T09:07:00.406Z):
+  Shipped phase 2, the bucket list, in c4d31f2. Built: migration 2 in apps/web/lib/db.ts (bucket_items + deletions tables; added a transaction() helper); lib/bucket.ts (store + create/patch validation, unknown_city via providers.locale.getCity, Money per D1); lib/deletions.ts (softDelete, undoLatestDeletion, canU… (clipped — full text in sessions/1fdc5dfb-a750-4766-bb09-94c211ad3703.md)
+
+Phases:
+- 3. Trips [pending] 0/1
+- 4. Itinerary editing [pending] 0/1
+- 5. Itinerary view [pending] 0/1
+- 6. Location to-dos [pending] 0/1
+- 7. Suggestions and transport [pending] 0/1
+- 8. Curation advisor [pending] 0/1
+- 9. Chat command box [pending] 0/1
+- done: 1. Traveller profile, 2. Bucket list (5/5 tasks)
+Progress: 5/12 tasks done (41%) across 9 phase(s)
+
+Memory (3; full text in memory.md):
+- [M3] `bun test` runs every apps/web test file in ONE process, so module caches are shared: set BOOPADA_DB_PATH per file in beforeAll (getDb caches per path), and a file that sets BOOPADA_NOW must call `resetProviders()` after setting it and again after deleting it in afterAll, or the…
+- [M2] A green `bun run build` does NOT prove the app runs: Next 16 builds with Turbopack and route handlers are only executed on request. Smoke-test every session with `cd apps/web && PORT=3987 BOOPADA_DB_PATH=/tmp/x/b.sqlite bun run start` then curl the routes — that is how the node:…
+- [M1] Provider gotcha: `providers.fx.getRates(base)` omits `base` itself from `rates`…
 
 Repo memory (.sofar/repo.md):
 # Repo memory
@@ -225,52 +249,17 @@ bun install
 bun run lint        # biome check .  (2 pre-existing a11y warnings in packages/ui; warnings do not fail)
 bun run typecheck
 bun run test        # turbo test -> bun test in apps/web and packages/providers
-bun run build       # turbo build -> next build (Turbopack)
-cd apps/web && PORT=3987 bun run start
-```
-
-## Conventions
-
-- Monorepo on bun + turbo. App is `apps/web` (Next.js 16, App Router).
-  Travel data comes from `@workspace/providers` fixtures, shared UI from
-  `@workspace/ui`. One traveller, no login.
-- Money in the API is always `{ amount_minor, currency }` in integer minor
-  units — see `boopada-planner D1` and `apps/web/lib/money.ts`. Provider
-  `QuotedPrice` decimal strings are converted at the boundary with
-  `fromQuotedPrice`, never with `Number()`.
-- Interests are exactly the seven provider activity categories — see
-  `boopada-planner D2` and `apps/web/lib/interests.ts`.
-- Storage is SQLite at `BOOPADA_DB_PATH` (default `./data/boopada.sqlite`),
-  opened and migrated only through `apps/web/lib/db.ts`. Add schema changes
-  as a new entry in its `MIGRATIONS` array; never edit a shipped one.
-- "Now" is `BOOPADA_NOW` when set, else
+bun run build       #
 …truncated — read .sofar/repo.md for the rest
 
-Phases:
-- 3. Trips [pending] 0/1
-- 4. Itinerary editing [pending] 0/1
-- 5. Itinerary view [pending] 0/1
-- 6. Location to-dos [pending] 0/1
-- 7. Suggestions and transport [pending] 0/1
-- 8. Curation advisor [pending] 0/1
-- 9. Chat command box [pending] 0/1
-- done: 1. Traveller profile, 2. Bucket list (5/5 tasks)
-
-Progress: 5/12 tasks done (41%) across 9 phase(s)
-Active phase: (none)
-Next action: Start roadmap piece 3, trips (task P3-trips): create a trip from legs of cities and nights with a draft day-by-day plan. Add migration 3 with a nullable deleted_at on every trip table, register trips in SOFT_DELETABLE (lib/deletions.ts) and lib/undo.ts per D5 so a trip delete logs ONE deletion and its children share the deleted_at, validate city ids like lib/bucket.ts does, and consider letting a leg start from a bucket item.
-
-Last session (claude-code, ended 2026-09-15T09:07:00.406Z):
-  Shipped phase 2, the bucket list, in c4d31f2. Built: migration 2 in apps/web/lib/db.ts (bucket_items + deletions tables; added a transaction() helper); lib/bucket.ts (store + create/patch validation, unknown_city via providers.locale.getCity, Money per D1); lib/deletions.ts (softDelete, undoLatestDeletion, canUndo, SOFT_DELETABLE registry); lib/undo.ts (maps a restored entity to its reader); routes app/api/bucket (GET list, POST 201), app/api/bucket/[id] (GET/PATCH/DELETE, 404 not_found for deleted or malformed ids) and app/api/undo (POST, 409 nothing_to_undo); /bucket page with add, delete and an Undo bar (testids bucket-item-{id}, bucket-add, bucket-delete-{id}, bucket-undo); home links. New error codes: unknown_city, nothing_to_undo. Decisions: D5 is the app-wide soft delete rule (the user's cross-app decision: no hard delete, no confirmation, undo by log seq), plus the bucket item shape. Memory M3 covers the shared bun test process and resetProviders; it is cited in .sofar/repo.md, which also now documents the soft-delete convention. The extras beyond spec are listed in a note. lint, typecheck, test (11 … (clipped — full text in sessions/1fdc5dfb-a750-4766-bb09-94c211ad3703.md)
-
 Recent decisions (last 5 of 6; full text in decisions.md):
-- [D2] 2026-09-15 (rule above) Interests are exactly the providers' seven activity categor… — over Free-text interest tags
-- [D3] 2026-09-15 (rule above) One SQLite handle opened through createRequire: bun:sqlite … — over Importing bun:sqlite directly, or better-sqlite3
-- [D4] 2026-09-15 (rule above) Load node:sqlite through `process.getBuiltinModule("node:sq… — over createRequire for both, which D3 originally chose
-- [D5] 2026-09-15 (rule above) App-wide soft delete: every traveller-made table has a null… — over Hard DELETE with a confirm dialog; a per-feature trash table; ordering undo by deleted_at…
-- [D6] 2026-09-15 Bucket item shape: { id (integer), title, city_id | null, notes | null, estimated_daily_spend: Money | null, created_at… — over Free-text city names; decimal-string spend; PUT full replace
+- [D2] 2026-09-15 (rule below) Interests are exactly the providers' seven activity categor… — over Free-text interest tags
+- [D3] 2026-09-15 (rule below) One SQLite handle opened through createRequire — over Importing bun:sqlite directly, or better-sqlite3
+- [D4] 2026-09-15 (rule below) Load node:sqlite through `process.getBuiltinModule("node:sq… — over createRequire for both, which D3 originally chose
+- [D5] 2026-09-15 (rule below) App-wide soft delete: every traveller-made table has a null… — over Hard DELETE with a confirm dialog
+- [D6] 2026-09-15 Bucket item shape: { id (integer), title, city_id | null, notes | null, estimated_daily_s… — over Free-text city names; decimal-string spend
 Earlier rejected approaches — do NOT re-propose (1 older):
-- [D1] Decimal strings or floats, as the providers quote and as the earlier prototype used
+- [D1] Decimal strings or floats, as the providers quote and as the earlier …
 
 Next ids: D7 (decision), M4 (memory)
 
@@ -280,18 +269,25 @@ Adjacent records — 22 decisions across 5 other initiatives that have worked th
 - gamma — 4 shared files, 2 decisions
 …and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: boopada-planner-session — when calling sofar_start_session, pass this as session_id.
+Session: boopada-planner-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/boopada-planner @ a1b2c3d — in sync with origin/feature/boopada-planner
 
 Recent work elsewhere: calib-1 touched 2 files 3h ago (see sofar status calib-1).
 
 3 commits of this record are unverified — no origin ref to compare.
 
+Standing constraints — obey verbatim (5):
+- [D5] Never hard-DELETE a traveller-made row or ask for delete confirmation — soft-delete through softDelete() in apps/web/lib/deletions.ts, and filter `deleted_at is null` in every list, total and suggestion.
+- [D3] Open SQLite only through apps/web/lib/db.ts — never import bun:sqlite or node:sqlite directly.
+- [D4] Never reach a Node builtin that Turbopack externalises (node:sqlite) via import or createRequire in apps/web — use process.getBuiltinModule.
+- [D2] Reject any interest that is not one of the seven provider activity categories; never accept free text.
+- [D1] Never put a decimal string or float money value in an API request or response — always {amount_minor, currency} integer minor units.
+
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:lane (4362 bytes) ==
+== digest:lane (3721 bytes) ==
 # Sofar: quick-work lane (boopada-planner)
 
 Goal: Build Boopada, a trip planner, one roadmap piece per session. Monorepo (bun, Next.js apps/web, @workspace/providers fixture bundle), SQLite at BOOPADA_DB_PATH, JSON API under /api, one traveller, no login.
@@ -300,48 +296,54 @@ This branch is bound to no initiative, so the hooks capture edits and commands h
 - Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
 - Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
 
-Standing constraints — obey verbatim (5):
-- [D1] Never put a decimal string or float money value in an API request or response — always {amount_minor, currency} integer minor units.
-- [D2] Reject any interest that is not one of the seven provider activity categories; never accept free text.
-- [D3] Open SQLite only through apps/web/lib/db.ts — never import bun:sqlite or node:sqlite directly.
-- [D4] Never reach a Node builtin that Turbopack externalises (node:sqlite) via import or createRequire in apps/web — use process.getBuiltinModule.
-- [D5] Never hard-DELETE a traveller-made row or ask for delete confirmation — soft-delete through softDelete() in apps/web/lib/deletions.ts, and filter `deleted_at is null` in every list, total and suggestion.
-
 Last session (claude-code, ended 2026-09-15T09:07:00.406Z):
-  Shipped phase 2, the bucket list, in c4d31f2. Built: migration 2 in apps/web/lib/db.ts (bucket_items + deletions tables; added a transaction() helper); lib/bucket.ts (store + create/patch validation, unknown_city via providers.locale.getCity, Money per D1); lib/deletions.ts (softDelete, undoLatestDeletion, canUndo, SOFT_DELETABLE registry); lib/undo.ts (maps a restored entity to its reader); routes app/api/bucket (GET list, POST 201), app/api/bucket/[id] (GET/PATCH/DELETE, 404 not_found for deleted or malformed ids) and app/api/undo (POST, 409 nothing_to_undo); /bucket page with add, delete and an Undo bar (testids bucket-item-{id}, bucket-add, bucket-delete-{id}, bucket-undo); home links. New error codes: unknown_city, nothing_to_undo. Decisions: D5 is the app-wide soft delete rule (the user's cross-app decision: no hard delete, no confirmation, undo by log seq), plus the bucket item shape. Memory M3 covers the shared bun test process and resetProviders; it is cited in .sofar/repo.md, which also now documents the soft-delete convention. The extras beyond spec are listed in a note. lint, typecheck, test (11 … (clipped — full text in sessions/1fdc5dfb-a750-4766-bb09-94c211ad3703.md)
+  Shipped phase 2, the bucket list, in c4d31f2. Built: migration 2 in apps/web/lib/db.ts (bucket_items + deletions tables; added a transaction() helper); lib/bucket.ts (store + create/patch validation, unknown_city via providers.locale.getCity, Money per D1); lib/deletions.ts (softDelete, undoLatestDeletion, canU… (clipped — full text in sessions/1fdc5dfb-a750-4766-bb09-94c211ad3703.md)
 
 Recent quick work (3 sessions, 6 decisions since 2026-09-15):
 - 2026-09-15 claude-code — 9 commands, task changes: P2-bucket → active, P2-bucket → done
 - 2026-09-15 claude-code — task changes: P1-foundation → active, P1-foundation → done, P1-api → done, P1-page → done, P1-tests → done
 - 2026-09-15 claude-code — 23 commands
 
+Memory (3; full text in memory.md):
+- [M3] `bun test` runs every apps/web test file in ONE process, so module caches are s…
+- [M2] A green `bun run build` does NOT prove the app runs: Next 16 builds with Turbop…
+- [M1] Provider gotcha: `providers.fx.getRates(base)` omits `base` itself from `rates`…
+
 Recent decisions (last 5 of 6; full text in decisions.md):
-- [D2] 2026-09-15 (rule above) Interests are exactly the providers' seven activity categor… — over Free-text interest tags
-- [D3] 2026-09-15 (rule above) One SQLite handle opened through createRequire: bun:sqlite … — over Importing bun:sqlite directly, or better-sqlite3
-- [D4] 2026-09-15 (rule above) Load node:sqlite through `process.getBuiltinModule("node:sq… — over createRequire for both, which D3 originally chose
-- [D5] 2026-09-15 (rule above) App-wide soft delete: every traveller-made table has a null… — over Hard DELETE with a confirm dialog; a per-feature trash table; ordering undo by deleted_at…
-- [D6] 2026-09-15 Bucket item shape: { id (integer), title, city_id | null, notes | null, estimated_daily_spend: Money | null, created_at… — over Free-text city names; decimal-string spend; PUT full replace
+- [D2] 2026-09-15 (rule below) Interests are exactly the providers' seven activity categor… — over Free-text interest tags
+- [D3] 2026-09-15 (rule below) One SQLite handle opened through createRequire — over Importing bun:sqlite directly, or better-sqlite3
+- [D4] 2026-09-15 (rule below) Load node:sqlite through `process.getBuiltinModule("node:sq… — over createRequire for both, which D3 originally chose
+- [D5] 2026-09-15 (rule below) App-wide soft delete: every traveller-made table has a null… — over Hard DELETE with a confirm dialog
+- [D6] 2026-09-15 Bucket item shape: { id (integer), title, city_id | null, notes | null, estimated_daily_s… — over Free-text city names; decimal-string spend
 Earlier rejected approaches — do NOT re-propose (1 older):
-- [D1] Decimal strings or floats, as the providers quote and as the earlier prototype used
+- [D1] Decimal strings or floats, as the providers quote and as the earlier …
 
 Next ids: D7 (decision), M4 (memory)
 
-Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/boopada-planner @ a1b2c3d — in sync with origin/feature/boopada-planner
+
+Standing constraints — obey verbatim (5):
+- [D5] Never hard-DELETE a traveller-made row or ask for delete confirmation — soft-delete through softDelete() in apps/web/lib/deletions.ts, and filter `deleted_at is null` in every list, total and suggestion.
+- [D4] Never reach a Node builtin that Turbopack externalises (node:sqlite) via import or createRequire in apps/web — use process.getBuiltinModule.
+- [D3] Open SQLite only through apps/web/lib/db.ts — never import bun:sqlite or node:sqlite directly.
+- [D2] Reject any interest that is not one of the seven provider activity categories; never accept free text.
+- [D1] Never put a decimal string or float money value in an API request or response — always {amount_minor, currency} integer minor units.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:quiet (4535 bytes) ==
+== digest:quiet (4399 bytes) ==
 # Sofar status: boopada-planner
 
 Goal: Build Boopada, a trip planner, one roadmap piece per session. Monorepo (bun, Next.js apps/web, @workspace/providers fixture bundle), SQLite at BOOPADA_DB_PATH, JSON API under /api, one traveller, no login.
 
-Standing constraints — obey verbatim (5):
-- [D1] Never put a decimal string or float money value in an API request or response — always {amount_minor, currency} integer minor units.
-- [D2] Reject any interest that is not one of the seven provider activity categories; never accept free text.
-- [D3] Open SQLite only through apps/web/lib/db.ts — never import bun:sqlite or node:sqlite directly.
-- [D4] Never reach a Node builtin that Turbopack externalises (node:sqlite) via import or createRequire in apps/web — use process.getBuiltinModule.
-- [D5] Never hard-DELETE a traveller-made row or ask for delete confirmation — soft-delete through softDelete() in apps/web/lib/deletions.ts, and filter `deleted_at is null` in every list, total and suggestion.
+Next task: P3-trips Create a trip from legs of cities and nights, with a draft day-by-day plan
+  in 3. Trips [pending] 0/1
+
+Next action: Start roadmap piece 3, trips (task P3-trips): create a trip from legs of cities and nights with a draft day-by-day plan. Add migration 3 with a nullable deleted_at on every trip table, register trips in SOFT_DELETABLE (lib/deletions.ts) and lib/undo.ts per D5 so a trip delete logs ONE deletion and its children share the deleted_at, validate city ids like lib/bucket.ts does, and consider letting a leg start from a bucket item.
+
+Last session (claude-code, ended 2026-09-15T09:07:00.406Z):
+  Shipped phase 2, the bucket list, in c4d31f2. Built: migration 2 in apps/web/lib/db.ts (bucket_items + deletions tables; added a transaction() helper); lib/bucket.ts (store + create/patch validation, unknown_city via providers.locale.getCity, Money per D1); lib/deletions.ts (softDelete, undoLatestDeletion, canU… (clipped — full text in sessions/1fdc5dfb-a750-4766-bb09-94c211ad3703.md)
 
 Phases:
 - 3. Trips [pending] 0/1
@@ -352,78 +354,46 @@ Phases:
 - 8. Curation advisor [pending] 0/1
 - 9. Chat command box [pending] 0/1
 - done: 1. Traveller profile, 2. Bucket list (5/5 tasks)
-
 Progress: 5/12 tasks done (41%) across 9 phase(s)
-Active phase: (none)
-Next action: Start roadmap piece 3, trips (task P3-trips): create a trip from legs of cities and nights with a draft day-by-day plan. Add migration 3 with a nullable deleted_at on every trip table, register trips in SOFT_DELETABLE (lib/deletions.ts) and lib/undo.ts per D5 so a trip delete logs ONE deletion and its children share the deleted_at, validate city ids like lib/bucket.ts does, and consider letting a leg start from a bucket item.
 
-Last session (claude-code, ended 2026-09-15T09:07:00.406Z):
-  Shipped phase 2, the bucket list, in c4d31f2. Built: migration 2 in apps/web/lib/db.ts (bucket_items + deletions tables; added a transaction() helper); lib/bucket.ts (store + create/patch validation, unknown_city via providers.locale.getCity, Money per D1); lib/deletions.ts (softDelete, undoLatestDeletion, canUndo, SOFT_DELETABLE registry); lib/undo.ts (maps a restored entity to its reader); routes app/api/bucket (GET list, POST 201), app/api/bucket/[id] (GET/PATCH/DELETE, 404 not_found for deleted or malformed ids) and app/api/undo (POST, 409 nothing_to_undo); /bucket page with add, delete and an Undo bar (testids bucket-item-{id}, bucket-add, bucket-delete-{id}, bucket-undo); home links. New error codes: unknown_city, nothing_to_undo. Decisions: D5 is the app-wide soft delete rule (the user's cross-app decision: no hard delete, no confirmation, undo by log seq), plus the bucket item shape. Memory M3 covers the shared bun test process and resetProviders; it is cited in .sofar/repo.md, which also now documents the soft-delete convention. The extras beyond spec are listed in a note. lint, typecheck, test (11 … (clipped — full text in sessions/1fdc5dfb-a750-4766-bb09-94c211ad3703.md)
+Memory (3; full text in memory.md):
+- [M3] `bun test` runs every apps/web test file in ONE process, so module caches are shared: set BOOPADA_DB_PATH per file in beforeAll (getDb caches per path), and a file that sets BOOPADA_NOW must call `resetProviders()` after setting it and again after deleting it in afterAll, or the…
+- [M2] A green `bun run build` does NOT prove the app runs: Next 16 builds with Turbopack and route handlers are only executed on request. Smoke-test every session with `cd apps/web && PORT=3987 BOOPADA_DB_PATH=/tmp/x/b.sqlite bun run start` then curl the routes — that is how the node:…
+- [M1] Provider gotcha: `providers.fx.getRates(base)` omits `base` itself from `rates`…
 
 Recent decisions (last 5 of 6; full text in decisions.md):
-- [D2] 2026-09-15 (rule above) Interests are exactly the providers' seven activity categor… — over Free-text interest tags
-- [D3] 2026-09-15 (rule above) One SQLite handle opened through createRequire: bun:sqlite … — over Importing bun:sqlite directly, or better-sqlite3
-- [D4] 2026-09-15 (rule above) Load node:sqlite through `process.getBuiltinModule("node:sq… — over createRequire for both, which D3 originally chose
-- [D5] 2026-09-15 (rule above) App-wide soft delete: every traveller-made table has a null… — over Hard DELETE with a confirm dialog; a per-feature trash table; ordering undo by deleted_at…
-- [D6] 2026-09-15 Bucket item shape: { id (integer), title, city_id | null, notes | null, estimated_daily_spend: Money | null, created_at… — over Free-text city names; decimal-string spend; PUT full replace
+- [D2] 2026-09-15 (rule below) Interests are exactly the providers' seven activity categor… — over Free-text interest tags
+- [D3] 2026-09-15 (rule below) One SQLite handle opened through createRequire — over Importing bun:sqlite directly, or better-sqlite3
+- [D4] 2026-09-15 (rule below) Load node:sqlite through `process.getBuiltinModule("node:sq… — over createRequire for both, which D3 originally chose
+- [D5] 2026-09-15 (rule below) App-wide soft delete: every traveller-made table has a null… — over Hard DELETE with a confirm dialog
+- [D6] 2026-09-15 Bucket item shape: { id (integer), title, city_id | null, notes | null, estimated_daily_s… — over Free-text city names; decimal-string spend
 Earlier rejected approaches — do NOT re-propose (1 older):
-- [D1] Decimal strings or floats, as the providers quote and as the earlier prototype used
+- [D1] Decimal strings or floats, as the providers quote and as the earlier …
 
 Next ids: D7 (decision), M4 (memory)
 
-Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (5):
+- [D5] Never hard-DELETE a traveller-made row or ask for delete confirmation — soft-delete through softDelete() in apps/web/lib/deletions.ts, and filter `deleted_at is null` in every list, total and suggestion.
+- [D3] Open SQLite only through apps/web/lib/db.ts — never import bun:sqlite or node:sqlite directly.
+- [D4] Never reach a Node builtin that Turbopack externalises (node:sqlite) via import or createRequire in apps/web — use process.getBuiltinModule.
+- [D2] Reject any interest that is not one of the seven provider activity categories; never accept free text.
+- [D1] Never put a decimal string or float money value in an API request or response — always {amount_minor, currency} integer minor units.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (10072 bytes) ==
+== digest:cap (6036 bytes) ==
 # Sofar status: boopada-planner
 
 Goal: Build Boopada, a trip planner, one roadmap piece per session. Monorepo (bun, Next.js apps/web, @workspace/providers fixture bundle), SQLite at BOOPADA_DB_PATH, JSON API under /api, one traveller, no login.
 
-Standing constraints — obey verbatim (5):
-- [D1] Never put a decimal string or float money value in an API request or response — always {amount_minor, currency} integer minor units.
-- [D2] Reject any interest that is not one of the seven provider activity categories; never accept free text.
-- [D3] Open SQLite only through apps/web/lib/db.ts — never import bun:sqlite or node:sqlite directly.
-- [D4] Never reach a Node builtin that Turbopack externalises (node:sqlite) via import or createRequire in apps/web — use process.getBuiltinModule.
-- [D5] Never hard-DELETE a traveller-made row or ask for delete confirmation — soft-delete through softDelete() in apps/web/lib/deletions.ts, and filter `deleted_at is null` in every list, total and suggestion.
+Next task: P3-trips Create a trip from legs of cities and nights, with a draft day-by-day plan
+  in 3. Trips [pending] 0/1
 
-Repo memory (.sofar/repo.md):
-# Repo memory
-
-Hand-written, repo-scoped notes for agents working here: conventions,
-commands, gotchas — anything true of the repo across all initiatives.
-Sofar never generates or overwrites this file; initiative state lives in
-.sofar/initiatives/<slug>/ instead.
-
-## Commands
-
-```bash
-bun install
-bun run lint        # biome check .  (2 pre-existing a11y warnings in packages/ui; warnings do not fail)
-bun run typecheck
-bun run test        # turbo test -> bun test in apps/web and packages/providers
-bun run build       # turbo build -> next build (Turbopack)
-cd apps/web && PORT=3987 bun run start
-```
-
-## Conventions
-
-- Monorepo on bun + turbo. App is `apps/web` (Next.js 16, App Router).
-  Travel data comes from `@workspace/providers` fixtures, shared UI from
-  `@workspace/ui`. One traveller, no login.
-- Money in the API is always `{ amount_minor, currency }` in integer minor
-  units — see `boopada-planner D1` and `apps/web/lib/money.ts`. Provider
-  `QuotedPrice` decimal strings are converted at the boundary with
-  `fromQuotedPrice`, never with `Number()`.
-- Interests are exactly the seven provider activity categories — see
-  `boopada-planner D2` and `apps/web/lib/interests.ts`.
-- Storage is SQLite at `BOOPADA_DB_PATH` (default `./data/boopada.sqlite`),
-  opened and migrated only through `apps/web/lib/db.ts`. Add schema changes
-  as a new entry in its `MIGRATIONS` array; never edit a shipped one.
-- "Now" is `BOOPADA_NOW` when set, else
-…truncated — read .sofar/repo.md for the rest
+Next action: Start roadmap piece 3, trips (task P3-trips): create a trip from legs of cities and nights with a draft day-by-day plan. Add migration 3 with a nullable deleted_at on every trip table, register trips in SOFT_DELETABLE (lib/deletions.ts) and lib/undo.ts per D5 so a trip delete logs ONE deletion and its children share the deleted_at, validate city ids like lib/bucket.ts does, and consider letting a leg start from a bucket item.
 
 Phases:
 - 3. Trips [pending] 0/1
@@ -434,22 +404,8 @@ Phases:
 - 8. Curation advisor [pending] 0/1
 - 9. Chat command box [pending] 0/1
 - done: 1. Traveller profile, 2. Bucket list (5/5 tasks)
-
 Progress: 5/12 tasks done (41%) across 9 phase(s)
-Active phase: (none)
-Next action: Start roadmap piece 3, trips (task P3-trips): create a trip from legs of cities and nights with a draft day-by-day plan. Add migration 3 with a nullable deleted_at on every trip table, register trips in SOFT_DELETABLE (lib/deletions.ts) and lib/undo.ts per D5 so a trip delete logs ONE deletion and its children share the deleted_at, validate city ids like lib/bucket.ts does, and consider letting a leg start from a bucket item.
 
-Last session (claude-code, ended 2026-09-15T09:07:00.406Z):
-  Shipped phase 2, the bucket list, in c4d31f2. Built: migration 2 in apps/web/lib/db.ts (bucket_items + deletions tables; added a transaction() helper); lib/bucket.ts (store + create/patch validation, unknown_city via providers.locale.getCity, Money per D1); lib/deletions.ts (softDelete, undoLatestDeletion, canUndo, SOFT_DELETABLE registry); lib/undo.ts (maps a restored entity to its reader); routes app/api/bucket (GET list, POST 201), app/api/bucket/[id] (GET/PATCH/DELETE, 404 not_found for deleted or malformed ids) and app/api/undo (POST, 409 nothing_to_undo); /bucket page with add, delete and an Undo bar (testids bucket-item-{id}, bucket-add, bucket-delete-{id}, bucket-undo); home links. New error codes: unknown_city, nothing_to_undo. Decisions: D5 is the app-wide soft delete rule (the user's cross-app decision: no hard delete, no confirmation, undo by log seq), plus the bucket item shape. Memory M3 covers the shared bun test process and resetProviders; it is cited in .sofar/repo.md, which also now documents the soft-delete convention. The extras beyond spec are listed in a note. lint, typecheck, test (11 … (clipped — full text in sessions/1fdc5dfb-a750-4766-bb09-94c211ad3703.md)
-
-Recent decisions (last 5 of 6; full text in decisions.md):
-- [D2] 2026-09-15 (rule above) Interests are exactly the providers' seven activity categor… — over Free-text interest tags
-- [D3] 2026-09-15 (rule above) One SQLite handle opened through createRequire: bun:sqlite … — over Importing bun:sqlite directly, or better-sqlite3
-- [D4] 2026-09-15 (rule above) Load node:sqlite through `process.getBuiltinModule("node:sq… — over createRequire for both, which D3 originally chose
-- [D5] 2026-09-15 (rule above) App-wide soft delete: every traveller-made table has a null… — over Hard DELETE with a confirm dialog; a per-feature trash table; ordering undo by deleted_at…
-- [D6] 2026-09-15 Bucket item shape: { id (integer), title, city_id | null, notes | null, estimated_daily_spend: Money | null, created_at… — over Free-text city names; decimal-string spend; PUT full replace
-Earlier rejected approaches — do NOT re-propose (1 older):
-- …and 1 more (see decisions.md)
 
 Next ids: D7 (decision), M4 (memory)
 
@@ -459,15 +415,26 @@ Adjacent records — 22 decisions across 5 other initiatives that have worked th
 - gamma — 4 shared files, 2 decisions
 …and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: boopada-planner-session — when calling sofar_start_session, pass this as session_id.
+Session: boopada-planner-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/boopada-planner @ a1b2c3d — in sync with origin/feature/boopada-planner
 
 Recent work elsewhere: calib-1 touched 2 files 3h ago (see sofar status calib-1).
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
+
+Standing constraints — obey verbatim (5):
+- [D5] Never hard-DELETE a traveller-made row or ask for delete confirmation — soft-delete through softDelete() in apps/web/lib/deletions.ts, and filter `deleted_at is null` in every list, total and suggestion.
+- [D3] Open SQLite only through apps/web/lib/db.ts — never import bun:sqlite or node:sqlite directly.
+- [D4] Never reach a Node builtin that Turbopack externalises (node:sqlite) via import or createRequire in apps/web — use process.getBuiltinModule.
+- [D2] Reject any interest that is not one of the seven provider activity categories; never accept free text.
+- [D1] Never put a decimal string or float money value in an API request or response — always {amount_minor, currency} integer minor units.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
 == plan (2471 bytes) ==
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->

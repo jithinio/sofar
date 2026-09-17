@@ -87,6 +87,8 @@ pub struct DecisionState {
     pub over: String,
     pub because: String,
     pub rule: Option<String>,
+    /// The operator's exact words the rule came from (memory-lead 1.2, D2); only alongside `rule`.
+    pub quote: Option<String>,
     pub guard: Option<String>,
     /// `D<n>` of the earlier decision this one replaces, as recorded (r1-fixes 3.2, D25).
     pub supersedes: Option<String>,
@@ -806,6 +808,7 @@ fn apply_event(
                 over: req_str(p, "over"),
                 because: req_str(p, "because"),
                 rule: opt_str(p, "rule"),
+                quote: opt_str(p, "quote"),
                 guard: opt_str(p, "guard"),
                 supersedes: supersedes.clone(),
                 until: opt_str(p, "until"),
@@ -1662,6 +1665,7 @@ impl DecisionState {
         put(&mut o, "over", &self.over);
         put(&mut o, "because", &self.because);
         put_opt(&mut o, "rule", self.rule.as_deref());
+        put_opt(&mut o, "quote", self.quote.as_deref());
         put_opt(&mut o, "guard", self.guard.as_deref());
         put_opt(&mut o, "supersedes", self.supersedes.as_deref());
         put_opt(&mut o, "until", self.until.as_deref());
@@ -2131,6 +2135,7 @@ impl DecisionState {
             over: rs(o, "over")?,
             because: rs(o, "because")?,
             rule: os(o, "rule")?,
+            quote: os(o, "quote")?,
             guard: os(o, "guard")?,
             supersedes: os(o, "supersedes")?,
             until: os(o, "until")?,

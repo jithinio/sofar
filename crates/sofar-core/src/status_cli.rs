@@ -15,7 +15,7 @@ use crate::fold::empty_state;
 use crate::fold_cli::CmdResult;
 use crate::layout::Layout;
 use crate::projections::retire_enabled;
-use crate::resolve::resolve_initiative;
+use crate::resolve::{ResolveError, resolve_initiative, unbound_status_applies};
 use crate::snapshot::{fold_file, state_of};
 use crate::status::render_full_status;
 use crate::ui::Style;
@@ -35,6 +35,19 @@ pub fn run_status(root: &Path, slug: Option<&str>) -> CmdResult {
     let layout = Layout::new(root);
     let resolved = match resolve_initiative(&layout, slug) {
         Ok(slug) => slug,
+        // An unbound branch orients instead of failing (r1-fixes L10, D28):
+        // the most recently active initiative's status plus the listing —
+        // rendered by the TypeScript CLI, which owns `sofar list`; exit 64
+        // hands the whole call back (rust-core D31).
+        Err(ResolveError::UnknownInitiative(_))
+            if slug.is_none() && unbound_status_applies(&layout) =>
+        {
+            return CmdResult {
+                exit_code: 64,
+                stdout: String::new(),
+                stderr: String::new(),
+            };
+        }
         Err(e) => {
             return fail(format!(
                 "sofar status: {} (usage: sofar status [slug])",

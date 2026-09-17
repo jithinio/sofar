@@ -105,20 +105,22 @@ Next action: User rules on Rust gate; r1-fixes wave 1 continues in the worktree 
 Last session (claude-code, ended 2026-09-15T15:39:54.748Z):
   Answered Rust question with measurements: hooks ~0.75% of session time, cost is model turns; proposed measurement gate and hot-path-only native port.
 
-== digest:plain (6495 bytes) ==
+== digest:plain (5232 bytes) ==
 # Sofar status: bench-refresh
 
-Goal: Benchmark sofar in rounds to make it far superior AND to publish credible launch claims for every segment (solo devs, engineering teams, enterprises; seat-based). The workload is the Boopada planner (travel-planner). The matrix is agent × memory across Claude Code, Codex, Cursor and OpenCode: native memory vs sofar vs sofar + drive (where an adapter exists) vs bare (D6, D10, D11); CLAUDE.md, Obsidian and Notion arms plus one subagent-orchestrator arm on Claude Code (D12). Claims C1–C8 plus a per-plan savings cut. Every round produces a loss study of every gap, fallback and failure, with ranke…
+Goal: Benchmark sofar in rounds to make it far superior AND to publish credible launch claims for every segment (solo devs, engineering teams, enterprises; seat-based). The workload is the Boopada planner (travel-planner). The matrix is agent × memory across Claude Code, Codex, Cursor and OpenCode: native memory vs sofar vs sofar + drive (where an adapter exists) vs bare (D6, D10, D11); CLAUDE.md, Obsi…
 
-Standing constraints — obey verbatim (8):
-- [D2] Run no benchmark arm that does not back launch claims C1–C4, the tests-pass quality guard, or a cheap proof; everything else is a secondary cut from those same transcripts.
-- [D3] Launch claims are D3's C1–C8 (superseding D2's C1–C4 list): run no benchmark arm that backs none of them or a cheap proof, and never imply team sync, team views or SSO in a claim.
-- [D5] Never change the engine under test mid-round, and never publish a claim measured on a workload used to tune the engine — public numbers come from the held-out workload only.
-- [D10] Every sofar fallback or failure seen in a run (driver stall, hook block, tool error, truncation, workaround) is a loss-study row with evidence and a ranked fix; a fix's predicted gain is written before it is built and checked in the next round.
-- [D14] Never let any benchmark process use an API key or roll into paid overage; on the first sign of paid billing stop everything and tell the user.
-- [D15] Launch every benchmark agent from its ~/.bench profile with auth verified as a subscription login — never from the user's own ~/.claude, ~/.codex or ~/.cursor.
-- [D19] Gate every release on the held-out lead margin over the best CURRENT competitor per claim; never ship a release that shrinks a margin, and never measure standing with anything but public sources.
-- [D21] Never publish a stable sofar release before its round-2 benchmark evidence passes the D19 gate, and never add overlapping predicted gains together.
+Current task: 1.5 Calibration run (D9): one Claude Code arm, two sessions of chain A. Read each plan's meter before and after, derive reps per arm within half the weekly limit, and pick the Claude model (Opus 5 vs Sonnet 5) and the Grok model. Reconcile C3 with drift-certification scenario 4.
+  in Phase 1 — Claim + round design [active] 1/5
+  - 1.1 Fix each claim's wording and metric. - C1: billed tokens per completed task…
+  - 1.2 Build the arms. - Claude Code: auto-memory | sofar | sofar+drive | built-in…
+  - 1.3 Workload: the Boopada planner authored in initiative travel-planner (skelet…
+
+Next action: User rules on Rust gate; r1-fixes wave 1 continues in the worktree session
+⚠ next action may be stale: 1 event since write-back (1 decision)
+
+Last session (claude-code, ended 2026-09-15T15:39:54.748Z):
+  Answered Rust question with measurements: hooks ~0.75% of session time, cost is model turns; proposed measurement gate and hot-path-only native port.
 
 Phases:
 - Phase 1 — Claim + round design [active] 1/5
@@ -127,61 +129,68 @@ Phases:
 - Phase 4 — Loss study + improvements [pending] 0/2
 - Phase 5 — Round 2 [pending] 0/2
 - Phase 6 — Evidence + launch assets [pending] 0/3
-
 Progress: 2/22 tasks done (9%) across 6 phase(s)
-Active phase: Phase 1 — Claim + round design — 1/5 tasks done
-Current task: 1.5 Calibration run (D9): one Claude Code arm, two sessions of chain A. Read each plan's meter before and after, derive reps per arm within half the weekly limit, and pick the Claude model (Opus 5 vs…
-Next task: 1.1 Fix each claim's wording and metric. - C1: billed tokens per completed task, task-only and total (D8), plus the D11 per-plan cut. - C2: questions asked, words added by the operator, turns to firs…
+
+Memory (1; full text in memory.md):
+- [M1] Boopada bench runners must run as launchd agents (com.sofar.bench.round1.{claude,codex,cursor} in ~/Library/LaunchAgents), never nohup from a Claude Code Bash call: the harness kills nohup'd children when the orchestrating session process exits. Stop with `launchctl bootout gui/…
+
+Recent decisions (last 5 of 21; full text in decisions.md):
+- [D17] 2026-09-15 Round-1 sizing, from calib-1 and the user's /usage reading on 2026-09-15 at 14:47 IST. Re… — over Sonnet 5 to fit more reps
+- [D18] 2026-09-15 Round-1 pre-registration FROZEN and round 1 STARTED on 2026-09-15, approved by the run ow… — over Fixing the 6 known friction points before round 1
+- [D19] 2026-09-15 (rule below) The improvement loop's goal is INDUSTRY LEAD, not internal … — over Optimising sofar against its own previous release or a fixed competit…
+- [D20] 2026-09-15 Approve the combined improvement plan plus the quick-work lane, ruled by the run owner 20… — over Building fixes directly on main in the shared worktree, or folding se…
+- [D21] 2026-09-15 (rule below) Adopt the external Codex audit of r1-fixes — over Publishing a stable release before round-2 evidence, as r1-fixes Phas…
+Earlier rejected approaches — do NOT re-propose (16 older):
+- [D1] The spine's "Users ≠ customers" ruling
+- [D2] Re-running the full A0–A10 technical list, and separate runs for area…
+- [D3] D1's solo-first targeting. D2's C1–C4 list with quality reduced to a …
+- [D4] One CLAUDE.md-plus-auto-memory baseline, which D3's plan had merged i…
+- …and 12 more (see decisions.md)
+
+Next ids: D22 (decision), M2 (memory)
+
+Standing constraints — obey verbatim (8):
+- [D19] Gate every release on the held-out lead margin over the best CURRENT competitor per claim; never ship a release that shrinks a margin, and never measure standing with anything but public sources.
+- [D3] Launch claims are D3's C1–C8 (superseding D2's C1–C4 list): run no benchmark arm that backs none of them or a cheap proof, and never imply team sync, team views or SSO in a claim.
+- [D2] Run no benchmark arm that does not back launch claims C1–C4, the tests-pass quality guard, or a cheap proof; everything else is a secondary cut from those same transcripts.
+- [D21] Never publish a stable sofar release before its round-2 benchmark evidence passes the D19 gate, and never add overlapping predicted gains together.
+- [D15] Launch every benchmark agent from its ~/.bench profile with auth verified as a subscription login — never from the user's own ~/.claude, ~/.codex or ~/.cursor.
+- [D10] Every sofar fallback or failure seen in a run (driver stall, hook block, tool error, truncation, workaround) is a loss-study row with evidence and a ranked fix; a fix's predicted gain is written before it is built and checked in the next round.
+- [D5] Never change the engine under test mid-round, and never publish a claim measured on a workload used to tune the engine — public numbers come from the held-out workload only.
+- [D14] Never let any benchmark process use an API key or roll into paid overage; on the first sign of paid billing stop everything and tell the user.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:hook (6084 bytes) ==
+# Sofar status: bench-refresh
+
+Goal: Benchmark sofar in rounds to make it far superior AND to publish credible launch claims for every segment (solo devs, engineering teams, enterprises; seat-based). The workload is the Boopada planner (travel-planner). The matrix is agent × memory across Claude Code, Codex, Cursor and OpenCode: native memory vs sofar vs sofar + drive (where an adapter exists) vs bare (D6, D10, D11); CLAUDE.md, Obsi…
+
+Current task: 1.5 Calibration run (D9): one Claude Code arm, two sessions of chain A. Read each plan's meter before and after, derive reps per arm within half the weekly limit, and pick the Claude model (Opus 5 vs Sonnet 5) and the Grok model. Reconcile C3 with drift-certification scenario 4.
+  in Phase 1 — Claim + round design [active] 1/5
+  - 1.1 Fix each claim's wording and metric. - C1: billed tokens per completed task…
+  - 1.2 Build the arms. - Claude Code: auto-memory | sofar | sofar+drive | built-in…
+  - 1.3 Workload: the Boopada planner authored in initiative travel-planner (skelet…
+
 Next action: User rules on Rust gate; r1-fixes wave 1 continues in the worktree session
 ⚠ next action may be stale: 1 event since write-back (1 decision)
 
 Last session (claude-code, ended 2026-09-15T15:39:54.748Z):
   Answered Rust question with measurements: hooks ~0.75% of session time, cost is model turns; proposed measurement gate and hot-path-only native port.
 
-Recent decisions (last 5 of 21; full text in decisions.md):
-- [D17] 2026-09-15 Round-1 sizing, from calib-1 and the user's /usage reading on 2026-09-15 at 14:47 IST. Reading: week (all models) 6% us… — over Sonnet 5 to fit more reps; a single rep per arm; a before/after meter delta (no clean "be…
-- [D18] 2026-09-15 Round-1 pre-registration FROZEN and round 1 STARTED on 2026-09-15, approved by the run owner ("we can go with the recom… — over Fixing the 6 known friction points before round 1 (which loses the before-baseline), or r…
-- [D19] 2026-09-15 (rule above) The improvement loop's goal is INDUSTRY LEAD, not internal … — over Optimising sofar against its own previous release or a fixed competitor snapshot, and jud…
-- [D20] 2026-09-15 Approve the combined improvement plan plus the quick-work lane, ruled by the run owner 2026-09-15. - Initiative `r1-fix… — over Building fixes directly on main in the shared worktree, or folding self-improvement into …
-- [D21] 2026-09-15 (rule above) Adopt the external Codex audit of r1-fixes (session codex-r… — over Publishing a stable release before round-2 evidence, as r1-fixes Phase 4 was ordered. Com…
-Earlier rejected approaches — do NOT re-propose (16 older):
-- [D1] The spine's "Users ≠ customers" ruling (product doc/00-sofar-spine.md:76): solo devs as s…
-- [D2] Re-running the full A0–A10 technical list, and separate runs for areas that don't sell (p…
-- [D3] D1's solo-first targeting. D2's C1–C4 list with quality reduced to a no-regression guard.
-- [D4] One CLAUDE.md-plus-auto-memory baseline, which D3's plan had merged into a single arm. Le…
-- [D5] A one-shot benchmark that only publishes numbers. Changing the engine mid-run as problems…
-- [D6] D4's single primary comparison, sofar vs Claude Code auto-memory only.
-- [D7] Peak (a private repo; needs a paid Hugeicons Pro token; carries an existing .sofar record…
-- [D8] Strictly task-scoped prompts that forbid extras. Or letting only the sofar arm extend the…
-- [D9] A dollar cap per round, and sizing reps before measuring a real session's cost.
-- [D10] Measuring the driver only as a separate C4 run beside the chains, and a loss study limite…
-- [D11] No plan-level cut, where raw token percentages are all a buyer sees. Cursor via desktop G…
-- [D12] No orchestrator comparison, or a full family of orchestrator comparisons.
-- [D13] The user watching terminals or apps during runs. Driving runs from inside this Claude Cod…
-- [D14] Letting runs continue past a subscription limit into overage; using the already-configure…
-- [D15] - Running agents from the user's own profiles. The user's Claude profile has 14 enabled p…
-- [D16] Pinning 0.31.0, or trimming tool schemas (~3.5k tokens every turn) before round 1.
+Phases:
+- Phase 1 — Claim + round design [active] 1/5
+- Phase 2 — Pre-registration + harness [pending] 1/4
+- Phase 3 — Round 1 runs (chain A, tuning) [pending] 0/6
+- Phase 4 — Loss study + improvements [pending] 0/2
+- Phase 5 — Round 2 [pending] 0/2
+- Phase 6 — Evidence + launch assets [pending] 0/3
+Progress: 2/22 tasks done (9%) across 6 phase(s)
 
-Next ids: D22 (decision), M2 (memory)
-
-Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
-
-(generated by sofar — full detail in plan.md, decisions.md, sessions/)
-
-== digest:hook (8286 bytes) ==
-# Sofar status: bench-refresh
-
-Goal: Benchmark sofar in rounds to make it far superior AND to publish credible launch claims for every segment (solo devs, engineering teams, enterprises; seat-based). The workload is the Boopada planner (travel-planner). The matrix is agent × memory across Claude Code, Codex, Cursor and OpenCode: native memory vs sofar vs sofar + drive (where an adapter exists) vs bare (D6, D10, D11); CLAUDE.md, Obsidian and Notion arms plus one subagent-orchestrator arm on Claude Code (D12). Claims C1–C8 plus a per-plan savings cut. Every round produces a loss study of every gap, fallback and failure, with ranke…
-
-Standing constraints — obey verbatim (8):
-- [D2] Run no benchmark arm that does not back launch claims C1–C4, the tests-pass quality guard, or a cheap proof; everything else is a secondary cut from those same transcripts.
-- [D3] Launch claims are D3's C1–C8 (superseding D2's C1–C4 list): run no benchmark arm that backs none of them or a cheap proof, and never imply team sync, team views or SSO in a claim.
-- [D5] Never change the engine under test mid-round, and never publish a claim measured on a workload used to tune the engine — public numbers come from the held-out workload only.
-- [D10] Every sofar fallback or failure seen in a run (driver stall, hook block, tool error, truncation, workaround) is a loss-study row with evidence and a ranked fix; a fix's predicted gain is written before it is built and checked in the next round.
-- [D14] Never let any benchmark process use an API key or roll into paid overage; on the first sign of paid billing stop everything and tell the user.
-- [D15] Launch every benchmark agent from its ~/.bench profile with auth verified as a subscription login — never from the user's own ~/.claude, ~/.codex or ~/.cursor.
-- [D19] Gate every release on the held-out lead margin over the best CURRENT competitor per claim; never ship a release that shrinks a margin, and never measure standing with anything but public sources.
-- [D21] Never publish a stable sofar release before its round-2 benchmark evidence passes the D19 gate, and never add overlapping predicted gains together.
+Memory (1; full text in memory.md):
+- [M1] Boopada bench runners must run as launchd agents (com.sofar.bench.round1.{claude,codex,cursor} in ~/Library/LaunchAgents), never nohup from a Claude Code Bash call: the harness kills nohup'd children when the orchestrating session process exits. Stop with `launchctl bootout gui/…
 
 Repo memory (.sofar/repo.md):
 # Repo memory — sofar
@@ -193,96 +202,51 @@ Repo memory (.sofar/repo.md):
   docs still say harness — that is history, never rewritten.
 - Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
   acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
 …truncated — read .sofar/repo.md for the rest
 
-Phases:
-- Phase 1 — Claim + round design [active] 1/5
-- Phase 2 — Pre-registration + harness [pending] 1/4
-- Phase 3 — Round 1 runs (chain A, tuning) [pending] 0/6
-- Phase 4 — Loss study + improvements [pending] 0/2
-- Phase 5 — Round 2 [pending] 0/2
-- Phase 6 — Evidence + launch assets [pending] 0/3
-
-Progress: 2/22 tasks done (9%) across 6 phase(s)
-Active phase: Phase 1 — Claim + round design — 1/5 tasks done
-Current task: 1.5 Calibration run (D9): one Claude Code arm, two sessions of chain A. Read each plan's meter before and after, derive reps per arm within half the weekly limit, and pick the Claude model (Opus 5 vs…
-Next task: 1.1 Fix each claim's wording and metric. - C1: billed tokens per completed task, task-only and total (D8), plus the D11 per-plan cut. - C2: questions asked, words added by the operator, turns to firs…
-Next action: User rules on Rust gate; r1-fixes wave 1 continues in the worktree session
-⚠ next action may be stale: 1 event since write-back (1 decision)
-
-Last session (claude-code, ended 2026-09-15T15:39:54.748Z):
-  Answered Rust question with measurements: hooks ~0.75% of session time, cost is model turns; proposed measurement gate and hot-path-only native port.
-
 Recent decisions (last 5 of 21; full text in decisions.md):
-- [D17] 2026-09-15 Round-1 sizing, from calib-1 and the user's /usage reading on 2026-09-15 at 14:47 IST. Reading: week (all models) 6% us… — over Sonnet 5 to fit more reps; a single rep per arm; a before/after meter delta (no clean "be…
-- [D18] 2026-09-15 Round-1 pre-registration FROZEN and round 1 STARTED on 2026-09-15, approved by the run owner ("we can go with the recom… — over Fixing the 6 known friction points before round 1 (which loses the before-baseline), or r…
-- [D19] 2026-09-15 (rule above) The improvement loop's goal is INDUSTRY LEAD, not internal … — over Optimising sofar against its own previous release or a fixed competitor snapshot, and jud…
-- [D20] 2026-09-15 Approve the combined improvement plan plus the quick-work lane, ruled by the run owner 2026-09-15. - Initiative `r1-fix… — over Building fixes directly on main in the shared worktree, or folding self-improvement into …
-- [D21] 2026-09-15 (rule above) Adopt the external Codex audit of r1-fixes (session codex-r… — over Publishing a stable release before round-2 evidence, as r1-fixes Phase 4 was ordered. Com…
+- [D17] 2026-09-15 Round-1 sizing, from calib-1 and the user's /usage reading on 2026-09-15 at 14:47 IST. Re… — over Sonnet 5 to fit more reps
+- [D18] 2026-09-15 Round-1 pre-registration FROZEN and round 1 STARTED on 2026-09-15, approved by the run ow… — over Fixing the 6 known friction points before round 1
+- [D19] 2026-09-15 (rule below) The improvement loop's goal is INDUSTRY LEAD, not internal … — over Optimising sofar against its own previous release or a fixed competit…
+- [D20] 2026-09-15 Approve the combined improvement plan plus the quick-work lane, ruled by the run owner 20… — over Building fixes directly on main in the shared worktree, or folding se…
+- [D21] 2026-09-15 (rule below) Adopt the external Codex audit of r1-fixes — over Publishing a stable release before round-2 evidence, as r1-fixes Phas…
 Earlier rejected approaches — do NOT re-propose (16 older):
-- [D1] The spine's "Users ≠ customers" ruling (product doc/00-sofar-spine.md:76): solo devs as s…
-- [D2] Re-running the full A0–A10 technical list, and separate runs for areas that don't sell (p…
-- [D3] D1's solo-first targeting. D2's C1–C4 list with quality reduced to a no-regression guard.
-- [D4] One CLAUDE.md-plus-auto-memory baseline, which D3's plan had merged into a single arm. Le…
-- [D5] A one-shot benchmark that only publishes numbers. Changing the engine mid-run as problems…
-- [D6] D4's single primary comparison, sofar vs Claude Code auto-memory only.
-- [D7] Peak (a private repo; needs a paid Hugeicons Pro token; carries an existing .sofar record…
-- [D8] Strictly task-scoped prompts that forbid extras. Or letting only the sofar arm extend the…
-- [D9] A dollar cap per round, and sizing reps before measuring a real session's cost.
-- [D10] Measuring the driver only as a separate C4 run beside the chains, and a loss study limite…
-- [D11] No plan-level cut, where raw token percentages are all a buyer sees. Cursor via desktop G…
-- [D12] No orchestrator comparison, or a full family of orchestrator comparisons.
-- [D13] The user watching terminals or apps during runs. Driving runs from inside this Claude Cod…
-- [D14] Letting runs continue past a subscription limit into overage; using the already-configure…
-- [D15] - Running agents from the user's own profiles. The user's Claude profile has 14 enabled p…
-- [D16] Pinning 0.31.0, or trimming tool schemas (~3.5k tokens every turn) before round 1.
+- [D1] The spine's "Users ≠ customers" ruling
+- [D2] Re-running the full A0–A10 technical list, and separate runs for area…
+- [D3] D1's solo-first targeting. D2's C1–C4 list with quality reduced to a …
+- [D4] One CLAUDE.md-plus-auto-memory baseline, which D3's plan had merged i…
+- …and 12 more (see decisions.md)
 
 Next ids: D22 (decision), M2 (memory)
 
-Session: bench-refresh-session — when calling sofar_start_session, pass this as session_id.
+Session: bench-refresh-session — adopted on Claude Code; else pass to sofar_start_session.
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
+Standing constraints — obey verbatim (8):
+- [D19] Gate every release on the held-out lead margin over the best CURRENT competitor per claim; never ship a release that shrinks a margin, and never measure standing with anything but public sources.
+- [D3] Launch claims are D3's C1–C8 (superseding D2's C1–C4 list): run no benchmark arm that backs none of them or a cheap proof, and never imply team sync, team views or SSO in a claim.
+- [D2] Run no benchmark arm that does not back launch claims C1–C4, the tests-pass quality guard, or a cheap proof; everything else is a secondary cut from those same transcripts.
+- [D21] Never publish a stable sofar release before its round-2 benchmark evidence passes the D19 gate, and never add overlapping predicted gains together.
+- [D15] Launch every benchmark agent from its ~/.bench profile with auth verified as a subscription login — never from the user's own ~/.claude, ~/.codex or ~/.cursor.
+- [D10] Every sofar fallback or failure seen in a run (driver stall, hook block, tool error, truncation, workaround) is a loss-study row with evidence and a ranked fix; a fix's predicted gain is written before it is built and checked in the next round.
+- [D5] Never change the engine under test mid-round, and never publish a claim measured on a workload used to tune the engine — public numbers come from the held-out workload only.
+- [D14] Never let any benchmark process use an API key or roll into paid overage; on the first sign of paid billing stop everything and tell the user.
+
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:lane (5998 bytes) ==
+== digest:lane (4424 bytes) ==
 # Sofar: quick-work lane (bench-refresh)
 
-Goal: Benchmark sofar in rounds to make it far superior AND to publish credible launch claims for every segment (solo devs, engineering teams, enterprises; seat-based). The workload is the Boopada planner (travel-planner). The matrix is agent × memory across Claude Code, Codex, Cursor and OpenCode: native memory vs sofar vs sofar + drive (where an adapter exists) vs bare (D6, D10, D11); CLAUDE.md, Obsidian and Notion arms plus one subagent-orchestrator arm on Claude Code (D12). Claims C1–C8 plus a per-plan savings cut. Every round produces a loss study of every gap, fallback and failure, with ranke…
+Goal: Benchmark sofar in rounds to make it far superior AND to publish credible launch claims for every segment (solo devs, engineering teams, enterprises; seat-based). The workload is the Boopada planner (travel-planner). The matrix is agent × memory across Claude Code, Codex, Cursor and OpenCode: native memory vs sofar vs sofar + drive (where an adapter exists) vs bare (D6, D10, D11); CLAUDE.md, Obsi…
 
 This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
 - Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
 - Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
-
-Standing constraints — obey verbatim (8):
-- [D2] Run no benchmark arm that does not back launch claims C1–C4, the tests-pass quality guard, or a cheap proof; everything else is a secondary cut from those same transcripts.
-- [D3] Launch claims are D3's C1–C8 (superseding D2's C1–C4 list): run no benchmark arm that backs none of them or a cheap proof, and never imply team sync, team views or SSO in a claim.
-- [D5] Never change the engine under test mid-round, and never publish a claim measured on a workload used to tune the engine — public numbers come from the held-out workload only.
-- [D10] Every sofar fallback or failure seen in a run (driver stall, hook block, tool error, truncation, workaround) is a loss-study row with evidence and a ranked fix; a fix's predicted gain is written before it is built and checked in the next round.
-- [D14] Never let any benchmark process use an API key or roll into paid overage; on the first sign of paid billing stop everything and tell the user.
-- [D15] Launch every benchmark agent from its ~/.bench profile with auth verified as a subscription login — never from the user's own ~/.claude, ~/.codex or ~/.cursor.
-- [D19] Gate every release on the held-out lead margin over the best CURRENT competitor per claim; never ship a release that shrinks a margin, and never measure standing with anything but public sources.
-- [D21] Never publish a stable sofar release before its round-2 benchmark evidence passes the D19 gate, and never add overlapping predicted gains together.
 
 Last session (claude-code, ended 2026-09-15T15:39:54.748Z):
   Answered Rust question with measurements: hooks ~0.75% of session time, cost is model turns; proposed measurement gate and hot-path-only native port.
@@ -290,50 +254,54 @@ Last session (claude-code, ended 2026-09-15T15:39:54.748Z):
 Recent quick work (1 session, 21 decisions since 2026-09-14):
 - 2026-09-14 claude-code — 11 commands, task changes: 2.4 → active, 1.5 → active, 1.4 → done, 2.3 → active, 2.1 → active, 2.3 → done
 
+Memory (1; full text in memory.md):
+- [M1] Boopada bench runners must run as launchd agents (com.sofar.bench.round1.{claud…
+
 Recent decisions (last 5 of 21; full text in decisions.md):
-- [D17] 2026-09-15 Round-1 sizing, from calib-1 and the user's /usage reading on 2026-09-15 at 14:47 IST. Reading: week (all models) 6% us… — over Sonnet 5 to fit more reps; a single rep per arm; a before/after meter delta (no clean "be…
-- [D18] 2026-09-15 Round-1 pre-registration FROZEN and round 1 STARTED on 2026-09-15, approved by the run owner ("we can go with the recom… — over Fixing the 6 known friction points before round 1 (which loses the before-baseline), or r…
-- [D19] 2026-09-15 (rule above) The improvement loop's goal is INDUSTRY LEAD, not internal … — over Optimising sofar against its own previous release or a fixed competitor snapshot, and jud…
-- [D20] 2026-09-15 Approve the combined improvement plan plus the quick-work lane, ruled by the run owner 2026-09-15. - Initiative `r1-fix… — over Building fixes directly on main in the shared worktree, or folding self-improvement into …
-- [D21] 2026-09-15 (rule above) Adopt the external Codex audit of r1-fixes (session codex-r… — over Publishing a stable release before round-2 evidence, as r1-fixes Phase 4 was ordered. Com…
+- [D17] 2026-09-15 Round-1 sizing, from calib-1 and the user's /usage reading on 2026-09-15 at 14:47 IST. Re… — over Sonnet 5 to fit more reps
+- [D18] 2026-09-15 Round-1 pre-registration FROZEN and round 1 STARTED on 2026-09-15, approved by the run ow… — over Fixing the 6 known friction points before round 1
+- [D19] 2026-09-15 (rule below) The improvement loop's goal is INDUSTRY LEAD, not internal … — over Optimising sofar against its own previous release or a fixed competit…
+- [D20] 2026-09-15 Approve the combined improvement plan plus the quick-work lane, ruled by the run owner 20… — over Building fixes directly on main in the shared worktree, or folding se…
+- [D21] 2026-09-15 (rule below) Adopt the external Codex audit of r1-fixes — over Publishing a stable release before round-2 evidence, as r1-fixes Phas…
 Earlier rejected approaches — do NOT re-propose (16 older):
-- [D1] The spine's "Users ≠ customers" ruling (product doc/00-sofar-spine.md:76): solo devs as s…
-- [D2] Re-running the full A0–A10 technical list, and separate runs for areas that don't sell (p…
-- [D3] D1's solo-first targeting. D2's C1–C4 list with quality reduced to a no-regression guard.
-- [D4] One CLAUDE.md-plus-auto-memory baseline, which D3's plan had merged into a single arm. Le…
-- [D5] A one-shot benchmark that only publishes numbers. Changing the engine mid-run as problems…
-- [D6] D4's single primary comparison, sofar vs Claude Code auto-memory only.
-- [D7] Peak (a private repo; needs a paid Hugeicons Pro token; carries an existing .sofar record…
-- [D8] Strictly task-scoped prompts that forbid extras. Or letting only the sofar arm extend the…
-- [D9] A dollar cap per round, and sizing reps before measuring a real session's cost.
-- [D10] Measuring the driver only as a separate C4 run beside the chains, and a loss study limite…
-- [D11] No plan-level cut, where raw token percentages are all a buyer sees. Cursor via desktop G…
-- [D12] No orchestrator comparison, or a full family of orchestrator comparisons.
-- [D13] The user watching terminals or apps during runs. Driving runs from inside this Claude Cod…
-- [D14] Letting runs continue past a subscription limit into overage; using the already-configure…
-- [D15] - Running agents from the user's own profiles. The user's Claude profile has 14 enabled p…
-- [D16] Pinning 0.31.0, or trimming tool schemas (~3.5k tokens every turn) before round 1.
+- [D1] The spine's "Users ≠ customers" ruling
+- [D2] Re-running the full A0–A10 technical list, and separate runs for area…
+- [D3] D1's solo-first targeting. D2's C1–C4 list with quality reduced to a …
+- [D4] One CLAUDE.md-plus-auto-memory baseline, which D3's plan had merged i…
+- …and 12 more (see decisions.md)
 
 Next ids: D22 (decision), M2 (memory)
 
-Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (8):
+- [D21] Never publish a stable sofar release before its round-2 benchmark evidence passes the D19 gate, and never add overlapping predicted gains together.
+- [D19] Gate every release on the held-out lead margin over the best CURRENT competitor per claim; never ship a release that shrinks a margin, and never measure standing with anything but public sources.
+- [D15] Launch every benchmark agent from its ~/.bench profile with auth verified as a subscription login — never from the user's own ~/.claude, ~/.codex or ~/.cursor.
+- [D14] Never let any benchmark process use an API key or roll into paid overage; on the first sign of paid billing stop everything and tell the user.
+- [D10] Every sofar fallback or failure seen in a run (driver stall, hook block, tool error, truncation, workaround) is a loss-study row with evidence and a ranked fix; a fix's predicted gain is written before it is built and checked in the next round.
+- [D5] Never change the engine under test mid-round, and never publish a claim measured on a workload used to tune the engine — public numbers come from the held-out workload only.
+- [D3] Launch claims are D3's C1–C8 (superseding D2's C1–C4 list): run no benchmark arm that backs none of them or a cheap proof, and never imply team sync, team views or SSO in a claim.
+- [D2] Run no benchmark arm that does not back launch claims C1–C4, the tests-pass quality guard, or a cheap proof; everything else is a secondary cut from those same transcripts.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:quiet (6582 bytes) ==
+== digest:quiet (5318 bytes) ==
 # Sofar status: bench-refresh
 
-Goal: Benchmark sofar in rounds to make it far superior AND to publish credible launch claims for every segment (solo devs, engineering teams, enterprises; seat-based). The workload is the Boopada planner (travel-planner). The matrix is agent × memory across Claude Code, Codex, Cursor and OpenCode: native memory vs sofar vs sofar + drive (where an adapter exists) vs bare (D6, D10, D11); CLAUDE.md, Obsidian and Notion arms plus one subagent-orchestrator arm on Claude Code (D12). Claims C1–C8 plus a per-plan savings cut. Every round produces a loss study of every gap, fallback and failure, with ranke…
+Goal: Benchmark sofar in rounds to make it far superior AND to publish credible launch claims for every segment (solo devs, engineering teams, enterprises; seat-based). The workload is the Boopada planner (travel-planner). The matrix is agent × memory across Claude Code, Codex, Cursor and OpenCode: native memory vs sofar vs sofar + drive (where an adapter exists) vs bare (D6, D10, D11); CLAUDE.md, Obsi…
 
-Standing constraints — obey verbatim (8):
-- [D2] Run no benchmark arm that does not back launch claims C1–C4, the tests-pass quality guard, or a cheap proof; everything else is a secondary cut from those same transcripts.
-- [D3] Launch claims are D3's C1–C8 (superseding D2's C1–C4 list): run no benchmark arm that backs none of them or a cheap proof, and never imply team sync, team views or SSO in a claim.
-- [D5] Never change the engine under test mid-round, and never publish a claim measured on a workload used to tune the engine — public numbers come from the held-out workload only.
-- [D10] Every sofar fallback or failure seen in a run (driver stall, hook block, tool error, truncation, workaround) is a loss-study row with evidence and a ranked fix; a fix's predicted gain is written before it is built and checked in the next round.
-- [D14] Never let any benchmark process use an API key or roll into paid overage; on the first sign of paid billing stop everything and tell the user.
-- [D15] Launch every benchmark agent from its ~/.bench profile with auth verified as a subscription login — never from the user's own ~/.claude, ~/.codex or ~/.cursor.
-- [D19] Gate every release on the held-out lead margin over the best CURRENT competitor per claim; never ship a release that shrinks a margin, and never measure standing with anything but public sources.
-- [D21] Never publish a stable sofar release before its round-2 benchmark evidence passes the D19 gate, and never add overlapping predicted gains together.
+Current task: 1.5 Calibration run (D9): one Claude Code arm, two sessions of chain A. Read each plan's meter before and after, derive reps per arm within half the weekly limit, and pick the Claude model (Opus 5 vs Sonnet 5) and the Grok model. Reconcile C3 with drift-certification scenario 4.
+  in Phase 1 — Claim + round design [active] 1/5
+  - 1.1 Fix each claim's wording and metric. - C1: billed tokens per completed task…
+  - 1.2 Build the arms. - Claude Code: auto-memory | sofar | sofar+drive | built-in…
+  - 1.3 Workload: the Boopada planner authored in initiative travel-planner (skelet…
+
+Next action: User rules on Rust gate; r1-fixes wave 1 continues in the worktree session
+⚠ next action may be stale: 1 event since write-back (1 decision)
+
+Last session (claude-code, ended 2026-09-15T15:39:54.748Z):
+  Answered Rust question with measurements: hooks ~0.75% of session time, cost is model turns; proposed measurement gate and hot-path-only native port.
 
 Phases:
 - Phase 1 — Claim + round design [active] 1/5
@@ -342,91 +310,55 @@ Phases:
 - Phase 4 — Loss study + improvements [pending] 0/2
 - Phase 5 — Round 2 [pending] 0/2
 - Phase 6 — Evidence + launch assets [pending] 0/3
-
 Progress: 2/22 tasks done (9%) across 6 phase(s)
-Active phase: Phase 1 — Claim + round design — 1/5 tasks done
-Current task: 1.5 Calibration run (D9): one Claude Code arm, two sessions of chain A. Read each plan's meter before and after, derive reps per arm within half the weekly limit, and pick the Claude model (Opus 5 vs…
-Next task: 1.1 Fix each claim's wording and metric. - C1: billed tokens per completed task, task-only and total (D8), plus the D11 per-plan cut. - C2: questions asked, words added by the operator, turns to firs…
-Next action: User rules on Rust gate; r1-fixes wave 1 continues in the worktree session
-⚠ next action may be stale: 1 event since write-back (1 decision)
 
-Last session (claude-code, ended 2026-09-15T15:39:54.748Z):
-  Answered Rust question with measurements: hooks ~0.75% of session time, cost is model turns; proposed measurement gate and hot-path-only native port.
+Memory (1; full text in memory.md):
+- [M1] Boopada bench runners must run as launchd agents (com.sofar.bench.round1.{claude,codex,cursor} in ~/Library/LaunchAgents), never nohup from a Claude Code Bash call: the harness kills nohup'd children when the orchestrating session process exits. Stop with `launchctl bootout gui/…
 
 Recent decisions (last 5 of 21; full text in decisions.md):
-- [D17] 2026-09-15 Round-1 sizing, from calib-1 and the user's /usage reading on 2026-09-15 at 14:47 IST. Reading: week (all models) 6% us… — over Sonnet 5 to fit more reps; a single rep per arm; a before/after meter delta (no clean "be…
-- [D18] 2026-09-15 Round-1 pre-registration FROZEN and round 1 STARTED on 2026-09-15, approved by the run owner ("we can go with the recom… — over Fixing the 6 known friction points before round 1 (which loses the before-baseline), or r…
-- [D19] 2026-09-15 (rule above) The improvement loop's goal is INDUSTRY LEAD, not internal … — over Optimising sofar against its own previous release or a fixed competitor snapshot, and jud…
-- [D20] 2026-09-15 Approve the combined improvement plan plus the quick-work lane, ruled by the run owner 2026-09-15. - Initiative `r1-fix… — over Building fixes directly on main in the shared worktree, or folding self-improvement into …
-- [D21] 2026-09-15 (rule above) Adopt the external Codex audit of r1-fixes (session codex-r… — over Publishing a stable release before round-2 evidence, as r1-fixes Phase 4 was ordered. Com…
+- [D17] 2026-09-15 Round-1 sizing, from calib-1 and the user's /usage reading on 2026-09-15 at 14:47 IST. Re… — over Sonnet 5 to fit more reps
+- [D18] 2026-09-15 Round-1 pre-registration FROZEN and round 1 STARTED on 2026-09-15, approved by the run ow… — over Fixing the 6 known friction points before round 1
+- [D19] 2026-09-15 (rule below) The improvement loop's goal is INDUSTRY LEAD, not internal … — over Optimising sofar against its own previous release or a fixed competit…
+- [D20] 2026-09-15 Approve the combined improvement plan plus the quick-work lane, ruled by the run owner 20… — over Building fixes directly on main in the shared worktree, or folding se…
+- [D21] 2026-09-15 (rule below) Adopt the external Codex audit of r1-fixes — over Publishing a stable release before round-2 evidence, as r1-fixes Phas…
 Earlier rejected approaches — do NOT re-propose (16 older):
-- [D1] The spine's "Users ≠ customers" ruling (product doc/00-sofar-spine.md:76): solo devs as s…
-- [D2] Re-running the full A0–A10 technical list, and separate runs for areas that don't sell (p…
-- [D3] D1's solo-first targeting. D2's C1–C4 list with quality reduced to a no-regression guard.
-- [D4] One CLAUDE.md-plus-auto-memory baseline, which D3's plan had merged into a single arm. Le…
-- [D5] A one-shot benchmark that only publishes numbers. Changing the engine mid-run as problems…
-- [D6] D4's single primary comparison, sofar vs Claude Code auto-memory only.
-- [D7] Peak (a private repo; needs a paid Hugeicons Pro token; carries an existing .sofar record…
-- [D8] Strictly task-scoped prompts that forbid extras. Or letting only the sofar arm extend the…
-- [D9] A dollar cap per round, and sizing reps before measuring a real session's cost.
-- [D10] Measuring the driver only as a separate C4 run beside the chains, and a loss study limite…
-- [D11] No plan-level cut, where raw token percentages are all a buyer sees. Cursor via desktop G…
-- [D12] No orchestrator comparison, or a full family of orchestrator comparisons.
-- [D13] The user watching terminals or apps during runs. Driving runs from inside this Claude Cod…
-- [D14] Letting runs continue past a subscription limit into overage; using the already-configure…
-- [D15] - Running agents from the user's own profiles. The user's Claude profile has 14 enabled p…
-- [D16] Pinning 0.31.0, or trimming tool schemas (~3.5k tokens every turn) before round 1.
+- [D1] The spine's "Users ≠ customers" ruling
+- [D2] Re-running the full A0–A10 technical list, and separate runs for area…
+- [D3] D1's solo-first targeting. D2's C1–C4 list with quality reduced to a …
+- [D4] One CLAUDE.md-plus-auto-memory baseline, which D3's plan had merged i…
+- …and 12 more (see decisions.md)
 
 Next ids: D22 (decision), M2 (memory)
 
-Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (8):
+- [D19] Gate every release on the held-out lead margin over the best CURRENT competitor per claim; never ship a release that shrinks a margin, and never measure standing with anything but public sources.
+- [D3] Launch claims are D3's C1–C8 (superseding D2's C1–C4 list): run no benchmark arm that backs none of them or a cheap proof, and never imply team sync, team views or SSO in a claim.
+- [D2] Run no benchmark arm that does not back launch claims C1–C4, the tests-pass quality guard, or a cheap proof; everything else is a secondary cut from those same transcripts.
+- [D21] Never publish a stable sofar release before its round-2 benchmark evidence passes the D19 gate, and never add overlapping predicted gains together.
+- [D15] Launch every benchmark agent from its ~/.bench profile with auth verified as a subscription login — never from the user's own ~/.claude, ~/.codex or ~/.cursor.
+- [D10] Every sofar fallback or failure seen in a run (driver stall, hook block, tool error, truncation, workaround) is a loss-study row with evidence and a ranked fix; a fix's predicted gain is written before it is built and checked in the next round.
+- [D5] Never change the engine under test mid-round, and never publish a claim measured on a workload used to tune the engine — public numbers come from the held-out workload only.
+- [D14] Never let any benchmark process use an API key or roll into paid overage; on the first sign of paid billing stop everything and tell the user.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (10098 bytes) ==
+== digest:cap (6049 bytes) ==
 # Sofar status: bench-refresh
 
-Goal: Benchmark sofar in rounds to make it far superior AND to publish credible launch claims for every segment (solo devs, engineering teams, enterprises; seat-based). The workload is the Boopada planner (travel-planner). The matrix is agent × memory across Claude Code, Codex, Cursor and OpenCode: native memory vs sofar vs sofar + drive (where an adapter exists) vs bare (D6, D10, D11); CLAUDE.md, Obsidian and Notion arms plus one subagent-orchestrator arm on Claude Code (D12). Claims C1–C8 plus a per-plan savings cut. Every round produces a loss study of every gap, fallback and failure, with ranke…
+Goal: Benchmark sofar in rounds to make it far superior AND to publish credible launch claims for every segment (solo devs, engineering teams, enterprises; seat-based). The workload is the Boopada planner (travel-planner). The matrix is agent × memory across Claude Code, Codex, Cursor and OpenCode: native memory vs sofar vs sofar + drive (where an adapter exists) vs bare (D6, D10, D11); CLAUDE.md, Obsi…
 
-Standing constraints — obey verbatim (8):
-- [D2] Run no benchmark arm that does not back launch claims C1–C4, the tests-pass quality guard, or a cheap proof; everything else is a secondary cut from those same transcripts.
-- [D3] Launch claims are D3's C1–C8 (superseding D2's C1–C4 list): run no benchmark arm that backs none of them or a cheap proof, and never imply team sync, team views or SSO in a claim.
-- [D5] Never change the engine under test mid-round, and never publish a claim measured on a workload used to tune the engine — public numbers come from the held-out workload only.
-- [D10] Every sofar fallback or failure seen in a run (driver stall, hook block, tool error, truncation, workaround) is a loss-study row with evidence and a ranked fix; a fix's predicted gain is written before it is built and checked in the next round.
-- [D14] Never let any benchmark process use an API key or roll into paid overage; on the first sign of paid billing stop everything and tell the user.
-- [D15] Launch every benchmark agent from its ~/.bench profile with auth verified as a subscription login — never from the user's own ~/.claude, ~/.codex or ~/.cursor.
-- [D19] Gate every release on the held-out lead margin over the best CURRENT competitor per claim; never ship a release that shrinks a margin, and never measure standing with anything but public sources.
-- [D21] Never publish a stable sofar release before its round-2 benchmark evidence passes the D19 gate, and never add overlapping predicted gains together.
+Current task: 1.5 Calibration run (D9): one Claude Code arm, two sessions of chain A. Read each plan's meter before and after, derive reps per arm within half the weekly limit, and pick the Claude model (Opus 5 vs Sonnet 5) and the Grok model. Reconcile C3 with drift-certification scenario 4.
+  in Phase 1 — Claim + round design [active] 1/5
+  - 1.1 Fix each claim's wording and metric. - C1: billed tokens per completed task…
+  - 1.2 Build the arms. - Claude Code: auto-memory | sofar | sofar+drive | built-in…
+  - 1.3 Workload: the Boopada planner authored in initiative travel-planner (skelet…
 
-Repo memory (.sofar/repo.md):
-# Repo memory — sofar
-
-- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
-  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
-  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
-  aliases (pre-publish). Historical event/projection text and the archived
-  docs still say harness — that is history, never rewritten.
-- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
-  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
-…truncated — read .sofar/repo.md for the rest
+Next action: User rules on Rust gate; r1-fixes wave 1 continues in the worktree session
+⚠ next action may be stale: 1 event since write-back (1 decision)
 
 Phases:
 - Phase 1 — Claim + round design [active] 1/5
@@ -435,36 +367,33 @@ Phases:
 - Phase 4 — Loss study + improvements [pending] 0/2
 - Phase 5 — Round 2 [pending] 0/2
 - Phase 6 — Evidence + launch assets [pending] 0/3
-
 Progress: 2/22 tasks done (9%) across 6 phase(s)
-Active phase: Phase 1 — Claim + round design — 1/5 tasks done
-Current task: 1.5 Calibration run (D9): one Claude Code arm, two sessions of chain A. Read each plan's meter before and after, derive reps per arm within half the weekly limit, and pick the Claude model (Opus 5 vs…
-Next task: 1.1 Fix each claim's wording and metric. - C1: billed tokens per completed task, task-only and total (D8), plus the D11 per-plan cut. - C2: questions asked, words added by the operator, turns to firs…
-Next action: User rules on Rust gate; r1-fixes wave 1 continues in the worktree session
-⚠ next action may be stale: 1 event since write-back (1 decision)
 
-Last session (claude-code, ended 2026-09-15T15:39:54.748Z):
-  Answered Rust question with measurements: hooks ~0.75% of session time, cost is model turns; proposed measurement gate and hot-path-only native port.
-
-Recent decisions (last 5 of 21; full text in decisions.md):
-- [D17] 2026-09-15 Round-1 sizing, from calib-1 and the user's /usage reading on 2026-09-15 at 14:47 IST. Reading: week (all models) 6% us… — over Sonnet 5 to fit more reps; a single rep per arm; a before/after meter delta (no clean "be…
-- [D18] 2026-09-15 Round-1 pre-registration FROZEN and round 1 STARTED on 2026-09-15, approved by the run owner ("we can go with the recom… — over Fixing the 6 known friction points before round 1 (which loses the before-baseline), or r…
-- [D19] 2026-09-15 (rule above) The improvement loop's goal is INDUSTRY LEAD, not internal … — over Optimising sofar against its own previous release or a fixed competitor snapshot, and jud…
-- [D20] 2026-09-15 Approve the combined improvement plan plus the quick-work lane, ruled by the run owner 2026-09-15. - Initiative `r1-fix… — over Building fixes directly on main in the shared worktree, or folding self-improvement into …
-- [D21] 2026-09-15 (rule above) Adopt the external Codex audit of r1-fixes (session codex-r… — over Publishing a stable release before round-2 evidence, as r1-fixes Phase 4 was ordered. Com…
-Earlier rejected approaches — do NOT re-propose (16 older):
-- …and 16 more (see decisions.md)
 
 Next ids: D22 (decision), M2 (memory)
 
-Session: bench-refresh-session — when calling sofar_start_session, pass this as session_id.
+Session: bench-refresh-session — adopted on Claude Code; else pass to sofar_start_session.
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
+
+Standing constraints — obey verbatim (8):
+- [D19] Gate every release on the held-out lead margin over the best CURRENT competitor per claim; never ship a release that shrinks a margin, and never measure standing with anything but public sources.
+- [D3] Launch claims are D3's C1–C8 (superseding D2's C1–C4 list): run no benchmark arm that backs none of them or a cheap proof, and never imply team sync, team views or SSO in a claim.
+- [D2] Run no benchmark arm that does not back launch claims C1–C4, the tests-pass quality guard, or a cheap proof; everything else is a secondary cut from those same transcripts.
+- [D21] Never publish a stable sofar release before its round-2 benchmark evidence passes the D19 gate, and never add overlapping predicted gains together.
+- [D15] Launch every benchmark agent from its ~/.bench profile with auth verified as a subscription login — never from the user's own ~/.claude, ~/.codex or ~/.cursor.
+- [D10] Every sofar fallback or failure seen in a run (driver stall, hook block, tool error, truncation, workaround) is a loss-study row with evidence and a ranked fix; a fix's predicted gain is written before it is built and checked in the next round.
+- [D5] Never change the engine under test mid-round, and never publish a claim measured on a workload used to tune the engine — public numbers come from the held-out workload only.
+- [D14] Never let any benchmark process use an API key or roll into paid overage; on the first sign of paid billing stop everything and tell the user.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
 == plan (5564 bytes) ==
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->

@@ -16,10 +16,12 @@ use crate::fold_cli::CmdResult;
 use crate::git::read_git_state;
 use crate::home::{LaneAvailability, ResolvedVia, lane_availability, resolve_session_first};
 use crate::hook::{clip_to, parse_hook, str_field};
+use crate::host::hook_host;
 use crate::index_tier1::refresh_neighbours;
 use crate::json::{Json, Object, number_to_string};
 use crate::layout::{Layout, initiative_slugs};
 use crate::projections::retire_enabled;
+use crate::session_pointer::write_session_pointer;
 use crate::shipwatch::note_upstream;
 use crate::status::{
     QUICK_LANE, StatusOptions, enforce_status_limit, is_closed_initiative_status, render_status,
@@ -35,7 +37,6 @@ pub const RECENT_ELSEWHERE_BUDGET: usize = 480;
 pub const COLD_RESUME_GAP_MS: f64 = 60.0 * 60.0 * 1000.0;
 pub const COLD_RESUME_MIN_TRANSCRIPT_BYTES: u64 = 80_000;
 pub const CLOSED_BANNER_MAX_FINDINGS: usize = 3;
-const HOOK_TOOL: &str = "claude-code";
 const MAX_LISTED: usize = 10;
 
 /// The `sofar init` repo.md stub (`REPO_MD_STUB`) — a repo memory that is
@@ -66,11 +67,13 @@ pub fn activity_enabled() -> bool {
 pub fn read_repo_memory(layout: &Layout) -> Option<String> {
     let bytes = std::fs::read(layout.sofar_dir.join("repo.md")).ok()?;
     let text = String::from_utf8_lossy(&bytes).into_owned();
-    let trimmed = js_trim(&text);
-    if trimmed.is_empty() || trimmed == js_trim(REPO_MD_STUB) {
+    // The stub's preamble is init boilerplate, not memory (memory-lead D4):
+    // what the operator added after it is what the digest spends its budget on.
+    let body = text.strip_prefix(REPO_MD_STUB).unwrap_or(&text);
+    if js_trim(body).is_empty() {
         return None;
     }
-    Some(text)
+    Some(body.to_owned())
 }
 
 /// `lastEventMs`: the newest parseable trailing line's `ts`.
@@ -407,6 +410,11 @@ pub fn handle_session_start(root: &Path, input: &str) -> CmdResult {
     let layout = Layout::new(root);
     let hook = parse_hook(input);
     let session_id = str_field(&hook, "session_id");
+    // Hand the host's id to CLI appends that omit --session (r1-fixes 4.1.3,
+    // D29) — before resolution, because an unbound session's appends name a slug.
+    if let Some(sid) = session_id {
+        let _ = write_session_pointer(&layout, sid, "hook");
+    }
     let Some((slug, via)) = resolve_session_first(&layout, session_id) else {
         return ok(unbound_notice(&layout, session_id));
     };
@@ -465,7 +473,7 @@ pub fn handle_session_start(root: &Path, input: &str) -> CmdResult {
             data,
             initiative: Some(slug),
             session: Some(session_id.unwrap_or("cli").to_owned()),
-            host_tool: Some(HOOK_TOOL.to_owned()),
+            host_tool: Some(hook_host(&hook).tool.to_owned()),
         },
     );
     ok(status)

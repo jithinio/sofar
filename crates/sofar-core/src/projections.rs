@@ -15,6 +15,8 @@ use crate::fold::{
     SessionState, TaskState, TestOutcome,
 };
 use crate::json::{Json, number_to_string};
+use crate::lexicon::lexical_counts;
+use crate::rule_fidelity::{quote_clause, render_rule};
 use crate::text::{js_trim, js_trim_end, one_line, utf16_len, utf16_prefix};
 
 /// The header that makes hand-editing a projection a visible bug (BD5).
@@ -209,13 +211,44 @@ pub fn describe_freshness(counts: &FreshnessCounts) -> String {
 /// A rule a later rule replaced (`superseded_by`, r1-fixes 3.2, D25) is
 /// skipped while `retire` holds — `SOFAR_RETIRE=off` renders it as before.
 #[must_use]
-pub fn standing_rules(decisions: &[DecisionState], retire: bool) -> Vec<(usize, &str)> {
+pub fn standing_rules(decisions: &[DecisionState], retire: bool) -> Vec<(usize, &DecisionState)> {
     decisions
         .iter()
         .enumerate()
         .filter(|(_, d)| !(retire && d.superseded_by.is_some()))
-        .filter_map(|(i, d)| d.rule.as_deref().map(|r| (i + 1, r)))
+        .filter(|(_, d)| d.rule.is_some())
+        .map(|(i, d)| (i + 1, d))
         .collect()
+}
+
+/// `relevanceScore` (memory-lead D4): distinct lexicon stems `text` shares with `focus`.
+#[must_use]
+pub fn relevance_score(text: &str, focus: &[String]) -> usize {
+    lexical_counts(text)
+        .iter()
+        .filter(|(term, _)| focus.iter().any(|f| f == term))
+        .count()
+}
+
+/// `rankByRelevance`: score descending, ties newest (highest ordinal) first — a
+/// stable sort, as `Array.prototype.sort` is.
+#[must_use]
+pub fn rank_by_relevance<T: Clone>(
+    items: &[(usize, T)],
+    focus: &[String],
+    text: impl Fn(&T) -> String,
+) -> Vec<(usize, T)> {
+    let mut scored: Vec<(usize, (usize, T))> = items
+        .iter()
+        .map(|(ordinal, item)| {
+            (
+                relevance_score(&text(item), focus),
+                (*ordinal, item.clone()),
+            )
+        })
+        .collect();
+    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.0.cmp(&a.1.0)));
+    scored.into_iter().map(|(_, item)| item).collect()
 }
 
 /// `retireEnabled`: `SOFAR_RETIRE=off` (also `0`, `false`) renders every
@@ -259,19 +292,43 @@ pub fn standing_constraint_lines(
     decisions: &[DecisionState],
     budget: Option<usize>,
     retire: bool,
+    focus: Option<&[String]>,
 ) -> Vec<String> {
-    let standing = standing_rules(decisions, retire);
+    // The digest passes a focus (memory-lead D4): most relevant first, so the
+    // budget drops the least relevant rules instead of the newest.
+    let in_order = standing_rules(decisions, retire);
+    let standing: Vec<(usize, &DecisionState)> = match focus {
+        None => in_order,
+        Some(focus) => rank_by_relevance(&in_order, focus, |d| {
+            format!(
+                "{} {}",
+                d.rule.as_deref().unwrap_or(""),
+                d.quote.as_deref().unwrap_or("")
+            )
+        }),
+    };
     if standing.is_empty() {
         return Vec::new();
     }
+    // A quoted rule has a source that outranks its wording (memory-lead D2);
+    // the header says so only when one exists.
+    let quoted = standing.iter().any(|(_, d)| d.quote.is_some());
+    let law = if quoted {
+        "obey verbatim; where a rule quotes the operator, the quote decides"
+    } else {
+        "obey verbatim"
+    };
     let mut lines = vec![format!(
-        "Standing constraints — obey verbatim ({}):",
+        "Standing constraints — {law} ({}):",
         standing.len()
     )];
     let mut used = 0;
     let mut shown = 0;
-    for (ordinal, rule) in &standing {
-        let line = format!("- [D{ordinal}] {}", one_line(rule));
+    for (ordinal, d) in &standing {
+        let line = format!(
+            "- [D{ordinal}] {}",
+            render_rule(d.rule.as_deref().unwrap_or(""), d.quote.as_deref())
+        );
         let len = utf16_len(&line);
         if let Some(b) = budget
             && shown > 0
@@ -592,10 +649,18 @@ pub fn render_decisions(state: &InitiativeState) -> String {
         } else {
             format!("({}) ", marks.join("; "))
         };
+        // The operator's words follow the rule they sourced (memory-lead D2).
         let rule = d
             .rule
             .as_ref()
-            .map(|r| format!("rule: **{r}** — "))
+            .map(|r| {
+                let source = d
+                    .quote
+                    .as_deref()
+                    .map(|q| format!("{} — ", quote_clause(r, q)))
+                    .unwrap_or_default();
+                format!("rule: **{r}** — {source}")
+            })
             .unwrap_or_default();
         lines.push(format!(
             "- {} — {mark}{rule}chose **{}** over {} because {}",

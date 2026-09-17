@@ -56,7 +56,7 @@
     ]
   }
 }
-== status (3162 bytes) ==
+== status (3161 bytes) ==
 # roadmap-h2
 
 Goal: Hold the stated H2 direction — watcher, sync, faster indexing using AI, sofar serving each agent only the piece it needs, and model orchestration — against the record, so each thread is either pointed at its existing initiative or carries an explicit ruling. Opened as direction capture, not as work: no task is started from here until the one guard-rail conflict it contains is ruled on.
@@ -65,7 +65,7 @@ Progress: 0/0 tasks done (0%) across 0 phase(s)
 Next action: Start item 5 with the agent-emitted layer, since it needs no ruling: define the enrichment event types in packages/schema with a producer field stamped on every event, and generalise the existing declared-relevance mechanism that sofar_log_decision guard and core index-tier1 already implement. Defer the semantic producer until there are real declared links to measure it against, then log a narrowly scoped Decision permitting a model call only from an explicit opt-in command, naming SPEC Architectural invariants and felt-cost D3.
 
 ⚠ Staleness:
-- last write-back summary exceeds the SessionStart budget (1200 chars) and is clipped there — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md
+- last write-back summary exceeds the SessionStart budget (450 chars) and is clipped there — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md
 
 Last session (claude-code, ended 2026-08-29T18:21:00.050Z):
   Asked what happens if both routes are needed for item 5, and revised the recommendation: my earlier choose-your-goal framing was too binary. The two routes are layers, not alternatives, and both are reachable. The architectural move that makes it work is that the determinism law is only broken when inference runs INSIDE the fold; it is not broken when inference runs outside and its output is recorded as ordinary events, because the fold then remains a pure function of the event set and the non-determinism sits in a producer where it is auditable. That is the same trick sofar already rests on — it never infers, it folds. So enrichment event types live in packages/schema and producers are pluggable: an agent mid-session, free and needing no rule change, and an opt-in semantic pass that costs money and needs a Decision, both emitting the same event types with the producer stamped on each so either can be dropped or recomputed independently. This also shrinks the rule change substantially: if the semantic pass is an explicit user-invoked command rather than a runtime dependency, the Decision needed is narrow, permitting a model call only from that command while the engine, hooks, MCP server and fold never make one, so a default install still makes zero model calls and the no-key property and hot path stay intact, which is what the invariant was actually protecting. Recorded why the agent route must still go first, as de-risking rather than compromise: it defines the event types, index and query surface so the semantic producer becomes just another writer into tested machinery; it produces labelled data, turning are-embeddings-actually-better into a measurable question against declared links as ground truth; and it costs nothing and blocks nothing.
@@ -73,26 +73,29 @@ Last session (claude-code, ended 2026-08-29T18:21:00.050Z):
 Files touched (1):
 - /private/tmp/claude-501/-Users-jins-IO-sofar/8adc3273-68ff-4c0d-936a-9a3e26e5b66c/scratchpad/runtime-comparison.html
 
-== digest:plain (2536 bytes) ==
+== digest:plain (1652 bytes) ==
 # Sofar status: roadmap-h2
 
 Goal: Hold the stated H2 direction — watcher, sync, faster indexing using AI, sofar serving each agent only the piece it needs, and model orchestration — against the record, so each thread is either pointed at its existing initiative or carries an explicit ruling. Opened as direction capture, not as work: no task is started from here until the one guard-rail conflict it contains is ruled on.
 
-Progress: 0/0 tasks done (0%) across 0 phase(s)
-Active phase: (none)
 Next action: Start item 5 with the agent-emitted layer, since it needs no ruling: define the enrichment event types in packages/schema with a producer field stamped on every event, and generalise the existing declared-relevance mechanism that sofar_log_decision guard and core index-tier1 already implement. Defer the semantic producer until there are real declared links to measure it against, then log a narrowly scoped Decision permitting a model call only from an explicit opt-in command, naming SPEC Archite…
 
 Last session (claude-code, ended 2026-08-29T18:21:00.050Z):
-  Asked what happens if both routes are needed for item 5, and revised the recommendation: my earlier choose-your-goal framing was too binary. The two routes are layers, not alternatives, and both are reachable. The architectural move that makes it work is that the determinism law is only broken when inference runs INSIDE the fold; it is not broken when inference runs outside and its output is recorded as ordinary events, because the fold then remains a pure function of the event set and the non-determinism sits in a producer where it is auditable. That is the same trick sofar already rests on — it never infers, it folds. So enrichment event types live in packages/schema and producers are pluggable: an agent mid-session, free and needing no rule change, and an opt-in semantic pass that costs money and needs a Decision, both emitting the same event types with the producer stamped on each so either can be dropped or recomputed independently. This also shrinks the rule change substantially: if the semantic pass is an explicit user-invoked command rather than a runtime dependency, the Decision needed is narrow, pe… (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
+  Asked what happens if both routes are needed for item 5, and revised the recommendation: my earlier choose-your-goal framing was too binary. The two routes are layers, not alternatives, and both are reachable. The architectural move that makes it work is that the determinism law is only broken when inference ru… (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:hook (4401 bytes) ==
+== digest:hook (2578 bytes) ==
 # Sofar status: roadmap-h2
 
 Goal: Hold the stated H2 direction — watcher, sync, faster indexing using AI, sofar serving each agent only the piece it needs, and model orchestration — against the record, so each thread is either pointed at its existing initiative or carries an explicit ruling. Opened as direction capture, not as work: no task is started from here until the one guard-rail conflict it contains is ruled on.
+
+Next action: Start item 5 with the agent-emitted layer, since it needs no ruling: define the enrichment event types in packages/schema with a producer field stamped on every event, and generalise the existing declared-relevance mechanism that sofar_log_decision guard and core index-tier1 already implement. Defer the semantic producer until there are real declared links to measure it against, then log a narrowly scoped Decision permitting a model call only from an explicit opt-in command, naming SPEC Archite…
+
+Last session (claude-code, ended 2026-08-29T18:21:00.050Z):
+  Asked what happens if both routes are needed for item 5, and revised the recommendation: my earlier choose-your-goal framing was too binary. The two routes are layers, not alternatives, and both are reachable. The architectural move that makes it work is that the determinism law is only broken when inference ru… (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
 
 Repo memory (.sofar/repo.md):
 # Repo memory — sofar
@@ -104,32 +107,9 @@ Repo memory (.sofar/repo.md):
   docs still say harness — that is history, never rewritten.
 - Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
   acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
 …truncated — read .sofar/repo.md for the rest
 
-Progress: 0/0 tasks done (0%) across 0 phase(s)
-Active phase: (none)
-Next action: Start item 5 with the agent-emitted layer, since it needs no ruling: define the enrichment event types in packages/schema with a producer field stamped on every event, and generalise the existing declared-relevance mechanism that sofar_log_decision guard and core index-tier1 already implement. Defer the semantic producer until there are real declared links to measure it against, then log a narrowly scoped Decision permitting a model call only from an explicit opt-in command, naming SPEC Archite…
-
-Last session (claude-code, ended 2026-08-29T18:21:00.050Z):
-  Asked what happens if both routes are needed for item 5, and revised the recommendation: my earlier choose-your-goal framing was too binary. The two routes are layers, not alternatives, and both are reachable. The architectural move that makes it work is that the determinism law is only broken when inference runs INSIDE the fold; it is not broken when inference runs outside and its output is recorded as ordinary events, because the fold then remains a pure function of the event set and the non-determinism sits in a producer where it is auditable. That is the same trick sofar already rests on — it never infers, it folds. So enrichment event types live in packages/schema and producers are pluggable: an agent mid-session, free and needing no rule change, and an opt-in semantic pass that costs money and needs a Decision, both emitting the same event types with the producer stamped on each so either can be dropped or recomputed independently. This also shrinks the rule change substantially: if the semantic pass is an explicit user-invoked command rather than a runtime dependency, the Decision needed is narrow, pe… (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
-
-Session: roadmap-h2-session — when calling sofar_start_session, pass this as session_id.
+Session: roadmap-h2-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/roadmap-h2 @ a1b2c3d — in sync with origin/feature/roadmap-h2
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
@@ -140,7 +120,7 @@ Read-back: before acting, restate goal, next action, and standing constraints in
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:lane (2566 bytes) ==
+== digest:lane (1750 bytes) ==
 # Sofar: quick-work lane (roadmap-h2)
 
 Goal: Hold the stated H2 direction — watcher, sync, faster indexing using AI, sofar serving each agent only the piece it needs, and model orchestration — against the record, so each thread is either pointed at its existing initiative or carries an explicit ruling. Opened as direction capture, not as work: no task is started from here until the one guard-rail conflict it contains is ruled on.
@@ -150,83 +130,52 @@ This branch is bound to no initiative, so the hooks capture edits and commands h
 - Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
 
 Last session (claude-code, ended 2026-08-29T18:21:00.050Z):
-  Asked what happens if both routes are needed for item 5, and revised the recommendation: my earlier choose-your-goal framing was too binary. The two routes are layers, not alternatives, and both are reachable. The architectural move that makes it work is that the determinism law is only broken when inference runs INSIDE the fold; it is not broken when inference runs outside and its output is recorded as ordinary events, because the fold then remains a pure function of the event set and the non-determinism sits in a producer where it is auditable. That is the same trick sofar already rests on — it never infers, it folds. So enrichment event types live in packages/schema and producers are pluggable: an agent mid-session, free and needing no rule change, and an opt-in semantic pass that costs money and needs a Decision, both emitting the same event types with the producer stamped on each so either can be dropped or recomputed independently. This also shrinks the rule change substantially: if the semantic pass is an explicit user-invoked command rather than a runtime dependency, the Decision needed is narrow, pe… (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
+  Asked what happens if both routes are needed for item 5, and revised the recommendation: my earlier choose-your-goal framing was too binary. The two routes are layers, not alternatives, and both are reachable. The architectural move that makes it work is that the determinism law is only broken when inference ru… (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
 
 Recent quick work (1 session, 0 decisions since 2026-08-29):
 - 2026-08-29 claude-code — 1 file (/private/tmp/claude-501/-Users-jins-IO-sofar/8adc3273-68ff-4c0d-936a-9a3e26e5b66c/scratchpad/runtime-comparison.html), 6 commands
 
-Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/roadmap-h2 @ a1b2c3d — in sync with origin/feature/roadmap-h2
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:quiet (2623 bytes) ==
+== digest:quiet (1738 bytes) ==
 # Sofar status: roadmap-h2
 
 Goal: Hold the stated H2 direction — watcher, sync, faster indexing using AI, sofar serving each agent only the piece it needs, and model orchestration — against the record, so each thread is either pointed at its existing initiative or carries an explicit ruling. Opened as direction capture, not as work: no task is started from here until the one guard-rail conflict it contains is ruled on.
 
-Progress: 0/0 tasks done (0%) across 0 phase(s)
-Active phase: (none)
 Next action: Start item 5 with the agent-emitted layer, since it needs no ruling: define the enrichment event types in packages/schema with a producer field stamped on every event, and generalise the existing declared-relevance mechanism that sofar_log_decision guard and core index-tier1 already implement. Defer the semantic producer until there are real declared links to measure it against, then log a narrowly scoped Decision permitting a model call only from an explicit opt-in command, naming SPEC Archite…
 
 Last session (claude-code, ended 2026-08-29T18:21:00.050Z):
-  Asked what happens if both routes are needed for item 5, and revised the recommendation: my earlier choose-your-goal framing was too binary. The two routes are layers, not alternatives, and both are reachable. The architectural move that makes it work is that the determinism law is only broken when inference runs INSIDE the fold; it is not broken when inference runs outside and its output is recorded as ordinary events, because the fold then remains a pure function of the event set and the non-determinism sits in a producer where it is auditable. That is the same trick sofar already rests on — it never infers, it folds. So enrichment event types live in packages/schema and producers are pluggable: an agent mid-session, free and needing no rule change, and an opt-in semantic pass that costs money and needs a Decision, both emitting the same event types with the producer stamped on each so either can be dropped or recomputed independently. This also shrinks the rule change substantially: if the semantic pass is an explicit user-invoked command rather than a runtime dependency, the Decision needed is narrow, pe… (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
+  Asked what happens if both routes are needed for item 5, and revised the recommendation: my earlier choose-your-goal framing was too binary. The two routes are layers, not alternatives, and both are reachable. The architectural move that makes it work is that the determinism law is only broken when inference ru… (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
 
-Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (10039 bytes) ==
+== digest:cap (6020 bytes) ==
 # Sofar status: roadmap-h2
 
 Goal: Hold the stated H2 direction — watcher, sync, faster indexing using AI, sofar serving each agent only the piece it needs, and model orchestration — against the record, so each thread is either pointed at its existing initiative or carries an explicit ruling. Opened as direction capture, not as work: no task is started from here until the one guard-rail conflict it contains is ruled on.
 
-Repo memory (.sofar/repo.md):
-# Repo memory — sofar
-
-- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
-  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
-  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
-  aliases (pre-publish). Historical event/projection text and the archived
-  docs still say harness — that is history, never rewritten.
-- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
-  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
-…truncated — read .sofar/repo.md for the rest
-
-Progress: 0/0 tasks done (0%) across 0 phase(s)
-Active phase: (none)
 Next action: Start item 5 with the agent-emitted layer, since it needs no ruling: define the enrichment event types in packages/schema with a producer field stamped on every event, and generalise the existing declared-relevance mechanism that sofar_log_decision guard and core index-tier1 already implement. Defer the semantic producer until there are real declared links to measure it against, then log a narrowly scoped Decision permitting a model call only from an explicit opt-in command, naming SPEC Archite…
 
-Last session (claude-code, ended 2026-08-29T18:21:00.050Z):
-  Asked what happens if both routes are needed for item 5, and revised the recommendation: my earlier choose-your-goal framing was too binary. The two routes are layers, not alternatives, and both are reachable. The architectural move that makes it work is that the determinism law is only broken when inference runs INSIDE the fold; it is not broken when inference runs outside and its output is recorded as ordinary events, because the fold then remains a pure function of the event set and the non-determinism sits in a producer where it is auditable. That is the same trick sofar already rests on — it never infers, it folds. So enrichment event types live in packages/schema and producers are pluggable: an agent mid-session, free and needing no rule change, and an opt-in semantic pass that costs money and needs a Decision, both emitting the same event types with the producer stamped on each so either can be dropped or recomputed independently. This also shrinks the rule change substantially: if the semantic pass is an explicit user-invoked command rather than a runtime dependency, the Decision needed is narrow, pe… (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
-
-Session: roadmap-h2-session — when calling sofar_start_session, pass this as session_id.
+Session: roadmap-h2-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/roadmap-h2 @ a1b2c3d — in sync with origin/feature/roadmap-h2
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
 == plan (1129 bytes) ==
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->

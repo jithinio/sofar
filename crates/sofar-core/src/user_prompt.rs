@@ -19,6 +19,7 @@ use crate::lessons::{Lesson, lessons_enabled, relevant_lessons};
 use crate::peers::{Peer, resolve_peers};
 use crate::post_tool::{GUARD_RULES_MAX, render_subject};
 use crate::projections::retire_enabled;
+use crate::session_pointer::{clear_session_pointer, write_session_pointer};
 use crate::shipwatch::{note_engine, note_upstream};
 use crate::status::{FileConflict, QUICK_LANE, open_session_file_conflicts, open_session_files};
 use crate::text::{cmp_utf16, utf16_len, utf16_prefix};
@@ -506,6 +507,7 @@ pub fn handle_user_prompt(root: &Path, input: &str) -> CmdResult {
     let Some(session_id) = str_field(&hook, "session_id") else {
         return silent();
     };
+    let _ = write_session_pointer(&layout, session_id, "hook"); // D29
     let Some(slug) = resolve_bound(&layout, session_id) else {
         return silent();
     };
@@ -627,6 +629,7 @@ pub fn handle_session_end(root: &Path, input: &str) -> CmdResult {
     let Some(session_id) = str_field(&hook, "session_id") else {
         return silent();
     };
+    clear_session_pointer(&layout, session_id); // D29: only when it still names this session
     let Some(slug) = resolve_bound(&layout, session_id) else {
         return silent();
     };

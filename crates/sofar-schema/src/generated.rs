@@ -28,6 +28,9 @@ pub struct DecisionLoggedPayload {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub guard: ::std::option::Option<::std::string::String>,
     pub over: ::std::string::String,
+    #[doc = "`quote` (memory-lead 1.2, D2): the operator's own words the rule came from, copied exactly — ≤ RULE_QUOTE_MAX chars, valid only alongside `rule`. The rule is the agent's restatement; the quote is its source, and every surface that renders the rule renders the quote beside it, flagging the status codes, paths and values the rule adds (engine core/rule-fidelity.ts). Round 1 lost a test to a rule that added \"with 4xx\" to an operator's \"Reject anything else\"."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub quote: ::std::option::Option<::std::string::String>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub rule: ::std::option::Option<::std::string::String>,
     #[doc = "`supersedes` (r1-fixes 3.2, D25): the bare handle `D<n>` of an EARLIER decision in the SAME record this one replaces. The fold resolves it from the log alone and marks the target `superseded_by` this decision's ordinal; the digest then stops rendering the target. Per-record like the ordinals themselves. A rule-carrying target is retired ONLY by a rule-carrying superseder — standing rules never age out, they are only ever replaced by a new rule that names them; any other reference is recorded but inert (forward, self, rule mismatch)."]

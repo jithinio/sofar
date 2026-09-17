@@ -6,7 +6,7 @@ import { renderDecisions } from '../../../src/projections/templates/decisions'
 import { renderMemory } from '../../../src/projections/templates/memory'
 import { renderPlan } from '../../../src/projections/templates/plan'
 import { renderSession } from '../../../src/projections/templates/session'
-import { renderFullStatus, renderStatus, type StatusOptions } from '../../../src/projections/templates/status'
+import { renderFullStatus, renderStatus, type StatusOptions, STATUS_CHAR_LIMIT } from '../../../src/projections/templates/status'
 
 /**
  * render-parity (rust-core 2.4) — the projection templates and the two status
@@ -214,13 +214,13 @@ describe('render-parity (rust-core 2.4) — goldens are committed and complete',
     expect(onDisk).toEqual(cases.map((c) => `${caseId(c)}.txt`).sort())
   })
 
-  it('every digest variant stays within the 10,000-unit cap and the cap variant hits it', () => {
+  it('every digest variant stays within the cap and the cap variant hits it', () => {
     for (const c of cases) {
       const state = stateOf(c)
       for (const [name, options] of Object.entries(optionVariants(c))) {
         const out = renderStatus(state, options)
-        expect(out.length, `${caseId(c)} ${name}`).toBeLessThanOrEqual(10_000)
-        if (name === 'cap') expect(out.length, `${caseId(c)} cap`).toBe(10_000)
+        expect(out.length, `${caseId(c)} ${name}`).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
+        if (name === 'cap') expect(out.length, `${caseId(c)} cap`).toBe(STATUS_CHAR_LIMIT)
       }
     }
   })

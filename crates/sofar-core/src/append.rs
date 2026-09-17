@@ -209,9 +209,9 @@ pub fn register_session(
 }
 
 /// `registerLazily`: `cli` is never a session identity.
-pub fn register_lazily(layout: &Layout, slug: &str, session: &str) {
+pub fn register_lazily(layout: &Layout, slug: &str, session: &str, host_tool: &str) {
     if session != "cli" {
-        register_session(layout, slug, session, "claude-code", "hook");
+        register_session(layout, slug, session, host_tool, "hook");
     }
 }
 

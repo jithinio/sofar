@@ -80,7 +80,7 @@
     ]
   }
 }
-== status (5973 bytes) ==
+== status (6120 bytes) ==
 # session-strategy-bench
 
 Goal: Automated controlled benchmark: one long session vs fresh-sessions-per-task (Sofar pattern), measuring cost shape, output quality, and time. Second scenario of handoff-bench; reuses its harness, blind-grading machinery, and evidence format. MEASURES only — read-side; zero engine/injection changes; findings that suggest engine changes are logged as proposals.
@@ -118,6 +118,7 @@ Next action: When the driver exits: extract telemetry, run the sidecar, grade (A
 
 ⚠ Staleness:
 - phase "Phase 6 — S2-R02 execution + evidence": all 5 tasks done but still pending — emit phase_status_changed to mark it done
+- last write-back summary exceeds the SessionStart budget (450 chars) and is clipped there — full text in sessions/01KZXT38PBSSKXMFYGN7K54QVX.md
 
 Last session (claude-code, ended 2026-08-13T14:58:50.576Z):
   Phase-close repair from phase-lifecycle 4.3 (D5). No bench work: read plan.md and the event log, closed Phase 5 (3/3 tasks, freeze confirmed), and LEFT PHASE 6 OPEN — all five of its tasks were marked done in one minute, only four have a confirming note, and a W1-L control re-run landed afterwards whose three-way drift table an earlier evidence section cannot carry. The full reasoning is in a note appended this session. Next action carried forward verbatim.
@@ -143,38 +144,36 @@ Files touched (19):
 - /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/run-graders.py
 - /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/aggregate-grades.py
 
-== digest:plain (3725 bytes) ==
+== digest:plain (2927 bytes) ==
 # Sofar status: session-strategy-bench
 
 Goal: Automated controlled benchmark: one long session vs fresh-sessions-per-task (Sofar pattern), measuring cost shape, output quality, and time. Second scenario of handoff-bench; reuses its harness, blind-grading machinery, and evidence format. MEASURES only — read-side; zero engine/injection changes; findings that suggest engine changes are logged as proposals.
 
-Phases:
-- Phase 6 — S2-R02 execution + evidence [pending — all tasks done; mark phase done?] 5/5
-- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (15/15 tasks)
-
-Progress: 20/20 tasks done (100%) across 6 phase(s)
-Active phase: (none)
 Next action: When the driver exits: extract telemetry, run the sidecar, grade (A+B primary, C robustness), write the R02 evidence section.
 
 Last session (claude-code, ended 2026-08-13T14:58:50.576Z):
-  Phase-close repair from phase-lifecycle 4.3 (D5). No bench work: read plan.md and the event log, closed Phase 5 (3/3 tasks, freeze confirmed), and LEFT PHASE 6 OPEN — all five of its tasks were marked done in one minute, only four have a confirming note, and a W1-L control re-run landed afterwards whose three-way drift table an earlier evidence section cannot carry. The full reasoning is in a note appended this session. Next action carried forward verbatim.
+  Phase-close repair from phase-lifecycle 4.3 (D5). No bench work: read plan.md and the event log, closed Phase 5 (3/3 tasks, freeze confirmed), and LEFT PHASE 6 OPEN — all five of its tasks were marked done in one minute, only four have a confirming note, and a W1-L control re-run landed afterwards whose three-way drift t… (clipped — full text in sessions/01KZXT38PBSSKXMFYGN7K54QVX.md)
 
 ⚠ 1 other session(s) did work without writing back: 8d40de69-7589-4f67-8ffc-da71d4e99951
 
+Phases:
+- Phase 6 — S2-R02 execution + evidence [pending — all tasks done; mark phase done?] 5/5
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (15/15 tasks)
+Progress: 20/20 tasks done (100%) across 6 phase(s)
+
 Recent decisions (last 5 of 12; full text in decisions.md):
-- [D8] 2026-07-20 S2-R02 P3' probe ships as a NEW task 7 in both workloads; tasks 1-6 stay byte-identical to R01 (specs, prompts, snapsho… — over Replacing task 6 with the redesigned probe as the brief literally specified
-- [D9] 2026-07-20 R02 arm S runs the PUBLISHED @alignlabs/sofar 0.10.0 in DEFAULT config — stdio MCP as `sofar init` registers it, `sofar… — over Running arm S against the daemon to show the T3 speedup, or leaving the R01 arm-S engine …
-- [D10] 2026-07-20 Three graders, two roles. PRIMARY = Grader A claude-opus-4-8 + Grader B GLM 5.2 via OpenCode, worse-of-two, unchanged f… — over Folding all three graders into one worse-of-three or majority rule, or dropping Grader C …
-- [D11] 2026-07-20 P5' fabricated-path sidecar runs POST-HOC by replay, never inside the measured run: for each task N and arm, a scratch … — over Running the orientation probe live in the arm worktree before each task, or appending the…
-- [D12] 2026-07-20 R02 replicates R01's arm-setup procedure EXACTLY — arm S gets the live ~/IO/brillo/.claude copied in (hooks, settings.l… — over Equalizing the arms in R02 by giving arm L a .claude/ carrying the same skills minus sofa…
+- [D8] 2026-07-20 S2-R02 P3' probe ships as a NEW task 7 in both workloads — over Replacing task 6 with the redesigned probe as the brief literally spe…
+- [D9] 2026-07-20 R02 arm S runs the PUBLISHED @alignlabs/sofar 0.10.0 in DEFAULT config — over Running arm S against the daemon to show the T3 speedup, or leaving t…
+- [D10] 2026-07-20 Three graders, two roles. PRIMARY = Grader A claude-opus-4-8 + Grader B GLM 5.2 via OpenC… — over Folding all three graders into one worse-of-three or majority rule, o…
+- [D11] 2026-07-20 P5' fabricated-path sidecar runs POST-HOC by replay, never inside the measured run — over Running the orientation probe live in the arm worktree before each ta…
+- [D12] 2026-07-20 R02 replicates R01's arm-setup procedure EXACTLY — over Equalizing the arms in R02 by giving arm L a .claude/ carrying the sa…
 Earlier rejected approaches — do NOT re-propose (7 older):
-- [D1] Post-hoc analysis of whatever the data shows, or predictions written/softened after seein…
-- [D2] Letting benchmark findings drive engine/injection tweaks in-flight within this initiative
-- [D3] Building a new bench, single-family (Anthropic-only) grading, or headline claims from one…
-- [D4] Running arm L with sofar wired (its Stop hook exits 2 on any turn without session_ended, …
-- [D5] Running bench worktrees inside the live brillo checkout (prod app), keeping the invented …
-- [D6] Rewording P1 to "climbs less steeply" as if that had been predicted, quietly dropping the…
-- [D7] Reporting the worse-of-two total (L 20 vs S 22) as "the long session produces better work…
+- [D1] Post-hoc analysis of whatever the data shows, or predictions written/…
+- [D2] Letting benchmark findings drive engine/injection tweaks in-flight wi…
+- [D3] Building a new bench, single-family
+- [D4] Running arm L with sofar wired
+- [D5] Running bench worktrees inside the live brillo checkout
+- …and 2 more (see decisions.md)
 
 Next ids: D13 (decision), M1 (memory)
 
@@ -182,10 +181,22 @@ Read-back: before acting, restate goal, next action, and standing constraints in
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:hook (5858 bytes) ==
+== digest:hook (4121 bytes) ==
 # Sofar status: session-strategy-bench
 
 Goal: Automated controlled benchmark: one long session vs fresh-sessions-per-task (Sofar pattern), measuring cost shape, output quality, and time. Second scenario of handoff-bench; reuses its harness, blind-grading machinery, and evidence format. MEASURES only — read-side; zero engine/injection changes; findings that suggest engine changes are logged as proposals.
+
+Next action: When the driver exits: extract telemetry, run the sidecar, grade (A+B primary, C robustness), write the R02 evidence section.
+
+Last session (claude-code, ended 2026-08-13T14:58:50.576Z):
+  Phase-close repair from phase-lifecycle 4.3 (D5). No bench work: read plan.md and the event log, closed Phase 5 (3/3 tasks, freeze confirmed), and LEFT PHASE 6 OPEN — all five of its tasks were marked done in one minute, only four have a confirming note, and a W1-L control re-run landed afterwards whose three-way drift t… (clipped — full text in sessions/01KZXT38PBSSKXMFYGN7K54QVX.md)
+
+⚠ 1 other session(s) did work without writing back: 8d40de69-7589-4f67-8ffc-da71d4e99951
+
+Phases:
+- Phase 6 — S2-R02 execution + evidence [pending — all tasks done; mark phase done?] 5/5
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (15/15 tasks)
+Progress: 20/20 tasks done (100%) across 6 phase(s)
 
 Repo memory (.sofar/repo.md):
 # Repo memory — sofar
@@ -197,51 +208,21 @@ Repo memory (.sofar/repo.md):
   docs still say harness — that is history, never rewritten.
 - Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
   acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
 …truncated — read .sofar/repo.md for the rest
 
-Phases:
-- Phase 6 — S2-R02 execution + evidence [pending — all tasks done; mark phase done?] 5/5
-- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (15/15 tasks)
-
-Progress: 20/20 tasks done (100%) across 6 phase(s)
-Active phase: (none)
-Next action: When the driver exits: extract telemetry, run the sidecar, grade (A+B primary, C robustness), write the R02 evidence section.
-
-Last session (claude-code, ended 2026-08-13T14:58:50.576Z):
-  Phase-close repair from phase-lifecycle 4.3 (D5). No bench work: read plan.md and the event log, closed Phase 5 (3/3 tasks, freeze confirmed), and LEFT PHASE 6 OPEN — all five of its tasks were marked done in one minute, only four have a confirming note, and a W1-L control re-run landed afterwards whose three-way drift table an earlier evidence section cannot carry. The full reasoning is in a note appended this session. Next action carried forward verbatim.
-
-⚠ 1 other session(s) did work without writing back: 8d40de69-7589-4f67-8ffc-da71d4e99951
-
 Recent decisions (last 5 of 12; full text in decisions.md):
-- [D8] 2026-07-20 S2-R02 P3' probe ships as a NEW task 7 in both workloads; tasks 1-6 stay byte-identical to R01 (specs, prompts, snapsho… — over Replacing task 6 with the redesigned probe as the brief literally specified
-- [D9] 2026-07-20 R02 arm S runs the PUBLISHED @alignlabs/sofar 0.10.0 in DEFAULT config — stdio MCP as `sofar init` registers it, `sofar… — over Running arm S against the daemon to show the T3 speedup, or leaving the R01 arm-S engine …
-- [D10] 2026-07-20 Three graders, two roles. PRIMARY = Grader A claude-opus-4-8 + Grader B GLM 5.2 via OpenCode, worse-of-two, unchanged f… — over Folding all three graders into one worse-of-three or majority rule, or dropping Grader C …
-- [D11] 2026-07-20 P5' fabricated-path sidecar runs POST-HOC by replay, never inside the measured run: for each task N and arm, a scratch … — over Running the orientation probe live in the arm worktree before each task, or appending the…
-- [D12] 2026-07-20 R02 replicates R01's arm-setup procedure EXACTLY — arm S gets the live ~/IO/brillo/.claude copied in (hooks, settings.l… — over Equalizing the arms in R02 by giving arm L a .claude/ carrying the same skills minus sofa…
+- [D8] 2026-07-20 S2-R02 P3' probe ships as a NEW task 7 in both workloads — over Replacing task 6 with the redesigned probe as the brief literally spe…
+- [D9] 2026-07-20 R02 arm S runs the PUBLISHED @alignlabs/sofar 0.10.0 in DEFAULT config — over Running arm S against the daemon to show the T3 speedup, or leaving t…
+- [D10] 2026-07-20 Three graders, two roles. PRIMARY = Grader A claude-opus-4-8 + Grader B GLM 5.2 via OpenC… — over Folding all three graders into one worse-of-three or majority rule, o…
+- [D11] 2026-07-20 P5' fabricated-path sidecar runs POST-HOC by replay, never inside the measured run — over Running the orientation probe live in the arm worktree before each ta…
+- [D12] 2026-07-20 R02 replicates R01's arm-setup procedure EXACTLY — over Equalizing the arms in R02 by giving arm L a .claude/ carrying the sa…
 Earlier rejected approaches — do NOT re-propose (7 older):
-- [D1] Post-hoc analysis of whatever the data shows, or predictions written/softened after seein…
-- [D2] Letting benchmark findings drive engine/injection tweaks in-flight within this initiative
-- [D3] Building a new bench, single-family (Anthropic-only) grading, or headline claims from one…
-- [D4] Running arm L with sofar wired (its Stop hook exits 2 on any turn without session_ended, …
-- [D5] Running bench worktrees inside the live brillo checkout (prod app), keeping the invented …
-- [D6] Rewording P1 to "climbs less steeply" as if that had been predicted, quietly dropping the…
-- [D7] Reporting the worse-of-two total (L 20 vs S 22) as "the long session produces better work…
+- [D1] Post-hoc analysis of whatever the data shows, or predictions written/…
+- [D2] Letting benchmark findings drive engine/injection tweaks in-flight wi…
+- [D3] Building a new bench, single-family
+- [D4] Running arm L with sofar wired
+- [D5] Running bench worktrees inside the live brillo checkout
+- …and 2 more (see decisions.md)
 
 Next ids: D13 (decision), M1 (memory)
 
@@ -250,7 +231,7 @@ Adjacent records — 8 decisions across 2 other initiatives that have worked thi
 - beta — 1 shared file, 1 decision
 Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: session-strategy-bench-session — when calling sofar_start_session, pass this as session_id.
+Session: session-strategy-bench-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: session-strategy-bench @ a1b2c3d — no origin ref — never pushed
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
@@ -261,7 +242,7 @@ Read-back: before acting, restate goal, next action, and standing constraints in
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:lane (4432 bytes) ==
+== digest:lane (3654 bytes) ==
 # Sofar: quick-work lane (session-strategy-bench)
 
 Goal: Automated controlled benchmark: one long session vs fresh-sessions-per-task (Sofar pattern), measuring cost shape, output quality, and time. Second scenario of handoff-bench; reuses its harness, blind-grading machinery, and evidence format. MEASURES only — read-side; zero engine/injection changes; findings that suggest engine changes are logged as proposals.
@@ -271,7 +252,7 @@ This branch is bound to no initiative, so the hooks capture edits and commands h
 - Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
 
 Last session (claude-code, ended 2026-08-13T14:58:50.576Z):
-  Phase-close repair from phase-lifecycle 4.3 (D5). No bench work: read plan.md and the event log, closed Phase 5 (3/3 tasks, freeze confirmed), and LEFT PHASE 6 OPEN — all five of its tasks were marked done in one minute, only four have a confirming note, and a W1-L control re-run landed afterwards whose three-way drift table an earlier evidence section cannot carry. The full reasoning is in a note appended this session. Next action carried forward verbatim.
+  Phase-close repair from phase-lifecycle 4.3 (D5). No bench work: read plan.md and the event log, closed Phase 5 (3/3 tasks, freeze confirmed), and LEFT PHASE 6 OPEN — all five of its tasks were marked done in one minute, only four have a confirming note, and a W1-L control re-run landed afterwards whose three-way drift t… (clipped — full text in sessions/01KZXT38PBSSKXMFYGN7K54QVX.md)
 
 Recent quick work (5 sessions, 12 decisions since 2026-07-19):
 - 2026-07-20 claude-code — task changes: 5.2 → done, 5.3 → done, 6.1 → active
@@ -279,122 +260,79 @@ Recent quick work (5 sessions, 12 decisions since 2026-07-19):
 - 2026-07-19 claude-code — 19 files (/Users/jins/IO/sofar/product doc/session-strategy-bench-evidence.md, /Users/jins/IO/handoff-bench/scenario2-session-strategy/RUBRIC.md, /Users/jins/IO/handoff-bench/scenario2-session-strategy/README.md, /Users/jins/IO/handoff-bench/scenario2-session-strategy/prompts/task-prompt-template.md, /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/run-workload.sh, /Users/jins/IO/handoff-bench/scenario2-session-strategy/scripts/extract-usage.py, /Users/jins/IO/handoff-bench/scenario2-session-strategy/prompts/grader-prompt.md, /Users/jins/IO/handoff-benc…
 
 Recent decisions (last 5 of 12; full text in decisions.md):
-- [D8] 2026-07-20 S2-R02 P3' probe ships as a NEW task 7 in both workloads; tasks 1-6 stay byte-identical to R01 (specs, prompts, snapsho… — over Replacing task 6 with the redesigned probe as the brief literally specified
-- [D9] 2026-07-20 R02 arm S runs the PUBLISHED @alignlabs/sofar 0.10.0 in DEFAULT config — stdio MCP as `sofar init` registers it, `sofar… — over Running arm S against the daemon to show the T3 speedup, or leaving the R01 arm-S engine …
-- [D10] 2026-07-20 Three graders, two roles. PRIMARY = Grader A claude-opus-4-8 + Grader B GLM 5.2 via OpenCode, worse-of-two, unchanged f… — over Folding all three graders into one worse-of-three or majority rule, or dropping Grader C …
-- [D11] 2026-07-20 P5' fabricated-path sidecar runs POST-HOC by replay, never inside the measured run: for each task N and arm, a scratch … — over Running the orientation probe live in the arm worktree before each task, or appending the…
-- [D12] 2026-07-20 R02 replicates R01's arm-setup procedure EXACTLY — arm S gets the live ~/IO/brillo/.claude copied in (hooks, settings.l… — over Equalizing the arms in R02 by giving arm L a .claude/ carrying the same skills minus sofa…
+- [D8] 2026-07-20 S2-R02 P3' probe ships as a NEW task 7 in both workloads — over Replacing task 6 with the redesigned probe as the brief literally spe…
+- [D9] 2026-07-20 R02 arm S runs the PUBLISHED @alignlabs/sofar 0.10.0 in DEFAULT config — over Running arm S against the daemon to show the T3 speedup, or leaving t…
+- [D10] 2026-07-20 Three graders, two roles. PRIMARY = Grader A claude-opus-4-8 + Grader B GLM 5.2 via OpenC… — over Folding all three graders into one worse-of-three or majority rule, o…
+- [D11] 2026-07-20 P5' fabricated-path sidecar runs POST-HOC by replay, never inside the measured run — over Running the orientation probe live in the arm worktree before each ta…
+- [D12] 2026-07-20 R02 replicates R01's arm-setup procedure EXACTLY — over Equalizing the arms in R02 by giving arm L a .claude/ carrying the sa…
 Earlier rejected approaches — do NOT re-propose (7 older):
-- [D1] Post-hoc analysis of whatever the data shows, or predictions written/softened after seein…
-- [D2] Letting benchmark findings drive engine/injection tweaks in-flight within this initiative
-- [D3] Building a new bench, single-family (Anthropic-only) grading, or headline claims from one…
-- [D4] Running arm L with sofar wired (its Stop hook exits 2 on any turn without session_ended, …
-- [D5] Running bench worktrees inside the live brillo checkout (prod app), keeping the invented …
-- [D6] Rewording P1 to "climbs less steeply" as if that had been predicted, quietly dropping the…
-- [D7] Reporting the worse-of-two total (L 20 vs S 22) as "the long session produces better work…
+- [D1] Post-hoc analysis of whatever the data shows, or predictions written/…
+- [D2] Letting benchmark findings drive engine/injection tweaks in-flight wi…
+- [D3] Building a new bench, single-family
+- [D4] Running arm L with sofar wired
+- [D5] Running bench worktrees inside the live brillo checkout
+- …and 2 more (see decisions.md)
 
 Next ids: D13 (decision), M1 (memory)
 
-Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: session-strategy-bench @ a1b2c3d — no origin ref — never pushed
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:quiet (3812 bytes) ==
+== digest:quiet (3013 bytes) ==
 # Sofar status: session-strategy-bench
 
 Goal: Automated controlled benchmark: one long session vs fresh-sessions-per-task (Sofar pattern), measuring cost shape, output quality, and time. Second scenario of handoff-bench; reuses its harness, blind-grading machinery, and evidence format. MEASURES only — read-side; zero engine/injection changes; findings that suggest engine changes are logged as proposals.
 
-Phases:
-- Phase 6 — S2-R02 execution + evidence [pending — all tasks done; mark phase done?] 5/5
-- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (15/15 tasks)
-
-Progress: 20/20 tasks done (100%) across 6 phase(s)
-Active phase: (none)
 Next action: When the driver exits: extract telemetry, run the sidecar, grade (A+B primary, C robustness), write the R02 evidence section.
 
 Last session (claude-code, ended 2026-08-13T14:58:50.576Z):
-  Phase-close repair from phase-lifecycle 4.3 (D5). No bench work: read plan.md and the event log, closed Phase 5 (3/3 tasks, freeze confirmed), and LEFT PHASE 6 OPEN — all five of its tasks were marked done in one minute, only four have a confirming note, and a W1-L control re-run landed afterwards whose three-way drift table an earlier evidence section cannot carry. The full reasoning is in a note appended this session. Next action carried forward verbatim.
+  Phase-close repair from phase-lifecycle 4.3 (D5). No bench work: read plan.md and the event log, closed Phase 5 (3/3 tasks, freeze confirmed), and LEFT PHASE 6 OPEN — all five of its tasks were marked done in one minute, only four have a confirming note, and a W1-L control re-run landed afterwards whose three-way drift t… (clipped — full text in sessions/01KZXT38PBSSKXMFYGN7K54QVX.md)
 
 ⚠ 1 other session(s) did work without writing back: 8d40de69-7589-4f67-8ffc-da71d4e99951
 
+Phases:
+- Phase 6 — S2-R02 execution + evidence [pending — all tasks done; mark phase done?] 5/5
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (15/15 tasks)
+Progress: 20/20 tasks done (100%) across 6 phase(s)
+
 Recent decisions (last 5 of 12; full text in decisions.md):
-- [D8] 2026-07-20 S2-R02 P3' probe ships as a NEW task 7 in both workloads; tasks 1-6 stay byte-identical to R01 (specs, prompts, snapsho… — over Replacing task 6 with the redesigned probe as the brief literally specified
-- [D9] 2026-07-20 R02 arm S runs the PUBLISHED @alignlabs/sofar 0.10.0 in DEFAULT config — stdio MCP as `sofar init` registers it, `sofar… — over Running arm S against the daemon to show the T3 speedup, or leaving the R01 arm-S engine …
-- [D10] 2026-07-20 Three graders, two roles. PRIMARY = Grader A claude-opus-4-8 + Grader B GLM 5.2 via OpenCode, worse-of-two, unchanged f… — over Folding all three graders into one worse-of-three or majority rule, or dropping Grader C …
-- [D11] 2026-07-20 P5' fabricated-path sidecar runs POST-HOC by replay, never inside the measured run: for each task N and arm, a scratch … — over Running the orientation probe live in the arm worktree before each task, or appending the…
-- [D12] 2026-07-20 R02 replicates R01's arm-setup procedure EXACTLY — arm S gets the live ~/IO/brillo/.claude copied in (hooks, settings.l… — over Equalizing the arms in R02 by giving arm L a .claude/ carrying the same skills minus sofa…
+- [D8] 2026-07-20 S2-R02 P3' probe ships as a NEW task 7 in both workloads — over Replacing task 6 with the redesigned probe as the brief literally spe…
+- [D9] 2026-07-20 R02 arm S runs the PUBLISHED @alignlabs/sofar 0.10.0 in DEFAULT config — over Running arm S against the daemon to show the T3 speedup, or leaving t…
+- [D10] 2026-07-20 Three graders, two roles. PRIMARY = Grader A claude-opus-4-8 + Grader B GLM 5.2 via OpenC… — over Folding all three graders into one worse-of-three or majority rule, o…
+- [D11] 2026-07-20 P5' fabricated-path sidecar runs POST-HOC by replay, never inside the measured run — over Running the orientation probe live in the arm worktree before each ta…
+- [D12] 2026-07-20 R02 replicates R01's arm-setup procedure EXACTLY — over Equalizing the arms in R02 by giving arm L a .claude/ carrying the sa…
 Earlier rejected approaches — do NOT re-propose (7 older):
-- [D1] Post-hoc analysis of whatever the data shows, or predictions written/softened after seein…
-- [D2] Letting benchmark findings drive engine/injection tweaks in-flight within this initiative
-- [D3] Building a new bench, single-family (Anthropic-only) grading, or headline claims from one…
-- [D4] Running arm L with sofar wired (its Stop hook exits 2 on any turn without session_ended, …
-- [D5] Running bench worktrees inside the live brillo checkout (prod app), keeping the invented …
-- [D6] Rewording P1 to "climbs less steeply" as if that had been predicted, quietly dropping the…
-- [D7] Reporting the worse-of-two total (L 20 vs S 22) as "the long session produces better work…
+- [D1] Post-hoc analysis of whatever the data shows, or predictions written/…
+- [D2] Letting benchmark findings drive engine/injection tweaks in-flight wi…
+- [D3] Building a new bench, single-family
+- [D4] Running arm L with sofar wired
+- [D5] Running bench worktrees inside the live brillo checkout
+- …and 2 more (see decisions.md)
 
 Next ids: D13 (decision), M1 (memory)
 
-Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (10083 bytes) ==
+== digest:cap (6032 bytes) ==
 # Sofar status: session-strategy-bench
 
 Goal: Automated controlled benchmark: one long session vs fresh-sessions-per-task (Sofar pattern), measuring cost shape, output quality, and time. Second scenario of handoff-bench; reuses its harness, blind-grading machinery, and evidence format. MEASURES only — read-side; zero engine/injection changes; findings that suggest engine changes are logged as proposals.
 
-Repo memory (.sofar/repo.md):
-# Repo memory — sofar
+Next action: When the driver exits: extract telemetry, run the sidecar, grade (A+B primary, C robustness), write the R02 evidence section.
 
-- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
-  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
-  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
-  aliases (pre-publish). Historical event/projection text and the archived
-  docs still say harness — that is history, never rewritten.
-- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
-  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
-…truncated — read .sofar/repo.md for the rest
+⚠ 1 other session(s) did work without writing back: 8d40de69-7589-4f67-8ffc-da71d4e99951
 
 Phases:
 - Phase 6 — S2-R02 execution + evidence [pending — all tasks done; mark phase done?] 5/5
 - done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (15/15 tasks)
-
 Progress: 20/20 tasks done (100%) across 6 phase(s)
-Active phase: (none)
-Next action: When the driver exits: extract telemetry, run the sidecar, grade (A+B primary, C robustness), write the R02 evidence section.
 
-Last session (claude-code, ended 2026-08-13T14:58:50.576Z):
-  Phase-close repair from phase-lifecycle 4.3 (D5). No bench work: read plan.md and the event log, closed Phase 5 (3/3 tasks, freeze confirmed), and LEFT PHASE 6 OPEN — all five of its tasks were marked done in one minute, only four have a confirming note, and a W1-L control re-run landed afterwards whose three-way drift table an earlier evidence section cannot carry. The full reasoning is in a note appended this session. Next action carried forward verbatim.
-
-⚠ 1 other session(s) did work without writing back: 8d40de69-7589-4f67-8ffc-da71d4e99951
-
-Recent decisions (last 5 of 12; full text in decisions.md):
-- [D8] 2026-07-20 S2-R02 P3' probe ships as a NEW task 7 in both workloads; tasks 1-6 stay byte-identical to R01 (specs, prompts, snapsho… — over Replacing task 6 with the redesigned probe as the brief literally specified
-- [D9] 2026-07-20 R02 arm S runs the PUBLISHED @alignlabs/sofar 0.10.0 in DEFAULT config — stdio MCP as `sofar init` registers it, `sofar… — over Running arm S against the daemon to show the T3 speedup, or leaving the R01 arm-S engine …
-- [D10] 2026-07-20 Three graders, two roles. PRIMARY = Grader A claude-opus-4-8 + Grader B GLM 5.2 via OpenCode, worse-of-two, unchanged f… — over Folding all three graders into one worse-of-three or majority rule, or dropping Grader C …
-- [D11] 2026-07-20 P5' fabricated-path sidecar runs POST-HOC by replay, never inside the measured run: for each task N and arm, a scratch … — over Running the orientation probe live in the arm worktree before each task, or appending the…
-- [D12] 2026-07-20 R02 replicates R01's arm-setup procedure EXACTLY — arm S gets the live ~/IO/brillo/.claude copied in (hooks, settings.l… — over Equalizing the arms in R02 by giving arm L a .claude/ carrying the same skills minus sofa…
-Earlier rejected approaches — do NOT re-propose (7 older):
-- …and 7 more (see decisions.md)
 
 Next ids: D13 (decision), M1 (memory)
 
@@ -403,15 +341,19 @@ Adjacent records — 8 decisions across 2 other initiatives that have worked thi
 - beta — 1 shared file, 1 decision
 Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: session-strategy-bench-session — when calling sofar_start_session, pass this as session_id.
+Session: session-strategy-bench-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: session-strategy-bench @ a1b2c3d — no origin ref — never pushed
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
 == plan (4010 bytes) ==
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->

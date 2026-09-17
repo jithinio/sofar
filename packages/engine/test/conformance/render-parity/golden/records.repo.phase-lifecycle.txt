@@ -56,7 +56,7 @@
     ]
   }
 }
-== status (9705 bytes) ==
+== status (9878 bytes) ==
 # phase-lifecycle
 
 Status: done 2026-08-13T15:09:27.889Z — Goal met and shipped. sofar_update_phase is the twelfth MCP tool, released in 0.27.0; phase status is written and never derived (D2); phase_status_changed counts as drift (D3). The 35 pre-existing stale phases are repaired append-only (D5, D6): 34 closed across 16 records after reading and judging every plan, and session-strategy-bench Phase 6 deliberately refused and named in its own record. Phase 3 (sofar_add_task) was dropped in scope by D4, not left unfinished.
@@ -98,6 +98,9 @@ Phases:
 
 Next action: Nothing open on phase-lifecycle — it is closed. The live finding wants a ruling in another record: whether update_plan should merge existing statuses forward, which changes the full-replace contract and needs its own Decision.
 
+⚠ Staleness:
+- last write-back summary exceeds the SessionStart budget (450 chars) and is clipped there — full text in sessions/6cd75ed5-5f58-4f0b-aa67-3b10153ba21a.md
+
 Last session (claude-code, ended 2026-08-13T15:12:00.606Z):
   Closed phase-lifecycle as done. The close audit recorded 4 overrides; rather than leave them all standing I answered the one it named as unrecoverable and ran the final review (D10), which this record had never had at any of its 5 phase boundaries. Verdict findings, not pass. The substantive finding is real and verified in code: sofar_update_plan is a full replace with no carry-forward, and the fold defaults a missing phase status to pending, so this repair's 34 closes across 16 still-active records are erasable by any future replan that omits statuses. Promoted to repo memory as phase-lifecycle M2.
 
@@ -123,51 +126,67 @@ Files touched (20):
 - /private/tmp/claude-501/-Users-jins-IO-sofar/6c7f87da-31e4-45e6-b984-34d29a78b234/scratchpad/verify-mcp.mjs
 - /private/tmp/claude-501/-Users-jins-IO-sofar/6c7f87da-31e4-45e6-b984-34d29a78b234/scratchpad/release-msg.txt
 
-== digest:plain (3929 bytes) ==
+== digest:plain (4110 bytes) ==
 # Sofar status: phase-lifecycle
 
-Goal: Make phase status writable at the same tier as task status. SHIPPED 2026-08-13: sofar_update_phase is the twelfth MCP tool, phase status is written and never derived (D2), and phase_status_changed now counts as drift (D3). Remaining: the 35 stale phases across 16 initiatives, which D5 rules a one-off append-only repair — and the mechanism for writing across 16 records without tearing the session doing it is the open question. Settled up front on measurement: MCP-only, no CLI sibling (D1).
+Goal: Make phase status writable at the same tier as task status. SHIPPED 2026-08-13: sofar_update_phase is the twelfth MCP tool, phase status is written and never derived (D2), and phase_status_changed now counts as drift (D3). Remaining: the 35 stale phases across 16 initiatives, which D5 rules a one-off append-only repair — and the mechanism for writing across 16 records without tearing the session …
 
-Standing constraints — obey verbatim (3):
-- [D1] Phase and task-structure writes are MCP-only — never add a CLI writer for them; the convention dialect uses `sofar event append`.
-- [D2] Never derive phase status from task status — not in the fold, not as a side effect of a task write. Doctor's stale-phase axis and closeout's phases_unresolved finding both exist to say "tasks done, phase not finished", and derivation deletes that sentence.
-- [D5] Never close a stale phase by editing or rewriting past events, and never ship a command that decides for the operator whether a phase is finished — repair only ever appends a new phase_status_changed that someone chose to state.
+Next action: Nothing open on phase-lifecycle — it is closed. The live finding wants a ruling in another record: whether update_plan should merge existing statuses forward, which changes the full-replace contract and needs its own Decision.
+
+Last session (claude-code, ended 2026-08-13T15:12:00.606Z):
+  Closed phase-lifecycle as done. The close audit recorded 4 overrides; rather than leave them all standing I answered the one it named as unrecoverable and ran the final review (D10), which this record had never had at any of its 5 phase boundaries. Verdict findings, not pass. The substantive finding is real and… (clipped — full text in sessions/6cd75ed5-5f58-4f0b-aa67-3b10153ba21a.md)
 
 Phases:
 - done: Phase 1, Phase 2, Phase 4, Phase 5 (14/14 tasks)
 - dropped: Phase 3 (2 tasks)
-
 Progress: 15 done, 1 dropped, 0 remaining across 5 phase(s)
-Active phase: (none)
-Next action: Nothing open on phase-lifecycle — it is closed. The live finding wants a ruling in another record: whether update_plan should merge existing statuses forward, which changes the full-replace contract and needs its own Decision.
 
-Last session (claude-code, ended 2026-08-13T15:12:00.606Z):
-  Closed phase-lifecycle as done. The close audit recorded 4 overrides; rather than leave them all standing I answered the one it named as unrecoverable and ran the final review (D10), which this record had never had at any of its 5 phase boundaries. Verdict findings, not pass. The substantive finding is real and verified in code: sofar_update_plan is a full replace with no carry-forward, and the fold defaults a missing phase status to pending, so this repair's 34 closes across 16 still-active records are erasable by any future replan that omits statuses. Promoted to repo memory as phase-lifecycle M2.
+Memory (4; full text in memory.md):
+- [M4] sofar_update_plan ERASES phase and task status unless the caller restates it. plan_updated is a FULL REPLACE: mcp/update-plan.ts appends the caller's payload verbatim with no carry-forward, and the fold rebuilds state.phases from it taking `phase.status ?? 'pending'` and `task.s…
+- [M3] A cross-record bookkeeping session MUST carry the target record's existing next action forward VERBATIM. sofar_end_session's next_action REPLACES whatever the record had — there is no merge and no append — so a session that writes into another initiative for a mechanical reason …
+- [M2] Do not grep packages/engine/dist/cli.js to check whether a build picked up a ch…
+- [M1] A newly built MCP tool is INVISIBLE to this repo's own sessions until it is pub…
 
 Recent decisions (last 5 of 6; full text in decisions.md):
-- [D2] 2026-08-13 (rule above) A dedicated `sofar_update_phase` tool mirroring `sofar_upda… — over (b) Extending `sofar_update_task` to implicitly resolve its parent phase when the last ta…
-- [D3] 2026-08-13 Count phase_status_changed as drift: a `phases` counter in events_since_writeback, summed into freshnessTotal alongside… — over Leaving it out of the switch, as it has always been. Or folding it into the existing `tas…
-- [D4] 2026-08-13 sofar_add_task is OUT of scope. Phase 3 is dropped; task_added keeps its one path, `sofar event append`. — over Building mcp/add-task.ts alongside update-phase.ts for symmetry, since the file would mir…
-- [D5] 2026-08-13 (rule above) REPAIR the 35 stale phases, as a one-off operator pass that… — over Leaving them as history on the argument that a status written weeks late is a fiction. Or…
-- [D6] 2026-08-13 Run the 4.3 repair as ONE FRESHLY-MINTED PINNED SESSION PER TARGET RECORD, writing through sofar_update_phase: sofar_st… — over (a) sofar_update_phase carrying an explicit `initiative` from THIS session — cheapest, bu…
+- [D2] 2026-08-13 (rule below) A dedicated `sofar_update_phase` tool mirroring `sofar_upda… — over (b) Extending `sofar_update_task` to implicitly resolve its parent ph…
+- [D3] 2026-08-13 Count phase_status_changed as drift — over Leaving it out of the switch, as it has always been. Or folding it in…
+- [D4] 2026-08-13 sofar_add_task is OUT of scope. Phase 3 is dropped — over Building mcp/add-task.ts alongside update-phase.ts for symmetry, sinc…
+- [D5] 2026-08-13 (rule below) REPAIR the 35 stale phases, as a one-off operator pass that… — over Leaving them as history on the argument that a status written weeks l…
+- [D6] 2026-08-13 Run the 4.3 repair as ONE FRESHLY-MINTED PINNED SESSION PER TARGET RECORD, writing throug… — over (a) sofar_update_phase carrying an explicit `initiative` from THIS se…
 Earlier rejected approaches — do NOT re-propose (1 older):
-- [D1] (a) A CLI command alongside the MCP tool, mirroring `close` and `remember` which are both…
+- [D1] (a) A CLI command alongside the MCP tool, mirroring `close` and `reme…
 
 Next ids: D7 (decision), M5 (memory)
+
+Standing constraints — obey verbatim (3):
+- [D2] Never derive phase status from task status — not in the fold, not as a side effect of a task write. Doctor's stale-phase axis and closeout's phases_unresolved finding both exist to say "tasks done, phase not finished", and derivation deletes that sentence.
+- [D5] Never close a stale phase by editing or rewriting past events, and never ship a command that decides for the operator whether a phase is finished — repair only ever appends a new phase_status_changed that someone chose to state.
+- [D1] Phase and task-structure writes are MCP-only — never add a CLI writer for them; the convention dialect uses `sofar event append`.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:hook (5821 bytes) ==
+== digest:hook (5063 bytes) ==
 # Sofar status: phase-lifecycle
 
-Goal: Make phase status writable at the same tier as task status. SHIPPED 2026-08-13: sofar_update_phase is the twelfth MCP tool, phase status is written and never derived (D2), and phase_status_changed now counts as drift (D3). Remaining: the 35 stale phases across 16 initiatives, which D5 rules a one-off append-only repair — and the mechanism for writing across 16 records without tearing the session doing it is the open question. Settled up front on measurement: MCP-only, no CLI sibling (D1).
+Goal: Make phase status writable at the same tier as task status. SHIPPED 2026-08-13: sofar_update_phase is the twelfth MCP tool, phase status is written and never derived (D2), and phase_status_changed now counts as drift (D3). Remaining: the 35 stale phases across 16 initiatives, which D5 rules a one-off append-only repair — and the mechanism for writing across 16 records without tearing the session …
 
-Standing constraints — obey verbatim (3):
-- [D1] Phase and task-structure writes are MCP-only — never add a CLI writer for them; the convention dialect uses `sofar event append`.
-- [D2] Never derive phase status from task status — not in the fold, not as a side effect of a task write. Doctor's stale-phase axis and closeout's phases_unresolved finding both exist to say "tasks done, phase not finished", and derivation deletes that sentence.
-- [D5] Never close a stale phase by editing or rewriting past events, and never ship a command that decides for the operator whether a phase is finished — repair only ever appends a new phase_status_changed that someone chose to state.
+Next action: Nothing open on phase-lifecycle — it is closed. The live finding wants a ruling in another record: whether update_plan should merge existing statuses forward, which changes the full-replace contract and needs its own Decision.
+
+Last session (claude-code, ended 2026-08-13T15:12:00.606Z):
+  Closed phase-lifecycle as done. The close audit recorded 4 overrides; rather than leave them all standing I answered the one it named as unrecoverable and ran the final review (D10), which this record had never had at any of its 5 phase boundaries. Verdict findings, not pass. The substantive finding is real and… (clipped — full text in sessions/6cd75ed5-5f58-4f0b-aa67-3b10153ba21a.md)
+
+Phases:
+- done: Phase 1, Phase 2, Phase 4, Phase 5 (14/14 tasks)
+- dropped: Phase 3 (2 tasks)
+Progress: 15 done, 1 dropped, 0 remaining across 5 phase(s)
+
+Memory (4; full text in memory.md):
+- [M4] sofar_update_plan ERASES phase and task status unless the caller restates it. plan_updated is a FULL REPLACE: mcp/update-plan.ts appends the caller's payload verbatim with no carry-forward, and the fold rebuilds state.phases from it taking `phase.status ?? 'pending'` and `task.s…
+- [M3] A cross-record bookkeeping session MUST carry the target record's existing next action forward VERBATIM. sofar_end_session's next_action REPLACES whatever the record had — there is no merge and no append — so a session that writes into another initiative for a mechanical reason …
+- [M2] Do not grep packages/engine/dist/cli.js to check whether a build picked up a ch…
+- [M1] A newly built MCP tool is INVISIBLE to this repo's own sessions until it is pub…
 
 Repo memory (.sofar/repo.md):
 # Repo memory — sofar
@@ -179,73 +198,46 @@ Repo memory (.sofar/repo.md):
   docs still say harness — that is history, never rewritten.
 - Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
   acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
 …truncated — read .sofar/repo.md for the rest
 
-Phases:
-- done: Phase 1, Phase 2, Phase 4, Phase 5 (14/14 tasks)
-- dropped: Phase 3 (2 tasks)
-
-Progress: 15 done, 1 dropped, 0 remaining across 5 phase(s)
-Active phase: (none)
-Next action: Nothing open on phase-lifecycle — it is closed. The live finding wants a ruling in another record: whether update_plan should merge existing statuses forward, which changes the full-replace contract and needs its own Decision.
-
-Last session (claude-code, ended 2026-08-13T15:12:00.606Z):
-  Closed phase-lifecycle as done. The close audit recorded 4 overrides; rather than leave them all standing I answered the one it named as unrecoverable and ran the final review (D10), which this record had never had at any of its 5 phase boundaries. Verdict findings, not pass. The substantive finding is real and verified in code: sofar_update_plan is a full replace with no carry-forward, and the fold defaults a missing phase status to pending, so this repair's 34 closes across 16 still-active records are erasable by any future replan that omits statuses. Promoted to repo memory as phase-lifecycle M2.
-
 Recent decisions (last 5 of 6; full text in decisions.md):
-- [D2] 2026-08-13 (rule above) A dedicated `sofar_update_phase` tool mirroring `sofar_upda… — over (b) Extending `sofar_update_task` to implicitly resolve its parent phase when the last ta…
-- [D3] 2026-08-13 Count phase_status_changed as drift: a `phases` counter in events_since_writeback, summed into freshnessTotal alongside… — over Leaving it out of the switch, as it has always been. Or folding it into the existing `tas…
-- [D4] 2026-08-13 sofar_add_task is OUT of scope. Phase 3 is dropped; task_added keeps its one path, `sofar event append`. — over Building mcp/add-task.ts alongside update-phase.ts for symmetry, since the file would mir…
-- [D5] 2026-08-13 (rule above) REPAIR the 35 stale phases, as a one-off operator pass that… — over Leaving them as history on the argument that a status written weeks late is a fiction. Or…
-- [D6] 2026-08-13 Run the 4.3 repair as ONE FRESHLY-MINTED PINNED SESSION PER TARGET RECORD, writing through sofar_update_phase: sofar_st… — over (a) sofar_update_phase carrying an explicit `initiative` from THIS session — cheapest, bu…
+- [D2] 2026-08-13 (rule below) A dedicated `sofar_update_phase` tool mirroring `sofar_upda… — over (b) Extending `sofar_update_task` to implicitly resolve its parent ph…
+- [D3] 2026-08-13 Count phase_status_changed as drift — over Leaving it out of the switch, as it has always been. Or folding it in…
+- [D4] 2026-08-13 sofar_add_task is OUT of scope. Phase 3 is dropped — over Building mcp/add-task.ts alongside update-phase.ts for symmetry, sinc…
+- [D5] 2026-08-13 (rule below) REPAIR the 35 stale phases, as a one-off operator pass that… — over Leaving them as history on the argument that a status written weeks l…
+- [D6] 2026-08-13 Run the 4.3 repair as ONE FRESHLY-MINTED PINNED SESSION PER TARGET RECORD, writing throug… — over (a) sofar_update_phase carrying an explicit `initiative` from THIS se…
 Earlier rejected approaches — do NOT re-propose (1 older):
-- [D1] (a) A CLI command alongside the MCP tool, mirroring `close` and `remember` which are both…
+- [D1] (a) A CLI command alongside the MCP tool, mirroring `close` and `reme…
 
 Next ids: D7 (decision), M5 (memory)
 
-Session: phase-lifecycle-session — when calling sofar_start_session, pass this as session_id.
+Session: phase-lifecycle-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: phase-lifecycle @ a1b2c3d — differs from origin/phase-lifecycle (fedcba9) — unpushed work
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
+Standing constraints — obey verbatim (3):
+- [D2] Never derive phase status from task status — not in the fold, not as a side effect of a task write. Doctor's stale-phase axis and closeout's phases_unresolved finding both exist to say "tasks done, phase not finished", and derivation deletes that sentence.
+- [D5] Never close a stale phase by editing or rewriting past events, and never ship a command that decides for the operator whether a phase is finished — repair only ever appends a new phase_status_changed that someone chose to state.
+- [D1] Phase and task-structure writes are MCP-only — never add a CLI writer for them; the convention dialect uses `sofar event append`.
+
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:lane (4869 bytes) ==
+== digest:lane (4666 bytes) ==
 # Sofar: quick-work lane (phase-lifecycle)
 
-Goal: Make phase status writable at the same tier as task status. SHIPPED 2026-08-13: sofar_update_phase is the twelfth MCP tool, phase status is written and never derived (D2), and phase_status_changed now counts as drift (D3). Remaining: the 35 stale phases across 16 initiatives, which D5 rules a one-off append-only repair — and the mechanism for writing across 16 records without tearing the session doing it is the open question. Settled up front on measurement: MCP-only, no CLI sibling (D1).
+Goal: Make phase status writable at the same tier as task status. SHIPPED 2026-08-13: sofar_update_phase is the twelfth MCP tool, phase status is written and never derived (D2), and phase_status_changed now counts as drift (D3). Remaining: the 35 stale phases across 16 initiatives, which D5 rules a one-off append-only repair — and the mechanism for writing across 16 records without tearing the session …
 
 This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
 - Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
 - Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
 
-Standing constraints — obey verbatim (3):
-- [D1] Phase and task-structure writes are MCP-only — never add a CLI writer for them; the convention dialect uses `sofar event append`.
-- [D2] Never derive phase status from task status — not in the fold, not as a side effect of a task write. Doctor's stale-phase axis and closeout's phases_unresolved finding both exist to say "tasks done, phase not finished", and derivation deletes that sentence.
-- [D5] Never close a stale phase by editing or rewriting past events, and never ship a command that decides for the operator whether a phase is finished — repair only ever appends a new phase_status_changed that someone chose to state.
-
 Last session (claude-code, ended 2026-08-13T15:12:00.606Z):
-  Closed phase-lifecycle as done. The close audit recorded 4 overrides; rather than leave them all standing I answered the one it named as unrecoverable and ran the final review (D10), which this record had never had at any of its 5 phase boundaries. Verdict findings, not pass. The substantive finding is real and verified in code: sofar_update_plan is a full replace with no carry-forward, and the fold defaults a missing phase status to pending, so this repair's 34 closes across 16 still-active records are erasable by any future replan that omits statuses. Promoted to repo memory as phase-lifecycle M2.
+  Closed phase-lifecycle as done. The close audit recorded 4 overrides; rather than leave them all standing I answered the one it named as unrecoverable and ran the final review (D10), which this record had never had at any of its 5 phase boundaries. Verdict findings, not pass. The substantive finding is real and… (clipped — full text in sessions/6cd75ed5-5f58-4f0b-aa67-3b10153ba21a.md)
 
 Recent quick work (5 sessions, 6 decisions since 2026-08-13):
 - 2026-08-13 claude-code — 44 commands, task changes: 4.2 → done, 4.3 → active, 4.3 → done
@@ -254,129 +246,109 @@ Recent quick work (5 sessions, 6 decisions since 2026-08-13):
 - 2026-08-13 claude-code — 20 files (/Users/jins/IO/sofar/packages/schema/src/events.ts, /Users/jins/IO/sofar/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar/packages/engine/src/projections/templates/shared.ts, /Users/jins/IO/sofar/packages/engine/src/projections/templates/plan.ts, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/update-phase.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/server.ts, /Users/jins/IO/sofar/docs/ARCHITECTURE.md, /Users/jins/IO/sofar/packages/schema/test/tool-inputs.test.ts, /Users/jins/IO/sofar/packages/…
 - 2026-08-13 claude-code — 1 command, task changes: 1.3 → done
 
+Memory (4; full text in memory.md):
+- [M4] sofar_update_plan ERASES phase and task status unless the caller restates it. p…
+- [M3] A cross-record bookkeeping session MUST carry the target record's existing next…
+- [M2] Do not grep packages/engine/dist/cli.js to check whether a build picked up a ch…
+- [M1] A newly built MCP tool is INVISIBLE to this repo's own sessions until it is pub…
+
 Recent decisions (last 5 of 6; full text in decisions.md):
-- [D2] 2026-08-13 (rule above) A dedicated `sofar_update_phase` tool mirroring `sofar_upda… — over (b) Extending `sofar_update_task` to implicitly resolve its parent phase when the last ta…
-- [D3] 2026-08-13 Count phase_status_changed as drift: a `phases` counter in events_since_writeback, summed into freshnessTotal alongside… — over Leaving it out of the switch, as it has always been. Or folding it into the existing `tas…
-- [D4] 2026-08-13 sofar_add_task is OUT of scope. Phase 3 is dropped; task_added keeps its one path, `sofar event append`. — over Building mcp/add-task.ts alongside update-phase.ts for symmetry, since the file would mir…
-- [D5] 2026-08-13 (rule above) REPAIR the 35 stale phases, as a one-off operator pass that… — over Leaving them as history on the argument that a status written weeks late is a fiction. Or…
-- [D6] 2026-08-13 Run the 4.3 repair as ONE FRESHLY-MINTED PINNED SESSION PER TARGET RECORD, writing through sofar_update_phase: sofar_st… — over (a) sofar_update_phase carrying an explicit `initiative` from THIS session — cheapest, bu…
+- [D2] 2026-08-13 (rule below) A dedicated `sofar_update_phase` tool mirroring `sofar_upda… — over (b) Extending `sofar_update_task` to implicitly resolve its parent ph…
+- [D3] 2026-08-13 Count phase_status_changed as drift — over Leaving it out of the switch, as it has always been. Or folding it in…
+- [D4] 2026-08-13 sofar_add_task is OUT of scope. Phase 3 is dropped — over Building mcp/add-task.ts alongside update-phase.ts for symmetry, sinc…
+- [D5] 2026-08-13 (rule below) REPAIR the 35 stale phases, as a one-off operator pass that… — over Leaving them as history on the argument that a status written weeks l…
+- [D6] 2026-08-13 Run the 4.3 repair as ONE FRESHLY-MINTED PINNED SESSION PER TARGET RECORD, writing throug… — over (a) sofar_update_phase carrying an explicit `initiative` from THIS se…
 Earlier rejected approaches — do NOT re-propose (1 older):
-- [D1] (a) A CLI command alongside the MCP tool, mirroring `close` and `remember` which are both…
+- [D1] (a) A CLI command alongside the MCP tool, mirroring `close` and `reme…
 
 Next ids: D7 (decision), M5 (memory)
 
-Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: phase-lifecycle @ a1b2c3d — differs from origin/phase-lifecycle (fedcba9) — unpushed work
+
+Standing constraints — obey verbatim (3):
+- [D5] Never close a stale phase by editing or rewriting past events, and never ship a command that decides for the operator whether a phase is finished — repair only ever appends a new phase_status_changed that someone chose to state.
+- [D2] Never derive phase status from task status — not in the fold, not as a side effect of a task write. Doctor's stale-phase axis and closeout's phases_unresolved finding both exist to say "tasks done, phase not finished", and derivation deletes that sentence.
+- [D1] Phase and task-structure writes are MCP-only — never add a CLI writer for them; the convention dialect uses `sofar event append`.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:quiet (4016 bytes) ==
+== digest:quiet (4196 bytes) ==
 # Sofar status: phase-lifecycle
 
-Goal: Make phase status writable at the same tier as task status. SHIPPED 2026-08-13: sofar_update_phase is the twelfth MCP tool, phase status is written and never derived (D2), and phase_status_changed now counts as drift (D3). Remaining: the 35 stale phases across 16 initiatives, which D5 rules a one-off append-only repair — and the mechanism for writing across 16 records without tearing the session doing it is the open question. Settled up front on measurement: MCP-only, no CLI sibling (D1).
+Goal: Make phase status writable at the same tier as task status. SHIPPED 2026-08-13: sofar_update_phase is the twelfth MCP tool, phase status is written and never derived (D2), and phase_status_changed now counts as drift (D3). Remaining: the 35 stale phases across 16 initiatives, which D5 rules a one-off append-only repair — and the mechanism for writing across 16 records without tearing the session …
 
-Standing constraints — obey verbatim (3):
-- [D1] Phase and task-structure writes are MCP-only — never add a CLI writer for them; the convention dialect uses `sofar event append`.
-- [D2] Never derive phase status from task status — not in the fold, not as a side effect of a task write. Doctor's stale-phase axis and closeout's phases_unresolved finding both exist to say "tasks done, phase not finished", and derivation deletes that sentence.
-- [D5] Never close a stale phase by editing or rewriting past events, and never ship a command that decides for the operator whether a phase is finished — repair only ever appends a new phase_status_changed that someone chose to state.
+Next action: Nothing open on phase-lifecycle — it is closed. The live finding wants a ruling in another record: whether update_plan should merge existing statuses forward, which changes the full-replace contract and needs its own Decision.
+
+Last session (claude-code, ended 2026-08-13T15:12:00.606Z):
+  Closed phase-lifecycle as done. The close audit recorded 4 overrides; rather than leave them all standing I answered the one it named as unrecoverable and ran the final review (D10), which this record had never had at any of its 5 phase boundaries. Verdict findings, not pass. The substantive finding is real and… (clipped — full text in sessions/6cd75ed5-5f58-4f0b-aa67-3b10153ba21a.md)
 
 Phases:
 - done: Phase 1, Phase 2, Phase 4, Phase 5 (14/14 tasks)
 - dropped: Phase 3 (2 tasks)
-
 Progress: 15 done, 1 dropped, 0 remaining across 5 phase(s)
-Active phase: (none)
-Next action: Nothing open on phase-lifecycle — it is closed. The live finding wants a ruling in another record: whether update_plan should merge existing statuses forward, which changes the full-replace contract and needs its own Decision.
 
-Last session (claude-code, ended 2026-08-13T15:12:00.606Z):
-  Closed phase-lifecycle as done. The close audit recorded 4 overrides; rather than leave them all standing I answered the one it named as unrecoverable and ran the final review (D10), which this record had never had at any of its 5 phase boundaries. Verdict findings, not pass. The substantive finding is real and verified in code: sofar_update_plan is a full replace with no carry-forward, and the fold defaults a missing phase status to pending, so this repair's 34 closes across 16 still-active records are erasable by any future replan that omits statuses. Promoted to repo memory as phase-lifecycle M2.
+Memory (4; full text in memory.md):
+- [M4] sofar_update_plan ERASES phase and task status unless the caller restates it. plan_updated is a FULL REPLACE: mcp/update-plan.ts appends the caller's payload verbatim with no carry-forward, and the fold rebuilds state.phases from it taking `phase.status ?? 'pending'` and `task.s…
+- [M3] A cross-record bookkeeping session MUST carry the target record's existing next action forward VERBATIM. sofar_end_session's next_action REPLACES whatever the record had — there is no merge and no append — so a session that writes into another initiative for a mechanical reason …
+- [M2] Do not grep packages/engine/dist/cli.js to check whether a build picked up a ch…
+- [M1] A newly built MCP tool is INVISIBLE to this repo's own sessions until it is pub…
 
 Recent decisions (last 5 of 6; full text in decisions.md):
-- [D2] 2026-08-13 (rule above) A dedicated `sofar_update_phase` tool mirroring `sofar_upda… — over (b) Extending `sofar_update_task` to implicitly resolve its parent phase when the last ta…
-- [D3] 2026-08-13 Count phase_status_changed as drift: a `phases` counter in events_since_writeback, summed into freshnessTotal alongside… — over Leaving it out of the switch, as it has always been. Or folding it into the existing `tas…
-- [D4] 2026-08-13 sofar_add_task is OUT of scope. Phase 3 is dropped; task_added keeps its one path, `sofar event append`. — over Building mcp/add-task.ts alongside update-phase.ts for symmetry, since the file would mir…
-- [D5] 2026-08-13 (rule above) REPAIR the 35 stale phases, as a one-off operator pass that… — over Leaving them as history on the argument that a status written weeks late is a fiction. Or…
-- [D6] 2026-08-13 Run the 4.3 repair as ONE FRESHLY-MINTED PINNED SESSION PER TARGET RECORD, writing through sofar_update_phase: sofar_st… — over (a) sofar_update_phase carrying an explicit `initiative` from THIS session — cheapest, bu…
+- [D2] 2026-08-13 (rule below) A dedicated `sofar_update_phase` tool mirroring `sofar_upda… — over (b) Extending `sofar_update_task` to implicitly resolve its parent ph…
+- [D3] 2026-08-13 Count phase_status_changed as drift — over Leaving it out of the switch, as it has always been. Or folding it in…
+- [D4] 2026-08-13 sofar_add_task is OUT of scope. Phase 3 is dropped — over Building mcp/add-task.ts alongside update-phase.ts for symmetry, sinc…
+- [D5] 2026-08-13 (rule below) REPAIR the 35 stale phases, as a one-off operator pass that… — over Leaving them as history on the argument that a status written weeks l…
+- [D6] 2026-08-13 Run the 4.3 repair as ONE FRESHLY-MINTED PINNED SESSION PER TARGET RECORD, writing throug… — over (a) sofar_update_phase carrying an explicit `initiative` from THIS se…
 Earlier rejected approaches — do NOT re-propose (1 older):
-- [D1] (a) A CLI command alongside the MCP tool, mirroring `close` and `remember` which are both…
+- [D1] (a) A CLI command alongside the MCP tool, mirroring `close` and `reme…
 
 Next ids: D7 (decision), M5 (memory)
 
-Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (3):
+- [D2] Never derive phase status from task status — not in the fold, not as a side effect of a task write. Doctor's stale-phase axis and closeout's phases_unresolved finding both exist to say "tasks done, phase not finished", and derivation deletes that sentence.
+- [D5] Never close a stale phase by editing or rewriting past events, and never ship a command that decides for the operator whether a phase is finished — repair only ever appends a new phase_status_changed that someone chose to state.
+- [D1] Phase and task-structure writes are MCP-only — never add a CLI writer for them; the convention dialect uses `sofar event append`.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (10075 bytes) ==
+== digest:cap (6030 bytes) ==
 # Sofar status: phase-lifecycle
 
-Goal: Make phase status writable at the same tier as task status. SHIPPED 2026-08-13: sofar_update_phase is the twelfth MCP tool, phase status is written and never derived (D2), and phase_status_changed now counts as drift (D3). Remaining: the 35 stale phases across 16 initiatives, which D5 rules a one-off append-only repair — and the mechanism for writing across 16 records without tearing the session doing it is the open question. Settled up front on measurement: MCP-only, no CLI sibling (D1).
+Goal: Make phase status writable at the same tier as task status. SHIPPED 2026-08-13: sofar_update_phase is the twelfth MCP tool, phase status is written and never derived (D2), and phase_status_changed now counts as drift (D3). Remaining: the 35 stale phases across 16 initiatives, which D5 rules a one-off append-only repair — and the mechanism for writing across 16 records without tearing the session …
 
-Standing constraints — obey verbatim (3):
-- [D1] Phase and task-structure writes are MCP-only — never add a CLI writer for them; the convention dialect uses `sofar event append`.
-- [D2] Never derive phase status from task status — not in the fold, not as a side effect of a task write. Doctor's stale-phase axis and closeout's phases_unresolved finding both exist to say "tasks done, phase not finished", and derivation deletes that sentence.
-- [D5] Never close a stale phase by editing or rewriting past events, and never ship a command that decides for the operator whether a phase is finished — repair only ever appends a new phase_status_changed that someone chose to state.
-
-Repo memory (.sofar/repo.md):
-# Repo memory — sofar
-
-- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
-  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
-  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
-  aliases (pre-publish). Historical event/projection text and the archived
-  docs still say harness — that is history, never rewritten.
-- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
-  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
-…truncated — read .sofar/repo.md for the rest
+Next action: Nothing open on phase-lifecycle — it is closed. The live finding wants a ruling in another record: whether update_plan should merge existing statuses forward, which changes the full-replace contract and needs its own Decision.
 
 Phases:
 - done: Phase 1, Phase 2, Phase 4, Phase 5 (14/14 tasks)
 - dropped: Phase 3 (2 tasks)
-
 Progress: 15 done, 1 dropped, 0 remaining across 5 phase(s)
-Active phase: (none)
-Next action: Nothing open on phase-lifecycle — it is closed. The live finding wants a ruling in another record: whether update_plan should merge existing statuses forward, which changes the full-replace contract and needs its own Decision.
 
-Last session (claude-code, ended 2026-08-13T15:12:00.606Z):
-  Closed phase-lifecycle as done. The close audit recorded 4 overrides; rather than leave them all standing I answered the one it named as unrecoverable and ran the final review (D10), which this record had never had at any of its 5 phase boundaries. Verdict findings, not pass. The substantive finding is real and verified in code: sofar_update_plan is a full replace with no carry-forward, and the fold defaults a missing phase status to pending, so this repair's 34 closes across 16 still-active records are erasable by any future replan that omits statuses. Promoted to repo memory as phase-lifecycle M2.
-
-Recent decisions (last 5 of 6; full text in decisions.md):
-- [D2] 2026-08-13 (rule above) A dedicated `sofar_update_phase` tool mirroring `sofar_upda… — over (b) Extending `sofar_update_task` to implicitly resolve its parent phase when the last ta…
-- [D3] 2026-08-13 Count phase_status_changed as drift: a `phases` counter in events_since_writeback, summed into freshnessTotal alongside… — over Leaving it out of the switch, as it has always been. Or folding it into the existing `tas…
-- [D4] 2026-08-13 sofar_add_task is OUT of scope. Phase 3 is dropped; task_added keeps its one path, `sofar event append`. — over Building mcp/add-task.ts alongside update-phase.ts for symmetry, since the file would mir…
-- [D5] 2026-08-13 (rule above) REPAIR the 35 stale phases, as a one-off operator pass that… — over Leaving them as history on the argument that a status written weeks late is a fiction. Or…
-- [D6] 2026-08-13 Run the 4.3 repair as ONE FRESHLY-MINTED PINNED SESSION PER TARGET RECORD, writing through sofar_update_phase: sofar_st… — over (a) sofar_update_phase carrying an explicit `initiative` from THIS session — cheapest, bu…
-Earlier rejected approaches — do NOT re-propose (1 older):
-- …and 1 more (see decisions.md)
 
 Next ids: D7 (decision), M5 (memory)
 
-Session: phase-lifecycle-session — when calling sofar_start_session, pass this as session_id.
+Session: phase-lifecycle-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: phase-lifecycle @ a1b2c3d — differs from origin/phase-lifecycle (fedcba9) — unpushed work
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
+
+Standing constraints — obey verbatim (3):
+- [D2] Never derive phase status from task status — not in the fold, not as a side effect of a task write. Doctor's stale-phase axis and closeout's phases_unresolved finding both exist to say "tasks done, phase not finished", and derivation deletes that sentence.
+- [D5] Never close a stale phase by editing or rewriting past events, and never ship a command that decides for the operator whether a phase is finished — repair only ever appends a new phase_status_changed that someone chose to state.
+- [D1] Phase and task-structure writes are MCP-only — never add a CLI writer for them; the convention dialect uses `sofar event append`.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
 == plan (6012 bytes) ==
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->

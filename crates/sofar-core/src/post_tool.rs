@@ -11,6 +11,7 @@ use crate::fold_cli::CmdResult;
 use crate::guards::GuardDomain;
 use crate::home::resolve_session_first;
 use crate::hook::{clip_to, parse_hook, str_field};
+use crate::host::hook_host;
 use crate::index_tier1::{
     GuardedDecision, guards_for_subject, last_touch, refresh_files, refresh_guards,
 };
@@ -19,10 +20,10 @@ use crate::layout::Layout;
 use crate::nudge::{nudge_line, read_nudge};
 use crate::redact::redact_command;
 use crate::resolve::posix_relative;
+use crate::session_pointer::write_session_pointer;
 use crate::shell::is_self_recording_command;
 use crate::text::{cmp_utf16, is_js_whitespace, js_trim, utf16_len, utf16_prefix};
 
-const HOOK_TOOL: &str = "claude-code";
 pub const GUARD_RULES_MAX: usize = 2;
 pub const GUARD_CMD_BUDGET: usize = 60;
 /// Bound on a command's leading token as stored in `head` (`DIAGNOSTIC_HEAD_CLIP`).
@@ -263,6 +264,12 @@ pub fn handle_post_tool(root: &Path, input: &str) -> CmdResult {
     let layout = Layout::new(root);
     let hook = parse_hook(input);
     let session = str_field(&hook, "session_id").unwrap_or("cli");
+    // The first shell call (`sofar status`) lands here before the agent's own
+    // session_started, so a host with no SessionStart still hands its id over (D29).
+    if session != "cli" {
+        let _ = write_session_pointer(&layout, session, "hook");
+    }
+    let host = hook_host(&hook);
     let driven: Vec<String> = read_nudge()
         .map(|n| vec![nudge_line(&n)])
         .unwrap_or_default();
@@ -297,7 +304,7 @@ pub fn handle_post_tool(root: &Path, input: &str) -> CmdResult {
     }
     let notice = guard_notice(&layout, &slug, session, call.domain, &call.subject);
     if !call.exempt {
-        register_lazily(&layout, &slug, session);
+        register_lazily(&layout, &slug, session, host.tool);
         let _ = append_and_project(&layout, &slug, call.event_type, payload, session, "hook");
     }
     let out_bytes = response.map(|r| {
@@ -328,7 +335,7 @@ pub fn handle_post_tool(root: &Path, input: &str) -> CmdResult {
             data,
             initiative: Some(slug),
             session: Some(session.to_owned()),
-            host_tool: Some(HOOK_TOOL.to_owned()),
+            host_tool: Some(host.tool.to_owned()),
         },
     );
     let mut lines = driven;
@@ -342,6 +349,10 @@ pub fn handle_post_tool_failure(root: &Path, input: &str) -> CmdResult {
     let layout = Layout::new(root);
     let hook = parse_hook(input);
     let session = str_field(&hook, "session_id").unwrap_or("cli");
+    if session != "cli" {
+        let _ = write_session_pointer(&layout, session, "hook"); // D29
+    }
+    let host = hook_host(&hook);
     let Some(slug) = bound_or_lane(&layout, session) else {
         return silent();
     };
@@ -354,7 +365,7 @@ pub fn handle_post_tool_failure(root: &Path, input: &str) -> CmdResult {
         _ => Json::Null,
     };
     if !call.exempt {
-        register_lazily(&layout, &slug, session);
+        register_lazily(&layout, &slug, session, host.tool);
         let mut payload = call.payload.clone();
         payload.insert("ok", Json::Bool(false));
         if call.event_type == "command_run"
@@ -399,7 +410,7 @@ pub fn handle_post_tool_failure(root: &Path, input: &str) -> CmdResult {
             data,
             initiative: Some(slug),
             session: Some(session.to_owned()),
-            host_tool: Some(HOOK_TOOL.to_owned()),
+            host_tool: Some(host.tool.to_owned()),
         },
     );
     silent()

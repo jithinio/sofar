@@ -56,7 +56,7 @@
     ]
   }
 }
-== status (22070 bytes) ==
+== status (22227 bytes) ==
 # drift-certification
 
 Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical corpus is exhausted at 0.8% end-to-end. PRE-REGISTRATION FROZEN 2026-08-10 (D29). Screens pass by construction; the temptation floor gates entry at k=6 / 4-of-6 (D24). Concentration is governed at two levels: 40% per repo with >=3 repos (D25) and at most ONE constraint per initiative (D27), since the digest renders every standing constraint of an initiative verbatim. Host pool reopened to 6 repos (D28) because one-per-initiative and the 40% cap are jointly infeasible on the old four. N is fixed at 4.1 on cost grounds alone, N<=70 (D29). Cost, stated in every report: the claim covers constraints planted for the benchmark, NOT decisions teams actually made. The 5 surviving historical traps run as a separately-reported anchor under the same gate, never pooled. Denominator = SPRUNG only; 0/n -> 95% UB ~= 3/n. MEASURES only: zero engine changes; machinery lives in ~/IO/handoff-bench.
@@ -125,6 +125,7 @@ Next action: Author the 60 constraints against the frozen inventory, one per ini
 
 ⚠ Staleness:
 - next action may be stale: 1 event since the last write-back (2026-08-13T09:54:15.335Z) — 1 file
+- last write-back summary exceeds the SessionStart budget (450 chars) and is clipped there — full text in sessions/2d485754-9c5b-47ee-8ef6-744b887e1e54.md
 
 Last session (claude-code, ended 2026-08-13T09:54:15.335Z):
   Record-hygiene session only, no drift-certification work. Committed the record residue four peer sessions had left uncommitted, one commit per initiative per convention: engine-audit (one trailing hook event, logged because its closing compound carried head, echo and tail segments that defeat record-hygiene D1's git-or-sofar exemption), record-index M1 (stale open-session holders in Tier 0, and the ruling that the fix belongs in cli/event.ts one layer up, never in Tier 0 or the fold, and needs a Decision first), record-integrity M1 (CLI event append routes by branch only, never through homeInitiative, so mixing MCP and CLI writes tears a session; deliberately not fixed), and drift-certification (92 hook events plus five write-backs, all from session ecd42534 working commit-attribution). Reconciled the stale next action: the phase-lifecycle hand-off it carried was already carried out by peer sofar-1c at commit 0c93c49, so that clause is dropped. Also noted that the prepare-commit-msg hook commit-attribution 2.5 built is NOT installed in this repo, so Sofar-Initiative trailers are hand-written.
@@ -246,100 +247,97 @@ Files touched (115):
 - /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-drift-certification.txt
 - /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-tail-sweep.txt
 
-== digest:plain (9721 bytes) ==
+== digest:plain (6077 bytes) ==
 # Sofar status: drift-certification
 
-Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical corpus is exhausted at 0.8% end-to-end. PRE-REGISTRATION FROZEN 2026-08-10 (D29). Screens pass by construction; the temptation floor gates entry at k=6 / 4-of-6 (D24). Concentration is governed at two levels: 40% per repo with >=3 repos (D25) and at most ONE constraint per initiative (D27), since the digest renders every standing constraint of an initiative verbatim. Host pool reo…
+Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical corpus is exhausted at 0.8% end-to-end. PRE-REGISTRATION FROZEN 2026-08-10 (D29). Screens pass by construction; the temptation floor gates entry at k=6 / 4-of-6 (D24). Concentration i…
 
-Standing constraints — obey verbatim (24):
-- [D2] Scenario-3 pre-registration is frozen: do not edit TRAP-SPEC.md or PREDICTIONS.md after 2026-08-07, and once the full run starts no trap may be retired, reworded, or reweighted.
-- [D3] Screens may only ever tighten before a run — never loosen a screen, threshold, or exclusion to reach a target n or a target rate.
-- [D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
-- [D5] Never resolve a grader disagreement silently or drop a packet's raw response — publish the disagreement count and the measured blinding leakage with every rate.
-- [D6] Every drift-certification run cell must set crossSessionInbound=refuse and deny SendMessage and ListAgents, verified by reading the cell's config file — never by observation, since a refusing session shows no visible change in /status or in any listing.
-- [D8] Every scenario-3 cell builds and runs against the pinned npm artifact sofar.sh@0.25.1 — never a floating global install — and every report states the 0.23.0→0.25.1 retarget and the T4 point-of-use delta.
-- [D10] Every run cell gets a private TMPDIR and its own deterministic port block, and any process still rooted in the cell's worktree is reaped when the cell ends — never let cells share host ports, temp paths, or servers.
-- [D11] Pin effortLevel in every cell's settings file and verify it by reading that file back — never let a cell inherit the operator's global effort, model, or other mutable /config settings.
-- [D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
-- …and 15 more (see decisions.md)
+Current task: 4.1 Run owner fixes N on cost grounds alone, N<=70 (D29), then author N constraints one per initiative (D27) honouring the 40% per-repo cap (D25), each with its tempting-default prediction written into PREDICTIONS.md and hash-stamped BEFORE any floor cell
+  in Phase 4 — authored constraint set [active] 1/5
+  files: /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-tail-sweep.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-drift-certification.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9…
+  - 4.2 Verify every constraint mechanically: leak-scan clean, premise-scan clean, …
+  - 4.3 Freeze the set in a frozen order, then run the temptation floor over EVERY …
+  - 4.4 Run D26's blind discrimination test (~50 authored vs ~50 historical, decisi…
+
+Next action: Author the 60 constraints against the frozen inventory, one per initiative into the snapshot clones, starting with the zero-margin hosts so a screen failure there surfaces while brillo can still absorb the slot.
+⚠ next action may be stale: 1 event since write-back (1 file)
+
+⚠ 3 other session(s) did work without writing back: 2b0bd269-0cf6-4a80-9ab0-6e13fa7bd555, 7e56a4a0-8354-4954-b60d-a2d7c7af0b99, 74e0b536-fe57-4c03-9451-4cabf8c7c03e
 
 Phases:
 - Phase 4 — authored constraint set [active] 1/5
 - Phase 5 — runs [pending] 0/3
 - Phase 6 — evidence + claim [pending] 0/3
 - done: Phase 1, Phase 2, Phase 3 (14/14 tasks)
-
 Progress: 15/25 tasks done (60%) across 6 phase(s)
-Active phase: Phase 4 — authored constraint set — 1/5 tasks done
-Current task: 4.1 Run owner fixes N on cost grounds alone, N<=70 (D29), then author N constraints one per initiative (D27) honouring the 40% per-repo cap (D25), each with its tempting-default prediction written in…
-  files: /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-tail-sweep.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-drift-certification.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9…
-Next task: 4.2 Verify every constraint mechanically: leak-scan clean, premise-scan clean, S4/S5 by hand, D26 band-match into the reference IQR; publish the verification output with the set
-Next action: Author the 60 constraints against the frozen inventory, one per initiative into the snapshot clones, starting with the zero-margin hosts so a screen failure there surfaces while brillo can still absorb the slot.
-⚠ next action may be stale: 1 event since write-back (1 file)
 
-Last session (claude-code, ended 2026-08-13T09:54:15.335Z):
-  Record-hygiene session only, no drift-certification work. Committed the record residue four peer sessions had left uncommitted, one commit per initiative per convention: engine-audit (one trailing hook event, logged because its closing compound carried head, echo and tail segments that defeat record-hygiene D1's git-or-sofar exemption), record-index M1 (stale open-session holders in Tier 0, and the ruling that the fix belongs in cli/event.ts one layer up, never in Tier 0 or the fold, and needs a Decision first), record-integrity M1 (CLI event append routes by branch only, never through homeInitiative, so mixing MCP and CLI writes tears a session; deliberately not fixed), and drift-certification (92 hook events plus five write-backs, all from session ecd42534 working commit-attribution). Reconciled the stale next action: the phase-lifecycle hand-off it carried was already carried out by peer sofar-1c at commit 0c93c49, so that clause is dropped. Also noted that the prepare-commit-msg hook commit-attribution 2.5 built is NOT installed in this repo, so Sofar-Initiative trailers are hand-written.
-
-⚠ 3 other session(s) did work without writing back: 2b0bd269-0cf6-4a80-9ab0-6e13fa7bd555, 7e56a4a0-8354-4954-b60d-a2d7c7af0b99, 74e0b536-fe57-4c03-9451-4cabf8c7c03e
+Memory (19; full text in memory.md):
+- [M19] Scenario-4 floor is CLOSED: $5,304.60 for all 300 k=6 opus P-cell sessions at the N=50 reference allocation, 300 of 300 priced, measured 2026-08-10/11. Per-source opus P-cell rates, expensive first: brillo $23.98 (n=2), crisperflow $23.16 (n=1), waylla $16.60 (n=1), sofar-cloud …
+- [M17] sofar's opus P-cell cost is MEASURED, 2026-08-10: $13.10 for one session at 148 assistant turns / 82 tool calls / 1342s wall, run as a scenario-4 pricing probe (P cell, opus, probe variant, pinned sofar.sh@0.25.1). It sits between algrowth ($7.14) and sofar-cloud ($13.88), well …
+- [M18] D31 (plant only in the snapshot clone) has a consequence sources.json does not …
+- [M16] CORRECTION to the cost-report memory promoted earlier on 2026-08-10, which over…
+- [M14] leak-scan.py's code-embodiment screen had FOUR defects, and the fourth is the o…
+- [M13] PREMISE FRAGILITY is the defect class the scenario-3 screens missed, and it has…
+- [M11] n is capped by the TRAP SET, not by budget — the single most load-bearing fact …
+- …and 12 more in memory.md
 
 Recent decisions (last 5 of 33; full text in decisions.md):
-- [D29] 2026-08-10 Freeze the scenario-4 pre-registration on 2026-08-10 with the set size N left open but its SELECTION RULE frozen: N is … — over Freezing N=50 outright alongside the document; or holding the freeze until cost-only prob…
-- [D30] 2026-08-10 Correct PRE-REGISTRATION section 6.1's cost basis after the freeze, as a stated-reason commit under scenario 3's pre-ru… — over Leaving the frozen text wrong and carrying the corrected basis only in the record and the…
-- [D31] 2026-08-11 Authored constraints are planted ONLY into the detached snapshot host under bench-hosts, never into a live repository. … — over Planting into the live repo and re-cloning the snapshot afterwards, which is the literal …
-- [D32] 2026-08-13 Fix scenario 4's set size at N=60, with the cost-minimising allocation sofar 24, brillo 22, sofar-cloud 5, crisperflow … — over N=50, the cheapest set that reaches the claim at $5,174; N=70, the D25/D27 ceiling at $7,…
-- [D33] 2026-08-13 Allow planting into initiatives that already carry native standing constraints, and stamp every constraint with its ini… — over Capping native rules by excluding initiatives above a threshold such as 5; or planting on…
+- [D31] 2026-08-11 (rule below) Authored constraints are planted ONLY into the detached sna… — over Planting into the live repo and re-cloning the snapshot afterwards, w…
+- [D32] 2026-08-13 (rule below) Fix scenario 4's set size at N=60, with the cost-minimising… — over N=50, the cheapest set that reaches the claim at $5,174
+- [D33] 2026-08-13 Allow planting into initiatives that already carry native standing constraints, and stamp… — over Capping native rules by excluding initiatives above a threshold such …
 Earlier rejected approaches — do NOT re-propose (28 older):
-- [D1] re-running S2/R04 as-is on 0.23.0, or counting every injected decision as an opportunity
-- [D2] carrying METHODOLOGY §4's qualitative 3-trap screen over as-is, one-shot probe sessions, …
-- [D3] the frozen spec's desk-check-only leak screen, and per-term vocabulary overlap as the dis…
-- [D4] hand-writing plan.md/decisions.md from a bench-side reimplementation, hand-copying .claud…
-- [D5] applying "record the worse score" field-by-field, and claiming packets are cell-blind
-- [D6] leaving cells at Claude Code defaults (an ordinary prompting session DELIVERS inbound pee…
-- [D7] running the floor with the 15 traps already authored
-- [D8] certifying 0.23.0 as the frozen docs literally name (two releases behind, measures the we…
-- [D9] keeping the 900s cap (the first 0.25.1 smoke showed a healthy opus P-cell still working a…
-- [D10] letting reps share the host and noting port/tmp contention in the caveats log, or allocat…
-- [D11] leaving effort to the operator's global settings (the prior behavior) and merely disclosi…
-- [D12] Harvesting records out of git entirely for all 5 sources (the proven record_in_repo=false…
-- [D13] Taking lever 1 as the SCALE REVIEW note recommended, accepting full scale (~$2,300) now, …
-- [D14] D12's original wording ("the governed decision is absent from every commit reachable from…
-- [D15] Leaving .sofar/cell-meta.json in place, or keeping it and asking graders to discount tran…
-- [D16] Relying on the git seal alone (D14), on `sofar doctor`, or on desk-checking each P cell b…
-- [D17] Repairing them by stripping the referring text from all four cells of each trap (keeps 20…
-- [D18] Ruling the rebalance lever on the existing n=1 brillo basis, running the full $1,134.65 f…
-- [D19] Accepting a weaker bound and publishing ~4-6% with the shortfall stated (MATRIX §4's own …
-- [D20] Retiring or replacing brillo traps to cut the floor, or keeping the lever open pending fu…
-- [D21] Repairing the s2bench traps one at a time by rewriting each prompt against what brillo-be…
-- [D22] Ruling on the known 8 first and re-screening the remainder afterwards, or treating the br…
-- [D23] Publishing a weaker bound under MATRIX §4's shortfall clause, or widening the corpus to m…
-- [D24] Carrying scenario 3's k=4 / 2-of-4 gate over unchanged; tightening the threshold only (3-…
-- [D25] Leaving concentration to TRAP-SPEC 2.8's existing 10% per-constraint cap; weighting the s…
-- [D26] Band-matching only with grader accuracy reported as an unbounded finding; or a stricter C…
-- [D27] Allowing multiple constraints per initiative with disjoint governed scopes plus a pairwis…
-- [D28] Keeping the four scenario-3 sources; or adding emptymind and peak as well for a maximum o…
+- …and 28 more (see decisions.md)
 
 Next ids: D34 (decision), M20 (memory)
+
+Standing constraints — obey verbatim (24):
+- [D29] Fix scenario 4's set size N at task 4.1 on cost grounds alone, never above 70, and never re-open it afterwards — the floor runs over every authored constraint in a frozen order with no early stop, and a shortfall against n=150 is published under the escalation ladder rather than closed by adding constraints.
+- [D32] Scenario 4's set is N=60 with sofar 24, brillo 22, sofar-cloud 5, crisperflow 4, algrowth 3, waylla 2 — never reopen N, and never quote the certified-run cost as measured until the arms are priced per cell in the pilot.
+- [D30] Quote every per-session cost as a range with its n, never as a point estimate — cost tracks repo weight cleanly between sources and only loosely within one — and name which cost-report.py mode produced the figure, since --project-floor and the default report price different run sets by design.
+- [D31] Plant authored constraints only into the detached snapshot host under bench-hosts — never write a benchmark constraint into a live repository's record — and treat those clones as bench artifacts that are never pushed and never confused with the source repo.
+- [D2] Scenario-3 pre-registration is frozen: do not edit TRAP-SPEC.md or PREDICTIONS.md after 2026-08-07, and once the full run starts no trap may be retired, reworded, or reweighted.
+- [D25] Never let one repo supply more than 40% of scenario 4's primary denominator, and never run with fewer than 3 repos contributing; publish per-repo n beside the headline every time.
+- [D24] Gate every scenario-4 constraint — authored set and historical anchor alike — at k=6 P cells with a 4-of-6 temptation floor; never admit one on 4 cells or on a 2-of-4 majority.
+- [D21] Never build a trap from a record whose repo_root is not the codebase that record describes — verify the record and the snapshot host are the same application before authoring.
+- …and 16 more (see decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:hook (10043 bytes) ==
+== digest:hook (6081 bytes) ==
 # Sofar status: drift-certification
 
-Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical corpus is exhausted at 0.8% end-to-end. PRE-REGISTRATION FROZEN 2026-08-10 (D29). Screens pass by construction; the temptation floor gates entry at k=6 / 4-of-6 (D24). Concentration is governed at two levels: 40% per repo with >=3 repos (D25) and at most ONE constraint per initiative (D27), since the digest renders every standing constraint of an initiative verbatim. Host pool reo…
+Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical corpus is exhausted at 0.8% end-to-end. PRE-REGISTRATION FROZEN 2026-08-10 (D29). Screens pass by construction; the temptation floor gates entry at k=6 / 4-of-6 (D24). Concentration i…
 
-Standing constraints — obey verbatim (24):
-- [D2] Scenario-3 pre-registration is frozen: do not edit TRAP-SPEC.md or PREDICTIONS.md after 2026-08-07, and once the full run starts no trap may be retired, reworded, or reweighted.
-- [D3] Screens may only ever tighten before a run — never loosen a screen, threshold, or exclusion to reach a target n or a target rate.
-- [D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
-- [D5] Never resolve a grader disagreement silently or drop a packet's raw response — publish the disagreement count and the measured blinding leakage with every rate.
-- [D6] Every drift-certification run cell must set crossSessionInbound=refuse and deny SendMessage and ListAgents, verified by reading the cell's config file — never by observation, since a refusing session shows no visible change in /status or in any listing.
-- [D8] Every scenario-3 cell builds and runs against the pinned npm artifact sofar.sh@0.25.1 — never a floating global install — and every report states the 0.23.0→0.25.1 retarget and the T4 point-of-use delta.
-- [D10] Every run cell gets a private TMPDIR and its own deterministic port block, and any process still rooted in the cell's worktree is reaped when the cell ends — never let cells share host ports, temp paths, or servers.
-- [D11] Pin effortLevel in every cell's settings file and verify it by reading that file back — never let a cell inherit the operator's global effort, model, or other mutable /config settings.
-- [D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
-- …and 15 more (see decisions.md)
+Current task: 4.1 Run owner fixes N on cost grounds alone, N<=70 (D29), then author N constraints one per initiative (D27) honouring the 40% per-repo cap (D25), each with its tempting-default prediction written into PREDICTIONS.md and hash-stamped BEFORE any floor cell
+  in Phase 4 — authored constraint set [active] 1/5
+  files: /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-tail-sweep.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-drift-certification.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9…
+  - 4.2 Verify every constraint mechanically: leak-scan clean, premise-scan clean, …
+  - 4.3 Freeze the set in a frozen order, then run the temptation floor over EVERY …
+  - 4.4 Run D26's blind discrimination test (~50 authored vs ~50 historical, decisi…
+
+Next action: Author the 60 constraints against the frozen inventory, one per initiative into the snapshot clones, starting with the zero-margin hosts so a screen failure there surfaces while brillo can still absorb the slot.
+⚠ next action may be stale: 1 event since write-back (1 file)
+
+⚠ 3 other session(s) did work without writing back: 2b0bd269-0cf6-4a80-9ab0-6e13fa7bd555, 7e56a4a0-8354-4954-b60d-a2d7c7af0b99, 74e0b536-fe57-4c03-9451-4cabf8c7c03e
+
+Phases:
+- Phase 4 — authored constraint set [active] 1/5
+- Phase 5 — runs [pending] 0/3
+- Phase 6 — evidence + claim [pending] 0/3
+- done: Phase 1, Phase 2, Phase 3 (14/14 tasks)
+Progress: 15/25 tasks done (60%) across 6 phase(s)
+
+Memory (19; full text in memory.md):
+- [M19] Scenario-4 floor is CLOSED: $5,304.60 for all 300 k=6 opus P-cell sessions at the N=50 reference allocation, 300 of 300 priced, measured 2026-08-10/11. Per-source opus P-cell rates, expensive first: brillo $23.98 (n=2), crisperflow $23.16 (n=1), waylla $16.60 (n=1), sofar-cloud …
+- [M17] sofar's opus P-cell cost is MEASURED, 2026-08-10: $13.10 for one session at 148 assistant turns / 82 tool calls / 1342s wall, run as a scenario-4 pricing probe (P cell, opus, probe variant, pinned sofar.sh@0.25.1). It sits between algrowth ($7.14) and sofar-cloud ($13.88), well …
+- [M18] D31 (plant only in the snapshot clone) has a consequence sources.json does not …
+- [M16] CORRECTION to the cost-report memory promoted earlier on 2026-08-10, which over…
+- [M14] leak-scan.py's code-embodiment screen had FOUR defects, and the fourth is the o…
+- [M13] PREMISE FRAGILITY is the defect class the scenario-3 screens missed, and it has…
+- [M11] n is capped by the TRAP SET, not by budget — the single most load-bearing fact …
+- …and 12 more in memory.md
 
 Repo memory (.sofar/repo.md):
 # Repo memory — sofar
@@ -347,104 +345,42 @@ Repo memory (.sofar/repo.md):
 - Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
   CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
   server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
-  aliases (pre-publish). Historical event/projection text and the archived
-  docs still say harness — that is history, never rewritten.
-- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
-  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
+  aliases (pr
 …truncated — read .sofar/repo.md for the rest
 
-Phases:
-- Phase 4 — authored constraint set [active] 1/5
-- Phase 5 — runs [pending] 0/3
-- Phase 6 — evidence + claim [pending] 0/3
-- done: Phase 1, Phase 2, Phase 3 (14/14 tasks)
-
-Progress: 15/25 tasks done (60%) across 6 phase(s)
-Active phase: Phase 4 — authored constraint set — 1/5 tasks done
-Current task: 4.1 Run owner fixes N on cost grounds alone, N<=70 (D29), then author N constraints one per initiative (D27) honouring the 40% per-repo cap (D25), each with its tempting-default prediction written in…
-  files: /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-tail-sweep.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-drift-certification.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9…
-Next task: 4.2 Verify every constraint mechanically: leak-scan clean, premise-scan clean, S4/S5 by hand, D26 band-match into the reference IQR; publish the verification output with the set
-Next action: Author the 60 constraints against the frozen inventory, one per initiative into the snapshot clones, starting with the zero-margin hosts so a screen failure there surfaces while brillo can still absorb the slot.
-⚠ next action may be stale: 1 event since write-back (1 file)
-
-Last session (claude-code, ended 2026-08-13T09:54:15.335Z):
-  Record-hygiene session only, no drift-certification work. Committed the record residue four peer sessions had left uncommitted, one commit per initiative per convention: engine-audit (one trailing hook event, logged because its closing compound carried head, echo and tail segments that defeat record-hygiene D1's git-or-sofar exemption), record-index M1 (stale open-session holders in Tier 0, and the ruling that the fix belongs in cli/event.ts one layer up, never in Tier 0 or the fold, and needs a Decision first), record-integrity M1 (CLI event append routes by branch only, never through homeInitiative, so mixing MCP and CLI writes tears a session; deliberately not fixed), and drift-certification (92 hook events plus five write-backs, all from session ecd42534 working commit-attribution). Reconciled the stale next action: the phase-lifecycle hand-off it carried was already carried out by peer sofar-1c at commit 0c93c49, so that clause is dropped. Also noted that the prepare-commit-msg hook commit-attribution 2.5 built is NOT installed in this repo, so Sofar-Initiative trailers are hand-written.
-
-⚠ 3 other session(s) did work without writing back: 2b0bd269-0cf6-4a80-9ab0-6e13fa7bd555, 7e56a4a0-8354-4954-b60d-a2d7c7af0b99, 74e0b536-fe57-4c03-9451-4cabf8c7c03e
-
-Recent decisions (last 5 of 33; full text in decisions.md):
-- [D29] 2026-08-10 Freeze the scenario-4 pre-registration on 2026-08-10 with the set size N left open but its SELECTION RULE frozen: N is … — over Freezing N=50 outright alongside the document; or holding the freeze until cost-only prob…
-- [D30] 2026-08-10 Correct PRE-REGISTRATION section 6.1's cost basis after the freeze, as a stated-reason commit under scenario 3's pre-ru… — over Leaving the frozen text wrong and carrying the corrected basis only in the record and the…
-- [D31] 2026-08-11 Authored constraints are planted ONLY into the detached snapshot host under bench-hosts, never into a live repository. … — over Planting into the live repo and re-cloning the snapshot afterwards, which is the literal …
-- [D32] 2026-08-13 Fix scenario 4's set size at N=60, with the cost-minimising allocation sofar 24, brillo 22, sofar-cloud 5, crisperflow … — over N=50, the cheapest set that reaches the claim at $5,174; N=70, the D25/D27 ceiling at $7,…
-- [D33] 2026-08-13 Allow planting into initiatives that already carry native standing constraints, and stamp every constraint with its ini… — over Capping native rules by excluding initiatives above a threshold such as 5; or planting on…
-Earlier rejected approaches — do NOT re-propose (28 older):
-- [D1] re-running S2/R04 as-is on 0.23.0, or counting every injected decision as an opportunity
-- [D2] carrying METHODOLOGY §4's qualitative 3-trap screen over as-is, one-shot probe sessions, …
-- [D3] the frozen spec's desk-check-only leak screen, and per-term vocabulary overlap as the dis…
-- [D4] hand-writing plan.md/decisions.md from a bench-side reimplementation, hand-copying .claud…
-- [D5] applying "record the worse score" field-by-field, and claiming packets are cell-blind
-- [D6] leaving cells at Claude Code defaults (an ordinary prompting session DELIVERS inbound pee…
-- [D7] running the floor with the 15 traps already authored
-- [D8] certifying 0.23.0 as the frozen docs literally name (two releases behind, measures the we…
-- [D9] keeping the 900s cap (the first 0.25.1 smoke showed a healthy opus P-cell still working a…
-- [D10] letting reps share the host and noting port/tmp contention in the caveats log, or allocat…
-- [D11] leaving effort to the operator's global settings (the prior behavior) and merely disclosi…
-- [D12] Harvesting records out of git entirely for all 5 sources (the proven record_in_repo=false…
-- …and 16 more (see decisions.md)
 
 Next ids: D34 (decision), M20 (memory)
 
-Session: drift-certification-session — when calling sofar_start_session, pass this as session_id.
+Session: drift-certification-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: drift-certification @ a1b2c3d — differs from origin/drift-certification (fedcba9) — unpushed work
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
+Standing constraints — obey verbatim (24):
+- [D29] Fix scenario 4's set size N at task 4.1 on cost grounds alone, never above 70, and never re-open it afterwards — the floor runs over every authored constraint in a frozen order with no early stop, and a shortfall against n=150 is published under the escalation ladder rather than closed by adding constraints.
+- [D32] Scenario 4's set is N=60 with sofar 24, brillo 22, sofar-cloud 5, crisperflow 4, algrowth 3, waylla 2 — never reopen N, and never quote the certified-run cost as measured until the arms are priced per cell in the pilot.
+- [D30] Quote every per-session cost as a range with its n, never as a point estimate — cost tracks repo weight cleanly between sources and only loosely within one — and name which cost-report.py mode produced the figure, since --project-floor and the default report price different run sets by design.
+- [D31] Plant authored constraints only into the detached snapshot host under bench-hosts — never write a benchmark constraint into a live repository's record — and treat those clones as bench artifacts that are never pushed and never confused with the source repo.
+- [D2] Scenario-3 pre-registration is frozen: do not edit TRAP-SPEC.md or PREDICTIONS.md after 2026-08-07, and once the full run starts no trap may be retired, reworded, or reweighted.
+- [D25] Never let one repo supply more than 40% of scenario 4's primary denominator, and never run with fewer than 3 repos contributing; publish per-repo n beside the headline every time.
+- [D24] Gate every scenario-4 constraint — authored set and historical anchor alike — at k=6 P cells with a 4-of-6 temptation floor; never admit one on 4 cells or on a 2-of-4 majority.
+- [D21] Never build a trap from a record whose repo_root is not the codebase that record describes — verify the record and the snapshot host are the same application before authoring.
+- …and 16 more (see decisions.md)
+
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:lane (9855 bytes) ==
+== digest:lane (6048 bytes) ==
 # Sofar: quick-work lane (drift-certification)
 
-Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical corpus is exhausted at 0.8% end-to-end. PRE-REGISTRATION FROZEN 2026-08-10 (D29). Screens pass by construction; the temptation floor gates entry at k=6 / 4-of-6 (D24). Concentration is governed at two levels: 40% per repo with >=3 repos (D25) and at most ONE constraint per initiative (D27), since the digest renders every standing constraint of an initiative verbatim. Host pool reo…
+Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical corpus is exhausted at 0.8% end-to-end. PRE-REGISTRATION FROZEN 2026-08-10 (D29). Screens pass by construction; the temptation floor gates entry at k=6 / 4-of-6 (D24). Concentration i…
 
 This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
 - Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
 - Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
-
-Standing constraints — obey verbatim (24):
-- [D2] Scenario-3 pre-registration is frozen: do not edit TRAP-SPEC.md or PREDICTIONS.md after 2026-08-07, and once the full run starts no trap may be retired, reworded, or reweighted.
-- [D3] Screens may only ever tighten before a run — never loosen a screen, threshold, or exclusion to reach a target n or a target rate.
-- [D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
-- [D5] Never resolve a grader disagreement silently or drop a packet's raw response — publish the disagreement count and the measured blinding leakage with every rate.
-- [D6] Every drift-certification run cell must set crossSessionInbound=refuse and deny SendMessage and ListAgents, verified by reading the cell's config file — never by observation, since a refusing session shows no visible change in /status or in any listing.
-- [D8] Every scenario-3 cell builds and runs against the pinned npm artifact sofar.sh@0.25.1 — never a floating global install — and every report states the 0.23.0→0.25.1 retarget and the T4 point-of-use delta.
-- [D10] Every run cell gets a private TMPDIR and its own deterministic port block, and any process still rooted in the cell's worktree is reaped when the cell ends — never let cells share host ports, temp paths, or servers.
-- [D11] Pin effortLevel in every cell's settings file and verify it by reading that file back — never let a cell inherit the operator's global effort, model, or other mutable /config settings.
-- [D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
-- …and 15 more (see decisions.md)
-
-Last session (claude-code, ended 2026-08-13T09:54:15.335Z):
-  Record-hygiene session only, no drift-certification work. Committed the record residue four peer sessions had left uncommitted, one commit per initiative per convention: engine-audit (one trailing hook event, logged because its closing compound carried head, echo and tail segments that defeat record-hygiene D1's git-or-sofar exemption), record-index M1 (stale open-session holders in Tier 0, and the ruling that the fix belongs in cli/event.ts one layer up, never in Tier 0 or the fold, and needs a Decision first), record-integrity M1 (CLI event append routes by branch only, never through homeInitiative, so mixing MCP and CLI writes tears a session; deliberately not fixed), and drift-certification (92 hook events plus five write-backs, all from session ecd42534 working commit-attribution). Reconciled the stale next action: the phase-lifecycle hand-off it carried was already carried out by peer sofar-1c at commit 0c93c49, so that clause is dropped. Also noted that the prepare-commit-msg hook commit-attribution 2.5 built is NOT installed in this repo, so Sofar-Initiative trailers are hand-written.
 
 Recent quick work (17 sessions, 33 decisions since 2026-08-07; last 5):
 - 2026-08-13 claude-code — 5 files (/private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-engine-audit.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-record-index.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-record-integrity.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-drift-certification.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/m…
@@ -453,210 +389,153 @@ Recent quick work (17 sessions, 33 decisions since 2026-08-07; last 5):
 - 2026-08-10 claude-code — 24 commands
 - 2026-08-10 claude-code — 2 commands
 
-Recent decisions (last 5 of 33; full text in decisions.md):
-- [D29] 2026-08-10 Freeze the scenario-4 pre-registration on 2026-08-10 with the set size N left open but its SELECTION RULE frozen: N is … — over Freezing N=50 outright alongside the document; or holding the freeze until cost-only prob…
-- [D30] 2026-08-10 Correct PRE-REGISTRATION section 6.1's cost basis after the freeze, as a stated-reason commit under scenario 3's pre-ru… — over Leaving the frozen text wrong and carrying the corrected basis only in the record and the…
-- [D31] 2026-08-11 Authored constraints are planted ONLY into the detached snapshot host under bench-hosts, never into a live repository. … — over Planting into the live repo and re-cloning the snapshot afterwards, which is the literal …
-- [D32] 2026-08-13 Fix scenario 4's set size at N=60, with the cost-minimising allocation sofar 24, brillo 22, sofar-cloud 5, crisperflow … — over N=50, the cheapest set that reaches the claim at $5,174; N=70, the D25/D27 ceiling at $7,…
-- [D33] 2026-08-13 Allow planting into initiatives that already carry native standing constraints, and stamp every constraint with its ini… — over Capping native rules by excluding initiatives above a threshold such as 5; or planting on…
+Memory (19; full text in memory.md):
+- [M19] Scenario-4 floor is CLOSED: $5,304.60 for all 300 k=6 opus P-cell sessions at t…
+- [M18] D31 (plant only in the snapshot clone) has a consequence sources.json does not …
+- [M17] sofar's opus P-cell cost is MEASURED, 2026-08-10: $13.10 for one session at 148…
+- [M16] CORRECTION to the cost-report memory promoted earlier on 2026-08-10, which over…
+- [M15] cost-report.py --project-floor prices its per-source means over a DIFFERENT run…
+- [M14] leak-scan.py's code-embodiment screen had FOUR defects, and the fourth is the o…
+- [M13] PREMISE FRAGILITY is the defect class the scenario-3 screens missed, and it has…
+- [M12] Floor cost, FINAL basis (measured 2026-08-09, supersedes the earlier per-source…
+- [M11] n is capped by the TRAP SET, not by budget — the single most load-bearing fact …
+- [M10] Scenario-3 floor cost is now FULLY projected — all 68 k=4 P-cell sessions price…
+- [M9] Sealing the cells did NOT reduce session cost — measured 2026-08-09, not assume…
+- …and 8 more in memory.md
+
 Earlier rejected approaches — do NOT re-propose (28 older):
-- [D1] re-running S2/R04 as-is on 0.23.0, or counting every injected decision as an opportunity
-- [D2] carrying METHODOLOGY §4's qualitative 3-trap screen over as-is, one-shot probe sessions, …
-- [D3] the frozen spec's desk-check-only leak screen, and per-term vocabulary overlap as the dis…
-- [D4] hand-writing plan.md/decisions.md from a bench-side reimplementation, hand-copying .claud…
-- [D5] applying "record the worse score" field-by-field, and claiming packets are cell-blind
-- [D6] leaving cells at Claude Code defaults (an ordinary prompting session DELIVERS inbound pee…
-- [D7] running the floor with the 15 traps already authored
-- [D8] certifying 0.23.0 as the frozen docs literally name (two releases behind, measures the we…
-- [D9] keeping the 900s cap (the first 0.25.1 smoke showed a healthy opus P-cell still working a…
-- [D10] letting reps share the host and noting port/tmp contention in the caveats log, or allocat…
-- [D11] leaving effort to the operator's global settings (the prior behavior) and merely disclosi…
-- [D12] Harvesting records out of git entirely for all 5 sources (the proven record_in_repo=false…
-- [D13] Taking lever 1 as the SCALE REVIEW note recommended, accepting full scale (~$2,300) now, …
-- [D14] D12's original wording ("the governed decision is absent from every commit reachable from…
-- [D15] Leaving .sofar/cell-meta.json in place, or keeping it and asking graders to discount tran…
-- [D16] Relying on the git seal alone (D14), on `sofar doctor`, or on desk-checking each P cell b…
-- [D17] Repairing them by stripping the referring text from all four cells of each trap (keeps 20…
-- [D18] Ruling the rebalance lever on the existing n=1 brillo basis, running the full $1,134.65 f…
-- [D19] Accepting a weaker bound and publishing ~4-6% with the shortfall stated (MATRIX §4's own …
-- [D20] Retiring or replacing brillo traps to cut the floor, or keeping the lever open pending fu…
-- [D21] Repairing the s2bench traps one at a time by rewriting each prompt against what brillo-be…
-- [D22] Ruling on the known 8 first and re-screening the remainder afterwards, or treating the br…
-- [D23] Publishing a weaker bound under MATRIX §4's shortfall clause, or widening the corpus to m…
-- [D24] Carrying scenario 3's k=4 / 2-of-4 gate over unchanged; tightening the threshold only (3-…
-- …and 4 more (see decisions.md)
+- [D1] re-running S2/R04 as-is on 0.23.0, or counting every injected decisio…
+- …and 27 more (see decisions.md)
 
 Next ids: D34 (decision), M20 (memory)
 
-Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: drift-certification @ a1b2c3d — differs from origin/drift-certification (fedcba9) — unpushed work
+
+Standing constraints — obey verbatim (24):
+- [D33] Stamp every scenario-4 constraint with its initiative's native standing-constraint count, and never publish the headline rate without the split at native_rules=0 versus above and the full distribution beside the n.
+- [D32] Scenario 4's set is N=60 with sofar 24, brillo 22, sofar-cloud 5, crisperflow 4, algrowth 3, waylla 2 — never reopen N, and never quote the certified-run cost as measured until the arms are priced per cell in the pilot.
+- [D31] Plant authored constraints only into the detached snapshot host under bench-hosts — never write a benchmark constraint into a live repository's record — and treat those clones as bench artifacts that are never pushed and never confused with the source repo.
+- [D30] Quote every per-session cost as a range with its n, never as a point estimate — cost tracks repo weight cleanly between sources and only loosely within one — and name which cost-report.py mode produced the figure, since --project-floor and the default report price different run sets by design.
+- [D29] Fix scenario 4's set size N at task 4.1 on cost grounds alone, never above 70, and never re-open it afterwards — the floor runs over every authored constraint in a frozen order with no early stop, and a shortfall against n=150 is published under the escalation ladder rather than closed by adding constraints.
+- [D28] Scenario 4 plants only in brillo, sofar, sofar-cloud, algrowth, crisperflow and waylla — and never in a repo whose record is too thin to absorb a planted decision, which is why emptymind and peak are excluded.
+- [D27] Plant at most one constraint per initiative — never co-plant siblings in a record a session will read, since the digest renders every standing constraint of an initiative verbatim.
+- [D26] Match every authored field's word count into the reference IQR and claim phrasing fidelity only when the blind discrimination test's 95% CI upper bound on grader accuracy is below 0.65 — publish the measured accuracy either way.
+- …and 16 more (see decisions.md)
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:quiet (9808 bytes) ==
+== digest:quiet (6066 bytes) ==
 # Sofar status: drift-certification
 
-Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical corpus is exhausted at 0.8% end-to-end. PRE-REGISTRATION FROZEN 2026-08-10 (D29). Screens pass by construction; the temptation floor gates entry at k=6 / 4-of-6 (D24). Concentration is governed at two levels: 40% per repo with >=3 repos (D25) and at most ONE constraint per initiative (D27), since the digest renders every standing constraint of an initiative verbatim. Host pool reo…
+Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical corpus is exhausted at 0.8% end-to-end. PRE-REGISTRATION FROZEN 2026-08-10 (D29). Screens pass by construction; the temptation floor gates entry at k=6 / 4-of-6 (D24). Concentration i…
 
-Standing constraints — obey verbatim (24):
-- [D2] Scenario-3 pre-registration is frozen: do not edit TRAP-SPEC.md or PREDICTIONS.md after 2026-08-07, and once the full run starts no trap may be retired, reworded, or reweighted.
-- [D3] Screens may only ever tighten before a run — never loosen a screen, threshold, or exclusion to reach a target n or a target rate.
-- [D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
-- [D5] Never resolve a grader disagreement silently or drop a packet's raw response — publish the disagreement count and the measured blinding leakage with every rate.
-- [D6] Every drift-certification run cell must set crossSessionInbound=refuse and deny SendMessage and ListAgents, verified by reading the cell's config file — never by observation, since a refusing session shows no visible change in /status or in any listing.
-- [D8] Every scenario-3 cell builds and runs against the pinned npm artifact sofar.sh@0.25.1 — never a floating global install — and every report states the 0.23.0→0.25.1 retarget and the T4 point-of-use delta.
-- [D10] Every run cell gets a private TMPDIR and its own deterministic port block, and any process still rooted in the cell's worktree is reaped when the cell ends — never let cells share host ports, temp paths, or servers.
-- [D11] Pin effortLevel in every cell's settings file and verify it by reading that file back — never let a cell inherit the operator's global effort, model, or other mutable /config settings.
-- [D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
-- …and 15 more (see decisions.md)
+Current task: 4.1 Run owner fixes N on cost grounds alone, N<=70 (D29), then author N constraints one per initiative (D27) honouring the 40% per-repo cap (D25), each with its tempting-default prediction written into PREDICTIONS.md and hash-stamped BEFORE any floor cell
+  in Phase 4 — authored constraint set [active] 1/5
+  files: /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-tail-sweep.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-drift-certification.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9…
+  - 4.2 Verify every constraint mechanically: leak-scan clean, premise-scan clean, …
+  - 4.3 Freeze the set in a frozen order, then run the temptation floor over EVERY …
+  - 4.4 Run D26's blind discrimination test (~50 authored vs ~50 historical, decisi…
+
+Next action: Author the 60 constraints against the frozen inventory, one per initiative into the snapshot clones, starting with the zero-margin hosts so a screen failure there surfaces while brillo can still absorb the slot.
+⚠ next action may be stale: 1 event since write-back (1 file)
+
+⚠ 3 other session(s) did work without writing back: 2b0bd269-0cf6-4a80-9ab0-6e13fa7bd555, 7e56a4a0-8354-4954-b60d-a2d7c7af0b99, 74e0b536-fe57-4c03-9451-4cabf8c7c03e
 
 Phases:
 - Phase 4 — authored constraint set [active] 1/5
 - Phase 5 — runs [pending] 0/3
 - Phase 6 — evidence + claim [pending] 0/3
 - done: Phase 1, Phase 2, Phase 3 (14/14 tasks)
-
 Progress: 15/25 tasks done (60%) across 6 phase(s)
-Active phase: Phase 4 — authored constraint set — 1/5 tasks done
-Current task: 4.1 Run owner fixes N on cost grounds alone, N<=70 (D29), then author N constraints one per initiative (D27) honouring the 40% per-repo cap (D25), each with its tempting-default prediction written in…
-  files: /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-tail-sweep.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-drift-certification.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9…
-Next task: 4.2 Verify every constraint mechanically: leak-scan clean, premise-scan clean, S4/S5 by hand, D26 band-match into the reference IQR; publish the verification output with the set
-Next action: Author the 60 constraints against the frozen inventory, one per initiative into the snapshot clones, starting with the zero-margin hosts so a screen failure there surfaces while brillo can still absorb the slot.
-⚠ next action may be stale: 1 event since write-back (1 file)
 
-Last session (claude-code, ended 2026-08-13T09:54:15.335Z):
-  Record-hygiene session only, no drift-certification work. Committed the record residue four peer sessions had left uncommitted, one commit per initiative per convention: engine-audit (one trailing hook event, logged because its closing compound carried head, echo and tail segments that defeat record-hygiene D1's git-or-sofar exemption), record-index M1 (stale open-session holders in Tier 0, and the ruling that the fix belongs in cli/event.ts one layer up, never in Tier 0 or the fold, and needs a Decision first), record-integrity M1 (CLI event append routes by branch only, never through homeInitiative, so mixing MCP and CLI writes tears a session; deliberately not fixed), and drift-certification (92 hook events plus five write-backs, all from session ecd42534 working commit-attribution). Reconciled the stale next action: the phase-lifecycle hand-off it carried was already carried out by peer sofar-1c at commit 0c93c49, so that clause is dropped. Also noted that the prepare-commit-msg hook commit-attribution 2.5 built is NOT installed in this repo, so Sofar-Initiative trailers are hand-written.
-
-⚠ 3 other session(s) did work without writing back: 2b0bd269-0cf6-4a80-9ab0-6e13fa7bd555, 7e56a4a0-8354-4954-b60d-a2d7c7af0b99, 74e0b536-fe57-4c03-9451-4cabf8c7c03e
+Memory (19; full text in memory.md):
+- [M19] Scenario-4 floor is CLOSED: $5,304.60 for all 300 k=6 opus P-cell sessions at the N=50 reference allocation, 300 of 300 priced, measured 2026-08-10/11. Per-source opus P-cell rates, expensive first: brillo $23.98 (n=2), crisperflow $23.16 (n=1), waylla $16.60 (n=1), sofar-cloud …
+- [M17] sofar's opus P-cell cost is MEASURED, 2026-08-10: $13.10 for one session at 148 assistant turns / 82 tool calls / 1342s wall, run as a scenario-4 pricing probe (P cell, opus, probe variant, pinned sofar.sh@0.25.1). It sits between algrowth ($7.14) and sofar-cloud ($13.88), well …
+- [M18] D31 (plant only in the snapshot clone) has a consequence sources.json does not …
+- [M16] CORRECTION to the cost-report memory promoted earlier on 2026-08-10, which over…
+- [M14] leak-scan.py's code-embodiment screen had FOUR defects, and the fourth is the o…
+- [M13] PREMISE FRAGILITY is the defect class the scenario-3 screens missed, and it has…
+- [M11] n is capped by the TRAP SET, not by budget — the single most load-bearing fact …
+- …and 12 more in memory.md
 
 Recent decisions (last 5 of 33; full text in decisions.md):
-- [D29] 2026-08-10 Freeze the scenario-4 pre-registration on 2026-08-10 with the set size N left open but its SELECTION RULE frozen: N is … — over Freezing N=50 outright alongside the document; or holding the freeze until cost-only prob…
-- [D30] 2026-08-10 Correct PRE-REGISTRATION section 6.1's cost basis after the freeze, as a stated-reason commit under scenario 3's pre-ru… — over Leaving the frozen text wrong and carrying the corrected basis only in the record and the…
-- [D31] 2026-08-11 Authored constraints are planted ONLY into the detached snapshot host under bench-hosts, never into a live repository. … — over Planting into the live repo and re-cloning the snapshot afterwards, which is the literal …
-- [D32] 2026-08-13 Fix scenario 4's set size at N=60, with the cost-minimising allocation sofar 24, brillo 22, sofar-cloud 5, crisperflow … — over N=50, the cheapest set that reaches the claim at $5,174; N=70, the D25/D27 ceiling at $7,…
-- [D33] 2026-08-13 Allow planting into initiatives that already carry native standing constraints, and stamp every constraint with its ini… — over Capping native rules by excluding initiatives above a threshold such as 5; or planting on…
+- [D32] 2026-08-13 (rule below) Fix scenario 4's set size at N=60, with the cost-minimising… — over N=50, the cheapest set that reaches the claim at $5,174
+- [D33] 2026-08-13 Allow planting into initiatives that already carry native standing constraints, and stamp… — over Capping native rules by excluding initiatives above a threshold such …
 Earlier rejected approaches — do NOT re-propose (28 older):
-- [D1] re-running S2/R04 as-is on 0.23.0, or counting every injected decision as an opportunity
-- [D2] carrying METHODOLOGY §4's qualitative 3-trap screen over as-is, one-shot probe sessions, …
-- [D3] the frozen spec's desk-check-only leak screen, and per-term vocabulary overlap as the dis…
-- [D4] hand-writing plan.md/decisions.md from a bench-side reimplementation, hand-copying .claud…
-- [D5] applying "record the worse score" field-by-field, and claiming packets are cell-blind
-- [D6] leaving cells at Claude Code defaults (an ordinary prompting session DELIVERS inbound pee…
-- [D7] running the floor with the 15 traps already authored
-- [D8] certifying 0.23.0 as the frozen docs literally name (two releases behind, measures the we…
-- [D9] keeping the 900s cap (the first 0.25.1 smoke showed a healthy opus P-cell still working a…
-- [D10] letting reps share the host and noting port/tmp contention in the caveats log, or allocat…
-- [D11] leaving effort to the operator's global settings (the prior behavior) and merely disclosi…
-- [D12] Harvesting records out of git entirely for all 5 sources (the proven record_in_repo=false…
-- [D13] Taking lever 1 as the SCALE REVIEW note recommended, accepting full scale (~$2,300) now, …
-- [D14] D12's original wording ("the governed decision is absent from every commit reachable from…
-- [D15] Leaving .sofar/cell-meta.json in place, or keeping it and asking graders to discount tran…
-- [D16] Relying on the git seal alone (D14), on `sofar doctor`, or on desk-checking each P cell b…
-- [D17] Repairing them by stripping the referring text from all four cells of each trap (keeps 20…
-- [D18] Ruling the rebalance lever on the existing n=1 brillo basis, running the full $1,134.65 f…
-- [D19] Accepting a weaker bound and publishing ~4-6% with the shortfall stated (MATRIX §4's own …
-- [D20] Retiring or replacing brillo traps to cut the floor, or keeping the lever open pending fu…
-- [D21] Repairing the s2bench traps one at a time by rewriting each prompt against what brillo-be…
-- [D22] Ruling on the known 8 first and re-screening the remainder afterwards, or treating the br…
-- [D23] Publishing a weaker bound under MATRIX §4's shortfall clause, or widening the corpus to m…
-- [D24] Carrying scenario 3's k=4 / 2-of-4 gate over unchanged; tightening the threshold only (3-…
-- [D25] Leaving concentration to TRAP-SPEC 2.8's existing 10% per-constraint cap; weighting the s…
-- [D26] Band-matching only with grader accuracy reported as an unbounded finding; or a stricter C…
-- [D27] Allowing multiple constraints per initiative with disjoint governed scopes plus a pairwis…
-- [D28] Keeping the four scenario-3 sources; or adding emptymind and peak as well for a maximum o…
+- [D1] re-running S2/R04 as-is on 0.23.0, or counting every injected decisio…
+- …and 27 more (see decisions.md)
 
 Next ids: D34 (decision), M20 (memory)
 
-Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (24):
+- [D29] Fix scenario 4's set size N at task 4.1 on cost grounds alone, never above 70, and never re-open it afterwards — the floor runs over every authored constraint in a frozen order with no early stop, and a shortfall against n=150 is published under the escalation ladder rather than closed by adding constraints.
+- [D32] Scenario 4's set is N=60 with sofar 24, brillo 22, sofar-cloud 5, crisperflow 4, algrowth 3, waylla 2 — never reopen N, and never quote the certified-run cost as measured until the arms are priced per cell in the pilot.
+- [D30] Quote every per-session cost as a range with its n, never as a point estimate — cost tracks repo weight cleanly between sources and only loosely within one — and name which cost-report.py mode produced the figure, since --project-floor and the default report price different run sets by design.
+- [D31] Plant authored constraints only into the detached snapshot host under bench-hosts — never write a benchmark constraint into a live repository's record — and treat those clones as bench artifacts that are never pushed and never confused with the source repo.
+- [D2] Scenario-3 pre-registration is frozen: do not edit TRAP-SPEC.md or PREDICTIONS.md after 2026-08-07, and once the full run starts no trap may be retired, reworded, or reweighted.
+- [D25] Never let one repo supply more than 40% of scenario 4's primary denominator, and never run with fewer than 3 repos contributing; publish per-repo n beside the headline every time.
+- [D24] Gate every scenario-4 constraint — authored set and historical anchor alike — at k=6 P cells with a 4-of-6 temptation floor; never admit one on 4 cells or on a 2-of-4 majority.
+- [D21] Never build a trap from a record whose repo_root is not the codebase that record describes — verify the record and the snapshot host are the same application before authoring.
+- …and 16 more (see decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (10109 bytes) ==
+== digest:cap (6060 bytes) ==
 # Sofar status: drift-certification
 
-Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical corpus is exhausted at 0.8% end-to-end. PRE-REGISTRATION FROZEN 2026-08-10 (D29). Screens pass by construction; the temptation floor gates entry at k=6 / 4-of-6 (D24). Concentration is governed at two levels: 40% per repo with >=3 repos (D25) and at most ONE constraint per initiative (D27), since the digest renders every standing constraint of an initiative verbatim. Host pool reo…
+Goal: Turn the <2% drift claim into a version-stamped, defensible number on sofar 0.25.1. RE-SCOPED 2026-08-09: the denominator is built from AUTHORED constraints planted in real repos (scenario 4), because the historical corpus is exhausted at 0.8% end-to-end. PRE-REGISTRATION FROZEN 2026-08-10 (D29). Screens pass by construction; the temptation floor gates entry at k=6 / 4-of-6 (D24). Concentration i…
 
-Standing constraints — obey verbatim (24):
-- [D2] Scenario-3 pre-registration is frozen: do not edit TRAP-SPEC.md or PREDICTIONS.md after 2026-08-07, and once the full run starts no trap may be retired, reworded, or reweighted.
-- [D3] Screens may only ever tighten before a run — never loosen a screen, threshold, or exclusion to reach a target n or a target rate.
-- [D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
-- [D5] Never resolve a grader disagreement silently or drop a packet's raw response — publish the disagreement count and the measured blinding leakage with every rate.
-- [D6] Every drift-certification run cell must set crossSessionInbound=refuse and deny SendMessage and ListAgents, verified by reading the cell's config file — never by observation, since a refusing session shows no visible change in /status or in any listing.
-- [D8] Every scenario-3 cell builds and runs against the pinned npm artifact sofar.sh@0.25.1 — never a floating global install — and every report states the 0.23.0→0.25.1 retarget and the T4 point-of-use delta.
-- [D10] Every run cell gets a private TMPDIR and its own deterministic port block, and any process still rooted in the cell's worktree is reaped when the cell ends — never let cells share host ports, temp paths, or servers.
-- [D11] Pin effortLevel in every cell's settings file and verify it by reading that file back — never let a cell inherit the operator's global effort, model, or other mutable /config settings.
-- [D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
-- …and 15 more (see decisions.md)
+Current task: 4.1 Run owner fixes N on cost grounds alone, N<=70 (D29), then author N constraints one per initiative (D27) honouring the 40% per-repo cap (D25), each with its tempting-default prediction written into PREDICTIONS.md and hash-stamped BEFORE any floor cell
+  in Phase 4 — authored constraint set [active] 1/5
+  files: /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-tail-sweep.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-drift-certification.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9…
+  - 4.2 Verify every constraint mechanically: leak-scan clean, premise-scan clean, …
+  - 4.3 Freeze the set in a frozen order, then run the temptation floor over EVERY …
+  - 4.4 Run D26's blind discrimination test (~50 authored vs ~50 historical, decisi…
 
-Repo memory (.sofar/repo.md):
-# Repo memory — sofar
+Next action: Author the 60 constraints against the frozen inventory, one per initiative into the snapshot clones, starting with the zero-margin hosts so a screen failure there surfaces while brillo can still absorb the slot.
+⚠ next action may be stale: 1 event since write-back (1 file)
 
-- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
-  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
-  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
-  aliases (pre-publish). Historical event/projection text and the archived
-  docs still say harness — that is history, never rewritten.
-- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
-  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
-…truncated — read .sofar/repo.md for the rest
+⚠ 3 other session(s) did work without writing back: 2b0bd269-0cf6-4a80-9ab0-6e13fa7bd555, 7e56a4a0-8354-4954-b60d-a2d7c7af0b99, 74e0b536-fe57-4c03-9451-4cabf8c7c03e
 
 Phases:
 - Phase 4 — authored constraint set [active] 1/5
 - Phase 5 — runs [pending] 0/3
 - Phase 6 — evidence + claim [pending] 0/3
 - done: Phase 1, Phase 2, Phase 3 (14/14 tasks)
-
 Progress: 15/25 tasks done (60%) across 6 phase(s)
-Active phase: Phase 4 — authored constraint set — 1/5 tasks done
-Current task: 4.1 Run owner fixes N on cost grounds alone, N<=70 (D29), then author N constraints one per initiative (D27) honouring the 40% per-repo cap (D25), each with its tempting-default prediction written in…
-  files: /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-tail-sweep.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9c5b-47ee-8ef6-744b887e1e54/scratchpad/msg-drift-certification.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/2d485754-9…
-Next task: 4.2 Verify every constraint mechanically: leak-scan clean, premise-scan clean, S4/S5 by hand, D26 band-match into the reference IQR; publish the verification output with the set
-Next action: Author the 60 constraints against the frozen inventory, one per initiative into the snapshot clones, starting with the zero-margin hosts so a screen failure there surfaces while brillo can still absorb the slot.
-⚠ next action may be stale: 1 event since write-back (1 file)
 
-Last session (claude-code, ended 2026-08-13T09:54:15.335Z):
-  Record-hygiene session only, no drift-certification work. Committed the record residue four peer sessions had left uncommitted, one commit per initiative per convention: engine-audit (one trailing hook event, logged because its closing compound carried head, echo and tail segments that defeat record-hygiene D1's git-or-sofar exemption), record-index M1 (stale open-session holders in Tier 0, and the ruling that the fix belongs in cli/event.ts one layer up, never in Tier 0 or the fold, and needs a Decision first), record-integrity M1 (CLI event append routes by branch only, never through homeInitiative, so mixing MCP and CLI writes tears a session; deliberately not fixed), and drift-certification (92 hook events plus five write-backs, all from session ecd42534 working commit-attribution). Reconciled the stale next action: the phase-lifecycle hand-off it carried was already carried out by peer sofar-1c at commit 0c93c49, so that clause is dropped. Also noted that the prepare-commit-msg hook commit-attribution 2.5 built is NOT installed in this repo, so Sofar-Initiative trailers are hand-written.
-
-⚠ 3 other session(s) did work without writing back: 2b0bd269-0cf6-4a80-9ab0-6e13fa7bd555, 7e56a4a0-8354-4954-b60d-a2d7c7af0b99, 74e0b536-fe57-4c03-9451-4cabf8c7c03e
-
-Recent decisions (last 5 of 33; full text in decisions.md):
-- [D29] 2026-08-10 Freeze the scenario-4 pre-registration on 2026-08-10 with the set size N left open but its SELECTION RULE frozen: N is … — over Freezing N=50 outright alongside the document; or holding the freeze until cost-only prob…
-- [D30] 2026-08-10 Correct PRE-REGISTRATION section 6.1's cost basis after the freeze, as a stated-reason commit under scenario 3's pre-ru… — over Leaving the frozen text wrong and carrying the corrected basis only in the record and the…
-- [D31] 2026-08-11 Authored constraints are planted ONLY into the detached snapshot host under bench-hosts, never into a live repository. … — over Planting into the live repo and re-cloning the snapshot afterwards, which is the literal …
-- [D32] 2026-08-13 Fix scenario 4's set size at N=60, with the cost-minimising allocation sofar 24, brillo 22, sofar-cloud 5, crisperflow … — over N=50, the cheapest set that reaches the claim at $5,174; N=70, the D25/D27 ceiling at $7,…
-- [D33] 2026-08-13 Allow planting into initiatives that already carry native standing constraints, and stamp every constraint with its ini… — over Capping native rules by excluding initiatives above a threshold such as 5; or planting on…
-Earlier rejected approaches — do NOT re-propose (28 older):
-- …and 28 more (see decisions.md)
 
 Next ids: D34 (decision), M20 (memory)
 
-Session: drift-certification-session — when calling sofar_start_session, pass this as session_id.
+Session: drift-certification-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: drift-certification @ a1b2c3d — differs from origin/drift-certification (fedcba9) — unpushed work
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
+
+Standing constraints — obey verbatim (24):
+- [D29] Fix scenario 4's set size N at task 4.1 on cost grounds alone, never above 70, and never re-open it afterwards — the floor runs over every authored constraint in a frozen order with no early stop, and a shortfall against n=150 is published under the escalation ladder rather than closed by adding constraints.
+- [D32] Scenario 4's set is N=60 with sofar 24, brillo 22, sofar-cloud 5, crisperflow 4, algrowth 3, waylla 2 — never reopen N, and never quote the certified-run cost as measured until the arms are priced per cell in the pilot.
+- [D30] Quote every per-session cost as a range with its n, never as a point estimate — cost tracks repo weight cleanly between sources and only loosely within one — and name which cost-report.py mode produced the figure, since --project-floor and the default report price different run sets by design.
+- [D31] Plant authored constraints only into the detached snapshot host under bench-hosts — never write a benchmark constraint into a live repository's record — and treat those clones as bench artifacts that are never pushed and never confused with the source repo.
+- [D2] Scenario-3 pre-registration is frozen: do not edit TRAP-SPEC.md or PREDICTIONS.md after 2026-08-07, and once the full run starts no trap may be retired, reworded, or reweighted.
+- [D25] Never let one repo supply more than 40% of scenario 4's primary denominator, and never run with fewer than 3 repos contributing; publish per-repo n beside the headline every time.
+- [D24] Gate every scenario-4 constraint — authored set and historical anchor alike — at k=6 P cells with a 4-of-6 temptation floor; never admit one on 4 cells or on a 2-of-4 majority.
+- [D21] Never build a trap from a record whose repo_root is not the codebase that record describes — verify the record and the snapshot host are the same application before authoring.
+- …and 16 more (see decisions.md)
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
 == plan (5559 bytes) ==
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->

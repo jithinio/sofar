@@ -4,7 +4,7 @@
 argv: ["event","append","--type","note_added","--payload","{\"text\":\"conformance note\"}"]
 exit: 0
 --- stdout
-{"ok":true,"event_id":"<ULID>"}
+{"ok":true,"event_id":"<ULID>","session":"cli"}
 --- stderr
 (empty)
 
@@ -52,7 +52,7 @@ exit: 1
 argv: ["event","append","--type","note_added","--payload","{\"text\":\"x\"}","--source","nope"]
 exit: 0
 --- stdout
-{"ok":true,"event_id":"<ULID>"}
+{"ok":true,"event_id":"<ULID>","session":"cli"}
 --- stderr
 (empty)
 
@@ -84,7 +84,7 @@ exit: 1
 argv: ["event","append","--type","task_status_changed","--payload","{\"id\":\"9.9\",\"status\":\"done\"}"]
 exit: 0
 --- stdout
-{"ok":true,"event_id":"<ULID>"}
+{"ok":true,"event_id":"<ULID>","session":"cli"}
 --- stderr
 (empty)
 
@@ -92,7 +92,7 @@ exit: 0
 argv: ["event","append","--type","note_added","--payload","{\"text\":\"esc \\u0001 \\ud83d\\ude00 \\ud800 \\\"q\\\" \\\\ / \\u2028\",\"z\":1e21,\"a\":1e-7,\"m\":-0,\"f\":1.0,\"big\":12345678901234567890,\"s\":0.30000000000000004,\"tiny\":5e-324,\"nest\":{\"b\":[null,1,{\"y\":2,\"x\":1}],\"a\":true},\"dup\":1,\"dup\":2}"]
 exit: 0
 --- stdout
-{"ok":true,"event_id":"<ULID>"}
+{"ok":true,"event_id":"<ULID>","session":"cli"}
 --- stderr
 (empty)
 

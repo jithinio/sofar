@@ -110,7 +110,7 @@
     ]
   }
 }
-== status (3109 bytes) ==
+== status (3108 bytes) ==
 # typescript-7
 
 Goal: Upgrade the toolchain from TypeScript 6.0.3 to 7.x (the native Go compiler port): bump the root devDependency, prove typecheck, the full vitest suite and declaration emit in build.mjs all pass unchanged, and record the measured build-time delta. Runtime output is unaffected — tsc never touches the shipped esbuild bundles.
@@ -119,7 +119,7 @@ Progress: 0/0 tasks done (0%) across 0 phase(s)
 Next action: Nothing outstanding on this initiative — close typescript-7 if you agree the upgrade is done. Two loose ends worth their own record if you want them chased: the end_session rebind bug, where writing back rebinds the branch to the session home and silently undoes an initiative created with binding skipped, which can steal the branch from a concurrent peer session; and the snapshot-the-fold idea named in the scalability section, which is the actual answer if the record ever reaches six figures of events.
 
 ⚠ Staleness:
-- last write-back summary exceeds the SessionStart budget (1200 chars) and is clipped there — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md
+- last write-back summary exceeds the SessionStart budget (450 chars) and is clipped there — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md
 
 Last session (claude-code, ended 2026-08-29T17:46:01.791Z):
   Updated the runtime-comparison artifact (same URL, ff9f4ee7) to reflect the TypeScript 7.0.2 upgrade shipped in 87c4619, and answered two follow-up questions in it: why people write CLIs in Rust or Zig if TypeScript is fine, and how sofar scales. Added the TS 7 finding as the lead item, a Compiler speed row to the matrix, and two sections. The CLI section reframes the question away from the CLI category toward four discriminators that ripgrep, fd, uv and ruff all answer the opposite way sofar does: whether users already have the runtime (sofar users all do, Claude Code requires Node), whether the work is CPU-bound (sofar folds 10,460 JSON records and waits on write), whether it runs in a hot loop (once per hook at 26ms, not per keystroke), and whether a library surface ships alongside (sofar ships three JS entry points plus a browser bundle). Supporting point: the JS ecosystem already split along exactly that CPU-bound line — esbuild, swc, oxc, ruff and now tsc 7 went native while npm, pnpm, wrangler and the Vercel CLI stayed JS, because orchestration waits on IO. The scalability section states the real ceiling rather than dismissing it: the fold is O(n) per invocation, roughly 20-25ms of work at 10,460 events once node boot is subtracted, so about 250ms at 100k and 2.5s at a million, and that ceiling arrives in any language. A rewrite buys a constant factor while the ceiling is algorithmic. Grounded in this repo's own prior finding, quoted from the header comment of core/index-tier1.ts: buildGraph re-derives the whole graph at ~16ms and growing with history, and the way out is not a faster graph build but a different shape — the persisted keyed index with INDEX_SCHEMA_VERSION that turns sweeps into lookups. The scaling fix was already written in TypeScript and already shipped.
@@ -127,20 +127,21 @@ Last session (claude-code, ended 2026-08-29T17:46:01.791Z):
 Files touched (1):
 - /private/tmp/claude-501/-Users-jins-IO-sofar/8adc3273-68ff-4c0d-936a-9a3e26e5b66c/scratchpad/runtime-comparison.html
 
-== digest:plain (2804 bytes) ==
+== digest:plain (2166 bytes) ==
 # Sofar status: typescript-7
 
 Goal: Upgrade the toolchain from TypeScript 6.0.3 to 7.x (the native Go compiler port): bump the root devDependency, prove typecheck, the full vitest suite and declaration emit in build.mjs all pass unchanged, and record the measured build-time delta. Runtime output is unaffected — tsc never touches the shipped esbuild bundles.
 
-Progress: 0/0 tasks done (0%) across 0 phase(s)
-Active phase: (none)
 Next action: Nothing outstanding on this initiative — close typescript-7 if you agree the upgrade is done. Two loose ends worth their own record if you want them chased: the end_session rebind bug, where writing back rebinds the branch to the session home and silently undoes an initiative created with binding skipped, which can steal the branch from a concurrent peer session; and the snapshot-the-fold idea named in the scalability section, which is the actual answer if the record ever reaches six figures of…
 
 Last session (claude-code, ended 2026-08-29T17:46:01.791Z):
-  Updated the runtime-comparison artifact (same URL, ff9f4ee7) to reflect the TypeScript 7.0.2 upgrade shipped in 87c4619, and answered two follow-up questions in it: why people write CLIs in Rust or Zig if TypeScript is fine, and how sofar scales. Added the TS 7 finding as the lead item, a Compiler speed row to the matrix, and two sections. The CLI section reframes the question away from the CLI category toward four discriminators that ripgrep, fd, uv and ruff all answer the opposite way sofar does: whether users already have the runtime (sofar users all do, Claude Code requires Node), whether the work is CPU-bound (sofar folds 10,460 JSON records and waits on write), whether it runs in a hot loop (once per hook at 26ms, not per keystroke), and whether a library surface ships alongside (sofar ships three JS entry points plus a browser bundle). Supporting point: the JS ecosystem already split along exactly that CPU-bound line — esbuild, swc, oxc, ruff and now tsc 7 went native while npm, pnpm, wrangler and the Vercel CLI stayed JS, because orchestration waits on IO. The scalability section states the real ceil… (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
+  Updated the runtime-comparison artifact (same URL, ff9f4ee7) to reflect the TypeScript 7.0.2 upgrade shipped in 87c4619, and answered two follow-up questions in it: why people write CLIs in Rust or Zig if TypeScript is fine, and how sofar scales. Added the TS 7 finding as the lead item, a Compiler speed row to … (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
+
+Memory (1; full text in memory.md):
+- [M1] Record-hygiene D1 exempts a Bash call only when EVERY shell segment leads with git or sofar. Decorating a git command with echo labels — the common `echo "=== status ===" && git status` habit — breaks the exemption, so the PostToolUse hook appends a command_run event and the tre…
 
 Recent decisions (1; full text in decisions.md):
-- [D1] 2026-08-29 Upgrade the root devDependency typescript 6.0.3 to ^7.0.2, the native Go compiler port. Verified end to end before comm… — over Staying on 6.0.3 until 7.1 stabilises; or adopting @typescript/native-preview, whose late…
+- [D1] 2026-08-29 Upgrade the root devDependency typescript 6.0.3 to ^7.0.2, the native Go compiler port. V… — over Staying on 6.0.3 until 7.1 stabilises
 
 Next ids: D2 (decision), M2 (memory)
 
@@ -148,10 +149,18 @@ Read-back: before acting, restate goal, next action, and standing constraints in
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:hook (4995 bytes) ==
+== digest:hook (3418 bytes) ==
 # Sofar status: typescript-7
 
 Goal: Upgrade the toolchain from TypeScript 6.0.3 to 7.x (the native Go compiler port): bump the root devDependency, prove typecheck, the full vitest suite and declaration emit in build.mjs all pass unchanged, and record the measured build-time delta. Runtime output is unaffected — tsc never touches the shipped esbuild bundles.
+
+Next action: Nothing outstanding on this initiative — close typescript-7 if you agree the upgrade is done. Two loose ends worth their own record if you want them chased: the end_session rebind bug, where writing back rebinds the branch to the session home and silently undoes an initiative created with binding skipped, which can steal the branch from a concurrent peer session; and the snapshot-the-fold idea named in the scalability section, which is the actual answer if the record ever reaches six figures of…
+
+Last session (claude-code, ended 2026-08-29T17:46:01.791Z):
+  Updated the runtime-comparison artifact (same URL, ff9f4ee7) to reflect the TypeScript 7.0.2 upgrade shipped in 87c4619, and answered two follow-up questions in it: why people write CLIs in Rust or Zig if TypeScript is fine, and how sofar scales. Added the TS 7 finding as the lead item, a Compiler speed row to … (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
+
+Memory (1; full text in memory.md):
+- [M1] Record-hygiene D1 exempts a Bash call only when EVERY shell segment leads with git or sofar. Decorating a git command with echo labels — the common `echo "=== status ===" && git status` habit — breaks the exemption, so the PostToolUse hook appends a command_run event and the tre…
 
 Repo memory (.sofar/repo.md):
 # Repo memory — sofar
@@ -163,33 +172,10 @@ Repo memory (.sofar/repo.md):
   docs still say harness — that is history, never rewritten.
 - Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
   acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
 …truncated — read .sofar/repo.md for the rest
 
-Progress: 0/0 tasks done (0%) across 0 phase(s)
-Active phase: (none)
-Next action: Nothing outstanding on this initiative — close typescript-7 if you agree the upgrade is done. Two loose ends worth their own record if you want them chased: the end_session rebind bug, where writing back rebinds the branch to the session home and silently undoes an initiative created with binding skipped, which can steal the branch from a concurrent peer session; and the snapshot-the-fold idea named in the scalability section, which is the actual answer if the record ever reaches six figures of…
-
-Last session (claude-code, ended 2026-08-29T17:46:01.791Z):
-  Updated the runtime-comparison artifact (same URL, ff9f4ee7) to reflect the TypeScript 7.0.2 upgrade shipped in 87c4619, and answered two follow-up questions in it: why people write CLIs in Rust or Zig if TypeScript is fine, and how sofar scales. Added the TS 7 finding as the lead item, a Compiler speed row to the matrix, and two sections. The CLI section reframes the question away from the CLI category toward four discriminators that ripgrep, fd, uv and ruff all answer the opposite way sofar does: whether users already have the runtime (sofar users all do, Claude Code requires Node), whether the work is CPU-bound (sofar folds 10,460 JSON records and waits on write), whether it runs in a hot loop (once per hook at 26ms, not per keystroke), and whether a library surface ships alongside (sofar ships three JS entry points plus a browser bundle). Supporting point: the JS ecosystem already split along exactly that CPU-bound line — esbuild, swc, oxc, ruff and now tsc 7 went native while npm, pnpm, wrangler and the Vercel CLI stayed JS, because orchestration waits on IO. The scalability section states the real ceil… (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
-
 Recent decisions (1; full text in decisions.md):
-- [D1] 2026-08-29 Upgrade the root devDependency typescript 6.0.3 to ^7.0.2, the native Go compiler port. Verified end to end before comm… — over Staying on 6.0.3 until 7.1 stabilises; or adopting @typescript/native-preview, whose late…
+- [D1] 2026-08-29 Upgrade the root devDependency typescript 6.0.3 to ^7.0.2, the native Go compiler port. V… — over Staying on 6.0.3 until 7.1 stabilises
 
 Next ids: D2 (decision), M2 (memory)
 
@@ -199,7 +185,7 @@ Adjacent records — 22 decisions across 5 other initiatives that have worked th
 - gamma — 4 shared files, 2 decisions
 …and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: typescript-7-session — when calling sofar_start_session, pass this as session_id.
+Session: typescript-7-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/typescript-7 @ a1b2c3d — in sync with origin/feature/typescript-7
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
@@ -210,7 +196,7 @@ Read-back: before acting, restate goal, next action, and standing constraints in
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:lane (2836 bytes) ==
+== digest:lane (2062 bytes) ==
 # Sofar: quick-work lane (typescript-7)
 
 Goal: Upgrade the toolchain from TypeScript 6.0.3 to 7.x (the native Go compiler port): bump the root devDependency, prove typecheck, the full vitest suite and declaration emit in build.mjs all pass unchanged, and record the measured build-time delta. Runtime output is unaffected — tsc never touches the shipped esbuild bundles.
@@ -220,86 +206,55 @@ This branch is bound to no initiative, so the hooks capture edits and commands h
 - Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
 
 Last session (claude-code, ended 2026-08-29T17:46:01.791Z):
-  Updated the runtime-comparison artifact (same URL, ff9f4ee7) to reflect the TypeScript 7.0.2 upgrade shipped in 87c4619, and answered two follow-up questions in it: why people write CLIs in Rust or Zig if TypeScript is fine, and how sofar scales. Added the TS 7 finding as the lead item, a Compiler speed row to the matrix, and two sections. The CLI section reframes the question away from the CLI category toward four discriminators that ripgrep, fd, uv and ruff all answer the opposite way sofar does: whether users already have the runtime (sofar users all do, Claude Code requires Node), whether the work is CPU-bound (sofar folds 10,460 JSON records and waits on write), whether it runs in a hot loop (once per hook at 26ms, not per keystroke), and whether a library surface ships alongside (sofar ships three JS entry points plus a browser bundle). Supporting point: the JS ecosystem already split along exactly that CPU-bound line — esbuild, swc, oxc, ruff and now tsc 7 went native while npm, pnpm, wrangler and the Vercel CLI stayed JS, because orchestration waits on IO. The scalability section states the real ceil… (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
+  Updated the runtime-comparison artifact (same URL, ff9f4ee7) to reflect the TypeScript 7.0.2 upgrade shipped in 87c4619, and answered two follow-up questions in it: why people write CLIs in Rust or Zig if TypeScript is fine, and how sofar scales. Added the TS 7 finding as the lead item, a Compiler speed row to … (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
 
 Recent quick work (1 session, 1 decision since 2026-08-29):
 - 2026-08-29 claude-code — 1 file (/private/tmp/claude-501/-Users-jins-IO-sofar/8adc3273-68ff-4c0d-936a-9a3e26e5b66c/scratchpad/runtime-comparison.html), 18 commands
 
+Memory (1; full text in memory.md):
+- [M1] Record-hygiene D1 exempts a Bash call only when EVERY shell segment leads with …
+
 Recent decisions (1; full text in decisions.md):
-- [D1] 2026-08-29 Upgrade the root devDependency typescript 6.0.3 to ^7.0.2, the native Go compiler port. Verified end to end before comm… — over Staying on 6.0.3 until 7.1 stabilises; or adopting @typescript/native-preview, whose late…
+- [D1] 2026-08-29 Upgrade the root devDependency typescript 6.0.3 to ^7.0.2, the native Go compiler port. V… — over Staying on 6.0.3 until 7.1 stabilises
 
 Next ids: D2 (decision), M2 (memory)
 
-Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/typescript-7 @ a1b2c3d — in sync with origin/feature/typescript-7
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:quiet (2891 bytes) ==
+== digest:quiet (2252 bytes) ==
 # Sofar status: typescript-7
 
 Goal: Upgrade the toolchain from TypeScript 6.0.3 to 7.x (the native Go compiler port): bump the root devDependency, prove typecheck, the full vitest suite and declaration emit in build.mjs all pass unchanged, and record the measured build-time delta. Runtime output is unaffected — tsc never touches the shipped esbuild bundles.
 
-Progress: 0/0 tasks done (0%) across 0 phase(s)
-Active phase: (none)
 Next action: Nothing outstanding on this initiative — close typescript-7 if you agree the upgrade is done. Two loose ends worth their own record if you want them chased: the end_session rebind bug, where writing back rebinds the branch to the session home and silently undoes an initiative created with binding skipped, which can steal the branch from a concurrent peer session; and the snapshot-the-fold idea named in the scalability section, which is the actual answer if the record ever reaches six figures of…
 
 Last session (claude-code, ended 2026-08-29T17:46:01.791Z):
-  Updated the runtime-comparison artifact (same URL, ff9f4ee7) to reflect the TypeScript 7.0.2 upgrade shipped in 87c4619, and answered two follow-up questions in it: why people write CLIs in Rust or Zig if TypeScript is fine, and how sofar scales. Added the TS 7 finding as the lead item, a Compiler speed row to the matrix, and two sections. The CLI section reframes the question away from the CLI category toward four discriminators that ripgrep, fd, uv and ruff all answer the opposite way sofar does: whether users already have the runtime (sofar users all do, Claude Code requires Node), whether the work is CPU-bound (sofar folds 10,460 JSON records and waits on write), whether it runs in a hot loop (once per hook at 26ms, not per keystroke), and whether a library surface ships alongside (sofar ships three JS entry points plus a browser bundle). Supporting point: the JS ecosystem already split along exactly that CPU-bound line — esbuild, swc, oxc, ruff and now tsc 7 went native while npm, pnpm, wrangler and the Vercel CLI stayed JS, because orchestration waits on IO. The scalability section states the real ceil… (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
+  Updated the runtime-comparison artifact (same URL, ff9f4ee7) to reflect the TypeScript 7.0.2 upgrade shipped in 87c4619, and answered two follow-up questions in it: why people write CLIs in Rust or Zig if TypeScript is fine, and how sofar scales. Added the TS 7 finding as the lead item, a Compiler speed row to … (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
+
+Memory (1; full text in memory.md):
+- [M1] Record-hygiene D1 exempts a Bash call only when EVERY shell segment leads with git or sofar. Decorating a git command with echo labels — the common `echo "=== status ===" && git status` habit — breaks the exemption, so the PostToolUse hook appends a command_run event and the tre…
 
 Recent decisions (1; full text in decisions.md):
-- [D1] 2026-08-29 Upgrade the root devDependency typescript 6.0.3 to ^7.0.2, the native Go compiler port. Verified end to end before comm… — over Staying on 6.0.3 until 7.1 stabilises; or adopting @typescript/native-preview, whose late…
+- [D1] 2026-08-29 Upgrade the root devDependency typescript 6.0.3 to ^7.0.2, the native Go compiler port. V… — over Staying on 6.0.3 until 7.1 stabilises
 
 Next ids: D2 (decision), M2 (memory)
 
-Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (10057 bytes) ==
+== digest:cap (6032 bytes) ==
 # Sofar status: typescript-7
 
 Goal: Upgrade the toolchain from TypeScript 6.0.3 to 7.x (the native Go compiler port): bump the root devDependency, prove typecheck, the full vitest suite and declaration emit in build.mjs all pass unchanged, and record the measured build-time delta. Runtime output is unaffected — tsc never touches the shipped esbuild bundles.
 
-Repo memory (.sofar/repo.md):
-# Repo memory — sofar
-
-- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
-  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
-  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
-  aliases (pre-publish). Historical event/projection text and the archived
-  docs still say harness — that is history, never rewritten.
-- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
-  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
-…truncated — read .sofar/repo.md for the rest
-
-Progress: 0/0 tasks done (0%) across 0 phase(s)
-Active phase: (none)
 Next action: Nothing outstanding on this initiative — close typescript-7 if you agree the upgrade is done. Two loose ends worth their own record if you want them chased: the end_session rebind bug, where writing back rebinds the branch to the session home and silently undoes an initiative created with binding skipped, which can steal the branch from a concurrent peer session; and the snapshot-the-fold idea named in the scalability section, which is the actual answer if the record ever reaches six figures of…
 
-Last session (claude-code, ended 2026-08-29T17:46:01.791Z):
-  Updated the runtime-comparison artifact (same URL, ff9f4ee7) to reflect the TypeScript 7.0.2 upgrade shipped in 87c4619, and answered two follow-up questions in it: why people write CLIs in Rust or Zig if TypeScript is fine, and how sofar scales. Added the TS 7 finding as the lead item, a Compiler speed row to the matrix, and two sections. The CLI section reframes the question away from the CLI category toward four discriminators that ripgrep, fd, uv and ruff all answer the opposite way sofar does: whether users already have the runtime (sofar users all do, Claude Code requires Node), whether the work is CPU-bound (sofar folds 10,460 JSON records and waits on write), whether it runs in a hot loop (once per hook at 26ms, not per keystroke), and whether a library surface ships alongside (sofar ships three JS entry points plus a browser bundle). Supporting point: the JS ecosystem already split along exactly that CPU-bound line — esbuild, swc, oxc, ruff and now tsc 7 went native while npm, pnpm, wrangler and the Vercel CLI stayed JS, because orchestration waits on IO. The scalability section states the real ceil… (clipped — full text in sessions/8adc3273-68ff-4c0d-936a-9a3e26e5b66c.md)
-
-Recent decisions (1; full text in decisions.md):
-- [D1] 2026-08-29 Upgrade the root devDependency typescript 6.0.3 to ^7.0.2, the native Go compiler port. Verified end to end before comm… — over Staying on 6.0.3 until 7.1 stabilises; or adopting @typescript/native-preview, whose late…
 
 Next ids: D2 (decision), M2 (memory)
 
@@ -309,15 +264,19 @@ Adjacent records — 22 decisions across 5 other initiatives that have worked th
 - gamma — 4 shared files, 2 decisions
 …and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: typescript-7-session — when calling sofar_start_session, pass this as session_id.
+Session: typescript-7-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/typescript-7 @ a1b2c3d — in sync with origin/feature/typescript-7
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
 == plan (1039 bytes) ==
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->

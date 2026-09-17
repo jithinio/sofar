@@ -1,4 +1,16 @@
-# render-parity manifest (rust-core D11)
+# Render-parity manifest (rust-core D11)
+
+Re-recorded from the TypeScript templates at **rust-core 17817db** (the
+wave-a merge): every one of the 94 goldens changed, all in `renderStatus` —
+memory-lead D4's composition (the next task's spec first; memory, repo memory,
+the decision index and the last session yielding to the 6,000-unit cap; the
+standing constraints last, ranked by relevance to the focus; minutiae heads
+on decision fields) and D3's host-neutral `Session:` line; the `cap` variant
+now hits 6,000. `renderFullStatus`, plan.md, decisions.md, memory.md and the
+session files are byte-identical to the previous set, kept as
+`golden-17817db-pre-wave-a/`. The Rust core (status.rs, memory-lead 1.4)
+matched all 94 on its first in-process run.
+
 
 Recorded from the TypeScript templates at **r1-fixes d9b2878** (3.2 decision
 retirement, D25; 5.2 code-unit order, D26), merged into rust-core after 2.4.

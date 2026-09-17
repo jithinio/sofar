@@ -143,8 +143,8 @@ export function implementationFor(argv: readonly string[]): Implementation {
   return CANDIDATE_STEPS.test(argv.join(' ')) ? chosen : reference()
 }
 
-/** The TypeScript reference, built once. */
-function reference(): Implementation {
+/** The TypeScript reference, built once. Exported for measures a candidate cannot own (perf: `find`). */
+export function reference(): Implementation {
   if (ref !== null) return ref
   const dir = join(scratch(), 'reference')
   mkdirSync(dir, { recursive: true })

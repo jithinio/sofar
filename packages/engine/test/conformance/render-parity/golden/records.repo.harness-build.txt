@@ -177,16 +177,11 @@ Files touched (33):
 - /Users/jins/IO/sofar/packages/engine/package.json
 - /private/tmp/claude-501/-Users-jins-IO-sofar/09f165a7-be8e-4199-bf63-8ca8cb9cc46c/scratchpad/context-rent.html
 
-== digest:plain (6177 bytes) ==
+== digest:plain (3277 bytes) ==
 # Sofar status: harness-build
 
 Goal: Build the Harness v1 engine during the Fable 5 window (Jul 3–7): event log core, MCP server, Claude Code hooks, projections, CLI, watcher/state server, and the AGENTS.md dialect. Engine only — schema lives in one swappable module; UI/sync/team are explicitly out of scope. Full contracts in docs/SPEC.md; conventions in CLAUDE.md; strategy context in harness-docs/ (user-held, outside this repo).
 
-Phases:
-- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13 - Sync contract (53/53 tasks)
-
-Progress: 53/53 tasks done (100%) across 13 phase(s)
-Active phase: (none)
 Next action: None — harness-build is complete and closed. Engine shipped through @alignlabs/sofar@0.7.0; future engine work starts a new initiative (sofar new).
 ⚠ next action may be stale: 2 events since write-back (2 notes)
 Notes since write-back:
@@ -198,56 +193,25 @@ Last session (claude-code, ended 2026-07-12T10:59:23.907Z):
 
 ⚠ 2 other session(s) did work without writing back: c2451e35-f54f-4a25-a434-787596766462, 40742c6d-bde5-4786-babc-7a5146b57e3a
 
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13 - Sync contract (53/53 tasks)
+Progress: 53/53 tasks done (100%) across 13 phase(s)
+
 Recent decisions (last 5 of 61; full text in decisions.md):
-- [D57] 2026-07-08 BD56 (revised): mark 5.2 done — the AGENTS.md convention dialect is validated end-to-end across TWO non-Claude models w… — over the original BD56, which wrongly attributed the whole loop to Mistral Large (user field c…
-- [D58] 2026-07-08 BD57: Phase 11 (record-health deepening) ships three deterministic `sofar doctor` WARN checks — stale-phase (all tasks … — over instruction-based nudges; a heuristic files-per-task ratio for untracked-work; auto-surfa…
-- [D59] 2026-07-08 BD58: log Phase 12 (concurrent-branch misroute hardening). Root cause of the Phase 11 incident: MCP write tools (update… — over leaving implicit branch resolution as-is (fragile under shared-checkout concurrency); rel…
-- [D60] 2026-07-11 D-sync-1: fold replay order is normatively ULID id order (fold sorts envelope-valid events by id before pass-2 replay) … — over Keeping file-order replay as normative (cross-importing replicas can fold different state…
-- [D61] 2026-07-12 BD59 (task 12.4): resolve the next_action single-scalar collision by SURFACING, not restructuring — new fold derivation… — over modeling release/publish as a task instead of a session next-action (a workflow conventio…
+- [D57] 2026-07-08 BD56 (revised): mark 5.2 done — over the original BD56, which wrongly attributed the whole loop to Mistral…
+- [D58] 2026-07-08 BD57: Phase 11 (record-health deepening) ships three deterministic `sofar doctor` WARN ch… — over instruction-based nudges
+- [D59] 2026-07-08 BD58: log Phase 12 (concurrent-branch misroute hardening). Root cause of the Phase 11 inc… — over leaving implicit branch resolution as-is
+- [D60] 2026-07-11 D-sync-1: fold replay order is normatively ULID id order — over Keeping file-order replay as normative
+- [D61] 2026-07-12 BD59 (task 12.4): resolve the next_action single-scalar collision by SURFACING, not restr… — over modeling release/publish as a task instead of a session next-action
 Earlier rejected approaches — do NOT re-propose (52 older):
-- [D1] Rust/Go (slower to build in the window, MCP SDK maturity); Python (weak global-CLI distri…
+- [D1] Rust/Go (slower to build in the window, MCP SDK maturity)
 - [D2] SessionEnd hook
 - [D4] command logic inline in the hook scripts
 - [D8] in-place patching
 - [D9] storing redundant state-sync events in the log
 - [D10] default ulid() — randomly ordered within the same millisecond
-- [D11] deferring to v2 (the prior recommendation); pnpm/turborepo
-- [D12] the high-level McpServer.registerTool API
-- [D13] a separate bin entry (harness-mcp); improvising an undocumented surface without extending…
-- [D14] deferring projections entirely to Phase 3; building full templates in Phase 2
-- [D15] a multi-session registry
-- [D16] spawning `git rev-parse`
-- [D17] MCP protocol errors (McpError)
-- [D18] changing either frozen contract (SPEC tool signature says task_id, Phase 1 payload schema…
-- [D19] per-file jurisdiction only
-- [D20] a side-channel correlation file (second source of truth beside the log); passing session …
-- [D21] reusing session_ended with a placeholder summary
-- [D22] erroring loudly
-- [D23] recording tool_response; an op per hook tool name
-- [D24] proportional (single-pool) budgeting
-- [D25] reading shims from the package dir; JSON-format-preserving edits
-- [D26] binding "worktree name" instead of branch
-- [D27] reusing the capped renderStatus for the CLI; putting the render in src/cli/
-- [D28] an export command that can only serve the bound initiative
-- [D29] express (dependency law); any static/UI route (scope law); debouncing appends
-- [D30] a top-level `harness append`; stdin payloads
-- [D31] reusing PROTOCOL_BLOCK verbatim; different marker names per file
-- [D32] building the plugin now; checking the box on the simulation alone
-- [D33] usePolling; widening test timeouts alone
-- [D34] a thin root pointer file to docs/CLAUDE.md
-- [D35] a full protocol copy (one appeared untracked and was reshaped)
-- [D36] unbounded polling; static/UI work; treating the failure as test-only
-- [D37] starting post-v1 roadmap items (ui, sync)
-- [D38] write-if-changed in the generator; fsync ceremony
-- [D39] reading package.json at runtime relative to the bin
-- [D40] folding repo.md into the goal budget; rendering it in `harness status` too
-- [D41] publishing @harness/schema to make the old manifest installable; removing "private" now
-- [D42] a hand-maintained packages/engine/README.md; symlinking
-- [D43] keeping newest-open as a fallback when session_id is omitted
-- [D44] aggregating into unregistered stub sessions; surfacing the derived line in renderFullStat…
-- [D45] an install manifest tracking init provenance; preserving arbitrary user JSON formatting; …
-- [D46] freeform markdown parsing; appending migration events directly from the CLI; requiring --…
-- …and 10 more (see decisions.md)
+- [D11] deferring to v2 (the prior recommendation)
+- …and 45 more (see decisions.md)
 
 Next ids: D62 (decision), M1 (memory)
 
@@ -255,10 +219,25 @@ Read-back: before acting, restate goal, next action, and standing constraints in
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:hook (8032 bytes) ==
+== digest:hook (4193 bytes) ==
 # Sofar status: harness-build
 
 Goal: Build the Harness v1 engine during the Fable 5 window (Jul 3–7): event log core, MCP server, Claude Code hooks, projections, CLI, watcher/state server, and the AGENTS.md dialect. Engine only — schema lives in one swappable module; UI/sync/team are explicitly out of scope. Full contracts in docs/SPEC.md; conventions in CLAUDE.md; strategy context in harness-docs/ (user-held, outside this repo).
+
+Next action: None — harness-build is complete and closed. Engine shipped through @alignlabs/sofar@0.7.0; future engine work starts a new initiative (sofar new).
+⚠ next action may be stale: 2 events since write-back (2 notes)
+Notes since write-back:
+- 2026-07-12 Cost/efficiency research (Jul 12, artifact: https://claude.ai/code/artifact/975d5da7-10f2-4b9b-a479-cd91a1cedfe5). Measured Jul 11-12 transcripts: $370 total, $206 cache reads; cold-gap re…
+- 2026-07-12 Deep-research follow-up to the Jul 12 cost memo received (Desktop: compass_artifact_wf-5a60d038-…_text_markdown.md). Assessment vs repo: (a) Report Tier-1 "1c write-back hardening" is ALRE…
+
+Last session (claude-code, ended 2026-07-12T10:59:23.907Z):
+  5.3 closed: user scored the Jul 7 Opus 4.8 arm-C resume as PASS on the Phase 0 scorecard. Phase 5 marked done — harness-build complete, 53/53 tasks, 13/13 phases. Initiative closed; main unbound per close convention.
+
+⚠ 2 other session(s) did work without writing back: c2451e35-f54f-4a25-a434-787596766462, 40742c6d-bde5-4786-babc-7a5146b57e3a
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13 - Sync contract (53/53 tasks)
+Progress: 53/53 tasks done (100%) across 13 phase(s)
 
 Repo memory (.sofar/repo.md):
 # Repo memory — sofar
@@ -270,94 +249,27 @@ Repo memory (.sofar/repo.md):
   docs still say harness — that is history, never rewritten.
 - Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
   acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
 …truncated — read .sofar/repo.md for the rest
 
-Phases:
-- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13 - Sync contract (53/53 tasks)
-
-Progress: 53/53 tasks done (100%) across 13 phase(s)
-Active phase: (none)
-Next action: None — harness-build is complete and closed. Engine shipped through @alignlabs/sofar@0.7.0; future engine work starts a new initiative (sofar new).
-⚠ next action may be stale: 2 events since write-back (2 notes)
-Notes since write-back:
-- 2026-07-12 Cost/efficiency research (Jul 12, artifact: https://claude.ai/code/artifact/975d5da7-10f2-4b9b-a479-cd91a1cedfe5). Measured Jul 11-12 transcripts: $370 total, $206 cache reads; cold-gap re…
-- 2026-07-12 Deep-research follow-up to the Jul 12 cost memo received (Desktop: compass_artifact_wf-5a60d038-…_text_markdown.md). Assessment vs repo: (a) Report Tier-1 "1c write-back hardening" is ALRE…
-
-Last session (claude-code, ended 2026-07-12T10:59:23.907Z):
-  5.3 closed: user scored the Jul 7 Opus 4.8 arm-C resume as PASS on the Phase 0 scorecard. Phase 5 marked done — harness-build complete, 53/53 tasks, 13/13 phases. Initiative closed; main unbound per close convention.
-
-⚠ 2 other session(s) did work without writing back: c2451e35-f54f-4a25-a434-787596766462, 40742c6d-bde5-4786-babc-7a5146b57e3a
-
 Recent decisions (last 5 of 61; full text in decisions.md):
-- [D57] 2026-07-08 BD56 (revised): mark 5.2 done — the AGENTS.md convention dialect is validated end-to-end across TWO non-Claude models w… — over the original BD56, which wrongly attributed the whole loop to Mistral Large (user field c…
-- [D58] 2026-07-08 BD57: Phase 11 (record-health deepening) ships three deterministic `sofar doctor` WARN checks — stale-phase (all tasks … — over instruction-based nudges; a heuristic files-per-task ratio for untracked-work; auto-surfa…
-- [D59] 2026-07-08 BD58: log Phase 12 (concurrent-branch misroute hardening). Root cause of the Phase 11 incident: MCP write tools (update… — over leaving implicit branch resolution as-is (fragile under shared-checkout concurrency); rel…
-- [D60] 2026-07-11 D-sync-1: fold replay order is normatively ULID id order (fold sorts envelope-valid events by id before pass-2 replay) … — over Keeping file-order replay as normative (cross-importing replicas can fold different state…
-- [D61] 2026-07-12 BD59 (task 12.4): resolve the next_action single-scalar collision by SURFACING, not restructuring — new fold derivation… — over modeling release/publish as a task instead of a session next-action (a workflow conventio…
+- [D57] 2026-07-08 BD56 (revised): mark 5.2 done — over the original BD56, which wrongly attributed the whole loop to Mistral…
+- [D58] 2026-07-08 BD57: Phase 11 (record-health deepening) ships three deterministic `sofar doctor` WARN ch… — over instruction-based nudges
+- [D59] 2026-07-08 BD58: log Phase 12 (concurrent-branch misroute hardening). Root cause of the Phase 11 inc… — over leaving implicit branch resolution as-is
+- [D60] 2026-07-11 D-sync-1: fold replay order is normatively ULID id order — over Keeping file-order replay as normative
+- [D61] 2026-07-12 BD59 (task 12.4): resolve the next_action single-scalar collision by SURFACING, not restr… — over modeling release/publish as a task instead of a session next-action
 Earlier rejected approaches — do NOT re-propose (52 older):
-- [D1] Rust/Go (slower to build in the window, MCP SDK maturity); Python (weak global-CLI distri…
+- [D1] Rust/Go (slower to build in the window, MCP SDK maturity)
 - [D2] SessionEnd hook
 - [D4] command logic inline in the hook scripts
 - [D8] in-place patching
 - [D9] storing redundant state-sync events in the log
 - [D10] default ulid() — randomly ordered within the same millisecond
-- [D11] deferring to v2 (the prior recommendation); pnpm/turborepo
-- [D12] the high-level McpServer.registerTool API
-- [D13] a separate bin entry (harness-mcp); improvising an undocumented surface without extending…
-- [D14] deferring projections entirely to Phase 3; building full templates in Phase 2
-- [D15] a multi-session registry
-- [D16] spawning `git rev-parse`
-- [D17] MCP protocol errors (McpError)
-- [D18] changing either frozen contract (SPEC tool signature says task_id, Phase 1 payload schema…
-- [D19] per-file jurisdiction only
-- [D20] a side-channel correlation file (second source of truth beside the log); passing session …
-- [D21] reusing session_ended with a placeholder summary
-- [D22] erroring loudly
-- [D23] recording tool_response; an op per hook tool name
-- [D24] proportional (single-pool) budgeting
-- [D25] reading shims from the package dir; JSON-format-preserving edits
-- [D26] binding "worktree name" instead of branch
-- [D27] reusing the capped renderStatus for the CLI; putting the render in src/cli/
-- [D28] an export command that can only serve the bound initiative
-- [D29] express (dependency law); any static/UI route (scope law); debouncing appends
-- [D30] a top-level `harness append`; stdin payloads
-- [D31] reusing PROTOCOL_BLOCK verbatim; different marker names per file
-- [D32] building the plugin now; checking the box on the simulation alone
-- [D33] usePolling; widening test timeouts alone
-- [D34] a thin root pointer file to docs/CLAUDE.md
-- [D35] a full protocol copy (one appeared untracked and was reshaped)
-- [D36] unbounded polling; static/UI work; treating the failure as test-only
-- [D37] starting post-v1 roadmap items (ui, sync)
-- [D38] write-if-changed in the generator; fsync ceremony
-- [D39] reading package.json at runtime relative to the bin
-- [D40] folding repo.md into the goal budget; rendering it in `harness status` too
-- [D41] publishing @harness/schema to make the old manifest installable; removing "private" now
-- [D42] a hand-maintained packages/engine/README.md; symlinking
-- [D43] keeping newest-open as a fallback when session_id is omitted
-- [D44] aggregating into unregistered stub sessions; surfacing the derived line in renderFullStat…
-- [D45] an install manifest tracking init provenance; preserving arbitrary user JSON formatting; …
-- [D46] freeform markdown parsing; appending migration events directly from the CLI; requiring --…
-- …and 10 more (see decisions.md)
+- [D11] deferring to v2 (the prior recommendation)
+- …and 45 more (see decisions.md)
 
 Next ids: D62 (decision), M1 (memory)
 
-Session: harness-build-session — when calling sofar_start_session, pass this as session_id.
+Session: harness-build-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: harness-build @ a1b2c3d — no origin ref — never pushed
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
@@ -368,7 +280,7 @@ Read-back: before acting, restate goal, next action, and standing constraints in
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:lane (6880 bytes) ==
+== digest:lane (4001 bytes) ==
 # Sofar: quick-work lane (harness-build)
 
 Goal: Build the Harness v1 engine during the Fable 5 window (Jul 3–7): event log core, MCP server, Claude Code hooks, projections, CLI, watcher/state server, and the AGENTS.md dialect. Engine only — schema lives in one swappable module; UI/sync/team are explicitly out of scope. Full contracts in docs/SPEC.md; conventions in CLAUDE.md; strategy context in harness-docs/ (user-held, outside this repo).
@@ -380,6 +292,7 @@ This branch is bound to no initiative, so the hooks capture edits and commands h
 Notes since write-back:
 - 2026-07-12 Cost/efficiency research (Jul 12, artifact: https://claude.ai/code/artifact/975d5da7-10f2-4b9b-a479-cd91a1cedfe5). Measured Jul 11-12 transcripts: $370 total, $206 cache reads; cold-gap re…
 - 2026-07-12 Deep-research follow-up to the Jul 12 cost memo received (Desktop: compass_artifact_wf-5a60d038-…_text_markdown.md). Assessment vs repo: (a) Report Tier-1 "1c write-back hardening" is ALRE…
+
 Last session (claude-code, ended 2026-07-12T10:59:23.907Z):
   5.3 closed: user scored the Jul 7 Opus 4.8 arm-C resume as PASS on the Phase 0 scorecard. Phase 5 marked done — harness-build complete, 53/53 tasks, 13/13 phases. Initiative closed; main unbound per close convention.
 
@@ -391,73 +304,33 @@ Recent quick work (22 sessions, 61 decisions since 2026-07-07; last 5):
 - 2026-07-12 claude-code — 9 files (/Users/jins/IO/sofar/packages/engine/src/mcp/context.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/update-task.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/log-decision.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/add-note.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/update-plan.ts, /Users/jins/IO/sofar/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts, /Users/jins/IO/sofar/packages/engine/src/projections/templates/status.ts, /Users/jins/IO/sofar/packages/engine/package.json), 33 commands
 
 Recent decisions (last 5 of 61; full text in decisions.md):
-- [D57] 2026-07-08 BD56 (revised): mark 5.2 done — the AGENTS.md convention dialect is validated end-to-end across TWO non-Claude models w… — over the original BD56, which wrongly attributed the whole loop to Mistral Large (user field c…
-- [D58] 2026-07-08 BD57: Phase 11 (record-health deepening) ships three deterministic `sofar doctor` WARN checks — stale-phase (all tasks … — over instruction-based nudges; a heuristic files-per-task ratio for untracked-work; auto-surfa…
-- [D59] 2026-07-08 BD58: log Phase 12 (concurrent-branch misroute hardening). Root cause of the Phase 11 incident: MCP write tools (update… — over leaving implicit branch resolution as-is (fragile under shared-checkout concurrency); rel…
-- [D60] 2026-07-11 D-sync-1: fold replay order is normatively ULID id order (fold sorts envelope-valid events by id before pass-2 replay) … — over Keeping file-order replay as normative (cross-importing replicas can fold different state…
-- [D61] 2026-07-12 BD59 (task 12.4): resolve the next_action single-scalar collision by SURFACING, not restructuring — new fold derivation… — over modeling release/publish as a task instead of a session next-action (a workflow conventio…
+- [D57] 2026-07-08 BD56 (revised): mark 5.2 done — over the original BD56, which wrongly attributed the whole loop to Mistral…
+- [D58] 2026-07-08 BD57: Phase 11 (record-health deepening) ships three deterministic `sofar doctor` WARN ch… — over instruction-based nudges
+- [D59] 2026-07-08 BD58: log Phase 12 (concurrent-branch misroute hardening). Root cause of the Phase 11 inc… — over leaving implicit branch resolution as-is
+- [D60] 2026-07-11 D-sync-1: fold replay order is normatively ULID id order — over Keeping file-order replay as normative
+- [D61] 2026-07-12 BD59 (task 12.4): resolve the next_action single-scalar collision by SURFACING, not restr… — over modeling release/publish as a task instead of a session next-action
 Earlier rejected approaches — do NOT re-propose (52 older):
-- [D1] Rust/Go (slower to build in the window, MCP SDK maturity); Python (weak global-CLI distri…
+- [D1] Rust/Go (slower to build in the window, MCP SDK maturity)
 - [D2] SessionEnd hook
 - [D4] command logic inline in the hook scripts
 - [D8] in-place patching
 - [D9] storing redundant state-sync events in the log
 - [D10] default ulid() — randomly ordered within the same millisecond
-- [D11] deferring to v2 (the prior recommendation); pnpm/turborepo
-- [D12] the high-level McpServer.registerTool API
-- [D13] a separate bin entry (harness-mcp); improvising an undocumented surface without extending…
-- [D14] deferring projections entirely to Phase 3; building full templates in Phase 2
-- [D15] a multi-session registry
-- [D16] spawning `git rev-parse`
-- [D17] MCP protocol errors (McpError)
-- [D18] changing either frozen contract (SPEC tool signature says task_id, Phase 1 payload schema…
-- [D19] per-file jurisdiction only
-- [D20] a side-channel correlation file (second source of truth beside the log); passing session …
-- [D21] reusing session_ended with a placeholder summary
-- [D22] erroring loudly
-- [D23] recording tool_response; an op per hook tool name
-- [D24] proportional (single-pool) budgeting
-- [D25] reading shims from the package dir; JSON-format-preserving edits
-- [D26] binding "worktree name" instead of branch
-- [D27] reusing the capped renderStatus for the CLI; putting the render in src/cli/
-- [D28] an export command that can only serve the bound initiative
-- [D29] express (dependency law); any static/UI route (scope law); debouncing appends
-- [D30] a top-level `harness append`; stdin payloads
-- [D31] reusing PROTOCOL_BLOCK verbatim; different marker names per file
-- [D32] building the plugin now; checking the box on the simulation alone
-- [D33] usePolling; widening test timeouts alone
-- [D34] a thin root pointer file to docs/CLAUDE.md
-- [D35] a full protocol copy (one appeared untracked and was reshaped)
-- [D36] unbounded polling; static/UI work; treating the failure as test-only
-- [D37] starting post-v1 roadmap items (ui, sync)
-- [D38] write-if-changed in the generator; fsync ceremony
-- [D39] reading package.json at runtime relative to the bin
-- [D40] folding repo.md into the goal budget; rendering it in `harness status` too
-- [D41] publishing @harness/schema to make the old manifest installable; removing "private" now
-- [D42] a hand-maintained packages/engine/README.md; symlinking
-- [D43] keeping newest-open as a fallback when session_id is omitted
-- [D44] aggregating into unregistered stub sessions; surfacing the derived line in renderFullStat…
-- [D45] an install manifest tracking init provenance; preserving arbitrary user JSON formatting; …
-- [D46] freeform markdown parsing; appending migration events directly from the CLI; requiring --…
-- …and 10 more (see decisions.md)
+- [D11] deferring to v2 (the prior recommendation)
+- …and 45 more (see decisions.md)
 
 Next ids: D62 (decision), M1 (memory)
 
-Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: harness-build @ a1b2c3d — no origin ref — never pushed
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:quiet (6264 bytes) ==
+== digest:quiet (3363 bytes) ==
 # Sofar status: harness-build
 
 Goal: Build the Harness v1 engine during the Fable 5 window (Jul 3–7): event log core, MCP server, Claude Code hooks, projections, CLI, watcher/state server, and the AGENTS.md dialect. Engine only — schema lives in one swappable module; UI/sync/team are explicitly out of scope. Full contracts in docs/SPEC.md; conventions in CLAUDE.md; strategy context in harness-docs/ (user-held, outside this repo).
 
-Phases:
-- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13 - Sync contract (53/53 tasks)
-
-Progress: 53/53 tasks done (100%) across 13 phase(s)
-Active phase: (none)
 Next action: None — harness-build is complete and closed. Engine shipped through @alignlabs/sofar@0.7.0; future engine work starts a new initiative (sofar new).
 ⚠ next action may be stale: 2 events since write-back (2 notes)
 Notes since write-back:
@@ -469,134 +342,67 @@ Last session (claude-code, ended 2026-07-12T10:59:23.907Z):
 
 ⚠ 2 other session(s) did work without writing back: c2451e35-f54f-4a25-a434-787596766462, 40742c6d-bde5-4786-babc-7a5146b57e3a
 
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13 - Sync contract (53/53 tasks)
+Progress: 53/53 tasks done (100%) across 13 phase(s)
+
 Recent decisions (last 5 of 61; full text in decisions.md):
-- [D57] 2026-07-08 BD56 (revised): mark 5.2 done — the AGENTS.md convention dialect is validated end-to-end across TWO non-Claude models w… — over the original BD56, which wrongly attributed the whole loop to Mistral Large (user field c…
-- [D58] 2026-07-08 BD57: Phase 11 (record-health deepening) ships three deterministic `sofar doctor` WARN checks — stale-phase (all tasks … — over instruction-based nudges; a heuristic files-per-task ratio for untracked-work; auto-surfa…
-- [D59] 2026-07-08 BD58: log Phase 12 (concurrent-branch misroute hardening). Root cause of the Phase 11 incident: MCP write tools (update… — over leaving implicit branch resolution as-is (fragile under shared-checkout concurrency); rel…
-- [D60] 2026-07-11 D-sync-1: fold replay order is normatively ULID id order (fold sorts envelope-valid events by id before pass-2 replay) … — over Keeping file-order replay as normative (cross-importing replicas can fold different state…
-- [D61] 2026-07-12 BD59 (task 12.4): resolve the next_action single-scalar collision by SURFACING, not restructuring — new fold derivation… — over modeling release/publish as a task instead of a session next-action (a workflow conventio…
+- [D57] 2026-07-08 BD56 (revised): mark 5.2 done — over the original BD56, which wrongly attributed the whole loop to Mistral…
+- [D58] 2026-07-08 BD57: Phase 11 (record-health deepening) ships three deterministic `sofar doctor` WARN ch… — over instruction-based nudges
+- [D59] 2026-07-08 BD58: log Phase 12 (concurrent-branch misroute hardening). Root cause of the Phase 11 inc… — over leaving implicit branch resolution as-is
+- [D60] 2026-07-11 D-sync-1: fold replay order is normatively ULID id order — over Keeping file-order replay as normative
+- [D61] 2026-07-12 BD59 (task 12.4): resolve the next_action single-scalar collision by SURFACING, not restr… — over modeling release/publish as a task instead of a session next-action
 Earlier rejected approaches — do NOT re-propose (52 older):
-- [D1] Rust/Go (slower to build in the window, MCP SDK maturity); Python (weak global-CLI distri…
+- [D1] Rust/Go (slower to build in the window, MCP SDK maturity)
 - [D2] SessionEnd hook
 - [D4] command logic inline in the hook scripts
 - [D8] in-place patching
 - [D9] storing redundant state-sync events in the log
 - [D10] default ulid() — randomly ordered within the same millisecond
-- [D11] deferring to v2 (the prior recommendation); pnpm/turborepo
-- [D12] the high-level McpServer.registerTool API
-- [D13] a separate bin entry (harness-mcp); improvising an undocumented surface without extending…
-- [D14] deferring projections entirely to Phase 3; building full templates in Phase 2
-- [D15] a multi-session registry
-- [D16] spawning `git rev-parse`
-- [D17] MCP protocol errors (McpError)
-- [D18] changing either frozen contract (SPEC tool signature says task_id, Phase 1 payload schema…
-- [D19] per-file jurisdiction only
-- [D20] a side-channel correlation file (second source of truth beside the log); passing session …
-- [D21] reusing session_ended with a placeholder summary
-- [D22] erroring loudly
-- [D23] recording tool_response; an op per hook tool name
-- [D24] proportional (single-pool) budgeting
-- [D25] reading shims from the package dir; JSON-format-preserving edits
-- [D26] binding "worktree name" instead of branch
-- [D27] reusing the capped renderStatus for the CLI; putting the render in src/cli/
-- [D28] an export command that can only serve the bound initiative
-- [D29] express (dependency law); any static/UI route (scope law); debouncing appends
-- [D30] a top-level `harness append`; stdin payloads
-- [D31] reusing PROTOCOL_BLOCK verbatim; different marker names per file
-- [D32] building the plugin now; checking the box on the simulation alone
-- [D33] usePolling; widening test timeouts alone
-- [D34] a thin root pointer file to docs/CLAUDE.md
-- [D35] a full protocol copy (one appeared untracked and was reshaped)
-- [D36] unbounded polling; static/UI work; treating the failure as test-only
-- [D37] starting post-v1 roadmap items (ui, sync)
-- [D38] write-if-changed in the generator; fsync ceremony
-- [D39] reading package.json at runtime relative to the bin
-- [D40] folding repo.md into the goal budget; rendering it in `harness status` too
-- [D41] publishing @harness/schema to make the old manifest installable; removing "private" now
-- [D42] a hand-maintained packages/engine/README.md; symlinking
-- [D43] keeping newest-open as a fallback when session_id is omitted
-- [D44] aggregating into unregistered stub sessions; surfacing the derived line in renderFullStat…
-- [D45] an install manifest tracking init provenance; preserving arbitrary user JSON formatting; …
-- [D46] freeform markdown parsing; appending migration events directly from the CLI; requiring --…
-- …and 10 more (see decisions.md)
+- [D11] deferring to v2 (the prior recommendation)
+- …and 45 more (see decisions.md)
 
 Next ids: D62 (decision), M1 (memory)
 
-Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (10087 bytes) ==
+== digest:cap (6032 bytes) ==
 # Sofar status: harness-build
 
 Goal: Build the Harness v1 engine during the Fable 5 window (Jul 3–7): event log core, MCP server, Claude Code hooks, projections, CLI, watcher/state server, and the AGENTS.md dialect. Engine only — schema lives in one swappable module; UI/sync/team are explicitly out of scope. Full contracts in docs/SPEC.md; conventions in CLAUDE.md; strategy context in harness-docs/ (user-held, outside this repo).
 
-Repo memory (.sofar/repo.md):
-# Repo memory — sofar
-
-- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
-  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
-  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
-  aliases (pre-publish). Historical event/projection text and the archived
-  docs still say harness — that is history, never rewritten.
-- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
-  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
-…truncated — read .sofar/repo.md for the rest
-
-Phases:
-- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13 - Sync contract (53/53 tasks)
-
-Progress: 53/53 tasks done (100%) across 13 phase(s)
-Active phase: (none)
 Next action: None — harness-build is complete and closed. Engine shipped through @alignlabs/sofar@0.7.0; future engine work starts a new initiative (sofar new).
 ⚠ next action may be stale: 2 events since write-back (2 notes)
 Notes since write-back:
 - 2026-07-12 Cost/efficiency research (Jul 12, artifact: https://claude.ai/code/artifact/975d5da7-10f2-4b9b-a479-cd91a1cedfe5). Measured Jul 11-12 transcripts: $370 total, $206 cache reads; cold-gap re…
 - 2026-07-12 Deep-research follow-up to the Jul 12 cost memo received (Desktop: compass_artifact_wf-5a60d038-…_text_markdown.md). Assessment vs repo: (a) Report Tier-1 "1c write-back hardening" is ALRE…
 
-Last session (claude-code, ended 2026-07-12T10:59:23.907Z):
-  5.3 closed: user scored the Jul 7 Opus 4.8 arm-C resume as PASS on the Phase 0 scorecard. Phase 5 marked done — harness-build complete, 53/53 tasks, 13/13 phases. Initiative closed; main unbound per close convention.
-
 ⚠ 2 other session(s) did work without writing back: c2451e35-f54f-4a25-a434-787596766462, 40742c6d-bde5-4786-babc-7a5146b57e3a
 
-Recent decisions (last 5 of 61; full text in decisions.md):
-- [D57] 2026-07-08 BD56 (revised): mark 5.2 done — the AGENTS.md convention dialect is validated end-to-end across TWO non-Claude models w… — over the original BD56, which wrongly attributed the whole loop to Mistral Large (user field c…
-- [D58] 2026-07-08 BD57: Phase 11 (record-health deepening) ships three deterministic `sofar doctor` WARN checks — stale-phase (all tasks … — over instruction-based nudges; a heuristic files-per-task ratio for untracked-work; auto-surfa…
-- [D59] 2026-07-08 BD58: log Phase 12 (concurrent-branch misroute hardening). Root cause of the Phase 11 incident: MCP write tools (update… — over leaving implicit branch resolution as-is (fragile under shared-checkout concurrency); rel…
-- [D60] 2026-07-11 D-sync-1: fold replay order is normatively ULID id order (fold sorts envelope-valid events by id before pass-2 replay) … — over Keeping file-order replay as normative (cross-importing replicas can fold different state…
-- [D61] 2026-07-12 BD59 (task 12.4): resolve the next_action single-scalar collision by SURFACING, not restructuring — new fold derivation… — over modeling release/publish as a task instead of a session next-action (a workflow conventio…
-Earlier rejected approaches — do NOT re-propose (52 older):
-- …and 52 more (see decisions.md)
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13 - Sync contract (53/53 tasks)
+Progress: 53/53 tasks done (100%) across 13 phase(s)
+
 
 Next ids: D62 (decision), M1 (memory)
 
-Session: harness-build-session — when calling sofar_start_session, pass this as session_id.
+Session: harness-build-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: harness-build @ a1b2c3d — no origin ref — never pushed
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
 == plan (8925 bytes) ==
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->

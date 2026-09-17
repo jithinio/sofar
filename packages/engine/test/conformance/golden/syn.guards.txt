@@ -9,31 +9,31 @@ exit: 0
 
 Goal: exercise guard matching on the hot path
 
-Standing constraints — obey verbatim (3):
-- [D1] Never edit files under src/legacy/.
-- [D2] Never run npm publish from a workstation.
-- [D3] Schema changes go through packages/schema/src only.
-
-Phases:
-- Build [active] 0/1
-
-Progress: 0/1 tasks done (0%) across 1 phase(s)
-Active phase: Build — 0/1 tasks done
 Current task: 1.1 work
+  in Build [active] 0/1
   files: src/legacy/old.ts
 
 Last session (claude-code) open, no write-back yet — derived: 1 file (src/legacy/old.ts)
   (details in sessions/sess-g.md)
 
+Phases:
+- Build [active] 0/1
+Progress: 0/1 tasks done (0%) across 1 phase(s)
+
 Recent decisions (3; full text in decisions.md):
-- [D1] 2026-09-01 (rule above) freeze the legacy tree — over editing it in place
-- [D2] 2026-09-01 (rule above) publish only from CI — over local publishes
-- [D3] 2026-09-01 (rule above) schema lives in packages/schema — over inline types
+- [D1] 2026-09-01 (rule below) freeze the legacy tree — over editing it in place
+- [D2] 2026-09-01 (rule below) publish only from CI — over local publishes
+- [D3] 2026-09-01 (rule below) schema lives in packages/schema — over inline types
 
 Next ids: D4 (decision), M1 (memory)
 
-Session: sess-clean — when calling sofar_start_session, pass this as session_id.
+Session: sess-clean — adopted on Claude Code; else pass to sofar_start_session.
 Git: main @ ce11ce1 — no origin ref — never pushed
+
+Standing constraints — obey verbatim (3):
+- [D3] Schema changes go through packages/schema/src only.
+- [D2] Never run npm publish from a workstation.
+- [D1] Never edit files under src/legacy/.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 

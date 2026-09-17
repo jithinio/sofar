@@ -56,7 +56,7 @@
     ]
   }
 }
-== status (6667 bytes) ==
+== status (6824 bytes) ==
 # binding-follows-session
 
 Goal: A fresh session should open on the initiative the last session actually finished in, without any surface guessing. Resolution stays branch-first (session-orientation D2 stands); what changes is that the branch binding stops being a fact only a human command maintains. sofar_end_session binds the current branch to the session's home, so bindings.json becomes a durable, inspectable record of last-worked instead of decaying the moment work moves — brillo's main stayed bound to baseui-toast-migration across 8 project-tax-architecture commits, and every fresh session there started on the wrong record.
@@ -82,6 +82,7 @@ Next action: Hand the user `! npm publish -w sofar.sh` — they run it (OTP plus
 
 ⚠ Staleness:
 - next action may be stale: 1 event since the last write-back (2026-08-13T17:13:06.401Z) — 1 note
+- last write-back summary exceeds the SessionStart budget (450 chars) and is clipped there — full text in sessions/74cc7f44-37ce-4e2e-9b66-9ade0f689bef.md
 
 Notes since write-back (1):
 - 2026-08-30T06:05:05.258Z 3.2's release now carries a FOURTH commit set. no-bind-durability closed the gap this initiative's D1 left open: MOVE-ONLY honours `sofar new --no-bind` only on an UNBOUND branch, so a branch bound elsewhere was moved onto the new record by its first write-back, silently undoing the flag. rebindBranch now also skips when the write-back's slug appears nowhere among bindings.json's values (no-bind-durability D1), `sofar switch` is the retraction, and docs/SPEC.md's THE WRITE-BACK BINDS THE BRANCH passage reads "Four guards". Commits 37c731f, 887b968, 882f744; typecheck clean, npm test 1851 passed. Built unattended by session-driver's 4.1 proof run. Nothing here changes resolution, so the byte-for-byte doctor comparison 3.2 already owes plan-carry-forward is unaffected — but the release notes should name the guard, since a repo whose branch stops following a write-back after upgrading is otherwise a mystery.
@@ -97,49 +98,69 @@ Files touched (6):
 - /Users/jins/IO/sofar/packages/engine/package.json
 - /private/tmp/claude-501/-Users-jins-IO-sofar/74cc7f44-37ce-4e2e-9b66-9ade0f689bef/scratchpad/relmsg.txt
 
-== digest:plain (4304 bytes) ==
+== digest:plain (3670 bytes) ==
 # Sofar status: binding-follows-session
 
-Goal: A fresh session should open on the initiative the last session actually finished in, without any surface guessing. Resolution stays branch-first (session-orientation D2 stands); what changes is that the branch binding stops being a fact only a human command maintains. sofar_end_session binds the current branch to the session's home, so bindings.json becomes a durable, inspectable record of last-worked instead of decaying the moment work moves — brillo's main stayed bound to baseui-toast-migration across 8 project-tax-architecture commits, and every fresh session there started on the wrong rec…
+Goal: A fresh session should open on the initiative the last session actually finished in, without any surface guessing. Resolution stays branch-first (session-orientation D2 stands); what changes is that the branch binding stops being a fact only a human command maintains. sofar_end_session binds the current branch to the session's home, so bindings.json becomes a durable, inspectable record of last-w…
 
-Standing constraints — obey verbatim (2):
-- [D1] sofar_end_session binds the current branch to the session's home — MOVING an existing binding only, never creating one, and never onto a closed or dropped record. Resolution itself stays branch-first: never infer a fresh session's record from recency or peer liveness.
-- [D2] Never make the recent-work notice weigh whether a candidate's session is still live. Ending is an event; being alive is not, and the notice names a candidate rather than judging it.
-
-Phases:
-- Phase 3 — Release [active] 0/2 (1 dropped)
-- done: Phase 1, Phase 2 (5/5 tasks)
-
-Progress: 5 done, 1 dropped, 1 remaining across 3 phase(s)
-Active phase: Phase 3 — Release — 0/2 (1 dropped) tasks done
-Current task: 3.2 Cut the release carrying this plus the two already-unreleased commits (cbcb391, 32a48d9). Peer obligation from plan-carry-forward: re-run sofar doctor from the INSTALLED build and diff byte-for-b…
+Current task: 3.2 Cut the release carrying this plus the two already-unreleased commits (cbcb391, 32a48d9). Peer obligation from plan-carry-forward: re-run sofar doctor from the INSTALLED build and diff byte-for-byte against 0.28.0 across every record — that comparison is what proves their fold change safe. The user runs npm publish themselves.
+  in Phase 3 — Release [active] 0/2 (1 dropped)
   files: /private/tmp/claude-501/-Users-jins-IO-sofar/74cc7f44-37ce-4e2e-9b66-9ade0f689bef/scratchpad/relmsg.txt
+
 Next action: Hand the user `! npm publish -w sofar.sh` — they run it (OTP plus the permission classifier). Then verify the installed version reports 0.29.0 and confirm in brillo that a fresh session opens on the record its predecessor finished in, which is the whole claim. Nothing is outstanding to any peer.
 ⚠ next action may be stale: 1 event since write-back (1 note)
 Notes since write-back:
 - 2026-08-30 3.2's release now carries a FOURTH commit set. no-bind-durability closed the gap this initiative's D1 left open: MOVE-ONLY honours `sofar new --no-bind` only on an UNBOUND branch, so a bra…
 
 Last session (claude-code, ended 2026-08-13T17:13:06.401Z):
-  Supersedes the previous write-back; adds what happened after it. The plan-carry-forward peer reproduced the release comparison independently on the 0.29.0 tree and all three claims hold — D1's warning fires zero times, the verdict is identical on both binaries, and the delta is exactly 2 lines, which they located as harness-build line 206 and speed-2 line 29. They corrected their own byte-identical next action at 34c1f5b and wrote the frozen-snapshot method into their record crediting M1. Their measurement of 177 warnings against my 176, caused only by the record growing between runs, is a better argument for the snapshot than the one I wrote. Their one open request is closed and the answer is evidence for D2: session 066e23e9, which the record shows holding doctor.ts open on writeback-collisions, is not live and has not been for seven days — absent from the host registry, last event 2026-08-06T13:30, no session_ended ever. Noted against D2, since it is precisely the still-working versus died ambiguity that decision refused to guess at. Nothing remains outstanding to any peer; 0.29.0 is committed and pushed at c26e051 and only the publish is left, which the user runs.
+  Supersedes the previous write-back; adds what happened after it. The plan-carry-forward peer reproduced the release comparison independently on the 0.29.0 tree and all three claims hold — D1's warning fires zero times, the verdict is identical on both binaries, and the delta is exactly 2 lines, which they locat… (clipped — full text in sessions/74cc7f44-37ce-4e2e-9b66-9ade0f689bef.md)
+
+Phases:
+- Phase 3 — Release [active] 0/2 (1 dropped)
+- done: Phase 1, Phase 2 (5/5 tasks)
+Progress: 5 done, 1 dropped, 1 remaining across 3 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] Release-time doctor comparison, in a repo with live peer sessions: never diff `sofar doctor` output between two versions by running them minutes apart against .sofar directly — peers append while you compare and the delta is unreadable. Snapshot instead: copy .sofar, .git, CLAUD…
 
 Recent decisions (2; full text in decisions.md):
-- [D1] 2026-08-13 (rule above) Make the branch binding self-maintaining at write-back time… — over Three alternatives, all rejected. (a) Redirecting a fresh session's RESOLUTION to the mos…
-- [D2] 2026-08-13 (rule above) Drop 3.1. The recent-work notice keeps ranking candidates p… — over Having the notice prefer a candidate whose newest event is a session_ended over one mid-f…
+- [D1] 2026-08-13 (rule below) Make the branch binding self-maintaining at write-back time — over Three alternatives, all rejected.
+- [D2] 2026-08-13 (rule below) Drop 3.1. The recent-work notice keeps ranking candidates p… — over Having the notice prefer a candidate whose newest event is a session_…
 
 Next ids: D3 (decision), M2 (memory)
+
+Standing constraints — obey verbatim (2):
+- [D1] sofar_end_session binds the current branch to the session's home — MOVING an existing binding only, never creating one, and never onto a closed or dropped record. Resolution itself stays branch-first: never infer a fresh session's record from recency or peer liveness.
+- [D2] Never make the recent-work notice weigh whether a candidate's session is still live. Ending is an event; being alive is not, and the notice names a candidate rather than judging it.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:hook (6208 bytes) ==
+== digest:hook (4635 bytes) ==
 # Sofar status: binding-follows-session
 
-Goal: A fresh session should open on the initiative the last session actually finished in, without any surface guessing. Resolution stays branch-first (session-orientation D2 stands); what changes is that the branch binding stops being a fact only a human command maintains. sofar_end_session binds the current branch to the session's home, so bindings.json becomes a durable, inspectable record of last-worked instead of decaying the moment work moves — brillo's main stayed bound to baseui-toast-migration across 8 project-tax-architecture commits, and every fresh session there started on the wrong rec…
+Goal: A fresh session should open on the initiative the last session actually finished in, without any surface guessing. Resolution stays branch-first (session-orientation D2 stands); what changes is that the branch binding stops being a fact only a human command maintains. sofar_end_session binds the current branch to the session's home, so bindings.json becomes a durable, inspectable record of last-w…
 
-Standing constraints — obey verbatim (2):
-- [D1] sofar_end_session binds the current branch to the session's home — MOVING an existing binding only, never creating one, and never onto a closed or dropped record. Resolution itself stays branch-first: never infer a fresh session's record from recency or peer liveness.
-- [D2] Never make the recent-work notice weigh whether a candidate's session is still live. Ending is an event; being alive is not, and the notice names a candidate rather than judging it.
+Current task: 3.2 Cut the release carrying this plus the two already-unreleased commits (cbcb391, 32a48d9). Peer obligation from plan-carry-forward: re-run sofar doctor from the INSTALLED build and diff byte-for-byte against 0.28.0 across every record — that comparison is what proves their fold change safe. The user runs npm publish themselves.
+  in Phase 3 — Release [active] 0/2 (1 dropped)
+  files: /private/tmp/claude-501/-Users-jins-IO-sofar/74cc7f44-37ce-4e2e-9b66-9ade0f689bef/scratchpad/relmsg.txt
+
+Next action: Hand the user `! npm publish -w sofar.sh` — they run it (OTP plus the permission classifier). Then verify the installed version reports 0.29.0 and confirm in brillo that a fresh session opens on the record its predecessor finished in, which is the whole claim. Nothing is outstanding to any peer.
+⚠ next action may be stale: 1 event since write-back (1 note)
+Notes since write-back:
+- 2026-08-30 3.2's release now carries a FOURTH commit set. no-bind-durability closed the gap this initiative's D1 left open: MOVE-ONLY honours `sofar new --no-bind` only on an UNBOUND branch, so a bra…
+
+Last session (claude-code, ended 2026-08-13T17:13:06.401Z):
+  Supersedes the previous write-back; adds what happened after it. The plan-carry-forward peer reproduced the release comparison independently on the 0.29.0 tree and all three claims hold — D1's warning fires zero times, the verdict is identical on both binaries, and the delta is exactly 2 lines, which they locat… (clipped — full text in sessions/74cc7f44-37ce-4e2e-9b66-9ade0f689bef.md)
+
+Phases:
+- Phase 3 — Release [active] 0/2 (1 dropped)
+- done: Phase 1, Phase 2 (5/5 tasks)
+Progress: 5 done, 1 dropped, 1 remaining across 3 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] Release-time doctor comparison, in a repo with live peer sessions: never diff `sofar doctor` output between two versions by running them minutes apart against .sofar directly — peers append while you compare and the delta is unreadable. Snapshot instead: copy .sofar, .git, CLAUD…
 
 Repo memory (.sofar/repo.md):
 # Repo memory — sofar
@@ -151,194 +172,145 @@ Repo memory (.sofar/repo.md):
   docs still say harness — that is history, never rewritten.
 - Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
   acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
 …truncated — read .sofar/repo.md for the rest
 
-Phases:
-- Phase 3 — Release [active] 0/2 (1 dropped)
-- done: Phase 1, Phase 2 (5/5 tasks)
-
-Progress: 5 done, 1 dropped, 1 remaining across 3 phase(s)
-Active phase: Phase 3 — Release — 0/2 (1 dropped) tasks done
-Current task: 3.2 Cut the release carrying this plus the two already-unreleased commits (cbcb391, 32a48d9). Peer obligation from plan-carry-forward: re-run sofar doctor from the INSTALLED build and diff byte-for-b…
-  files: /private/tmp/claude-501/-Users-jins-IO-sofar/74cc7f44-37ce-4e2e-9b66-9ade0f689bef/scratchpad/relmsg.txt
-Next action: Hand the user `! npm publish -w sofar.sh` — they run it (OTP plus the permission classifier). Then verify the installed version reports 0.29.0 and confirm in brillo that a fresh session opens on the record its predecessor finished in, which is the whole claim. Nothing is outstanding to any peer.
-⚠ next action may be stale: 1 event since write-back (1 note)
-Notes since write-back:
-- 2026-08-30 3.2's release now carries a FOURTH commit set. no-bind-durability closed the gap this initiative's D1 left open: MOVE-ONLY honours `sofar new --no-bind` only on an UNBOUND branch, so a bra…
-
-Last session (claude-code, ended 2026-08-13T17:13:06.401Z):
-  Supersedes the previous write-back; adds what happened after it. The plan-carry-forward peer reproduced the release comparison independently on the 0.29.0 tree and all three claims hold — D1's warning fires zero times, the verdict is identical on both binaries, and the delta is exactly 2 lines, which they located as harness-build line 206 and speed-2 line 29. They corrected their own byte-identical next action at 34c1f5b and wrote the frozen-snapshot method into their record crediting M1. Their measurement of 177 warnings against my 176, caused only by the record growing between runs, is a better argument for the snapshot than the one I wrote. Their one open request is closed and the answer is evidence for D2: session 066e23e9, which the record shows holding doctor.ts open on writeback-collisions, is not live and has not been for seven days — absent from the host registry, last event 2026-08-06T13:30, no session_ended ever. Noted against D2, since it is precisely the still-working versus died ambiguity that decision refused to guess at. Nothing remains outstanding to any peer; 0.29.0 is committed and pushed at c26e051 and only the publish is left, which the user runs.
-
 Recent decisions (2; full text in decisions.md):
-- [D1] 2026-08-13 (rule above) Make the branch binding self-maintaining at write-back time… — over Three alternatives, all rejected. (a) Redirecting a fresh session's RESOLUTION to the mos…
-- [D2] 2026-08-13 (rule above) Drop 3.1. The recent-work notice keeps ranking candidates p… — over Having the notice prefer a candidate whose newest event is a session_ended over one mid-f…
+- [D1] 2026-08-13 (rule below) Make the branch binding self-maintaining at write-back time — over Three alternatives, all rejected.
+- [D2] 2026-08-13 (rule below) Drop 3.1. The recent-work notice keeps ranking candidates p… — over Having the notice prefer a candidate whose newest event is a session_…
 
 Next ids: D3 (decision), M2 (memory)
 
-Session: binding-follows-session-session — when calling sofar_start_session, pass this as session_id.
+Session: binding-follows-session-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/binding-follows-session @ a1b2c3d — in sync with origin/feature/binding-follows-session
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
+Standing constraints — obey verbatim (2):
+- [D1] sofar_end_session binds the current branch to the session's home — MOVING an existing binding only, never creating one, and never onto a closed or dropped record. Resolution itself stays branch-first: never infer a fresh session's record from recency or peer liveness.
+- [D2] Never make the recent-work notice weigh whether a candidate's session is still live. Ending is an event; being alive is not, and the notice names a candidate rather than judging it.
+
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:lane (4408 bytes) ==
+== digest:lane (3454 bytes) ==
 # Sofar: quick-work lane (binding-follows-session)
 
-Goal: A fresh session should open on the initiative the last session actually finished in, without any surface guessing. Resolution stays branch-first (session-orientation D2 stands); what changes is that the branch binding stops being a fact only a human command maintains. sofar_end_session binds the current branch to the session's home, so bindings.json becomes a durable, inspectable record of last-worked instead of decaying the moment work moves — brillo's main stayed bound to baseui-toast-migration across 8 project-tax-architecture commits, and every fresh session there started on the wrong rec…
+Goal: A fresh session should open on the initiative the last session actually finished in, without any surface guessing. Resolution stays branch-first (session-orientation D2 stands); what changes is that the branch binding stops being a fact only a human command maintains. sofar_end_session binds the current branch to the session's home, so bindings.json becomes a durable, inspectable record of last-w…
 
 This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
 - Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
 - Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
 
-Standing constraints — obey verbatim (2):
-- [D1] sofar_end_session binds the current branch to the session's home — MOVING an existing binding only, never creating one, and never onto a closed or dropped record. Resolution itself stays branch-first: never infer a fresh session's record from recency or peer liveness.
-- [D2] Never make the recent-work notice weigh whether a candidate's session is still live. Ending is an event; being alive is not, and the notice names a candidate rather than judging it.
-
 Notes since write-back:
 - 2026-08-30 3.2's release now carries a FOURTH commit set. no-bind-durability closed the gap this initiative's D1 left open: MOVE-ONLY honours `sofar new --no-bind` only on an UNBOUND branch, so a bra…
+
 Last session (claude-code, ended 2026-08-13T17:13:06.401Z):
-  Supersedes the previous write-back; adds what happened after it. The plan-carry-forward peer reproduced the release comparison independently on the 0.29.0 tree and all three claims hold — D1's warning fires zero times, the verdict is identical on both binaries, and the delta is exactly 2 lines, which they located as harness-build line 206 and speed-2 line 29. They corrected their own byte-identical next action at 34c1f5b and wrote the frozen-snapshot method into their record crediting M1. Their measurement of 177 warnings against my 176, caused only by the record growing between runs, is a better argument for the snapshot than the one I wrote. Their one open request is closed and the answer is evidence for D2: session 066e23e9, which the record shows holding doctor.ts open on writeback-collisions, is not live and has not been for seven days — absent from the host registry, last event 2026-08-06T13:30, no session_ended ever. Noted against D2, since it is precisely the still-working versus died ambiguity that decision refused to guess at. Nothing remains outstanding to any peer; 0.29.0 is committed and pushed at c26e051 and only the publish is left, which the user runs.
+  Supersedes the previous write-back; adds what happened after it. The plan-carry-forward peer reproduced the release comparison independently on the 0.29.0 tree and all three claims hold — D1's warning fires zero times, the verdict is identical on both binaries, and the delta is exactly 2 lines, which they locat… (clipped — full text in sessions/74cc7f44-37ce-4e2e-9b66-9ade0f689bef.md)
 
 Recent quick work (1 session, 2 decisions since 2026-08-13):
 - 2026-08-13 claude-code — 6 files (/Users/jins/IO/sofar/packages/engine/src/mcp/end-session.ts, /Users/jins/IO/sofar/packages/engine/test/binding-follows-session.test.ts, /Users/jins/IO/sofar/packages/engine/test/rehome.test.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/engine/package.json, /private/tmp/claude-501/-Users-jins-IO-sofar/74cc7f44-37ce-4e2e-9b66-9ade0f689bef/scratchpad/relmsg.txt), 45 commands, task changes: 1.1 → done, 1.2 → done, 1.3 → done, 2.1 → done, 2.2 → done, 3.1 → dropped, 3.2 → active
 
+Memory (1; full text in memory.md):
+- [M1] Release-time doctor comparison, in a repo with live peer sessions: never diff `…
+
 Recent decisions (2; full text in decisions.md):
-- [D1] 2026-08-13 (rule above) Make the branch binding self-maintaining at write-back time… — over Three alternatives, all rejected. (a) Redirecting a fresh session's RESOLUTION to the mos…
-- [D2] 2026-08-13 (rule above) Drop 3.1. The recent-work notice keeps ranking candidates p… — over Having the notice prefer a candidate whose newest event is a session_ended over one mid-f…
+- [D1] 2026-08-13 (rule below) Make the branch binding self-maintaining at write-back time — over Three alternatives, all rejected.
+- [D2] 2026-08-13 (rule below) Drop 3.1. The recent-work notice keeps ranking candidates p… — over Having the notice prefer a candidate whose newest event is a session_…
 
 Next ids: D3 (decision), M2 (memory)
 
-Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/binding-follows-session @ a1b2c3d — in sync with origin/feature/binding-follows-session
+
+Standing constraints — obey verbatim (2):
+- [D2] Never make the recent-work notice weigh whether a candidate's session is still live. Ending is an event; being alive is not, and the notice names a candidate rather than judging it.
+- [D1] sofar_end_session binds the current branch to the session's home — MOVING an existing binding only, never creating one, and never onto a closed or dropped record. Resolution itself stays branch-first: never infer a fresh session's record from recency or peer liveness.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:quiet (4391 bytes) ==
+== digest:quiet (3756 bytes) ==
 # Sofar status: binding-follows-session
 
-Goal: A fresh session should open on the initiative the last session actually finished in, without any surface guessing. Resolution stays branch-first (session-orientation D2 stands); what changes is that the branch binding stops being a fact only a human command maintains. sofar_end_session binds the current branch to the session's home, so bindings.json becomes a durable, inspectable record of last-worked instead of decaying the moment work moves — brillo's main stayed bound to baseui-toast-migration across 8 project-tax-architecture commits, and every fresh session there started on the wrong rec…
+Goal: A fresh session should open on the initiative the last session actually finished in, without any surface guessing. Resolution stays branch-first (session-orientation D2 stands); what changes is that the branch binding stops being a fact only a human command maintains. sofar_end_session binds the current branch to the session's home, so bindings.json becomes a durable, inspectable record of last-w…
 
-Standing constraints — obey verbatim (2):
-- [D1] sofar_end_session binds the current branch to the session's home — MOVING an existing binding only, never creating one, and never onto a closed or dropped record. Resolution itself stays branch-first: never infer a fresh session's record from recency or peer liveness.
-- [D2] Never make the recent-work notice weigh whether a candidate's session is still live. Ending is an event; being alive is not, and the notice names a candidate rather than judging it.
-
-Phases:
-- Phase 3 — Release [active] 0/2 (1 dropped)
-- done: Phase 1, Phase 2 (5/5 tasks)
-
-Progress: 5 done, 1 dropped, 1 remaining across 3 phase(s)
-Active phase: Phase 3 — Release — 0/2 (1 dropped) tasks done
-Current task: 3.2 Cut the release carrying this plus the two already-unreleased commits (cbcb391, 32a48d9). Peer obligation from plan-carry-forward: re-run sofar doctor from the INSTALLED build and diff byte-for-b…
+Current task: 3.2 Cut the release carrying this plus the two already-unreleased commits (cbcb391, 32a48d9). Peer obligation from plan-carry-forward: re-run sofar doctor from the INSTALLED build and diff byte-for-byte against 0.28.0 across every record — that comparison is what proves their fold change safe. The user runs npm publish themselves.
+  in Phase 3 — Release [active] 0/2 (1 dropped)
   files: /private/tmp/claude-501/-Users-jins-IO-sofar/74cc7f44-37ce-4e2e-9b66-9ade0f689bef/scratchpad/relmsg.txt
+
 Next action: Hand the user `! npm publish -w sofar.sh` — they run it (OTP plus the permission classifier). Then verify the installed version reports 0.29.0 and confirm in brillo that a fresh session opens on the record its predecessor finished in, which is the whole claim. Nothing is outstanding to any peer.
 ⚠ next action may be stale: 1 event since write-back (1 note)
 Notes since write-back:
 - 2026-08-30 3.2's release now carries a FOURTH commit set. no-bind-durability closed the gap this initiative's D1 left open: MOVE-ONLY honours `sofar new --no-bind` only on an UNBOUND branch, so a bra…
 
 Last session (claude-code, ended 2026-08-13T17:13:06.401Z):
-  Supersedes the previous write-back; adds what happened after it. The plan-carry-forward peer reproduced the release comparison independently on the 0.29.0 tree and all three claims hold — D1's warning fires zero times, the verdict is identical on both binaries, and the delta is exactly 2 lines, which they located as harness-build line 206 and speed-2 line 29. They corrected their own byte-identical next action at 34c1f5b and wrote the frozen-snapshot method into their record crediting M1. Their measurement of 177 warnings against my 176, caused only by the record growing between runs, is a better argument for the snapshot than the one I wrote. Their one open request is closed and the answer is evidence for D2: session 066e23e9, which the record shows holding doctor.ts open on writeback-collisions, is not live and has not been for seven days — absent from the host registry, last event 2026-08-06T13:30, no session_ended ever. Noted against D2, since it is precisely the still-working versus died ambiguity that decision refused to guess at. Nothing remains outstanding to any peer; 0.29.0 is committed and pushed at c26e051 and only the publish is left, which the user runs.
+  Supersedes the previous write-back; adds what happened after it. The plan-carry-forward peer reproduced the release comparison independently on the 0.29.0 tree and all three claims hold — D1's warning fires zero times, the verdict is identical on both binaries, and the delta is exactly 2 lines, which they locat… (clipped — full text in sessions/74cc7f44-37ce-4e2e-9b66-9ade0f689bef.md)
+
+Phases:
+- Phase 3 — Release [active] 0/2 (1 dropped)
+- done: Phase 1, Phase 2 (5/5 tasks)
+Progress: 5 done, 1 dropped, 1 remaining across 3 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] Release-time doctor comparison, in a repo with live peer sessions: never diff `sofar doctor` output between two versions by running them minutes apart against .sofar directly — peers append while you compare and the delta is unreadable. Snapshot instead: copy .sofar, .git, CLAUD…
 
 Recent decisions (2; full text in decisions.md):
-- [D1] 2026-08-13 (rule above) Make the branch binding self-maintaining at write-back time… — over Three alternatives, all rejected. (a) Redirecting a fresh session's RESOLUTION to the mos…
-- [D2] 2026-08-13 (rule above) Drop 3.1. The recent-work notice keeps ranking candidates p… — over Having the notice prefer a candidate whose newest event is a session_ended over one mid-f…
+- [D1] 2026-08-13 (rule below) Make the branch binding self-maintaining at write-back time — over Three alternatives, all rejected.
+- [D2] 2026-08-13 (rule below) Drop 3.1. The recent-work notice keeps ranking candidates p… — over Having the notice prefer a candidate whose newest event is a session_…
 
 Next ids: D3 (decision), M2 (memory)
 
-Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (2):
+- [D1] sofar_end_session binds the current branch to the session's home — MOVING an existing binding only, never creating one, and never onto a closed or dropped record. Resolution itself stays branch-first: never infer a fresh session's record from recency or peer liveness.
+- [D2] Never make the recent-work notice weigh whether a candidate's session is still live. Ending is an event; being alive is not, and the notice names a candidate rather than judging it.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (10065 bytes) ==
+== digest:cap (6032 bytes) ==
 # Sofar status: binding-follows-session
 
-Goal: A fresh session should open on the initiative the last session actually finished in, without any surface guessing. Resolution stays branch-first (session-orientation D2 stands); what changes is that the branch binding stops being a fact only a human command maintains. sofar_end_session binds the current branch to the session's home, so bindings.json becomes a durable, inspectable record of last-worked instead of decaying the moment work moves — brillo's main stayed bound to baseui-toast-migration across 8 project-tax-architecture commits, and every fresh session there started on the wrong rec…
+Goal: A fresh session should open on the initiative the last session actually finished in, without any surface guessing. Resolution stays branch-first (session-orientation D2 stands); what changes is that the branch binding stops being a fact only a human command maintains. sofar_end_session binds the current branch to the session's home, so bindings.json becomes a durable, inspectable record of last-w…
 
-Standing constraints — obey verbatim (2):
-- [D1] sofar_end_session binds the current branch to the session's home — MOVING an existing binding only, never creating one, and never onto a closed or dropped record. Resolution itself stays branch-first: never infer a fresh session's record from recency or peer liveness.
-- [D2] Never make the recent-work notice weigh whether a candidate's session is still live. Ending is an event; being alive is not, and the notice names a candidate rather than judging it.
-
-Repo memory (.sofar/repo.md):
-# Repo memory — sofar
-
-- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
-  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
-  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
-  aliases (pre-publish). Historical event/projection text and the archived
-  docs still say harness — that is history, never rewritten.
-- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
-  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
-…truncated — read .sofar/repo.md for the rest
-
-Phases:
-- Phase 3 — Release [active] 0/2 (1 dropped)
-- done: Phase 1, Phase 2 (5/5 tasks)
-
-Progress: 5 done, 1 dropped, 1 remaining across 3 phase(s)
-Active phase: Phase 3 — Release — 0/2 (1 dropped) tasks done
-Current task: 3.2 Cut the release carrying this plus the two already-unreleased commits (cbcb391, 32a48d9). Peer obligation from plan-carry-forward: re-run sofar doctor from the INSTALLED build and diff byte-for-b…
+Current task: 3.2 Cut the release carrying this plus the two already-unreleased commits (cbcb391, 32a48d9). Peer obligation from plan-carry-forward: re-run sofar doctor from the INSTALLED build and diff byte-for-byte against 0.28.0 across every record — that comparison is what proves their fold change safe. The user runs npm publish themselves.
+  in Phase 3 — Release [active] 0/2 (1 dropped)
   files: /private/tmp/claude-501/-Users-jins-IO-sofar/74cc7f44-37ce-4e2e-9b66-9ade0f689bef/scratchpad/relmsg.txt
+
 Next action: Hand the user `! npm publish -w sofar.sh` — they run it (OTP plus the permission classifier). Then verify the installed version reports 0.29.0 and confirm in brillo that a fresh session opens on the record its predecessor finished in, which is the whole claim. Nothing is outstanding to any peer.
 ⚠ next action may be stale: 1 event since write-back (1 note)
 Notes since write-back:
 - 2026-08-30 3.2's release now carries a FOURTH commit set. no-bind-durability closed the gap this initiative's D1 left open: MOVE-ONLY honours `sofar new --no-bind` only on an UNBOUND branch, so a bra…
 
-Last session (claude-code, ended 2026-08-13T17:13:06.401Z):
-  Supersedes the previous write-back; adds what happened after it. The plan-carry-forward peer reproduced the release comparison independently on the 0.29.0 tree and all three claims hold — D1's warning fires zero times, the verdict is identical on both binaries, and the delta is exactly 2 lines, which they located as harness-build line 206 and speed-2 line 29. They corrected their own byte-identical next action at 34c1f5b and wrote the frozen-snapshot method into their record crediting M1. Their measurement of 177 warnings against my 176, caused only by the record growing between runs, is a better argument for the snapshot than the one I wrote. Their one open request is closed and the answer is evidence for D2: session 066e23e9, which the record shows holding doctor.ts open on writeback-collisions, is not live and has not been for seven days — absent from the host registry, last event 2026-08-06T13:30, no session_ended ever. Noted against D2, since it is precisely the still-working versus died ambiguity that decision refused to guess at. Nothing remains outstanding to any peer; 0.29.0 is committed and pushed at c26e051 and only the publish is left, which the user runs.
+Phases:
+- Phase 3 — Release [active] 0/2 (1 dropped)
+- done: Phase 1, Phase 2 (5/5 tasks)
+Progress: 5 done, 1 dropped, 1 remaining across 3 phase(s)
 
-Recent decisions (2; full text in decisions.md):
-- [D1] 2026-08-13 (rule above) Make the branch binding self-maintaining at write-back time… — over Three alternatives, all rejected. (a) Redirecting a fresh session's RESOLUTION to the mos…
-- [D2] 2026-08-13 (rule above) Drop 3.1. The recent-work notice keeps ranking candidates p… — over Having the notice prefer a candidate whose newest event is a session_ended over one mid-f…
 
 Next ids: D3 (decision), M2 (memory)
 
-Session: binding-follows-session-session — when calling sofar_start_session, pass this as session_id.
+Session: binding-follows-session-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/binding-follows-session @ a1b2c3d — in sync with origin/feature/binding-follows-session
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
+
+Standing constraints — obey verbatim (2):
+- [D1] sofar_end_session binds the current branch to the session's home — MOVING an existing binding only, never creating one, and never onto a closed or dropped record. Resolution itself stays branch-first: never infer a fresh session's record from recency or peer liveness.
+- [D2] Never make the recent-work notice weigh whether a candidate's session is still live. Ending is an event; being alive is not, and the notice names a candidate rather than judging it.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
 == plan (3531 bytes) ==
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->

@@ -12,6 +12,9 @@
 //! absent-or-non-empty; "absent" means the key is missing (a JSON `null` is
 //! present and fails the type test).
 
+/// Longest operator quote a rule may carry (memory-lead D2).
+pub const RULE_QUOTE_MAX: usize = 300;
+
 use crate::json::{Json, Object, js_to_string};
 use crate::text::{js_trim, utf16_len};
 
@@ -485,6 +488,25 @@ fn validate_known(event_type: &str, p: &Object, e: &mut Vec<String>) {
                     "guard: requires `rule` — a guard with no clause has nothing to cite",
                 );
                 e.extend(guard_spec_errors(guard));
+            }
+            // The source of a rule (memory-lead D2): non-empty, the operator's
+            // sentence (≤ RULE_QUOTE_MAX), and nothing without a rule.
+            if let Some(quote) = p.get("quote") {
+                if !str(Some(quote)) {
+                    e.push("quote: must be a non-empty string when present".to_owned());
+                } else if quote
+                    .as_str()
+                    .is_some_and(|q| utf16_len(q) > RULE_QUOTE_MAX)
+                {
+                    e.push(format!(
+                        "quote: at most {RULE_QUOTE_MAX} chars — keep the operator's sentence(s) the rule came from"
+                    ));
+                }
+                must(
+                    e,
+                    str(p.get("rule")),
+                    "quote: requires `rule` — a quote is the source of a rule",
+                );
             }
             // Retirement fields (r1-fixes 3.2, D25): shape only — resolution
             // is the fold's, since only the replay knows which ordinals exist.

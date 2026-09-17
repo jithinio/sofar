@@ -1,0 +1,652 @@
+== options (37923 bytes) ==
+{
+  "plain": {},
+  "hook": {
+    "sessionId": "repo-memory-capture-session",
+    "git": {
+      "branch": "repo-memory-capture",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": null,
+      "upstreamFull": null,
+      "synced": false
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 12,
+        "decisions": 0
+      },
+      {
+        "initiative": "beta",
+        "paths": 4,
+        "decisions": 19
+      },
+      {
+        "initiative": "gamma",
+        "paths": 4,
+        "decisions": 2
+      },
+      {
+        "initiative": "delta",
+        "paths": 1,
+        "decisions": 1
+      },
+      {
+        "initiative": "epsilon",
+        "paths": 1,
+        "decisions": 0
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare."
+    ]
+  },
+  "lane": {
+    "lane": true,
+    "sessionId": "lane-session",
+    "git": {
+      "branch": "repo-memory-capture",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": null,
+      "upstreamFull": null,
+      "synced": false
+    }
+  },
+  "quiet": {
+    "activity": false,
+    "sessionId": " quiet-session\t"
+  },
+  "cap": {
+    "sessionId": "repo-memory-capture-session",
+    "git": {
+      "branch": "repo-memory-capture",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": null,
+      "upstreamFull": null,
+      "synced": false
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 12,
+        "decisions": 0
+      },
+      {
+        "initiative": "beta",
+        "paths": 4,
+        "decisions": 19
+      },
+      {
+        "initiative": "gamma",
+        "paths": 4,
+        "decisions": 2
+      },
+      {
+        "initiative": "delta",
+        "paths": 1,
+        "decisions": 1
+      },
+      {
+        "initiative": "epsilon",
+        "paths": 1,
+        "decisions": 0
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare.",
+      "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    ]
+  }
+}
+== status (5668 bytes) ==
+# repo-memory-capture
+
+Status: done 2026-08-05T15:36:26.937Z — memory_promoted + `sofar remember` shipped and dogfooded; doctor's repo.md detector live. 9 done, 1 dropped, 0 remaining.
+Goal: Give operational knowledge a capture path and a detector: a memory_promoted event addressable as `<slug> M<n>`, captured by `sofar remember` / sofar_remember, with doctor warning when a promoted memory is absent from the hand-written repo.md — so a fact learned mid-session cannot end up only in an agent's private memory.
+Progress: 9 done, 1 dropped, 0 remaining across 4 phase(s)
+
+Phases:
+- Event + fold [done] 3/3
+  - [x] 1.1 memory_promoted payload {text} + validator in packages/schema/src/events.ts, added to KnownEventPayloads and EVENT_TYPES
+  - [x] 1.2 Fold: assign M<n> ordinals per initiative and expose promoted memories in state
+  - [x] 1.3 Projection: memory.md, written only once something is promoted
+- Capture surfaces [done] 3/3
+  - [x] 2.1 CLI `sofar remember <text>`
+  - [x] 2.2 MCP tool sofar_remember — the point of capture for agents
+  - [x] 2.3 Protocol block refresh (both dialects) so a session knows operational facts go here, not into tool memory; old text preserved in the shipped ledger
+- Detection [done] 3/3
+  - [x] 3.1 M<n> in the citation grammar, opt-in for the repo.md scan only
+  - [x] 3.2 doctor repo-memory axis: warn per promoted memory absent from repo.md, alongside repo-general decisions
+  - [x] 3.3 SPEC: event type, state, record layout, tool surface, citation grammar, doctor axis, acceptance criteria
+- Memory nodes (deferred) [dropped] 0/1 (1 dropped)
+  - [-] 4.1 Mint memory nodes in buildGraph so decisions can cite `<slug> M<n>` and resolve it — lifts the D2 opt-in restriction and lets `sofar why`/`related` reach promotions
+
+Next action: Nothing pending — statusline work is complete and published.
+⚠ Parallel write-backs (2):
+- 6cbbd5e0-2127-401f-914e-9acaead00414 (claude-code, ended 2026-08-05T08:41:00.720Z): Still closed. The dirty tree and orphan-session banner are a18d80d0's, not this initiative's.
+- b41109e5-0982-4c4a-8647-3bfb8a2e0cd0 (claude-code, ended 2026-08-05T08:32:35.011Z): Initiative closed; revisit 4.1 only if a decision needs to cite a memory.
+
+Last session (claude-code, ended 2026-08-05T08:41:00.720Z):
+  Diagnosed the stray events: concurrent session a18d80d0 is doing session-strategy-bench work but never pinned an initiative, so the main binding files it here. Noted it; promoted M3 (misrouted sessions are silent to doctor).
+
+Files touched (46):
+- /Users/jins/IO/sofar/packages/schema/src/events.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/fold.ts
+- /Users/jins/IO/sofar/packages/engine/src/projections/templates/shared.ts
+- /Users/jins/IO/sofar/packages/engine/test/staleness.test.ts
+- /Users/jins/IO/sofar/docs/SPEC.md
+- /Users/jins/IO/sofar/packages/schema/test/schema.test.ts
+- /Users/jins/IO/sofar/packages/engine/src/projections/templates/memory.ts
+- /Users/jins/IO/sofar/packages/engine/src/projections/generator.ts
+- /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts
+- /Users/jins/IO/sofar/packages/engine/src/mcp/remember.ts
+- /Users/jins/IO/sofar/packages/engine/src/mcp/server.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/remember.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/index.ts
+- /Users/jins/IO/sofar/packages/engine/test/acceptance.phase2.test.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/init.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/graph.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts
+- /Users/jins/IO/sofar/packages/engine/test/graph-cli.test.ts
+- /Users/jins/IO/sofar/packages/engine/test/remember.test.ts
+- /Users/jins/IO/sofar/.sofar/repo.md
+- /Users/jins/.claude/projects/-Users-jins-IO-sofar/memory/npm-publish-user-runs-it.md
+- /Users/jins/.claude/projects/-Users-jins-IO-sofar/memory/MEMORY.md
+- /Users/jins/IO/sofar/README.md
+- /Users/jins/IO/sofar/packages/engine/src/cli/serve.ts
+- /Users/jins/IO/sofar/CLAUDE.md
+- /Users/jins/IO/sofar/packages/engine/src/cli/statusline.ts
+- /Users/jins/IO/sofar/packages/engine/test/statusline.test.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/ui/symbols.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/ui/index.ts
+- /Users/jins/IO/sofar/packages/engine/test/ui.test.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg.txt
+- /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg2.txt
+- /Users/jins/IO/sofar/packages/engine/package.json
+- /Users/jins/IO/sofar/package-lock.json
+- /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg3.txt
+- /Users/jins/IO/sofar/packages/engine/src/cli/ui/style.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg4.txt
+- /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg5.txt
+- /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg6.txt
+- /Users/jins/.claude/settings.json
+- /Users/jins/IO/sofar/packages/engine/test/init.test.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg7.txt
+- /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg8.txt
+- /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg9.txt
+- /private/tmp/claude-501/-Users-jins-IO-sofar/b41109e5-0982-4c4a-8647-3bfb8a2e0cd0/scratchpad/msg.txt
+- /private/tmp/claude-501/-Users-jins-IO-sofar/6cbbd5e0-2127-401f-914e-9acaead00414/scratchpad/msg.txt
+
+== digest:plain (2320 bytes) ==
+# Sofar status: repo-memory-capture
+
+Goal: Give operational knowledge a capture path and a detector: a memory_promoted event addressable as `<slug> M<n>`, captured by `sofar remember` / sofar_remember, with doctor warning when a promoted memory is absent from the hand-written repo.md — so a fact learned mid-session cannot end up only in an agent's private memory.
+
+Phases:
+- done: Event + fold, Capture surfaces, Detection (9/9 tasks)
+- dropped: Memory nodes (deferred) (1 tasks)
+
+Progress: 9 done, 1 dropped, 0 remaining across 4 phase(s)
+Active phase: (none)
+Next action: Nothing pending — statusline work is complete and published.
+⚠ Parallel write-backs — 2 overlapping session(s) also recorded a next action:
+- claude-code, ended 2026-08-05: Still closed. The dirty tree and orphan-session banner are a18d80d0's, not this initiative's.
+- claude-code, ended 2026-08-05: Initiative closed; revisit 4.1 only if a decision needs to cite a memory.
+
+Last session (claude-code, ended 2026-08-05T08:41:00.720Z):
+  Diagnosed the stray events: concurrent session a18d80d0 is doing session-strategy-bench work but never pinned an initiative, so the main binding files it here. Noted it; promoted M3 (misrouted sessions are silent to doctor).
+
+Recent decisions (3; full text in decisions.md):
+- [D1] 2026-08-04 A dedicated promotion affordance for operational knowledge: a new memory_promoted event (payload {text}), captured via … — over Making notes citable so the existing observed-citation axis fires on them; and adding onl…
+- [D2] 2026-08-04 M&lt;n&gt; is opt-in in extractCitations — a `{ memories: true }` option that only the repo.md scan passes — and promot… — over Adding M&lt;n&gt; to the grammar unconditionally, and the fuller alternative of minting m…
+- [D3] 2026-08-05 Close the initiative at the working detector: 4.1 (mint memory nodes in buildGraph) stays deferred indefinitely, and an… — over Building 4.1 now to lift D2's opt-in restriction so decisions can cite promotions and `so…
+
+Next ids: D4 (decision), M4 (memory)
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:hook (4507 bytes) ==
+# Sofar status: repo-memory-capture
+
+Goal: Give operational knowledge a capture path and a detector: a memory_promoted event addressable as `<slug> M<n>`, captured by `sofar remember` / sofar_remember, with doctor warning when a promoted memory is absent from the hand-written repo.md — so a fact learned mid-session cannot end up only in an agent's private memory.
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+  if SPEC must change.
+- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
+  Both run at the workspace root; typecheck: `npm run typecheck`.
+- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
+  (source-shipped, no build); packages/engine → sofar bin
+  (packages/engine/dist/cli.js after build).
+- Definition of done per task: acceptance criteria in docs/SPEC.md
+  §Acceptance.
+- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
+  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
+  live OUTSIDE this repo in the user's strategy vault. Engine sessions
+  never need them; 5.3 scoring is performed by the user against that
+  scorecard. Do not go looking for them; do not block on them.
+- Push policy: push origin main at each verified wrap-up (user-established
+  Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Committing the record needs a BARE
+…truncated — read .sofar/repo.md for the rest
+
+Phases:
+- done: Event + fold, Capture surfaces, Detection (9/9 tasks)
+- dropped: Memory nodes (deferred) (1 tasks)
+
+Progress: 9 done, 1 dropped, 0 remaining across 4 phase(s)
+Active phase: (none)
+Next action: Nothing pending — statusline work is complete and published.
+⚠ Parallel write-backs — 2 overlapping session(s) also recorded a next action:
+- claude-code, ended 2026-08-05: Still closed. The dirty tree and orphan-session banner are a18d80d0's, not this initiative's.
+- claude-code, ended 2026-08-05: Initiative closed; revisit 4.1 only if a decision needs to cite a memory.
+
+Last session (claude-code, ended 2026-08-05T08:41:00.720Z):
+  Diagnosed the stray events: concurrent session a18d80d0 is doing session-strategy-bench work but never pinned an initiative, so the main binding files it here. Noted it; promoted M3 (misrouted sessions are silent to doctor).
+
+Recent decisions (3; full text in decisions.md):
+- [D1] 2026-08-04 A dedicated promotion affordance for operational knowledge: a new memory_promoted event (payload {text}), captured via … — over Making notes citable so the existing observed-citation axis fires on them; and adding onl…
+- [D2] 2026-08-04 M&lt;n&gt; is opt-in in extractCitations — a `{ memories: true }` option that only the repo.md scan passes — and promot… — over Adding M&lt;n&gt; to the grammar unconditionally, and the fuller alternative of minting m…
+- [D3] 2026-08-05 Close the initiative at the working detector: 4.1 (mint memory nodes in buildGraph) stays deferred indefinitely, and an… — over Building 4.1 now to lift D2's opt-in restriction so decisions can cite promotions and `so…
+
+Next ids: D4 (decision), M4 (memory)
+
+Adjacent records — 22 decisions across 5 other initiatives that have worked this one's files, densest first:
+- alpha — 12 shared files, 0 decisions
+- beta — 4 shared files, 19 decisions
+- gamma — 4 shared files, 2 decisions
+…and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: repo-memory-capture-session — when calling sofar_start_session, pass this as session_id.
+Git: repo-memory-capture @ a1b2c3d — no origin ref — never pushed
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:lane (3801 bytes) ==
+# Sofar: quick-work lane (repo-memory-capture)
+
+Goal: Give operational knowledge a capture path and a detector: a memory_promoted event addressable as `<slug> M<n>`, captured by `sofar remember` / sofar_remember, with doctor warning when a promoted memory is absent from the hand-written repo.md — so a fact learned mid-session cannot end up only in an agent's private memory.
+
+This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
+- Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
+- Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
+
+Last session (claude-code, ended 2026-08-05T08:41:00.720Z):
+  Diagnosed the stray events: concurrent session a18d80d0 is doing session-strategy-bench work but never pinned an initiative, so the main binding files it here. Noted it; promoted M3 (misrouted sessions are silent to doctor).
+
+Recent quick work (5 sessions, 3 decisions since 2026-08-04):
+- 2026-08-05 claude-code — 2 files (/Users/jins/IO/sofar/.sofar/repo.md, /private/tmp/claude-501/-Users-jins-IO-sofar/6cbbd5e0-2127-401f-914e-9acaead00414/scratchpad/msg.txt), 16 commands
+- 2026-08-05 claude-code — 1 file (/private/tmp/claude-501/-Users-jins-IO-sofar/b41109e5-0982-4c4a-8647-3bfb8a2e0cd0/scratchpad/msg.txt), 11 commands, task changes: 4.1 → blocked
+- 2026-08-05 claude-code — 36 commands
+- 2026-08-05 claude-code — 23 files (/Users/jins/IO/sofar/packages/engine/src/cli/statusline.ts, /Users/jins/IO/sofar/packages/engine/test/statusline.test.ts, /Users/jins/IO/sofar/packages/engine/src/cli/ui/symbols.ts, /Users/jins/IO/sofar/packages/engine/src/cli/ui/index.ts, /Users/jins/IO/sofar/packages/engine/test/ui.test.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/.sofar/repo.md, /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg…
+- 2026-08-04 claude-code — 25 files (/Users/jins/IO/sofar/packages/schema/src/events.ts, /Users/jins/IO/sofar/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar/packages/engine/src/projections/templates/shared.ts, /Users/jins/IO/sofar/packages/engine/test/staleness.test.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/schema/test/schema.test.ts, /Users/jins/IO/sofar/packages/engine/src/projections/templates/memory.ts, /Users/jins/IO/sofar/packages/engine/src/projections/generator.ts, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/e…
+
+Recent decisions (3; full text in decisions.md):
+- [D1] 2026-08-04 A dedicated promotion affordance for operational knowledge: a new memory_promoted event (payload {text}), captured via … — over Making notes citable so the existing observed-citation axis fires on them; and adding onl…
+- [D2] 2026-08-04 M&lt;n&gt; is opt-in in extractCitations — a `{ memories: true }` option that only the repo.md scan passes — and promot… — over Adding M&lt;n&gt; to the grammar unconditionally, and the fuller alternative of minting m…
+- [D3] 2026-08-05 Close the initiative at the working detector: 4.1 (mint memory nodes in buildGraph) stays deferred indefinitely, and an… — over Building 4.1 now to lift D2's opt-in restriction so decisions can cite promotions and `so…
+
+Next ids: D4 (decision), M4 (memory)
+
+Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Git: repo-memory-capture @ a1b2c3d — no origin ref — never pushed
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:quiet (2407 bytes) ==
+# Sofar status: repo-memory-capture
+
+Goal: Give operational knowledge a capture path and a detector: a memory_promoted event addressable as `<slug> M<n>`, captured by `sofar remember` / sofar_remember, with doctor warning when a promoted memory is absent from the hand-written repo.md — so a fact learned mid-session cannot end up only in an agent's private memory.
+
+Phases:
+- done: Event + fold, Capture surfaces, Detection (9/9 tasks)
+- dropped: Memory nodes (deferred) (1 tasks)
+
+Progress: 9 done, 1 dropped, 0 remaining across 4 phase(s)
+Active phase: (none)
+Next action: Nothing pending — statusline work is complete and published.
+⚠ Parallel write-backs — 2 overlapping session(s) also recorded a next action:
+- claude-code, ended 2026-08-05: Still closed. The dirty tree and orphan-session banner are a18d80d0's, not this initiative's.
+- claude-code, ended 2026-08-05: Initiative closed; revisit 4.1 only if a decision needs to cite a memory.
+
+Last session (claude-code, ended 2026-08-05T08:41:00.720Z):
+  Diagnosed the stray events: concurrent session a18d80d0 is doing session-strategy-bench work but never pinned an initiative, so the main binding files it here. Noted it; promoted M3 (misrouted sessions are silent to doctor).
+
+Recent decisions (3; full text in decisions.md):
+- [D1] 2026-08-04 A dedicated promotion affordance for operational knowledge: a new memory_promoted event (payload {text}), captured via … — over Making notes citable so the existing observed-citation axis fires on them; and adding onl…
+- [D2] 2026-08-04 M&lt;n&gt; is opt-in in extractCitations — a `{ memories: true }` option that only the repo.md scan passes — and promot… — over Adding M&lt;n&gt; to the grammar unconditionally, and the fuller alternative of minting m…
+- [D3] 2026-08-05 Close the initiative at the working detector: 4.1 (mint memory nodes in buildGraph) stays deferred indefinitely, and an… — over Building 4.1 now to lift D2's opt-in restriction so decisions can cite promotions and `so…
+
+Next ids: D4 (decision), M4 (memory)
+
+Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:cap (10071 bytes) ==
+# Sofar status: repo-memory-capture
+
+Goal: Give operational knowledge a capture path and a detector: a memory_promoted event addressable as `<slug> M<n>`, captured by `sofar remember` / sofar_remember, with doctor warning when a promoted memory is absent from the hand-written repo.md — so a fact learned mid-session cannot end up only in an agent's private memory.
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+  if SPEC must change.
+- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
+  Both run at the workspace root; typecheck: `npm run typecheck`.
+- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
+  (source-shipped, no build); packages/engine → sofar bin
+  (packages/engine/dist/cli.js after build).
+- Definition of done per task: acceptance criteria in docs/SPEC.md
+  §Acceptance.
+- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
+  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
+  live OUTSIDE this repo in the user's strategy vault. Engine sessions
+  never need them; 5.3 scoring is performed by the user against that
+  scorecard. Do not go looking for them; do not block on them.
+- Push policy: push origin main at each verified wrap-up (user-established
+  Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Committing the record needs a BARE
+…truncated — read .sofar/repo.md for the rest
+
+Phases:
+- done: Event + fold, Capture surfaces, Detection (9/9 tasks)
+- dropped: Memory nodes (deferred) (1 tasks)
+
+Progress: 9 done, 1 dropped, 0 remaining across 4 phase(s)
+Active phase: (none)
+Next action: Nothing pending — statusline work is complete and published.
+⚠ Parallel write-backs — 2 overlapping session(s) also recorded a next action:
+- claude-code, ended 2026-08-05: Still closed. The dirty tree and orphan-session banner are a18d80d0's, not this initiative's.
+- claude-code, ended 2026-08-05: Initiative closed; revisit 4.1 only if a decision needs to cite a memory.
+
+Last session (claude-code, ended 2026-08-05T08:41:00.720Z):
+  Diagnosed the stray events: concurrent session a18d80d0 is doing session-strategy-bench work but never pinned an initiative, so the main binding files it here. Noted it; promoted M3 (misrouted sessions are silent to doctor).
+
+Recent decisions (3; full text in decisions.md):
+- [D1] 2026-08-04 A dedicated promotion affordance for operational knowledge: a new memory_promoted event (payload {text}), captured via … — over Making notes citable so the existing observed-citation axis fires on them; and adding onl…
+- [D2] 2026-08-04 M&lt;n&gt; is opt-in in extractCitations — a `{ memories: true }` option that only the repo.md scan passes — and promot… — over Adding M&lt;n&gt; to the grammar unconditionally, and the fuller alternative of minting m…
+- [D3] 2026-08-05 Close the initiative at the working detector: 4.1 (mint memory nodes in buildGraph) stays deferred indefinitely, and an… — over Building 4.1 now to lift D2's opt-in restriction so decisions can cite promotions and `so…
+
+Next ids: D4 (decision), M4 (memory)
+
+Adjacent records — 22 decisions across 5 other initiatives that have worked this one's files, densest first:
+- alpha — 12 shared files, 0 decisions
+- beta — 4 shared files, 19 decisions
+- gamma — 4 shared files, 2 decisions
+…and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: repo-memory-capture-session — when calling sofar_start_session, pass this as session_id.
+Git: repo-memory-capture @ a1b2c3d — no origin ref — never pushed
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+…truncated — run sofar status for full detail
+
+== plan (1786 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Plan: repo-memory-capture
+
+Goal: Give operational knowledge a capture path and a detector: a memory_promoted event addressable as `<slug> M<n>`, captured by `sofar remember` / sofar_remember, with doctor warning when a promoted memory is absent from the hand-written repo.md — so a fact learned mid-session cannot end up only in an agent's private memory.
+
+Progress: 9 done, 1 dropped, 0 remaining
+
+## Event + fold [done] — 3/3 done
+
+- [x] 1.1 memory_promoted payload {text} + validator in packages/schema/src/events.ts, added to KnownEventPayloads and EVENT_TYPES
+- [x] 1.2 Fold: assign M<n> ordinals per initiative and expose promoted memories in state
+- [x] 1.3 Projection: memory.md, written only once something is promoted
+
+## Capture surfaces [done] — 3/3 done
+
+- [x] 2.1 CLI `sofar remember <text>`
+- [x] 2.2 MCP tool sofar_remember — the point of capture for agents
+- [x] 2.3 Protocol block refresh (both dialects) so a session knows operational facts go here, not into tool memory; old text preserved in the shipped ledger
+
+## Detection [done] — 3/3 done
+
+- [x] 3.1 M<n> in the citation grammar, opt-in for the repo.md scan only
+- [x] 3.2 doctor repo-memory axis: warn per promoted memory absent from repo.md, alongside repo-general decisions
+- [x] 3.3 SPEC: event type, state, record layout, tool surface, citation grammar, doctor axis, acceptance criteria
+
+## Memory nodes (deferred) [dropped] — 0/1 (1 dropped) done
+
+- [-] 4.1 Mint memory nodes in buildGraph so decisions can cite `<slug> M<n>` and resolve it — lifts the D2 opt-in restriction and lets `sofar why`/`related` reach promotions (dropped)
+
+Next action: Nothing pending — statusline work is complete and published.
+
+== decisions (4274 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Decisions: repo-memory-capture
+
+- 2026-08-04T09:31:30.714Z — chose **A dedicated promotion affordance for operational knowledge: a new memory_promoted event (payload {text}), captured via `sofar remember` and the sofar_remember MCP tool, addressable as `<slug> M<n>` in the existing citation grammar, with doctor's repo-memory axis warning when a promoted memory is not named in .sofar/repo.md. repo.md stays hand-written; doctor still only detects.** over Making notes citable so the existing observed-citation axis fires on them; and adding only symptom detectors (repo.md untouched across N closed initiatives, or files and commands recurring cross-initiative that repo.md never names). because record-graph rejected a scope:repo|initiative field on decision_logged because a decision's generality is not knowable at log time — decisions BECOME general later — and a declared field would be blind to every decision already in the record. That reasoning is about decisions and does not transfer to operational procedure: the release command's repo-wide scope was known the moment it was learned, there is nothing to wait for, and no amount of citation behaviour will ever surface a fact that was never written down anywhere. Both observed-only alternatives fail the case that prompted this — the publish command lived in private tool memory, produced no artifact, and would have stayed invisible under either. This is declaration, but of a different proposition: not "this decision is repo-wide" but "this fact is repo memory", which only its author can know and which no derivation can recover.
+- 2026-08-04T09:45:09.175Z — chose **M&lt;n&gt; is opt-in in extractCitations — a `{ memories: true }` option that only the repo.md scan passes — and promoted memories are NOT graph nodes in this initiative.** over Adding M&lt;n&gt; to the grammar unconditionally, and the fuller alternative of minting memory nodes in buildGraph so decisions could cite promotions and resolve them. because The grammar has two callers with opposite needs. The repo.md scan reads qualified handles and never resolves, so a wider grammar costs it nothing. Decision prose is resolved against real nodes, and since promotions have none, an unconditional M&lt;n&gt; would turn every legitimate mention of a memory into a dangling entry — manufacturing exactly the false signal record-graph 5.3 removed for BD&lt;n&gt;. Node-minting is the coherent end state and would fix that properly, but it widens buildGraph, resolveCitation, why and related for a capability nobody asked for yet; the detection the gap actually needs works without it. Left as a pending Phase 4 task rather than half-built.
+- 2026-08-05T08:32:03.886Z — chose **Close the initiative at the working detector: 4.1 (mint memory nodes in buildGraph) stays deferred indefinitely, and any future attempt must first settle a disambiguation rule — most likely qualified-only (`<slug> M<n>`) for memory handles.** over Building 4.1 now to lift D2's opt-in restriction so decisions can cite promotions and `sofar why` / `sofar related` resolve them. because D2 deferred this on cost-vs-demand grounds; the corpus now shows it would also be actively wrong to build as specified. Node-minting is what makes the unconditional grammar safe, but unqualified handles resolve to the home slug (graph.ts extractCitations, the qualifier-attempt branch), and existing decision prose is full of bare M&lt;n&gt; meaning MILESTONE, not memory: token-optimization/decisions.md alone carries "the M4", "an M5", "confirm M4", "the M2", "the M3", and felt-cost carries "the M4". token-optimization has zero promoted memories, so every one of those would resolve to nothing — reinstating exactly the dangling-citation false signal record-graph 5.3 removed for BD&lt;n&gt;. So 4.1 is not additive; it needs a grammar rule D2 never scoped. Meanwhile demand is nil: 2 promoted memories exist repo-wide, both in this initiative, both named in repo.md, doctor's repo-memory axis clean, and no decision has ever attempted a memory citation. Trigger to revisit: a decision that genuinely wants to cite `&lt;slug&gt; M&lt;n&gt;` and have why/related reach it.
+
+== memory (2791 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Promoted to repo memory: repo-memory-capture
+
+Cite these in .sofar/repo.md by qualified handle — `repo-memory-capture M<n>` —
+which is how `sofar doctor` sees that a promoted fact reached repo memory.
+
+- **M1** (2026-08-04T09:46:19.795Z) — Release: `npm publish -w sofar.sh` from the repo root, always run by the USER (OTP + permission classifier). Bare `npm publish` at the root targets the PRIVATE monorepo package and would tarball the whole repo including .sofar/ — the root package.json "private": true is that guard, never remove it. An expired npm token surfaces as E404 on the publish PUT; `npm whoami` returning E401 confirms it, `npm login` fixes it. After publishing, upgrade the global install: npm install -g --prefix ~/.local sofar.sh@latest
+- **M2** (2026-08-05T06:23:53.803Z) — Committing the record cleanly requires the git call to be BARE. The record-hygiene D1 exemption (packages/engine/src/cli/event.ts, shellSegments + SELF_RECORDING_COMMANDS) splits a command at every shell separator INCLUDING NEWLINES, and exempts it only if EVERY segment leads with `git` or `sofar`. So `git add -A && git commit -F msg.txt` is exempt, but a heredoc (`git commit -F - <<'EOF' … EOF`) is not — the message body's own lines are scanned as segments and lead with ordinary prose words. Mixing in `echo`, `printf`, or any non-git segment defeats it the same way. Symptom: you write back, commit, and the tree is dirty again with command_run events describing the commit itself — the exact non-convergence D1 exists to prevent. Fix: put the commit message in a file and use `git commit -F <path>`, and run status/diff checks as bare git calls, not compounded with echo.
+- **M3** (2026-08-05T08:40:18.216Z) — Misrouted sessions are silent: a Claude Code session rooted in this repo fires the sofar hooks on EVERY tool call, and with no explicit pin the branch binding decides where they land. A session doing work for a different initiative in this repo must call sofar_start_session with an explicit `initiative` as its first act — otherwise every command_run is filed under whatever the branch binds. Doctor cannot catch it: the Session routing axis only detects sessions SPANNING 2+ initiatives (leaks/splits); events landing uniformly in one WRONG initiative are byte-identical to correct work, and doctor reports "no problems found". Symptom: a closed initiative's tree goes dirty seconds after a clean commit, its banner shows "N other session(s) did work without writing back", and its next action reads stale — all from a concurrent session that has nothing to do with it. Observed 2026-08-05 (session a18d80d0, session-strategy-bench harvest filed under repo-memory-capture).
+
+== session 709b7eb6-a594-438c-8154-59f2434bf653.md (3311 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 709b7eb6-a594-438c-8154-59f2434bf653
+
+- Initiative: repo-memory-capture
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-04T09:31:19.868Z
+- Ended: 2026-08-05T05:36:09.137Z
+
+## Summary
+
+0.16.0 published and the global install upgraded, both verified — the capture path and detector are live, and this repo's own release command is recorded as M1 and named in repo.md. Phases 1-3 complete (9/9).
+
+## Next action
+
+Nothing pending. Task 4.1 (memory graph nodes) stays deferred by D2 until something needs to cite a promotion.
+
+## Activity (derived from mechanical events)
+
+- Derived: 25 files (/Users/jins/IO/sofar/packages/schema/src/events.ts, /Users/jins/IO/sofar/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar/packages/engine/src/projections/templates/shared.ts, /Users/jins/IO/sofar/packages/engine/test/staleness.test.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/schema/test/schema.test.ts, /Users/jins/IO/sofar/packages/engine/src/projections/templates/memory.ts, /Users/jins/IO/sofar/packages/engine/src/projections/generator.ts, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/remember.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/server.ts, /Users/jins/IO/sofar/packages/engine/src/cli/remember.ts, /Users/jins/IO/sofar/packages/engine/src/cli/index.ts, /Users/jins/IO/sofar/packages/engine/test/acceptance.phase2.test.ts, /Users/jins/IO/sofar/packages/engine/src/cli/init.ts, /Users/jins/IO/sofar/packages/engine/src/core/graph.ts, /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts, /Users/jins/IO/sofar/packages/engine/test/graph-cli.test.ts, /Users/jins/IO/sofar/packages/engine/test/remember.test.ts, /Users/jins/IO/sofar/.sofar/repo.md, +5 more), 75 commands, task changes: 1.1 → done, 1.2 → done, 2.1 → done, 2.2 → done, 2.3 → done
+- Files:
+  - /Users/jins/IO/sofar/packages/schema/src/events.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/fold.ts
+  - /Users/jins/IO/sofar/packages/engine/src/projections/templates/shared.ts
+  - /Users/jins/IO/sofar/packages/engine/test/staleness.test.ts
+  - /Users/jins/IO/sofar/docs/SPEC.md
+  - /Users/jins/IO/sofar/packages/schema/test/schema.test.ts
+  - /Users/jins/IO/sofar/packages/engine/src/projections/templates/memory.ts
+  - /Users/jins/IO/sofar/packages/engine/src/projections/generator.ts
+  - /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts
+  - /Users/jins/IO/sofar/packages/engine/src/mcp/remember.ts
+  - /Users/jins/IO/sofar/packages/engine/src/mcp/server.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/remember.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/index.ts
+  - /Users/jins/IO/sofar/packages/engine/test/acceptance.phase2.test.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/init.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/graph.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts
+  - /Users/jins/IO/sofar/packages/engine/test/graph-cli.test.ts
+  - /Users/jins/IO/sofar/packages/engine/test/remember.test.ts
+  - /Users/jins/IO/sofar/.sofar/repo.md
+  - +5 more
+- Commands run: 75
+- Task changes:
+  - 1.1 → done
+  - 1.2 → done
+  - 2.1 → done
+  - 2.2 → done
+  - 2.3 → done
+
+== session 6723925c-b705-46cc-9a44-0e47a62e7463.md (3415 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 6723925c-b705-46cc-9a44-0e47a62e7463
+
+- Initiative: repo-memory-capture
+- Tool: claude-code
+- Started: 2026-08-05T05:39:14.231Z
+- Ended: 2026-08-05T07:45:59.796Z
+
+## Summary
+
+Statusline reshaped and shipped across felt-cost D12-D15: glyphs trimmed, cost dropped, ctx before cache, pie ramp ○◔◕●, Claude's palette, and install/uninstall at project or user scope. 0.17.1 and 0.17.2 both published and verified live. 893 tests pass.
+
+## Next action
+
+Nothing pending — statusline work is complete and published.
+
+## Activity (derived from mechanical events)
+
+- Derived: 23 files (/Users/jins/IO/sofar/packages/engine/src/cli/statusline.ts, /Users/jins/IO/sofar/packages/engine/test/statusline.test.ts, /Users/jins/IO/sofar/packages/engine/src/cli/ui/symbols.ts, /Users/jins/IO/sofar/packages/engine/src/cli/ui/index.ts, /Users/jins/IO/sofar/packages/engine/test/ui.test.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/.sofar/repo.md, /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg2.txt, /Users/jins/IO/sofar/README.md, /Users/jins/IO/sofar/packages/engine/package.json, /Users/jins/IO/sofar/package-lock.json, /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg3.txt, /Users/jins/IO/sofar/packages/engine/src/cli/ui/style.ts, /Users/jins/IO/sofar/packages/engine/src/cli/init.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg4.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg5.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg6.txt, /Users/jins/.claude/settings.json, /Users/jins/IO/sofar/packages/engine/test/init.test.ts, +3 more), 77 commands
+- Files:
+  - /Users/jins/IO/sofar/packages/engine/src/cli/statusline.ts
+  - /Users/jins/IO/sofar/packages/engine/test/statusline.test.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/ui/symbols.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/ui/index.ts
+  - /Users/jins/IO/sofar/packages/engine/test/ui.test.ts
+  - /Users/jins/IO/sofar/docs/SPEC.md
+  - /Users/jins/IO/sofar/.sofar/repo.md
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg.txt
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg2.txt
+  - /Users/jins/IO/sofar/README.md
+  - /Users/jins/IO/sofar/packages/engine/package.json
+  - /Users/jins/IO/sofar/package-lock.json
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg3.txt
+  - /Users/jins/IO/sofar/packages/engine/src/cli/ui/style.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/init.ts
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg4.txt
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg5.txt
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/6723925c-b705-46cc-9a44-0e47a62e7463/scratchpad/msg6.txt
+  - /Users/jins/.claude/settings.json
+  - /Users/jins/IO/sofar/packages/engine/test/init.test.ts
+  - +3 more
+- Commands run: 77
+
+== session a18d80d0-4d0d-4a59-a020-42162c238dbc.md (606 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session a18d80d0-4d0d-4a59-a020-42162c238dbc
+
+- Initiative: repo-memory-capture
+- Tool: claude-code
+- Started: 2026-08-05T07:47:09.093Z
+- Ended: 2026-08-05T11:12:35.859Z
+
+## Summary
+
+Off-record maintenance only (brillo benchmark cleanup, no sofar code touched). Stray command_run events here are this session's, misrouted by the branch binding — see M3.
+
+## Next action
+
+Nothing pending — statusline work is complete and published.
+
+## Activity (derived from mechanical events)
+
+- Derived: 36 commands
+- Commands run: 36
+
+== session b41109e5-0982-4c4a-8647-3bfb8a2e0cd0.md (874 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session b41109e5-0982-4c4a-8647-3bfb8a2e0cd0
+
+- Initiative: repo-memory-capture
+- Tool: claude-code
+- Started: 2026-08-05T07:48:18.429Z
+- Ended: 2026-08-05T08:32:35.011Z
+
+## Summary
+
+Closed the initiative at the working detector: D3 logged, 4.1 marked blocked (no caller + bare M&lt;n&gt; collides with milestone prose).
+
+## Next action
+
+Initiative closed; revisit 4.1 only if a decision needs to cite a memory.
+
+## Activity (derived from mechanical events)
+
+- Derived: 1 file (/private/tmp/claude-501/-Users-jins-IO-sofar/b41109e5-0982-4c4a-8647-3bfb8a2e0cd0/scratchpad/msg.txt), 11 commands, task changes: 4.1 → blocked
+- Files:
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/b41109e5-0982-4c4a-8647-3bfb8a2e0cd0/scratchpad/msg.txt
+- Commands run: 11
+- Task changes:
+  - 4.1 → blocked
+
+== session 6cbbd5e0-2127-401f-914e-9acaead00414.md (992 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 6cbbd5e0-2127-401f-914e-9acaead00414
+
+- Initiative: repo-memory-capture
+- Tool: claude-code
+- Started: 2026-08-05T08:36:08.510Z
+- Ended: 2026-08-05T08:41:00.720Z
+
+## Summary
+
+Diagnosed the stray events: concurrent session a18d80d0 is doing session-strategy-bench work but never pinned an initiative, so the main binding files it here. Noted it; promoted M3 (misrouted sessions are silent to doctor).
+
+## Next action
+
+Still closed. The dirty tree and orphan-session banner are a18d80d0's, not this initiative's.
+
+## Activity (derived from mechanical events)
+
+- Derived: 2 files (/Users/jins/IO/sofar/.sofar/repo.md, /private/tmp/claude-501/-Users-jins-IO-sofar/6cbbd5e0-2127-401f-914e-9acaead00414/scratchpad/msg.txt), 16 commands
+- Files:
+  - /Users/jins/IO/sofar/.sofar/repo.md
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/6cbbd5e0-2127-401f-914e-9acaead00414/scratchpad/msg.txt
+- Commands run: 16
+

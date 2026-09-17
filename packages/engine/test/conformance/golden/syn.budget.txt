@@ -7,42 +7,27 @@ exit: 0
 --- stdout
 # Sofar status: budget
 
-Goal: a goal long enough to be clipped at the six hundred unit budget a goal long enough to be clipped at the six hundred unit budget a goal long enough to be clipped at the six hundred unit budget a goal long enough to be clipped at the six hundred unit budget a goal long enough to be clipped at the six hundred unit budget a goal long enough to be clipped at the six hundred unit budget a goal long enough to be clipped at the six hundred unit budget a goal long enough to be clipped at the six hundred unit budget a goal long enough to be clipped at the six hundred unit budget a goal long enough to b…
+Goal: a goal long enough to be clipped at the six hundred unit budget a goal long enough to be clipped at the six hundred unit budget a goal long enough to be clipped at the six hundred unit budget a goal long enough to be clipped at the six hundred unit budget a goal long enough to be clipped at the six hundred unit budget a goal long enough to be clipped at the six hundred unit budget a goal long eno…
 
-Standing constraints — obey verbatim (10):
-- [D1] Rule 0: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
-- [D3] Rule 2: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
-- [D5] Rule 4: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
-- [D7] Rule 6: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
-- [D9] Rule 8: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
-- [D11] Rule 10: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
-- [D13] Rule 12: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
-- [D15] Rule 14: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
-- [D17] Rule 16: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
-- [D19] Rule 18: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
+Current task: 21.1 task 21.1: a realistically sized task title that keeps going a realistically sized task title that keeps going a realistically sized task title that keeps going
+  in Phase 21: a descriptive phase name that runs long a descriptive phase name that runs long a descrip… [active] 0/25
+  files: src/area-11/file-29.ts, src/area-11/file-28.ts, src/area-11/file-27.ts, src/area-11/file-26.ts, src/area-11/file-25.ts, src/area-11/file-24.ts, src/area-11/file-23.ts, src/area-11/file-22.ts
+  - 21.2 task 21.2: a realistically sized task title that keeps going a realistical… (blocked)
+  - 21.3 task 21.3: a realistically sized task title that keeps going a realistical… (active)
+  - 21.4 task 21.4: a realistically sized task title that keeps going a realistical… (active)
+  - 21.5 task 21.5: a realistically sized task title that keeps going a realistical… (active)
+  - 21.6 task 21.6: a realistically sized task title that keeps going a realistical… (active)
+  - 21.7 task 21.7: a realistically sized task title that keeps going a realistical… (active)
+  - …and 18 more (plan.md)
 
-Repo memory (.sofar/repo.md):
-# Repo memory
+Next action: next 9: next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next …
+⚠ next action may be stale: 62 events since write-back (60 files, 2 task changes)
+Blocked on: task 21.2: waiting on the run owner
 
-- convention 0: a line of repo memory a line of repo memory a line of repo memory 
-- convention 1: a line of repo memory a line of repo memory a line of repo memory 
-- convention 2: a line of repo memory a line of repo memory a line of repo memory 
-- convention 3: a line of repo memory a line of repo memory a line of repo memory 
-- convention 4: a line of repo memory a line of repo memory a line of repo memory 
-- convention 5: a line of repo memory a line of repo memory a line of repo memory 
-- convention 6: a line of repo memory a line of repo memory a line of repo memory 
-- convention 7: a line of repo memory a line of repo memory a line of repo memory 
-- convention 8: a line of repo memory a line of repo memory a line of repo memory 
-- convention 9: a line of repo memory a line of repo memory a line of repo memory 
-- convention 10: a line of repo memory a line of repo memory a line of repo memory 
-- convention 11: a line of repo memory a line of repo memory a line of repo memory 
-- convention 12: a line of repo memory a line of repo memory a line of repo memory 
-- convention 13: a line of repo memory a line of repo memory a line of repo memory 
-- convention 14: a line of repo memory a line of repo memory a line of repo memory 
-- convention 15: a line of repo memory a line of repo memory a line of repo memory 
-- convention 16: a line of repo memory a line of repo memory a line of repo memory 
-- convention 17: a li
-…truncated — read .sofar/repo.md for the rest
+Last session (claude-code) open, no write-back yet — derived: 30 files (src/area-11/file-0.ts, src/area-11/file-1.ts, src/area-11/file-2.ts, src/area-11/file-3.ts, src/area-11/file-4.ts, src/area-11/file-5.ts, src/area-11/file-6.ts, src/area-11/file-7.ts, src/area-11/file-8.ts, src/area-11/file-9.ts, src/area-11/file-10.ts, src/area-11/file-11.ts, src/area-11/file-12.ts, src/area-11/file-13.ts, src/area-11/file-14.ts, src/area-11/file-15.ts, src/area-11/file-16.ts, src/area-11/file-17.ts, src/area-11/file-18.ts, src/area-11/file-19.ts, +10 more), task changes: 21.14 → active
+  (details in sessions/budget-sess-11.md)
+
+⚠ 1 other session(s) did work without writing back: budget-sess-10
 
 Phases:
 - Phase 21: a descriptive phase name that runs long a descriptive phase name that runs long a descrip… [active] 0/25
@@ -54,36 +39,24 @@ Phases:
 - Phase 27: a descriptive phase name that runs long a descriptive phase name that runs long a descrip… [pending] 0/25
 - Phase 28: a descriptive phase name that runs long a descriptive phase name that runs long a descrip… [pending] 0/25
 - Phase 29: a descriptive phase name that runs long a descriptive phase name that runs long a descrip… [pending] 0/25
-- Phase 30: a descriptive phase name that runs long a descriptive phase name that runs long a descrip… [pending] 0/25
-- Phase 31: a descriptive phase name that runs long a descriptive phase name that runs long a descrip… [pending] 0/25
-- Phase 32: a descriptive phase name that runs long a descriptive phase name that runs long a descrip… [pending] 0/25
-- …and 8 more phases (see plan.md)
-- done: Phase 1: a descriptive phase name that runs long a descriptive phase name that runs long a descriptive phase name that runs long , Phase 2: a descriptive phase name that runs long a descriptive phase name that r…
-
-Progress: 500/1000 tasks done (50%) across 40 phase(s)
-Active phase: Phase 21: a descriptive phase name that runs long a descriptive phase name that runs long a descrip… — 0/25 tasks done
-Current task: 21.1 task 21.1: a realistically sized task title that keeps going a realistically sized task title that keeps going a realistically sized task title that keeps going
-  files: src/area-11/file-29.ts, src/area-11/file-28.ts, src/area-11/file-27.ts, src/area-11/file-26.ts, src/area-11/file-25.ts, src/area-11/file-24.ts, src/area-11/file-23.ts, src/area-11/file-22.ts
-Next task: 21.15 task 21.15: a realistically sized task title that keeps going a realistically sized task title that keeps going a realistically sized task title that keeps going
-Next action: next 9: next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next action prose next …
-⚠ next action may be stale: 62 events since write-back (60 files, 2 task changes)
-Blocked on: task 21.2: waiting on the run owner
-
-Last session (claude-code, ended 2026-09-01T16:11:00.000Z):
-  session 9: summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the sess… (clipped — full text in sessions/budget-sess-9.md)
-
-Last session (claude-code) open, no write-back yet — derived: 30 files (src/area-11/file-0.ts, src/area-11/file-1.ts, src/area-11/file-2.ts, src/area-11/file-3.ts, src/area-11/file-4.ts, src/area-11/file-5.ts, src/area-11/file-6.ts, src/area-11/file-7.ts, src/area-11/file-8.ts, src/area-11/file-9.ts, src/area-11/file-10.ts, src/area-11/file-11.ts, src/area-11/file-12.ts, src/area-11/file-13.ts, src/area-11/file-14.ts, src/area-11/file-15.ts, src/area-11/file-16.ts, src/area-11/file-17.ts, src/area-11/file-18.ts, src/area-11/file-19.ts, +10 more), task changes: 21.14 → active
-  (details in sessions/budget-sess-11.md)
-
-⚠ 1 other session(s) did work without writing back: budget-sess-10
-
-Recent decisions (last 5 of 20; full text in decisions.md):
-- [D16] 2026-09-01 decision 15: chosen text that is long enough to be clipped in the line budget chosen text that is long enough to be cli… — over alternative 15: rejected approach prose rejected approach prose rejected approach prose r…
-- [D17] 2026-09-01 (rule above) decision 16: chosen text that is long enough to be clipped … — over alternative 16: rejected approach prose rejected approach prose rejected approach prose r…
-- [D18] 2026-09-01 decision 17: chosen text that is long enough to be clipped in the line budget chosen text that is long enough to be cli… — over alternative 17: rejected approach prose rejected approach prose rejected approach prose r…
-- [D19] 2026-09-01 (rule above) decision 18: chosen text that is long enough to be clipped … — over alternative 18: rejected approach prose rejected approach prose rejected approach prose r…
-- [D20] 2026-09-01 decision 19: chosen text that is long enough to be clipped in the line budget chosen text that is long enough to be cli
+- Phase 30: a descriptive phase name that runs long a descriptive ph
 …truncated — run sofar status for full detail
+
+Standing constraints — obey verbatim (10):
+- [D19] Rule 18: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
+- [D17] Rule 16: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
+- [D15] Rule 14: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
+- [D13] Rule 12: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
+- [D11] Rule 10: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
+- [D9] Rule 8: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
+- [D7] Rule 6: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
+- [D5] Rule 4: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
+- [D3] Rule 2: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
+- [D1] Rule 0: standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text standing constraint text
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 --- stderr
 (empty)
 
@@ -1155,7 +1128,7 @@ Blocked on: task 21.2: waiting on the run owner
 
 ⚠ Staleness:
 - next action may be stale: 62 events since the last write-back (2026-09-01T16:11:00.000Z) — 60 files, 2 task changes
-- last write-back summary exceeds the SessionStart budget (1200 chars) and is clipped there — full text in sessions/budget-sess-9.md
+- last write-back summary exceeds the SessionStart budget (450 chars) and is clipped there — full text in sessions/budget-sess-9.md
 
 Last session (claude-code, ended 2026-09-01T16:11:00.000Z):
   session 9: summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget summary prose that is long enough to hit the session summary budget 

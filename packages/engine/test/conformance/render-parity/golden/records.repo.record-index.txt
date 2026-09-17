@@ -186,24 +186,11 @@ Files touched (58):
 - /private/tmp/claude-501/-Users-jins-IO-sofar/5c0728c5-04ec-41f2-9408-ee316b298fbb/scratchpad/msg4.txt
 - /private/tmp/claude-501/-Users-jins-IO-sofar/5c0728c5-04ec-41f2-9408-ee316b298fbb/scratchpad/msg5.txt
 
-== digest:plain (5114 bytes) ==
+== digest:plain (4406 bytes) ==
 # Sofar status: record-index
 
-Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first consumer is CROSS-INITIATIVE GUARDS (pushed by the harness, needing no agent cooperation), then a priming line, then agent-initiated search. Maintained by per-initiative cursors so cost is O(new even…
+Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first…
 
-Standing constraints — obey verbatim (6):
-- [D1] The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.
-- [D2] Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.
-- [D6] A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.
-- [D12] Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.
-- [D14] A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.
-- [D16] Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.
-
-Phases:
-- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
-
-Progress: 11/11 tasks done (100%) across 4 phase(s)
-Active phase: (none)
 Next action: Pick the next initiative — this branch is unbound, so start or switch on a fresh session.
 ⚠ next action may be stale: 2 events since write-back (1 file, 1 promoted memory)
 
@@ -212,44 +199,65 @@ Last session (claude-code, ended 2026-08-09T07:49:50.138Z):
 
 ⚠ 1 other session(s) did work without writing back: 58a146b7-2fee-4c20-a4ac-0155dd2b4ea7
 
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
+Memory (4; full text in memory.md):
+- [M4] Stale open-session holders, and the layer the fix must NOT go in. Tier 0 (.sofar/.index/open.json) drops a session only when session_ended arrives, so a session whose process dies stays "open" forever. Measured 2026-08-09 in this repo: 5 sessions listed open, 3 of them dead — re…
+- [M1] packages/engine/src/core/fold.ts contains literal NUL bytes (line ~742, `${index}\0${session}\0${subject}` used as a map key), so grep and ripgrep classify it as binary and return NOTHING — silently, with exit 0. A search for a symbol that lives in fold.ts looks like the symbol …
+- [M3] A literal NUL byte in a source file makes grep and `file` treat the whole file …
+- [M2] Claude Code hook output contract, verified against the installed binary (2.1.22…
+
 Recent decisions (last 5 of 17; full text in decisions.md):
-- [D13] 2026-08-08 Citation handles are SCANNED when an event is indexed and BOUND to an initiative at query time, with the grammar split … — over Resolving a citation to its target when the decision is indexed (the obvious thing — it i…
-- [D14] 2026-08-08 (rule above) Lexical seeding is a FALLBACK inside the seed ladder, not a… — over A --text flag or a mode argument (the caller must then already know which kind of questio…
-- [D15] 2026-08-08 Store per-row TERM COUNTS (stem → occurrences) plus a token total, derived from the WHOLE prose, and rank with textbook… — over Binary presence with a term SET (57KB cheaper here); indexing only the 300-char stored la…
-- [D16] 2026-08-09 (rule above) A cursor is only meaningful beside the state it produced: w… — over Trusting meta.json independently of the payload it describes (what the code did): the pas…
-- [D17] 2026-08-09 Leave Tier 0 order-sensitive and DOCUMENT the boundary: a file_touched that sorts before its own session_started is not… — over Making Tier 0 order-independent like the fold — holding touches for not-yet-registered se…
+- [D13] 2026-08-08 Citation handles are SCANNED when an event is indexed and BOUND to an initiative at query… — over Resolving a citation to its target when the decision is indexed
+- [D14] 2026-08-08 (rule below) Lexical seeding is a FALLBACK inside the seed ladder, not a… — over A --text flag or a mode argument
+- [D15] 2026-08-08 Store per-row TERM COUNTS — over Binary presence with a term SET
+- [D16] 2026-08-09 (rule below) A cursor is only meaningful beside the state it produced — over Trusting meta.json independently of the payload it describes
+- [D17] 2026-08-09 Leave Tier 0 order-sensitive and DOCUMENT the boundary — over Making Tier 0 order-independent like the fold
 Earlier rejected approaches — do NOT re-propose (12 older):
-- [D1] one monolithic index file, a committed/union-merged index, embeddings-based semantic retr…
-- [D2] a pure pull design where SessionStart advertises the graph and the agent asks when it jud…
-- [D3] A read-only shim (depends on some other process maintaining the index), a warmth-gated co…
-- [D4] Keeping the v1 cursor and tailing every log every refresh, and skipping on size equality …
-- [D5] Copying Tier 0's loop into Tier 1, trusting file order, ignoring corrections, decoding le…
-- [D6] exit 2 with stderr, or `decision: "block"` with a reason — both of which Claude Code feed…
-- [D7] Keeping 3.1's single graph.json and refreshing all of it per edit; or dropping the repeat…
-- [D8] Firing statelessly on every crossing edit like the drift nudge and conflict lines do; or …
-- [D9] The two-hop decision join whyFile already exposes (decision &lt;- session -&gt; file); an…
-- [D10] Cloning every slug's prior state on every refresh (the original SlugReducer contract), an…
-- [D11] Extending graph.json with event ids and prose (the derived half SessionStart's priming al…
-- [D12] Minting initiative↔member edges into the adjacency like every other relationship, or leav…
+- [D1] one monolithic index file, a committed/union-merged index, embeddings…
+- [D2] a pure pull design where SessionStart advertises the graph and the ag…
+- [D3] A read-only shim (depends on some other process maintaining the index…
+- [D4] Keeping the v1 cursor and tailing every log every refresh, and skippi…
+- …and 8 more (see decisions.md)
 
 Next ids: D18 (decision), M5 (memory)
+
+Standing constraints — obey verbatim (6):
+- [D12] Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.
+- [D16] Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.
+- [D14] A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.
+- [D6] A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.
+- [D2] Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.
+- [D1] The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:hook (7224 bytes) ==
+== digest:hook (5577 bytes) ==
 # Sofar status: record-index
 
-Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first consumer is CROSS-INITIATIVE GUARDS (pushed by the harness, needing no agent cooperation), then a priming line, then agent-initiated search. Maintained by per-initiative cursors so cost is O(new even…
+Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first…
 
-Standing constraints — obey verbatim (6):
-- [D1] The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.
-- [D2] Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.
-- [D6] A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.
-- [D12] Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.
-- [D14] A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.
-- [D16] Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.
+Next action: Pick the next initiative — this branch is unbound, so start or switch on a fresh session.
+⚠ next action may be stale: 2 events since write-back (1 file, 1 promoted memory)
+
+Last session (claude-code, ended 2026-08-09T07:49:50.138Z):
+  record-index closed and merged: main fast-forwarded to add2ca1 and pushed to origin (21 commits). Branch never diverged, so no merge commit.
+
+⚠ 1 other session(s) did work without writing back: 58a146b7-2fee-4c20-a4ac-0155dd2b4ea7
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
+Memory (4; full text in memory.md):
+- [M4] Stale open-session holders, and the layer the fix must NOT go in. Tier 0 (.sofar/.index/open.json) drops a session only when session_ended arrives, so a session whose process dies stays "open" forever. Measured 2026-08-09 in this repo: 5 sessions listed open, 3 of them dead — re…
+- [M1] packages/engine/src/core/fold.ts contains literal NUL bytes (line ~742, `${index}\0${session}\0${subject}` used as a map key), so grep and ripgrep classify it as binary and return NOTHING — silently, with exit 0. A search for a symbol that lives in fold.ts looks like the symbol …
+- [M3] A literal NUL byte in a source file makes grep and `file` treat the whole file …
+- [M2] Claude Code hook output contract, verified against the installed binary (2.1.22…
 
 Repo memory (.sofar/repo.md):
 # Repo memory — sofar
@@ -261,56 +269,20 @@ Repo memory (.sofar/repo.md):
   docs still say harness — that is history, never rewritten.
 - Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
   acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
 …truncated — read .sofar/repo.md for the rest
 
-Phases:
-- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
-
-Progress: 11/11 tasks done (100%) across 4 phase(s)
-Active phase: (none)
-Next action: Pick the next initiative — this branch is unbound, so start or switch on a fresh session.
-⚠ next action may be stale: 2 events since write-back (1 file, 1 promoted memory)
-
-Last session (claude-code, ended 2026-08-09T07:49:50.138Z):
-  record-index closed and merged: main fast-forwarded to add2ca1 and pushed to origin (21 commits). Branch never diverged, so no merge commit.
-
-⚠ 1 other session(s) did work without writing back: 58a146b7-2fee-4c20-a4ac-0155dd2b4ea7
-
 Recent decisions (last 5 of 17; full text in decisions.md):
-- [D13] 2026-08-08 Citation handles are SCANNED when an event is indexed and BOUND to an initiative at query time, with the grammar split … — over Resolving a citation to its target when the decision is indexed (the obvious thing — it i…
-- [D14] 2026-08-08 (rule above) Lexical seeding is a FALLBACK inside the seed ladder, not a… — over A --text flag or a mode argument (the caller must then already know which kind of questio…
-- [D15] 2026-08-08 Store per-row TERM COUNTS (stem → occurrences) plus a token total, derived from the WHOLE prose, and rank with textbook… — over Binary presence with a term SET (57KB cheaper here); indexing only the 300-char stored la…
-- [D16] 2026-08-09 (rule above) A cursor is only meaningful beside the state it produced: w… — over Trusting meta.json independently of the payload it describes (what the code did): the pas…
-- [D17] 2026-08-09 Leave Tier 0 order-sensitive and DOCUMENT the boundary: a file_touched that sorts before its own session_started is not… — over Making Tier 0 order-independent like the fold — holding touches for not-yet-registered se…
+- [D13] 2026-08-08 Citation handles are SCANNED when an event is indexed and BOUND to an initiative at query… — over Resolving a citation to its target when the decision is indexed
+- [D14] 2026-08-08 (rule below) Lexical seeding is a FALLBACK inside the seed ladder, not a… — over A --text flag or a mode argument
+- [D15] 2026-08-08 Store per-row TERM COUNTS — over Binary presence with a term SET
+- [D16] 2026-08-09 (rule below) A cursor is only meaningful beside the state it produced — over Trusting meta.json independently of the payload it describes
+- [D17] 2026-08-09 Leave Tier 0 order-sensitive and DOCUMENT the boundary — over Making Tier 0 order-independent like the fold
 Earlier rejected approaches — do NOT re-propose (12 older):
-- [D1] one monolithic index file, a committed/union-merged index, embeddings-based semantic retr…
-- [D2] a pure pull design where SessionStart advertises the graph and the agent asks when it jud…
-- [D3] A read-only shim (depends on some other process maintaining the index), a warmth-gated co…
-- [D4] Keeping the v1 cursor and tailing every log every refresh, and skipping on size equality …
-- [D5] Copying Tier 0's loop into Tier 1, trusting file order, ignoring corrections, decoding le…
-- [D6] exit 2 with stderr, or `decision: "block"` with a reason — both of which Claude Code feed…
-- [D7] Keeping 3.1's single graph.json and refreshing all of it per edit; or dropping the repeat…
-- [D8] Firing statelessly on every crossing edit like the drift nudge and conflict lines do; or …
-- [D9] The two-hop decision join whyFile already exposes (decision &lt;- session -&gt; file); an…
-- [D10] Cloning every slug's prior state on every refresh (the original SlugReducer contract), an…
-- [D11] Extending graph.json with event ids and prose (the derived half SessionStart's priming al…
-- [D12] Minting initiative↔member edges into the adjacency like every other relationship, or leav…
+- [D1] one monolithic index file, a committed/union-merged index, embeddings…
+- [D2] a pure pull design where SessionStart advertises the graph and the ag…
+- [D3] A read-only shim (depends on some other process maintaining the index…
+- [D4] Keeping the v1 cursor and tailing every log every refresh, and skippi…
+- …and 8 more (see decisions.md)
 
 Next ids: D18 (decision), M5 (memory)
 
@@ -320,32 +292,32 @@ Adjacent records — 22 decisions across 5 other initiatives that have worked th
 - gamma — 4 shared files, 2 decisions
 …and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: record-index-session — when calling sofar_start_session, pass this as session_id.
+Session: record-index-session — adopted on Claude Code; else pass to sofar_start_session.
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
+Standing constraints — obey verbatim (6):
+- [D12] Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.
+- [D16] Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.
+- [D14] A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.
+- [D6] A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.
+- [D2] Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.
+- [D1] The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.
+
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:lane (6619 bytes) ==
+== digest:lane (5527 bytes) ==
 # Sofar: quick-work lane (record-index)
 
-Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first consumer is CROSS-INITIATIVE GUARDS (pushed by the harness, needing no agent cooperation), then a priming line, then agent-initiated search. Maintained by per-initiative cursors so cost is O(new even…
+Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first…
 
 This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
 - Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
 - Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
-
-Standing constraints — obey verbatim (6):
-- [D1] The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.
-- [D2] Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.
-- [D6] A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.
-- [D12] Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.
-- [D14] A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.
-- [D16] Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.
 
 Last session (claude-code, ended 2026-08-09T07:49:50.138Z):
   record-index closed and merged: main fast-forwarded to add2ca1 and pushed to origin (21 commits). Branch never diverged, so no merge commit.
@@ -357,50 +329,44 @@ Recent quick work (12 sessions, 17 decisions since 2026-08-08; last 5):
 - 2026-08-08 claude-code — 15 files (/private/tmp/claude-501/-Users-jins-IO-sofar/4eef5d6c-2535-481b-a1b2-b5df1b16aa67/scratchpad/measure.js, /private/tmp/claude-501/-Users-jins-IO-sofar/4eef5d6c-2535-481b-a1b2-b5df1b16aa67/scratchpad/measure2.js, /Users/jins/IO/sofar/packages/engine/src/core/lexicon.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-reach.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-store.ts, /Users/jins/IO/sofar/packages/engine/src/cli/find.ts, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/find.ts, /Users…
 - 2026-08-08 claude-code — 2 files (/Users/jins/IO/sofar/CLAUDE.md, /Users/jins/.claude/CLAUDE.md), 2 commands
 
+Memory (4; full text in memory.md):
+- [M4] Stale open-session holders, and the layer the fix must NOT go in. Tier 0 (.sofa…
+- [M3] A literal NUL byte in a source file makes grep and `file` treat the whole file …
+- [M2] Claude Code hook output contract, verified against the installed binary (2.1.22…
+- [M1] packages/engine/src/core/fold.ts contains literal NUL bytes (line ~742, `${inde…
+
 Recent decisions (last 5 of 17; full text in decisions.md):
-- [D13] 2026-08-08 Citation handles are SCANNED when an event is indexed and BOUND to an initiative at query time, with the grammar split … — over Resolving a citation to its target when the decision is indexed (the obvious thing — it i…
-- [D14] 2026-08-08 (rule above) Lexical seeding is a FALLBACK inside the seed ladder, not a… — over A --text flag or a mode argument (the caller must then already know which kind of questio…
-- [D15] 2026-08-08 Store per-row TERM COUNTS (stem → occurrences) plus a token total, derived from the WHOLE prose, and rank with textbook… — over Binary presence with a term SET (57KB cheaper here); indexing only the 300-char stored la…
-- [D16] 2026-08-09 (rule above) A cursor is only meaningful beside the state it produced: w… — over Trusting meta.json independently of the payload it describes (what the code did): the pas…
-- [D17] 2026-08-09 Leave Tier 0 order-sensitive and DOCUMENT the boundary: a file_touched that sorts before its own session_started is not… — over Making Tier 0 order-independent like the fold — holding touches for not-yet-registered se…
+- [D13] 2026-08-08 Citation handles are SCANNED when an event is indexed and BOUND to an initiative at query… — over Resolving a citation to its target when the decision is indexed
+- [D14] 2026-08-08 (rule below) Lexical seeding is a FALLBACK inside the seed ladder, not a… — over A --text flag or a mode argument
+- [D15] 2026-08-08 Store per-row TERM COUNTS — over Binary presence with a term SET
+- [D16] 2026-08-09 (rule below) A cursor is only meaningful beside the state it produced — over Trusting meta.json independently of the payload it describes
+- [D17] 2026-08-09 Leave Tier 0 order-sensitive and DOCUMENT the boundary — over Making Tier 0 order-independent like the fold
 Earlier rejected approaches — do NOT re-propose (12 older):
-- [D1] one monolithic index file, a committed/union-merged index, embeddings-based semantic retr…
-- [D2] a pure pull design where SessionStart advertises the graph and the agent asks when it jud…
-- [D3] A read-only shim (depends on some other process maintaining the index), a warmth-gated co…
-- [D4] Keeping the v1 cursor and tailing every log every refresh, and skipping on size equality …
-- [D5] Copying Tier 0's loop into Tier 1, trusting file order, ignoring corrections, decoding le…
-- [D6] exit 2 with stderr, or `decision: "block"` with a reason — both of which Claude Code feed…
-- [D7] Keeping 3.1's single graph.json and refreshing all of it per edit; or dropping the repeat…
-- [D8] Firing statelessly on every crossing edit like the drift nudge and conflict lines do; or …
-- [D9] The two-hop decision join whyFile already exposes (decision &lt;- session -&gt; file); an…
-- [D10] Cloning every slug's prior state on every refresh (the original SlugReducer contract), an…
-- [D11] Extending graph.json with event ids and prose (the derived half SessionStart's priming al…
-- [D12] Minting initiative↔member edges into the adjacency like every other relationship, or leav…
+- [D1] one monolithic index file, a committed/union-merged index, embeddings…
+- [D2] a pure pull design where SessionStart advertises the graph and the ag…
+- [D3] A read-only shim (depends on some other process maintaining the index…
+- [D4] Keeping the v1 cursor and tailing every log every refresh, and skippi…
+- …and 8 more (see decisions.md)
 
 Next ids: D18 (decision), M5 (memory)
 
-Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (6):
+- [D16] Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.
+- [D14] A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.
+- [D12] Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.
+- [D6] A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.
+- [D2] Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.
+- [D1] The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:quiet (5201 bytes) ==
+== digest:quiet (4492 bytes) ==
 # Sofar status: record-index
 
-Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first consumer is CROSS-INITIATIVE GUARDS (pushed by the harness, needing no agent cooperation), then a priming line, then agent-initiated search. Maintained by per-initiative cursors so cost is O(new even…
+Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first…
 
-Standing constraints — obey verbatim (6):
-- [D1] The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.
-- [D2] Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.
-- [D6] A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.
-- [D12] Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.
-- [D14] A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.
-- [D16] Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.
-
-Phases:
-- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
-
-Progress: 11/11 tasks done (100%) across 4 phase(s)
-Active phase: (none)
 Next action: Pick the next initiative — this branch is unbound, so start or switch on a fresh session.
 ⚠ next action may be stale: 2 events since write-back (1 file, 1 promoted memory)
 
@@ -409,96 +375,59 @@ Last session (claude-code, ended 2026-08-09T07:49:50.138Z):
 
 ⚠ 1 other session(s) did work without writing back: 58a146b7-2fee-4c20-a4ac-0155dd2b4ea7
 
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
+Memory (4; full text in memory.md):
+- [M4] Stale open-session holders, and the layer the fix must NOT go in. Tier 0 (.sofar/.index/open.json) drops a session only when session_ended arrives, so a session whose process dies stays "open" forever. Measured 2026-08-09 in this repo: 5 sessions listed open, 3 of them dead — re…
+- [M1] packages/engine/src/core/fold.ts contains literal NUL bytes (line ~742, `${index}\0${session}\0${subject}` used as a map key), so grep and ripgrep classify it as binary and return NOTHING — silently, with exit 0. A search for a symbol that lives in fold.ts looks like the symbol …
+- [M3] A literal NUL byte in a source file makes grep and `file` treat the whole file …
+- [M2] Claude Code hook output contract, verified against the installed binary (2.1.22…
+
 Recent decisions (last 5 of 17; full text in decisions.md):
-- [D13] 2026-08-08 Citation handles are SCANNED when an event is indexed and BOUND to an initiative at query time, with the grammar split … — over Resolving a citation to its target when the decision is indexed (the obvious thing — it i…
-- [D14] 2026-08-08 (rule above) Lexical seeding is a FALLBACK inside the seed ladder, not a… — over A --text flag or a mode argument (the caller must then already know which kind of questio…
-- [D15] 2026-08-08 Store per-row TERM COUNTS (stem → occurrences) plus a token total, derived from the WHOLE prose, and rank with textbook… — over Binary presence with a term SET (57KB cheaper here); indexing only the 300-char stored la…
-- [D16] 2026-08-09 (rule above) A cursor is only meaningful beside the state it produced: w… — over Trusting meta.json independently of the payload it describes (what the code did): the pas…
-- [D17] 2026-08-09 Leave Tier 0 order-sensitive and DOCUMENT the boundary: a file_touched that sorts before its own session_started is not… — over Making Tier 0 order-independent like the fold — holding touches for not-yet-registered se…
+- [D13] 2026-08-08 Citation handles are SCANNED when an event is indexed and BOUND to an initiative at query… — over Resolving a citation to its target when the decision is indexed
+- [D14] 2026-08-08 (rule below) Lexical seeding is a FALLBACK inside the seed ladder, not a… — over A --text flag or a mode argument
+- [D15] 2026-08-08 Store per-row TERM COUNTS — over Binary presence with a term SET
+- [D16] 2026-08-09 (rule below) A cursor is only meaningful beside the state it produced — over Trusting meta.json independently of the payload it describes
+- [D17] 2026-08-09 Leave Tier 0 order-sensitive and DOCUMENT the boundary — over Making Tier 0 order-independent like the fold
 Earlier rejected approaches — do NOT re-propose (12 older):
-- [D1] one monolithic index file, a committed/union-merged index, embeddings-based semantic retr…
-- [D2] a pure pull design where SessionStart advertises the graph and the agent asks when it jud…
-- [D3] A read-only shim (depends on some other process maintaining the index), a warmth-gated co…
-- [D4] Keeping the v1 cursor and tailing every log every refresh, and skipping on size equality …
-- [D5] Copying Tier 0's loop into Tier 1, trusting file order, ignoring corrections, decoding le…
-- [D6] exit 2 with stderr, or `decision: "block"` with a reason — both of which Claude Code feed…
-- [D7] Keeping 3.1's single graph.json and refreshing all of it per edit; or dropping the repeat…
-- [D8] Firing statelessly on every crossing edit like the drift nudge and conflict lines do; or …
-- [D9] The two-hop decision join whyFile already exposes (decision &lt;- session -&gt; file); an…
-- [D10] Cloning every slug's prior state on every refresh (the original SlugReducer contract), an…
-- [D11] Extending graph.json with event ids and prose (the derived half SessionStart's priming al…
-- [D12] Minting initiative↔member edges into the adjacency like every other relationship, or leav…
+- [D1] one monolithic index file, a committed/union-merged index, embeddings…
+- [D2] a pure pull design where SessionStart advertises the graph and the ag…
+- [D3] A read-only shim (depends on some other process maintaining the index…
+- [D4] Keeping the v1 cursor and tailing every log every refresh, and skippi…
+- …and 8 more (see decisions.md)
 
 Next ids: D18 (decision), M5 (memory)
 
-Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (6):
+- [D12] Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.
+- [D16] Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.
+- [D14] A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.
+- [D6] A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.
+- [D2] Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.
+- [D1] The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (10091 bytes) ==
+== digest:cap (6038 bytes) ==
 # Sofar status: record-index
 
-Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first consumer is CROSS-INITIATIVE GUARDS (pushed by the harness, needing no agent cooperation), then a priming line, then agent-initiated search. Maintained by per-initiative cursors so cost is O(new even…
+Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first…
 
-Standing constraints — obey verbatim (6):
-- [D1] The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.
-- [D2] Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.
-- [D6] A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.
-- [D12] Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.
-- [D14] A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.
-- [D16] Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.
-
-Repo memory (.sofar/repo.md):
-# Repo memory — sofar
-
-- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
-  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
-  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
-  aliases (pre-publish). Historical event/projection text and the archived
-  docs still say harness — that is history, never rewritten.
-- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
-  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
-…truncated — read .sofar/repo.md for the rest
-
-Phases:
-- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
-
-Progress: 11/11 tasks done (100%) across 4 phase(s)
-Active phase: (none)
 Next action: Pick the next initiative — this branch is unbound, so start or switch on a fresh session.
 ⚠ next action may be stale: 2 events since write-back (1 file, 1 promoted memory)
 
-Last session (claude-code, ended 2026-08-09T07:49:50.138Z):
-  record-index closed and merged: main fast-forwarded to add2ca1 and pushed to origin (21 commits). Branch never diverged, so no merge commit.
-
 ⚠ 1 other session(s) did work without writing back: 58a146b7-2fee-4c20-a4ac-0155dd2b4ea7
 
-Recent decisions (last 5 of 17; full text in decisions.md):
-- [D13] 2026-08-08 Citation handles are SCANNED when an event is indexed and BOUND to an initiative at query time, with the grammar split … — over Resolving a citation to its target when the decision is indexed (the obvious thing — it i…
-- [D14] 2026-08-08 (rule above) Lexical seeding is a FALLBACK inside the seed ladder, not a… — over A --text flag or a mode argument (the caller must then already know which kind of questio…
-- [D15] 2026-08-08 Store per-row TERM COUNTS (stem → occurrences) plus a token total, derived from the WHOLE prose, and rank with textbook… — over Binary presence with a term SET (57KB cheaper here); indexing only the 300-char stored la…
-- [D16] 2026-08-09 (rule above) A cursor is only meaningful beside the state it produced: w… — over Trusting meta.json independently of the payload it describes (what the code did): the pas…
-- [D17] 2026-08-09 Leave Tier 0 order-sensitive and DOCUMENT the boundary: a file_touched that sorts before its own session_started is not… — over Making Tier 0 order-independent like the fold — holding touches for not-yet-registered se…
-Earlier rejected approaches — do NOT re-propose (12 older):
-- …and 12 more (see decisions.md)
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
 
 Next ids: D18 (decision), M5 (memory)
 
@@ -508,14 +437,26 @@ Adjacent records — 22 decisions across 5 other initiatives that have worked th
 - gamma — 4 shared files, 2 decisions
 …and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: record-index-session — when calling sofar_start_session, pass this as session_id.
+Session: record-index-session — adopted on Claude Code; else pass to sofar_start_session.
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
+
+Standing constraints — obey verbatim (6):
+- [D12] Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.
+- [D16] Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.
+- [D14] A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.
+- [D6] A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.
+- [D2] Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.
+- [D1] The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
 == plan (3366 bytes) ==
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->

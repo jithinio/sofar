@@ -150,19 +150,11 @@ Files touched (29):
 - /Users/jins/IO/sofar/packages/engine/src/cli/upgrade.ts
 - /Users/jins/IO/sofar/.sofar/repo.md
 
-== digest:plain (3646 bytes) ==
+== digest:plain (3439 bytes) ==
 # Sofar status: record-integrity
 
 Goal: Stop cross-initiative event misroutes: pin writes to a session's home initiative, detect split sessions, and give parallel sessions awareness of each other.
 
-Standing constraints — obey verbatim (1):
-- [D9] A session's home is the LATEST session_started carrying its id, across every log. Never let the branch binding outrank a later registration — it may seed the candidate and break ties, never short-circuit the scan.
-
-Phases:
-- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
-
-Progress: 11/11 tasks done (100%) across 4 phase(s)
-Active phase: (none)
 Next action: Nothing pending on record-integrity.
 ⚠ Parallel write-backs — 1 overlapping session(s) also recorded a next action:
 - claude-code, ended 2026-08-03: Commit, then decide whether 0.14.0's release note should mention the speed-2 work before publishing.
@@ -171,33 +163,57 @@ Notes since write-back:
 - 2026-08-08 D9 blast radius, measured on the brillo record (2026-08-09): 44 of 190 sessions carry a session_started in MORE THAN ONE initiative, and 25 of those are exactly the D9 shape — a `hook` reg…
 
 Last session (claude-code, ended 2026-08-03T16:09:23.112Z):
-  doctor is clean (exit 0, no problems). Closed the abandoned speed-2 half of split session d97acb91 — the precedented repair (40742c6d), so the split grades as history, no reattribution. Judged the 3 repo-memory WARNs: promoted felt-cost D3 (zero model API calls) and cli-ui D1 (CLI output law) into repo.md; named felt-cost D4 as deliberately NOT promoted, since it is a feature contract SPEC already covers. 848 tests pass.
+  doctor is clean (exit 0, no problems). Closed the abandoned speed-2 half of split session d97acb91 — the precedented repair (40742c6d), so the split grades as history, no reattribution. Judged the 3 repo-memory WARNs: promoted felt-cost D3 (zero model API calls) and cli-ui D1 (CLI output law) into repo.md; name… (clipped — full text in sessions/d1b45f75-0fd1-4756-87d8-ead3e54703cd.md)
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] CLI `sofar event append` routes by BRANCH only — it never consults the session's on-disk home, so it is the one write path with no pin protection. runAppend (packages/engine/src/cli/event.ts:1332) calls ctx.resolveInitiative(slug) = explicit arg, else branch, else bindings.json.…
 
 Recent decisions (last 5 of 9; full text in decisions.md):
-- [D5] 2026-08-02 Bound the parallel-wrap window by this session's own liveness (skip entirely when me.ended is set), and compose next_ac… — over Adding a "already told you" marker to suppress repeats, or widening the 420-char budget
-- [D6] 2026-08-03 start_session adopts an ENDED session (pin-only, no append, history untouched), and the parallel-wrap window anchors on… — over Reopening an ended session at fold level by clearing ended/summary, or keeping the 0.12.1…
-- [D7] 2026-08-03 Unbind push state from the parallel-wrap line: render it as its own unconditional UserPromptSubmit line (record-integri… — over Leaving push state as a rider on the wrap line (the 4.2 shape); gating a standalone line …
-- [D8] 2026-08-03 end_session keeps the pin after the write-back, and a write-back naming a non-active session resolves home → branch (re… — over Keeping the clear and fixing only end_session's fallback; or teaching resolveWriteInitiat…
-- [D9] 2026-08-08 (rule above) homeInitiative resolves a session's home by the LATEST sess… — over Keeping the preferred-first short-circuit (one file read, but structurally unable to see …
+- [D5] 2026-08-02 Bound the parallel-wrap window by this session's own liveness — over Adding a "already told you" marker to suppress repeats, or widening t…
+- [D6] 2026-08-03 start_session adopts an ENDED session — over Reopening an ended session at fold level by clearing ended/summary, o…
+- [D7] 2026-08-03 Unbind push state from the parallel-wrap line — over Leaving push state as a rider on the wrap line
+- [D8] 2026-08-03 end_session keeps the pin after the write-back, and a write-back naming a non-active sess… — over Keeping the clear and fixing only end_session's fallback
+- [D9] 2026-08-08 (rule below) homeInitiative resolves a session's home by the LATEST sess… — over Keeping the preferred-first short-circuit
 Earlier rejected approaches — do NOT re-propose (4 older):
-- [D1] A new .sofar/sessions.json index mapping session_id to slug, written at registration and …
-- [D2] Pinning hooks alone (the original Phase 1 scope), or using envelope.source to tell a deli…
-- [D3] Repairing the splits with correction events, or leaving every split at FAIL
-- [D4] Voiding leaked events in their wrong initiative and re-appending them into the right one
+- [D1] A new .sofar/sessions.json index mapping session_id to slug, written …
+- [D2] Pinning hooks alone (the original Phase 1 scope), or using envelope.s…
+- [D3] Repairing the splits with correction events, or leaving every split a…
+- [D4] Voiding leaked events in their wrong initiative and re-appending them…
 
 Next ids: D10 (decision), M2 (memory)
+
+Standing constraints — obey verbatim (1):
+- [D9] A session's home is the LATEST session_started carrying its id, across every log. Never let the branch binding outrank a later registration — it may seed the candidate and break ties, never short-circuit the scan.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:hook (5789 bytes) ==
+== digest:hook (4643 bytes) ==
 # Sofar status: record-integrity
 
 Goal: Stop cross-initiative event misroutes: pin writes to a session's home initiative, detect split sessions, and give parallel sessions awareness of each other.
 
-Standing constraints — obey verbatim (1):
-- [D9] A session's home is the LATEST session_started carrying its id, across every log. Never let the branch binding outrank a later registration — it may seed the candidate and break ties, never short-circuit the scan.
+Next action: Nothing pending on record-integrity.
+⚠ Parallel write-backs — 1 overlapping session(s) also recorded a next action:
+- claude-code, ended 2026-08-03: Commit, then decide whether 0.14.0's release note should mention the speed-2 work before publishing.
+⚠ next action may be stale: 3 events since write-back (1 note, 1 decision, 1 promoted memory)
+Notes since write-back:
+- 2026-08-08 D9 blast radius, measured on the brillo record (2026-08-09): 44 of 190 sessions carry a session_started in MORE THAN ONE initiative, and 25 of those are exactly the D9 shape — a `hook` reg…
+
+Last session (claude-code, ended 2026-08-03T16:09:23.112Z):
+  doctor is clean (exit 0, no problems). Closed the abandoned speed-2 half of split session d97acb91 — the precedented repair (40742c6d), so the split grades as history, no reattribution. Judged the 3 repo-memory WARNs: promoted felt-cost D3 (zero model API calls) and cli-ui D1 (CLI output law) into repo.md; name… (clipped — full text in sessions/d1b45f75-0fd1-4756-87d8-ead3e54703cd.md)
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] CLI `sofar event append` routes by BRANCH only — it never consults the session's on-disk home, so it is the one write path with no pin protection. runAppend (packages/engine/src/cli/event.ts:1332) calls ctx.resolveInitiative(slug) = explicit arg, else branch, else bindings.json.…
 
 Repo memory (.sofar/repo.md):
 # Repo memory — sofar
@@ -209,50 +225,19 @@ Repo memory (.sofar/repo.md):
   docs still say harness — that is history, never rewritten.
 - Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
   acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
 …truncated — read .sofar/repo.md for the rest
 
-Phases:
-- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
-
-Progress: 11/11 tasks done (100%) across 4 phase(s)
-Active phase: (none)
-Next action: Nothing pending on record-integrity.
-⚠ Parallel write-backs — 1 overlapping session(s) also recorded a next action:
-- claude-code, ended 2026-08-03: Commit, then decide whether 0.14.0's release note should mention the speed-2 work before publishing.
-⚠ next action may be stale: 3 events since write-back (1 note, 1 decision, 1 promoted memory)
-Notes since write-back:
-- 2026-08-08 D9 blast radius, measured on the brillo record (2026-08-09): 44 of 190 sessions carry a session_started in MORE THAN ONE initiative, and 25 of those are exactly the D9 shape — a `hook` reg…
-
-Last session (claude-code, ended 2026-08-03T16:09:23.112Z):
-  doctor is clean (exit 0, no problems). Closed the abandoned speed-2 half of split session d97acb91 — the precedented repair (40742c6d), so the split grades as history, no reattribution. Judged the 3 repo-memory WARNs: promoted felt-cost D3 (zero model API calls) and cli-ui D1 (CLI output law) into repo.md; named felt-cost D4 as deliberately NOT promoted, since it is a feature contract SPEC already covers. 848 tests pass.
-
 Recent decisions (last 5 of 9; full text in decisions.md):
-- [D5] 2026-08-02 Bound the parallel-wrap window by this session's own liveness (skip entirely when me.ended is set), and compose next_ac… — over Adding a "already told you" marker to suppress repeats, or widening the 420-char budget
-- [D6] 2026-08-03 start_session adopts an ENDED session (pin-only, no append, history untouched), and the parallel-wrap window anchors on… — over Reopening an ended session at fold level by clearing ended/summary, or keeping the 0.12.1…
-- [D7] 2026-08-03 Unbind push state from the parallel-wrap line: render it as its own unconditional UserPromptSubmit line (record-integri… — over Leaving push state as a rider on the wrap line (the 4.2 shape); gating a standalone line …
-- [D8] 2026-08-03 end_session keeps the pin after the write-back, and a write-back naming a non-active session resolves home → branch (re… — over Keeping the clear and fixing only end_session's fallback; or teaching resolveWriteInitiat…
-- [D9] 2026-08-08 (rule above) homeInitiative resolves a session's home by the LATEST sess… — over Keeping the preferred-first short-circuit (one file read, but structurally unable to see …
+- [D5] 2026-08-02 Bound the parallel-wrap window by this session's own liveness — over Adding a "already told you" marker to suppress repeats, or widening t…
+- [D6] 2026-08-03 start_session adopts an ENDED session — over Reopening an ended session at fold level by clearing ended/summary, o…
+- [D7] 2026-08-03 Unbind push state from the parallel-wrap line — over Leaving push state as a rider on the wrap line
+- [D8] 2026-08-03 end_session keeps the pin after the write-back, and a write-back naming a non-active sess… — over Keeping the clear and fixing only end_session's fallback
+- [D9] 2026-08-08 (rule below) homeInitiative resolves a session's home by the LATEST sess… — over Keeping the preferred-first short-circuit
 Earlier rejected approaches — do NOT re-propose (4 older):
-- [D1] A new .sofar/sessions.json index mapping session_id to slug, written at registration and …
-- [D2] Pinning hooks alone (the original Phase 1 scope), or using envelope.source to tell a deli…
-- [D3] Repairing the splits with correction events, or leaving every split at FAIL
-- [D4] Voiding leaked events in their wrong initiative and re-appending them into the right one
+- [D1] A new .sofar/sessions.json index mapping session_id to slug, written …
+- [D2] Pinning hooks alone (the original Phase 1 scope), or using envelope.s…
+- [D3] Repairing the splits with correction events, or leaving every split a…
+- [D4] Voiding leaked events in their wrong initiative and re-appending them…
 
 Next ids: D10 (decision), M2 (memory)
 
@@ -261,18 +246,21 @@ Adjacent records — 8 decisions across 2 other initiatives that have worked thi
 - beta — 1 shared file, 1 decision
 Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: record-integrity-session — when calling sofar_start_session, pass this as session_id.
+Session: record-integrity-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/record-integrity @ a1b2c3d — in sync with origin/feature/record-integrity
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
+Standing constraints — obey verbatim (1):
+- [D9] A session's home is the LATEST session_started carrying its id, across every log. Never let the branch binding outrank a later registration — it may seed the candidate and break ties, never short-circuit the scan.
+
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:lane (5452 bytes) ==
+== digest:lane (5066 bytes) ==
 # Sofar: quick-work lane (record-integrity)
 
 Goal: Stop cross-initiative event misroutes: pin writes to a session's home initiative, detect split sessions, and give parallel sessions awareness of each other.
@@ -281,13 +269,11 @@ This branch is bound to no initiative, so the hooks capture edits and commands h
 - Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
 - Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
 
-Standing constraints — obey verbatim (1):
-- [D9] A session's home is the LATEST session_started carrying its id, across every log. Never let the branch binding outrank a later registration — it may seed the candidate and break ties, never short-circuit the scan.
-
 Notes since write-back:
 - 2026-08-08 D9 blast radius, measured on the brillo record (2026-08-09): 44 of 190 sessions carry a session_started in MORE THAN ONE initiative, and 25 of those are exactly the D9 shape — a `hook` reg…
+
 Last session (claude-code, ended 2026-08-03T16:09:23.112Z):
-  doctor is clean (exit 0, no problems). Closed the abandoned speed-2 half of split session d97acb91 — the precedented repair (40742c6d), so the split grades as history, no reattribution. Judged the 3 repo-memory WARNs: promoted felt-cost D3 (zero model API calls) and cli-ui D1 (CLI output law) into repo.md; named felt-cost D4 as deliberately NOT promoted, since it is a feature contract SPEC already covers. 848 tests pass.
+  doctor is clean (exit 0, no problems). Closed the abandoned speed-2 half of split session d97acb91 — the precedented repair (40742c6d), so the split grades as history, no reattribution. Judged the 3 repo-memory WARNs: promoted felt-cost D3 (zero model API calls) and cli-ui D1 (CLI output law) into repo.md; name… (clipped — full text in sessions/d1b45f75-0fd1-4756-87d8-ead3e54703cd.md)
 
 Recent quick work (8 sessions, 9 decisions since 2026-08-01):
 - 2026-08-03 claude-code — 9 files (/Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/test/record-integrity.test.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/engine/package.json, /Users/jins/IO/sofar/packages/engine/src/mcp/end-session.ts, /Users/jins/IO/sofar/packages/engine/test/acceptance.phase2.test.ts, /Users/jins/IO/sofar/packages/engine/test/acceptance.phase7.test.ts, /Users/jins/IO/sofar/packages/engine/test/mcp.test.ts, /Users/jins/IO/sofar/.sofar/repo.md), 89 commands
@@ -295,38 +281,36 @@ Recent quick work (8 sessions, 9 decisions since 2026-08-01):
 - 2026-08-03 claude-code — 1 file (/Users/jins/IO/sofar/README.md), 15 commands
 - 2026-08-01 claude-code — 13 files (/Users/jins/IO/sofar/packages/engine/src/mcp/context.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/test/record-integrity.test.ts, /Users/jins/IO/sofar/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/engine/src/mcp/start-session.ts, /Users/jins/IO/sofar/packages/engine/src/projections/templates/status.ts, /Users/jins/IO/sofar/packages/engine/src/core/git.ts, /Users/jins/IO/sofar/packages/engine/package.js…
 
+Memory (1; full text in memory.md):
+- [M1] CLI `sofar event append` routes by BRANCH only — it never consults the session'…
+
 Recent decisions (last 5 of 9; full text in decisions.md):
-- [D5] 2026-08-02 Bound the parallel-wrap window by this session's own liveness (skip entirely when me.ended is set), and compose next_ac… — over Adding a "already told you" marker to suppress repeats, or widening the 420-char budget
-- [D6] 2026-08-03 start_session adopts an ENDED session (pin-only, no append, history untouched), and the parallel-wrap window anchors on… — over Reopening an ended session at fold level by clearing ended/summary, or keeping the 0.12.1…
-- [D7] 2026-08-03 Unbind push state from the parallel-wrap line: render it as its own unconditional UserPromptSubmit line (record-integri… — over Leaving push state as a rider on the wrap line (the 4.2 shape); gating a standalone line …
-- [D8] 2026-08-03 end_session keeps the pin after the write-back, and a write-back naming a non-active session resolves home → branch (re… — over Keeping the clear and fixing only end_session's fallback; or teaching resolveWriteInitiat…
-- [D9] 2026-08-08 (rule above) homeInitiative resolves a session's home by the LATEST sess… — over Keeping the preferred-first short-circuit (one file read, but structurally unable to see …
+- [D5] 2026-08-02 Bound the parallel-wrap window by this session's own liveness — over Adding a "already told you" marker to suppress repeats, or widening t…
+- [D6] 2026-08-03 start_session adopts an ENDED session — over Reopening an ended session at fold level by clearing ended/summary, o…
+- [D7] 2026-08-03 Unbind push state from the parallel-wrap line — over Leaving push state as a rider on the wrap line
+- [D8] 2026-08-03 end_session keeps the pin after the write-back, and a write-back naming a non-active sess… — over Keeping the clear and fixing only end_session's fallback
+- [D9] 2026-08-08 (rule below) homeInitiative resolves a session's home by the LATEST sess… — over Keeping the preferred-first short-circuit
 Earlier rejected approaches — do NOT re-propose (4 older):
-- [D1] A new .sofar/sessions.json index mapping session_id to slug, written at registration and …
-- [D2] Pinning hooks alone (the original Phase 1 scope), or using envelope.source to tell a deli…
-- [D3] Repairing the splits with correction events, or leaving every split at FAIL
-- [D4] Voiding leaked events in their wrong initiative and re-appending them into the right one
+- [D1] A new .sofar/sessions.json index mapping session_id to slug, written …
+- [D2] Pinning hooks alone (the original Phase 1 scope), or using envelope.s…
+- [D3] Repairing the splits with correction events, or leaving every split a…
+- [D4] Voiding leaked events in their wrong initiative and re-appending them…
 
 Next ids: D10 (decision), M2 (memory)
 
-Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/record-integrity @ a1b2c3d — in sync with origin/feature/record-integrity
-
-(generated by sofar — full detail in plan.md, decisions.md, sessions/)
-
-== digest:quiet (3733 bytes) ==
-# Sofar status: record-integrity
-
-Goal: Stop cross-initiative event misroutes: pin writes to a session's home initiative, detect split sessions, and give parallel sessions awareness of each other.
 
 Standing constraints — obey verbatim (1):
 - [D9] A session's home is the LATEST session_started carrying its id, across every log. Never let the branch binding outrank a later registration — it may seed the candidate and break ties, never short-circuit the scan.
 
-Phases:
-- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-Progress: 11/11 tasks done (100%) across 4 phase(s)
-Active phase: (none)
+== digest:quiet (3525 bytes) ==
+# Sofar status: record-integrity
+
+Goal: Stop cross-initiative event misroutes: pin writes to a session's home initiative, detect split sessions, and give parallel sessions awareness of each other.
+
 Next action: Nothing pending on record-integrity.
 ⚠ Parallel write-backs — 1 overlapping session(s) also recorded a next action:
 - claude-code, ended 2026-08-03: Commit, then decide whether 0.14.0's release note should mention the speed-2 work before publishing.
@@ -335,69 +319,43 @@ Notes since write-back:
 - 2026-08-08 D9 blast radius, measured on the brillo record (2026-08-09): 44 of 190 sessions carry a session_started in MORE THAN ONE initiative, and 25 of those are exactly the D9 shape — a `hook` reg…
 
 Last session (claude-code, ended 2026-08-03T16:09:23.112Z):
-  doctor is clean (exit 0, no problems). Closed the abandoned speed-2 half of split session d97acb91 — the precedented repair (40742c6d), so the split grades as history, no reattribution. Judged the 3 repo-memory WARNs: promoted felt-cost D3 (zero model API calls) and cli-ui D1 (CLI output law) into repo.md; named felt-cost D4 as deliberately NOT promoted, since it is a feature contract SPEC already covers. 848 tests pass.
+  doctor is clean (exit 0, no problems). Closed the abandoned speed-2 half of split session d97acb91 — the precedented repair (40742c6d), so the split grades as history, no reattribution. Judged the 3 repo-memory WARNs: promoted felt-cost D3 (zero model API calls) and cli-ui D1 (CLI output law) into repo.md; name… (clipped — full text in sessions/d1b45f75-0fd1-4756-87d8-ead3e54703cd.md)
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] CLI `sofar event append` routes by BRANCH only — it never consults the session's on-disk home, so it is the one write path with no pin protection. runAppend (packages/engine/src/cli/event.ts:1332) calls ctx.resolveInitiative(slug) = explicit arg, else branch, else bindings.json.…
 
 Recent decisions (last 5 of 9; full text in decisions.md):
-- [D5] 2026-08-02 Bound the parallel-wrap window by this session's own liveness (skip entirely when me.ended is set), and compose next_ac… — over Adding a "already told you" marker to suppress repeats, or widening the 420-char budget
-- [D6] 2026-08-03 start_session adopts an ENDED session (pin-only, no append, history untouched), and the parallel-wrap window anchors on… — over Reopening an ended session at fold level by clearing ended/summary, or keeping the 0.12.1…
-- [D7] 2026-08-03 Unbind push state from the parallel-wrap line: render it as its own unconditional UserPromptSubmit line (record-integri… — over Leaving push state as a rider on the wrap line (the 4.2 shape); gating a standalone line …
-- [D8] 2026-08-03 end_session keeps the pin after the write-back, and a write-back naming a non-active session resolves home → branch (re… — over Keeping the clear and fixing only end_session's fallback; or teaching resolveWriteInitiat…
-- [D9] 2026-08-08 (rule above) homeInitiative resolves a session's home by the LATEST sess… — over Keeping the preferred-first short-circuit (one file read, but structurally unable to see …
+- [D5] 2026-08-02 Bound the parallel-wrap window by this session's own liveness — over Adding a "already told you" marker to suppress repeats, or widening t…
+- [D6] 2026-08-03 start_session adopts an ENDED session — over Reopening an ended session at fold level by clearing ended/summary, o…
+- [D7] 2026-08-03 Unbind push state from the parallel-wrap line — over Leaving push state as a rider on the wrap line
+- [D8] 2026-08-03 end_session keeps the pin after the write-back, and a write-back naming a non-active sess… — over Keeping the clear and fixing only end_session's fallback
+- [D9] 2026-08-08 (rule below) homeInitiative resolves a session's home by the LATEST sess… — over Keeping the preferred-first short-circuit
 Earlier rejected approaches — do NOT re-propose (4 older):
-- [D1] A new .sofar/sessions.json index mapping session_id to slug, written at registration and …
-- [D2] Pinning hooks alone (the original Phase 1 scope), or using envelope.source to tell a deli…
-- [D3] Repairing the splits with correction events, or leaving every split at FAIL
-- [D4] Voiding leaked events in their wrong initiative and re-appending them into the right one
+- [D1] A new .sofar/sessions.json index mapping session_id to slug, written …
+- [D2] Pinning hooks alone (the original Phase 1 scope), or using envelope.s…
+- [D3] Repairing the splits with correction events, or leaving every split a…
+- [D4] Voiding leaked events in their wrong initiative and re-appending them…
 
 Next ids: D10 (decision), M2 (memory)
 
-Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (1):
+- [D9] A session's home is the LATEST session_started carrying its id, across every log. Never let the branch binding outrank a later registration — it may seed the candidate and break ties, never short-circuit the scan.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (10085 bytes) ==
+== digest:cap (6036 bytes) ==
 # Sofar status: record-integrity
 
 Goal: Stop cross-initiative event misroutes: pin writes to a session's home initiative, detect split sessions, and give parallel sessions awareness of each other.
 
-Standing constraints — obey verbatim (1):
-- [D9] A session's home is the LATEST session_started carrying its id, across every log. Never let the branch binding outrank a later registration — it may seed the candidate and break ties, never short-circuit the scan.
-
-Repo memory (.sofar/repo.md):
-# Repo memory — sofar
-
-- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
-  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
-  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
-  aliases (pre-publish). Historical event/projection text and the archived
-  docs still say harness — that is history, never rewritten.
-- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
-  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
-…truncated — read .sofar/repo.md for the rest
-
-Phases:
-- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
-
-Progress: 11/11 tasks done (100%) across 4 phase(s)
-Active phase: (none)
 Next action: Nothing pending on record-integrity.
 ⚠ Parallel write-backs — 1 overlapping session(s) also recorded a next action:
 - claude-code, ended 2026-08-03: Commit, then decide whether 0.14.0's release note should mention the speed-2 work before publishing.
@@ -405,17 +363,10 @@ Next action: Nothing pending on record-integrity.
 Notes since write-back:
 - 2026-08-08 D9 blast radius, measured on the brillo record (2026-08-09): 44 of 190 sessions carry a session_started in MORE THAN ONE initiative, and 25 of those are exactly the D9 shape — a `hook` reg…
 
-Last session (claude-code, ended 2026-08-03T16:09:23.112Z):
-  doctor is clean (exit 0, no problems). Closed the abandoned speed-2 half of split session d97acb91 — the precedented repair (40742c6d), so the split grades as history, no reattribution. Judged the 3 repo-memory WARNs: promoted felt-cost D3 (zero model API calls) and cli-ui D1 (CLI output law) into repo.md; named felt-cost D4 as deliberately NOT promoted, since it is a feature contract SPEC already covers. 848 tests pass.
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+Progress: 11/11 tasks done (100%) across 4 phase(s)
 
-Recent decisions (last 5 of 9; full text in decisions.md):
-- [D5] 2026-08-02 Bound the parallel-wrap window by this session's own liveness (skip entirely when me.ended is set), and compose next_ac… — over Adding a "already told you" marker to suppress repeats, or widening the 420-char budget
-- [D6] 2026-08-03 start_session adopts an ENDED session (pin-only, no append, history untouched), and the parallel-wrap window anchors on… — over Reopening an ended session at fold level by clearing ended/summary, or keeping the 0.12.1…
-- [D7] 2026-08-03 Unbind push state from the parallel-wrap line: render it as its own unconditional UserPromptSubmit line (record-integri… — over Leaving push state as a rider on the wrap line (the 4.2 shape); gating a standalone line …
-- [D8] 2026-08-03 end_session keeps the pin after the write-back, and a write-back naming a non-active session resolves home → branch (re… — over Keeping the clear and fixing only end_session's fallback; or teaching resolveWriteInitiat…
-- [D9] 2026-08-08 (rule above) homeInitiative resolves a session's home by the LATEST sess… — over Keeping the preferred-first short-circuit (one file read, but structurally unable to see …
-Earlier rejected approaches — do NOT re-propose (4 older):
-- …and 4 more (see decisions.md)
 
 Next ids: D10 (decision), M2 (memory)
 
@@ -424,15 +375,22 @@ Adjacent records — 8 decisions across 2 other initiatives that have worked thi
 - beta — 1 shared file, 1 decision
 Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: record-integrity-session — when calling sofar_start_session, pass this as session_id.
+Session: record-integrity-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: feature/record-integrity @ a1b2c3d — in sync with origin/feature/record-integrity
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
+
+Standing constraints — obey verbatim (1):
+- [D9] A session's home is the LATEST session_started carrying its id, across every log. Never let the branch binding outrank a later registration — it may seed the candidate and break ties, never short-circuit the scan.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
 == plan (1877 bytes) ==
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->

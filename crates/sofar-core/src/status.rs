@@ -11,36 +11,50 @@ use crate::fold::{
 };
 use crate::git::GitState;
 use crate::json::{Json, js_to_string};
+use std::cell::RefCell;
+
+use crate::lexicon::lexical_counts;
 use crate::projections::{
     clip, clip_block_detect, clip_detect, describe_activity, describe_freshness, describe_run,
-    phase_fraction, plural, progress_text, retired_ordinals, standing_constraint_lines,
-    task_progress, test_outcome_line,
+    phase_fraction, plural, progress_text, rank_by_relevance, relevance_score, retired_ordinals,
+    standing_constraint_lines, task_progress, test_outcome_line,
 };
 use crate::text::{
     cmp_utf16, date_part, is_js_whitespace, js_trim, one_line, utf16_len, utf16_prefix,
 };
 
-pub const STATUS_CHAR_LIMIT: usize = 10_000;
+pub const STATUS_CHAR_LIMIT: usize = 6_000;
 pub const STATUS_TRUNCATION_MARKER: &str = "…truncated — run sofar status for full detail";
-pub const REPO_MEMORY_CHAR_BUDGET: usize = 1_500;
+pub const REPO_MEMORY_CHAR_BUDGET: usize = 600;
 pub const REPO_MEMORY_TRUNCATION_MARKER: &str = "…truncated — read .sofar/repo.md for the rest";
 
 const SESSION_ID_BUDGET: usize = 120;
-const GOAL_BUDGET: usize = 600;
-const TASK_LINE_BUDGET: usize = 200;
+const GOAL_BUDGET: usize = 400;
+const NEXT_TASK_TITLE_BUDGET: usize = 1_000;
+const SIBLING_TITLE_BUDGET: usize = 80;
+const MAX_SIBLINGS: usize = 6;
 const NEXT_ACTION_BUDGET: usize = 500;
 const BLOCKED_BUDGET: usize = 500;
 const PHASE_LINE_BUDGET: usize = 100;
 const MAX_PHASE_LINES: usize = 12;
 const DONE_PHASES_LINE_BUDGET: usize = 220;
-const SESSION_SUMMARY_BUDGET: usize = 1_200;
+const SESSION_SUMMARY_BUDGET: usize = 450;
+const MIN_SUMMARY_ROOM: usize = 120;
+const MEMORY_BUDGET: usize = 1_100;
+const MEMORY_WHOLE_MAX: usize = 2;
+const MEMORY_WHOLE_BUDGET: usize = 280;
+const MEMORY_HEAD_BUDGET: usize = 80;
+const MIN_REPO_MEMORY_ROOM: usize = 300;
+const DECISION_WINDOW_BUDGET: usize = 1_000;
+const OVERFLOW_RESERVE: usize = 40;
+const YIELD_SAFETY: usize = 2;
+const MINUTIAE_MIN: usize = 24;
 const DERIVED_SESSION_BUDGET: usize = 600;
-const DECISION_CHOSE_BUDGET: usize = 120;
+const DECISION_CHOSE_BUDGET: usize = 90;
 const DECISION_RULED_CHOSE_BUDGET: usize = 60;
 const MAX_DECISIONS: usize = 5;
-const REJECTED_OVER_LINE_BUDGET: usize = 90;
-const REJECTED_LEDGER_BUDGET: i64 = 2_800;
-const PROTOCOL_TAIL_RESERVE: i64 = 400;
+const REJECTED_OVER_LINE_BUDGET: usize = 70;
+const REJECTED_LEDGER_BUDGET: usize = 450;
 const STANDING_LEDGER_BUDGET: usize = 2_000;
 const CONFLICT_LINE_BUDGET: usize = 200;
 const MAX_CONFLICT_LINES: usize = 8;
@@ -347,8 +361,9 @@ pub fn session_id_line(session_id: Option<&str>) -> Option<String> {
     if id.is_empty() {
         return None;
     }
+    // Host-neutral (memory-lead 1.1, D3): adopted on Claude Code, passed elsewhere.
     Some(format!(
-        "Session: {} — when calling sofar_start_session, pass this as session_id.",
+        "Session: {} — adopted on Claude Code; else pass to sofar_start_session.",
         clip(id, SESSION_ID_BUDGET)
     ))
 }
@@ -394,29 +409,6 @@ impl Default for StatusOptions {
     }
 }
 
-/// `lines.join('\n').length`, signed because the ledger budget it feeds can go negative.
-#[allow(
-    clippy::cast_possible_wrap,
-    reason = "a block is far below i64::MAX units"
-)]
-fn joined_len(lines: &[String]) -> i64 {
-    if lines.is_empty() {
-        return 0;
-    }
-    let units: usize = lines.iter().map(|l| utf16_len(l)).sum();
-    (units + lines.len() - 1) as i64
-}
-
-#[allow(
-    clippy::cast_possible_wrap,
-    reason = "a line is far below i64::MAX units"
-)]
-fn units_i64(line: &str) -> i64 {
-    utf16_len(line) as i64
-}
-
-const STATUS_CHAR_LIMIT_I64: i64 = 10_000;
-
 fn goal_line(state: &InitiativeState) -> String {
     if state.goal.is_empty() {
         "(none recorded)".to_owned()
@@ -429,70 +421,737 @@ fn phase_head(name: &str) -> &str {
     name.split_once(" — ").map_or(name, |(head, _)| head)
 }
 
-/// `renderStatus`: the `SessionStart` block / `get_state` digest, ≤10,000 units.
-#[must_use]
-#[allow(clippy::too_many_lines, reason = "a verbatim port of one template")]
-pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String {
-    let mut lines: Vec<String> = Vec::new();
-    let lane = options.lane;
-    lines.push(if lane {
-        format!(
-            "# Sofar: quick-work lane ({})",
-            if state.slug.is_empty() {
-                QUICK_LANE
-            } else {
-                &state.slug
-            }
-        )
-    } else {
-        format!(
-            "# Sofar status: {}",
-            if state.slug.is_empty() {
-                "(unnamed initiative)"
-            } else {
-                &state.slug
-            }
-        )
-    });
-    lines.push(String::new());
-    lines.push(format!("Goal: {}", goal_line(state)));
-    lines.push(String::new());
-    if lane {
-        lines.extend(LANE_HOW_LINES.iter().map(|l| (*l).to_owned()));
-        lines.push(String::new());
-    }
+/// A section of the digest (memory-lead 1.3, D4): fixed lines, a protected
+/// block (constraints, read-back, footer — the cut never lands in them), or
+/// a YIELDING renderer handed what the cap leaves, by precedence.
+enum Block<'a> {
+    Fixed {
+        lines: Vec<String>,
+        protected: bool,
+    },
+    Yielding {
+        rank: u8,
+        preferred: usize,
+        render: Box<dyn Fn(usize) -> Vec<String> + 'a>,
+        lines: Vec<String>,
+    },
+}
 
-    // Retirement (r1-fixes 3.2, D25): a rule a later rule replaced, and below
-    // a decision superseded or scoped to a task that resolved, leave the block.
+/// `lines.join('\n').length + 1`, zero for no lines.
+fn block_cost(lines: &[String]) -> usize {
+    if lines.is_empty() {
+        0
+    } else {
+        lines.iter().map(|l| utf16_len(l)).sum::<usize>() + lines.len()
+    }
+}
+
+/// `text.replace(/\n+$/, '')`.
+fn trim_newlines(text: &str) -> &str {
+    text.trim_end_matches('\n')
+}
+
+/// `assemble`: fill the yielding blocks by precedence, each with the smaller
+/// of its preferred budget and what the cap leaves; then the protected end
+/// follows whole, the head cut with the marker if it still overruns.
+#[allow(
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation,
+    reason = "budgets and lengths are far below i64::MAX units"
+)]
+fn assemble(mut blocks: Vec<Block<'_>>, limit: usize) -> String {
+    let mut used: usize = 0;
+    for b in &blocks {
+        if let Block::Fixed { lines, .. } = b {
+            used += block_cost(lines);
+        }
+    }
+    // Precedence order over the yielding blocks (a stable sort, as JS sorts).
+    let mut order: Vec<usize> = blocks
+        .iter()
+        .enumerate()
+        .filter(|(_, b)| matches!(b, Block::Yielding { .. }))
+        .map(|(i, _)| i)
+        .collect();
+    order.sort_by_key(|&i| match &blocks[i] {
+        Block::Yielding { rank, .. } => *rank,
+        Block::Fixed { .. } => 0,
+    });
+    for i in order {
+        if let Block::Yielding {
+            preferred,
+            render,
+            lines,
+            ..
+        } = &mut blocks[i]
+        {
+            let room = limit as i64 - used as i64 - YIELD_SAFETY as i64;
+            let budget = (*preferred as i64).min(room);
+            *lines = if budget > 0 {
+                render(budget as usize)
+            } else {
+                Vec::new()
+            };
+            used += block_cost(lines);
+        }
+    }
+    let mut head_lines: Vec<&str> = Vec::new();
+    let mut tail_lines: Vec<&str> = Vec::new();
+    for b in &blocks {
+        match b {
+            Block::Fixed { lines, protected } => {
+                let into = if *protected {
+                    &mut tail_lines
+                } else {
+                    &mut head_lines
+                };
+                into.extend(lines.iter().map(String::as_str));
+            }
+            Block::Yielding { lines, .. } => head_lines.extend(lines.iter().map(String::as_str)),
+        }
+    }
+    let head_joined = head_lines.join("\n");
+    let tail_joined = tail_lines.join("\n");
+    let head = trim_newlines(&head_joined);
+    let tail = trim_newlines(&tail_joined);
+    let room = limit as i64 - utf16_len(tail) as i64 - 3;
+    if utf16_len(head) as i64 <= room {
+        return format!("{head}\n\n{tail}\n");
+    }
+    let marker = STATUS_TRUNCATION_MARKER;
+    let keep = (room - utf16_len(marker) as i64 - 1).max(0) as usize;
+    format!("{}\n{marker}\n\n{tail}\n", utf16_prefix(head, keep))
+}
+
+/// `focusTask` (D4): the active phase's first active, else pending, else
+/// blocked task; with none, the same pick in each open phase in plan order.
+fn pick_focus(phase: &PhaseState) -> Option<&TaskState> {
+    phase
+        .tasks
+        .iter()
+        .find(|t| t.status == "active")
+        .or_else(|| phase.tasks.iter().find(|t| t.status == "pending"))
+        .or_else(|| phase.tasks.iter().find(|t| t.status == "blocked"))
+}
+
+fn focus_task(state: &InitiativeState) -> Option<(&TaskState, &PhaseState)> {
+    let pick = pick_focus;
+    if let Some(name) = state.current.active_phase.as_deref()
+        && let Some(active) = state.phases.iter().find(|p| p.name == name)
+        && let Some(task) = pick(active)
+    {
+        return Some((task, active));
+    }
+    for phase in &state.phases {
+        if phase.status == "done" || phase.status == "dropped" {
+            continue;
+        }
+        if let Some(task) = pick(phase) {
+            return Some((task, phase));
+        }
+    }
+    None
+}
+
+const OPEN_TASK: [&str; 3] = ["pending", "active", "blocked"];
+const CLAUSE_BOUNDARIES: [&str; 4] = ["; ", " — ", ": ", " ("];
+
+/// `minutiaeHead` (D4): the text cut at its first clause boundary at or past
+/// `MINUTIAE_MIN` UTF-16 units, then clipped to `max`.
+#[must_use]
+pub fn minutiae_head(text: &str, max: usize) -> String {
+    let flat = one_line(text);
+    let units: Vec<u16> = flat.encode_utf16().collect();
+    let mut cut = units.len();
+    for boundary in CLAUSE_BOUNDARIES {
+        let needle: Vec<u16> = boundary.encode_utf16().collect();
+        // `flat.indexOf(boundary, MINUTIAE_MIN)`
+        let mut at = MINUTIAE_MIN;
+        while at + needle.len() <= units.len() {
+            if units[at..at + needle.len()] == needle[..] {
+                if at < cut {
+                    cut = at;
+                }
+                break;
+            }
+            at += 1;
+        }
+    }
+    clip(&utf16_prefix(&flat, cut), max)
+}
+
+/// `memoryLines` (D4): the ranked memories under `budget` — up to
+/// `MEMORY_WHOLE_MAX` that share a term with the focus whole, the rest as heads.
+#[allow(
+    clippy::items_after_statements,
+    reason = "the pusher reads best beside its loops"
+)]
+fn memory_lines(ranked: &[(usize, String)], focus: &[String], budget: usize) -> Vec<String> {
+    let header = format!("Memory ({}; full text in memory.md):", ranked.len());
+    if utf16_len(&header) + 1 + OVERFLOW_RESERVE > budget {
+        return Vec::new();
+    }
+    let mut lines = vec![header.clone()];
+    let mut used = utf16_len(&header) + 1;
+    let mut shown: Vec<usize> = Vec::new();
+    fn try_push(
+        line: String,
+        ordinal: usize,
+        budget: usize,
+        used: &mut usize,
+        shown: &mut Vec<usize>,
+        lines: &mut Vec<String>,
+    ) {
+        if *used + utf16_len(&line) + 1 + OVERFLOW_RESERVE > budget {
+            return;
+        }
+        *used += utf16_len(&line) + 1;
+        lines.push(line);
+        shown.push(ordinal);
+    }
+    for (ordinal, text) in ranked.iter().take(MEMORY_WHOLE_MAX) {
+        if relevance_score(text, focus) > 0 {
+            try_push(
+                format!("- [M{ordinal}] {}", clip(text, MEMORY_WHOLE_BUDGET)),
+                *ordinal,
+                budget,
+                &mut used,
+                &mut shown,
+                &mut lines,
+            );
+        }
+    }
+    for (ordinal, text) in ranked {
+        if !shown.contains(ordinal) {
+            try_push(
+                format!("- [M{ordinal}] {}", clip(text, MEMORY_HEAD_BUDGET)),
+                *ordinal,
+                budget,
+                &mut used,
+                &mut shown,
+                &mut lines,
+            );
+        }
+    }
+    if shown.is_empty() {
+        return Vec::new();
+    }
+    let rest = ranked.len() - shown.len();
+    if rest > 0 {
+        lines.push(format!("- …and {rest} more in memory.md"));
+    }
+    lines.push(String::new());
+    lines
+}
+
+/// JS `\w`.
+const fn is_word_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_'
+}
+
+/// Does `bullet` name `<slug> M<n>` at word boundaries for an `n` in `rendered`?
+fn names_rendered_memory(bullet: &str, slug: &str, rendered: &[usize]) -> bool {
+    let needle = format!("{slug} M");
+    let mut from = 0;
+    while let Some(rel) = bullet[from..].find(&needle) {
+        let at = from + rel;
+        let before_ok = !bullet[..at].chars().next_back().is_some_and(is_word_char);
+        let digits: String = bullet[at + needle.len()..]
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect();
+        let after_ok = !bullet[at + needle.len() + digits.len()..]
+            .chars()
+            .next()
+            .is_some_and(is_word_char);
+        if before_ok
+            && after_ok
+            && !digits.is_empty()
+            && !digits.starts_with('0')
+            && let Ok(n) = digits.parse::<usize>()
+            && rendered.contains(&n)
+        {
+            return true;
+        }
+        from = at + 1;
+    }
+    false
+}
+
+/// `dropMemoryCopies` (D4): a top-level bullet (with its indented
+/// continuation) naming a memory already rendered is that memory's copy.
+#[must_use]
+#[allow(
+    clippy::items_after_statements,
+    reason = "the flush reads best beside its loop"
+)]
+pub fn drop_memory_copies(text: &str, slug: &str, rendered: &[usize]) -> String {
+    if rendered.is_empty() || slug.is_empty() {
+        return text.to_owned();
+    }
+    fn flush<'a>(
+        bullet: &mut Vec<&'a str>,
+        out: &mut Vec<&'a str>,
+        slug: &str,
+        rendered: &[usize],
+    ) {
+        if bullet.is_empty() {
+            return;
+        }
+        if !names_rendered_memory(&bullet.join("\n"), slug, rendered) {
+            out.extend(bullet.iter().copied());
+        }
+        bullet.clear();
+    }
+    let mut out: Vec<&str> = Vec::new();
+    let mut bullet: Vec<&str> = Vec::new();
+    for line in text.split('\n') {
+        let starts_bullet = line.starts_with("- ") || line.starts_with("* ");
+        let continuation = !bullet.is_empty()
+            && line.starts_with(is_js_whitespace)
+            && line.chars().any(|c| !is_js_whitespace(c));
+        if starts_bullet {
+            flush(&mut bullet, &mut out, slug, rendered);
+            bullet.push(line);
+        } else if continuation {
+            bullet.push(line);
+        } else {
+            flush(&mut bullet, &mut out, slug, rendered);
+            out.push(line);
+        }
+    }
+    flush(&mut bullet, &mut out, slug, rendered);
+    out.join("\n")
+}
+
+/// `- [D<n>]` / `- [M<n>]` prefix → n.
+fn handle_ordinal(line: &str, letter: char) -> Option<usize> {
+    let rest = line.strip_prefix("- [")?.strip_prefix(letter)?;
+    let end = rest.find(']')?;
+    let digits = &rest[..end];
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    digits.parse().ok()
+}
+
+/// `renderStatus`: the `SessionStart` block / `get_state` digest (memory-lead
+/// 1.3, D4): the next task's spec FIRST and the standing constraints LAST,
+/// yielding sections filling what the 6,000-unit cap leaves.
+#[must_use]
+#[allow(
+    clippy::too_many_lines,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation,
+    reason = "a verbatim port of one template; budgets are far below i64::MAX units"
+)]
+pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String {
+    let lane = options.lane;
     let retire = options.retire;
     let retired: Vec<usize> = if retire {
         retired_ordinals(state)
     } else {
         Vec::new()
     };
-    let standing =
-        standing_constraint_lines(&state.decisions, Some(STANDING_LEDGER_BUDGET), retire);
-    if !standing.is_empty() {
-        lines.extend(standing.iter().cloned());
-        lines.push(String::new());
-    }
-
-    let repo_memory = js_trim(options.repo_memory.as_deref().unwrap_or(""));
-    if !repo_memory.is_empty() {
-        lines.push("Repo memory (.sofar/repo.md):".to_owned());
-        lines.push(
-            clip_block_detect(
-                repo_memory,
-                REPO_MEMORY_CHAR_BUDGET,
-                REPO_MEMORY_TRUNCATION_MARKER,
-            )
-            .0,
-        );
-        lines.push(String::new());
-    }
-
     let stale_phases = stale_active_phases(state);
     let stale_names: Vec<&str> = stale_phases.iter().map(|p| p.name.as_str()).collect();
+    let focus = if lane { None } else { focus_task(state) };
+    // Relevance focus (D4): the focus task's title, its phase's name and the
+    // next action; empty in the lane. Declared before the blocks that borrow it.
+    let focus_text = [
+        focus.map_or("", |(t, _)| t.title.as_str()),
+        focus.map_or("", |(_, p)| p.name.as_str()),
+        if lane {
+            ""
+        } else {
+            state.current.next_action.as_deref().unwrap_or("")
+        },
+    ]
+    .join(" ");
+    let focus_terms: Vec<String> = lexical_counts(&focus_text)
+        .into_iter()
+        .map(|(term, _)| term)
+        .collect();
+    let rendered_memories: RefCell<Vec<usize>> = RefCell::new(Vec::new());
+    let mut blocks: Vec<Block<'_>> = Vec::new();
+    let fixed = |blocks: &mut Vec<Block<'_>>, lines: Vec<String>| {
+        if !lines.is_empty() {
+            blocks.push(Block::Fixed {
+                lines,
+                protected: false,
+            });
+        }
+    };
+
+    // (1) Head.
+    let mut head = vec![
+        if lane {
+            format!(
+                "# Sofar: quick-work lane ({})",
+                if state.slug.is_empty() {
+                    QUICK_LANE
+                } else {
+                    &state.slug
+                }
+            )
+        } else {
+            format!(
+                "# Sofar status: {}",
+                if state.slug.is_empty() {
+                    "(unnamed initiative)"
+                } else {
+                    &state.slug
+                }
+            )
+        },
+        String::new(),
+        format!("Goal: {}", goal_line(state)),
+        String::new(),
+    ];
+    if lane {
+        head.extend(LANE_HOW_LINES.iter().map(|l| (*l).to_owned()));
+        head.push(String::new());
+    }
+    fixed(&mut blocks, head);
+
+    // (2) The next task's spec.
+    if let Some((task, phase)) = focus {
+        let label = if task.status == "active" {
+            "Current task"
+        } else {
+            "Next task"
+        };
+        let mut lines = vec![
+            format!(
+                "{label}: {}",
+                clip(
+                    &format!("{} {}", task.id, task.title),
+                    NEXT_TASK_TITLE_BUDGET
+                )
+            ),
+            format!(
+                "  in {} {} {}",
+                clip(&phase.name, PHASE_LINE_BUDGET),
+                phase_mark(phase, &stale_names),
+                phase_fraction(task_progress([phase]))
+            ),
+        ];
+        if task.status == "active" {
+            if let Some((_, files)) = state.task_files.iter().find(|(id, _)| *id == task.id)
+                && !files.is_empty()
+            {
+                let listed = files
+                    .iter()
+                    .take(MAX_TASK_FILES)
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                lines.push(format!(
+                    "  {}",
+                    clip(&format!("files: {listed}"), TASK_FILES_LINE_BUDGET - 2)
+                ));
+            }
+            if options.activity != Some(false)
+                && let Some(tests) = task_tests_line(state, task)
+            {
+                lines.push(format!("  {}", clip(&tests, TASK_FILES_LINE_BUDGET - 2)));
+            }
+        }
+        let siblings: Vec<&TaskState> = phase
+            .tasks
+            .iter()
+            .filter(|t| t.id != task.id && OPEN_TASK.contains(&t.status.as_str()))
+            .collect();
+        for t in siblings.iter().take(MAX_SIBLINGS) {
+            let mark = if t.status == "pending" {
+                String::new()
+            } else {
+                format!(" ({})", t.status)
+            };
+            lines.push(format!(
+                "  - {}{mark}",
+                clip(&format!("{} {}", t.id, t.title), SIBLING_TITLE_BUDGET)
+            ));
+        }
+        if siblings.len() > MAX_SIBLINGS {
+            lines.push(format!(
+                "  - …and {} more (plan.md)",
+                siblings.len() - MAX_SIBLINGS
+            ));
+        }
+        lines.push(String::new());
+        fixed(&mut blocks, lines);
+    }
+
+    // (3) Next action and the drift beside it.
+    let mut state_lines: Vec<String> = Vec::new();
+    if !lane && let Some(next_action) = &state.current.next_action {
+        state_lines.push(format!(
+            "Next action: {}",
+            clip(next_action, NEXT_ACTION_BUDGET)
+        ));
+    }
+    let parallel = if lane {
+        Vec::new()
+    } else {
+        overlapping_writebacks(state, None)
+    };
+    if !parallel.is_empty() {
+        state_lines.push(format!(
+            "⚠ Parallel write-backs — {} overlapping session(s) also recorded a next action:",
+            parallel.len()
+        ));
+        for w in parallel.iter().take(MAX_PARALLEL_LINES) {
+            state_lines.push(format!(
+                "- {}",
+                clip(
+                    &format!(
+                        "{}, ended {}: {}",
+                        w.tool,
+                        date_part(&w.ended),
+                        w.next_action
+                    ),
+                    PARALLEL_LINE_BUDGET
+                )
+            ));
+        }
+        if parallel.len() > MAX_PARALLEL_LINES {
+            state_lines.push(format!(
+                "- …and {} more (run sofar status)",
+                parallel.len() - MAX_PARALLEL_LINES
+            ));
+        }
+    }
+    let drift = freshness_total(&state.freshness);
+    if !lane && drift > 0 && state.freshness.last_writeback_ts.is_some() {
+        state_lines.push(clip(
+            &format!(
+                "⚠ next action may be stale: {drift} event{} since write-back ({})",
+                if drift == 1 { "" } else { "s" },
+                describe_freshness(&state.freshness.events_since_writeback)
+            ),
+            STALENESS_LINE_BUDGET,
+        ));
+    }
+    let notes = &state.freshness.notes;
+    if !notes.is_empty() {
+        let recent = &notes[notes.len().saturating_sub(MAX_NOTES)..];
+        let skipped = notes.len() - recent.len();
+        let label = if state.freshness.last_writeback_ts.is_some() {
+            "Notes since write-back"
+        } else {
+            "Notes"
+        };
+        state_lines.push(format!(
+            "{label}{}:",
+            if skipped > 0 {
+                format!(" (last {} of {})", recent.len(), notes.len())
+            } else {
+                String::new()
+            }
+        ));
+        for n in recent {
+            state_lines.push(format!(
+                "- {}",
+                clip(
+                    &format!("{} {}", date_part(&n.ts), n.text),
+                    NOTE_LINE_BUDGET
+                )
+            ));
+        }
+    }
+    if !lane && let Some(blocked) = &state.current.blocked_on {
+        state_lines.push(format!("Blocked on: {}", clip(blocked, BLOCKED_BUDGET)));
+    }
+    let conflicts = open_session_file_conflicts(state, None);
+    if !conflicts.is_empty() {
+        state_lines.push(format!(
+            "⚠ Concurrent edits — {} file(s) touched by multiple open sessions:",
+            conflicts.len()
+        ));
+        for c in conflicts.iter().take(MAX_CONFLICT_LINES) {
+            state_lines.push(format!(
+                "- {}",
+                clip(
+                    &format!("{} (sessions {})", c.path, c.sessions.join(", ")),
+                    CONFLICT_LINE_BUDGET
+                )
+            ));
+        }
+        if conflicts.len() > MAX_CONFLICT_LINES {
+            state_lines.push(format!(
+                "- …and {} more (run sofar doctor)",
+                conflicts.len() - MAX_CONFLICT_LINES
+            ));
+        }
+    }
+    if !state_lines.is_empty() {
+        state_lines.push(String::new());
+        fixed(&mut blocks, state_lines);
+    }
+
+    // (4) The last written-back session — yielding (precedence 4).
+    if let Some(last) = last_with_summary(&state.sessions) {
+        blocks.push(Block::Yielding {
+            rank: 4,
+            preferred: SESSION_SUMMARY_BUDGET,
+            render: Box::new(move |budget: usize| {
+                let header = format!(
+                    "Last session ({}, ended {}):",
+                    last.tool,
+                    last.ended.as_deref().unwrap_or("?")
+                );
+                let room = budget as i64 - utf16_len(&header) as i64 - 4;
+                if room < MIN_SUMMARY_ROOM as i64 {
+                    return Vec::new();
+                }
+                let room = room as usize;
+                let summary_text = last.summary.as_deref().expect("has summary");
+                let (summary, clipped) = clip_detect(summary_text, room);
+                if !clipped {
+                    return vec![header, format!("  {summary}"), String::new()];
+                }
+                let pointer = format!(
+                    " (clipped — full text in sessions/{}.md)",
+                    clip(&last.id, SESSION_ID_BUDGET)
+                );
+                vec![
+                    header,
+                    format!(
+                        "  {}{pointer}",
+                        clip(summary_text, room.saturating_sub(utf16_len(&pointer)))
+                    ),
+                    String::new(),
+                ]
+            }),
+            lines: Vec::new(),
+        });
+    }
+
+    // Driver line (session-driver 1.2).
+    if let Some(run) = latest_run(state) {
+        fixed(
+            &mut blocks,
+            vec![
+                clip(
+                    &format!("Driven: {}", describe_run(run)),
+                    DRIVEN_LINE_BUDGET,
+                ),
+                String::new(),
+            ],
+        );
+    }
+
+    if lane && !state.sessions.is_empty() {
+        let worked: Vec<&SessionState> = state
+            .sessions
+            .iter()
+            .filter(|s| s.activity.is_some())
+            .rev()
+            .collect();
+        let since = state.sessions.first().map(|s| date_part(&s.started));
+        let mut lines = vec![format!(
+            "Recent quick work ({}, {}{}{}):",
+            plural(state.sessions.len() as u64, "session"),
+            plural(state.decisions.len() as u64, "decision"),
+            since.map(|s| format!(" since {s}")).unwrap_or_default(),
+            if worked.len() > LANE_RECENT_SESSIONS {
+                format!("; last {LANE_RECENT_SESSIONS}")
+            } else {
+                String::new()
+            }
+        )];
+        for s in worked.iter().take(LANE_RECENT_SESSIONS) {
+            lines.push(format!(
+                "- {}",
+                clip(
+                    &format!(
+                        "{} {} — {}",
+                        date_part(&s.started),
+                        s.tool,
+                        describe_activity(s.activity.as_ref().expect("filtered"))
+                    ),
+                    DERIVED_SESSION_BUDGET
+                )
+            ));
+        }
+        lines.push(String::new());
+        fixed(&mut blocks, lines);
+    }
+    let unwritten = if lane {
+        None
+    } else {
+        last_unwritten_with_activity(&state.sessions)
+    };
+    if let Some(u) = unwritten {
+        let fate = if u.ended.is_some() {
+            "ended without write-back"
+        } else {
+            "open, no write-back yet"
+        };
+        let closed = u
+            .closed_reason
+            .as_ref()
+            .map(|r| format!(", closed: {r}"))
+            .unwrap_or_default();
+        fixed(
+            &mut blocks,
+            vec![
+                clip(
+                    &format!(
+                        "Last session ({}{closed}) {fate} — derived: {}",
+                        u.tool,
+                        describe_activity(u.activity.as_ref().expect("has activity"))
+                    ),
+                    DERIVED_SESSION_BUDGET,
+                ),
+                format!(
+                    "  (details in sessions/{}.md)",
+                    clip(&u.id, SESSION_ID_BUDGET)
+                ),
+                String::new(),
+            ],
+        );
+    }
+    let all_unwritten = if lane {
+        Vec::new()
+    } else {
+        unwritten_sessions(&state.sessions)
+    };
+    let others: Vec<&SessionState> = all_unwritten
+        .into_iter()
+        .filter(|s| unwritten.is_none_or(|u| u.id != s.id))
+        .collect();
+    if !others.is_empty() {
+        let named: Vec<String> = others
+            .iter()
+            .take(UNWRITTEN_SIBLING_CAP)
+            .map(|s| clip(&s.id, SESSION_ID_BUDGET))
+            .collect();
+        let more = if others.len() > named.len() {
+            format!(", +{} more", others.len() - named.len())
+        } else {
+            String::new()
+        };
+        fixed(
+            &mut blocks,
+            vec![
+                clip(
+                    &format!(
+                        "⚠ {} other session(s) did work without writing back: {}{more}",
+                        others.len(),
+                        named.join(", ")
+                    ),
+                    DERIVED_SESSION_BUDGET,
+                ),
+                String::new(),
+            ],
+        );
+    }
+
+    // (5) Phases and progress.
     if !lane && !state.phases.is_empty() {
         let open: Vec<&PhaseState> = state
             .phases
@@ -506,7 +1165,7 @@ pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String
             .iter()
             .filter(|p| p.status == "dropped")
             .collect();
-        lines.push("Phases:".to_owned());
+        let mut lines = vec!["Phases:".to_owned()];
         for phase in open.iter().take(MAX_PHASE_LINES) {
             lines.push(format!(
                 "- {} {} {}",
@@ -545,328 +1204,248 @@ pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String
                 DONE_PHASES_LINE_BUDGET,
             ));
         }
-        lines.push(String::new());
-    }
-
-    if !lane {
         lines.push(format!(
             "Progress: {} across {} phase(s)",
             progress_text(task_progress(&state.phases)),
             state.phases.len()
         ));
-    }
-
-    let active = if lane {
-        None
-    } else {
-        state
-            .current
-            .active_phase
-            .as_deref()
-            .and_then(|name| state.phases.iter().find(|p| p.name == name))
-    };
-    if let Some(active) = active {
-        lines.push(format!(
-            "Active phase: {} — {} tasks done",
-            clip(&active.name, PHASE_LINE_BUDGET),
-            phase_fraction(task_progress([active]))
-        ));
-        let current = active.tasks.iter().find(|t| t.status == "active");
-        let next = active.tasks.iter().find(|t| t.status == "pending");
-        if let Some(current) = current {
-            lines.push(format!(
-                "Current task: {}",
-                clip(
-                    &format!("{} {}", current.id, current.title),
-                    TASK_LINE_BUDGET
-                )
-            ));
-            if let Some((_, files)) = state.task_files.iter().find(|(id, _)| *id == current.id)
-                && !files.is_empty()
-            {
-                let listed = files
-                    .iter()
-                    .take(MAX_TASK_FILES)
-                    .map(String::as_str)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                lines.push(format!(
-                    "  {}",
-                    clip(&format!("files: {listed}"), TASK_FILES_LINE_BUDGET - 2)
-                ));
-            }
-            if options.activity != Some(false)
-                && let Some(tests) = task_tests_line(state, current)
-            {
-                lines.push(format!("  {}", clip(&tests, TASK_FILES_LINE_BUDGET - 2)));
-            }
-        }
-        if let Some(next) = next {
-            lines.push(format!(
-                "Next task: {}",
-                clip(&format!("{} {}", next.id, next.title), TASK_LINE_BUDGET)
-            ));
-        }
-    } else if !lane {
-        lines.push("Active phase: (none)".to_owned());
-    }
-
-    if !lane && let Some(next_action) = &state.current.next_action {
-        lines.push(format!(
-            "Next action: {}",
-            clip(next_action, NEXT_ACTION_BUDGET)
-        ));
-    }
-
-    let parallel = if lane {
-        Vec::new()
-    } else {
-        overlapping_writebacks(state, None)
-    };
-    if !parallel.is_empty() {
-        lines.push(format!(
-            "⚠ Parallel write-backs — {} overlapping session(s) also recorded a next action:",
-            parallel.len()
-        ));
-        for w in parallel.iter().take(MAX_PARALLEL_LINES) {
-            lines.push(format!(
-                "- {}",
-                clip(
-                    &format!(
-                        "{}, ended {}: {}",
-                        w.tool,
-                        date_part(&w.ended),
-                        w.next_action
-                    ),
-                    PARALLEL_LINE_BUDGET
-                )
-            ));
-        }
-        if parallel.len() > MAX_PARALLEL_LINES {
-            lines.push(format!(
-                "- …and {} more (run sofar status)",
-                parallel.len() - MAX_PARALLEL_LINES
-            ));
-        }
-    }
-
-    let drift = freshness_total(&state.freshness);
-    if !lane && drift > 0 && state.freshness.last_writeback_ts.is_some() {
-        lines.push(clip(
-            &format!(
-                "⚠ next action may be stale: {drift} event{} since write-back ({})",
-                if drift == 1 { "" } else { "s" },
-                describe_freshness(&state.freshness.events_since_writeback)
-            ),
-            STALENESS_LINE_BUDGET,
-        ));
-    }
-
-    let notes = &state.freshness.notes;
-    if !notes.is_empty() {
-        let recent = &notes[notes.len().saturating_sub(MAX_NOTES)..];
-        let skipped = notes.len() - recent.len();
-        let label = if state.freshness.last_writeback_ts.is_some() {
-            "Notes since write-back"
-        } else {
-            "Notes"
-        };
-        lines.push(format!(
-            "{label}{}:",
-            if skipped > 0 {
-                format!(" (last {} of {})", recent.len(), notes.len())
-            } else {
-                String::new()
-            }
-        ));
-        for n in recent {
-            lines.push(format!(
-                "- {}",
-                clip(
-                    &format!("{} {}", date_part(&n.ts), n.text),
-                    NOTE_LINE_BUDGET
-                )
-            ));
-        }
-    }
-
-    if !lane && let Some(blocked) = &state.current.blocked_on {
-        lines.push(format!("Blocked on: {}", clip(blocked, BLOCKED_BUDGET)));
-    }
-
-    let conflicts = open_session_file_conflicts(state, None);
-    if !conflicts.is_empty() {
-        lines.push(format!(
-            "⚠ Concurrent edits — {} file(s) touched by multiple open sessions:",
-            conflicts.len()
-        ));
-        for c in conflicts.iter().take(MAX_CONFLICT_LINES) {
-            lines.push(format!(
-                "- {}",
-                clip(
-                    &format!("{} (sessions {})", c.path, c.sessions.join(", ")),
-                    CONFLICT_LINE_BUDGET
-                )
-            ));
-        }
-        if conflicts.len() > MAX_CONFLICT_LINES {
-            lines.push(format!(
-                "- …and {} more (run sofar doctor)",
-                conflicts.len() - MAX_CONFLICT_LINES
-            ));
-        }
-    }
-    if !lane || !conflicts.is_empty() {
         lines.push(String::new());
+        fixed(&mut blocks, lines);
     }
 
-    let last = last_with_summary(&state.sessions);
-    if let Some(last) = last {
-        lines.push(format!(
-            "Last session ({}, ended {}):",
-            last.tool,
-            last.ended.as_deref().unwrap_or("?")
-        ));
-        let summary_text = last.summary.as_deref().expect("has summary");
-        let (summary, clipped) = clip_detect(summary_text, SESSION_SUMMARY_BUDGET);
-        if clipped {
-            let pointer = format!(
-                " (clipped — full text in sessions/{}.md)",
-                clip(&last.id, SESSION_ID_BUDGET)
-            );
-            lines.push(format!(
-                "  {}{pointer}",
-                clip(
-                    summary_text,
-                    SESSION_SUMMARY_BUDGET.saturating_sub(utf16_len(&pointer))
-                )
-            ));
-        } else {
-            lines.push(format!("  {summary}"));
-        }
-        lines.push(String::new());
-    }
-
-    if let Some(run) = latest_run(state) {
-        lines.push(clip(
-            &format!("Driven: {}", describe_run(run)),
-            DRIVEN_LINE_BUDGET,
-        ));
-        lines.push(String::new());
-    }
-
-    if lane && !state.sessions.is_empty() {
-        let worked: Vec<&SessionState> = state
-            .sessions
-            .iter()
-            .filter(|s| s.activity.is_some())
-            .rev()
-            .collect();
-        let since = state.sessions.first().map(|s| date_part(&s.started));
-        lines.push(format!(
-            "Recent quick work ({}, {}{}{}):",
-            plural(state.sessions.len() as u64, "session"),
-            plural(state.decisions.len() as u64, "decision"),
-            since.map(|s| format!(" since {s}")).unwrap_or_default(),
-            if worked.len() > LANE_RECENT_SESSIONS {
-                format!("; last {LANE_RECENT_SESSIONS}")
-            } else {
-                String::new()
-            }
-        ));
-        for s in worked.iter().take(LANE_RECENT_SESSIONS) {
-            lines.push(format!(
-                "- {}",
-                clip(
-                    &format!(
-                        "{} {} — {}",
-                        date_part(&s.started),
-                        s.tool,
-                        describe_activity(s.activity.as_ref().expect("filtered"))
-                    ),
-                    DERIVED_SESSION_BUDGET
-                )
-            ));
-        }
-        lines.push(String::new());
-    }
-
-    let unwritten = if lane {
-        None
-    } else {
-        last_unwritten_with_activity(&state.sessions)
-    };
-    if let Some(u) = unwritten {
-        let fate = if u.ended.is_some() {
-            "ended without write-back"
-        } else {
-            "open, no write-back yet"
-        };
-        let closed = u
-            .closed_reason
-            .as_ref()
-            .map(|r| format!(", closed: {r}"))
-            .unwrap_or_default();
-        lines.push(clip(
-            &format!(
-                "Last session ({}{closed}) {fate} — derived: {}",
-                u.tool,
-                describe_activity(u.activity.as_ref().expect("has activity"))
-            ),
-            DERIVED_SESSION_BUDGET,
-        ));
-        lines.push(format!(
-            "  (details in sessions/{}.md)",
-            clip(&u.id, SESSION_ID_BUDGET)
-        ));
-        lines.push(String::new());
-    }
-
-    let all_unwritten = if lane {
-        Vec::new()
-    } else {
-        unwritten_sessions(&state.sessions)
-    };
-    let others: Vec<&SessionState> = all_unwritten
-        .into_iter()
-        .filter(|s| unwritten.is_none_or(|u| u.id != s.id))
+    // (6) Memory — yielding (precedence 1).
+    let live_memories: Vec<(usize, String)> = state
+        .memories
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| m.superseded_by.is_none())
+        .map(|(i, m)| (i + 1, m.text.clone()))
         .collect();
-    if !others.is_empty() {
-        let named: Vec<String> = others
-            .iter()
-            .take(UNWRITTEN_SIBLING_CAP)
-            .map(|s| clip(&s.id, SESSION_ID_BUDGET))
-            .collect();
-        let more = if others.len() > named.len() {
-            format!(", +{} more", others.len() - named.len())
-        } else {
-            String::new()
-        };
-        lines.push(clip(
-            &format!(
-                "⚠ {} other session(s) did work without writing back: {}{more}",
-                others.len(),
-                named.join(", ")
-            ),
-            DERIVED_SESSION_BUDGET,
-        ));
-        lines.push(String::new());
+    if !live_memories.is_empty() {
+        let ranked = rank_by_relevance(&live_memories, &focus_terms, Clone::clone);
+        let focus_terms_ref = &focus_terms;
+        let rendered = &rendered_memories;
+        blocks.push(Block::Yielding {
+            rank: 1,
+            preferred: MEMORY_BUDGET,
+            render: Box::new(move |budget: usize| {
+                rendered.borrow_mut().clear();
+                let lines = memory_lines(&ranked, focus_terms_ref, budget);
+                for line in &lines {
+                    if let Some(n) = handle_ordinal(line, 'M') {
+                        rendered.borrow_mut().push(n);
+                    }
+                }
+                lines
+            }),
+            lines: Vec::new(),
+        });
     }
 
-    // The volatile tail (D12), built before the decision index so the ledger
-    // can reserve its real length.
-    let mut tail: Vec<String> = Vec::new();
+    // (7) Repo memory — yielding (precedence 2).
+    let repo_memory = js_trim(options.repo_memory.as_deref().unwrap_or("")).to_owned();
+    if !repo_memory.is_empty() {
+        let rendered = &rendered_memories;
+        let slug = state.slug.clone();
+        blocks.push(Block::Yielding {
+            rank: 2,
+            preferred: REPO_MEMORY_CHAR_BUDGET,
+            render: Box::new(move |budget: usize| {
+                let kept_full = drop_memory_copies(&repo_memory, &slug, &rendered.borrow());
+                let kept = js_trim(&kept_full);
+                if kept.is_empty() || budget < MIN_REPO_MEMORY_ROOM {
+                    return Vec::new();
+                }
+                let header = "Repo memory (.sofar/repo.md):";
+                vec![
+                    header.to_owned(),
+                    clip_block_detect(
+                        kept,
+                        budget.saturating_sub(utf16_len(header) + 2),
+                        REPO_MEMORY_TRUNCATION_MARKER,
+                    )
+                    .0,
+                    String::new(),
+                ]
+            }),
+            lines: Vec::new(),
+        });
+    }
+
+    // (8) The decision index with minutiae dropped — yielding (precedence 3).
+    let rules = standing_constraint_lines(
+        &state.decisions,
+        Some(STANDING_LEDGER_BUDGET),
+        retire,
+        Some(&focus_terms),
+    );
+    let shown_rules: Vec<usize> = rules
+        .iter()
+        .filter_map(|line| handle_ordinal(line, 'D'))
+        .collect();
+    if !state.decisions.is_empty() {
+        let in_force: Vec<(usize, &DecisionState)> = state
+            .decisions
+            .iter()
+            .enumerate()
+            .map(|(i, d)| (i + 1, d))
+            .filter(|(ordinal, _)| !retired.contains(ordinal))
+            .collect();
+        let recent = &in_force[in_force.len().saturating_sub(MAX_DECISIONS)..];
+        let older_count = in_force.len() - recent.len();
+        let count = if older_count > 0 {
+            format!("last {} of {}", recent.len(), in_force.len())
+        } else {
+            in_force.len().to_string()
+        };
+        let window_header = format!(
+            "Recent decisions ({}; full text in decisions.md):",
+            if retired.is_empty() {
+                count
+            } else {
+                format!("{count} in force, {} retired", retired.len())
+            }
+        );
+        let window_entries: Vec<String> = recent
+            .iter()
+            .map(|(ordinal, d)| {
+                let ordinal = *ordinal;
+                let is_ruled = d.rule.is_some() && shown_rules.contains(&ordinal);
+                let chose = minutiae_head(
+                    &d.chose,
+                    if is_ruled {
+                        DECISION_RULED_CHOSE_BUDGET
+                    } else {
+                        DECISION_CHOSE_BUDGET
+                    },
+                );
+                let over = if has_real_alternative(&d.over) {
+                    format!(
+                        " — over {}",
+                        minutiae_head(&d.over, REJECTED_OVER_LINE_BUDGET)
+                    )
+                } else {
+                    String::new()
+                };
+                let mut marks: Vec<String> = Vec::new();
+                if is_ruled {
+                    marks.push("rule below".to_owned());
+                }
+                if retire && let Some(supersedes) = &d.supersedes {
+                    marks.push(format!("supersedes {supersedes}"));
+                }
+                let mark = if marks.is_empty() {
+                    String::new()
+                } else {
+                    format!(" ({})", marks.join("; "))
+                };
+                format!("- [D{ordinal}] {}{mark} {chose}{over}", date_part(&d.ts))
+            })
+            .collect();
+        let rejected: Vec<(usize, &DecisionState)> = in_force[..older_count]
+            .iter()
+            .copied()
+            .filter(|(_, d)| has_real_alternative(&d.over))
+            .collect();
+        let ledger_header = format!(
+            "Earlier rejected approaches — do NOT re-propose ({} older):",
+            rejected.len()
+        );
+        let pointer = |n: usize| format!("- …and {n} more (see decisions.md)");
+        blocks.push(Block::Yielding {
+            rank: 3,
+            preferred: DECISION_WINDOW_BUDGET + REJECTED_LEDGER_BUDGET,
+            render: Box::new(move |budget: usize| {
+                let reserve = if rejected.is_empty() {
+                    0
+                } else {
+                    utf16_len(&ledger_header) + utf16_len(&pointer(rejected.len())) + 2
+                };
+                let window_room =
+                    (DECISION_WINDOW_BUDGET as i64).min(budget as i64 - reserve as i64);
+                let mut used = utf16_len(&window_header) as i64 + 1;
+                let mut keep = 0;
+                for entry in window_entries.iter().rev() {
+                    if used + utf16_len(entry) as i64 + 1 > window_room {
+                        break;
+                    }
+                    used += utf16_len(entry) as i64 + 1;
+                    keep += 1;
+                }
+                let mut lines: Vec<String> = if keep > 0 {
+                    let mut v = vec![window_header.clone()];
+                    v.extend(
+                        window_entries[window_entries.len() - keep..]
+                            .iter()
+                            .cloned(),
+                    );
+                    v
+                } else {
+                    Vec::new()
+                };
+                if keep == 0 {
+                    used = 0;
+                }
+                if rejected.is_empty() || used + reserve as i64 > budget as i64 {
+                    return lines;
+                }
+                let mut ledger = vec![ledger_header.clone()];
+                let mut ledger_used = utf16_len(&ledger_header) as i64 + 1;
+                let ledger_room = (REJECTED_LEDGER_BUDGET as i64).min(budget as i64 - used);
+                let mut shown = 0;
+                for (ordinal, d) in &rejected {
+                    let entry = format!(
+                        "- [D{ordinal}] {}",
+                        minutiae_head(&d.over, REJECTED_OVER_LINE_BUDGET)
+                    );
+                    if ledger_used + utf16_len(&entry) as i64 + 1 + OVERFLOW_RESERVE as i64
+                        > ledger_room
+                    {
+                        break;
+                    }
+                    ledger_used += utf16_len(&entry) as i64 + 1;
+                    ledger.push(entry);
+                    shown += 1;
+                }
+                if shown < rejected.len() {
+                    ledger.push(pointer(rejected.len() - shown));
+                }
+                lines.extend(ledger);
+                lines
+            }),
+            lines: Vec::new(),
+        });
+        blocks.push(Block::Fixed {
+            lines: vec![String::new()],
+            protected: false,
+        });
+    }
+
+    // (9) Next handles, adjacency, the per-session tail, notices.
+    if !state.decisions.is_empty() || !state.memories.is_empty() {
+        fixed(
+            &mut blocks,
+            vec![
+                format!(
+                    "Next ids: D{} (decision), M{} (memory)",
+                    state.decisions.len() + 1,
+                    state.memories.len() + 1
+                ),
+                String::new(),
+            ],
+        );
+    }
     let neighbours = &options.neighbours;
     if !neighbours.is_empty() {
         let named = &neighbours[..neighbours.len().min(MAX_NEIGHBOURS)];
         let decisions: u64 = neighbours.iter().map(|n| n.decisions).sum();
-        tail.push(format!(
+        let mut lines = vec![format!(
             "Adjacent records — {} across {} that have worked this one's files, densest first:",
             plural(decisions, "decision"),
             plural(neighbours.len() as u64, "other initiative")
-        ));
+        )];
         for n in named {
-            tail.push(format!(
+            lines.push(format!(
                 "- {}",
                 clip(
                     &format!(
@@ -880,7 +1459,7 @@ pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String
             ));
         }
         let rest = neighbours.len() - named.len();
-        tail.push(format!(
+        lines.push(format!(
             "{}Adjacency, not aboutness — offered as worth reading, never as a rule.",
             if rest > 0 {
                 format!("…and {rest} more. ")
@@ -888,12 +1467,12 @@ pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String
                 String::new()
             }
         ));
-        tail.push(String::new());
+        lines.push(String::new());
+        fixed(&mut blocks, lines);
     }
-
-    let id_line = session_id_line(options.session_id.as_deref());
-    if let Some(line) = &id_line {
-        tail.push(line.clone());
+    let mut identity: Vec<String> = Vec::new();
+    if let Some(line) = session_id_line(options.session_id.as_deref()) {
+        identity.push(line);
     }
     if let Some(git) = &options.git {
         let sync = match &git.upstream {
@@ -904,7 +1483,7 @@ pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String
                 git.branch
             ),
         };
-        tail.push(format!(
+        identity.push(format!(
             "Git: {}",
             clip(
                 &format!("{} @ {} — {sync}", git.branch, git.head),
@@ -912,142 +1491,37 @@ pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String
             )
         ));
     }
-    if id_line.is_some() || options.git.is_some() {
-        tail.push(String::new());
+    if !identity.is_empty() {
+        identity.push(String::new());
+        fixed(&mut blocks, identity);
     }
-
     for notice in options.notices.iter().filter(|n| !js_trim(n).is_empty()) {
-        tail.push(notice.clone());
-        tail.push(String::new());
+        fixed(&mut blocks, vec![notice.clone(), String::new()]);
     }
 
-    if !state.decisions.is_empty() {
-        // In-force decisions keep their ordinals (D25: ids never renumber);
-        // the window is the last 5 of THEM.
-        let in_force: Vec<(usize, &DecisionState)> = state
-            .decisions
-            .iter()
-            .enumerate()
-            .map(|(i, d)| (i + 1, d))
-            .filter(|(ordinal, _)| !retired.contains(ordinal))
-            .collect();
-        let recent = &in_force[in_force.len().saturating_sub(MAX_DECISIONS)..];
-        let older_count = in_force.len() - recent.len();
-        let shown_rules: Vec<usize> = standing
-            .iter()
-            .filter_map(|line| {
-                let digits = line.strip_prefix("- [D")?;
-                let end = digits.find(']')?;
-                digits[..end].parse().ok()
-            })
-            .collect();
-        let count = if older_count > 0 {
-            format!("last {} of {}", recent.len(), in_force.len())
-        } else {
-            in_force.len().to_string()
-        };
-        let window = if retired.is_empty() {
-            count
-        } else {
-            format!("{count} in force, {} retired", retired.len())
-        };
-        lines.push(format!(
-            "Recent decisions ({window}; full text in decisions.md):"
-        ));
-        for (ordinal, d) in recent {
-            let ordinal = *ordinal;
-            let ruled = d.rule.is_some() && shown_rules.contains(&ordinal);
-            let chose = clip(
-                &d.chose,
-                if ruled {
-                    DECISION_RULED_CHOSE_BUDGET
-                } else {
-                    DECISION_CHOSE_BUDGET
-                },
-            );
-            let over = if has_real_alternative(&d.over) {
-                format!(" — over {}", clip(&d.over, REJECTED_OVER_LINE_BUDGET))
-            } else {
-                String::new()
-            };
-            let mut marks: Vec<String> = Vec::new();
-            if ruled {
-                marks.push("rule above".to_owned());
-            }
-            if retire && let Some(supersedes) = &d.supersedes {
-                marks.push(format!("supersedes {supersedes}"));
-            }
-            let mark = if marks.is_empty() {
-                String::new()
-            } else {
-                format!(" ({})", marks.join("; "))
-            };
-            lines.push(format!(
-                "- [D{ordinal}] {}{mark} {chose}{over}",
-                date_part(&d.ts)
-            ));
-        }
-
-        let rejected: Vec<(usize, &DecisionState)> = in_force[..older_count]
-            .iter()
-            .copied()
-            .filter(|(_, d)| has_real_alternative(&d.over))
-            .collect();
-        if !rejected.is_empty() {
-            lines.push(format!(
-                "Earlier rejected approaches — do NOT re-propose ({} older):",
-                rejected.len()
-            ));
-            let ledger_budget = REJECTED_LEDGER_BUDGET.min(
-                STATUS_CHAR_LIMIT_I64
-                    - joined_len(&lines)
-                    - joined_len(&tail)
-                    - PROTOCOL_TAIL_RESERVE,
-            );
-            let mut used: i64 = 0;
-            let mut shown = 0;
-            for (ordinal, d) in &rejected {
-                let entry = format!(
-                    "- [D{ordinal}] {}",
-                    clip(&d.over, REJECTED_OVER_LINE_BUDGET)
-                );
-                let len = units_i64(&entry);
-                if used + len + 1 > ledger_budget {
-                    break;
-                }
-                lines.push(entry);
-                used += len + 1;
-                shown += 1;
-            }
-            if shown < rejected.len() {
-                lines.push(format!(
-                    "- …and {} more (see decisions.md)",
-                    rejected.len() - shown
-                ));
-            }
-        }
+    // (10) Standing constraints LAST, most relevant first — protected.
+    if !rules.is_empty() {
+        let mut lines = rules.clone();
         lines.push(String::new());
+        blocks.push(Block::Fixed {
+            lines,
+            protected: true,
+        });
     }
-
-    if !state.decisions.is_empty() || !state.memories.is_empty() {
-        lines.push(format!(
-            "Next ids: D{} (decision), M{} (memory)",
-            state.decisions.len() + 1,
-            state.memories.len() + 1
-        ));
-        lines.push(String::new());
+    // (11) Read-back, then the footer — protected.
+    if !lane && (state.current.next_action.is_some() || !rules.is_empty()) {
+        blocks.push(Block::Fixed {
+            lines: vec![READ_BACK_LINE.to_owned(), String::new()],
+            protected: true,
+        });
     }
+    blocks.push(Block::Fixed {
+        lines: vec![FOOTER_LINE.to_owned()],
+        protected: true,
+    });
 
-    lines.extend(tail);
-
-    if !lane && (state.current.next_action.is_some() || !standing.is_empty()) {
-        lines.push(READ_BACK_LINE.to_owned());
-        lines.push(String::new());
-    }
-
-    lines.push(FOOTER_LINE.to_owned());
-    let joined = lines.join("\n");
-    enforce_status_limit(&format!("{}\n", joined.trim_end_matches('\n')))
+    let text = assemble(blocks, STATUS_CHAR_LIMIT);
+    enforce_status_limit(&text)
 }
 
 /// A string field of the run surface, as `${s.x}` prints it (`undefined` when absent).
@@ -1115,7 +1589,7 @@ pub fn render_full_status(state: &InitiativeState, retire: bool) -> String {
         }
     ));
 
-    let standing = standing_constraint_lines(&state.decisions, None, retire);
+    let standing = standing_constraint_lines(&state.decisions, None, retire, None);
     if !standing.is_empty() {
         lines.push(String::new());
         lines.extend(standing);
@@ -1351,7 +1825,7 @@ mod tests {
         let out = render_status(&state, &StatusOptions::default());
         assert_eq!(
             out,
-            "# Sofar status: demo\n\nGoal: (none recorded)\n\nProgress: 0/0 tasks done (0%) across 0 phase(s)\nActive phase: (none)\n\n(generated by sofar — full detail in plan.md, decisions.md, sessions/)\n"
+            "# Sofar status: demo\n\nGoal: (none recorded)\n\n(generated by sofar — full detail in plan.md, decisions.md, sessions/)\n"
         );
         let full = render_full_status(&state, true);
         assert_eq!(
@@ -1366,9 +1840,7 @@ mod tests {
         assert_eq!(session_id_line(Some(" \u{FEFF} ")), None);
         assert_eq!(
             session_id_line(Some(" abc ")),
-            Some(
-                "Session: abc — when calling sofar_start_session, pass this as session_id.".into()
-            )
+            Some("Session: abc — adopted on Claude Code; else pass to sofar_start_session.".into())
         );
     }
 }

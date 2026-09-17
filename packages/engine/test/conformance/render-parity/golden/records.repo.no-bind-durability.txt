@@ -161,47 +161,60 @@ Files touched (6):
 - /Users/jins/IO/sofar/.commit-msg-1-2.txt
 - /Users/jins/IO/sofar/.commit-msg-nbd-13.txt
 
-== digest:plain (3282 bytes) ==
+== digest:plain (3143 bytes) ==
 # Sofar status: no-bind-durability
 
-Goal: sofar new <slug> --no-bind states that the current branch must NOT be routed to the new initiative, but binding-follows-session D1's write-back rebind honours that only on an UNBOUND branch: a branch bound elsewhere is moved onto the new record by its first write-back, silently undoing the flag the operator set. Close the gap with a fourth guard derived from bindings.json alone — a write-back never routes a branch to an initiative that appears nowhere in bindings.json — so --no-bind survives the write-back and an explicit sofar switch retracts it. Narrow by construction: no schema change, no …
+Goal: sofar new <slug> --no-bind states that the current branch must NOT be routed to the new initiative, but binding-follows-session D1's write-back rebind honours that only on an UNBOUND branch: a branch bound elsewhere is moved onto the new record by its first write-back, silently undoing the flag the operator set. Close the gap with a fourth guard derived from bindings.json alone — a write-back nev…
 
-Standing constraints — obey verbatim (2):
-- [D1] A write-back never routes a branch to an initiative that appears nowhere in bindings.json's values. The rebind MOVES a binding between initiatives the operator has already routed to; introducing an initiative to the routing table is `sofar new` (without --no-bind) or `sofar switch`, never sofar_end_session.
-- [D2] Never `git add -A`, `git add .` or `git stash` in this repo while peer sessions are live: stage the paths the task touched plus this initiative's own record dir, and pass the commit message with `git commit -F <file>`.
-
-Phases:
-- Phase 1 — Guard + contract [pending — all tasks done; mark phase done?] 3/3
-
-Progress: 3/3 tasks done (100%) across 1 phase(s)
-Active phase: (none)
 Next action: Ask the operator to confirm pushing origin main, since the push carries peer sessions' commits alongside this initiative's three; then close the initiative, as Phase 1 is 3/3 with nothing outstanding.
 ⚠ next action may be stale: 1 event since write-back (1 file)
 
 Last session (claude-code, ended 2026-08-30T06:00:27.899Z):
-  1.3 done, both gates green at 887b968, no code changed. Typecheck clean in both workspaces; npm test 1851 passed / 4 skipped, and the M1 reach-index flake did not reproduce even in parallel, confirming it as load contention. Diff excluding the record is exactly the three named files, with no uncommitted code outside them. Phase 1 is 3/3. Full evidence in the note logged just before this.
+  1.3 done, both gates green at 887b968, no code changed. Typecheck clean in both workspaces; npm test 1851 passed / 4 skipped, and the M1 reach-index flake did not reproduce even in parallel, confirming it as load contention. Diff excluding the record is exactly the three named files, with no uncommitted code ou… (clipped — full text in sessions/e180807f-d44c-442d-8afb-d316a3af9eec.md)
 
 Driven: run 01M18KG0S2RFP2HAKY2YS5A4C8 via claude-code, task policy — 3 handoffs (3 task_done); stopped: closed — no task left to run — every task is done, dropped or blocked
 
+Phases:
+- Phase 1 — Guard + contract [pending — all tasks done; mark phase done?] 3/3
+Progress: 3/3 tasks done (100%) across 1 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] `npm test` can report exactly 1 failure that is NOT yours: packages/engine/test/reach-index.test.ts, the case asserting `logged alpha D1` in runFind's output, gets `logged alpha D2` instead when the machine is loaded (peer sessions running their own suites in this shared worktre…
+
 Recent decisions (3; full text in decisions.md):
-- [D1] 2026-08-30 (rule above) A FOURTH guard on rebindBranch (mcp/end-session.ts), derive… — over (a) Recording the intent in the event log: `initiative_created` gains `bind: false`, fold…
-- [D2] 2026-08-30 (rule above) Commits on this initiative stage EXPLICIT PATHS: `git add <… — over The repo's usual `git add -A && git commit -F msg.txt`, and `git stash` for anything.
-- [D3] 2026-08-30 Stating the guard's ASYMMETRY in the SPEC passage: a rebind can leave the slug it moved away from absent from bindings.… — over Leaving the consequence unstated (the guard is correct without it, and the passage is alr…
+- [D1] 2026-08-30 (rule below) A FOURTH guard on rebindBranch — over (a) Recording the intent in the event log
+- [D2] 2026-08-30 (rule below) Commits on this initiative stage EXPLICIT PATHS — over The repo's usual `git add -A && git commit -F msg.txt`, and `git stas…
+- [D3] 2026-08-30 Stating the guard's ASYMMETRY in the SPEC passage — over Leaving the consequence unstated
 
 Next ids: D4 (decision), M2 (memory)
+
+Standing constraints — obey verbatim (2):
+- [D2] Never `git add -A`, `git add .` or `git stash` in this repo while peer sessions are live: stage the paths the task touched plus this initiative's own record dir, and pass the commit message with `git commit -F <file>`.
+- [D1] A write-back never routes a branch to an initiative that appears nowhere in bindings.json's values. The rebind MOVES a binding between initiatives the operator has already routed to; introducing an initiative to the routing table is `sofar new` (without --no-bind) or `sofar switch`, never sofar_end_session.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:hook (5467 bytes) ==
+== digest:hook (4389 bytes) ==
 # Sofar status: no-bind-durability
 
-Goal: sofar new <slug> --no-bind states that the current branch must NOT be routed to the new initiative, but binding-follows-session D1's write-back rebind honours that only on an UNBOUND branch: a branch bound elsewhere is moved onto the new record by its first write-back, silently undoing the flag the operator set. Close the gap with a fourth guard derived from bindings.json alone — a write-back never routes a branch to an initiative that appears nowhere in bindings.json — so --no-bind survives the write-back and an explicit sofar switch retracts it. Narrow by construction: no schema change, no …
+Goal: sofar new <slug> --no-bind states that the current branch must NOT be routed to the new initiative, but binding-follows-session D1's write-back rebind honours that only on an UNBOUND branch: a branch bound elsewhere is moved onto the new record by its first write-back, silently undoing the flag the operator set. Close the gap with a fourth guard derived from bindings.json alone — a write-back nev…
 
-Standing constraints — obey verbatim (2):
-- [D1] A write-back never routes a branch to an initiative that appears nowhere in bindings.json's values. The rebind MOVES a binding between initiatives the operator has already routed to; introducing an initiative to the routing table is `sofar new` (without --no-bind) or `sofar switch`, never sofar_end_session.
-- [D2] Never `git add -A`, `git add .` or `git stash` in this repo while peer sessions are live: stage the paths the task touched plus this initiative's own record dir, and pass the commit message with `git commit -F <file>`.
+Next action: Ask the operator to confirm pushing origin main, since the push carries peer sessions' commits alongside this initiative's three; then close the initiative, as Phase 1 is 3/3 with nothing outstanding.
+⚠ next action may be stale: 1 event since write-back (1 file)
+
+Last session (claude-code, ended 2026-08-30T06:00:27.899Z):
+  1.3 done, both gates green at 887b968, no code changed. Typecheck clean in both workspaces; npm test 1851 passed / 4 skipped, and the M1 reach-index flake did not reproduce even in parallel, confirming it as load contention. Diff excluding the record is exactly the three named files, with no uncommitted code ou… (clipped — full text in sessions/e180807f-d44c-442d-8afb-d316a3af9eec.md)
+
+Driven: run 01M18KG0S2RFP2HAKY2YS5A4C8 via claude-code, task policy — 3 handoffs (3 task_done); stopped: closed — no task left to run — every task is done, dropped or blocked
+
+Phases:
+- Phase 1 — Guard + contract [pending — all tasks done; mark phase done?] 3/3
+Progress: 3/3 tasks done (100%) across 1 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] `npm test` can report exactly 1 failure that is NOT yours: packages/engine/test/reach-index.test.ts, the case asserting `logged alpha D1` in runFind's output, gets `logged alpha D2` instead when the machine is loaded (peer sessions running their own suites in this shared worktre…
 
 Repo memory (.sofar/repo.md):
 # Repo memory — sofar
@@ -213,41 +226,12 @@ Repo memory (.sofar/repo.md):
   docs still say harness — that is history, never rewritten.
 - Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
   acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
 …truncated — read .sofar/repo.md for the rest
 
-Phases:
-- Phase 1 — Guard + contract [pending — all tasks done; mark phase done?] 3/3
-
-Progress: 3/3 tasks done (100%) across 1 phase(s)
-Active phase: (none)
-Next action: Ask the operator to confirm pushing origin main, since the push carries peer sessions' commits alongside this initiative's three; then close the initiative, as Phase 1 is 3/3 with nothing outstanding.
-⚠ next action may be stale: 1 event since write-back (1 file)
-
-Last session (claude-code, ended 2026-08-30T06:00:27.899Z):
-  1.3 done, both gates green at 887b968, no code changed. Typecheck clean in both workspaces; npm test 1851 passed / 4 skipped, and the M1 reach-index flake did not reproduce even in parallel, confirming it as load contention. Diff excluding the record is exactly the three named files, with no uncommitted code outside them. Phase 1 is 3/3. Full evidence in the note logged just before this.
-
-Driven: run 01M18KG0S2RFP2HAKY2YS5A4C8 via claude-code, task policy — 3 handoffs (3 task_done); stopped: closed — no task left to run — every task is done, dropped or blocked
-
 Recent decisions (3; full text in decisions.md):
-- [D1] 2026-08-30 (rule above) A FOURTH guard on rebindBranch (mcp/end-session.ts), derive… — over (a) Recording the intent in the event log: `initiative_created` gains `bind: false`, fold…
-- [D2] 2026-08-30 (rule above) Commits on this initiative stage EXPLICIT PATHS: `git add <… — over The repo's usual `git add -A && git commit -F msg.txt`, and `git stash` for anything.
-- [D3] 2026-08-30 Stating the guard's ASYMMETRY in the SPEC passage: a rebind can leave the slug it moved away from absent from bindings.… — over Leaving the consequence unstated (the guard is correct without it, and the passage is alr…
+- [D1] 2026-08-30 (rule below) A FOURTH guard on rebindBranch — over (a) Recording the intent in the event log
+- [D2] 2026-08-30 (rule below) Commits on this initiative stage EXPLICIT PATHS — over The repo's usual `git add -A && git commit -F msg.txt`, and `git stas…
+- [D3] 2026-08-30 Stating the guard's ASYMMETRY in the SPEC passage — over Leaving the consequence unstated
 
 Next ids: D4 (decision), M2 (memory)
 
@@ -257,32 +241,32 @@ Adjacent records — 22 decisions across 5 other initiatives that have worked th
 - gamma — 4 shared files, 2 decisions
 …and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: no-bind-durability-session — when calling sofar_start_session, pass this as session_id.
+Session: no-bind-durability-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: no-bind-durability @ a1b2c3d — no origin ref — never pushed
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
+Standing constraints — obey verbatim (2):
+- [D2] Never `git add -A`, `git add .` or `git stash` in this repo while peer sessions are live: stage the paths the task touched plus this initiative's own record dir, and pass the commit message with `git commit -F <file>`.
+- [D1] A write-back never routes a branch to an initiative that appears nowhere in bindings.json's values. The rebind MOVES a binding between initiatives the operator has already routed to; introducing an initiative to the routing table is `sofar new` (without --no-bind) or `sofar switch`, never sofar_end_session.
+
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:lane (3819 bytes) ==
+== digest:lane (3500 bytes) ==
 # Sofar: quick-work lane (no-bind-durability)
 
-Goal: sofar new <slug> --no-bind states that the current branch must NOT be routed to the new initiative, but binding-follows-session D1's write-back rebind honours that only on an UNBOUND branch: a branch bound elsewhere is moved onto the new record by its first write-back, silently undoing the flag the operator set. Close the gap with a fourth guard derived from bindings.json alone — a write-back never routes a branch to an initiative that appears nowhere in bindings.json — so --no-bind survives the write-back and an explicit sofar switch retracts it. Narrow by construction: no schema change, no …
+Goal: sofar new <slug> --no-bind states that the current branch must NOT be routed to the new initiative, but binding-follows-session D1's write-back rebind honours that only on an UNBOUND branch: a branch bound elsewhere is moved onto the new record by its first write-back, silently undoing the flag the operator set. Close the gap with a fourth guard derived from bindings.json alone — a write-back nev…
 
 This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
 - Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
 - Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
 
-Standing constraints — obey verbatim (2):
-- [D1] A write-back never routes a branch to an initiative that appears nowhere in bindings.json's values. The rebind MOVES a binding between initiatives the operator has already routed to; introducing an initiative to the routing table is `sofar new` (without --no-bind) or `sofar switch`, never sofar_end_session.
-- [D2] Never `git add -A`, `git add .` or `git stash` in this repo while peer sessions are live: stage the paths the task touched plus this initiative's own record dir, and pass the commit message with `git commit -F <file>`.
-
 Last session (claude-code, ended 2026-08-30T06:00:27.899Z):
-  1.3 done, both gates green at 887b968, no code changed. Typecheck clean in both workspaces; npm test 1851 passed / 4 skipped, and the M1 reach-index flake did not reproduce even in parallel, confirming it as load contention. Diff excluding the record is exactly the three named files, with no uncommitted code outside them. Phase 1 is 3/3. Full evidence in the note logged just before this.
+  1.3 done, both gates green at 887b968, no code changed. Typecheck clean in both workspaces; npm test 1851 passed / 4 skipped, and the M1 reach-index flake did not reproduce even in parallel, confirming it as load contention. Diff excluding the record is exactly the three named files, with no uncommitted code ou… (clipped — full text in sessions/e180807f-d44c-442d-8afb-d316a3af9eec.md)
 
 Driven: run 01M18KG0S2RFP2HAKY2YS5A4C8 via claude-code, task policy — 3 handoffs (3 task_done); stopped: closed — no task left to run — every task is done, dropped or blocked
 
@@ -291,107 +275,76 @@ Recent quick work (3 sessions, 3 decisions since 2026-08-30):
 - 2026-08-30 claude-code — 2 files (/Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/.commit-msg-1-2.txt), 16 commands, task changes: 1.2 → done
 - 2026-08-30 claude-code — 3 files (/Users/jins/IO/sofar/packages/engine/src/mcp/end-session.ts, /Users/jins/IO/sofar/packages/engine/test/binding-follows-session.test.ts, /Users/jins/IO/sofar/.sofar-commit-msg.txt), 6 commands, task changes: 1.1 → done
 
+Memory (1; full text in memory.md):
+- [M1] `npm test` can report exactly 1 failure that is NOT yours: packages/engine/test…
+
 Recent decisions (3; full text in decisions.md):
-- [D1] 2026-08-30 (rule above) A FOURTH guard on rebindBranch (mcp/end-session.ts), derive… — over (a) Recording the intent in the event log: `initiative_created` gains `bind: false`, fold…
-- [D2] 2026-08-30 (rule above) Commits on this initiative stage EXPLICIT PATHS: `git add <… — over The repo's usual `git add -A && git commit -F msg.txt`, and `git stash` for anything.
-- [D3] 2026-08-30 Stating the guard's ASYMMETRY in the SPEC passage: a rebind can leave the slug it moved away from absent from bindings.… — over Leaving the consequence unstated (the guard is correct without it, and the passage is alr…
+- [D1] 2026-08-30 (rule below) A FOURTH guard on rebindBranch — over (a) Recording the intent in the event log
+- [D2] 2026-08-30 (rule below) Commits on this initiative stage EXPLICIT PATHS — over The repo's usual `git add -A && git commit -F msg.txt`, and `git stas…
+- [D3] 2026-08-30 Stating the guard's ASYMMETRY in the SPEC passage — over Leaving the consequence unstated
 
 Next ids: D4 (decision), M2 (memory)
 
-Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: no-bind-durability @ a1b2c3d — no origin ref — never pushed
+
+Standing constraints — obey verbatim (2):
+- [D2] Never `git add -A`, `git add .` or `git stash` in this repo while peer sessions are live: stage the paths the task touched plus this initiative's own record dir, and pass the commit message with `git commit -F <file>`.
+- [D1] A write-back never routes a branch to an initiative that appears nowhere in bindings.json's values. The rebind MOVES a binding between initiatives the operator has already routed to; introducing an initiative to the routing table is `sofar new` (without --no-bind) or `sofar switch`, never sofar_end_session.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:quiet (3369 bytes) ==
+== digest:quiet (3229 bytes) ==
 # Sofar status: no-bind-durability
 
-Goal: sofar new <slug> --no-bind states that the current branch must NOT be routed to the new initiative, but binding-follows-session D1's write-back rebind honours that only on an UNBOUND branch: a branch bound elsewhere is moved onto the new record by its first write-back, silently undoing the flag the operator set. Close the gap with a fourth guard derived from bindings.json alone — a write-back never routes a branch to an initiative that appears nowhere in bindings.json — so --no-bind survives the write-back and an explicit sofar switch retracts it. Narrow by construction: no schema change, no …
+Goal: sofar new <slug> --no-bind states that the current branch must NOT be routed to the new initiative, but binding-follows-session D1's write-back rebind honours that only on an UNBOUND branch: a branch bound elsewhere is moved onto the new record by its first write-back, silently undoing the flag the operator set. Close the gap with a fourth guard derived from bindings.json alone — a write-back nev…
 
-Standing constraints — obey verbatim (2):
-- [D1] A write-back never routes a branch to an initiative that appears nowhere in bindings.json's values. The rebind MOVES a binding between initiatives the operator has already routed to; introducing an initiative to the routing table is `sofar new` (without --no-bind) or `sofar switch`, never sofar_end_session.
-- [D2] Never `git add -A`, `git add .` or `git stash` in this repo while peer sessions are live: stage the paths the task touched plus this initiative's own record dir, and pass the commit message with `git commit -F <file>`.
-
-Phases:
-- Phase 1 — Guard + contract [pending — all tasks done; mark phase done?] 3/3
-
-Progress: 3/3 tasks done (100%) across 1 phase(s)
-Active phase: (none)
 Next action: Ask the operator to confirm pushing origin main, since the push carries peer sessions' commits alongside this initiative's three; then close the initiative, as Phase 1 is 3/3 with nothing outstanding.
 ⚠ next action may be stale: 1 event since write-back (1 file)
 
 Last session (claude-code, ended 2026-08-30T06:00:27.899Z):
-  1.3 done, both gates green at 887b968, no code changed. Typecheck clean in both workspaces; npm test 1851 passed / 4 skipped, and the M1 reach-index flake did not reproduce even in parallel, confirming it as load contention. Diff excluding the record is exactly the three named files, with no uncommitted code outside them. Phase 1 is 3/3. Full evidence in the note logged just before this.
+  1.3 done, both gates green at 887b968, no code changed. Typecheck clean in both workspaces; npm test 1851 passed / 4 skipped, and the M1 reach-index flake did not reproduce even in parallel, confirming it as load contention. Diff excluding the record is exactly the three named files, with no uncommitted code ou… (clipped — full text in sessions/e180807f-d44c-442d-8afb-d316a3af9eec.md)
 
 Driven: run 01M18KG0S2RFP2HAKY2YS5A4C8 via claude-code, task policy — 3 handoffs (3 task_done); stopped: closed — no task left to run — every task is done, dropped or blocked
 
+Phases:
+- Phase 1 — Guard + contract [pending — all tasks done; mark phase done?] 3/3
+Progress: 3/3 tasks done (100%) across 1 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] `npm test` can report exactly 1 failure that is NOT yours: packages/engine/test/reach-index.test.ts, the case asserting `logged alpha D1` in runFind's output, gets `logged alpha D2` instead when the machine is loaded (peer sessions running their own suites in this shared worktre…
+
 Recent decisions (3; full text in decisions.md):
-- [D1] 2026-08-30 (rule above) A FOURTH guard on rebindBranch (mcp/end-session.ts), derive… — over (a) Recording the intent in the event log: `initiative_created` gains `bind: false`, fold…
-- [D2] 2026-08-30 (rule above) Commits on this initiative stage EXPLICIT PATHS: `git add <… — over The repo's usual `git add -A && git commit -F msg.txt`, and `git stash` for anything.
-- [D3] 2026-08-30 Stating the guard's ASYMMETRY in the SPEC passage: a rebind can leave the slug it moved away from absent from bindings.… — over Leaving the consequence unstated (the guard is correct without it, and the passage is alr…
+- [D1] 2026-08-30 (rule below) A FOURTH guard on rebindBranch — over (a) Recording the intent in the event log
+- [D2] 2026-08-30 (rule below) Commits on this initiative stage EXPLICIT PATHS — over The repo's usual `git add -A && git commit -F msg.txt`, and `git stas…
+- [D3] 2026-08-30 Stating the guard's ASYMMETRY in the SPEC passage — over Leaving the consequence unstated
 
 Next ids: D4 (decision), M2 (memory)
 
-Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (2):
+- [D2] Never `git add -A`, `git add .` or `git stash` in this repo while peer sessions are live: stage the paths the task touched plus this initiative's own record dir, and pass the commit message with `git commit -F <file>`.
+- [D1] A write-back never routes a branch to an initiative that appears nowhere in bindings.json's values. The rebind MOVES a binding between initiatives the operator has already routed to; introducing an initiative to the routing table is `sofar new` (without --no-bind) or `sofar switch`, never sofar_end_session.
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (10077 bytes) ==
+== digest:cap (6046 bytes) ==
 # Sofar status: no-bind-durability
 
-Goal: sofar new <slug> --no-bind states that the current branch must NOT be routed to the new initiative, but binding-follows-session D1's write-back rebind honours that only on an UNBOUND branch: a branch bound elsewhere is moved onto the new record by its first write-back, silently undoing the flag the operator set. Close the gap with a fourth guard derived from bindings.json alone — a write-back never routes a branch to an initiative that appears nowhere in bindings.json — so --no-bind survives the write-back and an explicit sofar switch retracts it. Narrow by construction: no schema change, no …
+Goal: sofar new <slug> --no-bind states that the current branch must NOT be routed to the new initiative, but binding-follows-session D1's write-back rebind honours that only on an UNBOUND branch: a branch bound elsewhere is moved onto the new record by its first write-back, silently undoing the flag the operator set. Close the gap with a fourth guard derived from bindings.json alone — a write-back nev…
 
-Standing constraints — obey verbatim (2):
-- [D1] A write-back never routes a branch to an initiative that appears nowhere in bindings.json's values. The rebind MOVES a binding between initiatives the operator has already routed to; introducing an initiative to the routing table is `sofar new` (without --no-bind) or `sofar switch`, never sofar_end_session.
-- [D2] Never `git add -A`, `git add .` or `git stash` in this repo while peer sessions are live: stage the paths the task touched plus this initiative's own record dir, and pass the commit message with `git commit -F <file>`.
-
-Repo memory (.sofar/repo.md):
-# Repo memory — sofar
-
-- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
-  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
-  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
-  aliases (pre-publish). Historical event/projection text and the archived
-  docs still say harness — that is history, never rewritten.
-- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
-  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
-  if SPEC must change.
-- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
-  Both run at the workspace root; typecheck: `npm run typecheck`.
-- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
-  (source-shipped, no build); packages/engine → sofar bin
-  (packages/engine/dist/cli.js after build).
-- Definition of done per task: acceptance criteria in docs/SPEC.md
-  §Acceptance.
-- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
-  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
-  live OUTSIDE this repo in the user's strategy vault. Engine sessions
-  never need them; 5.3 scoring is performed by the user against that
-  scorecard. Do not go looking for them; do not block on them.
-- Push policy: push origin main at each verified wrap-up (user-established
-  Jul 3). Pushing is part of ending a work batch, not per-commit.
-- Committing the record needs a BARE
-…truncated — read .sofar/repo.md for the rest
-
-Phases:
-- Phase 1 — Guard + contract [pending — all tasks done; mark phase done?] 3/3
-
-Progress: 3/3 tasks done (100%) across 1 phase(s)
-Active phase: (none)
 Next action: Ask the operator to confirm pushing origin main, since the push carries peer sessions' commits alongside this initiative's three; then close the initiative, as Phase 1 is 3/3 with nothing outstanding.
 ⚠ next action may be stale: 1 event since write-back (1 file)
 
-Last session (claude-code, ended 2026-08-30T06:00:27.899Z):
-  1.3 done, both gates green at 887b968, no code changed. Typecheck clean in both workspaces; npm test 1851 passed / 4 skipped, and the M1 reach-index flake did not reproduce even in parallel, confirming it as load contention. Diff excluding the record is exactly the three named files, with no uncommitted code outside them. Phase 1 is 3/3. Full evidence in the note logged just before this.
-
 Driven: run 01M18KG0S2RFP2HAKY2YS5A4C8 via claude-code, task policy — 3 handoffs (3 task_done); stopped: closed — no task left to run — every task is done, dropped or blocked
 
-Recent decisions (3; full text in decisions.md):
-- [D1] 2026-08-30 (rule above) A FOURTH guard on rebindBranch (mcp/end-session.ts), derive… — over (a) Recording the intent in the event log: `initiative_created` gains `bind: false`, fold…
-- [D2] 2026-08-30 (rule above) Commits on this initiative stage EXPLICIT PATHS: `git add <… — over The repo's usual `git add -A && git commit -F msg.txt`, and `git stash` for anything.
-- [D3] 2026-08-30 Stating the guard's ASYMMETRY in the SPEC passage: a rebind can leave the slug it moved away from absent from bindings.… — over Leaving the consequence unstated (the guard is correct without it, and the passage is alr…
+Phases:
+- Phase 1 — Guard + contract [pending — all tasks done; mark phase done?] 3/3
+Progress: 3/3 tasks done (100%) across 1 phase(s)
+
 
 Next ids: D4 (decision), M2 (memory)
 
@@ -401,15 +354,23 @@ Adjacent records — 22 decisions across 5 other initiatives that have worked th
 - gamma — 4 shared files, 2 decisions
 …and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
 
-Session: no-bind-durability-session — when calling sofar_start_session, pass this as session_id.
+Session: no-bind-durability-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: no-bind-durability @ a1b2c3d — no origin ref — never pushed
 
 Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
+
+Standing constraints — obey verbatim (2):
+- [D2] Never `git add -A`, `git add .` or `git stash` in this repo while peer sessions are live: stage the paths the task touched plus this initiative's own record dir, and pass the commit message with `git commit -F <file>`.
+- [D1] A write-back never routes a branch to an initiative that appears nowhere in bindings.json's values. The rebind MOVES a binding between initiatives the operator has already routed to; introducing an initiative to the routing table is `sofar new` (without --no-bind) or `sofar switch`, never sofar_end_session.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
 == plan (2203 bytes) ==
 <!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->

@@ -1,5 +1,30 @@
 # Golden manifest (rust-core D11)
 
+Re-recorded from the TypeScript reference at **rust-core 17817db** (the
+wave-a merge: memory-lead Wave A 1.1–1.3 — D2 rule quote, D3 host-neutral
+Session line, D4 digest composition with the 6,000-unit cap — plus the
+r1-fixes work wave-a carried: the per-worktree session pointer L09/D29–D30,
+the unbound `sofar status` orientation L10/D28, the silent-reversal refusal
+D31, phase resolution D32, and the Cursor hook dialect 6.3–6.6/D34). 17
+goldens changed, every one for those reasons: every session-start digest is
+recomposed (next task first, memory and repo memory yielding, constraints
+last, `Session: … — adopted on Claude Code; else pass to
+sofar_start_session.`); `event append` without `--session` now joins the
+worktree pointer the hooks wrote (repo.append, syn.lifecycle …), and its
+JSON names the session it chose; the unbound `status` case orients with the
+most recently active initiative and the listing at exit 0 (syn.no-git);
+`argv.fast-path` carries the new `--session` help text. Changed:
+argv.fast-path, cell.calib-1, cell.round-1-sofar, cell.smoke-4-drive,
+cell.smoke-4-sofar, repo.append, repo.branch-elsewhere, repo.session-start,
+repo.status, syn.baseline, syn.budget, syn.corrupt, syn.guards,
+syn.lifecycle, syn.many, syn.no-git, syn.unicode. Unchanged: open.O2,
+open.O4, open.O5, repo.drive-nudge, repo.hook-lifecycle, repo.peers,
+repo.statusline, syn.no-record, and the fixture-only entries. The previous
+set is `../golden-17817db-pre-wave-a/`. Verified 27/27 on the reference and
+27/27 through the stub dispatching to `target/release/sofar-core` (memory-lead
+1.4); in D29 direct mode the binary hands the unbound-status steps back with
+exit 64 (rust-core D31), so those two cases pass only through the stub.
+
 Re-recorded from the TypeScript reference at **rust-core 6af34c4** (engine
 sources unchanged on the hot path since the d9b2878 verification below; the
 recording tree carries rust-core 3.1–3.3 and 1.6) for ONE reason, harness

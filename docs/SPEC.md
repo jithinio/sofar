@@ -5396,6 +5396,19 @@ stay the underlying derivation's, and exit codes are styling-independent.
   and an appending hook folds its log once per process, advancing the
   retained checkpoint by the line it wrote, exactly as the TypeScript engine
   does (r1-fixes D17).
+- **Rust core, Wave A mirror (memory-lead 1.4):** the native core reproduces
+  every hot-path byte the wave-a merge moved: the rule quote (fold, payload
+  validation, standing constraints and decisions.md, §Rule fidelity ported
+  as `rule_fidelity.rs` with the 1.2 fixtures), the host-neutral Session
+  line, the D4 digest composition under the 6,000-unit cap (§Digest
+  composition), the repo.md stub stripping, the per-worktree session pointer
+  every hook maintains, the Cursor hook dialect on both ends of the pipe,
+  and the host's tool on registrations and diagnostics rows; the unbound
+  `sofar status` orientation stays the TypeScript CLI's, reached through the
+  core's exit 64. Proof: 94/94 render-parity goldens in-process, 27/27
+  conformance cases through the stub, fold-parity 39/39 on the binary, and
+  the D29 direct run green on every owned shape but the unbound-status
+  steps.
 - **Diagnostics store (self-improve 1.2):** a diagnostics row fails
   `validateEnvelope` and an import stream carrying one appends nothing; the
   store resolves under the XDG state dir keyed by the same clone hash as the
