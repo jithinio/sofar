@@ -130,6 +130,8 @@ export interface DecisionState {
    * one. Render contract: verbatim, never clipped, never aged out.
    */
   rule?: string
+  /** The operator's exact words the rule came from (memory-lead 1.2, D2); only alongside `rule`. */
+  quote?: string
   /**
    * The mechanical half of that clause (drift-hardening D3) — a `path:`/`cmd:`
    * glob list. Present only alongside `rule`, by payload validation.
@@ -434,12 +436,12 @@ export function sessionDebt(state: InitiativeState, session: SessionState): numb
 export function standingRules(
   decisions: readonly DecisionState[],
   retire = true,
-): Array<{ ordinal: number; rule: string }> {
-  const rules: Array<{ ordinal: number; rule: string }> = []
+): Array<{ ordinal: number; rule: string; quote?: string }> {
+  const rules: Array<{ ordinal: number; rule: string; quote?: string }> = []
   decisions.forEach((d, i) => {
     if (d.rule === undefined) return
     if (retire && d.superseded_by !== undefined) return
-    rules.push({ ordinal: i + 1, rule: d.rule })
+    rules.push({ ordinal: i + 1, rule: d.rule, ...(d.quote !== undefined ? { quote: d.quote } : {}) })
   })
   return rules
 }
@@ -1497,6 +1499,7 @@ function applyEvent(
         because: p.because,
         // Absent stays absent — a missing rule must not serialize as a key.
         ...(p.rule !== undefined ? { rule: p.rule } : {}),
+        ...(p.quote !== undefined ? { quote: p.quote } : {}),
         ...(p.guard !== undefined ? { guard: p.guard } : {}),
         ...(p.supersedes !== undefined ? { supersedes: p.supersedes } : {}),
         ...(p.until !== undefined ? { until: p.until } : {}),

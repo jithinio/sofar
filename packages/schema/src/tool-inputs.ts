@@ -151,6 +151,8 @@ export interface LogDecisionArgs {
   because: string
   /** Standing-constraint clause (drift-hardening D1) — see the JSON schema description. */
   rule?: string
+  /** The operator's exact words the rule came from (memory-lead 1.2, D2); only with `rule`. */
+  quote?: string
   /** Machine-checkable half of `rule` (drift-hardening D3) — see guards.ts. */
   guard?: string
   /** `D<n>` of the earlier decision this one replaces (r1-fixes 3.2, D25). */
@@ -204,6 +206,16 @@ export interface ToolOkResult {
  */
 /** Bare since r1-fixes 2.1 (D10): the standing-constraint echo on `active` is gone. */
 export type UpdateTaskResult = ToolOkResult
+
+/**
+ * log_decision result (memory-lead 1.2, D2): `warnings` names what the rule
+ * states that the operator's quote does not — status codes, paths, values.
+ * Absent when there is nothing to say; the append has already happened, so a
+ * warning never means the decision was refused.
+ */
+export interface LogDecisionResult extends ToolOkResult {
+  warnings?: string[]
+}
 
 /**
  * update_phase result (phase-lifecycle 2.3). `event_id` is null when the phase
@@ -410,8 +422,11 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
         type: 'string',
         minLength: 1,
         description:
-          'ONE short imperative every future session must obey — a standing constraint, rendered verbatim in every digest, never clipped or aged out. Omit for one-off choices.',
+          'ONE imperative every later session must obey, worded as the operator did (no status code, path or value they did not say). Omit for one-off choices.',
       },
+      // Shape and the RULE_QUOTE_MAX cap are the payload validator's (D2),
+      // like supersedes: the tool surface is budgeted (2.4, D13).
+      quote: { type: 'string', description: "The operator's exact words the rule came from (needs rule)." },
       guard: {
         type: 'string',
         minLength: 1,
@@ -486,13 +501,13 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_update_phase',
     description:
-      "Set a phase's status. A phase is done only when you say so — its last task landing does not close it — so mark each phase done as you finish it; an open phase with every task resolved is what doctor reports.",
+      "Set a phase's status. A phase is done only when you say so — its last task landing does not close it — so mark each phase done as you finish it.",
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_update_phase,
   },
   {
     name: 'sofar_log_decision',
     description:
-      'Record a design decision: what was chosen, what it was chosen over, and why.',
+      'Record a design decision: what was chosen, over what, and why.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_log_decision,
   },
   {

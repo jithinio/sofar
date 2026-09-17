@@ -6,6 +6,7 @@ import {
   type SessionActivity,
 } from '../../core/fold'
 import type { TestOutcome } from '../../core/adjacency'
+import { renderRule } from '../../core/rule-fidelity'
 
 /**
  * Shared template pieces. Projections are generated files — the header
@@ -119,11 +120,16 @@ export function standingConstraintLines(
 ): string[] {
   const standing = standingRules(decisions, retire)
   if (standing.length === 0) return []
-  const lines = [`Standing constraints — obey verbatim (${standing.length}):`]
+  // A quoted rule has a source that outranks its wording (memory-lead D2);
+  // the header says so only when one exists, so quote-less records render
+  // byte-identically to before.
+  const quoted = standing.some((d) => d.quote !== undefined)
+  const law = quoted ? 'obey verbatim; where a rule quotes the operator, the quote decides' : 'obey verbatim'
+  const lines = [`Standing constraints — ${law} (${standing.length}):`]
   let used = 0
   let shown = 0
   for (const d of standing) {
-    const line = `- [D${d.ordinal}] ${d.rule.replace(/\s+/g, ' ').trim()}`
+    const line = `- [D${d.ordinal}] ${renderRule(d.rule, d.quote)}`
     if (budget !== undefined && shown > 0 && used + line.length + 1 > budget) break
     lines.push(line)
     used += line.length + 1

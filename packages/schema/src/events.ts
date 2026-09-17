@@ -188,6 +188,16 @@ export interface DecisionLoggedPayload {
    */
   guard?: string
   /**
+   * `quote` (memory-lead 1.2, D2): the operator's own words the rule came
+   * from, copied exactly — ≤ RULE_QUOTE_MAX chars, valid only alongside
+   * `rule`. The rule is the agent's restatement; the quote is its source, and
+   * every surface that renders the rule renders the quote beside it, flagging
+   * the status codes, paths and values the rule adds (engine
+   * core/rule-fidelity.ts). Round 1 lost a test to a rule that added "with
+   * 4xx" to an operator's "Reject anything else".
+   */
+  quote?: string
+  /**
    * `supersedes` (r1-fixes 3.2, D25): the bare handle `D<n>` of an EARLIER
    * decision in the SAME record this one replaces. The fold resolves it from
    * the log alone and marks the target `superseded_by` this decision's
@@ -260,6 +270,8 @@ export interface MemoryPromotedPayload {
 export const MEMORY_HANDLE_RE = /^([a-z0-9-]+) M([1-9][0-9]*)$/
 /** A bare decision handle within one record: `D<n>` (r1-fixes 3.2, D25). */
 export const DECISION_HANDLE_RE = /^D([1-9][0-9]*)$/
+/** Longest operator quote a rule may carry (memory-lead D2): the sentence, not the message. */
+export const RULE_QUOTE_MAX = 300
 
 /** What a review concluded. `blocked` means it could not be performed at all. */
 export const REVIEW_VERDICTS = ['pass', 'findings', 'blocked'] as const
@@ -774,6 +786,16 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
       if (!str(p.rule)) e.push('guard: requires `rule` — a guard with no clause has nothing to cite')
       e.push(...guardSpecErrors(p.guard))
     }
+    if (p.quote !== undefined) {
+      // The source of a rule (memory-lead D2): with no rule there is nothing
+      // it is the source of, and the cap keeps it the operator's sentence
+      // rather than their whole message — every digest renders it unclipped.
+      if (!str(p.quote)) e.push('quote: must be a non-empty string when present')
+      else if (p.quote.length > RULE_QUOTE_MAX) {
+        e.push(`quote: at most ${RULE_QUOTE_MAX} chars — keep the operator's sentence(s) the rule came from`)
+      }
+      if (!str(p.rule)) e.push('quote: requires `rule` — a quote is the source of a rule')
+    }
     // Retirement fields (r1-fixes 3.2, D25): shape only — resolution is the
     // fold's, since only the replay knows which ordinals and tasks exist.
     if (p.supersedes !== undefined && !(str(p.supersedes) && DECISION_HANDLE_RE.test(p.supersedes as string))) {
@@ -1079,15 +1101,16 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
   decision_logged: {
     writer: 'agent',
     summary: 'a design decision: what was chosen, over what, and why',
-    fields: 'chose, over, because, rule? (one imperative every later session must obey), guard? (path:<globs> or cmd:<globs>; only with rule), supersedes? (D<n> of the earlier decision this one replaces), until? (task id — in force until it resolves; never with rule)',
+    fields: 'chose, over, because, rule? (one imperative every later session must obey), quote? (the operator\'s exact words the rule came from; only with rule), guard? (path:<globs> or cmd:<globs>; only with rule), supersedes? (D<n> of the earlier decision this one replaces), until? (task id — in force until it resolves; never with rule)',
     // The condition rides `via` (printed as `note:`), not `fields`: fields is
     // hashed into the schema fingerprint both implementations embed (D22).
-    via: 'add rule when the operator states the choice for the whole project — every later `sofar status` shows it as a standing constraint; omit it for a one-off choice. A decision that reverses a standing one is refused unless supersedes names it (or because cites it, for a narrower exception)',
+    via: 'add rule when the operator states the choice for the whole project — every later `sofar status` shows it as a standing constraint; omit it for a one-off choice. Word the rule as the operator did (no status code, path or value they did not state) and put their exact words in quote. A decision that reverses a standing one is refused unless supersedes names it (or because cites it, for a narrower exception)',
     example: {
       chose: 'SQLite via better-sqlite3',
       over: 'Postgres',
       because: 'single-user local app, zero ops',
       rule: 'Keep SQLite as the only datastore',
+      quote: 'Use SQLite, nothing else',
     },
   },
   session_started: {

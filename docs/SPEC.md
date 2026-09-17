@@ -160,7 +160,9 @@ task_added · task_status_changed (id, status:
 pending|active|done|blocked|dropped, note?) · decision_logged (chose, over,
 because, rule? — optional standing-constraint clause, one short imperative;
 presence makes the decision a standing constraint with a verbatim-render
-contract: never clipped, never aged out; drift-hardening D1 — guard? — the
+contract: never clipped, never aged out; drift-hardening D1 — quote? — the
+operator's exact words the rule came from, ≤300 chars, valid ONLY alongside
+`rule`; see §Rule fidelity, memory-lead D2 — guard? — the
 mechanical half of that same clause, a `path:`/`cmd:` glob list valid ONLY
 alongside `rule`; see §Decision guards, drift-hardening D3 — supersedes? —
 the bare handle `D<n>` of an earlier decision in this record that this one
@@ -569,6 +571,46 @@ action, last envelope-valid event id — ordered by last-event ulid
 DESCENDING (record recency), never-logged initiatives last by slug asc;
 tolerant like the fold (unreadable log or corrupt bindings.json → warning
 + thinner entry, never fatal); zero new event types.
+
+### Rule fidelity (memory-lead 1.2, D2)
+A `rule` is the agent's restatement of what the operator said, and a
+restatement can add law nobody made (round 1: "Reject anything else" became
+"…reject anything else with 4xx", and S9 obeyed the 4xx). `quote` carries the
+operator's own words beside the rule — non-empty, at most RULE_QUOTE_MAX (300)
+chars, rejected without `rule` — and core/rule-fidelity.ts names what the rule
+adds to them. It is pure: no env, no clock, no locale.
+
+SPECIFICS of a rule, in rule order, deduplicated case-insensitively:
+backticked, straight double-quoted and curly double-quoted spans first, each
+one `value` holding its whitespace-collapsed inner text. The text between
+spans splits on whitespace; each token loses leading `( [ { < ' " ‘ “` and
+trailing `) ] } > ' " ’ ” , ; : . ! ?`, then classifies by the first match:
+`status` — `^([1-5][0-9]{2}|[1-5]xx)$` (case-insensitive); `path` — a `/`
+with `[\w.~-]` before and `[\w.*-]` after, a leading `/` followed by
+`[\w.-]`, or `^[\w-]{2,}(\.[\w-]+)*\.[A-Za-z][A-Za-z0-9]{0,4}$`; `value` —
+any digit, except a record handle `^[DM][1-9][0-9]*$`. Anything else is not
+a specific. A specific is UNQUOTED when its lowercased text does not occur in
+the lowercased, whitespace-collapsed quote at a term boundary: where the
+specific starts (ends) with `[A-Za-z0-9]`, the quote character before (after)
+the occurrence must not be one.
+
+Render (every rule surface — the digest's and `sofar status`'s Standing
+constraints, decisions.md, the review packet): a rule with a quote renders
+`<rule> — operator: "<quote>"`, then ` (not in the operator's words: <a, b>)`
+when any specific is unquoted; both texts whitespace-collapsed, neither
+clipped. When an IN-FORCE rule carries a quote, the Standing constraints
+header reads `Standing constraints — obey verbatim; where a rule quotes the
+operator, the quote decides (<N>):`; otherwise it is unchanged, so a
+quote-less record renders byte-identically. decisions.md renders `rule:
+**<rule>** — operator: "<quote>"[ (not in …)] — chose …`. Guard notices are
+unchanged.
+
+WARN, NEVER REFUSE: sofar_log_decision returns, and `sofar event append
+--type decision_logged` prints in its JSON body, `warnings: ["D<n>'s rule
+states <a, b>, which the operator's quote does not. Every digest flags it; if
+the operator did not say it, log the rule as they worded it with supersedes
+D<n>."]` after the append, where `D<n>` is the ordinal the decision took.
+Absent when nothing is unquoted or there is no quote.
 
 ## Record graph (repo-wide adjacency derivation — record-graph 1.1)
 `buildGraph(rootDir)` (core/graph.ts) is ONE mechanical, read-side adjacency
@@ -2332,9 +2374,12 @@ instructions ride every initialize, so they stay short.
   abandonment with no stated reason reads as something quietly forgotten.
   There is deliberately no `sofar phase` CLI sibling (D1): the
   MCP-less dialect reaches the same event through `sofar event append`.
-- sofar_log_decision({initiative?, chose, over, because, rule?, guard?}) → ok
+- sofar_log_decision({initiative?, chose, over, because, rule?, quote?, guard?}) → ok, warnings?
   # rule (drift-hardening D1): standing-constraint clause, rendered verbatim
   # on every surface — never clipped, never aged out of the digest
+  # quote (memory-lead D2): the operator's exact words the rule came from;
+  # rendered beside it, and `warnings` names the status codes, paths and
+  # values the rule adds (§Rule fidelity). Never a refusal.
   # guard (drift-hardening D3): the machine-checkable half of that rule —
   # `path:`/`cmd:` globs (§Decision guards). Requires `rule`; a malformed
   # guard fails payload validation and appends nothing. Warns, never blocks.
@@ -5214,3 +5259,15 @@ stay the underlying derivation's, and exit codes are styling-independent.
   exits 1 with nothing written; an unknown `--agents` name exits 1. doctor on
   a Cursor-only repo passes with no `.claude/settings.json` line and names
   Claude Code as not set up.
+- **Rule fidelity (memory-lead 1.2):** decision_logged accepts `quote` with a
+  `rule` up to 300 chars and rejects it without one, empty, or longer. The
+  round-1 pair (rule "…reject anything else with 4xx.", quote "Reject
+  anything else") yields exactly `4xx` unquoted; `400` is unquoted against a
+  quote holding only `4000`; `e.g.`, `D3` and `M2` are no specifics. The
+  digest renders `- [D<n>] <rule> — operator: "<quote>" (not in the
+  operator's words: 4xx)` under the quote-ranking header, as do `sofar
+  status`, decisions.md and the review packet; a record with no quoted rule
+  in force renders byte-identically to before. sofar_log_decision and `sofar
+  event append` both append and return `warnings` naming `4xx` and the
+  ordinal, return none for a faithful rule, and a quote without a rule
+  appends nothing. The `rule` description says to word it as the operator did.

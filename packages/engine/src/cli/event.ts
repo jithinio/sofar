@@ -7,6 +7,7 @@ import { QUICK_LANE, QUICK_LANE_GOAL } from '../core/lane'
 import { lessonsEnabled, relevantLessons, type Lesson } from '../core/lessons'
 import { withFileLock } from '../core/lock'
 import { silentReversal } from '../core/reversal'
+import { ruleFidelityWarning } from '../core/rule-fidelity'
 import { clearSessionPointer, readSessionPointer, writeSessionPointer } from '../core/session-pointer'
 import type { Command } from 'commander'
 import { ulid } from 'ulid'
@@ -2143,12 +2144,18 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
     const slug = ctx.resolveInitiative(args.slug)
     // Same refusal as sofar_log_decision (r1-fixes 4.1.2, D31); malformed
     // payloads skip it and fail validation inside appendAndProject as before.
+    let fidelity: string | null = null
     if (args.type === 'decision_logged') {
       const { chose, over, because, supersedes } = payload
       if (typeof chose === 'string' && typeof over === 'string' && typeof because === 'string') {
         const draft = { chose, over, because, ...(typeof supersedes === 'string' ? { supersedes } : {}) }
         const refusal = silentReversal(ctx.foldState(slug), draft)
         if (refusal !== null) throw new ToolError('invalid_input', refusal.message, refusal.errors)
+      }
+      // What the rule adds to the operator's words (memory-lead 1.2, D2), the
+      // warning sofar_log_decision returns; reported only once the append lands.
+      if (typeof payload.rule === 'string' && typeof payload.quote === 'string') {
+        fidelity = ruleFidelityWarning(ctx.foldState(slug).decisions.length + 1, payload.rule, payload.quote)
       }
     }
     // A phase by number or in any case records the plan's own name, and a miss
@@ -2187,7 +2194,8 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
       source,
       actor: args.actor as Actor,
     })
-    return { exitCode: 0, stdout: `${JSON.stringify({ ok: true, event_id: event.id, ...named })}\n`, stderr: '' }
+    const warnings = fidelity !== null ? { warnings: [fidelity] } : {}
+    return { exitCode: 0, stdout: `${JSON.stringify({ ok: true, event_id: event.id, ...named, ...warnings })}\n`, stderr: '' }
   } catch (err) {
     const shape =
       err instanceof ToolError
