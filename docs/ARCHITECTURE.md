@@ -70,6 +70,7 @@ Three consequences run through every design decision in the codebase:
 | `core/shipwatch.ts` | Per-session `origin/<branch>` marks in the derived index — the free ref-movement gate that lets the per-prompt path pay for `attribution.ts`'s walk only when a push actually happened (3.4, D11). Edge-triggered: marking is what stops a transition being announced twice. |
 | `core/closeout.ts` | The mechanical audit run at close (5.1) — outstanding tasks, unresolved phases, done tasks with no file evidence, unaddressed guard crossings, drift since the write-back, unreviewed phases. Refuses nothing: the findings ride on the close event so an override is recorded rather than prevented (5.2). |
 | `core/cursor.ts` | Export/import cursors: the entire sync interface. |
+| `core/session-pointer.ts` | The live-session pointer (r1-fixes 4.1.3, D30): `.sofar/.index/session.json` names the session hooks registered (or a hookless `session_started` minted), so a CLI append with no `--session` joins it instead of splitting the launch into two ids. Derived and per-worktree; whether that session ended is read from the record. |
 | `core/state-dir.ts` | Per-clone state OUTSIDE the repo: `$XDG_STATE_HOME/sofar`, keyed by a hash of the clone's real path. Shared by sync cursors and the diagnostics store. |
 | `core/diagnostics.ts` | The private diagnostics store (self-improve D3): append-only rows per initiative under the clone's state dir, 90-day retention, byte cap, best-effort writes that never recurse, refused outright if the path would land inside the repo. A third class — not truth, not derived. |
 | `core/signals.ts` | The signal availability map (self-improve 1.3): every signal the improvement loop may consume, with its ceiling (capturable / partial / unavailable), the blind spot behind it, and what the clone must have wired for it — a consumer prints UNKNOWN for anything else. |
@@ -93,7 +94,9 @@ synced, and any absence, staleness, or corruption falls back to reading the logs
 | `core/lexicon.ts` | Turns a question into seeds when nothing denotes it: tokenize, fold plurals and tenses, rank by IDF. No model, and every match returns the words that carried it. |
 | `core/lessons.ts` | Relevant lessons at the prompt (r1-fixes 3.3, D16): BM25-ranks the prompt against this initiative's decisions and stall handoffs with the lexicon's ranker, in-process from the fold — no model, no file read, two lines at most; bounded to the last 60 decisions and switchable off with `SOFAR_LESSONS=off` (D18). |
 | `core/derived.ts` | Derived activity (r1-fixes 2.5, D24): the closed test-command recognizer the fold uses to mark test-shaped `command_run` events, the `SOFAR_ACTIVITY` switch, and the "log only why" sentences the MCP server appends to two tool descriptions. Pure — the fold never reads the env. |
+| `core/reversal.ts` | The reversal check (r1-fixes 4.1.2, D31): a new decision whose distinguishing chose/over terms land on a standing decision's over/chose is refused by sofar_log_decision and `event append` unless `supersedes` names it or `because` cites it. Lexical, label-sized clauses only, same record, no model. |
 | `core/retire.ts` | Decision retirement (r1-fixes 3.2, D25): which decisions have left the digest — superseded by a later one (`superseded_by`, set by the fold) or scoped by `until` to a task that resolved — derived from the record, never a clock; plus the `SOFAR_RETIRE` switch the renderers read. |
+| `core/rule-fidelity.ts` | Rule fidelity (memory-lead 1.2, D2): the status codes, paths and values a standing rule states that the operator's `quote` does not — rendered beside the rule on every rule surface and returned as a warning by sofar_log_decision and `event append`. Pure token classification, no model. |
 | `core/order.ts` | One string order for every shared surface (r1-fixes 5.2, rust-core D6): `byCodeUnit`, UTF-16 code-unit comparison behind every sort of a path, slug, id or term — what Rust's `str` orders by; `localeCompare` is ICU collation and diverges on case and punctuation. |
 
 ### 4. Projections — state rendered to disk
@@ -140,10 +143,12 @@ worse than no attribution.
 | --- | --- |
 | `cli/index.ts` | Command registration. |
 | `cli/event.ts` | All five hook handlers, plus `sofar event append`. |
+| `cli/host.ts` | Which agent fired a hook, and its dialect: detects Cursor from the payload, converts Cursor's input to the Claude Code field names the handlers read and their output to `additional_context` / `followup_message` (r1-fixes 6.3–6.6, D34). |
 | `cli/fold.ts` | `sofar fold` (hidden) — the black-box face of the incremental fold for the shared fold-parity suite: fold raw lines, or apply a file tail to a serialized snapshot, print canonical state JSON. |
 | `cli/review.ts` | `sofar review` — prints the evidence packet (read half); the packet ends with the `sofar event append --type review_recorded` command that records the verdict (write half; r1-fixes 2.4, D13). |
 | `cli/commit-trailer.ts` | `sofar commit-trailer` — the prepare-commit-msg worker that stamps `Sofar-Initiative:` from the session that made the commit (D5). Session-only resolution; never fails a commit. |
-| `cli/init.ts` | `sofar init` — hooks, MCP wiring, protocol block, `.gitattributes`. Owns the protocol-block ledger. |
+| `cli/init.ts` | `sofar init` — for the agents picked, hooks (`.claude/settings.json` and `.cursor/hooks.json`), MCP wiring (`.mcp.json` and `.cursor/mcp.json`) and protocol blocks; `.gitattributes` for all. Decides where the shims live and which agents a repo is already wired for (r1-fixes 7.1, D36). Owns the protocol-block ledger. |
+| `cli/agents.ts` | The agents `sofar init` can set up (Claude Code, Cursor, Codex): the `--agents` grammar, which agents this machine has, and the terminal multi-select picker (r1-fixes 7.1, D36). Writes no file. |
 | `cli/uninit.ts` | `sofar uninit` — removes what init wrote. |
 | `cli/new.ts` | `sofar new` — create an initiative, bind the branch. |
 | `cli/close.ts` | `sofar close` — close an initiative, unbind its branches. |

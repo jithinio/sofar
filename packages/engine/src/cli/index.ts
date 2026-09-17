@@ -8,7 +8,8 @@ import { registerFoldCommand } from './fold'
 import { registerEventCommand } from './event'
 import { registerReviewCommand } from './review'
 import { runAdopt } from './adopt'
-import { runInit } from './init'
+import { resolveInitAgents, runInit } from './init'
+import { stderrCaps } from './ui'
 import { runDoctor } from './doctor'
 import { runUninit } from './uninit'
 import { runNew, runSwitch } from './new'
@@ -56,15 +57,29 @@ function rootOf(opts: { root?: string }): string {
 program
   .command('init')
   .description(
-    'make this repo sofar-ready: .sofar/, hook shims + settings, .mcp.json entry, CLAUDE.md + AGENTS.md protocol blocks (idempotent)',
+    'make this repo sofar-ready for the agents you pick: .sofar/ plus, per agent, hooks, MCP entry and protocol block — Claude Code (.claude/, .mcp.json, CLAUDE.md), Cursor (.cursor/, AGENTS.md), Codex (AGENTS.md) (idempotent)',
+  )
+  .option(
+    '--agents <list>',
+    'agents to set up: claude-code, cursor, codex (comma-separated) or all — default: ask on a terminal, all otherwise',
   )
   .option(
     '--statusline',
     'also wire `sofar statusline` as the project statusLine (merged only when settings.json has none — an existing statusLine is never touched)',
   )
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action((opts: { statusline?: boolean; root?: string }) => {
-    emit(withUpdateNotice(runInit(rootOf(opts), { statusline: opts.statusline === true })))
+  .action(async (opts: { agents?: string; statusline?: boolean; root?: string }) => {
+    const root = rootOf(opts)
+    const caps = stderrCaps()
+    const choice = await resolveInitAgents(root, opts.agents, {
+      input: process.stdin,
+      output: process.stderr,
+      interactive: process.stdin.isTTY === true && caps.animate,
+      caps,
+    })
+    if ('error' in choice) return emit(fail(`sofar init: ${choice.error}`))
+    if ('cancelled' in choice) return emit(fail('sofar init: cancelled — nothing written'))
+    emit(withUpdateNotice(runInit(root, { statusline: opts.statusline === true, agents: choice.agents })))
   })
 
 program
@@ -596,7 +611,8 @@ program
   .description('start the stdio MCP server (server name: sofar) exposing the SPEC §MCP tools')
   .option('--root <dir>', 'repo root containing .sofar/ (default: current directory)')
   .action(async (opts: { root?: string }) => {
-    const handle = createSofarServer({ rootDir: opts.root })
+    // A stdio child of one Claude Code session adopts that session (memory-lead D3).
+    const handle = createSofarServer({ rootDir: opts.root, hostSessionId: process.env.CLAUDE_CODE_SESSION_ID })
     await handle.connectStdio()
     // stdio transport keeps the process alive until the client disconnects
   })

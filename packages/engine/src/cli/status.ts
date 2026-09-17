@@ -1,9 +1,14 @@
 import { existsSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { watch } from 'chokidar'
-import { createToolContext, ToolError } from '../mcp/context'
+import { isClosedInitiativeStatus } from '@sofar/schema'
+import { readBindingsFile } from '../core/bindings'
+import { currentBranch } from '../core/git'
+import { listInitiatives } from '../core/listing'
+import { createToolContext, ToolError, type ToolContext } from '../mcp/context'
 import { emptyState, foldLog, type InitiativeState } from '../core/fold'
 import { renderFullStatus } from '../projections/templates/status'
+import { runList } from './list'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 import {
   columnsOf,
@@ -42,11 +47,57 @@ export function runStatus(
     resolved = ctx.resolveInitiative(slug)
   } catch (err) {
     if (err instanceof ToolError) {
+      if (slug === undefined && err.code === 'unknown_initiative') {
+        const oriented = unboundStatus(ctx, rootDir, caps, columns)
+        if (oriented !== null) return oriented
+      }
       return fail(`sofar status: ${err.message} (usage: sofar status [slug])`)
     }
     return fail(`sofar status: ${errMessage(err)}`)
   }
+  return statusOf(ctx, resolved, caps, columns)
+}
 
+/**
+ * `sofar status` with no slug on an unbound branch (r1-fixes 4.1.4, L10, D28)
+ * orients instead of failing: a line naming why and the slug to pass, the
+ * most recently active open initiative's status, then the listing — exit 0.
+ * Round 1: that exit 1 was the first call of 9 in 10 Codex sessions, and the
+ * cells it happened in went on to open one initiative per roadmap item.
+ *
+ * Null — keep failing — when the repo carries no record, or the branch IS
+ * bound (to a directory that is gone: a broken binding, not an unbound
+ * branch), or bindings.json cannot be read. Read-only: binding is `sofar
+ * switch`'s job, never a status side effect.
+ */
+function unboundStatus(ctx: ToolContext, rootDir: string, caps: Caps, columns: number): CmdResult | null {
+  if (!existsSync(join(rootDir, '.sofar'))) return null
+  const branch = currentBranch(rootDir)
+  if (branch !== null) {
+    try {
+      if (typeof readBindingsFile(join(rootDir, '.sofar', 'bindings.json'))[branch] === 'string') return null
+    } catch {
+      return null
+    }
+  }
+  const why = branch !== null ? `No initiative is bound to branch "${branch}"` : 'No current git branch'
+  const recent = listInitiatives(rootDir).entries.find((e) => !isClosedInitiativeStatus(e.status))
+  const list = runList(rootDir, caps, columns)
+  if (recent === undefined) {
+    const head = `${why}, and no open initiative exists — create one: sofar new <slug> --goal "<one line>"\n\n`
+    return ok(`${head}${list.stdout}`, list.stderr)
+  }
+  const head =
+    `${why} — showing the most recently active initiative, ${recent.slug}. ` +
+    `Pass it explicitly: sofar status ${recent.slug}, sofar event append ${recent.slug} …\n\n`
+  const shown = statusOf(ctx, recent.slug, caps, columns)
+  if (shown.exitCode !== 0) return shown
+  const stderr = [shown.stderr, list.stderr].filter((s) => s !== '').join('\n')
+  return ok(`${head}${shown.stdout}\n${list.stdout}`, stderr)
+}
+
+/** One initiative's status, already resolved to an existing slug. */
+function statusOf(ctx: ToolContext, resolved: string, caps: Caps, columns: number): CmdResult {
   const logPath = ctx.eventsPath(resolved)
   let state: InitiativeState
   let warnings: string[] = []

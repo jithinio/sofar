@@ -3,9 +3,12 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   realpathSync,
+  rmdirSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { homedir } from 'node:os'
@@ -13,6 +16,17 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { effectiveHooksDir } from '../core/attribution'
 import { commonGitDir } from '../core/git'
 import { mcpRegistration } from '../mcp/register'
+import {
+  AGENTS,
+  type AgentId,
+  agentsOnMachine,
+  type MachineProbe,
+  orderAgents,
+  parseAgents,
+  pickAgents,
+  type PickerInput,
+  type PickerOutput,
+} from './agents'
 import { detectFormatterHazards, hostShapedJSON } from './formatters'
 import { detectTailwindV4, SOURCE_NOT_SINCE } from './scanners'
 import { fail, ok, REPO_MD_STUB, type CmdResult } from './shared'
@@ -410,7 +424,12 @@ Session loop:
 ${PROTOCOL_END}
 `
 
-export const PROTOCOL_BLOCK = `${PROTOCOL_START}
+/**
+ * V8 (r1-fixes 2.5 era): the block before memory-lead 1.1 (D3) — START
+ * required sofar_start_session and DURING logged decisions, task changes and
+ * memories one call at a time. Kept byte-exact — see the ledger note.
+ */
+export const PROTOCOL_BLOCK_V8 = `${PROTOCOL_START}
 ## Sofar protocol (jurisdiction is total)
 
 This repo's work memory lives in sofar records under \`.sofar/\`.
@@ -466,6 +485,62 @@ Session loop:
 ${PROTOCOL_END}
 `
 
+
+export const PROTOCOL_BLOCK = `${PROTOCOL_START}
+## Sofar protocol (jurisdiction is total)
+
+This repo's work memory lives in sofar records under \`.sofar/\`.
+1. ALL work state lives in sofar records — never in tool memory, scratch
+   files, ad-hoc notes, or a message from another session. If it is worth
+   keeping, it goes in the record.
+2. Work that matches no existing initiative requires creating one first:
+   run \`sofar new <slug>\` before proceeding.
+3. Bindings (\`.sofar/bindings.json\`) resolve which record a session
+   serves — the current git branch selects the initiative.
+
+Session loop:
+- START: the SessionStart hook has ALREADY injected the record above —
+  goal, progress, next action, decisions, rejected approaches, and the
+  next D/M ids (cite the decision you are about to log by that id). Do not
+  call \`sofar_get_state\` to re-read it: that digest is the same
+  projection rendered with fewer fields, so it can only tell you less.
+  Reach for it only when the injected block is missing or truncated, or
+  to read a DIFFERENT initiative. The files under \`.sofar/\` are
+  projections of the same record: open one only for full text the block
+  points to.
+  On Claude Code, sofar's tools adopt this session from its own id: there is
+  no start call. Elsewhere, call \`sofar_start_session\` first with the
+  \`session_id\` from the injected "Session:" line — it pins which record
+  your writes land in and attaches them to YOUR session.
+- RE-HOME the moment the work turns out to belong to a DIFFERENT record
+  than the one injected: call \`sofar_start_session\` with that
+  \`initiative\` (plus the \`session_id\` from the "Session:" line).
+  Passing \`initiative\` to any other tool routes ONE write; re-homing moves the SESSION,
+  because \`sofar_end_session\` takes no \`initiative\` and always follows the home.
+- DURING: work; the record is written once, at wrap-up. Keep track of what
+  the session decides and changes — \`sofar_end_session\` carries all of it.
+  Call \`sofar_log_decision\` mid-session only for a decision a concurrent
+  session must see before you finish. A rule is worded as the operator
+  worded it, with their exact words in \`quote\`. A note or summary is WHY:
+  files, commands, test outcomes and commits are captured by hooks and
+  derived, never restated.
+- DRIVING: when the operator asks for the work to run under sofar drive
+  ("run this in sofar drive"), write back FIRST with \`sofar_end_session\`
+  — the run's first session resumes from your next action — then start it
+  with \`sofar drive <slug> --detach\`, adding \`--allow\` for what proving
+  a task needs (the test command) and \`--session-timeout\`. Relay what it
+  prints: the run id, every warning, how to stop it. Do not write to that
+  record again while the run goes. \`sofar drive <slug> --stop\` ends it.
+- BEFORE FINISHING: write back with ONE \`sofar_end_session\` call —
+  summary and next action, plus the session's \`decisions\` (each as
+  sofar_log_decision's arguments), \`tasks\` (status changes; a task the
+  plan lacks, with its \`title\`), \`phases\`, \`memories\` (operational
+  facts every later session needs: a release command, a failure mode and
+  its diagnosis, a convention) and \`notes\`. The Stop hook blocks sessions
+  that skip this.
+${PROTOCOL_END}
+`
+
 /** Superseded CLAUDE.md blocks, oldest first. */
 export const SHIPPED_PROTOCOL_BLOCKS: readonly string[] = [
   PROTOCOL_BLOCK_V1,
@@ -475,6 +550,7 @@ export const SHIPPED_PROTOCOL_BLOCKS: readonly string[] = [
   PROTOCOL_BLOCK_V5,
   PROTOCOL_BLOCK_V6,
   PROTOCOL_BLOCK_V7,
+  PROTOCOL_BLOCK_V8,
 ]
 
 /**
@@ -948,25 +1024,33 @@ Session loop (every write is one \`sofar event append\` call):
   shows, that is the slug to pass, every time; there is no session-level
   re-homing on this path. \`sofar remember\` takes the same record as
   \`--initiative <slug>\`, and follows the branch without it.
-- START: pick one unique session id, reuse it for every append this
-  session, and register it (repeating it is a harmless no-op):
-  \`sofar event append <slug> --type session_started --session <session-id> --source <tool> --payload '{"tool":"<tool>"}'\`
+- START: register this session WITHOUT --session (repeating it is a
+  harmless no-op):
+  \`sofar event append <slug> --type session_started --source <tool> --payload '{"tool":"<tool>"}'\`
   (<tool> is your agent's name — codex, cursor, opencode; any name works).
+  sofar joins the session your hooks already registered, or starts one and
+  prints its id, and every append without --session lands in that same
+  session — so never invent an id. Only when two sessions share this
+  worktree at once does each pass its own \`--session <id>\` on every append.
 - PLAN: a new initiative gets its plan before the first edit, and a plan
   is replanned the same way when phases or tasks change. plan_updated is
   a FULL replace — resend every phase and task, with statuses, each time:
-  \`sofar event append <slug> --session <session-id> --source <tool> --type plan_updated --payload '{"plan":{"goal":"<goal>","phases":[{"name":"Phase 1 — <name>","status":"active","tasks":[{"id":"1.1","title":"<task>","status":"pending"}]}]}}'\`
-- DURING: log work as it happens with \`sofar event append <slug> --session <session-id> --source <tool>\` plus:
+  \`sofar event append <slug> --source <tool> --type plan_updated --payload '{"plan":{"goal":"<goal>","phases":[{"name":"Phase 1 — <name>","status":"active","tasks":[{"id":"1.1","title":"<task>","status":"pending"}]}]}}'\`
+- DURING: log work as it happens with \`sofar event append <slug> --source <tool>\` plus:
   task status:  \`--type task_status_changed --payload '{"id":"<task-id>","status":"pending|active|done|blocked|dropped"}'\`
   phase status: \`--type phase_status_changed --payload '{"phase":"<phase name as in the plan>","status":"active|done"}'\`
-  decisions:    \`--type decision_logged --payload '{"chose":"...","over":"...","because":"..."}'\`
+  decisions:    \`--type decision_logged --payload '{"chose":"...","over":"...","because":"...","rule":"..."}'\`
   notes:        \`--type note_added --payload '{"text":"..."}'\`
+  A decision's "rule" is ONE short imperative every later session must obey.
+  Add it when the operator states the choice for the whole project —
+  \`sofar status\` shows it to every later session as a standing constraint.
+  Omit it for a one-off choice.
   Every other event type, its fields and who writes it: \`sofar event types\`.
   Payload prose is WHY: files, commands, test outcomes and commits are
   captured by hooks and derived, never restated.
   Quotes, apostrophes or newlines in a payload: skip the shell quoting and
   pass it on stdin under a quoted heredoc (\`--payload @<file>\` reads a file):
-      sofar event append <slug> --session <session-id> --source <tool> --type note_added --payload - <<'EOF'
+      sofar event append <slug> --source <tool> --type note_added --payload - <<'EOF'
       {"text":"it's fine to write \\"anything\\" here"}
       EOF
 - DURING, for operational facts: a release command, a failure mode and how
@@ -984,7 +1068,7 @@ Session loop (every write is one \`sofar event append\` call):
   to that record again while the run goes. \`sofar drive <slug> --stop\`
   ends it. A sandbox with no network cannot host a run.
 - BEFORE FINISHING (MANDATORY): write back —
-  \`sofar event append <slug> --type session_ended --session <session-id> --source <tool> --payload '{"summary":"<what happened>","next_action":"<single next step>"}'\`
+  \`sofar event append <slug> --type session_ended --source <tool> --payload '{"summary":"<what happened>","next_action":"<single next step>"}'\`
   A session that skips this abandons its state and the next session starts blind.
 
 Prohibitions:
@@ -1021,7 +1105,19 @@ export { REPO_MD_STUB } from './shared'
  */
 export const GITATTRIBUTES_LINE = '.sofar/**/events.jsonl merge=union'
 
-const HOOK_COMMAND_PREFIX = '$CLAUDE_PROJECT_DIR/.claude/hooks/'
+/**
+ * Where the hook shims live, and the command prefix every host's config runs
+ * them by (r1-fixes 7.1, D36). Claude Code's directory whenever Claude Code is
+ * wired, so Cursor's entries stay byte-identical to settings.json's and fire
+ * once (D34). A repo without Claude Code keeps them under Cursor's own
+ * directory, in a `sofar/` subdirectory so a user's `.cursor/hooks/stop.sh`
+ * is never overwritten.
+ */
+export const SHIM_HOMES = {
+  claude: { dir: '.claude/hooks', prefix: '$CLAUDE_PROJECT_DIR/.claude/hooks/' },
+  cursor: { dir: '.cursor/hooks/sofar', prefix: '$CURSOR_PROJECT_DIR/.cursor/hooks/sofar/' },
+} as const
+export type ShimHome = keyof typeof SHIM_HOMES
 
 /**
  * Seconds between statusline re-renders. Claude Code re-runs a statusLine
@@ -1073,6 +1169,12 @@ export interface InitOptions {
    * the suite, which is exactly the non-hermeticity it exists to avoid.
    */
   home?: string
+  /**
+   * The agents to set up (r1-fixes 7.1, D36); every agent when absent. Only
+   * the picked agents' files are written — .sofar/, .gitattributes and the
+   * git hook are shared and always installed.
+   */
+  agents?: readonly AgentId[]
 }
 
 export type StatuslineInstall =
@@ -1216,8 +1318,66 @@ export const SHIMS: readonly ShimSpec[] = [
   { file: 'session-end.sh', event: 'SessionEnd', text: sessionEndShim },
 ]
 
-export function hookCommand(file: string): string {
-  return `${HOOK_COMMAND_PREFIX}${file}`
+export function hookCommand(file: string, home: ShimHome = 'claude'): string {
+  return `${SHIM_HOMES[home].prefix}${file}`
+}
+
+/** Does any hook config in this repo run a shim from this home? */
+function runsShimFrom(text: string, home: ShimHome): boolean {
+  return SHIMS.some((shim) => text.includes(`${SHIM_HOMES[home].dir}/${shim.file}`))
+}
+
+function readText(path: string): string {
+  try {
+    return existsSync(path) ? readFileSync(path, 'utf8') : ''
+  } catch {
+    return ''
+  }
+}
+
+function mcpRegistersSofar(path: string): boolean {
+  try {
+    const config: unknown = JSON.parse(readText(path))
+    return isObj(config) && isObj(config.mcpServers) && 'sofar' in config.mcpServers
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The agents this repo is already wired for, read from the files themselves
+ * (D36: no stored selection to drift from them). Any one of an agent's own
+ * files counts, so doctor can name what a partial install is missing. Codex
+ * owns no file but AGENTS.md until r1-fixes 7.3/7.4, so the block stands for it.
+ */
+export function wiredAgents(rootDir: string): AgentId[] {
+  const settings = readText(join(rootDir, '.claude', 'settings.json'))
+  const cursorHooks = readText(join(rootDir, '.cursor', 'hooks.json'))
+  const wired: Record<AgentId, boolean> = {
+    'claude-code':
+      runsShimFrom(settings, 'claude') ||
+      mcpRegistersSofar(join(rootDir, '.mcp.json')) ||
+      readText(join(rootDir, 'CLAUDE.md')).includes(PROTOCOL_START),
+    cursor:
+      runsShimFrom(cursorHooks, 'claude') ||
+      runsShimFrom(cursorHooks, 'cursor') ||
+      mcpRegistersSofar(join(rootDir, '.cursor', 'mcp.json')),
+    codex: readText(join(rootDir, 'AGENTS.md')).includes(PROTOCOL_START),
+  }
+  return AGENTS.filter((id) => wired[id])
+}
+
+/**
+ * Where the shims live for this set of agents: Claude Code's directory when
+ * Claude Code is among them or any hook config here already runs a shim from
+ * it, Cursor's otherwise. Codex takes Claude Code's until 7.3 gives it hooks.
+ */
+export function shimHomeFor(rootDir: string, agents: ReadonlySet<AgentId>): ShimHome {
+  if (agents.has('claude-code')) return 'claude'
+  for (const config of [join('.claude', 'settings.json'), join('.cursor', 'hooks.json')]) {
+    if (runsShimFrom(readText(join(rootDir, config)), 'claude')) return 'claude'
+  }
+  return agents.has('cursor') ? 'cursor' : 'claude'
 }
 
 // ---------------------------------------------------------------------------
@@ -1404,14 +1564,37 @@ function installGitHook(rootDir: string, report: string[]): void {
   report.push('created .git/hooks/prepare-commit-msg')
 }
 
-function installShims(rootDir: string, report: string[]): void {
-  const hooksDir = join(rootDir, '.claude', 'hooks')
+function installShims(rootDir: string, home: ShimHome, report: string[]): void {
+  const { dir } = SHIM_HOMES[home]
+  const hooksDir = join(rootDir, dir)
   mkdirSync(hooksDir, { recursive: true })
   for (const shim of SHIMS) {
     const path = join(hooksDir, shim.file)
     const change = writeIfChanged(path, shim.text) // shims are sofar-owned: kept current
     if ((statSync(path).mode & 0o777) !== 0o755) chmodSync(path, 0o755)
-    report.push(`${change} .claude/hooks/${shim.file}`)
+    report.push(`${change} ${dir}/${shim.file}`)
+  }
+}
+
+/**
+ * Remove the shims a Cursor-only install kept under `.cursor/hooks/sofar/`
+ * once Claude Code's directory holds them (D36), and the subdirectory with
+ * them. Only our file names in our own subdirectory are touched.
+ */
+function removeCursorShims(rootDir: string, report: string[]): void {
+  const { dir } = SHIM_HOMES.cursor
+  let removed = 0
+  for (const shim of SHIMS) {
+    const path = join(rootDir, dir, shim.file)
+    if (!existsSync(path)) continue
+    unlinkSync(path)
+    report.push(`removed ${dir}/${shim.file} (shims now in ${SHIM_HOMES.claude.dir}/)`)
+    removed++
+  }
+  if (removed === 0) return
+  for (const rel of [dir, dirname(dir)]) {
+    const path = join(rootDir, rel)
+    if (existsSync(path) && readdirSync(path).length === 0) rmdirSync(path)
   }
 }
 
@@ -1484,23 +1667,130 @@ function mergeSettings(
   return { statuslineAbsent }
 }
 
-function mergeMcpJson(rootDir: string, report: string[]): void {
-  const path = join(rootDir, '.mcp.json')
-  const config = readJSONObject(path, '.mcp.json')
+/**
+ * Merge the sofar server into an MCP config file: `.mcp.json` for Claude Code,
+ * `.cursor/mcp.json` for Cursor, which never reads a root .mcp.json for a
+ * project (r1-fixes 6.2, D34). Same entry, same theirs-wins rule. Returns the
+ * change, so init can say what Cursor still needs from the operator.
+ */
+function mergeMcpJson(rootDir: string, rel: string, report: string[]): Change {
+  const path = join(rootDir, rel)
+  const config = readJSONObject(path, rel)
 
   if (config.mcpServers !== undefined && !isObj(config.mcpServers)) {
-    throw new InitAbort('.mcp.json has a non-object "mcpServers" key — refusing to modify it.')
+    throw new InitAbort(`${rel} has a non-object "mcpServers" key — refusing to modify it.`)
   }
   const servers: Obj = isObj(config.mcpServers) ? config.mcpServers : {}
 
   if (servers.sofar !== undefined && existsSync(path)) {
-    report.push('unchanged .mcp.json') // user may have customized the entry — theirs wins
-    return
+    report.push(`unchanged ${rel}`) // user may have customized the entry — theirs wins
+    return 'unchanged'
   }
   servers.sofar = mcpRegistration().mcpServers.sofar
   config.mcpServers = servers
-  report.push(`${writeIfChanged(path, stableJSON(rootDir, path, config))} .mcp.json`)
+  mkdirSync(dirname(path), { recursive: true })
+  const change = writeIfChanged(path, stableJSON(rootDir, path, config))
+  report.push(`${change} ${rel}`)
+  return change
 }
+
+/**
+ * Cursor's native event for each shim (r1-fixes 6.6, D34), with the fields its
+ * hooks.json takes per entry. The COMMAND is not here on purpose: it is the
+ * shim's hookCommand, byte-identical to the .claude/settings.json entry,
+ * because Cursor also runs .claude/settings.json hooks and drops a Claude hook
+ * only when the event AND the command string match one of its own — any other
+ * spelling fires every shim twice, in parallel.
+ *
+ * `Shell|Write` are Cursor's tool names (it folds Edit into Write). The stop
+ * gate's loop_limit of 1 matches Claude Code's stop_hook_active: hold a session
+ * once, never loop it.
+ */
+export const CURSOR_HOOKS: Readonly<
+  Record<ShimSpec['event'], { event: string; matcher?: string; loop_limit?: number }>
+> = {
+  SessionStart: { event: 'sessionStart' },
+  UserPromptSubmit: { event: 'beforeSubmitPrompt' },
+  PostToolUse: { event: 'postToolUse', matcher: 'Shell|Write' },
+  PostToolUseFailure: { event: 'postToolUseFailure', matcher: 'Shell|Write' },
+  Stop: { event: 'stop', loop_limit: 1 },
+  SessionEnd: { event: 'sessionEnd' },
+}
+
+/**
+ * Merge sofar's hooks into .cursor/hooks.json (r1-fixes 6.6, D34). Native
+ * entries are needed even though Cursor imports the Claude ones: its CLI UI
+ * fires stop and prompt hooks only when hooks.json defines that event, and an
+ * imported stop hook has no loop cap. Merged like settings.json — an entry with
+ * our command already present is left as the user has it.
+ *
+ * `home` is where the shims live (D36). When it is Claude Code's, an entry
+ * still running the Cursor-only copy is repointed in place — its other keys
+ * kept — because only a byte-identical command stops Cursor firing the
+ * imported Claude hook beside it (D34). `add` is false when Cursor was not
+ * picked this run: its entries are only repointed, never added to.
+ */
+function mergeCursorHooks(rootDir: string, home: ShimHome, add: boolean, report: string[]): void {
+  const rel = '.cursor/hooks.json'
+  const path = join(rootDir, rel)
+  const config = readJSONObject(path, rel)
+
+  if (config.hooks !== undefined && !isObj(config.hooks)) {
+    throw new InitAbort(`${rel} has a non-object "hooks" key — refusing to modify it.`)
+  }
+  const hooks: Obj = isObj(config.hooks) ? config.hooks : {}
+
+  let added = 0
+  let moved = 0
+  for (const shim of SHIMS) {
+    const { event, matcher, loop_limit } = CURSOR_HOOKS[shim.event]
+    const existing = hooks[event]
+    if (existing !== undefined && !Array.isArray(existing)) {
+      throw new InitAbort(`${rel} hooks.${event} is not an array — refusing to modify it.`)
+    }
+    const entries: unknown[] = Array.isArray(existing) ? existing : []
+    const command = hookCommand(shim.file, home)
+    if (home === 'claude') {
+      const stale = hookCommand(shim.file, 'cursor')
+      for (const entry of entries) {
+        if (isObj(entry) && entry.command === stale) {
+          entry.command = command
+          moved++
+        }
+      }
+    }
+    if (add && !entries.some((entry) => isObj(entry) && entry.command === command)) {
+      entries.push({
+        command,
+        ...(matcher !== undefined ? { matcher } : {}),
+        ...(loop_limit !== undefined ? { loop_limit } : {}),
+      })
+      added++
+    }
+    if (entries.length > 0) hooks[event] = entries
+  }
+
+  if (added === 0 && moved === 0 && existsSync(path)) {
+    report.push(`unchanged ${rel}`)
+    return
+  }
+  if (config.version === undefined) config.version = 1 // Cursor requires it; first key in a new file
+  config.hooks = hooks
+  mkdirSync(dirname(path), { recursive: true })
+  const note = moved > 0 ? ` (hooks repointed to ${SHIM_HOMES.claude.dir}/)` : ''
+  report.push(`${writeIfChanged(path, stableJSON(rootDir, path, config))} ${rel}${note}`)
+}
+
+/**
+ * Printed when init has just registered sofar in .cursor/mcp.json: Cursor
+ * starts no project MCP server until the operator approves it, and init never
+ * writes that approval — the gate is the operator's (D34).
+ */
+export const CURSOR_MCP_HINT = [
+  'note: Cursor starts a project MCP server only after you approve it once.',
+  '  Approve `sofar` when Cursor asks (Settings → MCP), or run:',
+  '    cursor-agent mcp enable sofar',
+].join('\n')
 
 /**
  * The marker-delimited span of a protocol block, trailing newline EXCLUDED so
@@ -1634,23 +1924,45 @@ export function runInit(
   errCaps: Caps = stderrCaps(),
 ): CmdResult {
   const statusline = options.statusline === true
+  const picked = new Set(options.agents ?? AGENTS)
+  const claude = picked.has('claude-code')
+  const cursor = picked.has('cursor')
   const report: string[] = []
   let statuslineAbsent = false
+  let cursorMcp: Change = 'unchanged'
   try {
     initSofarDir(rootDir, report)
     ensureGitattributes(rootDir, report)
-    installShims(rootDir, report)
+    // Shims serve every hooked agent from one home (D36). A Cursor-only
+    // install that now gains Claude Code moves them, and Cursor's entries
+    // follow even when Cursor itself was not picked this run.
+    const home = shimHomeFor(rootDir, picked)
+    const cursorOnOwnShims =
+      home === 'claude' && runsShimFrom(readText(join(rootDir, '.cursor', 'hooks.json')), 'cursor')
+    if (claude || cursor || cursorOnOwnShims) installShims(rootDir, home, report)
     installGitHook(rootDir, report)
-    statuslineAbsent = mergeSettings(rootDir, statusline, report).statuslineAbsent
-    mergeMcpJson(rootDir, report)
-    appendProtocolBlock(rootDir, 'CLAUDE.md', PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS, report)
-    appendProtocolBlock(
-      rootDir,
-      'AGENTS.md',
-      AGENTS_PROTOCOL_BLOCK,
-      SHIPPED_AGENTS_PROTOCOL_BLOCKS,
-      report,
-    )
+    if (claude) {
+      statuslineAbsent = mergeSettings(rootDir, statusline, report).statuslineAbsent
+      mergeMcpJson(rootDir, '.mcp.json', report)
+    } else if (statusline) {
+      report.push('skipped statusLine (Claude Code not selected)')
+    }
+    if (cursor || cursorOnOwnShims) mergeCursorHooks(rootDir, home, cursor, report)
+    if (cursorOnOwnShims) removeCursorShims(rootDir, report)
+    if (cursor) cursorMcp = mergeMcpJson(rootDir, '.cursor/mcp.json', report)
+    if (claude) {
+      appendProtocolBlock(rootDir, 'CLAUDE.md', PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS, report)
+    }
+    // AGENTS.md is the file Cursor always reads and Codex's only one (D36).
+    if (cursor || picked.has('codex')) {
+      appendProtocolBlock(
+        rootDir,
+        'AGENTS.md',
+        AGENTS_PROTOCOL_BLOCK,
+        SHIPPED_AGENTS_PROTOCOL_BLOCKS,
+        report,
+      )
+    }
   } catch (err) {
     if (err instanceof InitAbort) return fail(renderFailure(`sofar init: ${err.message}`, errCaps))
     throw err
@@ -1669,9 +1981,12 @@ export function runInit(
   // the personal ~/.claude/settings.json already wires it (D15): that file
   // applies to every project, so a project with no statusLine of its own is
   // already showing sofar's line and there is nothing to opt into.
-  if (!statusline && statuslineAbsent && !userStatuslineWired(options.home)) {
+  if (claude && !statusline && statuslineAbsent && !userStatuslineWired(options.home)) {
     lines.push('', STATUSLINE_HINT)
   }
+  // Cursor's MCP approval (r1-fixes 6.2, D34): said once, on the run that
+  // registered the server, since a re-run changes nothing Cursor must approve.
+  if (cursorMcp !== 'unchanged') lines.push('', CURSOR_MCP_HINT)
   // Formatter defence (r1-fixes 1.4, D7): a formatter or linter that will
   // process .sofar/ gets the same treatment as the scanner below — init only
   // names it, `sofar doctor --fix` writes each tool's exclusion. Before the
@@ -1685,6 +2000,38 @@ export function runInit(
   const hint = scannerHint(rootDir)
   if (hint !== null) lines.push('', hint)
   return ok(`${lines.join('\n')}\n`)
+}
+
+export interface AgentPrompt {
+  input: PickerInput
+  output: PickerOutput
+  /** True only when input and output are both a live terminal (not CI, not TERM=dumb). */
+  interactive: boolean
+  caps: Caps
+  /** Machine probe override — tests only. */
+  machine?: MachineProbe
+}
+
+export type AgentChoice = { agents: AgentId[] } | { error: string } | { cancelled: true }
+
+/**
+ * Which agents this init run sets up (r1-fixes 7.1, D36). The `--agents` flag
+ * wins. Without it a terminal gets the picker, pre-selecting the agents found
+ * on this machine or already wired in this repo (every agent when none is
+ * found, so enter alone keeps today's result). With no terminal — a script,
+ * CI, an agent's shell — every agent, which is what init did before it asked.
+ */
+export async function resolveInitAgents(
+  rootDir: string,
+  flag: string | undefined,
+  prompt: AgentPrompt,
+): Promise<AgentChoice> {
+  if (flag !== undefined) return parseAgents(flag)
+  if (!prompt.interactive) return { agents: [...AGENTS] }
+  const found = orderAgents([...agentsOnMachine(prompt.machine), ...wiredAgents(rootDir)])
+  const preselected = found.length > 0 ? found : [...AGENTS]
+  const agents = await pickAgents(preselected, found, prompt.input, prompt.output, prompt.caps)
+  return agents === null ? { cancelled: true } : { agents }
 }
 
 /**

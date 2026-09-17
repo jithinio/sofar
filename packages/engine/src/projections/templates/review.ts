@@ -1,4 +1,5 @@
 import { standingRules, type DecisionState, type InitiativeState, type PhaseState } from '../../core/fold'
+import { renderRule } from '../../core/rule-fidelity'
 import { doc } from './shared'
 
 /**
@@ -74,7 +75,9 @@ function constraintLines(decisions: readonly DecisionState[]): string[] {
   // for obeying the record. The rejected list below stays complete.
   const standing = standingRules(decisions)
   if (standing.length === 0) return ['- (none)']
-  return standing.map((entry) => `- [D${entry.ordinal}] ${entry.rule}`)
+  // The operator's words ride beside the rule (memory-lead D2): conformance
+  // is checked against what was said, and the packet names what the rule adds.
+  return standing.map((entry) => `- [D${entry.ordinal}] ${entry.quote === undefined ? entry.rule : renderRule(entry.rule, entry.quote)}`)
 }
 
 /**

@@ -145,7 +145,7 @@ describe('sofar event session-start — context injection only, lazy registratio
     // the adopt-by-id delivery line (7.1, BD43) comes from the hook payload,
     // NOT from the log — so it survives the registration append going away
     expect(result.stdout).toContain(
-      'Session: claude-sess-1 — when calling sofar_start_session, pass this as session_id.',
+      "Session: claude-sess-1 — adopted on Claude Code; else pass to sofar_start_session.",
     )
 
     // Opening a session no longer dirties the record: a session that only

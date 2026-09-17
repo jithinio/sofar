@@ -6,7 +6,11 @@ import { ensureIndexDir } from '../core/index-store'
 import { QUICK_LANE, QUICK_LANE_GOAL } from '../core/lane'
 import { lessonsEnabled, relevantLessons, type Lesson } from '../core/lessons'
 import { withFileLock } from '../core/lock'
+import { silentReversal } from '../core/reversal'
+import { ruleFidelityWarning } from '../core/rule-fidelity'
+import { clearSessionPointer, readSessionPointer, writeSessionPointer } from '../core/session-pointer'
 import type { Command } from 'commander'
+import { ulid } from 'ulid'
 import {
   EVENT_TYPE_REFERENCE,
   EVENT_TYPES,
@@ -51,6 +55,7 @@ import {
 } from '../core/index-tier1'
 import { resolvePeers, type Peer } from '../core/peers'
 import { nudgeLine, readNudge } from '../driver/nudge'
+import { resolvePhaseOrThrow } from '../mcp/update-phase'
 import { redactCommand } from '../core/redact'
 import { recordDiagnostic } from '../core/diagnostics'
 import { clipDiagnosticText, DIAGNOSTIC_HEAD_CLIP } from '@sofar/schema/diagnostics'
@@ -68,6 +73,7 @@ import {
 } from '../mcp/context'
 import { enforceStatusLimit, renderStatus, sessionIdLine } from '../projections/templates/status'
 import { REPO_MD_STUB, readInput } from './shared'
+import { forHost, hookHost, type HookHost } from './host'
 
 /**
  * `sofar event <subcommand>` — the internal surface hook shims call
@@ -93,9 +99,6 @@ const OK: HookResult = { exitCode: 0, stdout: '', stderr: '' }
 
 export const STOP_BLOCK_MESSAGE =
   'Write back to the sofar record before finishing: call sofar_end_session (or append session_ended via `sofar event append`).'
-
-/** Hook payload tool = the agent tool whose hooks feed this surface. */
-const HOOK_TOOL = 'claude-code'
 
 // ---------------------------------------------------------------------------
 // Self-recording commands (record-hygiene D1) — the exemption that lets the
@@ -339,8 +342,11 @@ function ensureLane(rootDir: string): boolean {
 function readRepoMemory(rootDir: string): string | null {
   try {
     const text = readFileSync(join(rootDir, '.sofar', 'repo.md'), 'utf8')
-    if (text.trim().length === 0 || text.trim() === REPO_MD_STUB.trim()) return null
-    return text
+    // The stub's preamble is init boilerplate, not memory (memory-lead D4):
+    // what the operator added after it is what the digest spends its budget on.
+    const body = text.startsWith(REPO_MD_STUB) ? text.slice(REPO_MD_STUB.length) : text
+    if (body.trim().length === 0) return null
+    return body
   } catch {
     return null
   }
@@ -691,6 +697,9 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
   try {
     const hook = parseHook(input)
     const sessionId = strField(hook, 'session_id')
+    // Hand the host's id to CLI appends that omit --session (r1-fixes 4.1.3, D29)
+    // — before resolution, because an unbound session's appends name a slug.
+    if (sessionId !== null) writeSessionPointer(rootDir, sessionId, 'hook')
     const bound = resolveBound(rootDir, sessionId)
     if (bound === null) return { ...OK, stdout: unboundNotice(rootDir, sessionId) }
     const { ctx, slug, via } = bound
@@ -763,7 +772,7 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
       kind: 'injection',
       initiative: slug,
       session: sessionId ?? 'cli',
-      host: { tool: HOOK_TOOL },
+      host: hookHost(hook),
       data: {
         hook: 'SessionStart',
         bytes: status.length,
@@ -845,9 +854,11 @@ function classifyToolCall(hook: Obj): ClassifiedCall | null {
  * Lazy registration through the ONE locked path (r1-fixes D2, 1.2): hosts
  * that fire hooks in parallel otherwise registered a session once per
  * process. "cli" is never a session identity, so it is never registered.
+ * The tool is the host that fired the hook (r1-fixes 6.4, D34) — a Cursor
+ * session recorded as claude-code misattributes every event it carries.
  */
-function registerLazily(ctx: ToolContext, slug: string, session: string): void {
-  if (session !== 'cli') ctx.registerSession(slug, session, { tool: HOOK_TOOL }, { source: 'hook' })
+function registerLazily(ctx: ToolContext, slug: string, session: string, host: HookHost): void {
+  if (session !== 'cli') ctx.registerSession(slug, session, { tool: host.tool }, { source: 'hook' })
 }
 
 /**
@@ -870,6 +881,7 @@ export function handlePostToolFailure(rootDir: string, input: string): HookResul
   try {
     const hook = parseHook(input)
     const session = strField(hook, 'session_id') ?? 'cli'
+    if (session !== 'cli') writeSessionPointer(rootDir, session, 'hook') // D29
     // Same routing as the success path (r1-fixes 2.6, D14): nothing resolves
     // → the quick lane, created here if this failure is the first captured call.
     let bound = resolveBound(rootDir, session)
@@ -884,7 +896,7 @@ export function handlePostToolFailure(rootDir: string, input: string): HookResul
     const exit = typeof hook.exit_code === 'number' ? hook.exit_code : null
     const interrupt = typeof hook.is_interrupt === 'boolean' ? hook.is_interrupt : null
     if (!exempt) {
-      registerLazily(ctx, slug, session)
+      registerLazily(ctx, slug, session, hookHost(hook))
       ctx.appendAndProject(
         slug,
         type,
@@ -902,7 +914,7 @@ export function handlePostToolFailure(rootDir: string, input: string): HookResul
       kind: 'tool_failure',
       initiative: slug,
       session,
-      host: { tool: HOOK_TOOL },
+      host: hookHost(hook),
       data: {
         tool: call.toolName,
         ...(head !== undefined ? { head } : {}),
@@ -938,6 +950,9 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
   try {
     const hook = parseHook(input)
     const session = strField(hook, 'session_id') ?? 'cli'
+    // The first shell call (`sofar status`) lands here before the agent's own
+    // session_started, so a host with no SessionStart still hands its id over (D29).
+    if (session !== 'cli') writeSessionPointer(rootDir, session, 'hook')
 
     // The driver's threshold nudge (session-driver 2.3) — read BEFORE the
     // record is resolved and delivered even when it cannot be: the nudge is a
@@ -989,7 +1004,7 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
       // hooks in parallel (Cursor) otherwise registered it once per process.
       // "cli" is never a session identity (the fold skips it), so it is never
       // registered.
-      registerLazily(ctx, slug, session)
+      registerLazily(ctx, slug, session, hookHost(hook))
       ctx.appendAndProject(slug, type, payload, { session, source: 'hook' })
     }
 
@@ -1006,7 +1021,7 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
       kind: 'tool_outcome',
       initiative: slug,
       session,
-      host: { tool: HOOK_TOOL },
+      host: hookHost(hook),
       data: {
         tool: call.toolName,
         ok,
@@ -1121,6 +1136,7 @@ export function handleSessionEnd(rootDir: string, input: string): HookResult {
     const hook = parseHook(input)
     const sessionId = strField(hook, 'session_id')
     if (sessionId === null) return { ...OK }
+    clearSessionPointer(rootDir, sessionId) // D29: only when it still names this session
 
     const bound = resolveBound(rootDir, sessionId)
     if (bound === null) return { ...OK }
@@ -1968,6 +1984,7 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     const hook = parseHook(input)
     const sessionId = strField(hook, 'session_id')
     if (sessionId === null) return { ...OK }
+    writeSessionPointer(rootDir, sessionId, 'hook') // D29
 
     const bound = resolveBound(rootDir, sessionId)
     if (bound === null) return { ...OK }
@@ -2070,8 +2087,11 @@ export interface AppendArgs {
   type: string
   /** Payload as a raw JSON-object string. */
   payload: string
-  /** Envelope session id (dialect callers reuse one id all session). */
-  session: string
+  /**
+   * Envelope session id. Omitted: the worktree's live-session pointer decides
+   * (r1-fixes 4.1.3, D30) — see adoptSession.
+   */
+  session?: string
   /** Agent name; recorded as the envelope source when it names a SOURCES member, else `cli`. */
   source: string
   /** Envelope actor — must name an ACTORS member. */
@@ -2106,7 +2126,7 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
     if (!(ACTORS as readonly string[]).includes(args.actor)) {
       throw new ToolError('invalid_input', `--actor must be one of: ${ACTORS.join('|')}`)
     }
-    if (args.session.length === 0) {
+    if (args.session !== undefined && args.session.length === 0) {
       throw new ToolError('invalid_input', '--session must be a non-empty session id')
     }
 
@@ -2125,34 +2145,60 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
 
     const ctx = createToolContext(rootDir)
     const slug = ctx.resolveInitiative(args.slug)
+    // Same refusal as sofar_log_decision (r1-fixes 4.1.2, D31); malformed
+    // payloads skip it and fail validation inside appendAndProject as before.
+    let fidelity: string | null = null
+    if (args.type === 'decision_logged') {
+      const { chose, over, because, supersedes } = payload
+      if (typeof chose === 'string' && typeof over === 'string' && typeof because === 'string') {
+        const draft = { chose, over, because, ...(typeof supersedes === 'string' ? { supersedes } : {}) }
+        const refusal = silentReversal(ctx.foldState(slug), draft)
+        if (refusal !== null) throw new ToolError('invalid_input', refusal.message, refusal.errors)
+      }
+      // What the rule adds to the operator's words (memory-lead 1.2, D2), the
+      // warning sofar_log_decision returns; reported only once the append lands.
+      if (typeof payload.rule === 'string' && typeof payload.quote === 'string') {
+        fidelity = ruleFidelityWarning(ctx.foldState(slug).decisions.length + 1, payload.rule, payload.quote)
+      }
+    }
+    // A phase by number or in any case records the plan's own name, and a miss
+    // is refused rather than minting a phantom phase (r1-fixes 4.1.5, D32).
+    if (args.type === 'phase_status_changed' && typeof payload.phase === 'string') {
+      payload.phase = resolvePhaseOrThrow(ctx.foldState(slug).phases, payload.phase, slug).name
+    }
+    const session = args.session ?? adoptSession(ctx, rootDir, slug, args.type)
+    // The id is only news when sofar chose it.
+    const named = args.session === undefined ? { session } : {}
     // A repeat start is a no-op, not a second line (r1-fixes 1.2): the dialect
     // has agents register by hand, and they re-run the command — round 1 found
     // one Cursor session registered 4 times. Same {ok, event_id} contract,
     // naming the registration that already stands, plus a flag that says the
     // call changed nothing so the agent does not retry.
-    if (args.type === 'session_started' && args.session !== 'cli') {
-      const appended = ctx.registerSession(slug, args.session, payload, {
+    if (args.type === 'session_started' && session !== 'cli') {
+      const appended = ctx.registerSession(slug, session, payload, {
         source,
         actor: args.actor as Actor,
       })
       const body =
         appended !== null
-          ? { ok: true, event_id: appended.id }
+          ? { ok: true, event_id: appended.id, ...named }
           : {
               ok: true,
-              event_id: registrationIn(ctx.eventsPath(slug), args.session)?.id ?? null,
+              event_id: registrationIn(ctx.eventsPath(slug), session)?.id ?? null,
               already_started: true,
+              ...named,
             }
       return { exitCode: 0, stdout: `${JSON.stringify(body)}\n`, stderr: '' }
     }
     // appendAndProject validates the payload against its type's schema BEFORE
     // any write — invalid type/payload throws here with zero appends.
     const event = ctx.appendAndProject(slug, args.type, payload, {
-      session: args.session,
+      session,
       source,
       actor: args.actor as Actor,
     })
-    return { exitCode: 0, stdout: `${JSON.stringify({ ok: true, event_id: event.id })}\n`, stderr: '' }
+    const warnings = fidelity !== null ? { warnings: [fidelity] } : {}
+    return { exitCode: 0, stdout: `${JSON.stringify({ ok: true, event_id: event.id, ...named, ...warnings })}\n`, stderr: '' }
   } catch (err) {
     const shape =
       err instanceof ToolError
@@ -2160,6 +2206,30 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
         : { code: 'io_error', message: err instanceof Error ? err.message : String(err) }
     return { exitCode: 1, stdout: '', stderr: `${JSON.stringify(shape)}\n` }
   }
+}
+
+/**
+ * The session an append with no `--session` belongs to (r1-fixes 4.1.3, L09,
+ * D30). Round 1's Cursor launches carried two ids — the hooks' and one the
+ * agent minted because the block told it to — so the block now says to omit
+ * the flag and this picks the one id:
+ *  - session_started joins the worktree's pointer when that session has not
+ *    ended in this record (the hooks registered it, or a repeat start in the
+ *    same CLI session); otherwise it is a new hookless session, so a fresh id
+ *    is minted and becomes the pointer. A start refused later by validation
+ *    leaves an unregistered pointer, which the retry simply joins.
+ *  - every other type joins the pointer, and with none keeps the old `cli`.
+ */
+function adoptSession(ctx: ToolContext, rootDir: string, slug: string, type: string): string {
+  const pointer = readSessionPointer(rootDir)
+  if (type !== 'session_started') return pointer?.session ?? 'cli'
+  if (pointer !== null) {
+    const known = ctx.foldState(slug).sessions.find((s) => s.id === pointer.session)
+    if (known?.ended === undefined) return pointer.session
+  }
+  const minted = `cli-${ulid()}`
+  writeSessionPointer(rootDir, minted, 'cli')
+  return minted
 }
 
 // ---------------------------------------------------------------------------
@@ -2206,7 +2276,7 @@ export function runEventTypes(type?: string, opts: { json?: boolean } = {}): Hoo
   const of = (writer: string): KnownEventType[] =>
     EVENT_TYPES.filter((t) => EVENT_TYPE_REFERENCE[t].writer === writer)
   const lines = [
-    "Payloads for: sofar event append <slug> --type <type> --session <id> --source <tool> --payload '<json>'",
+    "Payloads for: sofar event append <slug> --type <type> --source <tool> --payload '<json>'  (no --session: it joins your registered session)",
     'Grammar: name = required, name? = optional, a|b = one of. Single-quote the JSON —',
     "or skip the shell: --payload - <<'EOF' with the JSON on the next lines then EOF (any quote survives), or --payload @<file>.",
     '',
@@ -2239,7 +2309,9 @@ export async function readStdin(): Promise<string> {
  * The hook name → handler map, exported so the hot-path entry (cli/fast.ts)
  * can dispatch a shim WITHOUT constructing the commander program. One source
  * of truth: registerEventCommand builds its subcommands from this same list,
- * so a hook can never exist on one path and not the other.
+ * so a hook can never exist on one path and not the other. Every handler is
+ * served through forHost (r1-fixes 6.3–6.6, D34): the handlers speak Claude
+ * Code's hook dialect, and a Cursor invocation is converted on both sides.
  */
 export const SUBCOMMANDS: ReadonlyArray<{
   name: string
@@ -2250,36 +2322,36 @@ export const SUBCOMMANDS: ReadonlyArray<{
     name: 'session-start',
     description:
       'SessionStart hook: register the session in the log, print the status projection (≤10,000 chars) as injected context',
-    handler: handleSessionStart,
+    handler: forHost('session-start', handleSessionStart),
   },
   {
     name: 'post-tool',
     description:
       'PostToolUse hook: append mechanical file_touched (Edit|Write|MultiEdit) / command_run (Bash) events, and surface any repo-wide guarded rule the subject crosses',
-    handler: handlePostTool,
+    handler: forHost('post-tool', handlePostTool),
   },
   {
     name: 'post-tool-failure',
     description:
       'PostToolUseFailure hook: append the same mechanical event with ok:false (and exit when the host gives one); the error text goes to the private diagnostics store, never the record',
-    handler: handlePostToolFailure,
+    handler: forHost('post-tool-failure', handlePostToolFailure),
   },
   {
     name: 'user-prompt',
     description:
       'UserPromptSubmit hook: nudge an in-flow write-back (one additionalContext line) when drift since the last session_ended ≥5 events',
-    handler: handleUserPrompt,
+    handler: forHost('user-prompt', handleUserPrompt),
   },
   {
     name: 'stop',
     description:
       'Stop hook: exit 2 (blocking) when the registered session has not written back via session_ended; loop-guarded by stop_hook_active',
-    handler: handleStop,
+    handler: forHost('stop', (rootDir, input) => handleStop(rootDir, input)),
   },
   {
     name: 'session-end',
     description: 'SessionEnd hook: append a mechanical session_closed marker (fallback only)',
-    handler: handleSessionEnd,
+    handler: forHost('session-end', handleSessionEnd),
   },
 ]
 
@@ -2306,14 +2378,14 @@ export function registerEventCommand(program: Command): void {
     )
     .requiredOption('--type <event_type>', 'event type (SPEC §Event types)')
     .option('--payload <json>', 'event payload as a JSON object: inline, `-` for stdin (quoted heredoc — quotes and newlines survive), or @<file>; omitted with stdin piped reads stdin')
-    .option('--session <id>', 'session id recorded on the envelope (reuse one id all session)', 'cli')
+    .option('--session <id>', 'session id recorded on the envelope; omit it to join the session your hooks registered (a session_started with none mints one and prints it)')
     .option('--source <tool>', `your agent's name (any; recorded as the envelope source when one of ${SOURCES.join('|')}, else cli)`, 'cli')
     .option('--actor <actor>', `envelope actor: ${ACTORS.join('|')}`, 'agent')
     .option('--root <dir>', 'repo root containing .sofar/ (default: current directory)')
     .action(
       async (
         slug: string | undefined,
-        opts: { type: string; payload?: string; session: string; source: string; actor: string; root?: string },
+        opts: { type: string; payload?: string; session?: string; source: string; actor: string; root?: string },
       ) => {
         // r1-fixes 1.5 (D8): the payload may arrive on stdin or from a file —
         // the shell-proof forms — so it is resolved here, before the handler.
@@ -2330,7 +2402,7 @@ export function registerEventCommand(program: Command): void {
           runAppend(resolve(opts.root ?? process.cwd()), {
             type: opts.type,
             payload: input.text,
-            session: opts.session,
+            ...(opts.session !== undefined ? { session: opts.session } : {}),
             source: opts.source,
             actor: opts.actor,
             ...(slug !== undefined ? { slug } : {}),

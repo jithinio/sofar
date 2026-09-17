@@ -15,14 +15,19 @@ import { commonGitDir } from '../core/git'
 import { crossConflictsFromStates } from '../core/cross-conflicts'
 import { buildGraph, extractCitations, repoGeneral } from '../core/graph'
 import { clip } from '../projections/templates/shared'
+import { AGENT_LABELS, AGENTS } from './agents'
 import {
   AGENTS_PROTOCOL_BLOCK,
   classifyProtocolBlock,
+  CURSOR_HOOKS,
   hookCommand,
   PROTOCOL_BLOCK,
+  SHIM_HOMES,
+  shimHomeFor,
   SHIMS,
   SHIPPED_AGENTS_PROTOCOL_BLOCKS,
   SHIPPED_PROTOCOL_BLOCKS,
+  wiredAgents,
 } from './init'
 import {
   cssExcludesSofar,
@@ -133,8 +138,8 @@ function fileHas(path: string, needle: string): boolean {
   }
 }
 
-function mcpHasSofar(rootDir: string): boolean {
-  const path = join(rootDir, '.mcp.json')
+function mcpHasSofar(rootDir: string, rel: string): boolean {
+  const path = join(rootDir, rel)
   if (!existsSync(path)) return false
   try {
     const cfg = JSON.parse(readFileSync(path, 'utf8')) as unknown
@@ -218,7 +223,17 @@ function auditAttribution(rootDir: string, findings: Finding[]): void {
 
 function auditWiring(rootDir: string): Section {
   const findings: Finding[] = []
-  const repair = 'run `sofar init` to (re)install it'
+
+  // Per agent (r1-fixes 7.1, D36): a repo is checked only for the agents it is
+  // wired for, and each agent it is not wired for is named with the command
+  // that adds it — a Cursor-only repo is not missing Claude Code's files.
+  const wired = new Set(wiredAgents(rootDir))
+  // A partial install is repaired for its own agents only; a bare `sofar init`
+  // with no terminal would add the rest.
+  const repair =
+    wired.size === 0 || wired.size === AGENTS.length
+      ? 'run `sofar init` to (re)install it'
+      : `run \`sofar init --agents ${[...wired].join(',')}\` to (re)install it`
 
   const bindings = join(rootDir, '.sofar', 'bindings.json')
   findings.push(
@@ -227,38 +242,76 @@ function auditWiring(rootDir: string): Section {
       : { level: 'fail', text: '.sofar/bindings.json missing', hint: repair },
   )
 
-  const missingShims = SHIMS.filter(
-    (shim) => !existsSync(join(rootDir, '.claude', 'hooks', shim.file)),
-  ).map((shim) => shim.file)
-  findings.push(
-    missingShims.length === 0
-      ? { level: 'ok', text: `hook shims installed (${SHIMS.length}/${SHIMS.length})` }
-      : { level: 'fail', text: `hook shims missing: ${missingShims.join(', ')}`, hint: repair },
-  )
+  if (wired.size === 0) {
+    findings.push({
+      level: 'fail',
+      text: `no agent wired (${AGENTS.map((id) => AGENT_LABELS[id]).join(', ')})`,
+      hint: 'run `sofar init` to set one up',
+    })
+  }
+  const claude = wired.has('claude-code')
+  const cursor = wired.has('cursor')
+  const home = shimHomeFor(rootDir, wired)
 
-  const settingsPath = join(rootDir, '.claude', 'settings.json')
-  const missingHooks = SHIMS.filter((shim) => !fileHas(settingsPath, hookCommand(shim.file))).map(
-    (shim) => shim.event,
-  )
-  findings.push(
-    missingHooks.length === 0
-      ? { level: 'ok', text: '.claude/settings.json hooks wired' }
-      : { level: 'fail', text: `.claude/settings.json missing hooks: ${missingHooks.join(', ')}`, hint: repair },
-  )
+  if (claude || cursor) {
+    const { dir } = SHIM_HOMES[home]
+    const missingShims = SHIMS.filter((shim) => !existsSync(join(rootDir, dir, shim.file))).map(
+      (shim) => shim.file,
+    )
+    findings.push(
+      missingShims.length === 0
+        ? { level: 'ok', text: `hook shims installed (${SHIMS.length}/${SHIMS.length})` }
+        : { level: 'fail', text: `hook shims missing: ${missingShims.join(', ')}`, hint: repair },
+    )
+  }
 
-  findings.push(
-    mcpHasSofar(rootDir)
-      ? { level: 'ok', text: '.mcp.json sofar server registered' }
-      : { level: 'fail', text: '.mcp.json sofar server not registered', hint: repair },
-  )
+  if (claude) {
+    const settingsPath = join(rootDir, '.claude', 'settings.json')
+    const missingHooks = SHIMS.filter((shim) => !fileHas(settingsPath, hookCommand(shim.file))).map(
+      (shim) => shim.event,
+    )
+    findings.push(
+      missingHooks.length === 0
+        ? { level: 'ok', text: '.claude/settings.json hooks wired' }
+        : { level: 'fail', text: `.claude/settings.json missing hooks: ${missingHooks.join(', ')}`, hint: repair },
+    )
+
+    findings.push(
+      mcpHasSofar(rootDir, '.mcp.json')
+        ? { level: 'ok', text: '.mcp.json sofar server registered' }
+        : { level: 'fail', text: '.mcp.json sofar server not registered', hint: repair },
+    )
+  }
+
+  // Cursor's copies (r1-fixes 6.2/6.6, D34). Cursor reads neither .mcp.json nor
+  // a hook it cannot dedupe against, so each is checked in Cursor's own file.
+  if (cursor) {
+    const cursorHooksPath = join(rootDir, '.cursor', 'hooks.json')
+    const missingCursorHooks = SHIMS.filter(
+      (shim) => !fileHas(cursorHooksPath, hookCommand(shim.file, home)),
+    ).map((shim) => CURSOR_HOOKS[shim.event].event)
+    findings.push(
+      missingCursorHooks.length === 0
+        ? { level: 'ok', text: '.cursor/hooks.json hooks wired' }
+        : { level: 'fail', text: `.cursor/hooks.json missing hooks: ${missingCursorHooks.join(', ')}`, hint: repair },
+    )
+    findings.push(
+      mcpHasSofar(rootDir, '.cursor/mcp.json')
+        ? { level: 'ok', text: '.cursor/mcp.json sofar server registered' }
+        : { level: 'fail', text: '.cursor/mcp.json sofar server not registered', hint: repair },
+    )
+  }
 
   // Presence is not enough (speed-2 T6): a block installed by an older sofar
   // keeps directing agents by the old protocol forever, and nothing else in the
   // repo reveals it — `sofar upgrade` replaces the binary, not repo wiring.
-  for (const { file, template, shipped } of [
-    { file: 'CLAUDE.md', template: PROTOCOL_BLOCK, shipped: SHIPPED_PROTOCOL_BLOCKS },
-    { file: 'AGENTS.md', template: AGENTS_PROTOCOL_BLOCK, shipped: SHIPPED_AGENTS_PROTOCOL_BLOCKS },
-  ]) {
+  const blocks = [
+    ...(claude ? [{ file: 'CLAUDE.md', template: PROTOCOL_BLOCK, shipped: SHIPPED_PROTOCOL_BLOCKS }] : []),
+    ...(cursor || wired.has('codex')
+      ? [{ file: 'AGENTS.md', template: AGENTS_PROTOCOL_BLOCK, shipped: SHIPPED_AGENTS_PROTOCOL_BLOCKS }]
+      : []),
+  ]
+  for (const { file, template, shipped } of blocks) {
     const path = join(rootDir, file)
     const text = existsSync(path) ? readFileSync(path, 'utf8') : ''
     switch (classifyProtocolBlock(text, template, shipped)) {
@@ -284,6 +337,15 @@ function auditWiring(rootDir: string): Section {
         break
       default:
         findings.push({ level: 'fail', text: `${file} protocol block missing`, hint: repair })
+    }
+  }
+
+  if (wired.size > 0) {
+    for (const id of AGENTS.filter((agent) => !wired.has(agent))) {
+      findings.push({
+        level: 'ok',
+        text: `${AGENT_LABELS[id]} not set up — \`sofar init --agents ${id}\` adds it`,
+      })
     }
   }
 

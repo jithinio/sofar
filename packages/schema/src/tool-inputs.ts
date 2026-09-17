@@ -110,7 +110,12 @@ export interface StartSessionArgs {
   session_id?: string
 }
 export interface EndSessionArgs {
-  session_id: string
+  /**
+   * Optional since memory-lead 1.1 (D3): omitted, the write-back ends the
+   * ACTIVE session — the one `sofar mcp` adopted from Claude Code's
+   * CLAUDE_CODE_SESSION_ID, or the one sofar_start_session pinned.
+   */
+  session_id?: string
   summary: string
   next_action: string
   /**
@@ -120,12 +125,33 @@ export interface EndSessionArgs {
    * per task at wrap-up.
    */
   tasks?: EndSessionTaskChange[]
+  /**
+   * The rest of a session's writes, batched into the write-back (memory-lead
+   * 1.1, D3): round 1 spent one request per update_phase, log_decision,
+   * remember and add_note, each re-sending the whole context. The batch is
+   * validated whole before anything appends.
+   */
+  phases?: EndSessionPhaseChange[]
+  decisions?: EndSessionDecision[]
+  memories?: string[]
+  notes?: string[]
 }
 export interface EndSessionTaskChange {
   task_id: string
   status: TaskStatus
   note?: string
+  /** Adds the task when the plan lacks `task_id` (memory-lead D3); ignored for a task that exists. */
+  title?: string
+  /** Phase an added task joins — name or number; default the active phase. */
+  phase?: string
 }
+export interface EndSessionPhaseChange {
+  phase: string
+  status: PhaseStatus
+  note?: string
+}
+/** sofar_log_decision's arguments minus `initiative` — the write-back has one home. */
+export type EndSessionDecision = Omit<LogDecisionArgs, 'initiative'>
 export interface UpdateTaskArgs {
   initiative?: string
   task_id: string
@@ -151,6 +177,8 @@ export interface LogDecisionArgs {
   because: string
   /** Standing-constraint clause (drift-hardening D1) — see the JSON schema description. */
   rule?: string
+  /** The operator's exact words the rule came from (memory-lead 1.2, D2); only with `rule`. */
+  quote?: string
   /** Machine-checkable half of `rule` (drift-hardening D3) — see guards.ts. */
   guard?: string
   /** `D<n>` of the earlier decision this one replaces (r1-fixes 3.2, D25). */
@@ -206,6 +234,16 @@ export interface ToolOkResult {
 export type UpdateTaskResult = ToolOkResult
 
 /**
+ * log_decision result (memory-lead 1.2, D2): `warnings` names what the rule
+ * states that the operator's quote does not — status codes, paths, values.
+ * Absent when there is nothing to say; the append has already happened, so a
+ * warning never means the decision was refused.
+ */
+export interface LogDecisionResult extends ToolOkResult {
+  warnings?: string[]
+}
+
+/**
  * update_phase result (phase-lifecycle 2.3). `event_id` is null when the phase
  * was ALREADY at this status — idempotent, no second event, the same shape
  * close_initiative uses for the same reason: re-issuing must be safe, and a
@@ -243,7 +281,6 @@ export interface ToolDef {
 // the documentation. Repeated 7×, so every char here counts.
 const initiativeProp = {
   type: 'string',
-  minLength: 1,
   pattern: SLUG_RE.source,
   description: "Initiative slug; omit for the current branch's.",
 }
@@ -306,7 +343,7 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       initiative: initiativeProp,
       view: {
         enum: [...GET_STATE_VIEWS],
-        description: '"digest" (default), "full" = folded state JSON, "initiatives" = every initiative in the repo.',
+        description: '"full" = folded state JSON; "initiatives" = every initiative.',
       },
     },
     additionalProperties: false,
@@ -333,7 +370,7 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
   sofar_end_session: {
     type: 'object',
     properties: {
-      session_id: { type: 'string', minLength: 1 },
+      session_id: { type: 'string', minLength: 1, description: 'Omit when this session was adopted; else the "Session:" id.' },
       summary: { type: 'string', minLength: 1, description: 'What happened this session.' },
       next_action: {
         type: 'string',
@@ -342,21 +379,37 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       },
       tasks: {
         type: 'array',
-        description:
-          'Task status changes to file with this write-back, in order (same rules as sofar_update_task).',
+        description: 'Task changes, in order; with title, a task the plan lacks is added (phase: default active).',
         items: {
           type: 'object',
           properties: {
             task_id: { type: 'string', minLength: 1 },
             status: { enum: [...TASK_STATUSES] },
-            note: { type: 'string', description: 'Why; required for blocked/dropped.' },
+            note: { type: 'string' },
+            title: { type: 'string' },
+            phase: { type: 'string' },
           },
           required: ['task_id', 'status'],
           additionalProperties: false,
         },
       },
+      phases: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: { phase: { type: 'string' }, status: { enum: [...PHASE_STATUSES] }, note: { type: 'string' } },
+          required: ['phase', 'status'],
+          additionalProperties: false,
+        },
+      },
+      // Items are shaped by sofar_log_decision's schema (always loaded beside
+      // this tool) and checked by its validators; restating the properties
+      // here would pay for them twice in the budgeted surface (2.4, D13).
+      decisions: { type: 'array', description: 'Decisions not yet logged, each as sofar_log_decision args.', items: { type: 'object' } },
+      memories: { type: 'array', description: 'Facts to promote (sofar_remember).', items: { type: 'string' } },
+      notes: { type: 'array', items: { type: 'string' } },
     },
-    required: ['session_id', 'summary', 'next_action'],
+    required: ['summary', 'next_action'],
     additionalProperties: false,
   },
   sofar_update_task: {
@@ -366,12 +419,11 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       task_id: { type: 'string', minLength: 1 },
       status: {
         enum: [...TASK_STATUSES],
-        description:
-          '`blocked` = cannot proceed yet, stays outstanding; `dropped` = will not happen, terminal. Never `done` for unbuilt work.',
+        description: '`blocked` stays outstanding; `dropped` is terminal. Never `done` for unbuilt work.',
       },
       note: {
         type: 'string',
-        description: 'Why. Required for blocked/dropped; cite the deciding entry (e.g. "D3").',
+        description: 'Why; required for dropped. Cite the deciding entry (e.g. "D3").',
       },
     },
     required: ['task_id', 'status'],
@@ -384,16 +436,15 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       phase: {
         type: 'string',
         minLength: 1,
-        description: 'Phase name exactly as the plan spells it; an unknown name errors, listing the real ones.',
+        description: 'Name (any case) or number ("3").',
       },
       status: {
         enum: [...PHASE_STATUSES],
-        description:
-          'Task vocabulary, one level up: `done` = finished (say it — resolved tasks do not imply it), `dropped` = will not happen, `blocked` = cannot proceed yet.',
+        description: '`done` only when you say so; resolved tasks do not imply it.',
       },
       note: {
         type: 'string',
-        description: 'Why. Required for `dropped`; rendered under the phase in plan.md.',
+        description: 'Why; required for `dropped`.',
       },
     },
     required: ['phase', 'status'],
@@ -410,8 +461,11 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
         type: 'string',
         minLength: 1,
         description:
-          'ONE short imperative every future session must obey — a standing constraint, rendered verbatim in every digest, never clipped or aged out. Omit for one-off choices.',
+          'ONE imperative every later session must obey, worded as the operator did (no status code, path or value they did not say). Omit for one-off choices.',
       },
+      // Shape and the RULE_QUOTE_MAX cap are the payload validator's (D2),
+      // like supersedes: the tool surface is budgeted (2.4, D13).
+      quote: { type: 'string', description: "The operator's exact words the rule came from (needs rule)." },
       guard: {
         type: 'string',
         minLength: 1,
@@ -449,8 +503,7 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       supersedes: {
         type: 'string',
         pattern: '^(?:[a-z0-9-]+ )?M[1-9][0-9]*$',
-        description:
-          'The memory this replaces (`M<n>` or `<slug> M<n>`); the old handle is retired, history stays append-only.',
+        description: 'The memory this replaces (`M<n>` or `<slug> M<n>`).',
       },
     },
     required: ['text'],
@@ -462,7 +515,7 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_get_state',
     description:
-      'Read an initiative. The default digest is what SessionStart already injected — do not re-read it; use "full" or "initiatives", or name another initiative.',
+      'Read an initiative. The default digest is what SessionStart injected: do not re-read it.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_get_state,
   },
   {
@@ -474,25 +527,25 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_end_session',
     description:
-      'Write back: a summary plus the single next action the next session resumes from; `tasks` files task status changes first. A returned `parallel_writebacks` lists concurrent sessions that recorded a DIFFERENT next action — reconcile; an entry with `peer` names a live Claude Code session reachable by SendMessage (with `peer_cwd` the name is shared: confirm first). What a peer tells you goes in the record.',
+      "Write back once, at wrap-up: summary, the single next action, and the session's unlogged decisions, task and phase changes, memories and notes — validated whole, filed first. A returned `parallel_writebacks` lists concurrent sessions with a DIFFERENT next action: reconcile (`peer` is reachable by SendMessage; with `peer_cwd`, confirm first).",
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_end_session,
   },
   {
     name: 'sofar_update_task',
     description:
-      "Set a task's status, with an optional note. Wrap-up changes can ride sofar_end_session's `tasks` instead.",
+      "Set a task's status now; wrap-up changes ride sofar_end_session.",
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_update_task,
   },
   {
     name: 'sofar_update_phase',
     description:
-      "Set a phase's status. A phase is done only when you say so — its last task landing does not close it — so mark each phase done as you finish it; an open phase with every task resolved is what doctor reports.",
+      "Set a phase's status now; wrap-up changes ride sofar_end_session.",
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_update_phase,
   },
   {
     name: 'sofar_log_decision',
     description:
-      'Record a design decision: what was chosen, what it was chosen over, and why.',
+      'Record a design decision: what was chosen, over what, and why.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_log_decision,
   },
   {
@@ -509,7 +562,7 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_remember',
     description:
-      'Promote an operational fact to repo memory — a release command, a failure mode and its diagnosis, a convention every session must know. Call it the moment you learn one (design decisions go to sofar_log_decision). Recorded as `<slug> M<n>`; doctor reports it until .sofar/repo.md names that handle.',
+      'Promote an operational fact to repo memory — a release command, a failure mode, a convention every session must know (decisions go to sofar_log_decision). Recorded as `<slug> M<n>`.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_remember,
   },
 ]
@@ -553,9 +606,21 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
     if (!optId(a.session_id)) e.push('session_id: must be a non-empty string')
   },
   sofar_end_session(a, e) {
-    if (!str(a.session_id)) e.push('session_id: must be a non-empty string')
+    if (!optId(a.session_id)) e.push('session_id: must be a non-empty string when present')
     if (!str(a.summary)) e.push('summary: must be a non-empty string')
     if (!str(a.next_action)) e.push('next_action: must be a non-empty string')
+    // Shapes only; each entry's contract is its tool's or its payload's,
+    // checked by the handler before anything appends (memory-lead D3).
+    for (const key of ['tasks', 'phases', 'decisions'] as const) {
+      if (a[key] !== undefined && !(Array.isArray(a[key]) && (a[key] as unknown[]).every(isObj))) {
+        e.push(`${key}: must be an array of objects`)
+      }
+    }
+    for (const key of ['memories', 'notes'] as const) {
+      if (a[key] !== undefined && !(Array.isArray(a[key]) && (a[key] as unknown[]).every(str))) {
+        e.push(`${key}: must be an array of non-empty strings`)
+      }
+    }
   },
   sofar_update_task(a, e) {
     if (!optSlug(a.initiative)) e.push(SLUG_ERROR)

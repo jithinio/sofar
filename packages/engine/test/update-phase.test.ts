@@ -6,7 +6,8 @@ import { validateToolInput } from '@sofar/schema/tool-inputs'
 import { closeoutFindings } from '../src/core/closeout'
 import { foldLog, freshnessTotal, staleActivePhases } from '../src/core/fold'
 import { ToolError, createToolContext, type ToolContext } from '../src/mcp/context'
-import { updatePhase } from '../src/mcp/update-phase'
+import { runAppend } from '../src/cli/event'
+import { resolvePhase, updatePhase } from '../src/mcp/update-phase'
 import { updatePlan } from '../src/mcp/update-plan'
 import { updateTask } from '../src/mcp/update-task'
 
@@ -278,5 +279,55 @@ describe('sofar_update_phase — what closing a phase actually clears', () => {
       updatePhase(f.ctx, { phase: phase.name, status: 'done' })
     }
     expect(findingKinds()).not.toContain('phases_unresolved')
+  })
+})
+
+describe('a phase named by number or in any case (r1-fixes 4.1.5, L11, D32)', () => {
+  const phases = [{ name: 'Phase 1 — Settle' }, { name: 'Phase 2 — Build' }, { name: 'Phase 12 — Later' }]
+
+  it('resolves exact, any case, `3`, `Phase 3` — and nothing looser', () => {
+    expect(resolvePhase(phases, 'Phase 2 — Build')?.name).toBe('Phase 2 — Build')
+    expect(resolvePhase(phases, '  phase 2 —   BUILD ')?.name).toBe('Phase 2 — Build')
+    expect(resolvePhase(phases, '2')?.name).toBe('Phase 2 — Build')
+    expect(resolvePhase(phases, 'phase 1')?.name).toBe('Phase 1 — Settle')
+    expect(resolvePhase(phases, '12')?.name).toBe('Phase 12 — Later') // `Phase 1` never claims `Phase 12`
+    expect(resolvePhase(phases, '3')).toBeUndefined() // labelled plans resolve by label, not position
+    expect(resolvePhase(phases, 'Build')).toBeUndefined() // no substrings
+    expect(resolvePhase(phases, 'Phase 1 - Settle')).toBeUndefined() // a different dash is a different name
+  })
+
+  it('falls back to position only when no phase carries a `Phase <n>` label, and refuses ambiguity', () => {
+    const unlabelled = [{ name: 'Design' }, { name: 'Build' }]
+    expect(resolvePhase(unlabelled, '2')?.name).toBe('Build')
+    expect(resolvePhase(unlabelled, '3')).toBeUndefined()
+    expect(resolvePhase([{ name: 'Build' }, { name: 'build' }], 'BUILD')).toBeUndefined()
+  })
+
+  it("sofar_update_phase records the plan's own name, whatever form addressed it", () => {
+    const f = fx()
+    updatePhase(f.ctx, { phase: '2', status: 'active' })
+    updatePhase(f.ctx, { phase: 'PHASE 3 — PROVE', status: 'active' })
+    const changed = f.events().filter((e) => e.type === 'phase_status_changed').map((e) => e.payload.phase)
+    expect(changed).toEqual(['Phase 2 — Build', 'Phase 3 — Prove'])
+    expect(foldLog(f.eventsPath).state.phases).toHaveLength(3)
+  })
+
+  it('the CLI append resolves the same way and refuses a miss instead of minting a phantom', () => {
+    const f = fx()
+    const append = (phase: string) =>
+      runAppend(f.root, {
+        type: 'phase_status_changed',
+        payload: JSON.stringify({ phase, status: 'done' }),
+        session: 's',
+        source: 'codex',
+        actor: 'agent',
+      })
+    expect(append('phase 1').exitCode).toBe(0)
+    expect(f.events().at(-1)!.payload.phase).toBe('Phase 1 — Settle')
+
+    const miss = append('Phase 1 - Settle')
+    expect(miss.exitCode).toBe(1)
+    expect(JSON.parse(miss.stderr).message).toContain('or by number ("3", "Phase 3")')
+    expect(foldLog(f.eventsPath).state.phases).toHaveLength(3)
   })
 })

@@ -1,10 +1,13 @@
 import { isClosedInitiativeStatus, validatePayload } from '@sofar/schema'
-import type { EndSessionArgs, ToolOkResult } from '@sofar/schema/tool-inputs'
+import { validateToolInput, type EndSessionArgs, type ToolOkResult } from '@sofar/schema/tool-inputs'
 import { readBindingsFile, writeBinding } from '../core/bindings'
-import { overlappingWritebacks, type ParallelWriteback } from '../core/fold'
+import { overlappingWritebacks, type DecisionState, type InitiativeState, type ParallelWriteback } from '../core/fold'
 import { currentBranch } from '../core/git'
 import { resolvePeers } from '../core/peers'
+import { silentReversal } from '../core/reversal'
+import { ruleFidelityWarning } from '../core/rule-fidelity'
 import { homeInitiative, ToolError, type ToolContext } from './context'
+import { resolvePhaseOrThrow } from './update-phase'
 
 /**
  * A colliding write-back, plus how to reach the session that wrote it
@@ -49,6 +52,108 @@ export interface EndSessionResult extends ToolOkResult {
   rebound?: BranchRebound
   /** How many `tasks` entries were filed ahead of the write-back; present iff `tasks` was passed. */
   tasks_applied?: number
+  /** Handles the batched `decisions` took, in order (`D<n>`) — cite them without a fold. */
+  decisions?: string[]
+  /** Handles the batched `memories` took, in order (`<slug> M<n>`). */
+  memories?: string[]
+  /** Rule-fidelity warnings for the batched decisions (memory-lead D2); never a refusal. */
+  warnings?: string[]
+}
+
+interface PlannedBatch {
+  appends: Array<{ type: string; payload: Record<string, unknown> }>
+  decisions: string[]
+  memories: string[]
+  warnings: string[]
+}
+
+/**
+ * Plan and validate a write-back's batch against ONE fold (memory-lead 1.1,
+ * D3) — nothing here appends. Every refusal names its entry, and each entry
+ * obeys the contract of the tool it stands in for:
+ *
+ *  - tasks: a task the plan has → task_status_changed. One it lacks WITH a
+ *    `title` → task_added into `phase` (name or number, default the active
+ *    phase); WITHOUT one it is refused — the fold would skip the change with a
+ *    warning, a status silently lost at the one moment nobody is watching.
+ *  - phases: resolved like sofar_update_phase (D32); an unchanged status and
+ *    note files nothing, as there.
+ *  - decisions: sofar_log_decision's argument contract, then the payload's,
+ *    then the D31 reversal check against the record PLUS the batch's earlier
+ *    decisions — a batch cannot reverse itself silently either.
+ *  - memories, notes: non-empty text (the tool-input validator's check).
+ */
+function planBatch(ctx: ToolContext, slug: string, args: EndSessionArgs): PlannedBatch {
+  const state = ctx.foldState(slug)
+  const appends: PlannedBatch['appends'] = []
+  const refuse = (where: string, errors: readonly string[]): never => {
+    throw new ToolError('invalid_input', `${where}: ${errors.join('; ')} — nothing was filed`, [...errors])
+  }
+  const check = (where: string, type: string, payload: Record<string, unknown>): void => {
+    const result = validatePayload(type, payload)
+    if (!result.ok) refuse(where, result.errors)
+    appends.push({ type, payload })
+  }
+
+  const known = new Set(state.phases.flatMap((p) => p.tasks.map((t) => t.id)))
+  const activePhase = state.phases.find((p) => p.name === state.current.active_phase)
+  ;(args.tasks ?? []).forEach((t, i) => {
+    const where = `tasks[${i}] (${t.task_id})`
+    const note = t.note !== undefined ? { note: t.note } : {}
+    if (known.has(t.task_id)) {
+      check(where, 'task_status_changed', { id: t.task_id, status: t.status, ...note })
+      return
+    }
+    if (t.title === undefined || t.title.trim().length === 0) {
+      refuse(where, ['not in the plan — give it a `title` (and `phase`) to add it'])
+    }
+    const phase =
+      t.phase !== undefined ? resolvePhaseOrThrow(state.phases, t.phase, slug) : activePhase ?? refuse(where, ['no active phase — name the `phase` to add it to'])
+    check(where, 'task_added', { phase: phase.name, id: t.task_id, title: t.title!, status: t.status })
+    // task_added carries no note; the reason rides a status change of its own.
+    if (t.note !== undefined) check(where, 'task_status_changed', { id: t.task_id, status: t.status, ...note })
+    known.add(t.task_id)
+  })
+
+  ;(args.phases ?? []).forEach((ph, i) => {
+    const where = `phases[${i}] (${ph.phase})`
+    const phase = resolvePhaseOrThrow(state.phases, ph.phase, slug)
+    const note = ph.note !== undefined && ph.note.length > 0 ? ph.note : undefined
+    if (phase.status === ph.status && note === phase.note) return
+    check(where, 'phase_status_changed', { phase: phase.name, status: ph.status, ...(note !== undefined ? { note } : {}) })
+  })
+
+  const decisions: string[] = []
+  const warnings: string[] = []
+  const seen: DecisionState[] = [...state.decisions]
+  ;(args.decisions ?? []).forEach((d, i) => {
+    const where = `decisions[${i}]`
+    const input = validateToolInput('sofar_log_decision', d)
+    if (!input.ok) refuse(where, input.errors)
+    if ((d as { initiative?: unknown }).initiative !== undefined) refuse(where, ['initiative: not allowed — a write-back files in its session\'s record'])
+    const payload: Record<string, unknown> = { chose: d.chose, over: d.over, because: d.because }
+    for (const key of ['rule', 'quote', 'guard', 'supersedes', 'until'] as const) {
+      if (d[key] !== undefined) payload[key] = d[key]
+    }
+    const reversal = silentReversal({ ...state, decisions: seen } as InitiativeState, d)
+    if (reversal !== null) refuse(where, [reversal.message, ...reversal.errors])
+    check(where, 'decision_logged', payload)
+    const ordinal = seen.length + 1
+    seen.push({ id: `batch-${i}`, ts: new Date().toISOString(), chose: d.chose, over: d.over, because: d.because, ...(d.rule !== undefined ? { rule: d.rule } : {}) })
+    decisions.push(`D${ordinal}`)
+    if (d.rule !== undefined) {
+      const warning = ruleFidelityWarning(ordinal, d.rule, d.quote)
+      if (warning !== null) warnings.push(warning)
+    }
+  })
+
+  const memories = (args.memories ?? []).map((text, i) => {
+    check(`memories[${i}]`, 'memory_promoted', { text })
+    return `${slug} M${state.memories.length + i + 1}`
+  })
+  ;(args.notes ?? []).forEach((text, i) => check(`notes[${i}]`, 'note_added', { text }))
+
+  return { appends, decisions, memories, warnings }
 }
 
 /**
@@ -189,34 +294,40 @@ function resolveWriteBackHome(ctx: ToolContext, sessionId: string): string {
  */
 export function endSession(ctx: ToolContext, args: EndSessionArgs): EndSessionResult {
   const active = ctx.session.get()
-  const endsActive = active !== null && active.id === args.session_id
-  const slug = endsActive ? active.initiative : resolveWriteBackHome(ctx, args.session_id)
+  // Omitted id = the active session (memory-lead D3): on Claude Code the
+  // server adopted it from CLAUDE_CODE_SESSION_ID before this call ran.
+  const sessionId = args.session_id ?? active?.id
+  if (sessionId === undefined) {
+    throw new ToolError(
+      'invalid_input',
+      'session_id: required — no session was adopted or started; pass the id from the injected "Session:" line',
+    )
+  }
+  const endsActive = active !== null && active.id === sessionId
+  const slug = endsActive ? active.initiative : resolveWriteBackHome(ctx, sessionId)
 
-  // Batched task changes (r1-fixes 2.1, D10): the whole list is validated
-  // first so one bad entry appends nothing — a write-back is the last thing a
-  // session does, and a half-filed batch under it would be the worst place
-  // for a partial failure. Then applied in order, BEFORE session_ended, so the
-  // fold the write-back is read by already counts them (task_done needs both
-  // halves, session-driver D5).
-  const changes = (args.tasks ?? []).map((t) => ({
-    id: t.task_id,
-    status: t.status,
-    ...(t.note !== undefined ? { note: t.note } : {}),
-  }))
-  changes.forEach((payload, i) => {
-    const check = validatePayload('task_status_changed', payload)
-    if (!check.ok) {
-      throw new ToolError('invalid_input', `tasks[${i}] (${payload.id}): ${check.errors.join('; ')}`)
-    }
-  })
-  for (const payload of changes) ctx.appendAndProject(slug, 'task_status_changed', payload)
-  const applied = args.tasks !== undefined ? { tasks_applied: changes.length } : {}
+  // The batched write-back (r1-fixes 2.1, D10 for tasks; memory-lead 1.1, D3
+  // for the rest): the WHOLE batch is planned and validated against one fold
+  // before anything appends, so one bad entry files nothing — a write-back is
+  // the last thing a session does, and a half-filed batch under it would be
+  // the worst place for a partial failure. Then appended in order, BEFORE
+  // session_ended, so the fold the write-back is read by already counts them
+  // (task_done needs both halves, session-driver D5), with ONE projection
+  // pass at the end instead of one per event.
+  const batch = planBatch(ctx, slug, args)
+  for (const { type, payload } of batch.appends) ctx.appendAndProject(slug, type, payload, { project: false })
 
   const event = ctx.appendAndProject(slug, 'session_ended', {
-    session_id: args.session_id,
+    session_id: sessionId,
     summary: args.summary,
     next_action: args.next_action,
   })
+  const applied = {
+    ...(args.tasks !== undefined ? { tasks_applied: args.tasks.length } : {}),
+    ...(batch.decisions.length > 0 ? { decisions: batch.decisions } : {}),
+    ...(batch.memories.length > 0 ? { memories: batch.memories } : {}),
+    ...(batch.warnings.length > 0 ? { warnings: batch.warnings } : {}),
+  }
 
   // Tell the WRITER, at write time (writeback-collisions 1.2). The same
   // collision already reaches the next SessionStart, but that is a fresh
@@ -235,7 +346,7 @@ export function endSession(ctx: ToolContext, args: EndSessionArgs): EndSessionRe
   const rebound = rebindBranch(ctx, slug, state)
   const bound = rebound === undefined ? {} : { rebound }
 
-  const parallel = overlappingWritebacks(state, args.session_id)
+  const parallel = overlappingWritebacks(state, sessionId)
   if (parallel.length === 0) return { ok: true, event_id: event.id, ...applied, ...bound }
 
   // Reconciling used to mean leaving a note and hoping the other session read

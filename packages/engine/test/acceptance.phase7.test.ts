@@ -74,8 +74,8 @@ describe('acceptance 1+2+4 — two interleaved sessions on ONE initiative', () =
     // each injected context block names its own id (the adopt-by-id handoff).
     const startA = handleSessionStart(fixture.root, hookStdin(A, { hook_event_name: 'SessionStart' }))
     const startB = handleSessionStart(fixture.root, hookStdin(B, { hook_event_name: 'SessionStart' }))
-    expect(startA.stdout).toContain(`Session: ${A} — when calling sofar_start_session, pass this as session_id.`)
-    expect(startB.stdout).toContain(`Session: ${B} — when calling sofar_start_session, pass this as session_id.`)
+    expect(startA.stdout).toContain(`Session: ${A} — adopted on Claude Code; else pass to sofar_start_session.`)
+    expect(startB.stdout).toContain(`Session: ${B} — adopted on Claude Code; else pass to sofar_start_session.`)
 
     // Two MCP server processes = two separate in-memory active-session boxes.
     const serverA = await connectServer(fixture.root)
@@ -325,7 +325,7 @@ describe('acceptance 3 — an unwritten session still yields a usable resume blo
     )
     expect(resume.exitCode).toBe(0)
     expect(resume.stdout).toContain(
-      'Session: phase7-session-d — when calling sofar_start_session, pass this as session_id.',
+      "Session: phase7-session-d — adopted on Claude Code; else pass to sofar_start_session.",
     )
     expect(resume.stdout).toContain(
       'Last session (claude-code, closed: prompt_input_exit) ended without write-back — derived: 2 files (src/c1.ts, src/c2.ts), 1 command, task changes: 1.1 → active',

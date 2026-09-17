@@ -324,7 +324,7 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     expect(status).toContain('# Sofar status: demo')
     expect(status).toContain('Goal: ship it')
     expect(status).toContain('Progress: 1/3 tasks done (33%) across 1 phase(s)')
-    expect(status).toContain('Active phase: Phase 1 — 1/3 tasks done')
+    expect(status).toContain('  in Phase 1 [active] 1/3')
     expect(status).toContain('Current task: 1.2 active task')
     expect(status).toContain('Next action: finish 1.2')
     expect(status).toContain('Blocked on: task 1.3')
@@ -363,7 +363,7 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     const status = renderStatus(state)
     expect(status).toContain('Recent decisions (last 5 of 8; full text in decisions.md):')
     expect(status).toContain('Earlier rejected approaches — do NOT re-propose (3 older):')
-    // window: D4..D8 with chose clipped at 120 and over clipped at 90 — separately,
+    // window: D4..D8 with chose clipped at 90 and over clipped at 70 (memory-lead D4) — separately,
     // so the alternative survives however long the chose runs
     for (const n of [4, 5, 6, 7, 8]) {
       const line = status.split('\n').find((l) => l.startsWith(`- [D${n}] `))!
@@ -396,13 +396,14 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     expect(status).toContain('- [D1] Never do the thing.')
     const ruled = status.split('\n').find((l) => l.startsWith('- [D1] 2026-07-03'))!
     const plain = status.split('\n').find((l) => l.startsWith('- [D2] 2026-07-03'))!
-    expect(ruled).toContain('(rule above)')
-    expect(plain).not.toContain('(rule above)')
+    expect(ruled).toContain('(rule below)')
+    expect(plain).not.toContain('(rule below)')
     expect(ruled.length).toBeLessThan(plain.length)
     expect(ruled).toContain(' — over alt')
     // the rule text itself is never restated in the index line
     expect(ruled).not.toContain('Never do the thing.')
-    // rule dropped by the standing budget → no marker, full chose budget
+    // memory-lead D4: with no shared focus terms the rules rank newest first,
+    // so the budget drops the OLDEST — the window's newest are all marked
     const many = Array.from({ length: 40 }, (_, i) => ({
       id: `01ARZ3NDEKTSV4RRFFQ69G5F${String(i + 1).padStart(2, '0')}`,
       ts: '2026-07-03T00:00:00.000Z',
@@ -415,8 +416,10 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     const heavy = renderStatus(state)
     expect(heavy).toMatch(/…and \d+ more \(see decisions\.md\)/)
     const last = heavy.split('\n').find((l) => l.startsWith('- [D40] 2026-07-03'))!
-    expect(last).not.toContain('(rule above)')
-    expect(last.length).toBeGreaterThan(ruled.length)
+    expect(last).toContain('(rule below)')
+    const rules = heavy.slice(heavy.indexOf('Standing constraints'))
+    expect(rules.indexOf('- [D40] Rule 40')).toBeLessThan(rules.indexOf('- [D39] Rule 39'))
+    expect(rules).not.toContain('- [D1] Rule 1 ')
   })
 
   it('decision index: the ledger yields to the hard cap so the protocol tail always renders (D11)', () => {
@@ -481,8 +484,10 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
   it('handles an empty state without noise', () => {
     const status = renderStatus(emptyState())
     expect(status).toContain('(unnamed initiative)')
-    expect(status).toContain('Progress: 0/0 tasks done (0%)')
-    expect(status).toContain('Active phase: (none)')
+    expect(status).toContain('Goal: (none recorded)')
+    // no plan → no task, phase or progress furniture (memory-lead D4)
+    expect(status).not.toContain('Progress:')
+    expect(status).not.toContain('Next task')
     expect(status.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
   })
 
@@ -503,15 +508,14 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
     expect(status).toContain('summary 29')
   })
 
-  it('repo memory (6.5, BD40): section lands in the static head — after the goal, before the phase tree — formatting kept', () => {
+  it('repo memory (6.5, BD40): section lands after the plan and before the decision index (memory-lead D4) — formatting kept', () => {
     const memory = 'Run npm test before committing.\nNever push to main directly.'
     const status = renderStatus(populatedState(), { repoMemory: memory })
     expect(status).toContain('Repo memory (.sofar/repo.md):')
     expect(status).toContain(memory) // multi-line content preserved verbatim
-    // D12: static head — rarer to change than any state-derived section
-    expect(status.indexOf('Repo memory')).toBeGreaterThan(status.indexOf('Goal:'))
-    expect(status.indexOf('Repo memory')).toBeLessThan(status.indexOf('Phases:'))
     expect(status.indexOf('Phases:')).toBeLessThan(status.indexOf('Progress:'))
+    expect(status.indexOf('Repo memory')).toBeGreaterThan(status.indexOf('Progress:'))
+    expect(status.indexOf('Repo memory')).toBeLessThan(status.indexOf('Recent decisions'))
   })
 
   it('repo memory is clipped to its own budget with a marker; missing/blank omits the section', () => {
@@ -603,7 +607,7 @@ describe('renderStatus — SessionStart context block (3.6, BD3)', () => {
   it('session id line (7.1, BD43): lands in the volatile tail — after the decisions, before the read-back — clipped, cap intact', () => {
     const status = renderStatus(populatedState(), { sessionId: 'claude-sess-42' })
     expect(status).toContain(
-      'Session: claude-sess-42 — when calling sofar_start_session, pass this as session_id.',
+      "Session: claude-sess-42 — adopted on Claude Code; else pass to sofar_start_session.",
     )
     // D12: per-session by definition, so it is the last thing that changes
     expect(status.indexOf('Session: claude-sess-42')).toBeGreaterThan(status.indexOf('Next ids:'))
@@ -645,7 +649,7 @@ describe('standing constraints — verbatim render contract (drift-hardening 2.1
     }
   }
 
-  it('renders a rule verbatim under the goal, un-clipped and immune to the last-5 window', () => {
+  it('renders a rule verbatim, un-clipped, last before the read-back (memory-lead D4), and immune to the last-5 window', () => {
     const state = populatedState()
     // Rule on the FIRST decision, then six rule-less ones: the last-5 recent
     // window drops D1 entirely — the standing section must not.
@@ -654,9 +658,9 @@ describe('standing constraints — verbatim render contract (drift-hardening 2.1
 
     expect(status).toContain('Standing constraints — obey verbatim (1):')
     expect(status).toContain(`- [D1] ${LONG_RULE}`)
-    // placement: the normative frame sits between Goal and Progress
-    expect(status.indexOf('Standing constraints')).toBeGreaterThan(status.indexOf('Goal:'))
-    expect(status.indexOf('Standing constraints')).toBeLessThan(status.indexOf('Progress:'))
+    // placement: the normative frame is the last section before the read-back
+    expect(status.indexOf('Standing constraints')).toBeGreaterThan(status.indexOf('Next ids:'))
+    expect(status.indexOf('Standing constraints')).toBeLessThan(status.indexOf('Read-back:'))
     // the recent window did age D1 out — the premise of the immunity claim
     expect(status).toContain('Recent decisions (last 5 of 7; full text in decisions.md):')
     expect(status).not.toContain('choice 1 ')
@@ -676,7 +680,7 @@ describe('standing constraints — verbatim render contract (drift-hardening 2.1
     expect(status).toContain('Standing constraints — obey verbatim (40):')
     expect(status).toMatch(/…and \d+ more \(see decisions\.md\)/)
     // the standing block only — the decision index (D11) also leads with [D<n>]
-    const standingBlock = status.slice(status.indexOf('Standing constraints'), status.indexOf('Progress:'))
+    const standingBlock = status.slice(status.indexOf('Standing constraints'), status.indexOf('Read-back:'))
     const ruleLines = standingBlock.split('\n').filter((l) => l.startsWith('- [D'))
     expect(ruleLines.length).toBeGreaterThan(0)
     expect(ruleLines.length).toBeLessThan(40)
@@ -714,9 +718,10 @@ describe('standing constraints — verbatim render contract (drift-hardening 2.1
     expect(renderFullStatus(populatedState())).not.toContain('Read-back:')
   })
 
-  it('cache-stable layout (r1-fixes 2.3, D12): static head, record state, volatile tail; notices ride the tail; heavy record keeps the tail', () => {
+  it('digest order (memory-lead D4, replacing r1-fixes D12): the task first, the constraints last; notices ride the tail; heavy record keeps the end', () => {
     const state = populatedState()
     state.decisions = [decisionWithRule(1, 'Never do the thing.'), decisionWithRule(2)]
+    state.memories = [{ id: 'm1', ts: '2026-07-04T00:00:00.000Z', text: 'Run the suite with npm test.' }]
     state.sessions = [
       { id: 'sess-0', tool: 'claude-code', unwritten: 0, started: '2026-07-05T00:00:00.000Z', ended: '2026-07-05T01:00:00.000Z', summary: 'wired it', next_action: 'finish 1.2' },
     ]
@@ -729,29 +734,33 @@ describe('standing constraints — verbatim render contract (drift-hardening 2.1
       notices: ['⚠ Cold resume: ~2h since this record\'s last event', '', 'sofar: 3 commit(s) of this record are unverified'],
     })
     const at = (s: string) => status.indexOf(s)
-    // 1. static head
-    expect(at('Goal:')).toBeLessThan(at('Standing constraints'))
-    expect(at('Standing constraints')).toBeLessThan(at('Repo memory'))
-    expect(at('Repo memory')).toBeLessThan(at('Phases:'))
-    // 2. record state
-    expect(at('Phases:')).toBeLessThan(at('Progress:'))
-    expect(at('Progress:')).toBeLessThan(at('Next action:'))
-    expect(at('Next action:')).toBeLessThan(at('Last session'))
-    expect(at('Last session')).toBeLessThan(at('Recent decisions'))
-    expect(at('Recent decisions')).toBeLessThan(at('Next ids:'))
-    // 3. volatile tail, in this order, then the read-back and footer
-    expect(at('Next ids:')).toBeLessThan(at('Adjacent records'))
-    expect(at('Adjacent records')).toBeLessThan(at('Session: sess-a'))
-    expect(at('Session: sess-a')).toBeLessThan(at('Git: main @ abc1234'))
-    expect(at('Git: main @ abc1234')).toBeLessThan(at('⚠ Cold resume:'))
-    expect(at('⚠ Cold resume:')).toBeLessThan(at('sofar: 3 commit(s)'))
-    expect(at('sofar: 3 commit(s)')).toBeLessThan(at('Read-back:'))
-    expect(at('Read-back:')).toBeLessThan(at('(generated by sofar'))
+    for (const [a, b] of [
+      ['Goal:', 'Current task:'],
+      ['Current task:', 'Next action:'],
+      ['Next action:', 'Last session'],
+      ['Last session', 'Phases:'],
+      ['Phases:', 'Progress:'],
+      ['Progress:', 'Memory (1;'],
+      ['Memory (1;', 'Repo memory'],
+      ['Repo memory', 'Recent decisions'],
+      ['Recent decisions', 'Next ids:'],
+      ['Next ids:', 'Adjacent records'],
+      ['Adjacent records', 'Session: sess-a'],
+      ['Session: sess-a', 'Git: main @ abc1234'],
+      ['Git: main @ abc1234', '⚠ Cold resume:'],
+      ['⚠ Cold resume:', 'sofar: 3 commit(s)'],
+      ['sofar: 3 commit(s)', 'Standing constraints'],
+      ['Standing constraints', 'Read-back:'],
+      ['Read-back:', '(generated by sofar'],
+    ] as const) {
+      expect(at(a), `${a} before ${b}`).toBeGreaterThan(-1)
+      expect(at(a), `${a} before ${b}`).toBeLessThan(at(b))
+    }
     // blank notices are dropped, non-blank ones render as given
     expect(status).not.toMatch(/\n\n\n/)
 
-    // Byte-stability across sessions (felt-cost 1.2, restated by D12): same
-    // state, a different session id, sha and notice → identical up to the tail.
+    // Same state, a different session id, sha and notice: identical up to the
+    // per-session lines, and the constraints block is the same bytes.
     const other = renderStatus(state, {
       repoMemory: 'Run npm test.',
       sessionId: 'sess-b',
@@ -761,8 +770,7 @@ describe('standing constraints — verbatim render contract (drift-hardening 2.1
     })
     const tailStart = status.indexOf('Session: sess-a')
     expect(other.startsWith(status.slice(0, tailStart))).toBe(true)
-    // and without any per-session input at all the head is the same bytes
-    expect(renderStatus(state, { repoMemory: 'Run npm test.' }).startsWith(status.slice(0, status.indexOf('Adjacent records')))).toBe(true)
+    expect(other.slice(other.indexOf('Standing constraints'))).toBe(status.slice(at('Standing constraints')))
 
     // Heavy record: the ledger yields to the measured tail, so a long notice
     // never pushes the read-back past the cap.

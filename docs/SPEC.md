@@ -160,7 +160,9 @@ task_added · task_status_changed (id, status:
 pending|active|done|blocked|dropped, note?) · decision_logged (chose, over,
 because, rule? — optional standing-constraint clause, one short imperative;
 presence makes the decision a standing constraint with a verbatim-render
-contract: never clipped, never aged out; drift-hardening D1 — guard? — the
+contract: never clipped, never aged out; drift-hardening D1 — quote? — the
+operator's exact words the rule came from, ≤300 chars, valid ONLY alongside
+`rule`; see §Rule fidelity, memory-lead D2 — guard? — the
 mechanical half of that same clause, a `path:`/`cmd:` glob list valid ONLY
 alongside `rule`; see §Decision guards, drift-hardening D3 — supersedes? —
 the bare handle `D<n>` of an earlier decision in this record that this one
@@ -569,6 +571,112 @@ action, last envelope-valid event id — ordered by last-event ulid
 DESCENDING (record recency), never-logged initiatives last by slug asc;
 tolerant like the fold (unreadable log or corrupt bindings.json → warning
 + thinner entry, never fatal); zero new event types.
+
+### Rule fidelity (memory-lead 1.2, D2)
+A `rule` is the agent's restatement of what the operator said, and a
+restatement can add law nobody made (round 1: "Reject anything else" became
+"…reject anything else with 4xx", and S9 obeyed the 4xx). `quote` carries the
+operator's own words beside the rule — non-empty, at most RULE_QUOTE_MAX (300)
+chars, rejected without `rule` — and core/rule-fidelity.ts names what the rule
+adds to them. It is pure: no env, no clock, no locale.
+
+SPECIFICS of a rule, in rule order, deduplicated case-insensitively:
+backticked, straight double-quoted and curly double-quoted spans first, each
+one `value` holding its whitespace-collapsed inner text. The text between
+spans splits on whitespace; each token loses leading `( [ { < ' " ‘ “` and
+trailing `) ] } > ' " ’ ” , ; : . ! ?`, then classifies by the first match:
+`status` — `^([1-5][0-9]{2}|[1-5]xx)$` (case-insensitive); `path` — a `/`
+with `[\w.~-]` before and `[\w.*-]` after, a leading `/` followed by
+`[\w.-]`, or `^[\w-]{2,}(\.[\w-]+)*\.[A-Za-z][A-Za-z0-9]{0,4}$`; `value` —
+any digit, except a record handle `^[DM][1-9][0-9]*$`. Anything else is not
+a specific. A specific is UNQUOTED when its lowercased text does not occur in
+the lowercased, whitespace-collapsed quote at a term boundary: where the
+specific starts (ends) with `[A-Za-z0-9]`, the quote character before (after)
+the occurrence must not be one.
+
+Render (every rule surface — the digest's and `sofar status`'s Standing
+constraints, decisions.md, the review packet): a rule with a quote renders
+`<rule> — operator: "<quote>"`, then ` (not in the operator's words: <a, b>)`
+when any specific is unquoted; both texts whitespace-collapsed, neither
+clipped. When an IN-FORCE rule carries a quote, the Standing constraints
+header reads `Standing constraints — obey verbatim; where a rule quotes the
+operator, the quote decides (<N>):`; otherwise it is unchanged, so a
+quote-less record renders byte-identically. decisions.md renders `rule:
+**<rule>** — operator: "<quote>"[ (not in …)] — chose …`. Guard notices are
+unchanged.
+
+WARN, NEVER REFUSE: sofar_log_decision returns, and `sofar event append
+--type decision_logged` prints in its JSON body, `warnings: ["D<n>'s rule
+states <a, b>, which the operator's quote does not. Every digest flags it; if
+the operator did not say it, log the rule as they worded it with supersedes
+D<n>."]` after the append, where `D<n>` is the ordinal the decision took.
+Absent when nothing is unquoted or there is no quote.
+
+### Digest composition (memory-lead 1.3, D4)
+renderStatus — the SessionStart block and the get_state digest — replaced
+r1-fixes D12's volatility order with what a resuming session needs at the two
+ends it weights most: the next task's spec FIRST, the standing constraints
+LAST. renderFullStatus (`sofar status`) and every projection are unchanged.
+HARD CAP STATUS_CHAR_LIMIT = 6,000.
+
+ORDER (a section with nothing to say renders nothing; blocks are separated by
+one blank line):
+1. `# Sofar status: <slug>` (lane: `# Sofar: quick-work lane (<slug>)`),
+   `Goal: <≤400>`, and in the lane its three how-lines.
+2. FOCUS TASK (not in the lane): the active phase's first `active` task, else
+   its first `pending`, else its first `blocked`; with none, the same pick in
+   each phase not `done`/`dropped`, in plan order. `Current task:` (status
+   active) or `Next task:` `<id> <title ≤1,000>`, then `  in <phase ≤100>
+   <phase mark> <done/total>`; for an active task the `  files:` and
+   `  tests:` lines (speed T4, r1-fixes D24); then up to 6 other open tasks
+   of that phase as `  - <id> <title ≤80>` (` (active)`/` (blocked)` when not
+   pending) and `  - …and N more (plan.md)`.
+3. `Next action: <≤500>`, the parallel write-backs, the staleness line, the
+   notes since write-back, `Blocked on:` and the concurrent-edit lines — as
+   before.
+4. `Last session (…):` with its summary (YIELDING, precedence 4, preferred
+   450; omitted when fewer than 120 chars remain for it); `Driven:`; the
+   lane's recent quick work; the derived-resume and unwritten-session lines.
+5. `Phases:` (open phases itemized ≤12, done and dropped collapsed) and
+   `Progress: …`.
+6. MEMORY (YIELDING, precedence 1, preferred 1,100): this record's
+   memory_promoted entries not superseded, header `Memory (<n>; full text in
+   memory.md):`, ranked by RELEVANCE to the focus; the first two that share a
+   term with it as `- [M<n>] <text ≤280>`, then every other one as `- [M<n>]
+   <text ≤80>` while they fit (a 40-char overflow reserve held), then
+   `- …and N more in memory.md`.
+7. REPO MEMORY (YIELDING, precedence 2, preferred 600; omitted under 300):
+   `Repo memory (.sofar/repo.md):` and the text clipped with the truncation
+   marker. The SessionStart hook strips the `sofar init` stub preamble before
+   passing it; a TOP-LEVEL bullet (`- ` or `* ` at column 0, with its
+   indented continuation lines) naming `<slug> M<n>` for a memory section 6
+   rendered is dropped as that memory's copy.
+8. DECISION INDEX (YIELDING, precedence 3, preferred 1,450 — window ≤1,000
+   plus ledger ≤450; §MCP tools gives the line shapes): the ledger's header
+   and count pointer are reserved first when a ledger exists, the window
+   keeps its NEWEST lines that fit, and ledger entries fill what remains
+   (40-char overflow reserve) before `- …and N more (see decisions.md)`.
+   HEADS: a chose or over is whitespace-collapsed, cut at the earliest of
+   `; `, ` — `, `: `, ` (` found at index ≥24, then clipped.
+9. `Next ids: …`, `Adjacent records …`, `Session: …` and `Git: …`, then the
+   hook notices — as before.
+10. STANDING CONSTRAINTS (PROTECTED): standingConstraintLines with a focus —
+    ranked by RELEVANCE, ties newest (highest ordinal) first — under the
+    2,000-char whole-entry budget, the first entry always whole.
+11. `Read-back: …` (PROTECTED; unchanged condition), then the footer
+    (PROTECTED).
+
+RELEVANCE: the focus is the focus task's title, its phase's name and the next
+action (empty in the lane); an item's score is the number of distinct
+core/lexicon stems (lexicalCounts) it shares with the focus; order is score
+descending, then ordinal descending. A rule's text is its rule and quote.
+
+YIELD: every fixed and protected block is measured (joined lines plus one
+newline each); the yielding blocks are then rendered in precedence order,
+each with min(preferred, 6,000 − everything measured so far − 2), a
+non-positive budget rendering nothing. If the unprotected text still exceeds
+6,000 − the protected text − 3, it is cut to fit with `…truncated — run sofar
+status for full detail` on its own line, and the protected end follows whole.
 
 ## Record graph (repo-wide adjacency derivation — record-graph 1.1)
 `buildGraph(rootDir)` (core/graph.ts) is ONE mechanical, read-side adjacency
@@ -1477,6 +1585,93 @@ The invariant across all three: NO signal may be the only way a session can
 learn something. Anything a Tier 1 line reports must also be derivable by a
 Tier 3 session that simply asks.
 
+Cursor is Tier 2 since r1-fixes Phase 6: it runs every shim, and publishes no
+live-session registry (§Cursor host).
+
+## Cursor host (r1-fixes Phase 6, D33/D35 ruling, D34 contract)
+sofar serves Cursor with the SAME shims, the same MCP server and the same
+protocol blocks as Claude Code. Everything Cursor-specific is two files that
+`sofar init` writes and one module (`cli/host.ts`) that converts at the hook
+dispatch. Every fact below was read from cursor-agent 2026.09.10-fd3934a's
+bundle and Cursor.app 3.20.21; none was captured from a live run, and a live
+end-to-end is r1-fixes 6.9's job.
+
+**What Cursor reads.** Hooks: `.cursor/hooks.json` (`{version: 1, hooks:
+{<event>: [{command, matcher?, loop_limit?, timeout?, failClosed?}]}}`; an
+unknown event name invalidates the whole file) in the project, the user's
+home and enterprise locations, PLUS Claude Code's `.claude/settings.json`
+and `.claude/settings.local.json` as "third-party" hooks — always in the
+CLI, and in the IDE behind a setting that is on by default. Project hooks
+run with cwd = project root through a shell, with `CURSOR_PROJECT_DIR`,
+`CLAUDE_PROJECT_DIR`, `CURSOR_VERSION` and `CURSOR_TRANSCRIPT_PATH` set;
+no variable carries the conversation id. MCP: `.cursor/mcp.json` and
+`~/.cursor/mcp.json` only — a root `.mcp.json` is never read for a project,
+which is why round 1's Cursor cells made 0 sofar MCP calls. A project server
+starts only after the operator approves it once (IDE prompt, or
+`cursor-agent mcp enable sofar`); approval is keyed on a hash of the entry,
+so editing it asks again. Rules: `AGENTS.md` always, `CLAUDE.md` and
+`CLAUDE.local.md` whenever third-party loading is on, so both protocol
+blocks load in one Cursor session.
+
+**The dialect gap, and why the shims alone did not work.** Cursor hands
+every hook — including an imported Claude hook — ITS OWN payload: event names
+in camelCase, `session_id` equal to `conversation_id`, `cursor_version`,
+tools named `Shell` / `Write` / `Read` / `Delete` / `MCP:<tool>` (Edit folds
+into Write), `error_message` on a failure, `loop_count` on stop. And it
+reads only JSON output: `additional_context` (sessionStart,
+beforeSubmitPrompt, postToolUse, postToolUseFailure) and `followup_message`
+(stop). Plain stdout is dropped and exit 2 on stop does nothing. Round 1's
+Cursor cells show the result: 175 file_touched (Write matched by accident),
+0 command_run (Shell never matched Bash), no digest reaching the model, and
+every hook session recorded as claude-code.
+
+**The conversion (D34).** `forHost` wraps every entry of the hook table, so
+the full CLI and the hot path both serve it. A payload is Cursor's when it
+carries a string `cursor_version` — stdin only, never the environment, so a
+Claude Code session started in Cursor's terminal stays Claude Code. IN:
+the payload keeps every field and gains the Claude Code names the handlers
+read — tool Shell→Bash, `error_message`→`error`, `tool_output`→
+`tool_response.stdout`, `loop_count > 0`→`stop_hook_active`, and
+`conversation_id`→`session_id` when that is absent. OUT: session-start,
+user-prompt and post-tool context become `{"additional_context": …}`; the
+Stop gate's exit 2 becomes exit 0 with `{"followup_message": <the block
+message>}`, which Cursor queues as the agent's next prompt. Cursor drops a
+whole carrier over 10,000 characters (after trimming), so per-prompt and
+per-tool context is clipped to that; the session-start digest is already
+held to 10,000, and no client-side cap on the sessionStart carrier was found
+in the bundle (whether the server applies one is unverified). A Claude Code
+invocation passes through untouched and byte-identical. Session
+registration and diagnostics rows carry tool `cursor` (diagnostics add the
+version).
+
+**One firing per event (D34).** Cursor drops an imported Claude hook only
+when one of its own hooks has the same event AND a byte-identical command
+string; otherwise both fire, in parallel. So `.cursor/hooks.json` names each
+shim by exactly the command `.claude/settings.json` uses —
+`$CLAUDE_PROJECT_DIR/.claude/hooks/<shim>`, which resolves because Cursor
+sets that variable for every hook: sessionStart, beforeSubmitPrompt,
+postToolUse and postToolUseFailure (matcher `Shell|Write`), stop
+(`loop_limit: 1` — held once, never looped; an imported Claude stop hook
+has no loop cap), sessionEnd. The native entries are needed even with the
+import: Cursor's CLI UI fires stop and prompt hooks only when hooks.json
+defines that event, and Claude's PostToolUseFailure is not imported at all.
+Merge rules are settings.json's: an entry already running our command is
+left as the user has it, unparseable JSON aborts init (Cursor accepts
+comments in hooks.json; such a file must be wired by hand), `sofar uninit`
+strips exactly our entries and `doctor` reports each file. A repo set up
+for Cursor WITHOUT Claude Code (r1-fixes 7.1, D36) has no settings.json to
+dedupe against, so its entries run `$CURSOR_PROJECT_DIR/.cursor/hooks/sofar/<shim>`
+and carry no `.claude/`; adding Claude Code later repoints them to the
+`$CLAUDE_PROJECT_DIR/.claude/hooks/` form, restoring the byte-identical rule.
+
+**Limits stated, not worked around.** Headless `cursor-agent -p` fires no
+stop, beforeSubmitPrompt or afterAgentResponse hook, so no write-back gate
+reaches a print-mode session; a driven Cursor session's write-back is judged
+from the fold, as for every adapter (session-driver D3). A resumed chat
+(`--resume`) gets no sessionStart context. The MCP server cannot learn the
+conversation id from its environment, so `sofar_start_session` still takes
+the id from the injected Session line.
+
 ## Derived index (record-index — local, incremental, never truth)
 Every cross-record question — which initiatives hold open sessions, who else
 has this file, what guards this path, what else bears on this work — costs a
@@ -1503,6 +1698,9 @@ rests on.
   reach.json          # TIER 1 REACH — clipped prose, citation handles, terms
   shipwatch.json      # NOT A TIER — per-session origin/<branch> marks
                       #   (commit-attribution 3.4); own version, no cursor
+  session.json        # NOT A TIER — the live-session pointer (r1-fixes
+                      #   D30): {session, writer: hook|cli, ts}, read by
+                      #   `sofar event append` with no --session
   locks/              # NOT A TIER — transient registration locks
                       #   (r1-fixes 1.2), <slug>.<sha256(session)>.lock,
                       #   removed on release; a crash leaves one that goes
@@ -2080,17 +2278,38 @@ re-imports an EARLIER line, which the fast path refuses as
 
 ## MCP tools (server name: sofar)
 
-**Server instructions (r1-fixes 2.1, D10).** The server declares MCP
-`instructions` at initialize — SERVER_INSTRUCTIONS in mcp/server.ts, which
-Claude Code renders into the agent's system prompt. Three sentences, under
-900 chars: the record is already injected by the SessionStart hook so
-sofar_get_state is not re-read; a client that defers tools loads the CORE
-five (start_session, update_task, log_decision, remember, end_session) in
-ONE ToolSearch `select:` call and the rest on demand; start_session comes
-first with the injected session id, decisions and facts are logged as they
-happen, task changes at wrap-up ride end_session's `tasks`, and every
-session ends with end_session. The protocol block carries the loop itself;
-instructions ride every initialize, so they stay short.
+**Server instructions (r1-fixes 2.1, D10; memory-lead 1.1, D3).** The
+server declares MCP `instructions` at initialize — serverInstructions(adopted)
+in mcp/server.ts, which Claude Code renders into the agent's system prompt.
+Four sentences, under 900 chars either way: the record is already injected by
+the SessionStart hook so sofar_get_state is not re-read; with an adopted host
+session, sofar_start_session is only for re-homing, otherwise it comes first
+with the injected session id; the session writes back ONCE, at wrap-up, and
+sofar_end_session carries its decisions, task changes (a new task with its
+title), phase changes, memories and notes, with sofar_log_decision mid-session
+only for a decision a concurrent session must see first; review, close and
+find are CLI. SERVER_INSTRUCTIONS is the non-adopted text. The protocol block
+carries the loop itself; instructions ride every initialize, so they stay
+short.
+
+**Session adoption and always-load (memory-lead 1.1, D3).** `sofar mcp`
+passes CLAUDE_CODE_SESSION_ID (set by Claude Code ≥2.1.154 on its stdio MCP
+servers, ≥2.1.163 on resume — the id its hooks receive) to
+createSofarServer as `hostSessionId`; the serve daemon and tests never do.
+Before any tool other than sofar_start_session runs while no session is
+active, the server calls adoptHostSession: the session's HOME initiative
+(homeInitiative) wins, the branch binding is the fallback, a known id is
+pinned with no append and an unknown one is registered through
+registerSession with {tool: "claude-code"} — exactly sofar_start_session
+with that id and no `initiative`. Best-effort: when neither home nor branch
+resolves, nothing is pinned and the tool raises its own typed error. An
+explicit sofar_start_session always wins and re-homes. tools/list carries
+`_meta: {"anthropic/alwaysLoad": true}` on ALWAYS_LOADED_TOOLS —
+sofar_end_session and sofar_log_decision — which Claude Code honours by
+skipping tool-search deferral for that tool (verified in 2.1.270–2.1.274,
+memory-lead M1); the other seven stay deferred. The SessionStart `Session:`
+line reads `Session: <id> — adopted on Claude Code; else pass to
+sofar_start_session.`
 - sofar_get_state({initiative?, view?}) → progressive disclosure (token-opt):
   view "digest" (DEFAULT) returns the summary-dense orientation projection as
   text (goal, active/next task, next action, phase summary, last-session
@@ -2128,24 +2347,23 @@ instructions ride every initialize, so they stay short.
   is about to log without a fold, a get_state or a `sofar find`; digest-only
   like the read-back line, and rendered only once the record holds a
   decision or a memory (a fresh record's D1/M1 needs no line).
-  Decision index (r1-fixes 2.2, D11) — index-first, nothing rendered twice:
+  COMPOSITION (memory-lead 1.3, D4 — §Digest composition gives the order,
+  the budgets and the yield rules; what follows is the decision index inside
+  it). Decision index (r1-fixes 2.2, D11) — index-first, nothing rendered twice:
   `Recent decisions (<N> | last 5 of <N>; full text in decisions.md):` then
-  one line per decision in the last-5 window, `- [D<n>] <date> <chose ≤120>
-  — over <over ≤90>` — fields clipped SEPARATELY so the rejected alternative
+  one line per decision in the last-5 window, `- [D<n>] <date> <chose head
+  ≤90> — over <over head ≤70>` (heads per §Digest composition) — fields clipped SEPARATELY so the rejected alternative
   survives however long `chose` runs; `because` is on demand in decisions.md
   (the old 280-char `chose … over … — because` concatenation clipped inside
   `chose` on every real record, so the rationale it promised was already
   absent); a placeholder over (`(no alternative recorded)`) renders no over
-  clause. A decision whose rule rendered in Standing constraints above is
-  marked `(rule above)` with a 60-char chose — the rule IS its operative
+  clause. A decision whose rule rendered in Standing constraints below is
+  marked `(rule below)` with a 60-char chose head — the rule IS its operative
   content, and the index does not restate it. Then `Earlier rejected
-  approaches — do NOT re-propose (<K> older):` lists `- [D<n>] <over ≤90>`
+  approaches — do NOT re-propose (<K> older):` lists `- [D<n>] <over head ≤70>`
   for decisions OUTSIDE the window only (real alternatives only), so no
   `over` text appears twice and a record of ≤5 decisions has no ledger. The
-  ledger is the section that yields to the hard cap: its budget is the
-  smaller of 2,800 chars and what the 10,000-char limit leaves after a
-  400-char reserve for the protocol tail, so `Next ids`, the read-back line
-  and the footer render whenever everything above the ledger fits.
+  window and the ledger yield together (§Digest composition).
   Retirement (r1-fixes 3.2, D25): a decision a later
   one superseded, or scoped by `until` to a task that has resolved, leaves
   Standing constraints, the window and the ledger — the window is the last
@@ -2174,7 +2392,9 @@ instructions ride every initialize, so they stay short.
   sessions/<id>.md while its event still stands in the log. Events after a
   session_ended are already routine (hooks emit them) and a repeat
   session_ended is legal and last-wins.
-  ALWAYS called, even though get_state at start is not (speed-2 T5a): the
+  Called whenever no session is ADOPTED (memory-lead D3: Claude Code's
+  `sofar mcp` adopts CLAUDE_CODE_SESSION_ID, see §MCP tools), even though
+  get_state at start is not (speed-2 T5a): the
   call's load-bearing effect is ctx.session.set(), not the event. Without an
   active session, resolveWriteInitiative falls back to the branch binding —
   which moves mid-session — so writes land wherever the branch now points,
@@ -2182,15 +2402,35 @@ instructions ride every initialize, so they stay short.
   task changes from the session (sessions/<id>.md loses them; the Stop
   write-back linkage breaks). That is the record-integrity misroute class,
   and the side-index workaround for it is already rejected.
-- sofar_end_session({session_id, summary, next_action, tasks?}) → {ok,
-  event_id, tasks_applied?, parallel_writebacks?, rebound?}  # the write-back.
-  `tasks` (r1-fixes 2.1, D10) is an ordered list of {task_id, status, note?}
-  — sofar_update_task's fields and rules — validated AS A WHOLE before any
-  append (one bad entry files nothing, not the good ones and not the
-  write-back: `invalid_input` naming the entry), then appended in order under
-  the session BEFORE session_ended, so the fold the write-back is read by
-  already counts them (task_done needs both halves, session-driver D5).
-  `tasks_applied` is present iff `tasks` was passed; without it the result is
+- sofar_end_session({session_id?, summary, next_action, tasks?, phases?,
+  decisions?, memories?, notes?}) → {ok, event_id, tasks_applied?,
+  decisions?, memories?, warnings?, parallel_writebacks?, rebound?}  # the
+  write-back. `session_id` is optional since memory-lead D3: omitted, the
+  ACTIVE session (adopted or started) is ended; with none, `invalid_input`
+  names the injected "Session:" line.
+  THE BATCH (r1-fixes 2.1, D10 for `tasks`; memory-lead 1.1, D3 for the rest)
+  is planned and validated AS A WHOLE against one fold before any append —
+  one bad entry files nothing, not the good ones and not the write-back:
+  `invalid_input` naming the entry (`tasks[1] (9.9): …`). Entries:
+  `tasks` {task_id, status, note?, title?, phase?} — a task the plan has
+  appends task_status_changed; one it lacks WITH a title appends task_added
+  {phase, id, title, status} into `phase` (resolved like
+  sofar_update_phase; default the active phase), plus a task_status_changed
+  carrying `note` when one is given; one it lacks WITHOUT a title is refused
+  (the fold would skip it with a warning). `phases` {phase, status, note?} —
+  resolved and idempotent exactly as sofar_update_phase. `decisions` —
+  sofar_log_decision's arguments minus `initiative`, checked by its input
+  validator, the decision_logged payload validator and the D31 reversal
+  check against the record PLUS the batch's earlier decisions. `memories`
+  and `notes` — non-empty strings, appended as memory_promoted {text} and
+  note_added {text}. Appended in order — tasks, phases, decisions, memories,
+  notes — under the session BEFORE session_ended, with projections
+  regenerated ONCE (on the session_ended append), so the fold the write-back
+  is read by already counts them (task_done needs both halves,
+  session-driver D5). `tasks_applied` is present iff `tasks` was passed;
+  `decisions` lists the `D<n>` handles and `memories` the `<slug> M<n>`
+  handles the batch took, and `warnings` carries §Rule fidelity's warning
+  for each batched rule; each is omitted when empty, so a bare write-back is
   byte-identical to before. `rebound` names the
   branch binding this write-back moved ({branch, from, to}), omitted when
   none moved — the rebind contract and its four guards are stated with the
@@ -2234,8 +2474,14 @@ instructions ride every initialize, so they stay short.
   state the record must be able to hold, and it is precisely what doctor's
   stale-phase axis and the close audit's phases_unresolved finding (§Review)
   report.
-  `phase` is the phase NAME, matched EXACTLY against the folded plan:
+  `phase` is the phase NAME, matched against the folded plan:
   plan_updated carries no phase ids, so the name is the only handle there is.
+  Since r1-fixes D32 it resolves, in order: the exact name; the name in any
+  case with whitespace collapsed, when unique; a bare number or `Phase <n>`
+  to the one phase labelled `Phase <n>` (position only when no phase name
+  carries such a label). The plan's own name is what gets recorded. The same
+  resolution guards `sofar event append --type phase_status_changed`, whose
+  miss is now refused the same way instead of minting a phase.
   A name that matches nothing is an invalid_input error naming the phases
   that do exist — NEVER the fold's create-on-miss, which is correct for a
   fold (never lose a logged fact) and wrong for a tool (a typo would mint a
@@ -2247,12 +2493,22 @@ instructions ride every initialize, so they stay short.
   abandonment with no stated reason reads as something quietly forgotten.
   There is deliberately no `sofar phase` CLI sibling (D1): the
   MCP-less dialect reaches the same event through `sofar event append`.
-- sofar_log_decision({initiative?, chose, over, because, rule?, guard?}) → ok
+- sofar_log_decision({initiative?, chose, over, because, rule?, quote?, guard?}) → ok, warnings?
   # rule (drift-hardening D1): standing-constraint clause, rendered verbatim
   # on every surface — never clipped, never aged out of the digest
+  # quote (memory-lead D2): the operator's exact words the rule came from;
+  # rendered beside it, and `warnings` names the status codes, paths and
+  # values the rule adds (§Rule fidelity). Never a refusal.
   # guard (drift-hardening D3): the machine-checkable half of that rule —
   # `path:`/`cmd:` globs (§Decision guards). Requires `rule`; a malformed
   # guard fails payload validation and appends nothing. Warns, never blocks.
+  # REVERSAL CHECK (r1-fixes D31), here and on `sofar event append --type
+  # decision_logged`, before any append: a decision whose distinguishing terms
+  # (chose minus over, over minus chose; core/lexicon's tokenizer) land on a
+  # STANDING decision's over and chose in the same record — overlap ≥ 1/3 of
+  # the smaller set, both directions, label-sized clauses (≤24 terms) only —
+  # is refused as invalid_input naming each reversed D<n>, unless `supersedes`
+  # names it or `because` cites it as a word (a narrower exception).
 - sofar_update_plan({initiative?, plan}) → ok   # full-structure replace;
   an omitted status means `pending`, NOT unchanged — restate every status
   you intend to keep, and expect a fold warning if a resolved one is dropped.
@@ -2549,6 +2805,9 @@ initiatives:` suffix, or a `sofar new` hint when none exist
 (initiative-list 2.2): the dead-end orients instead of blocking.
 
 ## Hooks (installed by `sofar init` as standalone scripts in .claude/hooks/)
+Claude Code runs them from .claude/settings.json and Cursor from
+.cursor/hooks.json; Cursor's payloads and outputs are converted at the
+dispatch, and every behaviour below holds for both hosts (§Cursor host).
 - SessionStart shim → `sofar event session-start` then prints the status
   projection to stdout (context injection). The block carries a
   `Session: <id> — when calling sofar_start_session, pass this as
@@ -2664,7 +2923,8 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   session; D6 forbids this on the per-prompt path and it is deliberately not
   placed there. Best-effort: any failure is silence.
   HARD LIMIT:
-  output ≤10,000 chars — projection generator must guarantee this.
+  output ≤6,000 chars (memory-lead D4; 10,000 before) — projection generator
+  must guarantee this, cutting before the protected end (§Digest composition).
 - UserPromptSubmit shim (felt-cost 4.1/4.2, D5) → the batch-complete nudge:
   when the prompt's session_id is registered AND sessionDebt(state, me) —
   THIS session's own unwritten mutations plus unattributed drift, the same
@@ -2904,6 +3164,19 @@ initiatives:` suffix, or a `sofar new` hint when none exist
   or when it cannot be created, the section runs unlocked (BD22 — the worst
   case is the duplicate the fold already skips). A registration in ANOTHER
   initiative is a different key, so re-homing is unchanged.
+  ONE ID PER LAUNCH (r1-fixes D30): idempotence cannot merge two ids, so
+  SessionStart, UserPromptSubmit, PostToolUse and PostToolUseFailure write
+  the host's session_id to `.sofar/.index/session.json` (writer `hook`),
+  and SessionEnd removes it while it still names that session.
+  `sofar event append` with no `--session` joins it: a session_started
+  adopts the pointer's id unless that session has ended (session_ended or
+  session_closed) in the target record, otherwise it mints `cli-<ulid>` and
+  writes it as the pointer (writer `cli`); every other type adopts the
+  pointer, or records `cli` when there is none. The result JSON then adds
+  `session`. An explicit `--session` always wins and never moves the
+  pointer. Last writer wins, so two sessions sharing one worktree pass
+  their own `--session`. Derived, never truth: no event records the
+  pointer, and a pointer write never changes a hook's output or exit.
   SELF-RECORDING COMMANDS ARE EXEMPT (record-hygiene D1): a Bash command
   whose every shell segment leads with `git` or `sofar` appends NOTHING.
   Both keep their own ledger — git its history, sofar the record itself —
@@ -3066,13 +3339,51 @@ initiatives:` suffix, or a `sofar new` hint when none exist
 Shims contain no logic — they invoke the sofar CLI.
 
 ## CLI
-- `sofar init` — create .sofar/, write repo.md stub, install hook shims
+- `sofar init [--agents <list>]` — create .sofar/, write repo.md stub, install hook shims
   (including git's own `.git/hooks/prepare-commit-msg`, never clobbering —
   commit-attribution D7, §Hooks)
-  + .claude/settings.json hooks block, emit .mcp.json registration, append
+  + .claude/settings.json hooks block, emit .mcp.json registration, the
+  same hooks and server for Cursor in .cursor/hooks.json and
+  .cursor/mcp.json (r1-fixes 6.2/6.6, D34 — merged by the same rules, and
+  the note naming Cursor's one-time MCP approval printed on the run that
+  registered it; see §Cursor host), append
   protocol blocks to CLAUDE.md and AGENTS.md (idempotent; the AGENTS.md
   block is the CLI convention dialect for MCP-less tools — added Phase 5,
-  BD31). Writes the union-merge rule for committed event logs to
+  BD31).
+  ONLY THE AGENTS PICKED are set up (r1-fixes 7.1, D35, D36). Each agent owns
+  its files: Claude Code `.claude/settings.json`, `.mcp.json`, CLAUDE.md;
+  Cursor `.cursor/hooks.json`, `.cursor/mcp.json`, AGENTS.md; Codex AGENTS.md
+  (its hooks and MCP entry are r1-fixes 7.3/7.4). `.sofar/`, `.gitattributes`
+  and the git hook are shared and always installed. `--agents` takes
+  `claude-code`, `cursor`, `codex` comma-separated, or `all`; an unknown name
+  exits 1 and writes nothing. Without the flag, when stdin and stderr are a
+  terminal (not CI, not TERM=dumb), init asks with a multi-select drawn on
+  stderr — arrows or j/k move, space toggles, `a` toggles all, enter
+  confirms (never on an empty selection), esc or ctrl-c exits 1 with nothing
+  written — pre-selecting the agents found on this machine (binary on PATH
+  or `~/.claude`, `~/.cursor`, `~/.codex`) or already wired in the repo, and
+  every agent when none is found. NON-INTERACTIVE DEFAULT: with no flag and
+  stdin or stderr not a terminal, or `CI` set, or TERM=dumb, init never
+  prompts and sets up EVERY agent — the same tree an r1-fixes build wrote
+  before 7.1, which since Phase 6 includes `.cursor/hooks.json` and
+  `.cursor/mcp.json` beside Claude Code's files and AGENTS.md. A harness that
+  must control which agents' config a repo carries passes `--agents`
+  explicitly, and must pass it whenever it runs init under a pseudo-terminal,
+  where the picker would wait for keys. Builds before 7.1 (0.32.0,
+  0.33.0-rc.1) reject `--agents` as an unknown option (exit 1). Re-running
+  with another agent adds that agent's files and leaves the others' bytes
+  alone. The shims live in `.claude/hooks/` whenever Claude Code is picked or
+  any hook config already runs them from there; a repo without Claude Code
+  keeps them in `.cursor/hooks/sofar/`, run as
+  `$CURSOR_PROJECT_DIR/.cursor/hooks/sofar/<shim>`, so a Cursor-only repo
+  carries no `.claude/`. Adding Claude Code later moves them: Cursor's
+  entries are repointed in place (other keys kept) even when Cursor was not
+  picked, and the old copies removed, because Cursor fires each hook once
+  only when its command matches settings.json's byte for byte
+  (§Cursor host). No selection is stored — the files are the selection. The
+  statusline hint and `--statusline` apply only with Claude Code picked;
+  without it `--statusline` reports `skipped statusLine (Claude Code not
+  selected)`. Writes the union-merge rule for committed event logs to
   .gitattributes — the exact line `.sofar/**/events.jsonl merge=union`
   (team-readiness T2): file created when missing, otherwise MERGED (rule
   appended, user content byte-preserved — never clobbered); idempotent,
@@ -3143,7 +3454,14 @@ Shims contain no logic — they invoke the sofar CLI.
   (the personal `~/.claude/settings.json`) always takes the plain form, since
   no repo formatter runs on it.
 - `sofar doctor [--fix]` — audit a host repo across eight axes: (1) wiring
-  integrity (init's shims/settings/.mcp.json/protocol blocks intact), plus the
+  integrity (init's shims/settings/.mcp.json/protocol blocks intact) PER
+  AGENT (r1-fixes 7.1, D36): only the agents the repo is wired for are
+  checked — Claude Code when settings.json runs a shim, .mcp.json registers
+  sofar or CLAUDE.md carries the block; Cursor when .cursor/hooks.json runs a
+  shim from either home or .cursor/mcp.json registers sofar; Codex when
+  AGENTS.md carries the block — each unwired agent gets one ok line naming
+  `sofar init --agents <id>`, a partial install's repair hint names its own
+  agents, and a record with no agent wired at all FAILs; plus the
   ATTRIBUTION check (commit-attribution 2.4), which is deliberately EMPIRICAL
   rather than diagnostic: it asks whether the last 20 commits actually carry
   trailers, not why they might not. Attribution goes silently off for several
@@ -3266,7 +3584,9 @@ Shims contain no logic — they invoke the sofar CLI.
   `source(none)`). The concurrent-edit signal also surfaces in the SessionStart
   context and `sofar status` (rendered only when open sessions overlap, D-P11).
 - `sofar uninit [--purge]` — exact inverse of init, surgical: remove the
-  five hook shims, `.git/hooks/prepare-commit-msg` ONLY while it still carries
+  hook shims from either home (`.claude/hooks/`, or `.cursor/hooks/sofar/`
+  for a repo set up without Claude Code — r1-fixes 7.1), every agent's
+  entries whichever agents were picked, `.git/hooks/prepare-commit-msg` ONLY while it still carries
   the `sofar prepare-commit-msg shim` marker (D7 — a user's own hook that calls
   `sofar commit-trailer` is the user's file, and `.git/hooks` has no other
   owner to ask), our settings.json hook entries (matched on the shim path),
@@ -3319,7 +3639,14 @@ Shims contain no logic — they invoke the sofar CLI.
   (staleness-detection 2.3). Un-absorbed notes render UNCAPPED after the
   staleness section (notes-in-digest 2.2): every selected note, full
   timestamp, no count cap or length clip, whitespace collapsed to keep each
-  entry one list line; absent when none.
+  entry one list line; absent when none. With NO slug on an unbound branch
+  or a detached HEAD in a repo that carries `.sofar/` (r1-fixes D28), it
+  orients instead of failing and exits 0: one line naming why and the slug
+  to pass, the most recently active open initiative's status (byte-identical
+  to `sofar status <slug>`), a blank line, then the `sofar list` render; with
+  no open initiative, the line names `sofar new <slug> --goal` before the
+  list. An explicit unknown slug, a branch bound to a missing directory, and
+  a repo with no `.sofar/` still exit 1. Read-only: nothing is bound.
 - `sofar list` — every initiative under .sofar/initiatives/, one line each
   (slug, bound branch(es) or "unbound", done/total tasks with %, active
   phase, next action), most recently active first per §State's
@@ -3870,7 +4197,7 @@ stay the underlying derivation's, and exit codes are styling-independent.
 - **Phase 2:** each tool call appends exactly its event and projections
   regenerate; invalid payloads rejected with typed errors; get_state resolves
   initiative from branch binding.
-- **Phase 3:** SessionStart output verified ≤10k chars on a large synthetic
+- **Phase 3:** SessionStart output verified ≤6k chars (10k before memory-lead D4) on a large synthetic
   initiative; Stop shim blocks a session lacking session_ended when
   gate-relevant drift is nonzero (drift-signal 1.2) and passes one that has
   written back; stop_hook_active loop guard verified; PostToolUse produces
@@ -5124,3 +5451,84 @@ stay the underlying derivation's, and exit codes are styling-independent.
   and names the replacement; `reject` and `revert` without `--reason` exit 1;
   `revert` works on a stale approval and leaves proposed/approved/reverted in
   the log in order; the lifecycle leaves `events_since_writeback` unchanged.
+- **Agent picker (r1-fixes 7.1):** `sofar init --agents claude-code` writes
+  no `.cursor/` and no AGENTS.md; `--agents cursor` writes no `.claude/`,
+  CLAUDE.md or `.mcp.json`, its shims executable under
+  `.cursor/hooks/sofar/`; `--agents codex` writes only AGENTS.md beside the
+  shared files. Each is byte-idempotent, and a Cursor-only init round-trips
+  byte-clean through `uninit --purge`. Adding Cursor to a Claude Code repo
+  leaves `.claude/settings.json`, `.mcp.json` and CLAUDE.md byte-identical;
+  adding Claude Code to a Cursor repo leaves every Cursor event with exactly
+  the settings.json command, removes `.cursor/hooks/`, and a following
+  all-agent init changes nothing. With no terminal and no flag, init writes
+  every agent's files (the pre-7.1 tree). In a pseudo-terminal the picker
+  pre-selects found agents, toggles on space, confirms on enter, and ctrl-c
+  exits 1 with nothing written; an unknown `--agents` name exits 1. doctor on
+  a Cursor-only repo passes with no `.claude/settings.json` line and names
+  Claude Code as not set up.
+- **Rule fidelity (memory-lead 1.2):** decision_logged accepts `quote` with a
+  `rule` up to 300 chars and rejects it without one, empty, or longer. The
+  round-1 pair (rule "…reject anything else with 4xx.", quote "Reject
+  anything else") yields exactly `4xx` unquoted; `400` is unquoted against a
+  quote holding only `4000`; `e.g.`, `D3` and `M2` are no specifics. The
+  digest renders `- [D<n>] <rule> — operator: "<quote>" (not in the
+  operator's words: 4xx)` under the quote-ranking header, as do `sofar
+  status`, decisions.md and the review packet; a record with no quoted rule
+  in force renders byte-identically to before. sofar_log_decision and `sofar
+  event append` both append and return `warnings` naming `4xx` and the
+  ordinal, return none for a faithful rule, and a quote without a rule
+  appends nothing. The `rule` description says to word it as the operator did.
+- **Overhead cut (memory-lead 1.1):** a server created with a
+  `hostSessionId` and never sent sofar_start_session files a decision and a
+  bare `sofar_end_session({summary, next_action})` under that id, registering
+  it once with {tool: "claude-code"}; a session the hooks registered in
+  another initiative is adopted THERE with no second registration; an
+  explicit sofar_start_session still wins; an unbound branch with no home
+  pins nothing and log_decision returns `unknown_initiative`; with no host
+  id and no start, end_session without session_id is `invalid_input` naming
+  the "Session:" line. tools/list marks exactly sofar_end_session and
+  sofar_log_decision with `_meta["anthropic/alwaysLoad"]` and still lists
+  sofar_update_plan. One end_session call files tasks (two existing, one
+  added into the active phase, one added into phase "2"), two phase changes,
+  two decisions (D1, D2, the rule-fidelity warning for D1), a memory
+  (`demo M1`) and a note, in that order before session_ended, all under the
+  session, with plan.md and decisions.md current; an unknown task without a
+  title, an unknown phase, a decision missing `because`, carrying
+  `initiative`, or carrying a quote without a rule each file nothing; a batch
+  whose second decision reverses its first is refused naming `decisions[1]`
+  and accepted with `supersedes: "D1"`; an unchanged phase files nothing.
+  serverInstructions(true) has no start step, both variants stay under 900
+  chars, and the tool surface stays ≤8,000 chars. The CLAUDE.md protocol
+  block says Claude Code needs no start call (elsewhere sofar_start_session
+  first), writes back with ONE sofar_end_session carrying `decisions`,
+  `tasks` (a new task with its `title`), `phases`, `memories` and `notes`,
+  words a rule as the operator did with their words in `quote`, and names
+  neither sofar_update_task nor sofar_remember; the block it replaced is
+  PROTOCOL_BLOCK_V8, the last SHIPPED_PROTOCOL_BLOCKS entry, and classifies
+  as stale. A live Claude Code (2.1.274) `sofar mcp` child carries its
+  parent session's CLAUDE_CODE_SESSION_ID (checked 2026-09-17).
+- **Digest composition (memory-lead 1.3):** renderStatus orders Goal before
+  the focus task before Next action before Last session before Phases before
+  Progress before Memory before Repo memory before Recent decisions before
+  Next ids before Adjacent records before `Session:` before `Git:` before the
+  notices before Standing constraints before Read-back before the footer; two
+  renders differing only in session id, sha and notices are identical up to
+  `Session:` and in their constraints block. The focus task renders its
+  title whole to 1,000 chars with its phase line and open siblings; an empty
+  record renders no Progress. A ruled decision in the window is marked
+  `(rule below)`; with no shared focus terms 40 rules rank newest first, so
+  D1 is the one dropped. On a 24-rule, 33-decision record with a 600-char
+  goal, 500-char next action and blocked line, repo memory at 1,500 and
+  780 chars of notices, the block is ≤6,000 chars with no truncation marker,
+  the ledger header and `…and N more (see decisions.md)` present, and the
+  read-back rendered; with every section at its worst the cut lands before
+  the protected end and the read-back still renders. On a record shaped like
+  round 1's S9 (synthetic text: a 400-char spec as the first task of a pending
+  phase with no active phase, eight 500-char memories, ten long rules of
+  which one names the task's terms): line 5 is `Next task: chat <spec>`
+  whole, the relevant memory is first at 280 chars and the rest are heads,
+  that rule leads the constraints with the rest newest first, window and
+  ledger lines stop at their first clause boundary, and the block is ≤6,000
+  chars. The SessionStart hook drops the `sofar init` stub preamble from
+  repo.md and omits a stub-only file; dropMemoryCopies removes only
+  top-level bullets naming a rendered `<slug> M<n>`.

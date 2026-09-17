@@ -1,5 +1,6 @@
 import type { InitiativeState } from '../../core/fold'
 import { retiredOrdinals } from '../../core/retire'
+import { quoteClause } from '../../core/rule-fidelity'
 import { GENERATED_HEADER, doc } from './shared'
 
 /**
@@ -26,7 +27,9 @@ export function renderDecisions(state: InitiativeState): string {
     const mark = marks.length > 0 ? `(${marks.join('; ')}) ` : ''
     // Rule leads (drift-hardening 2.2): the standing constraint is what a
     // reader must obey; chose/over/because is why it exists.
-    const rule = d.rule !== undefined ? `rule: **${d.rule}** — ` : ''
+    // The operator's words follow the rule they sourced (memory-lead D2).
+    const source = d.rule !== undefined && d.quote !== undefined ? `${quoteClause(d.rule, d.quote)} — ` : ''
+    const rule = d.rule !== undefined ? `rule: **${d.rule}** — ${source}` : ''
     lines.push(`- ${d.ts} — ${mark}${rule}chose **${d.chose}** over ${d.over} because ${d.because}`)
   })
 

@@ -293,7 +293,7 @@ describe('renderFullStatus staleness section (2.3)', () => {
     expect(full).toContain(`- next action may be stale: 1 event since the last write-back (${longSummary.ts}) — 1 file`)
     expect(full).toContain('- phase "PA": all 1 tasks done but still active — emit phase_status_changed to mark it done')
     expect(full).toContain(
-      '- last write-back summary exceeds the SessionStart budget (1200 chars) and is clipped there — full text in sessions/sess-2.md',
+      '- last write-back summary exceeds the SessionStart budget (450 chars) and is clipped there — full text in sessions/sess-2.md',
     )
   })
 
@@ -376,7 +376,9 @@ describe('10k cap with every section at worst case (4.2)', () => {
     })
     expect(status).toContain(STALE_LINE)
     expect(status).toContain('mark phase done?')
-    expect(status).toContain('(clipped')
+    // memory-lead D4: fixed sections overrun the cap here, so the cut lands
+    // before the protected end — the read-back still renders whole.
+    expect(status).toContain('Read-back: before acting')
     expect(status.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
   })
 })

@@ -105,9 +105,27 @@ describe('validateToolInput', () => {
   it('rejects missing required fields with field-level errors', () => {
     const res = validateToolInput('sofar_end_session', { summary: 'x' })
     expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.errors).toEqual(['next_action: must be a non-empty string'])
+  })
+
+  it('end_session session_id is optional since adoption (memory-lead D3) but non-empty when given; batch arrays are shape-checked', () => {
+    expect(validateToolInput('sofar_end_session', { summary: 's', next_action: 'n' })).toEqual({ ok: true })
+    const res = validateToolInput('sofar_end_session', {
+      session_id: '',
+      summary: 's',
+      next_action: 'n',
+      decisions: ['not an object'],
+      notes: [''],
+      memories: 'one fact',
+    })
+    expect(res.ok).toBe(false)
     if (!res.ok) {
-      expect(res.errors).toContain('session_id: must be a non-empty string')
-      expect(res.errors).toContain('next_action: must be a non-empty string')
+      expect(res.errors).toEqual([
+        'session_id: must be a non-empty string when present',
+        'decisions: must be an array of objects',
+        'memories: must be an array of non-empty strings',
+        'notes: must be an array of non-empty strings',
+      ])
     }
   })
 

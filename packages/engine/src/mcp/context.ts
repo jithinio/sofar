@@ -312,6 +312,12 @@ export interface AppendOptions {
   source?: Source
   /** Envelope actor override (default: "agent" — MCP/hook appends; CLI passes "human"). */
   actor?: Actor
+  /**
+   * `false` skips the projection pass for this append (memory-lead 1.1, D3):
+   * a batched write-back appends many events and regenerates projections
+   * once, on its last append. Default true.
+   */
+  project?: boolean
 }
 
 export interface ToolContext {
@@ -571,7 +577,7 @@ export function createToolContext(rootDir: string): ToolContext {
           folds.delete(slug)
         }
       }
-      regenerateProjections(initiativeDir(slug), foldState(slug))
+      if (options?.project !== false) regenerateProjections(initiativeDir(slug), foldState(slug))
     } catch (err) {
       if (err instanceof ToolError) throw err
       throw new ToolError(

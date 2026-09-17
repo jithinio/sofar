@@ -218,7 +218,7 @@ describe('no ceremony in the lane (D14 C)', () => {
     expect(out).toContain('sofar_log_decision — one line of why')
     expect(out).toMatch(/sofar switch <slug>.*demo/)
     expect(out).toContain('sofar new <slug>')
-    expect(out).toContain(`Session: ${SESSION} — when calling sofar_start_session`)
+    expect(out).toContain(`Session: ${SESSION} — adopted on Claude Code; else pass to sofar_start_session`)
     // Reading creates nothing (record-hygiene D2).
     expect(existsSync(lanePath(f.root))).toBe(false)
   })
@@ -234,7 +234,7 @@ describe('no ceremony in the lane (D14 C)', () => {
     expect(out).toContain('sofar new <slug> --goal')
     expect(out).toMatch(/^Recent quick work \(2 sessions, 0 decisions since \d{4}-\d{2}-\d{2}\):$/m)
     expect(out).toMatch(/claude-code — 1 file \(src\/b\.ts\)/)
-    expect(out).toContain('Session: claude-quick-3 — when calling sofar_start_session')
+    expect(out).toContain('Session: claude-quick-3 — adopted on Claude Code; else pass to sofar_start_session')
     for (const furniture of ['Progress:', 'Active phase:', 'Next action:', 'Read-back:', 'without writing back', 'without write-back']) {
       expect(out, furniture).not.toContain(furniture)
     }
