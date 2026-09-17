@@ -1,2 +1,9 @@
 .sofar/**/events.jsonl merge=union
 packages/engine/test/conformance/fixtures/** linguist-generated
+
+# Byte-exact fixtures (rust-core 3.2, first Windows CI run): the conformance
+# cases, goldens and the Rust test fixtures are compared byte for byte, so a
+# CRLF checkout (core.autocrlf on the Windows runner) must never rewrite them.
+packages/engine/test/conformance/** text eol=lf
+crates/sofar-core/tests/** text eol=lf
+crates/sofar-schema/schema/** text eol=lf
