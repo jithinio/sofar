@@ -6,7 +6,11 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    # rust-core (rust-core 3.2): the native core's build matrix and the
+    # mixed-install conformance job must run on the branch that carries them —
+    # dispatch needs the workflow on the default branch, which main lacks
+    # until the merge.
+    branches: [main, rust-core]
   pull_request:
   workflow_dispatch:
     inputs:
