@@ -1,0 +1,566 @@
+{
+  "implementation": "typescript",
+  "command": [
+    "node",
+    "dist/cli.js (built from source as build.mjs ships it)"
+  ],
+  "recordedAt": "2026-09-16T07:50:00.104Z",
+  "iterations": 20,
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "cores": 14,
+    "node": "v24.15.0",
+    "platform": "darwin",
+    "release": "27.0.0"
+  },
+  "load": {
+    "start": 3.42,
+    "end": 4.28
+  },
+  "commit": "daea704",
+  "nodeSpawnMs": {
+    "n": 20,
+    "min": 18.29,
+    "p50": 20.75,
+    "p95": 22.56
+  },
+  "cells": [
+    {
+      "name": "i10-1mb",
+      "recordedAt": "2026-09-16T07:50:02.888Z",
+      "initiatives": 10,
+      "boundBytes": 1003245,
+      "boundLines": 3595,
+      "totalBytes": 1027007,
+      "measures": {
+        "session-start (index warm)": {
+          "n": 20,
+          "min": 62.46,
+          "p50": 66.52,
+          "p95": 70.94
+        },
+        "session-start (index cold)": {
+          "n": 20,
+          "min": 76.82,
+          "p50": 81.15,
+          "p95": 86.23
+        },
+        "post-tool Edit": {
+          "n": 20,
+          "min": 70.04,
+          "p50": 71.57,
+          "p95": 79.33
+        },
+        "user-prompt (nudge)": {
+          "n": 20,
+          "min": 57.32,
+          "p50": 60.35,
+          "p95": 66.15
+        },
+        "stop (blocked)": {
+          "n": 20,
+          "min": 52.28,
+          "p50": 54.86,
+          "p95": 58.49
+        },
+        "session-end": {
+          "n": 20,
+          "min": 69.45,
+          "p50": 70.92,
+          "p95": 71.74
+        },
+        "statusline": {
+          "n": 20,
+          "min": 52.46,
+          "p50": 53.71,
+          "p95": 55.33
+        },
+        "status <slug> (full CLI, plain)": {
+          "n": 20,
+          "min": 74.87,
+          "p50": 76.08,
+          "p95": 77.91
+        }
+      }
+    },
+    {
+      "name": "i10-10mb",
+      "recordedAt": "2026-09-16T07:50:26.560Z",
+      "initiatives": 10,
+      "boundBytes": 10000662,
+      "boundLines": 35903,
+      "totalBytes": 10024424,
+      "measures": {
+        "session-start (index warm)": {
+          "n": 20,
+          "min": 302.01,
+          "p50": 315.06,
+          "p95": 329.73
+        },
+        "session-start (index cold)": {
+          "n": 20,
+          "min": 411.1,
+          "p50": 420.1,
+          "p95": 430.88
+        },
+        "post-tool Edit": {
+          "n": 20,
+          "min": 368.31,
+          "p50": 392.1,
+          "p95": 409.66
+        },
+        "user-prompt (nudge)": {
+          "n": 20,
+          "min": 296.66,
+          "p50": 327.16,
+          "p95": 342.45
+        },
+        "stop (blocked)": {
+          "n": 20,
+          "min": 290.63,
+          "p50": 317.13,
+          "p95": 325.51
+        },
+        "session-end": {
+          "n": 20,
+          "min": 365.55,
+          "p50": 393.79,
+          "p95": 433.19
+        },
+        "statusline": {
+          "n": 20,
+          "min": 293.47,
+          "p50": 323.69,
+          "p95": 343.18
+        },
+        "status <slug> (full CLI, plain)": {
+          "n": 20,
+          "min": 296.96,
+          "p50": 302.72,
+          "p95": 308.63
+        }
+      }
+    },
+    {
+      "name": "i100-1mb",
+      "recordedAt": "2026-09-16T07:51:30.021Z",
+      "initiatives": 100,
+      "boundBytes": 1003245,
+      "boundLines": 3595,
+      "totalBytes": 1255391,
+      "measures": {
+        "session-start (index warm)": {
+          "n": 20,
+          "min": 76.73,
+          "p50": 84.06,
+          "p95": 87.41
+        },
+        "session-start (index cold)": {
+          "n": 20,
+          "min": 99.29,
+          "p50": 105.49,
+          "p95": 114.16
+        },
+        "post-tool Edit": {
+          "n": 20,
+          "min": 73.9,
+          "p50": 78.46,
+          "p95": 84.46
+        },
+        "user-prompt (nudge)": {
+          "n": 20,
+          "min": 61.81,
+          "p50": 67.5,
+          "p95": 79.14
+        },
+        "stop (blocked)": {
+          "n": 20,
+          "min": 59.41,
+          "p50": 61.79,
+          "p95": 64.21
+        },
+        "session-end": {
+          "n": 20,
+          "min": 77.52,
+          "p50": 79.75,
+          "p95": 82.45
+        },
+        "statusline": {
+          "n": 20,
+          "min": 55.61,
+          "p50": 59.67,
+          "p95": 65.83
+        },
+        "status <slug> (full CLI, plain)": {
+          "n": 20,
+          "min": 77.94,
+          "p50": 82.27,
+          "p95": 87.66
+        }
+      }
+    },
+    {
+      "name": "i100-10mb",
+      "recordedAt": "2026-09-16T07:51:56.238Z",
+      "initiatives": 100,
+      "boundBytes": 10000662,
+      "boundLines": 35903,
+      "totalBytes": 10252808,
+      "measures": {
+        "session-start (index warm)": {
+          "n": 20,
+          "min": 311.93,
+          "p50": 326.51,
+          "p95": 342.45
+        },
+        "session-start (index cold)": {
+          "n": 20,
+          "min": 437.88,
+          "p50": 460.14,
+          "p95": 480.66
+        },
+        "post-tool Edit": {
+          "n": 20,
+          "min": 376.59,
+          "p50": 411.11,
+          "p95": 431.37
+        },
+        "user-prompt (nudge)": {
+          "n": 20,
+          "min": 311.14,
+          "p50": 342.24,
+          "p95": 356.2
+        },
+        "stop (blocked)": {
+          "n": 20,
+          "min": 296.08,
+          "p50": 325.77,
+          "p95": 341.34
+        },
+        "session-end": {
+          "n": 20,
+          "min": 374.37,
+          "p50": 407.16,
+          "p95": 425.28
+        },
+        "statusline": {
+          "n": 20,
+          "min": 312.06,
+          "p50": 335.64,
+          "p95": 346.5
+        },
+        "status <slug> (full CLI, plain)": {
+          "n": 20,
+          "min": 300.75,
+          "p50": 317.55,
+          "p95": 327.51
+        }
+      }
+    },
+    {
+      "name": "i1000-1mb",
+      "recordedAt": "2026-09-16T07:53:02.968Z",
+      "initiatives": 1000,
+      "boundBytes": 1003245,
+      "boundLines": 3595,
+      "totalBytes": 3543551,
+      "measures": {
+        "session-start (index warm)": {
+          "n": 20,
+          "min": 127.82,
+          "p50": 133.9,
+          "p95": 148.3
+        },
+        "session-start (index cold)": {
+          "n": 20,
+          "min": 204.16,
+          "p50": 208.02,
+          "p95": 214.6
+        },
+        "post-tool Edit": {
+          "n": 20,
+          "min": 81.2,
+          "p50": 89.77,
+          "p95": 97.83
+        },
+        "user-prompt (nudge)": {
+          "n": 20,
+          "min": 72.71,
+          "p50": 79.13,
+          "p95": 81.56
+        },
+        "stop (blocked)": {
+          "n": 20,
+          "min": 59.66,
+          "p50": 62.96,
+          "p95": 68.16
+        },
+        "session-end": {
+          "n": 20,
+          "min": 76.2,
+          "p50": 79.68,
+          "p95": 88.18
+        },
+        "statusline": {
+          "n": 20,
+          "min": 59.64,
+          "p50": 64.05,
+          "p95": 67.33
+        },
+        "status <slug> (full CLI, plain)": {
+          "n": 20,
+          "min": 79.54,
+          "p50": 87.4,
+          "p95": 92.89
+        }
+      }
+    },
+    {
+      "name": "i1000-10mb",
+      "recordedAt": "2026-09-16T07:53:33.877Z",
+      "initiatives": 1000,
+      "boundBytes": 10000662,
+      "boundLines": 35903,
+      "totalBytes": 12540968,
+      "measures": {
+        "session-start (index warm)": {
+          "n": 20,
+          "min": 367.6,
+          "p50": 378.78,
+          "p95": 402.75
+        },
+        "session-start (index cold)": {
+          "n": 20,
+          "min": 545.29,
+          "p50": 559.02,
+          "p95": 581.57
+        },
+        "post-tool Edit": {
+          "n": 20,
+          "min": 389.25,
+          "p50": 400.84,
+          "p95": 417.1
+        },
+        "user-prompt (nudge)": {
+          "n": 20,
+          "min": 319.81,
+          "p50": 343.31,
+          "p95": 348.5
+        },
+        "stop (blocked)": {
+          "n": 20,
+          "min": 307.86,
+          "p50": 335.29,
+          "p95": 344.2
+        },
+        "session-end": {
+          "n": 20,
+          "min": 381.94,
+          "p50": 403,
+          "p95": 409.5
+        },
+        "statusline": {
+          "n": 20,
+          "min": 324.2,
+          "p50": 354.96,
+          "p95": 435.19
+        },
+        "status <slug> (full CLI, plain)": {
+          "n": 20,
+          "min": 298.26,
+          "p50": 314.59,
+          "p95": 460.7
+        }
+      }
+    },
+    {
+      "name": "repo",
+      "recordedAt": "2026-09-16T07:54:44.287Z",
+      "initiatives": 55,
+      "boundBytes": 632606,
+      "boundLines": 789,
+      "totalBytes": 7627107,
+      "measures": {
+        "session-start (index warm)": {
+          "n": 20,
+          "min": 67.76,
+          "p50": 69.09,
+          "p95": 73.06
+        },
+        "session-start (index cold)": {
+          "n": 20,
+          "min": 128.91,
+          "p50": 130.76,
+          "p95": 134.57
+        },
+        "post-tool Edit": {
+          "n": 20,
+          "min": 55.88,
+          "p50": 57.25,
+          "p95": 59.94
+        },
+        "user-prompt (nudge)": {
+          "n": 20,
+          "min": 46.53,
+          "p50": 47.61,
+          "p95": 48.64
+        },
+        "stop (blocked)": {
+          "n": 20,
+          "min": 36.58,
+          "p50": 37.85,
+          "p95": 39.87
+        },
+        "session-end": {
+          "n": 20,
+          "min": 49.24,
+          "p50": 50.79,
+          "p95": 53.37
+        },
+        "statusline": {
+          "n": 20,
+          "min": 36.69,
+          "p50": 38.41,
+          "p95": 41.92
+        },
+        "status <slug> (full CLI, plain)": {
+          "n": 20,
+          "min": 60.57,
+          "p50": 61.73,
+          "p95": 63.73
+        }
+      }
+    },
+    {
+      "name": "floor",
+      "recordedAt": "2026-09-16T07:54:55.009Z",
+      "initiatives": 0,
+      "boundBytes": 0,
+      "boundLines": 0,
+      "totalBytes": 0,
+      "measures": {
+        "session-start (no record)": {
+          "n": 20,
+          "min": 29.75,
+          "p50": 32.23,
+          "p95": 36.88
+        }
+      }
+    }
+  ],
+  "label": "r1-fixes RC 179b8fd (engine src identical), merged at daea704",
+  "inProcess": [
+    {
+      "name": "i10-1mb",
+      "recordedAt": "2026-09-16T07:50:13.990Z",
+      "fold": {
+        "n": 20,
+        "min": 12.12,
+        "p50": 12.94,
+        "p95": 18.94
+      },
+      "render": {
+        "n": 20,
+        "min": 0.09,
+        "p50": 0.15,
+        "p95": 0.27
+      }
+    },
+    {
+      "name": "i10-10mb",
+      "recordedAt": "2026-09-16T07:51:27.265Z",
+      "fold": {
+        "n": 20,
+        "min": 223.33,
+        "p50": 231.45,
+        "p95": 263.86
+      },
+      "render": {
+        "n": 20,
+        "min": 0.26,
+        "p50": 0.33,
+        "p95": 0.77
+      }
+    },
+    {
+      "name": "i100-1mb",
+      "recordedAt": "2026-09-16T07:51:42.785Z",
+      "fold": {
+        "n": 20,
+        "min": 12.35,
+        "p50": 13.19,
+        "p95": 16.15
+      },
+      "render": {
+        "n": 20,
+        "min": 0.08,
+        "p50": 0.21,
+        "p95": 0.28
+      }
+    },
+    {
+      "name": "i100-10mb",
+      "recordedAt": "2026-09-16T07:52:59.426Z",
+      "fold": {
+        "n": 20,
+        "min": 223.64,
+        "p50": 229.63,
+        "p95": 247.44
+      },
+      "render": {
+        "n": 20,
+        "min": 0.29,
+        "p50": 0.32,
+        "p95": 0.4
+      }
+    },
+    {
+      "name": "i1000-1mb",
+      "recordedAt": "2026-09-16T07:53:19.498Z",
+      "fold": {
+        "n": 20,
+        "min": 12.16,
+        "p50": 13.03,
+        "p95": 17.16
+      },
+      "render": {
+        "n": 20,
+        "min": 0.1,
+        "p50": 0.18,
+        "p95": 0.28
+      }
+    },
+    {
+      "name": "i1000-10mb",
+      "recordedAt": "2026-09-16T07:54:41.983Z",
+      "fold": {
+        "n": 20,
+        "min": 216.56,
+        "p50": 228.76,
+        "p95": 244.9
+      },
+      "render": {
+        "n": 20,
+        "min": 0.26,
+        "p50": 0.31,
+        "p95": 0.36
+      }
+    },
+    {
+      "name": "repo",
+      "recordedAt": "2026-09-16T07:54:54.314Z",
+      "fold": {
+        "n": 20,
+        "min": 2.27,
+        "p50": 2.41,
+        "p95": 3.51
+      },
+      "render": {
+        "n": 20,
+        "min": 0.11,
+        "p50": 0.12,
+        "p95": 0.24
+      }
+    }
+  ]
+}

@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import type { Command } from 'commander'
 import { isClosedInitiativeStatus, type InitiativeStatus } from '@sofar/schema'
+import { QUICK_LANE } from '../core/lane'
 import { createToolContext, initiativeSlugs, resolveSessionFirst } from '../mcp/context'
 import {
   installStatusline,
@@ -179,6 +180,7 @@ function dirSegment(hook: Obj): { name: string; branch: string | null } | null {
  */
 type RecordSegment =
   | { kind: 'record'; slug: string; progress: TaskProgress; status: InitiativeStatus }
+  | { kind: 'lane' }
   | { kind: 'unbound' }
   | null
 
@@ -203,6 +205,9 @@ function recordSegment(rootDir: string, hook: Obj): RecordSegment {
       const ctx = createToolContext(root)
       const resolved = resolveSessionFirst(ctx, sessionId)
       if (resolved !== null) {
+        // Caught by the quick lane (r1-fixes 2.6, D14): no plan to gauge, so
+        // the slug alone, dim — recorded, but not a project's record.
+        if (resolved.via === 'lane') return { kind: 'lane' }
         const state = ctx.foldState(resolved.slug)
         return {
           kind: 'record',
@@ -317,6 +322,8 @@ export function runStatusline(
     // discarded — indistinguishable from a healthy repo until now. Dim and
     // one word: the fix is named at SessionStart, not here.
     segments.push(style.dim('unbound'))
+  } else if (record !== null && record.kind === 'lane') {
+    segments.push(style.dim(QUICK_LANE))
   } else if (record !== null) {
     const closed = isClosedInitiativeStatus(record.status)
     // A closed record reads as not-live: the slug drops from accent to dim

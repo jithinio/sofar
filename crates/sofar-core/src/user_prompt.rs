@@ -1,0 +1,654 @@
+//! `event user-prompt`, `event stop` and `event session-end` (rust-core 2.5):
+//! `handleUserPrompt`, `handleStop`, `handleSessionEnd` in `cli/event.ts`,
+//! `docs/HOTPATH.md` §user-prompt, §stop, §session-end.
+
+use std::path::Path;
+
+use crate::append::{append_and_project, fold_state};
+use crate::attribution::{AttributionQuery, CommitAttribution, read_attribution_query};
+use crate::cross_conflicts::{CrossFileConflict, cross_conflicts_from_open_sessions};
+use crate::fold::{GuardViolation, InitiativeState, SessionState, session_debt};
+use crate::fold_cli::CmdResult;
+use crate::git::{GitState, read_git_state};
+use crate::home::resolve_session_first;
+use crate::hook::{clip_to, parse_hook, str_field};
+use crate::index_tier0::{refresh_tier0, refresh_tier0_known};
+use crate::json::{Json, Object};
+use crate::layout::Layout;
+use crate::lessons::{Lesson, lessons_enabled, relevant_lessons};
+use crate::peers::{Peer, resolve_peers};
+use crate::post_tool::{GUARD_RULES_MAX, render_subject};
+use crate::projections::retire_enabled;
+use crate::shipwatch::{note_engine, note_upstream};
+use crate::status::{FileConflict, QUICK_LANE, open_session_file_conflicts, open_session_files};
+use crate::text::{cmp_utf16, utf16_len, utf16_prefix};
+use crate::version::engine_version;
+
+pub const STOP_BLOCK_MESSAGE: &str = "Write back to the sofar record before finishing: call sofar_end_session (or append session_ended via `sofar event append`).";
+pub const NUDGE_DRIFT_MIN: u64 = 5;
+pub const PARALLEL_WRAP_BUDGET: usize = 420;
+pub const FILE_CONFLICT_BUDGET: usize = 300;
+pub const FILE_CONFLICT_MAX_PATHS: usize = 3;
+pub const CROSS_CONFLICT_BUDGET: usize = 320;
+pub const CROSS_CONFLICT_MAX_PATHS: usize = 3;
+pub const PEER_LINE_BUDGET: usize = 300;
+pub const PEER_MAX_NAMES: usize = 3;
+pub const LESSON_LINE_BUDGET: usize = 320;
+pub const ENGINE_LINE_BUDGET: usize = 320;
+pub const LANDED_WINDOW: usize = 100;
+pub const LANDED_BUDGET: usize = 300;
+pub const LANDED_MAX_SHAS: usize = 3;
+pub const PING_MAX_SLUGS: usize = 2;
+pub const PING_BUDGET: usize = 340;
+pub const GUARD_SUBJECTS_MAX: usize = 3;
+
+fn ok(stdout: String) -> CmdResult {
+    CmdResult {
+        exit_code: 0,
+        stdout,
+        stderr: String::new(),
+    }
+}
+
+fn silent() -> CmdResult {
+    ok(String::new())
+}
+
+fn resolve_bound(layout: &Layout, session_id: &str) -> Option<String> {
+    resolve_session_first(layout, Some(session_id)).map(|(slug, _)| slug)
+}
+
+/// `sessionGuardViolations`.
+fn session_guard_violations<'a>(
+    state: &'a InitiativeState,
+    session_id: &str,
+    since: Option<&str>,
+) -> Vec<&'a GuardViolation> {
+    state
+        .guard_violations
+        .iter()
+        .filter(|v| v.session == session_id && since.is_none_or(|s| cmp_utf16(&v.ts, s).is_gt()))
+        .collect()
+}
+
+/// `guardViolationLines`: ≤2 rules by ordinal, ≤3 subjects each.
+#[must_use]
+pub fn guard_violation_lines(violations: &[&GuardViolation], root: &Path) -> Vec<String> {
+    if violations.is_empty() {
+        return Vec::new();
+    }
+    let mut by_rule: Vec<(u64, Vec<&GuardViolation>)> = Vec::new();
+    for v in violations {
+        match by_rule.iter_mut().find(|(d, _)| *d == v.decision) {
+            Some(slot) => slot.1.push(v),
+            None => by_rule.push((v.decision, vec![v])),
+        }
+    }
+    let mut ordinals: Vec<u64> = by_rule.iter().map(|(d, _)| *d).collect();
+    ordinals.sort_unstable();
+    let mut lines = Vec::new();
+    for ordinal in ordinals.iter().take(GUARD_RULES_MAX) {
+        let group = &by_rule
+            .iter()
+            .find(|(d, _)| d == ordinal)
+            .expect("grouped")
+            .1;
+        let head = group[0];
+        let named: Vec<String> = group
+            .iter()
+            .take(GUARD_SUBJECTS_MAX)
+            .map(|v| render_subject(v.domain, &v.subject, root))
+            .collect();
+        let more = if group.len() > named.len() {
+            format!(" (+{} more)", group.len() - named.len())
+        } else {
+            String::new()
+        };
+        lines.push(format!(
+            "sofar: [D{ordinal}] guard crossed — \"{}\" — {} event(s): {}{more} (guard: {}).",
+            head.rule,
+            group.len(),
+            named.join(", "),
+            head.guard
+        ));
+    }
+    if ordinals.len() > GUARD_RULES_MAX {
+        lines.push(format!(
+            "sofar: …and {} more guarded rule(s) crossed — `sofar doctor` lists them.",
+            ordinals.len() - GUARD_RULES_MAX
+        ));
+    }
+    lines
+}
+
+/// `lessonLines`.
+fn lesson_lines(lessons: &[Lesson]) -> Vec<String> {
+    lessons
+        .iter()
+        .map(|l| {
+            clip_to(
+                &format!(
+                    "sofar: ruled out before — [{}] {} (matched: {}; full text in decisions.md)",
+                    l.handle,
+                    l.text,
+                    l.terms.join(", ")
+                ),
+                LESSON_LINE_BUDGET,
+            )
+        })
+        .collect()
+}
+
+/// `myFileConflicts`.
+fn my_file_conflicts(state: &InitiativeState, session_id: &str) -> Vec<FileConflict> {
+    open_session_file_conflicts(state, Some(session_id))
+        .into_iter()
+        .filter(|c| c.sessions.iter().any(|s| s == session_id))
+        .collect()
+}
+
+/// `fileConflictLine`.
+fn file_conflict_line(mine: &[FileConflict], session_id: &str) -> Option<String> {
+    if mine.is_empty() {
+        return None;
+    }
+    let named: Vec<String> = mine
+        .iter()
+        .take(FILE_CONFLICT_MAX_PATHS)
+        .map(|c| {
+            let others: Vec<&str> = c
+                .sessions
+                .iter()
+                .map(String::as_str)
+                .filter(|s| *s != session_id)
+                .collect();
+            format!("{} (session {})", c.path, others.join(", "))
+        })
+        .collect();
+    let more = if mine.len() > named.len() {
+        format!(" (+{} more)", mine.len() - named.len())
+    } else {
+        String::new()
+    };
+    Some(clip_to(
+        &format!(
+            "sofar: {} file(s) you touched are ALSO open in another live session — {}{more}.",
+            mine.len(),
+            named.join("; ")
+        ),
+        FILE_CONFLICT_BUDGET,
+    ))
+}
+
+/// `myCrossConflicts`.
+fn my_cross_conflicts(
+    layout: &Layout,
+    state: &InitiativeState,
+    slug: &str,
+    session_id: &str,
+) -> Vec<CrossFileConflict> {
+    let files: Vec<String> = open_session_files(state, Some(session_id))
+        .into_iter()
+        .filter(|(s, _)| *s == session_id)
+        .map(|(_, f)| f.to_owned())
+        .collect();
+    if files.is_empty() {
+        return Vec::new();
+    }
+    cross_conflicts_from_open_sessions(&refresh_tier0(layout), slug, session_id, &files)
+}
+
+/// `crossConflictLine`.
+fn cross_conflict_line(cross: &[CrossFileConflict], slug: &str) -> Option<String> {
+    if cross.is_empty() {
+        return None;
+    }
+    let named: Vec<String> = cross
+        .iter()
+        .take(CROSS_CONFLICT_MAX_PATHS)
+        .map(|c| {
+            let others: Vec<String> = c
+                .holders
+                .iter()
+                .filter(|h| h.initiative != slug)
+                .map(|h| format!("{} on {}", h.session, h.initiative))
+                .collect();
+            format!("{} (session {})", c.path, others.join(", "))
+        })
+        .collect();
+    let more = if cross.len() > named.len() {
+        format!(" (+{} more)", cross.len() - named.len())
+    } else {
+        String::new()
+    };
+    Some(clip_to(
+        &format!(
+            "sofar: {} file(s) you touched are ALSO open in a live session on ANOTHER initiative — {}{more}.",
+            cross.len(),
+            named.join("; ")
+        ),
+        CROSS_CONFLICT_BUDGET,
+    ))
+}
+
+/// `reachablePeerLine`.
+fn reachable_peer_line(others: &[String]) -> Option<String> {
+    if others.is_empty() {
+        return None;
+    }
+    let resolved = resolve_peers(others);
+    let found: Vec<&Peer> = others
+        .iter()
+        .filter_map(|id| resolved.iter().find(|p| p.session_id == *id))
+        .collect();
+    if found.is_empty() {
+        return None;
+    }
+    let named: Vec<String> = found
+        .iter()
+        .take(PEER_MAX_NAMES)
+        .map(|p| {
+            if p.ambiguous {
+                format!("\"{}\" (in {})", p.name, p.cwd)
+            } else {
+                format!("\"{}\"", p.name)
+            }
+        })
+        .collect();
+    let more = if found.len() > named.len() {
+        format!(", +{} more", found.len() - named.len())
+    } else {
+        String::new()
+    };
+    let one = found.len() == 1;
+    let head = if one {
+        "sofar: that session is live in Claude Code as "
+    } else {
+        "sofar: those sessions are live in Claude Code as "
+    };
+    let tail = if one {
+        " — message it if your change affects its work, then RECORD what it says; a message is not in the record."
+    } else {
+        " — message them if your change affects their work, then RECORD what they say; a message is not in the record."
+    };
+    Some(clip_to(
+        &format!("{head}{}{more}{tail}", named.join(", ")),
+        PEER_LINE_BUDGET,
+    ))
+}
+
+/// `parallelWrapLine`.
+fn parallel_wrap_line(state: &InitiativeState, session_id: &str) -> Option<String> {
+    let me = state.sessions.iter().find(|s| s.id == session_id)?;
+    let since = me.ended.as_deref().unwrap_or(&me.started);
+    let mut others: Vec<&SessionState> = state
+        .sessions
+        .iter()
+        .filter(|s| {
+            s.id != session_id
+                && s.summary.is_some()
+                && s.ended
+                    .as_deref()
+                    .is_some_and(|e| cmp_utf16(e, since).is_ge())
+        })
+        .collect();
+    others.sort_by(|a, b| {
+        cmp_utf16(
+            b.ended.as_deref().unwrap_or(""),
+            a.ended.as_deref().unwrap_or(""),
+        )
+    });
+    let newest = others.first()?;
+    let more = if others.len() > 1 {
+        format!(" (+{} more)", others.len() - 1)
+    } else {
+        String::new()
+    };
+    let next = newest
+        .next_action
+        .as_ref()
+        .map(|n| format!(" — next: {n}"))
+        .unwrap_or_default();
+    let head = format!(
+        "sofar: session {} wrapped while you worked{more} — ",
+        newest.id
+    );
+    let tail = format!("{next}.");
+    // Reserve room for the actionable tail, then give the summary the rest.
+    let reserved = utf16_len(&head) + utf16_len(&tail) + 2;
+    let summary = if reserved < PARALLEL_WRAP_BUDGET {
+        clip_to(
+            newest.summary.as_deref().unwrap_or(""),
+            PARALLEL_WRAP_BUDGET - reserved,
+        )
+    } else {
+        String::new()
+    };
+    let body = if summary.is_empty() {
+        String::new()
+    } else {
+        format!("\"{summary}\"")
+    };
+    Some(clip_to(
+        &format!("{head}{body}{tail}"),
+        PARALLEL_WRAP_BUDGET,
+    ))
+}
+
+/// `engineChangedLine`.
+fn engine_changed_line(was: Option<&str>) -> Option<String> {
+    let was = was?;
+    Some(clip_to(
+        &format!(
+            "sofar: the sofar engine changed under this session ({was} → {}). Your MCP tools are still the ones this session STARTED with, so anything added since is absent and an older tool silently does the older thing — restart the session to pick them up.",
+            engine_version()
+        ),
+        ENGINE_LINE_BUDGET,
+    ))
+}
+
+/// `gitStateLine`.
+fn git_state_line(git: Option<&GitState>) -> Option<String> {
+    let git = git?;
+    Some(match &git.upstream {
+        None => format!("sofar: {} @ {}, never pushed.", git.branch, git.head),
+        Some(_) if git.synced => format!(
+            "sofar: {} @ {}, pushed (in sync with origin/{}).",
+            git.branch, git.head, git.branch
+        ),
+        Some(upstream) => format!(
+            "sofar: {} @ {}, NOT pushed (origin/{} at {upstream}).",
+            git.branch, git.head, git.branch
+        ),
+    })
+}
+
+/// `minesLanded`.
+fn mines_landed(mine: &[&CommitAttribution], walked: usize, branch: &str) -> String {
+    let named: Vec<String> = mine
+        .iter()
+        .take(LANDED_MAX_SHAS)
+        .map(|c| utf16_prefix(&c.sha, 7))
+        .collect();
+    let more = if mine.len() > named.len() {
+        format!(", +{} more", mine.len() - named.len())
+    } else {
+        String::new()
+    };
+    let count = if walked >= LANDED_WINDOW {
+        format!("at least {}", mine.len())
+    } else {
+        mine.len().to_string()
+    };
+    clip_to(
+        &format!(
+            "sofar: {count} commit(s) of this record just landed on origin/{branch} ({}{more}) — that work has SHIPPED; if a next action was waiting on the push, it is done.",
+            named.join(", ")
+        ),
+        LANDED_BUDGET,
+    )
+}
+
+/// `othersLanded` (push-ping-reach D1).
+fn others_landed(
+    layout: &Layout,
+    slug: &str,
+    session_id: &str,
+    arrived: &[CommitAttribution],
+) -> Option<String> {
+    let mut slugs: Vec<&str> = Vec::new();
+    for c in arrived {
+        for s in &c.initiatives {
+            if s != slug && !slugs.contains(&s.as_str()) {
+                slugs.push(s);
+            }
+        }
+    }
+    slugs.sort_by(|a, b| cmp_utf16(a, b));
+    if slugs.is_empty() {
+        return None;
+    }
+    let known: Vec<_> = refresh_tier0_known(layout)
+        .into_iter()
+        .filter(|row| slugs.contains(&row.initiative.as_str()) && row.session != session_id)
+        .collect();
+    if known.is_empty() {
+        return None;
+    }
+    let mut ids: Vec<String> = Vec::new();
+    for row in &known {
+        if !ids.contains(&row.session) {
+            ids.push(row.session.clone());
+        }
+    }
+    let peers = resolve_peers(&ids);
+    let reachable: Vec<(&crate::index_tier0::Tier0Known, &Peer)> = known
+        .iter()
+        .filter_map(|row| {
+            peers
+                .iter()
+                .find(|p| p.session_id == row.session)
+                .map(|p| (row, p))
+        })
+        .collect();
+    if reachable.is_empty() {
+        return None;
+    }
+    let named: Vec<String> = reachable
+        .iter()
+        .take(PING_MAX_SLUGS)
+        .map(|(row, peer)| format!("{} (live as \"{}\")", row.initiative, peer.name))
+        .collect();
+    let more = if reachable.len() > named.len() {
+        format!(", +{} more", reachable.len() - named.len())
+    } else {
+        String::new()
+    };
+    Some(clip_to(
+        &format!(
+            "sofar: this push also carried commits of {}{more} — those sessions do not know yet unless they prompt. Tell them if it unblocks them, then RECORD what they say; a message is not the record.",
+            named.join(", ")
+        ),
+        PING_BUDGET,
+    ))
+}
+
+/// `landedNotice` (commit-attribution 3.4, D11): mark first, walk only on movement.
+fn landed_notice(
+    layout: &Layout,
+    slug: &str,
+    session_id: &str,
+    git: Option<&GitState>,
+) -> Vec<String> {
+    let Some(git) = git else { return Vec::new() };
+    let (previous, moved) = note_upstream(
+        layout,
+        session_id,
+        &git.branch,
+        git.upstream_full.as_deref(),
+    );
+    let Some(upstream) = &git.upstream_full else {
+        return Vec::new();
+    };
+    if !moved {
+        return Vec::new();
+    }
+    let query = AttributionQuery {
+        range: Some(match &previous {
+            None => upstream.clone(),
+            Some(prev) => format!("{prev}..{upstream}"),
+        }),
+        max_count: Some(LANDED_WINDOW),
+        first_push_of: previous.is_none().then(|| git.branch.clone()),
+    };
+    let Some(arrived) = read_attribution_query(&layout.root, &query) else {
+        return Vec::new();
+    };
+    let mut lines = Vec::new();
+    let mine: Vec<&CommitAttribution> = arrived
+        .iter()
+        .filter(|c| c.initiatives.iter().any(|s| s == slug))
+        .collect();
+    if !mine.is_empty() {
+        lines.push(mines_landed(&mine, arrived.len(), &git.branch));
+    }
+    if let Some(theirs) = others_landed(layout, slug, session_id, &arrived) {
+        lines.push(theirs);
+    }
+    lines
+}
+
+/// `handleUserPrompt`.
+#[must_use]
+pub fn handle_user_prompt(root: &Path, input: &str) -> CmdResult {
+    let layout = Layout::new(root);
+    let hook = parse_hook(input);
+    let Some(session_id) = str_field(&hook, "session_id") else {
+        return silent();
+    };
+    let Some(slug) = resolve_bound(&layout, session_id) else {
+        return silent();
+    };
+    let state = fold_state(&layout, &slug);
+    let Some(me) = state.sessions.iter().find(|s| s.id == session_id) else {
+        return silent();
+    };
+    let mut lines: Vec<String> = Vec::new();
+    let mine = my_file_conflicts(&state, session_id);
+    if let Some(line) = file_conflict_line(&mine, session_id) {
+        lines.push(line);
+    }
+    let cross = my_cross_conflicts(&layout, &state, &slug, session_id);
+    if let Some(line) = cross_conflict_line(&cross, &slug) {
+        lines.push(line);
+    }
+    let mut siblings: Vec<String> = Vec::new();
+    for id in mine.iter().flat_map(|c| c.sessions.iter().cloned()).chain(
+        cross
+            .iter()
+            .flat_map(|c| c.holders.iter().map(|h| h.session.clone())),
+    ) {
+        if id != session_id && !siblings.contains(&id) {
+            siblings.push(id);
+        }
+    }
+    if let Some(line) = reachable_peer_line(&siblings) {
+        lines.push(line);
+    }
+    let mut head: Vec<String> = guard_violation_lines(
+        &session_guard_violations(&state, session_id, me.ended.as_deref()),
+        root,
+    );
+    if let Some(prompt) = str_field(&hook, "prompt")
+        && lessons_enabled()
+    {
+        head.extend(lesson_lines(&relevant_lessons(
+            &state,
+            prompt,
+            retire_enabled(),
+        )));
+    }
+    head.extend(lines);
+    let mut lines = head;
+    if let Some(wrap) = parallel_wrap_line(&state, session_id) {
+        lines.push(wrap);
+    }
+    let git = read_git_state(root);
+    if let Some(line) =
+        engine_changed_line(note_engine(&layout, session_id, engine_version()).as_deref())
+    {
+        lines.push(line);
+    }
+    lines.extend(landed_notice(&layout, &slug, session_id, git.as_ref()));
+    if let Some(line) = git_state_line(git.as_ref()) {
+        lines.push(line);
+    }
+    let debt = if slug == QUICK_LANE {
+        0
+    } else {
+        session_debt(&state, me)
+    };
+    if debt >= NUDGE_DRIFT_MIN {
+        lines.push(format!(
+            "sofar: {debt} unwritten events in THIS session — if the current batch of work is complete, write back now with sofar_end_session (summary + next action) while context is warm; an unwritten session gets force-blocked at Stop."
+        ));
+    }
+    if lines.is_empty() {
+        silent()
+    } else {
+        ok(lines.join("\n"))
+    }
+}
+
+/// `handleStop`: exit 2 with the block on stderr when this session owes a write-back.
+#[must_use]
+pub fn handle_stop(root: &Path, input: &str) -> CmdResult {
+    let layout = Layout::new(root);
+    let hook = parse_hook(input);
+    if hook.get("stop_hook_active") == Some(&Json::Bool(true)) {
+        return silent();
+    }
+    let Some(session_id) = str_field(&hook, "session_id") else {
+        return silent();
+    };
+    let Some(slug) = resolve_bound(&layout, session_id) else {
+        return silent();
+    };
+    if slug == QUICK_LANE {
+        return silent();
+    }
+    let state = fold_state(&layout, &slug);
+    let Some(session) = state.sessions.iter().find(|s| s.id == session_id) else {
+        return silent();
+    };
+    if session.summary.is_some() {
+        return silent();
+    }
+    if session_debt(&state, session) == 0 {
+        return silent();
+    }
+    let mut lines = vec![STOP_BLOCK_MESSAGE.to_owned()];
+    lines.extend(guard_violation_lines(
+        &session_guard_violations(&state, session_id, session.ended.as_deref()),
+        root,
+    ));
+    CmdResult {
+        exit_code: 2,
+        stdout: String::new(),
+        stderr: lines.join("\n"),
+    }
+}
+
+/// `handleSessionEnd`: append `session_closed` once.
+#[must_use]
+pub fn handle_session_end(root: &Path, input: &str) -> CmdResult {
+    let layout = Layout::new(root);
+    let hook = parse_hook(input);
+    let Some(session_id) = str_field(&hook, "session_id") else {
+        return silent();
+    };
+    let Some(slug) = resolve_bound(&layout, session_id) else {
+        return silent();
+    };
+    let state = fold_state(&layout, &slug);
+    let Some(session) = state.sessions.iter().find(|s| s.id == session_id) else {
+        return silent();
+    };
+    if session.ended.is_some() {
+        return silent();
+    }
+    let mut payload = Object::with_capacity(1);
+    payload.insert(
+        "reason",
+        Json::Str(str_field(&hook, "reason").unwrap_or("unknown").to_owned()),
+    );
+    let _ = append_and_project(
+        &layout,
+        &slug,
+        "session_closed",
+        payload,
+        session_id,
+        "hook",
+    );
+    silent()
+}

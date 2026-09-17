@@ -10,6 +10,8 @@
   if SPEC must change.
 - Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
   Both run at the workspace root; typecheck: `npm run typecheck`.
+  A fresh worktree needs `npm ci` then `npm run build` first (r1-fixes M1):
+  dist/ is gitignored and spawn-based suites execute dist/cli.js.
 - Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
   (source-shipped, no build); packages/engine → sofar bin
   (packages/engine/dist/cli.js after build).

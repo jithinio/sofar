@@ -1,0 +1,119 @@
+{
+  "state": {
+    "current": {
+      "active_phase": "Phase 1 — first",
+      "next_action": "C next"
+    },
+    "cursor": "01KDVDRNDGY50ZJ9M36D87THWB",
+    "decisions": [],
+    "drop_notes": {},
+    "files_touched": [
+      "src/b.ts"
+    ],
+    "freshness": {
+      "events_since_writeback": {
+        "commands": 0,
+        "decisions": 0,
+        "files": 0,
+        "memories": 0,
+        "notes": 0,
+        "phases": 0,
+        "reviews": 0,
+        "tasks": 0
+      },
+      "last_writeback_ts": "2026-01-01T00:01:50.000Z",
+      "notes": [],
+      "unattributed_mutations": 0
+    },
+    "goal": "a goal of realistic length for the parity suite",
+    "guard_violations": [],
+    "memories": [],
+    "phases": [
+      {
+        "name": "Phase 1 — first",
+        "status": "active",
+        "tasks": [
+          {
+            "id": "1.1",
+            "status": "done",
+            "title": "task 1"
+          },
+          {
+            "id": "1.2",
+            "status": "pending",
+            "title": "task 2"
+          }
+        ]
+      },
+      {
+        "name": "Phase 2 — second",
+        "status": "pending",
+        "tasks": [
+          {
+            "id": "2.1",
+            "route": {
+              "agent": "codex"
+            },
+            "status": "pending",
+            "title": "later",
+            "verify": {
+              "cmd": "npm test"
+            }
+          }
+        ]
+      }
+    ],
+    "reviews": [],
+    "runs": [],
+    "sessions": [
+      {
+        "activity": {
+          "commands": 0,
+          "files": [],
+          "task_changes": [
+            "1.1 → done"
+          ]
+        },
+        "ended": "2026-01-01T00:01:00.000Z",
+        "id": "A",
+        "next_action": "B next",
+        "started": "2026-01-01T00:00:04.000Z",
+        "summary": "A done",
+        "tool": "claude-code",
+        "unwritten": 1
+      },
+      {
+        "activity": {
+          "commands": 0,
+          "files": [
+            "src/b.ts"
+          ],
+          "task_changes": []
+        },
+        "ended": "2026-01-01T00:01:50.000Z",
+        "id": "B",
+        "next_action": "C next",
+        "started": "2026-01-01T00:01:10.000Z",
+        "summary": "B done",
+        "tool": "codex",
+        "unwritten": 0
+      },
+      {
+        "id": "C",
+        "started": "2026-01-01T00:01:30.000Z",
+        "tool": "claude-code",
+        "unwritten": 0
+      }
+    ],
+    "slug": "demo",
+    "status": "active",
+    "status_note": null,
+    "status_overrides": [],
+    "status_ts": null,
+    "successor": null,
+    "task_files": {}
+  },
+  "warnings": [
+    "line 9: session \"C\" closed without session_started — skipped"
+  ]
+}

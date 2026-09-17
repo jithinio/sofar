@@ -413,7 +413,7 @@ describe('stdio end-to-end via `sofar mcp`', () => {
     const { tools } = await client.listTools()
     // Twelve are enumerated in SPEC §MCP tools, and that surface is frozen —
     // bump this only after SPEC is brought forward, never to match the code.
-    expect(tools).toHaveLength(12)
+    expect(tools).toHaveLength(9) // nine since r1-fixes 2.4 (D13): review, close and find are CLI
 
     const started = await callTool<{ session_id: string }>(client, 'sofar_start_session', {
       tool: 'claude-code',

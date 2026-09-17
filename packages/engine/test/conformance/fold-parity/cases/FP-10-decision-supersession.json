@@ -1,0 +1,10 @@
+{
+  "tail_at": 9,
+  "seeds": [
+    28,
+    29,
+    30
+  ],
+  "order_independence": true,
+  "note": "decision retirement (r1-fixes 3.2, D25): D5 supersedes D1 (resolved), D4 names the rule D2 without a rule (inert), D6 points forward (inert), D7 replaces rule D2 with a rule (resolved), D8 names itself (inert), D3 carries until:1.1 which the tail resolves — stored as recorded, retirement derived; the tail starts at D7"
+}

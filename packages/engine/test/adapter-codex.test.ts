@@ -263,11 +263,13 @@ describe('the stream', () => {
     const exit = await session.wait()
     expect(exit.code).toBe(3)
     expect(session.stderrTail).toContain('boom')
+    expect(exit.stderr_tail).toContain('boom') // on the exit record too (r1-fixes 1.6, D9)
 
     const missing = new CodexAdapter({ bin: 'codex-that-does-not-exist' }).launch(cell('missing').request())
     const gone = await missing.wait()
     expect(gone.code).toBe(127)
     expect(missing.spawnError).toBeDefined()
+    expect(gone.spawn_error).toBe(missing.spawnError)
   })
 
   it('runs the child in the request cwd', async () => {

@@ -62,10 +62,9 @@ export function startSession(ctx: ToolContext, args: StartSessionArgs): { sessio
   const payload: Record<string, unknown> = { tool: args.tool }
   if (args.model !== undefined) payload.model = args.model
 
-  ctx.appendAndProject(slug, 'session_started', payload, {
-    session: sessionId,
-    source: toSource(args.tool),
-  })
+  // Idempotent (r1-fixes 1.2): a PostToolUse hook racing this call may have
+  // registered the same id since the check above, and then this is adoption.
+  ctx.registerSession(slug, sessionId, payload, { source: toSource(args.tool) })
   ctx.session.set({ id: sessionId, tool: args.tool, initiative: slug })
   return { session_id: sessionId }
 }

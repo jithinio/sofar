@@ -1,0 +1,11 @@
+{
+  "tail_at": 4,
+  "seeds": [
+    13,
+    14,
+    15
+  ],
+  "refusal": "out_of_order_id",
+  "order_independence": true,
+  "note": "a late-arriving earlier id: the convergent sort places it first, so 1.1 ends done; the fast path refuses the tail"
+}

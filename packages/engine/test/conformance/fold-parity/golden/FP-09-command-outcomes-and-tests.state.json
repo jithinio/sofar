@@ -1,0 +1,116 @@
+{
+  "state": {
+    "current": {
+      "active_phase": "Phase 1 — first",
+      "next_action": "n"
+    },
+    "cursor": "01KDVDNNQ0VY50ZJ9M36D87THW",
+    "decisions": [],
+    "drop_notes": {},
+    "files_touched": [],
+    "freshness": {
+      "events_since_writeback": {
+        "commands": 0,
+        "decisions": 0,
+        "files": 0,
+        "memories": 0,
+        "notes": 0,
+        "phases": 0,
+        "reviews": 0,
+        "tasks": 0
+      },
+      "last_writeback_ts": "2026-01-01T00:00:12.000Z",
+      "notes": [],
+      "unattributed_mutations": 0
+    },
+    "goal": "a goal of realistic length for the parity suite",
+    "guard_violations": [],
+    "memories": [],
+    "phases": [
+      {
+        "name": "Phase 1 — first",
+        "status": "active",
+        "tasks": [
+          {
+            "id": "1.1",
+            "status": "done",
+            "title": "task 1"
+          },
+          {
+            "id": "1.2",
+            "status": "done",
+            "title": "task 2"
+          }
+        ]
+      },
+      {
+        "name": "Phase 2 — second",
+        "status": "pending",
+        "tasks": [
+          {
+            "id": "2.1",
+            "route": {
+              "agent": "codex"
+            },
+            "status": "pending",
+            "title": "later",
+            "verify": {
+              "cmd": "npm test"
+            }
+          }
+        ]
+      }
+    ],
+    "reviews": [],
+    "runs": [],
+    "sessions": [
+      {
+        "activity": {
+          "commands": 5,
+          "failed": 1,
+          "files": [],
+          "last_test": {
+            "cmd": "pytest -q",
+            "ok": true
+          },
+          "task_changes": [
+            "1.2 → active",
+            "1.1 → done",
+            "1.2 → done"
+          ]
+        },
+        "ended": "2026-01-01T00:00:12.000Z",
+        "id": "A",
+        "next_action": "n",
+        "started": "2026-01-01T00:00:03.000Z",
+        "summary": "s",
+        "tool": "claude-code",
+        "unwritten": 0
+      }
+    ],
+    "slug": "demo",
+    "status": "active",
+    "status_note": null,
+    "status_overrides": [],
+    "status_ts": null,
+    "successor": null,
+    "task_files": {},
+    "task_tests": {
+      "1.1": {
+        "cmd": "npm test -- --run",
+        "event_id": "01KDVDNFVGD87THWBENGF2S4KP",
+        "exit": 1,
+        "ok": false,
+        "ts": "2026-01-01T00:00:06.000Z"
+      },
+      "1.2": {
+        "cmd": "npm test -- --run",
+        "event_id": "01KDVDNFVGD87THWBENGF2S4KP",
+        "exit": 1,
+        "ok": false,
+        "ts": "2026-01-01T00:00:06.000Z"
+      }
+    }
+  },
+  "warnings": []
+}

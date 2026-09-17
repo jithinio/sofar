@@ -1,13 +1,14 @@
 {
   "name": "sofar.sh",
-  "version": "0.32.0",
+  "version": "0.33.0-rc.1",
   "description": "Sofar v1 engine — event log core, MCP server, CLI, hooks",
   "type": "module",
   "engines": {
     "node": ">=18"
   },
   "bin": {
-    "sofar": "dist/cli.js"
+    "sofar": "dist/cli.js",
+    "sofar-core": "bin/sofar-core"
   },
   "exports": {
     "./schema": {
@@ -26,13 +27,17 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "bin",
+    "install.mjs"
   ],
   "scripts": {
     "build": "node build.mjs",
     "prepack": "node build.mjs && node -e \"require('node:fs').copyFileSync('../../README.md', 'README.md')\"",
     "postpack": "node -e \"require('node:fs').rmSync('README.md', { force: true })\"",
-    "typecheck": "tsc --noEmit -p ."
+    "postinstall": "node install.mjs",
+    "typecheck": "tsc --noEmit -p .",
+    "bench:read-paths": "node bench/read-paths.mjs"
   },
   "devDependencies": {
     "@sofar/schema": "*",
@@ -61,5 +66,12 @@
   "license": "MIT",
   "publishConfig": {
     "access": "public"
+  },
+  "optionalDependencies": {
+    "sofar-core-darwin-arm64": "0.33.0-rc.1",
+    "sofar-core-darwin-x64": "0.33.0-rc.1",
+    "sofar-core-linux-x64": "0.33.0-rc.1",
+    "sofar-core-linux-arm64": "0.33.0-rc.1",
+    "sofar-core-win32-x64": "0.33.0-rc.1"
   }
 }

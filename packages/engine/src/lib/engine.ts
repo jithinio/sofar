@@ -38,9 +38,28 @@ export {
   exportNDJSON,
   importNDJSON,
   readEvents,
+  readEventsSince,
   type ExportResult,
   type ImportResult,
   type ReadEventsResult,
+  type SinceResult,
 } from '../core/cursor'
+
+// The incremental fold (r1-fixes 5.1, D20, D21): the same fold, retained as
+// a versioned snapshot — `foldAll` once, `fold` per tail, `stateOf` to read.
+export {
+  currentSchemaHash,
+  currentVersion,
+  fold,
+  foldAll,
+  parseSnapshot,
+  serializeSnapshot,
+  stateOf,
+  type FoldRefusal,
+  type FoldStep,
+  type ParsedSnapshot,
+  type Snapshot,
+  type SnapshotVersion,
+} from '../core/snapshot'
 
 export { serializeEvent } from '../core/log'

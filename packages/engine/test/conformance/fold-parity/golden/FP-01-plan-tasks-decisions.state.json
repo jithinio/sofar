@@ -1,0 +1,124 @@
+{
+  "state": {
+    "current": {
+      "active_phase": "Phase 1 — first",
+      "blocked_on": "task 1.2: waiting",
+      "next_action": "do 1.2"
+    },
+    "cursor": "01KDVDNKRG1CVY50ZJ9M36D87T",
+    "decisions": [
+      {
+        "because": "z",
+        "chose": "x",
+        "id": "01KDVDNEW8GF2S4KPXRQA1CVY5",
+        "over": "y",
+        "ts": "2026-01-01T00:00:05.000Z"
+      }
+    ],
+    "drop_notes": {},
+    "files_touched": [],
+    "freshness": {
+      "events_since_writeback": {
+        "commands": 0,
+        "decisions": 0,
+        "files": 0,
+        "memories": 0,
+        "notes": 0,
+        "phases": 0,
+        "reviews": 0,
+        "tasks": 0
+      },
+      "last_writeback_ts": "2026-01-01T00:00:10.000Z",
+      "notes": [],
+      "unattributed_mutations": 0
+    },
+    "goal": "a goal of realistic length for the parity suite",
+    "guard_violations": [],
+    "memories": [
+      {
+        "id": "01KDVDNJS84KPXRQA1CVY50ZJ9",
+        "text": "test command: npm test",
+        "ts": "2026-01-01T00:00:09.000Z"
+      }
+    ],
+    "phases": [
+      {
+        "name": "Phase 1 — first",
+        "status": "active",
+        "tasks": [
+          {
+            "id": "1.1",
+            "status": "done",
+            "title": "task 1"
+          },
+          {
+            "id": "1.2",
+            "status": "blocked",
+            "title": "task 2"
+          },
+          {
+            "id": "1.3",
+            "status": "pending",
+            "title": "task 3"
+          },
+          {
+            "id": "1.4",
+            "status": "pending",
+            "title": "added",
+            "verify": {
+              "cmd": "make check",
+              "timeout_ms": 5000
+            }
+          }
+        ]
+      },
+      {
+        "name": "Phase 2 — second",
+        "status": "active",
+        "tasks": [
+          {
+            "id": "2.1",
+            "route": {
+              "agent": "codex"
+            },
+            "status": "pending",
+            "title": "later",
+            "verify": {
+              "cmd": "npm test"
+            }
+          }
+        ]
+      }
+    ],
+    "reviews": [],
+    "runs": [],
+    "sessions": [
+      {
+        "activity": {
+          "commands": 0,
+          "files": [],
+          "task_changes": [
+            "1.1 → done",
+            "1.2 → blocked"
+          ]
+        },
+        "ended": "2026-01-01T00:00:10.000Z",
+        "id": "A",
+        "model": "claude-fable-5",
+        "next_action": "do 1.2",
+        "started": "2026-01-01T00:00:03.000Z",
+        "summary": "did 1.1",
+        "tool": "claude-code",
+        "unwritten": 0
+      }
+    ],
+    "slug": "demo",
+    "status": "active",
+    "status_note": null,
+    "status_overrides": [],
+    "status_ts": null,
+    "successor": null,
+    "task_files": {}
+  },
+  "warnings": []
+}

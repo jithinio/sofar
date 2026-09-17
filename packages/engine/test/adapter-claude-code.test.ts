@@ -188,6 +188,7 @@ describe('spawn', () => {
     const exit = await session.wait()
     expect(exit.code).toBe(127)
     expect(session.spawnError).toContain('ENOENT')
+    expect(exit.spawn_error).toContain('ENOENT') // the driver's note reads the exit, not the session
   })
 
   it('a non-zero exit is reported with the stderr tail kept for diagnostics', async () => {
@@ -198,6 +199,8 @@ describe('spawn', () => {
     expect(exit.code).toBe(3)
     expect(exit.session_id).toBeUndefined()
     expect(exit.usage).toBeUndefined()
+    expect(exit.stderr_tail).toContain('boom: no credentials') // on the exit record (r1-fixes 1.6, D9)
+    expect(exit.spawn_error).toBeUndefined()
     expect(session.stderrTail).toContain('boom: no credentials')
   })
 

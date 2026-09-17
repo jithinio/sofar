@@ -4,28 +4,35 @@
 
 Goal: Move sofar's hot path to a native Rust core incrementally (rust-core D1): contract first, then sofar-core in Rust behind the same CLI and hook contract, integrated with TypeScript fallback, shipped as prebuilt binaries, and proven as its own benchmark arm that shrinks no held-out lead margin (bench-refresh D19). After parity, new hot-path code is Rust-only.
 
-Progress: 0/15 tasks done (0%)
+Progress: 14/18 tasks done (77%)
 
-## Phase 1 — Contract [active] — 0/3 done
+## Phase 1 — Contract [active] — 5/6 done
 
-- [ ] 1.1 Inventory the hot-path surface from docs/SPEC.md and engine code: every hook's stdin/stdout/exit behaviour, CLI commands in scope (event append, status, statusline), env vars, files written, event envelope and projection outputs. List every SPEC gap found.
-- [ ] 1.2 Black-box conformance suite in the TS repo: runs an implementation binary against golden fixtures (real records including this repo's 9.7 MB log, calib and smoke cells, corrupt and unknown lines, concurrent appends) and compares stdout, exit codes and record bytes. Green on TypeScript first.
-- [ ] 1.3 Perf baseline harness: hook p50/p95 cold start and fold/digest latency at 10, 100 and 1,000 initiatives and 1–10 MB records, TypeScript numbers recorded as the target to beat
+- [x] 1.1 Inventory the hot-path surface from docs/SPEC.md and engine code: every hook's stdin/stdout/exit behaviour, CLI commands in scope (event append, status, statusline), env vars, files written, event envelope and projection outputs. List every SPEC gap found.
+- [x] 1.2 Black-box conformance suite in the TS repo: runs an implementation binary against golden fixtures (real records including this repo's 9.7 MB log, calib and smoke cells, corrupt and unknown lines, concurrent appends) and compares stdout, exit codes and record bytes. Green on TypeScript first.
+- [x] 1.3 Perf baseline harness: hook p50/p95 cold start and fold/digest latency at 10, 100 and 1,000 initiatives and 1–10 MB records, TypeScript numbers recorded as the target to beat
+- [x] 1.4 Re-pin both parity targets to the RC: re-record the conformance goldens and the perf baseline against r1-fixes 179b8fd (sofar.sh 0.33.0-rc.1, schema 0.10.0) with a reason per changed golden, keeping the 0.32.0 as-shipped and a45ea21 sets alongside (D11); regenerate crates/sofar-schema from the RC's packages/schema/src (task_added/plan verify, run_started verify, handoff detail, memory_promoted supersedes, verification_recorded)
+- [ ] 1.5 team100 scale corpus and perf cell: a PARAMETERISED, exported synthetic-record generator (named writer profiles `agent` 14.3 ev/session 593 B/ev file_touched-heavy and `human` 21 ev/session 798 B/ev with a 1–4 KB session_ended tail, blend ratio, initiatives, writers, events per stream, heavy-tail size distribution) shaped like 100 users on one repo (~20 initiatives, ~500k events, largest log ≥50 MB, 100 session ids); report cold process and warm fold separately, the fold-cost curve vs events and vs bytes (name the log size crossing 100 ms and the full-refold ≥250 ms point), session-start digest, user-prompt, statusline, find/index build, memory high-water, digest and statusline cost as sessions[] grows to 100 writers; interleaved per D12; record the growth budget (MB and events per user per week) and every non-linear turn as an idea with a predicted gain, never built here
+- [x] 1.6 Order-independence and merge conformance: a property test that the same event SET folds to an identical state under any arrival order (shuffle N times; duplicate ids, out-of-order session_started/ended, corrections; proptest shapes fine), and a union-merge test where N branches append to the SAME initiative's events.jsonl (merge=union .gitattributes path) plus across-initiative merges, asserting the merged fold equals the fold of the union and measuring merged-log fold time
 
-## Phase 2 — Rust core [pending] — 0/6 done
+## Phase 2 — Rust core [done] — 6/6 done
 
-- [ ] 2.1 Cargo workspace crates/sofar-core; schema codegen from packages/schema/src (no hand-written payload types); dependency list per D1
-- [ ] 2.2 Event envelope and atomic O_APPEND append; unknown and corrupt lines skipped with a warning, never fatal, never rewritten
-- [ ] 2.3 Fold to initiative state with conformance parity
-- [ ] 2.4 Digest/status render byte-identical to the projection templates (golden tests), including the 10k char cap behaviour
-- [ ] 2.5 Hook handlers (session-start, user-prompt-submit, post-tool-use, stop, session-end) with conformance parity, including r1-fixes wave 1–2 behaviour
-- [ ] 2.6 Statusline command parity
+> All six tasks landed and proved by the 3.1–3.3 black-box runs.
 
-## Phase 3 — Integration and distribution [pending] — 0/3 done
+- [x] 2.1 Cargo workspace crates/sofar-core; schema codegen from packages/schema/src (no hand-written payload types); dependency list per D1
+- [x] 2.2 Event envelope and atomic O_APPEND append; unknown and corrupt lines skipped with a warning, never fatal, never rewritten
+- [x] 2.3 Fold to initiative state with conformance parity
+- [x] 2.4 Digest/status render byte-identical to the projection templates (golden tests), including the 10k char cap behaviour
+- [x] 2.5 Hook handlers (session-start, user-prompt-submit, post-tool-use, stop, session-end) with conformance parity, including r1-fixes wave 1–2 behaviour
+- [x] 2.6 Statusline command parity
 
-- [ ] 3.1 TS entry points and hook shims dispatch to sofar-core when present, with TypeScript fallback and an explicit override for debugging
-- [ ] 3.2 Prebuilt binaries per platform (darwin arm64/x64, linux x64/arm64, win32 x64) via npm optionalDependencies, plus a CI build matrix
-- [ ] 3.3 Gate green: 100% conformance on both implementations and perf targets beaten
+## Phase 3 — Integration and distribution [done] — 3/3 done
+
+> 3.1 stub dispatch (D31), 3.2 platform packages and shims (D32), 3.3 gate green (D33). CI matrix unverified until the branch is pushed; nothing published.
+
+- [x] 3.1 TS entry points and hook shims dispatch to sofar-core when present, with TypeScript fallback and an explicit override for debugging
+- [x] 3.2 Prebuilt binaries per platform (darwin arm64/x64, linux x64/arm64, win32 x64) via npm optionalDependencies, plus a CI build matrix
+- [x] 3.3 Gate green: 100% conformance on both implementations and perf targets beaten
 
 ## Phase 4 — Prove and switch [pending] — 0/3 done
 
@@ -34,4 +41,4 @@ Progress: 0/15 tasks done (0%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: In ~/IO/sofar-rust-core: rust-core 1.1 inventory hot-path surface from SPEC and engine
+Next action: User pushes rust-core (`git -C ~/IO/sofar-rust-core push -u origin rust-core`) to run the core matrix and core-conformance CI jobs. Then memory-lead 1.4 as wave-a lands each contract: on the D2 schema commit, merge wave-a's packages/schema/src, `cargo xtask schema`, add DecisionState.quote + payload validation in Rust; on the SPEC tokenizer grammar sha, port the specifics extractor and the quoted-rule line to status.rs/projections.rs and re-record touched goldens with reasons (D11); then A1/A3, L09/L10, Cursor shims 6.3–6.6. 1.5 (team100, measurement only) fills the gaps between contracts.

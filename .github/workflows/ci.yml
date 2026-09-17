@@ -1,0 +1,129 @@
+# CI (r1-fixes, run-owner ruling 2026-09-16): the push path runs the suite
+# and nothing timing-sensitive. The D18 read-path tripwire is the separate
+# manual job below, so no push pays an npm install of the pinned baseline,
+# and the SPEC keeps that tripwire as the first RC checklist step regardless.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: 'previous release to gate against (npm version of sofar.sh)'
+        required: true
+        default: '0.32.0'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm run typecheck
+
+  # The native core (rust-core 3.2): one build per platform sofar.sh ships a
+  # core for, tested where the runner can run it, and uploaded as the
+  # artifact `packaging/npm/emit.mjs --binaries` stages into the platform
+  # packages. Publishing stays a human step (repo memory M1): download the
+  # `sofar-core-*` artifacts, run the emit script, `npm publish` each
+  # platform package, then sofar.sh — the optionalDependencies pin them at
+  # the release version, so the order matters.
+  core:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-14, target: aarch64-apple-darwin }
+          - { os: macos-15-intel, target: x86_64-apple-darwin }
+          - { os: ubuntu-24.04, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
+          - { os: windows-2022, target: x86_64-pc-windows-msvc }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # rust-toolchain.toml pins the exact channel; this only installs it.
+          toolchain: 1.98.1
+          components: clippy, rustfmt
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --target ${{ matrix.target }} -- -D warnings
+      - run: cargo test -p sofar-core --target ${{ matrix.target }}
+      - run: cargo build --release -p sofar-core --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sofar-core-${{ matrix.target }}
+          path: |
+            target/${{ matrix.target }}/release/sofar-core
+            target/${{ matrix.target }}/release/sofar-core.exe
+          if-no-files-found: error
+
+  # The mixed install (rust-core 3.1, D31): the shipped boot stub dispatching
+  # to the core it just built, every conformance case, no tag skipped; plus
+  # the schema and packaging generators kept in lockstep with their sources.
+  core-conformance:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - run: npm run build
+      - run: cargo xtask schema --check
+      - run: node packaging/npm/emit.mjs --check
+      - run: cargo build --release -p sofar-core
+      - run: SOFAR_CORE=$PWD/target/release/sofar-core npx vitest run --project unit packages/engine/test/conformance/conformance.test.ts
+      - run: SOFAR_CONFORMANCE_BIN=$PWD/target/release/sofar-core npx vitest run --project unit packages/engine/test/conformance/fold-parity
+      - run: cargo test -p sofar-core --test render_parity
+
+  # Loose read-path tripwire (r1-fixes D18): a gross regression cannot reach
+  # an RC unnoticed. Wide budget on purpose — hosted noise cannot hide a 2×
+  # regression, and the ±10% gate runs by hand, interleaved, per the SPEC.
+  read-paths:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: install the pinned baseline
+        run: npm install --prefix "$RUNNER_TEMP/baseline" sofar.sh@${{ inputs.baseline }}
+      - name: read-path tripwire (repo fixture)
+        run: |
+          npm run bench:read-paths -- \
+            --baseline "$RUNNER_TEMP/baseline/node_modules/sofar.sh/dist/cli.js" \
+            --candidate packages/engine/dist/cli.js \
+            --fixture repo --session ci-tripwire --n 25 --budget 0.5 \
+            --record "$RUNNER_TEMP/read-paths.repo.json"
+      - name: read-path tripwire (i1000-10mb fixture)
+        run: |
+          npm run bench:read-paths -- \
+            --baseline "$RUNNER_TEMP/baseline/node_modules/sofar.sh/dist/cli.js" \
+            --candidate packages/engine/dist/cli.js \
+            --fixture i1000-10mb --n 25 --budget 0.5 \
+            --record "$RUNNER_TEMP/read-paths.i1000-10mb.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: read-paths
+          path: ${{ runner.temp }}/read-paths.*.json

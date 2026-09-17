@@ -1,0 +1,10 @@
+{
+  "tail_at": 5,
+  "seeds": [
+    1,
+    2,
+    3
+  ],
+  "order_independence": true,
+  "note": "plan, task changes, a decision, a memory, a write-back"
+}

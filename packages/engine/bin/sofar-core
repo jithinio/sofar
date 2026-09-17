@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+// `sofar-core` on PATH (rust-core 3.2). On a platform with a native core,
+// install.mjs (postinstall) REPLACES this file with the binary from the
+// sofar-core-<platform>-<arch> optional dependency, so the hook shims exec
+// native code with no node in front. This JavaScript stays in place when
+// postinstall could not run (--ignore-scripts, no platform package, Windows,
+// where npm's .cmd wrapper expects a script): it is then exactly `sofar`,
+// whose boot stub still dispatches to a present core or runs the TypeScript
+// hot path — same bytes, one node boot more.
+await import('../dist/cli.js')

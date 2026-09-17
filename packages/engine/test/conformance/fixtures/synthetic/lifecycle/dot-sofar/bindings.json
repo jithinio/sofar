@@ -1,0 +1,9 @@
+{
+  "main": "finished",
+  "renamed": "old-name",
+  "successor": "new-name",
+  "dropped": "abandoned",
+  "ghost": "does-not-exist",
+  "escape": "../../etc",
+  "blank": "never-written"
+}

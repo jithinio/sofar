@@ -1,4 +1,6 @@
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
@@ -79,26 +81,56 @@ function registerSession(fixture: Fixture, sessionId = 'claude-sess-1'): void {
   )
 }
 
-describe('hook shims (3.1) — zero logic, exec the CLI (BD4)', () => {
+describe('hook shims (3.1) — routing only, exec the core or the CLI (BD4, rust-core D32)', () => {
   const shims: Array<[string, string]> = [
     ['session-start.sh', 'session-start'],
     ['user-prompt-submit.sh', 'user-prompt'],
     ['post-tool-use.sh', 'post-tool'],
+    ['post-tool-use-failure.sh', 'post-tool-failure'],
     ['stop.sh', 'stop'],
     ['session-end.sh', 'session-end'],
   ]
 
   for (const [file, subcommand] of shims) {
-    it(`${file} is a POSIX sh shim that execs \`sofar event ${subcommand}\``, () => {
+    it(`${file} is a POSIX sh shim that execs \`sofar-core event ${subcommand}\` when on PATH, else \`sofar event ${subcommand}\``, () => {
       const content = readFileSync(join(hooksDir, file), 'utf8')
       const lines = content.split('\n')
       expect(lines[0]).toBe('#!/bin/sh')
-      expect(content).toContain(`exec sofar event ${subcommand}`)
-      // no logic: nothing but the shebang, comments, and the exec line
+      // no behaviour: the shebang, comments, and exactly the routing lines —
+      // SOFAR_CORE=0 forces the CLI, SOFAR_CORE=<path> names the core, the
+      // default is whichever `sofar-core` PATH finds, else the CLI.
       const codeLines = lines.filter((l) => l.trim() !== '' && !l.startsWith('#'))
-      expect(codeLines).toEqual([`exec sofar event ${subcommand}`])
+      expect(codeLines).toEqual([
+        'core="${SOFAR_CORE-}"',
+        'if [ "$core" != 0 ] && command -v "${core:-sofar-core}" >/dev/null 2>&1; then',
+        `  exec "\${core:-sofar-core}" event ${subcommand}`,
+        'fi',
+        `exec sofar event ${subcommand}`,
+      ])
     })
   }
+
+  it.skipIf(process.platform === 'win32')('the routing runs: a core on PATH is exec\'d, SOFAR_CORE=0 skips it, a named core wins', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sofar-shim-route-'))
+    const bin = join(dir, 'bin')
+    mkdirSync(bin)
+    const fakeCore = (name: string, tag: string) => {
+      const path = join(bin, name)
+      writeFileSync(path, `#!/bin/sh\necho ${tag} "$@"\n`)
+      chmodSync(path, 0o755)
+      return path
+    }
+    fakeCore('sofar-core', 'core:')
+    fakeCore('sofar', 'cli:')
+    const named = fakeCore('other-core', 'named:')
+    const run = (env: Record<string, string>) =>
+      spawnSync('/bin/sh', [join(hooksDir, 'stop.sh')], { encoding: 'utf8', env: { PATH: bin, ...env } }).stdout
+    expect(run({})).toBe('core: event stop\n')
+    expect(run({ SOFAR_CORE: '0' })).toBe('cli: event stop\n')
+    expect(run({ SOFAR_CORE: named })).toBe('named: event stop\n')
+    expect(run({ SOFAR_CORE: join(dir, 'missing') })).toBe('cli: event stop\n')
+    rmSync(dir, { recursive: true, force: true })
+  })
 })
 
 describe('sofar event session-start — context injection only, lazy registration (3.2, record-hygiene D2)', () => {
@@ -168,7 +200,7 @@ describe('sofar event session-start — context injection only, lazy registratio
     expect(existsSync(fixture.eventsPath)).toBe(false)
   })
 
-  it('unbound branch → exit 0, nothing appended', () => {
+  it('unbound branch → exit 0, nothing appended (the quick lane catches the WORK, never a read — quick-lane.test.ts)', () => {
     const fixture = fx({ bind: false })
     const result = handleSessionStart(fixture.root, hookStdin({}))
     expect(result.exitCode).toBe(0)
@@ -206,7 +238,7 @@ describe('cold-resume advisory (felt-cost 2.1/2.2) — resume-only, read-side, b
     vi.setSystemTime(new Date(Date.now() + ms))
   }
 
-  it('cold record + substantial transcript → one advisory line ABOVE the untouched status block', () => {
+  it('cold record + substantial transcript → one advisory line in the volatile tail of the untouched status block (D12)', () => {
     const { fixture, transcript } = coldSetup()
     jumpAhead(2 * COLD_RESUME_GAP_MS)
 
@@ -216,11 +248,17 @@ describe('cold-resume advisory (felt-cost 2.1/2.2) — resume-only, read-side, b
       hookStdin({ source: 'resume', transcript_path: transcript }),
     )
     expect(resume.exitCode).toBe(0)
-    expect(resume.stdout.startsWith('⚠ Cold resume: ~2h since this record\'s last event')).toBe(true)
+    expect(resume.stdout.startsWith('# Sofar status:')).toBe(true)
+    const advisory = resume.stdout.indexOf('⚠ Cold resume: ~2h since this record\'s last event')
+    expect(advisory).toBeGreaterThan(-1)
     expect(resume.stdout).toContain('re-warms at full input price')
-    // composes AROUND the block: everything after the advisory is byte-identical
-    // to a compact re-fire of the same record (felt-cost 1.2 pins the block)
-    expect(resume.stdout.endsWith(compact.stdout)).toBe(true)
+    // the notice rides the tail (r1-fixes 2.3, D12): after the git line, before
+    // the footer — never in the cached prefix
+    expect(advisory).toBeGreaterThan(resume.stdout.indexOf('Git: '))
+    expect(advisory).toBeLessThan(resume.stdout.indexOf('(generated by sofar'))
+    // the block's state-derived sections are byte-identical to a compact
+    // re-fire of the same record (felt-cost 1.2 pins the block)
+    expect(resume.stdout.startsWith(compact.stdout.slice(0, compact.stdout.indexOf('Session: ')))).toBe(true)
     expect(logEvents(fixture.eventsPath)).toHaveLength(1) // no duplicate registration
   })
 
@@ -281,7 +319,7 @@ describe('cold-resume advisory (felt-cost 2.1/2.2) — resume-only, read-side, b
       fixture.root,
       hookStdin({ source: 'resume', transcript_path: transcript }),
     )
-    expect(resume.stdout.startsWith('⚠ Cold resume:')).toBe(true)
+    expect(resume.stdout).toContain('⚠ Cold resume:')
   })
 })
 
@@ -504,11 +542,20 @@ describe('sofar event post-tool — mechanical file/command events (3.3)', () =>
     expect(events[0]).toMatchObject({ type: 'command_run', session: 'cli', source: 'hook' })
   })
 
-  it('unbound repo → exit 0, nothing appended (BD22)', () => {
+  it('unbound branch → exit 0, nothing appended to the unbound record (the quick lane takes it — r1-fixes 2.6, quick-lane.test.ts)', () => {
     const fixture = fx({ bind: false })
     const result = handlePostTool(fixture.root, postToolStdin('Edit', { file_path: '/x.ts' }))
     expect(result).toEqual({ exitCode: 0, stdout: '', stderr: '' })
     expect(existsSync(fixture.eventsPath)).toBe(false)
+    expect(existsSync(join(fixture.root, '.sofar', 'initiatives', 'quick', 'events.jsonl'))).toBe(true)
+  })
+
+  it('a repo with no record at all → exit 0, nothing created (BD22)', () => {
+    const fixture = fx({ bind: false })
+    rmSync(join(fixture.root, '.sofar'), { recursive: true, force: true })
+    const result = handlePostTool(fixture.root, postToolStdin('Edit', { file_path: '/x.ts' }))
+    expect(result).toEqual({ exitCode: 0, stdout: '', stderr: '' })
+    expect(existsSync(join(fixture.root, '.sofar'))).toBe(false)
   })
 })
 

@@ -39,7 +39,8 @@ export interface FakeScript {
    * driven agent's needs_user lever (session-driver D5).
    */
   block?: string
-  exit?: { code: number | null; signal?: string }
+  /** How the process ends, including what it left on stderr (r1-fixes 1.6). */
+  exit?: { code: number | null; signal?: string; stderr_tail?: string; spawn_error?: string }
   /** Whether the exit carries the session id — a transport that shows it. */
   report_session_id?: boolean
   capabilities?: Partial<AdapterCapabilities>

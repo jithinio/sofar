@@ -1,0 +1,5 @@
+# rust-core D9: pinned stable; 1.98.0 is skipped (vtable miscompile, fixed in 1.98.1).
+[toolchain]
+channel = "1.98.1"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

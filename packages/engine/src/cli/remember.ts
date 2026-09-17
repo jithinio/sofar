@@ -1,4 +1,5 @@
 import { createToolContext, ToolError } from '../mcp/context'
+import { promoteMemory } from '../mcp/remember'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 import { renderConfirmation, renderFailure } from './new'
 import { type Caps, stderrCaps, stdoutCaps } from './ui'
@@ -18,7 +19,7 @@ import { type Caps, stderrCaps, stdoutCaps } from './ui'
 export function runRemember(
   rootDir: string,
   text: string,
-  options: { initiative?: string } = {},
+  options: { initiative?: string; supersedes?: string } = {},
   caps: Caps = stdoutCaps(),
   errCaps: Caps = stderrCaps(),
 ): CmdResult {
@@ -29,17 +30,18 @@ export function runRemember(
   const ctx = createToolContext(rootDir)
   try {
     const slug = ctx.resolveWriteInitiative(options.initiative)
-    const event = ctx.appendAndProject(slug, 'memory_promoted', { text: text.trim() }, {
+    const event = promoteMemory(ctx, slug, text.trim(), options.supersedes, {
       session: 'cli',
       source: 'cli',
       actor: 'human',
     })
     const ordinal = ctx.foldState(slug).memories.findIndex((m) => m.id === event.id) + 1
     const handle = `${slug} M${ordinal}`
+    const replaced = event.payload.supersedes
     return ok(
       `${renderConfirmation(
         [
-          `promoted ${handle}`,
+          `promoted ${handle}${typeof replaced === 'string' ? ` (supersedes ${replaced}, now retired)` : ''}`,
           text.trim(),
           `name it in .sofar/repo.md citing \`${handle}\` — sofar never writes repo.md, and doctor reports this until it does`,
         ],

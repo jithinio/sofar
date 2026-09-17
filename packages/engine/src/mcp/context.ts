@@ -1,12 +1,25 @@
+import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
-import { validatePayload, isKnownEventType } from '@sofar/schema'
+import { validatePayload, isClosedInitiativeStatus, isKnownEventType } from '@sofar/schema'
 import type { ToolErrorCode, ToolErrorShape } from '@sofar/schema/tool-inputs'
 import { makeEvent, SOURCES, type Actor, type EventEnvelope, type Source } from '../core/envelope'
-import { appendEvent } from '../core/log'
-import { foldLog, emptyState, type InitiativeState } from '../core/fold'
+import { appendEvent, serializeEvent } from '../core/log'
+import {
+  appendToCheckpoint,
+  countLines,
+  decodeLines,
+  emptyState,
+  finalizeFold,
+  replayDecoded,
+  type FoldCheckpoint,
+  type InitiativeState,
+} from '../core/fold'
 import { currentBranch } from '../core/git'
+import { ensureIndexDir } from '../core/index-store'
+import { QUICK_LANE } from '../core/lane'
 import { initiativeSlugs } from '../core/listing'
+import { withFileLock } from '../core/lock'
 import { regenerateProjections } from '../projections/generator'
 
 // Branch → initiative resolution reads git; the reader itself lives in core/
@@ -81,11 +94,11 @@ export function toSource(tool: string | undefined): Source {
 export { initiativeSlugs }
 
 /**
- * ts of this log's session_started for `sessionId`, or null. The substring
- * pre-filter matters: the overwhelmingly common answer is "not here", and it
- * is reached without parsing a single line.
+ * This log's first session_started for `sessionId` ({id, ts}), or null. The
+ * substring pre-filter matters: the overwhelmingly common answer is "not
+ * here", and it is reached without parsing a single line.
  */
-function registeredAt(logPath: string, sessionId: string): string | null {
+export function registrationIn(logPath: string, sessionId: string): { id: string; ts: string } | null {
   let text: string
   try {
     text = readFileSync(logPath, 'utf8')
@@ -103,14 +116,18 @@ function registeredAt(logPath: string, sessionId: string): string | null {
         (event as Record<string, unknown>).type === 'session_started' &&
         (event as Record<string, unknown>).session === sessionId
       ) {
-        const ts = (event as Record<string, unknown>).ts
-        if (typeof ts === 'string') return ts
+        const { id, ts } = event as Record<string, unknown>
+        if (typeof id === 'string' && typeof ts === 'string') return { id, ts }
       }
     } catch {
       // torn/corrupt line — same tolerance as the fold, never fatal
     }
   }
   return null
+}
+
+function registeredAt(logPath: string, sessionId: string): string | null {
+  return registrationIn(logPath, sessionId)?.ts ?? null
 }
 
 /**
@@ -191,8 +208,17 @@ export function homeInitiative(
     }
   }
 
+  // Catch-basin rule (r1-fixes 2.6, D14): a registration in the quick lane
+  // never beats a real slug. A session that began as quick work and then ran
+  // `sofar new` is registered in the lane and preferred elsewhere; letting the
+  // lane win would pin it there for life — the exact tear this scan exists to
+  // prevent, reintroduced by the fallback. With no preference (an unbound
+  // branch) the lane is a home like any other, so the trailer and the hooks
+  // still find a lane session.
+  const skipLane = preferred != null && preferred !== QUICK_LANE
   for (const slug of initiativeSlugs(sofarDir)) {
     if (slug === preferred) continue // already read above
+    if (skipLane && slug === QUICK_LANE) continue
     const path = eventsPathFor(slug)
     // Only a STRICTLY later registration can displace the candidate, so a log
     // that cannot hold one is never opened.
@@ -206,8 +232,12 @@ export function homeInitiative(
   return home
 }
 
-/** How a resolution was reached — the surfaces render the two differently. */
-export type ResolvedVia = 'session' | 'branch'
+/**
+ * How a resolution was reached — the surfaces render each differently.
+ * `lane` is the branch path answering `quick` by fallback (r1-fixes 2.6):
+ * bound to nothing, caught by the lane.
+ */
+export type ResolvedVia = 'session' | 'branch' | 'lane'
 
 export interface ResolvedInitiative {
   slug: string
@@ -245,12 +275,14 @@ export function resolveSessionFirst(
   } catch {
     branchSlug = null // unbound/detached — a registered session may still answer
   }
+  const branchVia = (): ResolvedVia =>
+    branchSlug === QUICK_LANE && ctx.laneFallback() ? 'lane' : 'branch'
   if (sessionId != null && sessionId.length > 0) {
     const home = homeInitiative(ctx.sofarDir, sessionId, branchSlug)
-    if (home !== null) return { slug: home, via: home === branchSlug ? 'branch' : 'session' }
+    if (home !== null) return { slug: home, via: home === branchSlug ? branchVia() : 'session' }
   }
   if (branchSlug === null) return null
-  return { slug: branchSlug, via: 'branch' }
+  return { slug: branchSlug, via: branchVia() }
 }
 
 /**
@@ -289,8 +321,18 @@ export interface ToolContext {
   session: SessionBox
   initiativeDir(slug: string): string
   eventsPath(slug: string): string
-  /** Explicit arg wins; else current branch → bindings.json; else typed error. */
+  /**
+   * Explicit arg wins; else current branch → bindings.json; else the quick
+   * lane when it exists and is open (r1-fixes 2.6, D14); else typed error.
+   */
   resolveInitiative(explicit?: string): string
+  /**
+   * True when resolveInitiative() would answer `quick` BY FALLBACK — the
+   * current branch is bound to nothing and the lane is open. False when a
+   * branch is explicitly bound to `quick` (`sofar switch quick`): that is a
+   * binding like any other, and the surfaces word it as one.
+   */
+  laneFallback(): boolean
   /**
    * Write-tool resolution (task 12.1, BD58): explicit arg wins; else the
    * ACTIVE session's pinned initiative; else branch → bindings.json. Pinning
@@ -307,6 +349,18 @@ export interface ToolContext {
     payload: Record<string, unknown>,
     options?: AppendOptions,
   ): EventEnvelope
+  /**
+   * Idempotent session_started (r1-fixes 1.2): appends through
+   * appendAndProject only when `session` is not yet registered in this log,
+   * deciding under a cross-process lock. Returns the appended event, or null
+   * when a registration already stands. Every registration path uses it.
+   */
+  registerSession(
+    slug: string,
+    session: string,
+    payload: Record<string, unknown>,
+    options?: Omit<AppendOptions, 'session'>,
+  ): EventEnvelope | null
 }
 
 export function createToolContext(rootDir: string): ToolContext {
@@ -364,6 +418,27 @@ export function createToolContext(rootDir: string): ToolContext {
     }
   }
 
+  /** The lane exists and is not closed — the only state in which it is a fallback. */
+  function laneOpen(): boolean {
+    if (!existsSync(initiativeDir(QUICK_LANE))) return false
+    try {
+      return !isClosedInitiativeStatus(foldState(QUICK_LANE).status)
+    } catch {
+      return false
+    }
+  }
+
+  function laneFallback(): boolean {
+    const branch = currentBranch(rootDir)
+    if (branch === null) return false
+    try {
+      if (readBindings()[branch] !== undefined) return false
+    } catch {
+      return false
+    }
+    return laneOpen()
+  }
+
   function resolveInitiative(explicit?: string): string {
     let slug: string
     if (explicit !== undefined) {
@@ -378,12 +453,20 @@ export function createToolContext(rootDir: string): ToolContext {
       }
       const bound = readBindings()[branch]
       if (bound === undefined) {
-        throw new ToolError(
-          'unknown_initiative',
-          `no initiative bound to branch "${branch}" in .sofar/bindings.json — pass \`initiative\` explicitly or bind the branch; ${knownInitiatives(sofarDir)}`,
-        )
+        // The quick-work lane (r1-fixes 2.6, D14): an unbound branch resolves
+        // to `quick` when the lane exists and is open. A fallback, not a
+        // binding — bindings.json is untouched, so `sofar new`/`switch` move
+        // the branch off the lane with nothing to undo. A closed lane is off.
+        if (!laneOpen()) {
+          throw new ToolError(
+            'unknown_initiative',
+            `no initiative bound to branch "${branch}" in .sofar/bindings.json — pass \`initiative\` explicitly or bind the branch; ${knownInitiatives(sofarDir)}`,
+          )
+        }
+        slug = QUICK_LANE
+      } else {
+        slug = bound
       }
-      slug = bound
     }
     assertContained(slug)
     if (!existsSync(initiativeDir(slug))) {
@@ -405,14 +488,39 @@ export function createToolContext(rootDir: string): ToolContext {
     return resolveInitiative(explicit)
   }
 
+  // Fold cache (r1-fixes 2.7, D17): one replay per log per process. Keyed
+  // by the log's size and mtime, so any write this process did not make —
+  // another hook, a sibling server, a branch switch — misses and refolds;
+  // a write it DID make advances the checkpoint by exactly that line
+  // (appendAndProject below). Every hit returns finalizeFold's clone, so a
+  // caller may mutate what it gets. Bounded: the newest few slugs only.
+  const FOLD_CACHE_MAX = 8
+  const folds = new Map<string, { size: number; mtimeMs: number; cp: FoldCheckpoint }>()
+
+  function rememberFold(slug: string, entry: { size: number; mtimeMs: number; cp: FoldCheckpoint }): void {
+    folds.delete(slug)
+    folds.set(slug, entry)
+    while (folds.size > FOLD_CACHE_MAX) folds.delete(folds.keys().next().value as string)
+  }
+
   function foldState(slug: string): InitiativeState {
     const logPath = eventsPath(slug)
     let state: InitiativeState
     if (!existsSync(logPath)) {
+      folds.delete(slug)
       state = emptyState()
     } else {
       try {
-        state = foldLog(logPath).state
+        const st = statSync(logPath)
+        const hit = folds.get(slug)
+        if (hit !== undefined && hit.size === st.size && hit.mtimeMs === st.mtimeMs) {
+          state = finalizeFold(hit.cp).state
+        } else {
+          const lines = readFileSync(logPath, 'utf8').split('\n')
+          const cp = replayDecoded(decodeLines(lines), slug, countLines(lines))
+          rememberFold(slug, { size: st.size, mtimeMs: st.mtimeMs, cp })
+          state = finalizeFold(cp).state
+        }
       } catch (err) {
         throw new ToolError('io_error', `failed to read ${logPath}: ${errMessage(err)}`)
       }
@@ -447,7 +555,22 @@ export function createToolContext(rootDir: string): ToolContext {
       payload,
     })
     try {
-      appendEvent(eventsPath(slug), event)
+      const logPath = eventsPath(slug)
+      const hit = folds.get(slug)
+      appendEvent(logPath, event)
+      // Advance the checkpoint by the line just written (D17) — only when
+      // the log now measures exactly cached + this line, which proves no
+      // other writer landed in between. Any doubt drops the entry, and the
+      // fold below reads the file like any other miss.
+      if (hit !== undefined) {
+        const line = serializeEvent(event)
+        const st = statSync(logPath)
+        if (st.size === hit.size + Buffer.byteLength(line, 'utf8') + 1 && appendToCheckpoint(hit.cp, line) !== null) {
+          rememberFold(slug, { size: st.size, mtimeMs: st.mtimeMs, cp: hit.cp })
+        } else {
+          folds.delete(slug)
+        }
+      }
       regenerateProjections(initiativeDir(slug), foldState(slug))
     } catch (err) {
       if (err instanceof ToolError) throw err
@@ -459,6 +582,53 @@ export function createToolContext(rootDir: string): ToolContext {
     return event
   }
 
+  /**
+   * Registration was a check-then-append on three paths — the PostToolUse
+   * hook, sofar_start_session's unknown-id branch, and `sofar event append
+   * --type session_started` (which had no check at all) — so any two writers
+   * that read before either appended both registered. The fold tolerates the
+   * duplicate by skipping it, but warns on every read forever and the line
+   * never leaves the committed log. Round 1 found 4 for one Cursor session.
+   *
+   * Double-checked: the unlocked fold answers the common case (already
+   * registered — every event after a session's first) without touching the
+   * lock, and only an apparently-new session re-checks under it. The re-check
+   * must be a fresh fold, and it is: foldState reads the log every call.
+   * Holding the lock across the append also orders the loser's own event
+   * AFTER the winner's session_started, so no hook event lands ahead of its
+   * registration.
+   *
+   * Scoped per (initiative, session): different sessions never contend, and
+   * a session registering in a second initiative (a deliberate re-home) is a
+   * different key — a per-log registration is what "home" is derived from
+   * (record-integrity D9), so this dedupes within a log and never across.
+   * Validation runs first so a repeat start with a bad payload is refused
+   * exactly as a first one would be.
+   */
+  function registerSession(
+    slug: string,
+    sessionId: string,
+    payload: Record<string, unknown>,
+    options?: Omit<AppendOptions, 'session'>,
+  ): EventEnvelope | null {
+    const check = validatePayload('session_started', payload)
+    if (!check.ok) {
+      throw new ToolError('invalid_input', 'refusing to append invalid session_started payload', check.errors)
+    }
+    const registered = (): boolean => foldState(slug).sessions.some((s) => s.id === sessionId)
+    if (registered()) return null
+    const section = (): EventEnvelope | null =>
+      registered() ? null : appendAndProject(slug, 'session_started', payload, { ...options, session: sessionId })
+    let lockPath: string
+    try {
+      const key = createHash('sha256').update(sessionId).digest('hex').slice(0, 24)
+      lockPath = join(ensureIndexDir(sofarDir), 'locks', `${slug}.${key}.lock`)
+    } catch {
+      return section() // no index dir to lock in — degrade to unlocked, as withFileLock does
+    }
+    return withFileLock(lockPath, section)
+  }
+
   return {
     rootDir,
     sofarDir,
@@ -467,8 +637,10 @@ export function createToolContext(rootDir: string): ToolContext {
     initiativeDir,
     eventsPath,
     resolveInitiative,
+    laneFallback,
     resolveWriteInitiative,
     foldState,
     appendAndProject,
+    registerSession,
   }
 }

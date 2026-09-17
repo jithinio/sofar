@@ -1,0 +1,337 @@
+//! Derived activity (r1-fixes 2.5, D24) — the port of `core/derived.ts`'s
+//! pure half: the CLOSED test-command recognizer behind `tested` edges,
+//! `activity.last_test` and `task_tests`. The env switch and the MCP
+//! guidance sentences stay in TypeScript (they never touch the fold).
+//!
+//! The recognizer is three anchored regexes tested at the head of each shell
+//! segment (split quote-aware on `&&`, `||`, `;`, `|`, newline) after leading
+//! `VAR=value` assignments are dropped. There is no regex crate (rust-core
+//! D9), so each regex is written out as the set of positions it can reach —
+//! existence is all `.test()` asks — with `\s` the JS whitespace set (P2) and
+//! `\w` ASCII (P3).
+
+use crate::text::{is_js_whitespace, js_trim};
+
+/// Bound on the command text a test outcome keeps (`TEST_CMD_CLIP`), in UTF-16 units.
+pub const TEST_CMD_CLIP: usize = 120;
+
+/// The first shell segment of `cmd` that runs a test suite, or `None`
+/// (`testShapedCommand`). What the command DID is `ok`, never this.
+#[must_use]
+pub fn test_shaped_command(cmd: &str) -> Option<String> {
+    for raw in split_segments(cmd) {
+        let seg = js_trim(strip_env_assignments(&raw));
+        if seg.is_empty() {
+            continue;
+        }
+        let chars: Vec<char> = seg.chars().collect();
+        if pkg_test(&chars) || runner(&chars) || tool_test(&chars) {
+            return Some(clip_utf16(seg, TEST_CMD_CLIP));
+        }
+    }
+    None
+}
+
+/// `s.slice(0, n)` in UTF-16 units; a pair cut in half becomes U+FFFD (D13).
+fn clip_utf16(s: &str, n: usize) -> String {
+    let mut out = String::new();
+    let mut units = 0;
+    for c in s.chars() {
+        let w = c.len_utf16();
+        if units + w > n {
+            if units < n {
+                out.push('\u{FFFD}');
+            }
+            break;
+        }
+        out.push(c);
+        units += w;
+    }
+    out
+}
+
+/// `ENV_ASSIGN = /^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)+/`, removed once.
+fn strip_env_assignments(seg: &str) -> &str {
+    let b = seg.as_bytes();
+    let mut end = 0;
+    loop {
+        let mut i = end;
+        if !b
+            .get(i)
+            .is_some_and(|c| c.is_ascii_alphabetic() || *c == b'_')
+        {
+            break;
+        }
+        i += 1;
+        while b
+            .get(i)
+            .is_some_and(|c| c.is_ascii_alphanumeric() || *c == b'_')
+        {
+            i += 1;
+        }
+        if b.get(i) != Some(&b'=') {
+            break;
+        }
+        i += 1;
+        // `\S*` then `\s+`: a run of non-whitespace, then at least one whitespace.
+        let rest = &seg[i..];
+        let non_ws = rest
+            .char_indices()
+            .find(|(_, c)| is_js_whitespace(*c))
+            .map_or(rest.len(), |(at, _)| at);
+        let after = &rest[non_ws..];
+        let ws = after
+            .char_indices()
+            .find(|(_, c)| !is_js_whitespace(*c))
+            .map_or(after.len(), |(at, _)| at);
+        if ws == 0 {
+            break;
+        }
+        end = i + non_ws + ws;
+    }
+    &seg[end..]
+}
+
+/// Quote-aware split on the shell's sequencing operators (`splitSegments`).
+fn split_segments(cmd: &str) -> Vec<String> {
+    let chars: Vec<char> = cmd.chars().collect();
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut quote: Option<char> = None;
+    let mut i = 0;
+    while i < chars.len() {
+        let ch = chars[i];
+        if let Some(q) = quote {
+            cur.push(ch);
+            if ch == q {
+                quote = None;
+            } else if ch == '\\' && q == '"' {
+                if let Some(next) = chars.get(i + 1) {
+                    cur.push(*next);
+                }
+                i += 1;
+            }
+            i += 1;
+            continue;
+        }
+        if ch == '"' || ch == '\'' {
+            quote = Some(ch);
+            cur.push(ch);
+        } else if ch == '\\' {
+            cur.push(ch);
+            if let Some(next) = chars.get(i + 1) {
+                cur.push(*next);
+            }
+            i += 1;
+        } else if (ch == '&' || ch == '|') && chars.get(i + 1) == Some(&ch) {
+            out.push(std::mem::take(&mut cur));
+            i += 1;
+        } else if ch == ';' || ch == '|' || ch == '\n' {
+            out.push(std::mem::take(&mut cur));
+        } else {
+            cur.push(ch);
+        }
+        i += 1;
+    }
+    out.push(cur);
+    out
+}
+
+// --- the three regexes as reachable-position sets ---------------------------
+
+type Ends = Vec<usize>;
+
+/// A literal word at each start.
+fn lit(s: &[char], starts: &Ends, word: &str) -> Ends {
+    let w: Vec<char> = word.chars().collect();
+    starts
+        .iter()
+        .filter(|&&at| s.len() >= at + w.len() && s[at..at + w.len()] == w[..])
+        .map(|&at| at + w.len())
+        .collect()
+}
+
+/// Any of the words.
+fn any_lit(s: &[char], starts: &Ends, words: &[&str]) -> Ends {
+    let mut out = Ends::new();
+    for word in words {
+        out.extend(lit(s, starts, word));
+    }
+    dedup(out)
+}
+
+/// `\s+` — every end after one or more whitespace units.
+fn ws1(s: &[char], starts: &Ends) -> Ends {
+    let mut out = Ends::new();
+    for &at in starts {
+        let mut i = at;
+        while s.get(i).is_some_and(|c| is_js_whitespace(*c)) {
+            i += 1;
+            out.push(i);
+        }
+    }
+    dedup(out)
+}
+
+/// `(?:\s|$)` — one whitespace unit or the end of input.
+fn ws_or_end(s: &[char], starts: &Ends) -> bool {
+    starts
+        .iter()
+        .any(|&at| at == s.len() || s.get(at).is_some_and(|c| is_js_whitespace(*c)))
+}
+
+fn union(a: Ends, b: Ends) -> Ends {
+    let mut out = a;
+    out.extend(b);
+    dedup(out)
+}
+
+fn dedup(mut v: Ends) -> Ends {
+    v.sort_unstable();
+    v.dedup();
+    v
+}
+
+/// `/^(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|t)(?::[\w-]+)?(?:\s|$)/`
+fn pkg_test(s: &[char]) -> bool {
+    let p = any_lit(s, &vec![0], &["npm", "pnpm", "yarn", "bun"]);
+    let p = ws1(s, &p);
+    let p = union(p.clone(), ws1(s, &lit(s, &p, "run")));
+    let p = any_lit(s, &p, &["test", "t"]);
+    let p = union(p.clone(), script_suffix(s, &p));
+    ws_or_end(s, &p)
+}
+
+/// `(?::[\w-]+)` — every end after `:` and one or more `[A-Za-z0-9_-]`.
+fn script_suffix(s: &[char], starts: &Ends) -> Ends {
+    let mut out = Ends::new();
+    for at in lit(s, starts, ":") {
+        let mut i = at;
+        while s
+            .get(i)
+            .is_some_and(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+        {
+            i += 1;
+            out.push(i);
+        }
+    }
+    dedup(out)
+}
+
+/// `/^(?:(?:npx|pnpm|yarn|bun|bunx|poetry\s+run|uv\s+run|bundle\s+exec)\s+)?(?:vitest|jest|mocha|ava|tap|pytest|py\.test|rspec|phpunit|cypress\s+run|playwright\s+test|node\s+--test)(?:\s|$)/`
+fn runner(s: &[char]) -> bool {
+    let start = vec![0];
+    let plain = any_lit(s, &start, &["npx", "pnpm", "yarn", "bun", "bunx"]);
+    let two = |a: &str, b: &str| lit(s, &ws1(s, &lit(s, &start, a)), b);
+    let prefix = union(
+        union(plain, two("poetry", "run")),
+        union(two("uv", "run"), two("bundle", "exec")),
+    );
+    let p = union(start, ws1(s, &prefix));
+    let simple = any_lit(
+        s,
+        &p,
+        &[
+            "vitest", "jest", "mocha", "ava", "tap", "pytest", "py.test", "rspec", "phpunit",
+        ],
+    );
+    let pair = |a: &str, b: &str| lit(s, &ws1(s, &lit(s, &p, a)), b);
+    let p = union(
+        union(simple, pair("cypress", "run")),
+        union(pair("playwright", "test"), pair("node", "--test")),
+    );
+    ws_or_end(s, &p)
+}
+
+/// `/^(?:cargo|go|dotnet|swift|mix|gradle|\.\/gradlew|gradlew|mvn|make|deno|zig)\s+test(?:\s|$)/`
+fn tool_test(s: &[char]) -> bool {
+    let p = any_lit(
+        s,
+        &vec![0],
+        &[
+            "cargo",
+            "go",
+            "dotnet",
+            "swift",
+            "mix",
+            "gradle",
+            "./gradlew",
+            "gradlew",
+            "mvn",
+            "make",
+            "deno",
+            "zig",
+        ],
+    );
+    let p = lit(s, &ws1(s, &p), "test");
+    ws_or_end(s, &p)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn t(cmd: &str) -> Option<String> {
+        test_shaped_command(cmd)
+    }
+
+    #[test]
+    fn recognises_the_closed_set_at_segment_heads() {
+        assert_eq!(t("npm test").as_deref(), Some("npm test"));
+        assert_eq!(
+            t("cd packages/x && npm test -- --run").as_deref(),
+            Some("npm test -- --run")
+        );
+        assert_eq!(t("CI=1 vitest run").as_deref(), Some("vitest run"));
+        assert_eq!(
+            t("A=1 B=2 npm run test:unit").as_deref(),
+            Some("npm run test:unit")
+        );
+        assert_eq!(t("npm t").as_deref(), Some("npm t"));
+        assert_eq!(t("pytest -q").as_deref(), Some("pytest -q"));
+        assert_eq!(t("poetry run pytest").as_deref(), Some("poetry run pytest"));
+        assert_eq!(t("node --test lib").as_deref(), Some("node --test lib"));
+        assert_eq!(t("./gradlew test").as_deref(), Some("./gradlew test"));
+        assert_eq!(
+            t("cargo test -p x; echo done").as_deref(),
+            Some("cargo test -p x")
+        );
+        assert_eq!(
+            t("make build | make test").as_deref(),
+            Some(" make test").map(|_| "make test")
+        );
+    }
+
+    #[test]
+    fn rejects_lookalikes_and_quoted_text() {
+        assert_eq!(t("npm tests"), None);
+        assert_eq!(t("npm run build"), None);
+        assert_eq!(t("git commit -m \"npm test\""), None);
+        assert_eq!(t("echo 'a && npm test'"), None);
+        assert_eq!(t("vitest-runner"), None);
+        assert_eq!(t("cargo testx"), None);
+        assert_eq!(t("gotest"), None);
+        assert_eq!(t(""), None);
+        assert_eq!(t("FOO=bar"), None);
+    }
+
+    #[test]
+    fn clip_is_120_utf16_units() {
+        let long = format!("npm test {}", "x".repeat(200));
+        assert_eq!(t(&long).unwrap().encode_utf16().count(), 120);
+        let astral = format!("npm test {}\u{1F600}", "x".repeat(110));
+        assert_eq!(t(&astral).unwrap().encode_utf16().count(), 120);
+        assert!(t(&astral).unwrap().ends_with('\u{FFFD}'));
+    }
+
+    #[test]
+    fn split_is_quote_aware() {
+        assert_eq!(
+            split_segments("a && b || c; d | e\nf"),
+            ["a ", " b ", " c", " d ", " e", "f"]
+        );
+        assert_eq!(split_segments("a \"x && y\" && b"), ["a \"x && y\" ", " b"]);
+        assert_eq!(split_segments("a \\&& b"), ["a \\&& b"]);
+        assert_eq!(split_segments("\"a \\\" && b\""), ["\"a \\\" && b\""]);
+    }
+}
