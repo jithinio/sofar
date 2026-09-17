@@ -1368,7 +1368,10 @@ no longer reachable only through its prompt.
   no nudge and no write-back gate, and resolves by its assigned id. Whether
   Codex hands its environment to hook commands, and whether the thread id
   equals the hooks' `session_id`, are unverified. agents-parity 3.2 checks
-  both live.
+  both live, the second with a plain `codex exec --json` beside the hook
+  trace. A `task_done` handoff cannot show it, because
+  `resolveLaunchedSession` falls back to the diff when the thread id matches
+  no registered session (§Codex host, its Live proof paragraph).
 
 **The loop (2.2).** Fold → next task → launch → wait → handoff, repeat. The
 next task is the one already `active` in the active phase, else its first
@@ -1432,8 +1435,9 @@ drive", and the agent starts the run through its own shell with
 `sofar drive --detach`. Nothing else is portable: every one of those agents
 has a shell, none shares a process lifetime with an unattended run (a
 foreground tool call times out, a background one dies with the session, and
-an MCP server is the agent's own child), and codex carries no sofar MCP
-server at all.
+an MCP server is the agent's own child). A codex session also has sofar's MCP
+server only where `sofar init --agents codex` registered it and Codex trusts
+the project (§Codex host).
 
 `--detach` re-spawns the same command as a detached process — its own
 process group and session, stdin closed, stdout and stderr to a log file in
@@ -1602,8 +1606,9 @@ than a name-less variant is deliberate: "another record's work landed and you
 can do nothing about it" is noise, and a line that cannot be acted on trains
 the reader to skim the ones that can.
 
-**Tier 3 — no hooks at all** (Codex, Grok, OpenCode, anything on the AGENTS.md
-dialect). Nothing fires on its own, because nothing runs between prompts. The
+**Tier 3 — no hooks at all** (Grok, OpenCode, anything on the AGENTS.md
+dialect alone, and Codex wherever its hooks do not run). Nothing fires on its
+own, because nothing runs between prompts. The
 same facts are all still REACHABLE, and the dialect's orient-first step is what
 reaches them: `sofar status` renders the record with its staleness signals, and
 `sofar review` renders the packet. The loss is latency and prompting, never
@@ -1616,6 +1621,17 @@ Tier 3 session that simply asks.
 
 Cursor is Tier 2 since r1-fixes Phase 6: it runs every shim, and publishes no
 live-session registry (§Cursor host).
+
+Codex is Tier 2 by agents-parity 2.1–3.1's wiring (placed by 3.2, D10), in a project Codex trusts
+whose sofar hooks the operator has trusted in `/hooks`. There it runs its five
+shims and loads the sofar MCP server, and sofar reads no Codex live-session
+registry (§Codex host). Everywhere else it is Tier 3. An untrusted project loads
+no project hook, and Codex skips a new or edited hook entry until it is trusted
+again, so one Codex binary can sit in either tier. The AGENTS.md block's CLI
+loop is what reaches the record from Tier 3. This placement rests on the wiring
+and its tests, as Cursor's did before r1-fixes 6.3's live proof. The live proof
+for Codex is agents-parity 3.2, which waits for the operator's consent
+(§Codex host, its Live proof paragraph).
 
 ## Cursor host (r1-fixes Phase 6, D33/D35 ruling, D34 contract)
 sofar serves Cursor with the SAME shims, the same MCP server and the same
@@ -1728,9 +1744,11 @@ Codex hooks docs saved 2026-09-16. Hooks are wired since agents-parity 2.1
 (the "Wired" paragraph below), the MCP server since 2.2 (after the
 **MCP** paragraph), the write-back gate and protocol text since 2.3 (after
 the **AGENTS.md** paragraph), and the revised drive adapter since 3.1 (the
-**Driven** paragraph, last). Codex stays in Tier 3 (§Host tiers) until 3.2
-proves them live. Each fact is marked (binary), (docs) or
-(unverified). The data is `packages/engine/test/fixtures/codex/`, whose README
+**Driven** paragraph). That wiring puts a trusted Codex project in Tier 2
+(§Host tiers, agents-parity D10). No live session has checked it yet: the
+live end-to-end is agents-parity 3.2 (the **Live proof** paragraph, last),
+and it waits for the operator's consent (D3). Each fact is marked (binary),
+(docs) or (unverified). The data is `packages/engine/test/fixtures/codex/`, whose README
 marks each field, and `codex-contract.test.ts` checks that the fixtures agree.
 Later tasks test against those files, never against remembered shapes.
 
@@ -2064,6 +2082,55 @@ because trust is per hook hash and the file holding it is unverified.
   - Hooks untrusted: the handoff names the assigned id.
   - Nudge: the nudge line reaches the PostToolUse output, valid against
     Codex's schema.
+
+**Live proof (agents-parity 3.2, D10; pending the operator's consent).** No
+live Codex session has observed anything above. The proof spends the
+operator's Codex usage, so no driven session runs it (D3). The exact commands
+are in the record, in task 3.2's blocked note. The method is the Cursor
+proof's (§Cursor host, its Proven live paragraph).
+- Setup, with no inference:
+  - codex-cli 0.154.0, the version the fixtures pin
+  - a scratch git repo, set up by `sofar init` through the picker with only
+    Codex selected
+  - a record whose next action carries a code word that appears nowhere else
+  - the shims' `exec sofar` and the table's `command`, pinned by absolute
+    path to a logging wrapper around the build under test. The `sofar` on
+    Codex's hook PATH is unverified, and an older one rejects `--host`
+    (r1-fixes M6).
+  - the wrapper keeps each call's stdin, stdout, stderr and exit, plus the
+    `PATH`, `CODEX_THREAD_ID` and `SOFAR_DRIVE_NUDGE` it was handed
+- S1, interactive. The operator trusts the project, trusts sofar's five hooks
+  in `/hooks`, and relaunches.
+  - Orient. Asked for the record's next action and its Session id, with no
+    command run and no file read, the model answers with the code word and
+    the `session_id` that SessionStart received.
+  - Hold. Asked to create a file and run one command without writing back,
+    the session appends file_touched and command_run with no `ok`, and
+    registers as tool `codex`. Stop holds it with exit 2.
+  - Release. The continuation arrives with `stop_hook_active` true. It
+    writes back with `sofar_start_session` (that id) and one
+    `sofar_end_session`, and is released.
+  - Quit. Quitting appends session_closed `{reason: "other"}`. No "Memory
+    consolidation was rejected by a Stop hook." appears.
+- S2, one `codex exec --json`, its stream kept. Its `thread.started.thread_id`
+  equals the `session_id` its hooks receive. The trace shows whether exec
+  loads the project's hooks and MCP server, whether it fires Stop, and
+  whether hook commands inherit its environment, `SOFAR_DRIVE_NUDGE`
+  included.
+- S3, one `sofar drive --agent codex` session on a one-task plan. The run
+  hands off `task_done` naming that thread id, and `sofar status` shows it on
+  the `Driven:` line.
+- What it settles either way:
+  - whether a project MCP server needs approval beyond project trust
+  - whether a continuation keeps its `turn_id`
+  - the Bash and apply_patch `tool_response` shapes. They are captured for
+    the fixtures, but D4 names only binary and docs reads as sources, so
+    adding them takes a Decision.
+  - whether `input_tokens` already counts cached tokens
+  - which `sofar` a Codex hook finds
+- A failed check does not send Codex back to Tier 3 wholesale. The paragraph
+  it contradicts is corrected, and so is §Host tiers, which then names what
+  does not reach Codex.
 
 ## Derived index (record-index — local, incremental, never truth)
 Every cross-record question — which initiatives hold open sessions, who else
@@ -3193,7 +3260,9 @@ dispatch, and every behaviour below holds for both hosts (§Cursor host).
 Codex runs its own five copies from .codex/hooks.json, each declaring
 `--host codex`; every behaviour below holds for Codex too, except where
 §Codex host says otherwise (no PostToolUseFailure, no asserted `ok`, JSON
-context carriers).
+context carriers). Codex runs them only in a project it trusts, and only
+after the operator trusts each entry in `/hooks`; anywhere else nothing below
+fires, and a Codex session is Tier 3 (§Host tiers).
 - SessionStart shim → `sofar event session-start` then prints the status
   projection to stdout (context injection). The block carries a
   `Session: <id> — when calling sofar_start_session, pass this as
@@ -3662,7 +3731,9 @@ context carriers).
   and no stdout: the notice comments on an edit just made, and this call made
   none. Best-effort per BD22: every failure path is exit 0 and silence.
 - Stop shim → reads stdin JSON; if stop_hook_active is true → exit 0
-  (loop guard). Else if no session_ended event exists for this session_id
+  (loop guard; Claude Code and Codex set it on a turn Stop already
+  continued, Codex once per turn with no loop key of its own, and Cursor's
+  `loop_count` converts to it — §Cursor host, §Codex host). Else if no session_ended event exists for this session_id
   AND gate-relevant drift is nonzero → exit 2 with stderr: "Write back to
   the sofar record before finishing: call sofar_end_session (or append
   session_ended via `sofar event append`)." Else exit 0.
@@ -3878,7 +3949,10 @@ Shims contain no logic — they invoke the sofar CLI.
   and its sofar server, in `.codex/config.toml` or the user's config.toml
   (agents-parity 2.2) — each unwired agent gets one ok line naming
   `sofar init --agents <id>`, a partial install's repair hint names its own
-  agents, and a record with no agent wired at all FAILs; plus the
+  agents, and a record with no agent wired at all FAILs. A passing Codex
+  check means wired, not running: doctor cannot see whether Codex trusts the
+  project or sofar's hooks, because the file holding that state is
+  unverified (§Codex host). Plus the
   ATTRIBUTION check (commit-attribution 2.4), which is deliberately EMPIRICAL
   rather than diagnostic: it asks whether the last 20 commits actually carry
   trailers, not why they might not. Attribution goes silently off for several
@@ -4145,7 +4219,10 @@ Shims contain no logic — they invoke the sofar CLI.
   [--agent claude-code|codex] [--bin <path>] [--agent-arg <arg>]
   [--permission-mode <mode>]
   [--allow <rule...>] [--deny <rule...>] [--bare-tools] [--detach] [--stop]` — run an initiative task-by-task through
-  fresh headless sessions (§Driver, the loop). `--detach` starts the run as a
+  fresh headless sessions (§Driver, the loop). `--agent codex` launches
+  `codex exec`. In a repo `sofar init --agents codex` wired and Codex trusts,
+  its sessions are hooked; elsewhere they run on the id the pin line assigns
+  (§Driver, the codex adapter). `--detach` starts the run as a
   process that outlives the shell that asked for it, returning once the run is
   certain to start; `--stop` asks the latest unstopped run's driver to end it
   and takes no other flag but `--root` (§Driver, starting a run from inside a
@@ -5884,6 +5961,38 @@ stay the underlying derivation's, and exit codes are styling-independent.
   `project_doc_max_bytes`. With those lines undone it is r1-fixes 6.7's block,
   the last ledger entry. On a Codex repo carrying that block, doctor reports it
   as stale and init refreshes it.
+- **Codex live proof (agents-parity 3.2, D10):** checked LIVE with the
+  operator's consent (D3), never by a driven session, on codex-cli 0.154.0.
+  The scratch repo is set up by `sofar init` through the picker with only
+  Codex selected, and sofar is pinned by absolute path to a logging wrapper
+  around the build under test. The wrapper's trace (stdin, stdout, stderr,
+  exit, PATH, `CODEX_THREAD_ID`, `SOFAR_DRIVE_NUDGE`) is the evidence, filed
+  as a record note. Done when:
+  - Tree. The picker writes only Codex's files and the shared ones, and
+    doctor's wiring axis passes for Codex. After the operator trusts the project and the five hooks
+    and relaunches, SessionStart's stdout is `hookSpecificOutput` carrying
+    the digest and its Session line.
+  - Orient. The model states the seeded code word and that Session id with
+    no command run and no file read. It never runs `sofar status`.
+  - Hold. One turn that creates a file and runs a command appends
+    file_touched and command_run with no `ok`, all on that session, which
+    registers as `codex`. Its Stop receives `stop_hook_active` false and
+    exits 2 with a non-empty stderr.
+  - Release. The continuation's Stop receives `stop_hook_active` true. The
+    session wrote back through `sofar_start_session` with that id and one
+    `sofar_end_session`, and that Stop exits 0 with empty stdout. Quitting
+    appends session_closed `{reason: "other"}`.
+  - Exec. One `codex exec --json` shows `thread.started.thread_id` equal to
+    its hooks' `session_id`. Its trace answers whether exec runs the
+    project's hooks and MCP server and fires Stop, and whether
+    `SOFAR_DRIVE_NUDGE` reaches a hook command.
+  - Drive. `sofar drive --agent codex --bin <0.154.0>` on a one-task plan
+    hands off `task_done` naming the thread id, and `sofar status` shows it
+    on the `Driven:` line.
+  - Filed. Every (unverified) mark the run settles is rewritten to what it
+    showed, whichever way it went, in §Codex host and in §Driver. The tier
+    sentence in §Host tiers loses "rests on the wiring and its tests" or
+    names what did not reach Codex.
 - **Rule fidelity (memory-lead 1.2):** decision_logged accepts `quote` with a
   `rule` up to 300 chars and rejects it without one, empty, or longer. The
   round-1 pair (rule "…reject anything else with 4xx.", quote "Reject
