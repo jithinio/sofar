@@ -178,6 +178,11 @@ describe('acceptance 1 — uninit round-trips (hash-based)', () => {
       }),
     )
     writeFileSync(join(root, '.codex', 'hooks', 'stop.sh'), '#!/bin/sh\necho mine\n')
+    // (agents-parity 2.2) and its config.toml, where sofar's server is one appended table
+    writeFileSync(
+      join(root, '.codex', 'config.toml'),
+      '# mine\nmodel = "o3"\n\n[mcp_servers.other]\ncommand = "other-server"\nargs = []\n',
+    )
     writeFileSync(join(root, '.claude', 'hooks', 'my-hook.sh'), '#!/bin/sh\necho mine\n')
     writeFileSync(join(root, '.gitattributes'), '*.png binary\n')
     const before = hashTree(root)

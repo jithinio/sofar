@@ -9,6 +9,7 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 import { commonGitDir } from '../core/git'
+import { CODEX_CONFIG, codexMcpState, withoutSofarServer } from './codex-config'
 import {
   CODEX_SHIM_DIR,
   CODEX_SHIMS,
@@ -43,7 +44,8 @@ import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui
  *   - Cursor's copies (r1-fixes 6.2/6.6): .cursor/hooks.json entries running
  *     one of our shims, and .cursor/mcp.json's mcpServers.sofar
  *   - Codex's (agents-parity 2.1, D5): the shims in .codex/hooks/sofar/ and
- *     the .codex/hooks.json entries running them
+ *     the .codex/hooks.json entries running them, and (2.2, D7) the
+ *     [mcp_servers.sofar] table in .codex/config.toml
  *   - the marker-delimited protocol blocks in CLAUDE.md / AGENTS.md, plus
  *     exactly one adjacent blank-line seam so pre-init spacing is restored
  *
@@ -280,6 +282,40 @@ function stripCodexHooks(rootDir: string, purge: boolean, report: string[]): boo
 }
 
 /**
+ * Remove sofar's server from .codex/config.toml (agents-parity 2.2, D7): the
+ * `[mcp_servers.sofar]` tables, cut out where the structure scanner finds
+ * them so every other byte stays. Unlike unparseable JSON, a file the scanner
+ * cannot follow does not abort the run — TOML here is scanned, never parsed
+ * whole, so a valid file can still defeat the scanner — but it is left alone,
+ * with a warning when it mentions sofar. A sofar server in another form is not
+ * a table init writes; it is named, not edited.
+ */
+function stripCodexMcp(rootDir: string, purge: boolean, report: string[], warnings: string[]): boolean {
+  const path = join(rootDir, CODEX_CONFIG)
+  if (!existsSync(path)) return false
+  const text = readFileSync(path, 'utf8')
+  const stripped = withoutSofarServer(text)
+  if (stripped === null) {
+    if (text.includes('sofar')) {
+      warnings.push(`warning: ${CODEX_CONFIG} could not be read as TOML — any sofar MCP server in it was left; remove it by hand`)
+    }
+    return false
+  }
+  if (codexMcpState(stripped) === 'registered') {
+    warnings.push(`warning: ${CODEX_CONFIG} defines a sofar MCP server outside a [mcp_servers.sofar] table — left; remove it by hand`)
+  }
+  if (stripped === text) return false
+  if (purge && stripped.length === 0) {
+    unlinkSync(path)
+    report.push(`removed ${CODEX_CONFIG} (nothing left after sofar server entry removed)`)
+    return true
+  }
+  writeFileSync(path, stripped, 'utf8')
+  report.push(`updated ${CODEX_CONFIG} (sofar server entry removed)`)
+  return false
+}
+
+/**
  * Remove the marker-delimited protocol block INCLUSIVE of markers, plus
  * exactly one adjacent blank-line seam (init separated user content from the
  * block with a blank line — collapsing it restores pre-init spacing). All
@@ -406,6 +442,7 @@ export function runUninit(
     const cursorHooksDeleted = stripCursorHooks(rootDir, purge, report)
     const cursorMcpDeleted = stripMcp(rootDir, '.cursor/mcp.json', purge, report)
     const codexHooksDeleted = stripCodexHooks(rootDir, purge, report)
+    const codexConfigDeleted = stripCodexMcp(rootDir, purge, report, warnings)
     stripGitattributes(rootDir, purge, report)
     stripProtocolBlock(rootDir, 'CLAUDE.md', purge, report, warnings)
     stripProtocolBlock(rootDir, 'AGENTS.md', purge, report, warnings)
@@ -425,7 +462,7 @@ export function runUninit(
       codexShimsRemoved > 0 &&
       removeDirIfEmpty(rootDir, CODEX_SHIM_DIR, report) &&
       removeDirIfEmpty(rootDir, '.codex/hooks', report)
-    if (codexHooksDeleted || codexShimDirRemoved) removeDirIfEmpty(rootDir, '.codex', report)
+    if (codexHooksDeleted || codexConfigDeleted || codexShimDirRemoved) removeDirIfEmpty(rootDir, '.codex', report)
 
     const sofarDir = join(rootDir, '.sofar')
     if (existsSync(sofarDir)) {

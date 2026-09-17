@@ -17,7 +17,7 @@ import {
   AGENTS_PROTOCOL_BLOCK_V3,
   AGENTS_PROTOCOL_BLOCK_V4,
   classifyProtocolBlock,
-  CODEX_HOOKS_HINT,
+  CODEX_TRUST_HINT,
   CURSOR_HOOKS,
   CURSOR_MCP_HINT,
   GITATTRIBUTES_LINE,
@@ -515,7 +515,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
     expect(result.exitCode).toBe(0)
     // The report block ends at the blank line before the (unstyled) hint.
     const lines = (result.stdout.split('\n\n')[0] ?? '').split('\n')
-    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (22 changes)')
+    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (23 changes)')
     expect(lines[0]).toBe('\x1b[2m  └ created .sofar/repo.md\x1b[22m')
     for (const line of lines.slice(0, -1)) {
       expect(line.startsWith('\x1b[2m  └ ')).toBe(true)
@@ -547,15 +547,16 @@ describe('confirmation styling (cli-ui 2.5)', () => {
         'created .cursor/hooks.json',
         'created .cursor/mcp.json',
         'created .codex/hooks.json',
+        'created .codex/config.toml',
         'created CLAUDE.md (sofar protocol block)',
         'created AGENTS.md (sofar protocol block)',
-        'sofar init: done (22 changes)',
+        'sofar init: done (23 changes)',
         '',
         STATUSLINE_HINT,
         '',
         CURSOR_MCP_HINT,
         '',
-        CODEX_HOOKS_HINT,
+        CODEX_TRUST_HINT,
         '',
       ].join('\n'),
     )

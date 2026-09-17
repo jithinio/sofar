@@ -27,9 +27,9 @@ import {
 } from '../src/cli/agents'
 import { runDoctor } from '../src/cli/doctor'
 import {
-  CODEX_HOOKS_HINT,
   CODEX_SHIM_DIR,
   CODEX_SHIMS,
+  CODEX_TRUST_HINT,
   CURSOR_HOOKS,
   hookCommand,
   resolveInitAgents,
@@ -298,6 +298,7 @@ describe('sofar init for a subset of agents', () => {
     expect(result.exitCode).toBe(0)
     const written = files(root).filter((rel) => !rel.startsWith('.git/') && !rel.startsWith('.sofar/'))
     expect(written).toEqual([
+      '.codex/config.toml',
       '.codex/hooks.json',
       ...CODEX_SHIMS.map((shim) => `.codex/hooks/sofar/${shim.file}`).sort(),
       '.gitattributes',
@@ -306,7 +307,7 @@ describe('sofar init for a subset of agents', () => {
     for (const shim of CODEX_SHIMS) {
       expect(statSync(join(root, CODEX_SHIM_DIR, shim.file)).mode & 0o777).toBe(0o755)
     }
-    expect(result.stdout).toContain(CODEX_HOOKS_HINT)
+    expect(result.stdout).toContain(CODEX_TRUST_HINT)
     expect(result.stdout).not.toContain('statusline not wired')
     expect(wiredAgents(root)).toEqual(['codex'])
   })
@@ -376,6 +377,7 @@ describe('sofar init for a subset of agents', () => {
       if (!rel.startsWith('.sofar/')) expect({ rel, hash: after.get(rel) }).toEqual({ rel, hash })
     }
     expect([...after.keys()].filter((rel) => !before.has(rel)).sort()).toEqual([
+      '.codex/config.toml',
       '.codex/hooks.json',
       ...CODEX_SHIMS.map((shim) => `${CODEX_SHIM_DIR}/${shim.file}`).sort(),
     ])
@@ -411,6 +413,7 @@ describe('uninit and doctor for a subset of agents', () => {
     const clean = runDoctor(root, {}, plain)
     expect(clean.stdout).toContain(`Codex hook shims installed (${CODEX_SHIMS.length}/${CODEX_SHIMS.length})`)
     expect(clean.stdout).toContain('.codex/hooks.json hooks wired')
+    expect(clean.stdout).toContain('.codex/config.toml sofar server registered')
     expect(clean.stdout).not.toContain('.claude/settings.json')
     expect(clean.stdout).not.toContain('FAIL')
 

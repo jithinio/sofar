@@ -4,16 +4,16 @@
 
 Goal: Make sofar fully compatible with Codex, the way Phase 6 of r1-fixes did for Cursor: capture Codex's hook, MCP, AGENTS.md and exec contracts from the installed binaries and docs, then native hooks, MCP registration, the write-back gate, protocol text and a revised drive adapter, proven live with the operator's consent. Carries r1-fixes tasks 7.2–7.7 (r1-fixes D35). Built on branch agents-parity and merged into r1-fixes only after tag v0.33.0-rc.2 (bench-refresh 01M2Q79R).
 
-Progress: 2/6 tasks done (33%)
+Progress: 3/6 tasks done (50%)
 
 ## Phase 1 — Codex contract [done] — 1/1 done
 
 - [x] 1.1 (r1-fixes 7.2) Codex contract capture, the 6.1 of Codex. Hook config (.codex/hooks.json and config.toml [hooks]), event names, stdin fields and honoured outputs, the review/trust gate, and the minimum Codex version with hooks. Project MCP registration (.codex/config.toml [mcp_servers]). AGENTS.md loading. Changes to `codex exec --json` since the 0.136.0 adapter (src/driver/codex.ts). Read from the installed binaries without inference (D3): ~/.local/bin/codex 0.136.0 and ~/.bench/codex-0.154.0/node_modules/.bin/codex 0.154.0 (--help, `codex help <cmd>`, bundle strings); docs saved at /Users/jins/IO/handoff-bench/scenario5-launch-bench/analysis/memory-gap-2026-09-16/research/codex-hooks.html and codex-hooks2.html. Record them as a note, SPEC text (a §Codex host section beside §Cursor host) and payload fixtures the tests read. Mark every claim read-from-binary, read-from-docs or unverified. Enabler for 2.1–3.1: later tasks test against these fixtures, never guessed shapes.
 
-## Phase 2 — Codex integration [active] — 1/3 done
+## Phase 2 — Codex integration [active] — 2/3 done
 
 - [x] 2.1 (r1-fixes 7.3) Codex hooks: init writes Codex's hook config pointing at the shims, cli/host.ts adapts Codex payloads and outputs, and sessions are recorded as tool codex. Decide where Codex's shims live and log it (r1-fixes D36 gave Codex Claude Code's home until this task). Codex takes its hook files in the 7.1 agent map (agents.ts AGENT_FILES, wiredAgents, doctor, uninit). Note the hook contract change for sofar-rust-core (memory-lead 1.4 mirrors hooks). PREDICT: Codex sessions that open by running `sofar status` themselves 10/10 → ≤1/10; hook-captured file_touched and command_run in Codex cells 0 → every edit and command.
-- [ ] 2.2 (r1-fixes 7.4) Codex MCP: init registers the sofar server where Codex reads project MCP config, or states the one user-level step when it cannot; uninit and doctor mirror it, and the agent map counts it. PREDICT: sofar MCP calls in Codex sofar cells 0 → ≥1 per session; invalid `--payload` JSON errors → 0.
+- [x] 2.2 (r1-fixes 7.4) Codex MCP: init registers the sofar server where Codex reads project MCP config, or states the one user-level step when it cannot; uninit and doctor mirror it, and the agent map counts it. PREDICT: sofar MCP calls in Codex sofar cells 0 → ≥1 per session; invalid `--payload` JSON errors → 0.
 - [ ] 2.3 (r1-fixes 7.5) Codex write-back gate and protocol text: the Stop hook holds a Codex session that owes a write-back, loop-capped; the AGENTS.md block tells an agent that has sofar hooks and MCP tools to follow the MCP loop, consistent with r1-fixes 6.7's reconciliation of the CLAUDE.md and AGENTS.md blocks. New block text moves the old one into the shipped ledger (init.ts). PREDICT: Codex sessions ending with record debt and no session_ended → 0.
 
 ## Phase 3 — Codex drive and proof [pending] — 0/2 done
@@ -22,4 +22,4 @@ Progress: 2/6 tasks done (33%)
 - [ ] 3.2 (r1-fixes 7.7) Proof: a live Codex end-to-end on a scratch repo (init with the picker → oriented session → MCP writes → write-back gate → drive run), plus SPEC updates (§Host tiers moves Codex out of Tier 3, §Hooks, §CLI, §Driver) and acceptance criteria. NEEDS THE OPERATOR'S CONSENT for the Codex usage it spends (D3): a driven session writes the SPEC and acceptance text it can, then marks this task blocked with the exact live steps as the ask, and never runs live Codex inference itself.
 
 Active phase: Phase 2 — Codex integration
-Next action: Build 2.2 Codex MCP from SPEC §Codex host (see the 2.1 handoff note).
+Next action: Build 2.3 Codex write-back gate and AGENTS.md protocol text (see the 2.2 handoff note).

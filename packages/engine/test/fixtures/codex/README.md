@@ -56,8 +56,16 @@ Details inside a section:
   The `examples` are built from those names, not captured.
 - `exec_json.flags_added_since_0.136.0` compares the two `codex help exec`
   outputs (read-from-binary).
-- `mcp.server_keys_seen` holds only keys found as strings. `command` and `url`
-  are expected from `codex mcp add` (`-- <COMMAND>` / `--url`) but not seen as
-  config keys (unverified).
+- `mcp.server_keys_seen` holds only keys found as strings in 1.1. `command` and
+  `url`, expected from `codex mcp add` (`-- <COMMAND>` / `--url`), were not
+  among them.
+- `mcp.server_struct_fields_seen` (added agents-parity 2.2) is read-from-binary:
+  the serde field names that run straight into the string
+  `struct RawMcpServerConfig with 28 elements` (`grep -a` over the 0.154.0
+  binary). That confirms `command` and `args` as server keys. The names are run
+  together in the binary, so splitting them is inferred, and names the linker
+  shared with other strings are missing (28 fields, 18 seen). `url` appears in
+  other copies of the same run. `cli_add` is the `codex mcp add` grammar from
+  1.1's `--help` read.
 - `agents_md.reads_claude_md_by_default: false` comes from the empty fallback
   default. The directory walk (repo root to cwd) is unverified.

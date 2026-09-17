@@ -1696,9 +1696,9 @@ This section records what Codex reads, sends and honours. It was captured
 without running inference (agents-parity D3) from three sources: codex-cli
 0.154.0's binary (`--help` and `strings`), codex-cli 0.136.0's `--help`, and the
 Codex hooks docs saved 2026-09-16. Hooks are wired since agents-parity 2.1
-(the "Wired" paragraph below). MCP and the write-back gate's protocol text
-are 2.2–2.3, and Codex stays in Tier 3 (§Host tiers) until 3.2 proves them
-live. Each fact is marked (binary), (docs) or
+(the "Wired" paragraph below) and the MCP server since 2.2 (after the
+**MCP** paragraph). The write-back gate's protocol text is 2.3, and Codex
+stays in Tier 3 (§Host tiers) until 3.2 proves them live. Each fact is marked (binary), (docs) or
 (unverified). The data is `packages/engine/test/fixtures/codex/`, whose README
 marks each field, and `codex-contract.test.ts` checks that the fixtures agree.
 Later tasks test against those files, never against remembered shapes.
@@ -1886,13 +1886,59 @@ the project `.codex/config.toml` is read for a trusted project (binary, the same
 string as above). `codex mcp add <name> -- <command…>` writes
 `~/.codex/config.toml`, the user level (binary). Server keys seen: `args`, `env`,
 `env_vars`, `startup_timeout_sec`, `tool_timeout_sec`, `enabled_tools`,
-`disabled_tools` and `bearer_token_env_var` (binary). `command` is inferred from
-`mcp add` (unverified). Codex never reads `.mcp.json` or `.cursor/mcp.json` at
-runtime, but its `/import` can copy `.mcp.json` servers into `.codex/config.toml`
-(binary, migration strings). SessionStart hooks may run before an MCP server is
-ready (docs). Whether Codex passes the thread id to an MCP server's environment
-is unverified, so `sofar_start_session` still takes the id from the injected
-Session line.
+`disabled_tools` and `bearer_token_env_var` (binary). `command`, `args`, `env`
+and `cwd` lead the serde field names run into `struct RawMcpServerConfig with 28
+elements` (binary, read in 2.2). Codex never reads `.mcp.json` or
+`.cursor/mcp.json` at runtime, but its `/import` can copy `.mcp.json` servers
+into `.codex/config.toml` (binary, migration strings). SessionStart hooks may
+run before an MCP server is ready (docs). Whether Codex passes the thread id to
+an MCP server's environment is unverified, so `sofar_start_session` still takes
+the id from the injected Session line. Whether Codex asks the operator to
+approve a project MCP server beyond trusting the project, as Cursor does, is
+unverified.
+
+**Wired MCP (agents-parity 2.2, D7).** `sofar init --agents codex` registers
+the server `.mcp.json` registers, as a table appended to the project's
+`.codex/config.toml`:
+
+    [mcp_servers.sofar]
+    command = "sofar"
+    args = ["mcp"]
+
+- No TOML dependency. `cli/codex-config.ts` reads only the file's structure:
+  table headers, key paths, and where each sits. It knows basic, literal and
+  multi-line strings, arrays and inline tables well enough never to read their
+  contents as structure, and it interprets no value. A file it cannot follow is
+  unreadable and is never modified.
+- Append. When no sofar server exists in any form and `mcp_servers` is defined
+  only by `[mcp_servers.<name>]` tables (or not at all), the table goes after
+  the file's own bytes, with one blank line between. A new table at the end of
+  a valid document keeps it valid exactly then, and every user byte stays.
+- Theirs wins. A sofar server already defined in any form — its table or a
+  sub-table, an inline server under `[mcp_servers]`, dotted keys, an inline
+  `mcp_servers` — is left as it is (`unchanged`).
+- The user-level step. When `mcp_servers` is defined inline, by dotted keys or
+  as an array of tables, a `[mcp_servers.sofar]` table would define it twice
+  and invalidate the whole file, so init leaves the file. It does the same
+  when the file is unreadable. It reports `skipped .codex/config.toml (<why>) —
+  left as it is` and prints the one step, `codex mcp add sofar -- sofar mcp`,
+  which writes the user's config.toml (binary). It says this on every run
+  until the user config (`$CODEX_HOME/config.toml`, else
+  `~/.codex/config.toml`; CODEX_HOME is a binary string, its effect unverified)
+  registers sofar.
+- Trust. The project layer loads only for a trusted project, so a run that
+  writes `.codex/hooks.json` or the table prints one trust note for both.
+- `uninit` cuts out each `[mcp_servers.sofar]` table and sub-table, from its
+  header through its last pair, plus one seam blank line; a comment after the
+  last pair stays with what follows. `--purge` deletes a file left empty. A
+  sofar server in another form, or an unreadable file that mentions sofar, is
+  left with a warning, and the run goes on.
+- `doctor` passes on the project table or on a user-level registration.
+  Otherwise it fails, and its hint names `sofar init --agents codex`, or the
+  user-level step for a file init leaves. A project table alone counts the
+  repo as wired for Codex; a user-level one is the machine's and does not.
+- Tests (`codex-mcp.test.ts`, D4): the table's name, file and keys are held to
+  the contract fixture's `mcp` section.
 
 **AGENTS.md (binary).** Codex reads project docs in this order:
 `AGENTS.override.md`, `AGENTS.md`, then `project_doc_fallback_filenames` (empty by
@@ -3608,8 +3654,9 @@ Shims contain no logic — they invoke the sofar CLI.
   ONLY THE AGENTS PICKED are set up (r1-fixes 7.1, D35, D36). Each agent owns
   its files: Claude Code `.claude/settings.json`, `.mcp.json`, CLAUDE.md;
   Cursor `.cursor/hooks.json`, `.cursor/mcp.json`, AGENTS.md; Codex
-  `.codex/hooks.json`, its shims in `.codex/hooks/sofar/`, and AGENTS.md
-  (agents-parity 2.1, D5; its MCP entry is agents-parity 2.2). `.sofar/`,
+  `.codex/hooks.json`, its shims in `.codex/hooks/sofar/`, the
+  `[mcp_servers.sofar]` table in `.codex/config.toml`, and AGENTS.md
+  (agents-parity 2.1, D5; 2.2, D7). `.sofar/`,
   `.gitattributes` and the git hook are shared and always installed. `--agents` takes
   `claude-code`, `cursor`, `codex` comma-separated, or `all`; an unknown name
   exits 1 and writes nothing. Without the flag, when stdin and stderr are a
@@ -3640,8 +3687,12 @@ Shims contain no logic — they invoke the sofar CLI.
   `.codex/hooks/sofar/` whichever agents are picked, and `.codex/hooks.json`
   runs them as `"$(git rev-parse --show-toplevel)/.codex/hooks/sofar/<shim>"`
   (§Codex host). Merge rules are settings.json's, and a run that writes
-  `.codex/hooks.json` prints the hook-trust note, since Codex runs no project
-  hook until the operator trusts it in /hooks. No selection is stored — the
+  `.codex/hooks.json` or `.codex/config.toml` prints the trust note, since
+  Codex loads no project hook or MCP server until the project is trusted, and
+  runs no hook until the operator trusts it in /hooks. The sofar server is a
+  table appended to `.codex/config.toml`, or, when that file cannot take one,
+  the printed user-level step `codex mcp add sofar -- sofar mcp` (§Codex host,
+  its Wired MCP paragraph). No selection is stored — the
   files are the selection. The
   statusline hint and `--statusline` apply only with Claude Code picked;
   without it `--statusline` reports `skipped statusLine (Claude Code not
@@ -3721,9 +3772,11 @@ Shims contain no logic — they invoke the sofar CLI.
   checked — Claude Code when settings.json runs a shim, .mcp.json registers
   sofar or CLAUDE.md carries the block; Cursor when .cursor/hooks.json runs a
   shim from either home or .cursor/mcp.json registers sofar; Codex when
-  .codex/hooks.json runs one of its shims (AGENTS.md is shared with Cursor,
-  so it no longer stands for Codex, agents-parity 2.1), checked for its five
-  shims and its five hooks.json entries — each unwired agent gets one ok line naming
+  .codex/hooks.json runs one of its shims or .codex/config.toml registers
+  sofar (AGENTS.md is shared with Cursor, so it no longer stands for Codex,
+  agents-parity 2.1), checked for its five shims, its five hooks.json entries
+  and its sofar server, in `.codex/config.toml` or the user's config.toml
+  (agents-parity 2.2) — each unwired agent gets one ok line naming
   `sofar init --agents <id>`, a partial install's repair hint names its own
   agents, and a record with no agent wired at all FAILs; plus the
   ATTRIBUTION check (commit-attribution 2.4), which is deliberately EMPIRICAL
@@ -3859,7 +3912,9 @@ Shims contain no logic — they invoke the sofar CLI.
   installs — matched on `type` + `command`, tolerating a retuned
   `refreshInterval` and the two-key entry installed before that key shipped,
   and refusing any other extra key (a customized statusLine is user config —
-  kept; init-statusline D1, statusline-refresh D1), .mcp.json's sofar server, our exact .gitattributes
+  kept; init-statusline D1, statusline-refresh D1), .mcp.json's sofar server
+  (and `.cursor/mcp.json`'s, and the `[mcp_servers.sofar]` tables in
+  `.codex/config.toml` — agents-parity 2.2), our exact .gitattributes
   union-merge line (a customized events.jsonl rule is user content — kept;
   team-readiness T2), and the protocol blocks (markers + one seam
   blank line), preserving all user content; .sofar/ is kept with a notice
@@ -5642,7 +5697,7 @@ stay the underlying derivation's, and exit codes are styling-independent.
   no `.cursor/` and no AGENTS.md; `--agents cursor` writes no `.claude/`,
   CLAUDE.md or `.mcp.json`, its shims executable under
   `.cursor/hooks/sofar/`; `--agents codex` writes only `.codex/hooks.json`,
-  its five executable shims under `.codex/hooks/sofar/`, and AGENTS.md beside
+  `.codex/config.toml`, its five executable shims under `.codex/hooks/sofar/`, and AGENTS.md beside
   the shared files. Each is byte-idempotent, and a Cursor-only or Codex-only
   init round-trips byte-clean through `uninit --purge`; adding Codex to a
   Claude Code and Cursor repo changes none of their bytes. Adding Cursor to a Claude Code repo
@@ -5676,6 +5731,24 @@ stay the underlying derivation's, and exit codes are styling-independent.
   in the repo root's record as `codex`. init merges beside a user's own
   hooks.json entries and `.codex/hooks/` files, and uninit removes only
   sofar's.
+- **Codex MCP (agents-parity 2.2):** the `[mcp_servers.sofar]` table init
+  writes uses the file, table and `RawMcpServerConfig` keys of the 0.154.0
+  contract fixture and registers `.mcp.json`'s command and args. The scanner
+  reads sofar as registered in every form (table, sub-table, inline under
+  `[mcp_servers]`, dotted, inline `mcp_servers`), and never inside a comment,
+  basic, literal or multi-line string. It reads inline, dotted and
+  array-of-tables `mcp_servers` as blocked, and an unterminated string or
+  header as unreadable. init creates the file, or appends after a user's
+  config with every earlier byte kept, and a second run changes nothing.
+  `uninit --purge` gives a user's file back byte for byte and deletes a file
+  that held only the table, with `.codex/`. A user's own sofar server is left
+  by init. A blocked or unreadable file is left byte-identical, with
+  `codex mcp add sofar -- sofar mcp` printed on each run until the user config
+  registers sofar. uninit leaves a non-table sofar or an unreadable file with
+  a warning and exits 0. doctor passes on the project table or the user
+  config, and otherwise fails naming `sofar init --agents codex` or the
+  user-level step. A repo whose only Codex file is the table counts as wired
+  for Codex.
 - **Rule fidelity (memory-lead 1.2):** decision_logged accepts `quote` with a
   `rule` up to 300 chars and rejects it without one, empty, or longer. The
   round-1 pair (rule "…reject anything else with 4xx.", quote "Reject

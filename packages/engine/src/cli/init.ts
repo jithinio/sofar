@@ -27,6 +27,14 @@ import {
   type PickerInput,
   type PickerOutput,
 } from './agents'
+import {
+  CODEX_CONFIG,
+  CODEX_MCP_ADD,
+  codexConfigRegistersSofar,
+  codexMcpState,
+  codexUserConfigPath,
+  withSofarServer,
+} from './codex-config'
 import { detectFormatterHazards, hostShapedJSON } from './formatters'
 import type { HookName } from './host'
 import { detectTailwindV4, SOURCE_NOT_SINCE } from './scanners'
@@ -1431,7 +1439,9 @@ function mcpRegistersSofar(path: string): boolean {
  * (D36: no stored selection to drift from them). Any one of an agent's own
  * files counts, so doctor can name what a partial install is missing.
  * AGENTS.md is shared with Cursor, so it no longer stands for Codex now that
- * Codex owns .codex/hooks.json (agents-parity 2.1).
+ * Codex owns .codex/hooks.json (agents-parity 2.1) and .codex/config.toml's
+ * sofar server (2.2). A user-level registration is the machine's, not this
+ * repo's, so it does not count.
  */
 export function wiredAgents(rootDir: string): AgentId[] {
   const settings = readText(join(rootDir, '.claude', 'settings.json'))
@@ -1446,7 +1456,9 @@ export function wiredAgents(rootDir: string): AgentId[] {
       runsShimFrom(cursorHooks, 'claude') ||
       runsShimFrom(cursorHooks, 'cursor') ||
       mcpRegistersSofar(join(rootDir, '.cursor', 'mcp.json')),
-    codex: CODEX_SHIMS.some((shim) => codexHooks.includes(`${CODEX_SHIM_DIR}/${shim.file}`)),
+    codex:
+      CODEX_SHIMS.some((shim) => codexHooks.includes(`${CODEX_SHIM_DIR}/${shim.file}`)) ||
+      codexConfigRegistersSofar(join(rootDir, CODEX_CONFIG)),
   }
   return AGENTS.filter((id) => wired[id])
 }
@@ -1921,15 +1933,65 @@ function mergeCodexHooks(rootDir: string, report: string[]): Change {
 }
 
 /**
- * Printed when init has just written sofar's entries into .codex/hooks.json:
- * Codex loads a project's hooks only for a trusted project, and runs a hook
- * only once the operator has reviewed its exact entry. init never writes that
- * trust — the gate is the operator's (D5).
+ * Register sofar's MCP server in .codex/config.toml (agents-parity 2.2, D7).
+ * The table is appended after the file's own bytes, never re-serialized, and
+ * an existing sofar server is the user's, as in .mcp.json. When the file
+ * defines `mcp_servers` in a form a new table would clash with, or cannot be
+ * scanned, it is left as it is and `userStep` is true, so init names the one
+ * user-level step. It stays quiet when the user's own config.toml already
+ * registers sofar.
  */
-export const CODEX_HOOKS_HINT = [
-  'note: Codex runs project hooks only in a trusted project, after you review them.',
+function mergeCodexMcp(
+  rootDir: string,
+  home: string | undefined,
+  report: string[],
+): { change: Change; userStep: boolean } {
+  const path = join(rootDir, CODEX_CONFIG)
+  const exists = existsSync(path)
+  const text = exists ? readFileSync(path, 'utf8') : ''
+  const state = codexMcpState(text)
+  if (state === 'registered') {
+    report.push(`unchanged ${CODEX_CONFIG}`) // user may have customized the entry — theirs wins
+    return { change: 'unchanged', userStep: false }
+  }
+  if (state === 'absent') {
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, withSofarServer(text), 'utf8')
+    const change = exists ? 'updated' : 'created'
+    report.push(`${change} ${CODEX_CONFIG}`)
+    return { change, userStep: false }
+  }
+  const why =
+    state === 'blocked' ? 'its mcp_servers is not in [mcp_servers.<name>] tables' : 'sofar could not read it as TOML'
+  if (codexConfigRegistersSofar(codexUserConfigPath(home))) {
+    report.push(`unchanged ${CODEX_CONFIG} (${why}; your user config registers sofar)`)
+    return { change: 'unchanged', userStep: false }
+  }
+  report.push(`skipped ${CODEX_CONFIG} (${why}) — left as it is`)
+  return { change: 'unchanged', userStep: true }
+}
+
+/**
+ * Printed when init has just written .codex/hooks.json or .codex/config.toml:
+ * Codex loads a project's .codex/ layer only for a trusted project, and runs a
+ * hook only once the operator has reviewed its exact entry. init never writes
+ * that trust — the gate is the operator's (D5).
+ */
+export const CODEX_TRUST_HINT = [
+  'note: Codex loads .codex/ hooks and MCP servers only in a trusted project.',
   '  Trust the project when Codex asks, then open /hooks in Codex and trust',
   "  sofar's hooks. Codex asks again whenever a hook entry changes.",
+].join('\n')
+
+/**
+ * Printed when .codex/config.toml could not take sofar's table (D7) and the
+ * user's config does not register sofar either: the one step left, which
+ * writes the user-level config.toml.
+ */
+export const CODEX_MCP_USER_STEP_HINT = [
+  `note: sofar's MCP server is not registered for Codex, and ${CODEX_CONFIG} was left as it is.`,
+  '  Register it once in your user config, for every project on this machine:',
+  `    ${CODEX_MCP_ADD}`,
 ].join('\n')
 
 /**
@@ -2083,6 +2145,8 @@ export function runInit(
   let statuslineAbsent = false
   let cursorMcp: Change = 'unchanged'
   let codexHooks: Change = 'unchanged'
+  let codexMcp: Change = 'unchanged'
+  let codexUserStep = false
   try {
     initSofarDir(rootDir, report)
     ensureGitattributes(rootDir, report)
@@ -2104,7 +2168,12 @@ export function runInit(
     if (cursor || cursorOnOwnShims) mergeCursorHooks(rootDir, home, cursor, report)
     if (cursorOnOwnShims) removeCursorShims(rootDir, report)
     if (cursor) cursorMcp = mergeMcpJson(rootDir, '.cursor/mcp.json', report)
-    if (codex) codexHooks = mergeCodexHooks(rootDir, report)
+    if (codex) {
+      codexHooks = mergeCodexHooks(rootDir, report)
+      const mcp = mergeCodexMcp(rootDir, options.home, report)
+      codexMcp = mcp.change
+      codexUserStep = mcp.userStep
+    }
     if (claude) {
       appendProtocolBlock(rootDir, 'CLAUDE.md', PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS, report)
     }
@@ -2143,9 +2212,11 @@ export function runInit(
   // Cursor's MCP approval (r1-fixes 6.2, D34): said once, on the run that
   // registered the server, since a re-run changes nothing Cursor must approve.
   if (cursorMcp !== 'unchanged') lines.push('', CURSOR_MCP_HINT)
-  // Codex's hook trust (D5), on the same terms: said on the run that wrote the
-  // entries, since only a changed entry needs reviewing again.
-  if (codexHooks !== 'unchanged') lines.push('', CODEX_HOOKS_HINT)
+  // Codex's project trust and hook review (D5), on the same terms: said on the
+  // run that wrote the entries, since only a changed entry needs reviewing
+  // again. The user-level step (D7) is said on every run that still needs it.
+  if (codexHooks !== 'unchanged' || codexMcp !== 'unchanged') lines.push('', CODEX_TRUST_HINT)
+  if (codexUserStep) lines.push('', CODEX_MCP_USER_STEP_HINT)
   // Formatter defence (r1-fixes 1.4, D7): a formatter or linter that will
   // process .sofar/ gets the same treatment as the scanner below — init only
   // names it, `sofar doctor --fix` writes each tool's exclusion. Before the
