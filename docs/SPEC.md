@@ -3351,8 +3351,15 @@ Shims contain no logic — they invoke the sofar CLI.
   confirms (never on an empty selection), esc or ctrl-c exits 1 with nothing
   written — pre-selecting the agents found on this machine (binary on PATH
   or `~/.claude`, `~/.cursor`, `~/.codex`) or already wired in the repo, and
-  every agent when none is found. With no terminal and no flag, every agent:
-  scripts and agent shells get what init wrote before it asked. Re-running
+  every agent when none is found. NON-INTERACTIVE DEFAULT: with no flag and
+  stdin or stderr not a terminal, or `CI` set, or TERM=dumb, init never
+  prompts and sets up EVERY agent — the same tree an r1-fixes build wrote
+  before 7.1, which since Phase 6 includes `.cursor/hooks.json` and
+  `.cursor/mcp.json` beside Claude Code's files and AGENTS.md. A harness that
+  must control which agents' config a repo carries passes `--agents`
+  explicitly, and must pass it whenever it runs init under a pseudo-terminal,
+  where the picker would wait for keys. Builds before 7.1 (0.32.0,
+  0.33.0-rc.1) reject `--agents` as an unknown option (exit 1). Re-running
   with another agent adds that agent's files and leaves the others' bytes
   alone. The shims live in `.claude/hooks/` whenever Claude Code is picked or
   any hook config already runs them from there; a repo without Claude Code
