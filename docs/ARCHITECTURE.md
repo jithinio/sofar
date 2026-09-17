@@ -142,10 +142,11 @@ worse than no attribution.
 | --- | --- |
 | `cli/index.ts` | Command registration. |
 | `cli/event.ts` | All five hook handlers, plus `sofar event append`. |
+| `cli/host.ts` | Which agent fired a hook, and its dialect: detects Cursor from the payload, converts Cursor's input to the Claude Code field names the handlers read and their output to `additional_context` / `followup_message` (r1-fixes 6.3–6.6, D34). |
 | `cli/fold.ts` | `sofar fold` (hidden) — the black-box face of the incremental fold for the shared fold-parity suite: fold raw lines, or apply a file tail to a serialized snapshot, print canonical state JSON. |
 | `cli/review.ts` | `sofar review` — prints the evidence packet (read half); the packet ends with the `sofar event append --type review_recorded` command that records the verdict (write half; r1-fixes 2.4, D13). |
 | `cli/commit-trailer.ts` | `sofar commit-trailer` — the prepare-commit-msg worker that stamps `Sofar-Initiative:` from the session that made the commit (D5). Session-only resolution; never fails a commit. |
-| `cli/init.ts` | `sofar init` — hooks, MCP wiring, protocol block, `.gitattributes`. Owns the protocol-block ledger. |
+| `cli/init.ts` | `sofar init` — hooks (`.claude/settings.json` and `.cursor/hooks.json`), MCP wiring (`.mcp.json` and `.cursor/mcp.json`), protocol block, `.gitattributes`. Owns the protocol-block ledger. |
 | `cli/uninit.ts` | `sofar uninit` — removes what init wrote. |
 | `cli/new.ts` | `sofar new` — create an initiative, bind the branch. |
 | `cli/close.ts` | `sofar close` — close an initiative, unbind its branches. |

@@ -1477,6 +1477,89 @@ The invariant across all three: NO signal may be the only way a session can
 learn something. Anything a Tier 1 line reports must also be derivable by a
 Tier 3 session that simply asks.
 
+Cursor is Tier 2 since r1-fixes Phase 6: it runs every shim, and publishes no
+live-session registry (§Cursor host).
+
+## Cursor host (r1-fixes Phase 6, D33/D35 ruling, D34 contract)
+sofar serves Cursor with the SAME shims, the same MCP server and the same
+protocol blocks as Claude Code. Everything Cursor-specific is two files that
+`sofar init` writes and one module (`cli/host.ts`) that converts at the hook
+dispatch. Every fact below was read from cursor-agent 2026.09.10-fd3934a's
+bundle and Cursor.app 3.20.21; none was captured from a live run, and a live
+end-to-end is r1-fixes 6.9's job.
+
+**What Cursor reads.** Hooks: `.cursor/hooks.json` (`{version: 1, hooks:
+{<event>: [{command, matcher?, loop_limit?, timeout?, failClosed?}]}}`; an
+unknown event name invalidates the whole file) in the project, the user's
+home and enterprise locations, PLUS Claude Code's `.claude/settings.json`
+and `.claude/settings.local.json` as "third-party" hooks — always in the
+CLI, and in the IDE behind a setting that is on by default. Project hooks
+run with cwd = project root through a shell, with `CURSOR_PROJECT_DIR`,
+`CLAUDE_PROJECT_DIR`, `CURSOR_VERSION` and `CURSOR_TRANSCRIPT_PATH` set;
+no variable carries the conversation id. MCP: `.cursor/mcp.json` and
+`~/.cursor/mcp.json` only — a root `.mcp.json` is never read for a project,
+which is why round 1's Cursor cells made 0 sofar MCP calls. A project server
+starts only after the operator approves it once (IDE prompt, or
+`cursor-agent mcp enable sofar`); approval is keyed on a hash of the entry,
+so editing it asks again. Rules: `AGENTS.md` always, `CLAUDE.md` and
+`CLAUDE.local.md` whenever third-party loading is on, so both protocol
+blocks load in one Cursor session.
+
+**The dialect gap, and why the shims alone did not work.** Cursor hands
+every hook — including an imported Claude hook — ITS OWN payload: event names
+in camelCase, `session_id` equal to `conversation_id`, `cursor_version`,
+tools named `Shell` / `Write` / `Read` / `Delete` / `MCP:<tool>` (Edit folds
+into Write), `error_message` on a failure, `loop_count` on stop. And it
+reads only JSON output: `additional_context` (sessionStart,
+beforeSubmitPrompt, postToolUse, postToolUseFailure) and `followup_message`
+(stop). Plain stdout is dropped and exit 2 on stop does nothing. Round 1's
+Cursor cells show the result: 175 file_touched (Write matched by accident),
+0 command_run (Shell never matched Bash), no digest reaching the model, and
+every hook session recorded as claude-code.
+
+**The conversion (D34).** `forHost` wraps every entry of the hook table, so
+the full CLI and the hot path both serve it. A payload is Cursor's when it
+carries a string `cursor_version` — stdin only, never the environment, so a
+Claude Code session started in Cursor's terminal stays Claude Code. IN:
+the payload keeps every field and gains the Claude Code names the handlers
+read — tool Shell→Bash, `error_message`→`error`, `tool_output`→
+`tool_response.stdout`, `loop_count > 0`→`stop_hook_active`, and
+`conversation_id`→`session_id` when that is absent. OUT: session-start,
+user-prompt and post-tool context become `{"additional_context": …}`; the
+Stop gate's exit 2 becomes exit 0 with `{"followup_message": <the block
+message>}`, which Cursor queues as the agent's next prompt. Cursor drops a
+whole carrier over 10,000 characters (after trimming), so per-prompt and
+per-tool context is clipped to that; the session-start digest is already
+held to 10,000, and no client-side cap on the sessionStart carrier was found
+in the bundle (whether the server applies one is unverified). A Claude Code
+invocation passes through untouched and byte-identical. Session
+registration and diagnostics rows carry tool `cursor` (diagnostics add the
+version).
+
+**One firing per event (D34).** Cursor drops an imported Claude hook only
+when one of its own hooks has the same event AND a byte-identical command
+string; otherwise both fire, in parallel. So `.cursor/hooks.json` names each
+shim by exactly the command `.claude/settings.json` uses —
+`$CLAUDE_PROJECT_DIR/.claude/hooks/<shim>`, which resolves because Cursor
+sets that variable for every hook: sessionStart, beforeSubmitPrompt,
+postToolUse and postToolUseFailure (matcher `Shell|Write`), stop
+(`loop_limit: 1` — held once, never looped; an imported Claude stop hook
+has no loop cap), sessionEnd. The native entries are needed even with the
+import: Cursor's CLI UI fires stop and prompt hooks only when hooks.json
+defines that event, and Claude's PostToolUseFailure is not imported at all.
+Merge rules are settings.json's: an entry already running our command is
+left as the user has it, unparseable JSON aborts init (Cursor accepts
+comments in hooks.json; such a file must be wired by hand), `sofar uninit`
+strips exactly our entries and `doctor` reports each file.
+
+**Limits stated, not worked around.** Headless `cursor-agent -p` fires no
+stop, beforeSubmitPrompt or afterAgentResponse hook, so no write-back gate
+reaches a print-mode session; a driven Cursor session's write-back is judged
+from the fold, as for every adapter (session-driver D3). A resumed chat
+(`--resume`) gets no sessionStart context. The MCP server cannot learn the
+conversation id from its environment, so `sofar_start_session` still takes
+the id from the injected Session line.
+
 ## Derived index (record-index — local, incremental, never truth)
 Every cross-record question — which initiatives hold open sessions, who else
 has this file, what guards this path, what else bears on this work — costs a
@@ -2554,6 +2637,9 @@ initiatives:` suffix, or a `sofar new` hint when none exist
 (initiative-list 2.2): the dead-end orients instead of blocking.
 
 ## Hooks (installed by `sofar init` as standalone scripts in .claude/hooks/)
+Claude Code runs them from .claude/settings.json and Cursor from
+.cursor/hooks.json; Cursor's payloads and outputs are converted at the
+dispatch, and every behaviour below holds for both hosts (§Cursor host).
 - SessionStart shim → `sofar event session-start` then prints the status
   projection to stdout (context injection). The block carries a
   `Session: <id> — when calling sofar_start_session, pass this as
@@ -3087,7 +3173,11 @@ Shims contain no logic — they invoke the sofar CLI.
 - `sofar init` — create .sofar/, write repo.md stub, install hook shims
   (including git's own `.git/hooks/prepare-commit-msg`, never clobbering —
   commit-attribution D7, §Hooks)
-  + .claude/settings.json hooks block, emit .mcp.json registration, append
+  + .claude/settings.json hooks block, emit .mcp.json registration, the
+  same hooks and server for Cursor in .cursor/hooks.json and
+  .cursor/mcp.json (r1-fixes 6.2/6.6, D34 — merged by the same rules, and
+  the note naming Cursor's one-time MCP approval printed on the run that
+  registered it; see §Cursor host), append
   protocol blocks to CLAUDE.md and AGENTS.md (idempotent; the AGENTS.md
   block is the CLI convention dialect for MCP-less tools — added Phase 5,
   BD31). Writes the union-merge rule for committed event logs to

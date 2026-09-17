@@ -72,6 +72,7 @@ import {
 } from '../mcp/context'
 import { enforceStatusLimit, renderStatus, sessionIdLine } from '../projections/templates/status'
 import { REPO_MD_STUB, readInput } from './shared'
+import { forHost, hookHost, type HookHost } from './host'
 
 /**
  * `sofar event <subcommand>` — the internal surface hook shims call
@@ -97,9 +98,6 @@ const OK: HookResult = { exitCode: 0, stdout: '', stderr: '' }
 
 export const STOP_BLOCK_MESSAGE =
   'Write back to the sofar record before finishing: call sofar_end_session (or append session_ended via `sofar event append`).'
-
-/** Hook payload tool = the agent tool whose hooks feed this surface. */
-const HOOK_TOOL = 'claude-code'
 
 // ---------------------------------------------------------------------------
 // Self-recording commands (record-hygiene D1) — the exemption that lets the
@@ -770,7 +768,7 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
       kind: 'injection',
       initiative: slug,
       session: sessionId ?? 'cli',
-      host: { tool: HOOK_TOOL },
+      host: hookHost(hook),
       data: {
         hook: 'SessionStart',
         bytes: status.length,
@@ -852,9 +850,11 @@ function classifyToolCall(hook: Obj): ClassifiedCall | null {
  * Lazy registration through the ONE locked path (r1-fixes D2, 1.2): hosts
  * that fire hooks in parallel otherwise registered a session once per
  * process. "cli" is never a session identity, so it is never registered.
+ * The tool is the host that fired the hook (r1-fixes 6.4, D34) — a Cursor
+ * session recorded as claude-code misattributes every event it carries.
  */
-function registerLazily(ctx: ToolContext, slug: string, session: string): void {
-  if (session !== 'cli') ctx.registerSession(slug, session, { tool: HOOK_TOOL }, { source: 'hook' })
+function registerLazily(ctx: ToolContext, slug: string, session: string, host: HookHost): void {
+  if (session !== 'cli') ctx.registerSession(slug, session, { tool: host.tool }, { source: 'hook' })
 }
 
 /**
@@ -892,7 +892,7 @@ export function handlePostToolFailure(rootDir: string, input: string): HookResul
     const exit = typeof hook.exit_code === 'number' ? hook.exit_code : null
     const interrupt = typeof hook.is_interrupt === 'boolean' ? hook.is_interrupt : null
     if (!exempt) {
-      registerLazily(ctx, slug, session)
+      registerLazily(ctx, slug, session, hookHost(hook))
       ctx.appendAndProject(
         slug,
         type,
@@ -910,7 +910,7 @@ export function handlePostToolFailure(rootDir: string, input: string): HookResul
       kind: 'tool_failure',
       initiative: slug,
       session,
-      host: { tool: HOOK_TOOL },
+      host: hookHost(hook),
       data: {
         tool: call.toolName,
         ...(head !== undefined ? { head } : {}),
@@ -1000,7 +1000,7 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
       // hooks in parallel (Cursor) otherwise registered it once per process.
       // "cli" is never a session identity (the fold skips it), so it is never
       // registered.
-      registerLazily(ctx, slug, session)
+      registerLazily(ctx, slug, session, hookHost(hook))
       ctx.appendAndProject(slug, type, payload, { session, source: 'hook' })
     }
 
@@ -1017,7 +1017,7 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
       kind: 'tool_outcome',
       initiative: slug,
       session,
-      host: { tool: HOOK_TOOL },
+      host: hookHost(hook),
       data: {
         tool: call.toolName,
         ok,
@@ -2298,7 +2298,9 @@ export async function readStdin(): Promise<string> {
  * The hook name → handler map, exported so the hot-path entry (cli/fast.ts)
  * can dispatch a shim WITHOUT constructing the commander program. One source
  * of truth: registerEventCommand builds its subcommands from this same list,
- * so a hook can never exist on one path and not the other.
+ * so a hook can never exist on one path and not the other. Every handler is
+ * served through forHost (r1-fixes 6.3–6.6, D34): the handlers speak Claude
+ * Code's hook dialect, and a Cursor invocation is converted on both sides.
  */
 export const SUBCOMMANDS: ReadonlyArray<{
   name: string
@@ -2309,36 +2311,36 @@ export const SUBCOMMANDS: ReadonlyArray<{
     name: 'session-start',
     description:
       'SessionStart hook: register the session in the log, print the status projection (≤10,000 chars) as injected context',
-    handler: handleSessionStart,
+    handler: forHost('session-start', handleSessionStart),
   },
   {
     name: 'post-tool',
     description:
       'PostToolUse hook: append mechanical file_touched (Edit|Write|MultiEdit) / command_run (Bash) events, and surface any repo-wide guarded rule the subject crosses',
-    handler: handlePostTool,
+    handler: forHost('post-tool', handlePostTool),
   },
   {
     name: 'post-tool-failure',
     description:
       'PostToolUseFailure hook: append the same mechanical event with ok:false (and exit when the host gives one); the error text goes to the private diagnostics store, never the record',
-    handler: handlePostToolFailure,
+    handler: forHost('post-tool-failure', handlePostToolFailure),
   },
   {
     name: 'user-prompt',
     description:
       'UserPromptSubmit hook: nudge an in-flow write-back (one additionalContext line) when drift since the last session_ended ≥5 events',
-    handler: handleUserPrompt,
+    handler: forHost('user-prompt', handleUserPrompt),
   },
   {
     name: 'stop',
     description:
       'Stop hook: exit 2 (blocking) when the registered session has not written back via session_ended; loop-guarded by stop_hook_active',
-    handler: handleStop,
+    handler: forHost('stop', (rootDir, input) => handleStop(rootDir, input)),
   },
   {
     name: 'session-end',
     description: 'SessionEnd hook: append a mechanical session_closed marker (fallback only)',
-    handler: handleSessionEnd,
+    handler: forHost('session-end', handleSessionEnd),
   },
 ]
 
