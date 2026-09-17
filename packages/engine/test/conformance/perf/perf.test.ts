@@ -8,6 +8,7 @@ import { foldLog } from '../../../src/core/fold'
 import { renderStatus } from '../../../src/projections/templates/status'
 import { CANDIDATE, FIXTURES, IS_CANDIDATE, KEEP, childEnv, cleanupScratch, here, implementation, materialize, type Materialized } from '../harness'
 import { BOUND_SLUG, SCALE_CELLS, writeScale, type ScaleCell } from './scale'
+import { BOUND as TEAM_BOUND, TEAM100, TEAM_CELLS, growthBudget, writeCorpus, type CorpusSpec, type CorpusSummary } from './corpus'
 
 /**
  * rust-core 1.3 — the perf baseline harness.
@@ -34,7 +35,8 @@ import { BOUND_SLUG, SCALE_CELLS, writeScale, type ScaleCell } from './scale'
  *                                 the in-process section is carried over from the previous baseline
  *   SOFAR_PERF_LABEL=…            free text stored in the report header (which build, why)
  *   SOFAR_PERF_GATE=1             fail unless every candidate p50 and p95 ≤ the recorded target
- *   SOFAR_PERF_CELLS=i10-1mb,repo run a subset of cells
+ *   SOFAR_PERF_CELLS=i10-1mb,repo run a subset of cells; the team100 corpus cells (rust-core 1.5:
+ *                                 team100-w10 … team100-w100, team100) run ONLY when named here
  *   SOFAR_CONFORMANCE_BIN=…       measure another implementation
  *   SOFAR_CORE=<path>             measure the shipped stub dispatching to a native core (rust-core 3.1)
  *   SOFAR_PERF_AB_BIN="node …/cli.js"  interleave every spawn with this comparator (ABAB, order
@@ -120,6 +122,12 @@ interface CellResult {
   measures: Record<string, Stat>
   /** The interleaved comparator's stats (SOFAR_PERF_AB_BIN), same keys as `measures`. */
   ab?: Record<string, Stat>
+  /** team100 cells (rust-core 1.5): the corpus this cell was generated from. */
+  corpus?: CorpusSummary
+  /** Maximum resident set size of one spawn, in MB, per measure (`/usr/bin/time -l`, darwin; `-v`, linux). */
+  rssMB?: Record<string, number>
+  /** The fold-cost curve over prefixes of the bound log: wall ms of a fold per prefix (in-process for the reference, `<bin> fold` for a candidate). */
+  foldCurve?: Array<{ lines: number; bytes: number; foldMs: number; how: 'in-process' | 'process' }>
 }
 
 interface InProcessResult {
@@ -373,6 +381,77 @@ function repoCell(): Cell {
   }
 }
 
+/** A team100 corpus cell (rust-core 1.5): generated into scratch, one initiative at a time. */
+function corpusCell(spec: CorpusSpec): Cell & { corpus: CorpusSummary } {
+  const m = materialize(`perf.${spec.name}`, {})
+  const t0 = performance.now()
+  const corpus = writeCorpus(m.root, spec)
+  // eslint-disable-next-line no-console
+  console.log(`${spec.name}: generated ${corpus.initiatives} initiatives, ${corpus.totalLines} events, ${(corpus.totalBytes / 1e6).toFixed(1)} MB (largest ${(corpus.largestBytes / 1e6).toFixed(1)} MB, bound ${corpus.bound.sessions} sessions, ${corpus.bound.openSessions} open) in ${((performance.now() - t0) / 1000).toFixed(1)} s`)
+  gitInit(m, 'main')
+  return { name: spec.name, initiatives: spec.initiatives, slug: TEAM_BOUND, m, boundBytes: corpus.bound.bytes, boundLines: corpus.bound.lines, totalBytes: corpus.totalBytes, corpus }
+}
+
+/** One spawn under the OS `time` utility: its maximum resident set size in MB, or null where unavailable. */
+function rssMB(cell: Cell, argv: readonly string[], stdin: string | Record<string, unknown> | undefined): number | null {
+  const flag = platform() === 'darwin' ? '-l' : platform() === 'linux' ? '-v' : null
+  if (flag === null || !existsSync('/usr/bin/time')) return null
+  const command = binary().command
+  const input = stdin === undefined ? '' : typeof stdin === 'string' ? stdin : JSON.stringify(stdin)
+  const r = spawnSync('/usr/bin/time', [flag, ...command, ...argv], { cwd: cell.m.root, input, env: childEnv(cell.m), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  const line = r.stderr.split('\n').find((l) => /maximum resident set size/i.test(l))
+  if (line === undefined) return null
+  const n = Number.parseFloat(line.replace(/[^0-9.]/g, ' ').trim().split(/\s+/)[0] ?? '')
+  if (!Number.isFinite(n)) return null
+  // darwin reports bytes, GNU time kilobytes.
+  return Math.round((platform() === 'darwin' ? n / 1e6 : n / 1e3) * 10) / 10
+}
+
+/**
+ * The fold-cost curve (rust-core 1.5): fold prefixes of the bound log and
+ * time each — in-process `foldLog` for the reference (the engine's own work,
+ * no boot), `<bin> fold --events` for a candidate (its process floor is
+ * ~2 ms). Minimum of three, so the curve is the cost and not the noise.
+ */
+function foldCurve(cell: Cell): NonNullable<CellResult['foldCurve']> {
+  const log = join(cell.m.root, '.sofar', 'initiatives', cell.slug, 'events.jsonl')
+  const text = readFileSync(log, 'utf8')
+  const body = text.endsWith('\n') ? text.slice(0, -1).split('\n') : text.split('\n')
+  const rows: NonNullable<CellResult['foldCurve']> = []
+  for (const share of [0.02, 0.05, 0.1, 0.2, 0.35, 0.5, 0.7, 1]) {
+    const lines = Math.max(1, Math.round(body.length * share))
+    const prefix = `${body.slice(0, lines).join('\n')}\n`
+    const file = join(cell.m.dir, `curve-${lines}.jsonl`)
+    writeFileSync(file, prefix)
+    const samples: number[] = []
+    for (let i = 0; i < 3; i++) {
+      const t0 = performance.now()
+      if (IN_PROCESS) foldLog(file)
+      else {
+        const r = spawnSync(binary().command[0]!, [...binary().command.slice(1), 'fold', '--events', file], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 })
+        expect(r.status, r.stderr).toBe(0)
+      }
+      samples.push(performance.now() - t0)
+    }
+    rows.push({ lines, bytes: Buffer.byteLength(prefix), foldMs: Math.min(...samples), how: IN_PROCESS ? 'in-process' : 'process' })
+    rmSync(file, { force: true })
+  }
+  return rows
+}
+
+/** Where the curve crosses `ms`, by linear interpolation on bytes and lines; null when it never does. */
+function crossing(curve: NonNullable<CellResult['foldCurve']>, ms: number): { lines: number; bytes: number } | null {
+  for (let i = 1; i < curve.length; i++) {
+    const a = curve[i - 1]!
+    const b = curve[i]!
+    if (a.foldMs <= ms && b.foldMs >= ms && b.foldMs > a.foldMs) {
+      const t = (ms - a.foldMs) / (b.foldMs - a.foldMs)
+      return { lines: Math.round(a.lines + t * (b.lines - a.lines)), bytes: Math.round(a.bytes + t * (b.bytes - a.bytes)) }
+    }
+  }
+  return null
+}
+
 /** A root with no record and no git: parse stdin, find nothing, print the unbound notice. */
 function floorCell(): Cell {
   const m = materialize('perf.floor', {})
@@ -439,6 +518,25 @@ function table(report: PerfReport, baseline: PerfReport | null): string {
       lines.push(`| ${name} | ${fmt(s.p50)} | ${fmt(s.p95)} | ${fmt(s.min)} |${abc}${cmp}`)
     }
     lines.push('')
+  }
+  for (const cell of report.cells) {
+    if (cell.corpus === undefined) continue
+    const c = cell.corpus
+    lines.push(`## ${cell.name} — team100 corpus (rust-core 1.5)`)
+    lines.push(`${c.initiatives} initiatives, ${c.writers} writers, ${report.cells.length > 0 ? '' : ''}${(c.totalBytes / 1e6).toFixed(1)} MB / ${c.totalLines} events in all; bound record ${(c.bound.bytes / 1e6).toFixed(1)} MB / ${c.bound.lines} events, ${c.bound.sessions} sessions of which ${c.bound.openSessions} open (one per writer); largest log ${(c.largestBytes / 1e6).toFixed(1)} MB`)
+    if (cell.rssMB !== undefined) {
+      lines.push('', '| measure | max RSS MB |', '| --- | ---: |')
+      for (const [name, mb] of Object.entries(cell.rssMB)) lines.push(`| ${name} | ${mb.toFixed(1)} |`)
+    }
+    if (cell.foldCurve !== undefined) {
+      lines.push('', `| bound-log prefix (events) | bytes | fold ms (${cell.foldCurve[0]?.how ?? ''}, min of 3) |`, '| ---: | ---: | ---: |')
+      for (const r of cell.foldCurve) lines.push(`| ${r.lines} | ${(r.bytes / 1e6).toFixed(2)} MB | ${fmt(r.foldMs)} |`)
+      const c100 = crossing(cell.foldCurve, 100)
+      const c250 = crossing(cell.foldCurve, 250)
+      lines.push('', `fold crosses 100 ms at ${c100 === null ? 'never within this log' : `~${c100.lines} events / ${(c100.bytes / 1e6).toFixed(1)} MB`}; a full refold reaches 250 ms at ${c250 === null ? 'never within this log' : `~${c250.lines} events / ${(c250.bytes / 1e6).toFixed(1)} MB`}`)
+    }
+    const g = growthBudget(TEAM100, 10)
+    lines.push('', `growth budget from the profiles (0.3 human / 0.7 agent, 10 sessions per user per week): ${g.eventsPerUserWeek} events and ${(g.bytesPerUserWeek / 1e6).toFixed(2)} MB per user per week — 100 users add ${(g.bytesPerUserWeek * 100 / 1e6).toFixed(0)} MB / ${g.eventsPerUserWeek * 100} events a week`, '')
   }
   if (report.inProcess !== undefined) {
     lines.push('## in-process (TypeScript reference only): fold of the bound log, digest render of the folded state')
@@ -522,7 +620,8 @@ describe.skipIf(!PERF)('perf baseline (rust-core 1.3)', () => {
     if (!KEEP) cleanupScratch()
   })
 
-  for (const spec of selected([...SCALE_CELLS.map((c) => ({ name: c.name, build: () => scaleCell(c) })), { name: 'repo', build: repoCell }])) {
+  const teamSpecs = TEAM_CELLS.filter((c) => ONLY.has(c.name)).map((c) => ({ name: c.name, build: () => corpusCell(c), team: true }))
+  for (const spec of [...selected([...SCALE_CELLS.map((c) => ({ name: c.name, build: () => scaleCell(c), team: false })), { name: 'repo', build: repoCell, team: false }]), ...teamSpecs]) {
     it(`${spec.name}: every hook, statusline and status`, () => {
       const cell = spec.build()
       cells.push(cell)
@@ -536,10 +635,26 @@ describe.skipIf(!PERF)('perf baseline (rust-core 1.3)', () => {
         totalBytes: cell.totalBytes,
         measures: {},
       }
-      for (const m of measures(cell)) {
+      const matrix = measures(cell)
+      if (spec.team) {
+        // rust-core 1.5: the find/index build, and the corpus the cell came from.
+        matrix.push({ name: 'find <slug> (graph + index build)', argv: ['find', cell.slug], stdin: () => undefined, expectedExit: 0, before: dropIndex })
+        result.corpus = (cell as Cell & { corpus: CorpusSummary }).corpus
+      }
+      for (const m of matrix) {
         const r = measure(cell, m)
         result.measures[m.name] = r.stat
         if (r.ab !== undefined) (result.ab ??= {})[m.name] = r.ab
+      }
+      if (spec.team) {
+        const rss: Record<string, number> = {}
+        for (const m of matrix) {
+          if (m.name.startsWith('session-start (index cold)')) continue
+          const v = rssMB(cell, m.argv, m.stdin(0))
+          if (v !== null) rss[m.name] = v
+        }
+        if (Object.keys(rss).length > 0) result.rssMB = rss
+        result.foldCurve = foldCurve(cell)
       }
       report.cells.push(result)
       if (IN_PROCESS) {
