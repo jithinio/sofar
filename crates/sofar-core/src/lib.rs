@@ -18,7 +18,7 @@
 //! [`index_tier0`]/[`index_tier1`], [`shipwatch`], [`attribution`],
 //! [`diagnostics`], [`redact`], [`shell`], [`nudge`], [`peers`], [`lexicon`],
 //! [`lessons`], [`cross_conflicts`]); the statusline (2.6: [`statusline`],
-//! [`ui`], [`update_cache`]).
+//! [`ui`], [`update_cache`]); rule fidelity (memory-lead 1.4: [`rule_fidelity`]).
 
 pub mod append;
 pub mod atomic;
@@ -56,6 +56,7 @@ pub mod post_tool;
 pub mod projections;
 pub mod redact;
 pub mod resolve;
+pub mod rule_fidelity;
 pub mod session_start;
 pub mod sha256;
 pub mod shell;
