@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { TOOL_INPUT_SCHEMAS, TOOL_NAMES, type ToolName } from '@sofar/schema/tool-inputs'
 import { ALWAYS_LOADED_TOOLS, createSofarServer, SERVER_INSTRUCTIONS, SERVER_NAME, serverInstructions } from '../src/mcp/server'
-import { PROTOCOL_BLOCK } from '../src/cli/init'
+import { PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS } from '../src/cli/init'
 import { foldLog, type InitiativeState } from '../src/core/fold'
 import { GENERATED_HEADER } from '../src/projections/templates/shared'
 import { handlePostTool } from '../src/cli/event'
@@ -516,9 +516,16 @@ describe('less bookkeeping (r1-fixes 2.1, D10)', () => {
     await client.close()
   })
 
-  it('the CLAUDE.md block says task changes may ride the write-back and names the next ids', () => {
-    expect(PROTOCOL_BLOCK).toContain("in `sofar_end_session`'s `tasks`")
-    expect(PROTOCOL_BLOCK).toContain('plus any task status changes not yet logged, in `tasks`')
+  it('the CLAUDE.md block (V8, memory-lead D3) writes back once, needs no start call on Claude Code, and names the next ids', () => {
+    expect(PROTOCOL_BLOCK).toContain('On Claude Code, sofar\'s tools adopt this session from its own id: there is\n  no start call.')
+    expect(PROTOCOL_BLOCK).toContain('write back with ONE `sofar_end_session` call')
+    for (const field of ['`decisions`', '`tasks`', '`phases`', '`memories`', '`notes`', '`title`', '`quote`']) {
+      expect(PROTOCOL_BLOCK).toContain(field)
+    }
+    expect(PROTOCOL_BLOCK).not.toContain('Do still call `sofar_start_session`')
+    expect(PROTOCOL_BLOCK).not.toContain('sofar_update_task')
+    expect(PROTOCOL_BLOCK).not.toContain('sofar_remember')
     expect(PROTOCOL_BLOCK).toContain('next D/M ids')
+    expect(SHIPPED_PROTOCOL_BLOCKS.at(-1)).toContain('Do still call `sofar_start_session`')
   })
 })

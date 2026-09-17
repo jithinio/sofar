@@ -5334,4 +5334,12 @@ stay the underlying derivation's, and exit codes are styling-independent.
   whose second decision reverses its first is refused naming `decisions[1]`
   and accepted with `supersedes: "D1"`; an unchanged phase files nothing.
   serverInstructions(true) has no start step, both variants stay under 900
-  chars, and the tool surface stays ≤8,000 chars.
+  chars, and the tool surface stays ≤8,000 chars. The CLAUDE.md protocol
+  block says Claude Code needs no start call (elsewhere sofar_start_session
+  first), writes back with ONE sofar_end_session carrying `decisions`,
+  `tasks` (a new task with its `title`), `phases`, `memories` and `notes`,
+  words a rule as the operator did with their words in `quote`, and names
+  neither sofar_update_task nor sofar_remember; the block it replaced is
+  PROTOCOL_BLOCK_V8, the last SHIPPED_PROTOCOL_BLOCKS entry, and classifies
+  as stale. A live Claude Code (2.1.274) `sofar mcp` child carries its
+  parent session's CLAUDE_CODE_SESSION_ID (checked 2026-09-17).

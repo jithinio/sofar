@@ -174,7 +174,7 @@ describe('sofar init on a fresh repo', () => {
     // …but start_session is NOT optional: it sets the server's active
     // session, and without it writes follow the branch binding and appends
     // stamp session "cli" (the record-integrity misroute class).
-    expect(claudeMd).toContain('Do still call `sofar_start_session`')
+    expect(claudeMd).toContain('On Claude Code, sofar\'s tools adopt this session')
 
     // AGENTS.md convention dialect: same markers, same three BD19 clauses,
     // but a CLI-only loop (no MCP assumptions — task 5.1, BD31)

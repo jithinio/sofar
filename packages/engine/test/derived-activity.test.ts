@@ -265,12 +265,15 @@ describe('guidance and the switch (D24 (5), (6))', () => {
   it('both protocol blocks carry the clause and their predecessors are in the ledger', () => {
     expect(PROTOCOL_BLOCK).toContain('A note or summary is WHY')
     expect(AGENTS_PROTOCOL_BLOCK).toContain('Payload prose is WHY')
-    const prevClaude = SHIPPED_PROTOCOL_BLOCKS[SHIPPED_PROTOCOL_BLOCKS.length - 1]!
+    // memory-lead 1.1 (D3) superseded the D24 CLAUDE.md block as V8; the
+    // clause diff is pinned between V8 and the V7 before it.
+    const d24Claude = SHIPPED_PROTOCOL_BLOCKS[SHIPPED_PROTOCOL_BLOCKS.length - 1]!
+    const prevClaude = SHIPPED_PROTOCOL_BLOCKS[SHIPPED_PROTOCOL_BLOCKS.length - 2]!
     const prevAgents = SHIPPED_AGENTS_PROTOCOL_BLOCKS[SHIPPED_AGENTS_PROTOCOL_BLOCKS.length - 1]!
     expect(prevClaude).not.toContain('is WHY')
     expect(prevAgents).not.toContain('is WHY')
     // The only difference is the clause: the ledger entry is the old block byte-exact.
-    expect(PROTOCOL_BLOCK.replace(/ A note or summary is WHY:\n  files, commands, test outcomes and commits are captured by hooks and\n  derived, never restated\./, '')).toBe(prevClaude)
+    expect(d24Claude.replace(/ A note or summary is WHY:\n  files, commands, test outcomes and commits are captured by hooks and\n  derived, never restated\./, '')).toBe(prevClaude)
     // 4.1.1 (L07, D27) and 4.1.3 (L09, D30) edited the same unreleased block in
     // place; undo their lines too.
     const withoutL07 = AGENTS_PROTOCOL_BLOCK.replace(',"rule":"..."}', '}')
