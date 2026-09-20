@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: User picks the first step; recommended E3: a scratch calibration script judging the existing record (decisions constraint-vs-history, rejected approaches vs later decisions) before any engine code, then log the opt-in Decision naming SPEC Architectural invariants and felt-cost D3.
+Next action: User decides whether to open `linked-context` (deterministic networked memory, no ruling needed) alongside typed-judge; first typed-judge step stays E3, the calibration script over the existing record.
