@@ -2,10 +2,42 @@
 
 # Plan: typed-judge
 
-Goal: Adopt the shape of TypeSafe Jev / System One models in sofar: typed judgements (noul, choice, score) over record state with calibrated probabilities and confidence-gated escalation, behind a Judge seam whose default is deterministic and whose model provider is explicit opt-in. Parked until TypeSafe releases Jev to the public (waitlist as of 2026-09-19); resume from the roadmap-h2 audit note 01M2X0KK6MT2AE2A83KWJ3PZX9. No tasks or phases until then.
+Goal: Adopt the shape of TypeSafe Jev / System One models in sofar: typed judgements (noul, choice, score) over record state with calibrated probabilities and confidence-gated escalation, behind a Judge seam whose default is deterministic and whose Jev provider is explicit opt-in. Judging runs only at write time (MCP tools), in the driver, on pull surfaces or offline — never on a hook, statusline, shim, fold or projection path. Outputs are advisory: warnings and rankings, never mutations, never blocks. Catalogue A–E and predictions in the record notes.
 
-Progress: 0/0 tasks done (0%)
+Progress: 0/15 tasks done (0%)
 
-(no plan recorded yet — call sofar_update_plan)
+## Phase 1 — Measure on our own record [active] — 0/2 done
 
-Next action: User decides whether to open `linked-context`; typed-judge's first step stays E3, the calibration script over the existing record.
+- [ ] 1.1 Calibration script (scratch, outside the engine): build ground truth from the record — decisions with a rule vs without (constraint vs one-off), decision→task mentions (relevance), rejected `over` text vs the chosen line (re-proposal) — and judge them with Jev in fan-out batches under the 32k state cap; report agreement, calibration by confidence bucket, cost and latency (active)
+- [ ] 1.2 Set provisional thresholds per question type from 1.1 (act / warn / silent) and record them with the model version jev-1.13.0; note which questions are not worth wiring
+
+## Phase 2 — Seam and provider [pending] — 0/4 done
+
+- [ ] 2.1 SPEC: Judge seam contract — question types, state shape, answer shape with probabilities and confidence, provider interface, where judging may run and where it may not, advisory-only rule, redaction before send, model version pinning
+- [ ] 2.2 Deterministic default provider: today's counts and lexical rules re-expressed as answers with confidence 1.0 or 0.5, tests
+- [ ] 2.3 Jev provider via fetch (POST /v1/systemone, Bearer TYPESAFE_API_KEY, zero deps, Node 18): retries on 429/529, timeout, redact.ts before send, opt-in via ~/.config/sofar/config.json judge.provider, disabled by default
+- [ ] 2.4 Enrichment event type in packages/schema for stored judgements (producer, model version, question id, answer, confidence, subject event id); fold ignores them for state, index reads them
+
+## Phase 3 — Write-time guards [pending] — 0/3 done
+
+- [ ] 3.1 A2/A3 in sofar_log_decision: re-proposal and contradiction Nouls over rejected approaches and standing constraints (candidates by index, state under 32k); warning text cites the target
+- [ ] 3.2 A1 in sofar_end_session: next_action Score on described levels, unlogged-decision and repo-memory-fact Nouls over the summary; warning only
+- [ ] 3.3 A4/A5: decision-vs-fact-vs-note routing hint; task-done evidence Noul in sofar_update_task
+
+## Phase 4 — Driver [pending] — 0/3 done
+
+- [ ] 4.1 B1 progress judge: handoff reason from a Noul over task text, write-back, diff stat and test output, combined with status; B2 richer reason set
+- [ ] 4.2 B3 pre-flight: task specified well enough to act; low → needs_user without a launch
+- [ ] 4.3 B4 route hints: complexity Score → effort, Choice → model, filling only what the run left open
+
+## Phase 5 — Context and pull [pending] — 0/2 done
+
+- [ ] 5.1 C1/C2: relevance scores for decisions, notes, rejected approaches, repo memory and adjacent initiatives against the next task, judged at write-back, stored in the index, read by the SessionStart hook
+- [ ] 5.2 D1/D2: judge-ranked find and answer packets (depends on linked-context Phase 5)
+
+## Phase 6 — Proof [pending] — 0/1 done
+
+- [ ] 6.1 E1: sofar + judge arm in bench-refresh; Jev as calibrated blind reviewer; grade the pre-registered predictions
+
+Active phase: Phase 1 — Measure on our own record
+Next action: User runs `TYPESAFE_API_KEY=<key> node scripts/judge-calibration.mjs --out <scratch>.json` from the repo root and pastes the summary; then 1.2 sets thresholds from it and marks 1.1 done.
