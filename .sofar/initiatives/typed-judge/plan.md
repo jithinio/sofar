@@ -40,4 +40,4 @@ Progress: 0/15 tasks done (0%)
 - [ ] 6.1 E1: sofar + judge arm in bench-refresh; Jev as calibrated blind reviewer; grade the pre-registered predictions
 
 Active phase: Phase 1 — Measure on our own record
-Next action: User runs `TYPESAFE_API_KEY=<key> node scripts/judge-calibration.mjs --out <scratch>.json` from the repo root and pastes the summary; then 1.2 sets thresholds from it and marks 1.1 done.
+Next action: User confirms the cloud-provider ruling (then log D2 superseding D1's direct-call clause and reword 2.3), and runs the calibration script with the key.
