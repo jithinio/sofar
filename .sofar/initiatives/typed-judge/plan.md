@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: User decides whether to open `linked-context` (deterministic networked memory, no ruling needed) alongside typed-judge; first typed-judge step stays E3, the calibration script over the existing record.
+Next action: User decides whether to open `linked-context`; typed-judge's first step stays E3, the calibration script over the existing record.
