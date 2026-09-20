@@ -43,12 +43,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jithinio/sofar.git",
+    "url": "git+https://github.com/usesofar/sofar.git",
     "directory": "packages/engine"
   },
   "homepage": "https://sofar.sh",
   "bugs": {
-    "url": "https://github.com/jithinio/sofar/issues"
+    "url": "https://github.com/usesofar/sofar/issues"
   },
   "keywords": [
     "agents",

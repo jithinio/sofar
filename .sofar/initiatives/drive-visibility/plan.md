@@ -39,4 +39,4 @@ Progress: 2/17 tasks done (11%)
 - [ ] 5.2 README + release staged for the user to publish.
 
 Active phase: Phase 2 — Liveness and fencing
-Next action: Start 2.1: run lock per SPEC One driver per run (macOS O_EXLOCK, Linux flock child), with tests.
+Next action: Unchanged for drive-visibility: start 2.1 run lock. Housekeeping: commit the three sofar-cloud marketing edits; sofar-cloud itself still lives under jithinio.
