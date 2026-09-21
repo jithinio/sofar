@@ -195,7 +195,7 @@ The engine ships the **client only**. No service code lives here.
 
 | module | role |
 | --- | --- |
-| `client/config.ts` | API URL precedence, credential and cursor stores. |
+| `client/config.ts` | API URL precedence, credential and cursor stores; the user-preference file's path (`~/.config/sofar/config.json`). |
 | `client/device.ts` | RFC-8628 device flow for `sofar login`. |
 | `client/http.ts` | Authed fetch, typed errors, retry honouring `Retry-After`. |
 | `client/repos.ts` | `sofar link` — bind a clone to a remote record. |
@@ -203,6 +203,7 @@ The engine ships the **client only**. No service code lives here.
 | `client/pull.ts` | Since-cursor paging, dedupe-by-id import, projection regen. |
 | `client/doorbell.ts` | SSE doorbell — pull on every ring. |
 | `client/url.ts` | URL normalization. |
+| `client/judge.ts` | The `cloud` judge provider (typed-judge 2.3, SPEC §Judge): one POST to the repo-scoped judge endpoint under the sync credential, no retry, every failure (402/403 included) thrown for the seam to turn into abstentions; `resolveJudgeProvider` picks it only when `judge.provider` is `"cloud"`, the repo is linked and the operator is logged in. |
 
 `core/types.d.ts` holds ambient type declarations.
 

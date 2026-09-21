@@ -104,7 +104,8 @@ export interface ProviderResponse {
 }
 export interface JudgeProvider {
   readonly name: string
-  judge(request: WireRequest): Promise<ProviderResponse>
+  /** `signal` fires when the seam's timeout does, so a provider holding a socket lets it go. */
+  judge(request: WireRequest, signal?: AbortSignal): Promise<ProviderResponse>
 }
 export interface JudgeResponse {
   answers: Record<string, Answer>
@@ -366,8 +367,14 @@ export async function judge(request: JudgeRequest, opts: JudgeOptions = {}): Pro
   for (const id of open) forwarded[id] = stripRule(request.questions[id]!)
   const wireRequest: WireRequest = { state: redactState(request.state), questions: forwarded }
   let response: ProviderResponse
+  const abort = new AbortController()
   try {
-    response = await withTimeout(provider.judge(wireRequest), opts.timeoutMs ?? DEFAULT_TIMEOUT_MS, provider.name)
+    response = await withTimeout(
+      provider.judge(wireRequest, abort.signal),
+      opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      provider.name,
+      () => abort.abort(),
+    )
   } catch (err) {
     return {
       answers,
@@ -393,9 +400,12 @@ function stripRule(q: Question): WireQuestion {
   return wire as WireQuestion
 }
 
-function withTimeout<T>(p: Promise<T>, ms: number, who: string): Promise<T> {
+function withTimeout<T>(p: Promise<T>, ms: number, who: string, onTimeout: () => void): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms)
+    const t = setTimeout(() => {
+      reject(new Error(`timed out after ${ms}ms`))
+      onTimeout()
+    }, ms)
     p.then(
       (v) => {
         clearTimeout(t)

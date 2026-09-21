@@ -126,8 +126,21 @@ interface CredentialsFile {
 }
 
 export function credentialsPath(env: Env = process.env): string {
-  const base = nonEmpty(env.XDG_CONFIG_HOME) ?? join(homedir(), '.config')
-  return join(base, 'sofar', 'credentials.json')
+  return join(configDir(env), 'credentials.json')
+}
+
+/**
+ * ~/.config/sofar/config.json — user PREFERENCES (auto_upgrade, judge.provider),
+ * a separate file from credentials.json so a credential rewrite can never lose
+ * a preference. Its path lives here, not in cli/, because the MCP server and
+ * the driver read it too and neither imports cli/.
+ */
+export function userConfigPath(env: Env = process.env): string {
+  return join(configDir(env), 'config.json')
+}
+
+function configDir(env: Env): string {
+  return join(nonEmpty(env.XDG_CONFIG_HOME) ?? join(homedir(), '.config'), 'sofar')
 }
 
 function readCredentialsFile(env: Env): CredentialsFile {

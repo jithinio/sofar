@@ -4,21 +4,21 @@
 
 Goal: Adopt the shape of TypeSafe Jev / System One models in sofar: typed judgements (noul, choice, score) over record state with calibrated probabilities and confidence-gated escalation, behind a Judge seam whose default is deterministic and whose Jev path is the paid `cloud` provider (D2). Judging runs only at write time (MCP tools), in the driver, on pull surfaces or offline — never on a hook, statusline, shim, fold or projection path. Outputs are advisory: warnings and rankings, never mutations, never blocks. Catalogue A–E and predictions in the record notes.
 
-Progress: 5/15 tasks done (33%)
+Progress: 6/15 tasks done (40%)
 
-## Phase 1 — Measure on our own record [active] — 2/2 done
+## Phase 1 — Measure on our own record [done] — 2/2 done
 
 - [x] 1.1 Calibration script (scratch, outside the engine): build ground truth from the record — decisions with a rule vs without (constraint vs one-off), decision→task mentions (relevance), rejected `over` text vs the chosen line (re-proposal) — and judge them with Jev in fan-out batches under the 32k state cap; report agreement, calibration by confidence bucket, cost and latency
 - [x] 1.2 Set provisional thresholds per question type from 1.1 (act / warn / silent) and record them with the model version jev-1.13.0; note which questions are not worth wiring
 
-## Phase 2 — Seam and providers [pending] — 3/4 done
+## Phase 2 — Seam and providers [done] — 4/4 done
 
 - [x] 2.1 SPEC: Judge seam contract — question types, state shape, answer shape with probabilities and confidence, provider interface, where judging may run and where it may not, advisory-only rule, redaction before send, model version pinning, and the cloud judge endpoint's request/response contract (client half only; the server is sofar-cloud work)
 - [x] 2.2 Deterministic default provider: today's counts and lexical rules re-expressed as answers with confidence 1.0 or 0.5, tests
-- [ ] 2.3 Cloud provider (D2): posts redacted state and questions to the judge endpoint on api.sofar.sh under the existing login/link auth, retries and timeout, disabled unless the repo is linked and judge is enabled in ~/.config/sofar/config.json; no direct TypeSafe provider in the engine
+- [x] 2.3 Cloud provider (D2): posts redacted state and questions to the judge endpoint on api.sofar.sh under the existing login/link auth, retries and timeout, disabled unless the repo is linked and judge is enabled in ~/.config/sofar/config.json; no direct TypeSafe provider in the engine
 - [x] 2.4 Enrichment event type in packages/schema for stored judgements (producer, model version, question id, answer, confidence, subject event id); fold ignores them for state, index reads them; arrive via pull when judged server-side
 
-## Phase 3 — Write-time guards [pending] — 0/3 done
+## Phase 3 — Write-time guards [active] — 0/3 done
 
 - [ ] 3.1 A2/A3 in sofar_log_decision: re-proposal and contradiction Nouls over rejected approaches and standing constraints (candidates by index, state under 32k); warning text cites the target
 - [ ] 3.2 A1 in sofar_end_session: next_action Score on described levels, unlogged-decision and repo-memory-fact Nouls over the summary; warning only
@@ -39,5 +39,5 @@ Progress: 5/15 tasks done (33%)
 
 - [ ] 6.1 E1: sofar + judge arm in bench-refresh; Jev as calibrated blind reviewer; grade the pre-registered predictions
 
-Active phase: Phase 1 — Measure on our own record
-Next action: Start 2.3: cloud provider client in packages/engine/src/client (POST {api_url}/v1/judge under the sync client's base-URL, https rule and credential; decide stripped, state redacted; 402/403 and every failure → abstain; enabled only when linked and judge.provider is "cloud" in ~/.config/sofar/config.json), with a resolveJudgeProvider helper and tests against a fake server.
+Active phase: Phase 3 — Write-time guards
+Next action: Start 3.1: A2/A3 re-proposal and contradiction nouls in sofar_log_decision via resolveJudgeProvider.

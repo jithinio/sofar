@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname } from 'node:path'
+import { userConfigPath, type Env } from '../client/config'
 
 /**
  * ~/.config/sofar/config.json — user-level CLI preference (auto-update 3.1).
@@ -14,16 +14,7 @@ import { dirname, join } from 'node:path'
  * Preference, not state — nothing here is required for sofar to work.
  */
 
-export type Env = Record<string, string | undefined>
-
-export function userConfigPath(env: Env = process.env): string {
-  const base = nonEmpty(env.XDG_CONFIG_HOME) ?? join(homedir(), '.config')
-  return join(base, 'sofar', 'config.json')
-}
-
-function nonEmpty(value: string | undefined): string | undefined {
-  return value !== undefined && value.trim().length > 0 ? value : undefined
-}
+export { userConfigPath, type Env }
 
 /** Default false: auto-install is opt-in, and an unreadable config is not consent. */
 export function readAutoUpgrade(env: Env = process.env): boolean {

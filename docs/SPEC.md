@@ -2027,19 +2027,33 @@ model version they were measured against.
 - `deterministic` — pure, synchronous, no I/O, no clock: runs each
   question's `decide`, abstains where there is none. The default, and the
   whole judge for an unlinked repo or an operator who has not opted in.
-- `cloud` (typed-judge 2.3) — the client half of `POST {api_url}/v1/judge`
-  under the base-URL resolution, https rule and bearer credential of §Sync client,
-  body `{state, questions}` with `decide` stripped and the
-  state redacted; response `{model, answers, usage}` in the wire's answer
-  shapes, `model` the exact version the server ran (never an alias) and
-  carried onto every answer. Errors are normalized as in §Sync client;
-  402/403 (no plan, no entitlement) and every other failure fall back to
-  abstention silently — the engine carries no entitlement logic (drive-
-  visibility D6), it only hears "no" and proceeds. Enabled only when the
-  repo is linked AND `judge.provider` is `"cloud"` in
-  `~/.config/sofar/config.json` (§CLI, user config); absent or anything
-  else means `deterministic`. One request per seam call, a bounded
-  timeout, no retry inside a tool call.
+- `cloud` (typed-judge 2.3, `client/judge.ts`) — the client half of
+  `POST {api_url}/v1/repos/:repo_id/judge` under the base-URL resolution,
+  https rule and bearer credential of §Sync client. The path is repo-scoped
+  (typed-judge D3) so the server can charge the right org's plan with the
+  membership check push and pull already use; only the id travels, never
+  content. Body `{state, questions}` with `decide` stripped and the state
+  redacted (the provider redacts again when called without the seam);
+  response `{model, answers, usage?}` in the wire's answer shapes, `model`
+  the exact version the server ran (never an alias, at most 128 chars) and
+  carried onto every answer. A body without a model string or an answers
+  object is `malformed response`; `usage` keeps only non-negative
+  `input_tokens`/`output_tokens`. Errors are normalized as in §Sync client
+  and named `HTTP <status> <code>: <message>` in `fell_back` (clipped to
+  200 chars); 402/403 (no plan, no entitlement) and every other failure
+  fall back to abstention — the engine carries no entitlement logic
+  (drive-visibility D6), it only hears "no" and proceeds. Enabled only when
+  `judge.provider` is `"cloud"` in `~/.config/sofar/config.json`
+  (`{"judge": {"provider": "cloud"}}`, beside `auto_upgrade`) AND the repo
+  is linked AND the operator is logged in to its api_url; absent,
+  unreadable or anything else means `deterministic`.
+  `resolveJudgeProvider(root)` returns the provider, or, when the operator
+  opted in and one of the other two is missing, an `unavailable` reason
+  naming the fixing command (`sofar link`, `sofar login`) for a caller to
+  show; it never throws. One request per seam call, no retry inside a tool
+  call, and a bounded timeout (default 10s) that ABORTS the request — the
+  seam hands every provider an `AbortSignal` that fires with it, so a
+  hung server cannot hold a socket or keep a CLI process alive.
 
 **Stored judgements (typed-judge 2.4).** A judgement worth keeping —
 relevance scores computed at write-back for the next SessionStart to read,
@@ -4693,6 +4707,22 @@ stay the underlying derivation's, and exit codes are styling-independent.
   leaf of an object or array state; the module is imported by no file under
   `hooks/` or `projections/` nor by `core/fold.ts`, `core/atomic.ts`,
   `core/log.ts`, `cli/fast*.ts` or `cli/statusline*.ts` (pinned by test).
+- **Cloud judge provider (typed-judge 2.3):** `resolveJudgeProvider` returns
+  no provider and no reason unless `judge.provider` is exactly `"cloud"`
+  (absent, misspelled, flat-keyed and unreadable configs are all
+  deterministic); opted in, an unlinked repo, a missing credential, a
+  plain-http non-loopback api_url and a corrupt remote.json each give no
+  provider and an `unavailable` reason, never a throw. A judge call through
+  it sends exactly one `POST /v1/repos/<repo_id>/judge` with
+  `Bearer <token>` and a JSON body holding only the questions the rules
+  abstained on, with no secret surviving in the state; a request every rule
+  decides sends nothing. The server's model string is carried onto every
+  model answer, its confidence is recomputed, and `usage` keeps only the
+  two counts. 402, 403, 429 and 500 each leave every forwarded question
+  abstained with `fell_back` naming the status, after exactly one request;
+  a body with no model, an over-long model, an array of answers or non-JSON
+  is `malformed response`; a server that never answers is abstained at the
+  timeout and its connection closed; a refused connection is abstained.
 - **Stored judgements (typed-judge 2.4):** `judgement_recorded` validates
   producer, model, question and subject as non-empty strings and `answer` by
   its type (noul in [0,1]; choice naming one of 2+ probability keys with
