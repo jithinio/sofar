@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: User rules on the Judge seam: if yes, log the narrowly scoped Decision naming SPEC Architectural invariants and felt-cost D3 before any provider code; then define the question set from the note.
+Next action: Bisect the rc.2 i1000-10mb hook regression on r1-fixes (note 01M31QND8).

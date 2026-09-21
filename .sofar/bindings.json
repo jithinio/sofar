@@ -1,5 +1,3 @@
 {
-  "main": "drive-visibility",
-  "peer-messaging": "peer-messaging",
-  "cross-initiative-conflicts": "cross-initiative-conflicts"
+  "main": "drive-visibility"
 }
