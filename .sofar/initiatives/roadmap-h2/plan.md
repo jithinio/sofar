@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: User sets the round-2 freeze items (bench-refresh 5.0).
+Next action: User sets the round-2 freeze items (bench-refresh 5.0) and consents to the live proofs.
