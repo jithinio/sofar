@@ -38,5 +38,8 @@ describe('rust schema codegen (rust-core 2.1)', () => {
       const r = spawnSync('cargo', ['xtask', 'schema', '--check'], { cwd: root, encoding: 'utf8', timeout: 600_000 })
       expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0)
     },
+    // A cold checkout compiles xtask first (CI's `test` job has cargo but no
+    // Rust cache): the test gets the same budget as its spawn, not vitest's 5 s.
+    600_000,
   )
 })
