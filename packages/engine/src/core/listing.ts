@@ -4,7 +4,7 @@ import { isClosedInitiativeStatus, type InitiativeStatus } from '@sofar/schema'
 import { foldLog, freshnessTotal, type InitiativeState } from './fold'
 import { currentBranch } from './git'
 import { byCodeUnit } from './order'
-import { unionFold, type CopyScan, type RecordProvenance } from './record-copies'
+import { scanRecordCopies, unionFold, type CopyScan, type RecordProvenance } from './record-copies'
 
 /**
  * Initiative listing (initiative-list 1.2): the portfolio derivation behind
@@ -76,10 +76,18 @@ export interface ListOptions {
   /**
    * Other copies of the record (core/record-copies.ts). Given, the listing
    * folds each initiative across all of them and includes initiatives that
-   * exist only on another copy; omitted, it reads this checkout alone, as
-   * the MCP surface always has.
+   * exist only on another copy; omitted, it reads this checkout alone.
+   * Surfaces reach it through listAcrossCopies, which scans for them.
    */
   copies?: CopyScan
+}
+
+/** Which copies of the record a portfolio surface folds (branch-visibility D1). */
+export interface CopyOptions {
+  /** This checkout's copy alone — the pre-union view. */
+  here?: boolean
+  /** Also fold remote-tracking refs (opt-in). */
+  remotes?: boolean
 }
 
 function errMessage(err: unknown): string {
@@ -254,4 +262,16 @@ export function listInitiatives(rootDir: string, options: ListOptions = {}): Ini
   })
 
   return states === undefined ? { entries, warnings } : { entries, warnings, states }
+}
+
+/**
+ * The listing every portfolio surface reads — `sofar list`, `sofar next`,
+ * get_state view:"initiatives" — folded across the other copies of the
+ * record, so no surface lists a branch's work as it stood when that branch
+ * forked (branch-visibility D1). With no other copy there is nothing to add
+ * and the single-copy path runs, byte for byte.
+ */
+export function listAcrossCopies(rootDir: string, options: CopyOptions = {}): InitiativeListing {
+  const scan = options.here === true ? null : scanRecordCopies(rootDir, { remotes: options.remotes === true })
+  return listInitiatives(rootDir, scan !== null && scan.logs.size > 0 ? { copies: scan } : {})
 }

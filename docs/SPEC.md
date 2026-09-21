@@ -2991,18 +2991,29 @@ with the number of events it holds that this checkout lacks, most first.
 Plain `sofar status` adds an `Across branches:` block under `Progress:`. The
 styled view adds an `⚠ Across branches` block under the goal. `sofar list`
 adds an `across branches: here D/T tasks done, +N event(s) on <copy>, <copy>,
-+K more` part to the entry. A task done on a branch has not shipped to this
-one, and an abandoned branch must never read as landed work, so a merged
-number is never shown alone. When no other copy adds an event, both commands
-print byte-identically to a single-copy fold. `--here` restores the
-single-copy view.
++K more` part to the entry. `sofar next` ends the entry's line with the same
+part, and its styled view adds it as a `⚠` line under the action: the next
+action shown is the last write-back ANY copy holds, which may be a branch
+whose work has not reached this one. get_state view:"initiatives" carries
+the part in its budgeted line, and such a line gets the part's own length on
+top of the line budget, at most 100 characters more, so the next action
+after it is not clipped away (branch-visibility D2). A task done on a branch
+has not shipped to this one, and an abandoned branch must never read as
+landed work, so a merged number is never shown alone. When no other copy
+adds an event, every one of these surfaces prints byte-identically to a
+single-copy fold. `--here` restores the single-copy view on the commands.
 
-**Scope.** Only `sofar status` (one shot) and `sofar list`. `status --watch`,
-`sofar next`, get_state and every hook still read this checkout alone
-(branch-visibility 3.1–3.3). Reading N checkouts is operator-command cost
-(about 95 ms on this repo's 5 worktrees and 62 initiatives), not hot-path
-cost. Writes always land in this checkout's copy: never write to, or
-rewrite, another checkout's copy (D1).
+**Scope.** `sofar status` (one shot), `sofar list`, `sofar next` and get_state
+view:"initiatives", all through `listAcrossCopies` except status, which folds
+its one initiative directly. The MCP view reads worktrees and unmerged local
+branches, never remote-tracking refs, and takes no single-copy switch.
+`status --watch`, the get_state digest and full views, and every hook still
+read this checkout alone (branch-visibility 3.2–3.3). Reading N checkouts
+costs about 80 ms per listing on this repo's 5 worktrees and 62 initiatives
+(0.18 s to 0.26 s for `sofar list`). That is fine for an operator command or
+an on-demand tool call, and too much for the hot path. Writes always land in
+this checkout's copy: never write to, or rewrite, another checkout's copy
+(D1).
 
 ## Sync client (v2 — api.sofar.sh, the D14 seam; sync-client, Jul 2026)
 The client half of sofar-cloud sync. The server (private repo) is
@@ -3226,7 +3237,9 @@ sofar_start_session.`
   phase, next action), count-capped at 20 with an "+N more (run sofar
   list)" overflow line — and is the ONLY view that skips initiative
   resolution entirely (`initiative` ignored): it must work from an
-  unbound branch, which is exactly when a session needs it.
+  unbound branch, which is exactly when a session needs it. It folds every
+  copy of the record except remote-tracking refs
+  (§Record copies across branches).
   NOT called at session start (speed-2 T5a): the digest is
   renderStatus(state) and the SessionStart block is renderStatus(state,
   {repoMemory, sessionId, git}) — the same projection with strictly more, so
@@ -4617,7 +4630,10 @@ Shims contain no logic — they invoke the sofar CLI.
   UNCAPPED entry count (terminal surface), lines whitespace-collapsed so
   each initiative stays one line; derivation warnings to stderr without
   failing — an uninitialized repo prints the empty listing with a
-  `sofar new` hint (next-command 1.1).
+  `sofar new` hint (next-command 1.1). It folds each initiative across the
+  other copies of the record, like `sofar list`, and a record another copy
+  closed is omitted (§Record copies across branches); `--here` reads this
+  checkout alone, `--remotes` adds remote-tracking refs.
 - `sofar why <path>` — every task, session and decision behind a path,
   across ALL initiatives, newest-first (§Record graph `whyFile`). Prints the
   recorded paths the query resolved to (§Path identity) VERBATIM — those are
@@ -5495,7 +5511,7 @@ stay the underlying derivation's, and exit codes are styling-independent.
   the available-initiatives suffix (≤10 named) or the `sofar new` hint on
   an initiative-less repo; the derivation is deterministic (same records
   → deep-equal listing, same warnings).
-- **Record copies (branch-visibility 1.1–2.3):** against real git repos with
+- **Record copies (branch-visibility 1.1–3.1):** against real git repos with
   linked worktrees, the scan returns every other worktree (an uncommitted
   append included) and every unmerged branch that has no checkout, and never
   returns this checkout, a merged branch, or a ref at a taken commit. Seen
@@ -5508,9 +5524,14 @@ stay the underlying derivation's, and exit codes are styling-independent.
   and the contributing copy. `--here` shows the single copy. A repo with no
   other copy prints byte-identically either way. `sofar status <slug>`
   resolves an initiative only another branch holds, and `sofar list` lists
-  it as "not on this checkout". `listInitiatives` without copies stays
-  single-copy (the MCP surface). Neither command changes a byte of another
-  copy or its `git status`.
+  it as "not on this checkout". `sofar next` shows the last write-back any
+  copy holds with the contributing copy, omits a record another copy closed,
+  and prints byte-identically to `--here` on a repo with no other copy.
+  get_state view:"initiatives" folds the union, and a line carrying the
+  across-branches part keeps a next action a flat 220-character clip would
+  cut, never exceeding 320. `listInitiatives` without copies stays
+  single-copy; `listAcrossCopies` with `here` equals it. None of these
+  surfaces changes a byte of another copy or its `git status`.
 - **CLI UI (cli-ui):** with stdout and stderr both piped and no explicit
   opt-in, every command emits ZERO ESC (\x1b) bytes — ambient CI included;
   FORCE_COLOR=1 on the same piped invocation carries ANSI-16 SGR on the

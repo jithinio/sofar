@@ -214,11 +214,13 @@ program
 program
   .command('next')
   .description(
-    "every initiative's next action, one line each, most recently active first — entries with record drift since their last write-back flagged ⚠ may be stale",
+    "every initiative's next action, one line each, most recently active first — entries with record drift since their last write-back flagged ⚠ may be stale; folded across other worktrees and unmerged branches",
   )
+  .option('--here', "this checkout's copy of the record only, ignoring other worktrees and branches")
+  .option('--remotes', 'also fold remote-tracking branches (origin/*)')
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action((opts: { root?: string }) => {
-    emit(runNext(rootOf(opts)))
+  .action((opts: { here?: boolean; remotes?: boolean; root?: string }) => {
+    emit(runNext(rootOf(opts), undefined, undefined, { here: opts.here, remotes: opts.remotes }))
   })
 
 program

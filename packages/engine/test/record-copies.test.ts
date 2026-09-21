@@ -4,12 +4,16 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { runList } from '../src/cli/list'
+import { runNext } from '../src/cli/next'
 import { runStatus } from '../src/cli/status'
 import { makeEvent, type EventEnvelope } from '../src/core/envelope'
-import { listInitiatives } from '../src/core/listing'
+import { listAcrossCopies, listInitiatives } from '../src/core/listing'
 import { serializeEvent } from '../src/core/log'
 import { lineId, scanRecordCopies, unionFold } from '../src/core/record-copies'
 import type { Caps } from '../src/cli/ui/caps'
+import { createToolContext } from '../src/mcp/context'
+import { getState } from '../src/mcp/get-state'
+import { LIST_LINE_BUDGET, PROVENANCE_LINE_BUDGET } from '../src/projections/templates/list'
 
 /**
  * Record copies across branches (branch-visibility D1; SPEC §Record copies across branches).
@@ -276,10 +280,12 @@ describe('sofar status / sofar list across copies', () => {
     expect(here).not.toContain('solo')
   })
 
-  it('the MCP listing stays single-copy unless copies are passed in', () => {
+  it('listInitiatives stays single-copy unless copies are passed in; listAcrossCopies scans for them', () => {
     const { root } = forked('mcp')
     expect(listInitiatives(root).entries[0]!.tasks_done).toBe(0)
     expect(listInitiatives(root, { copies: scanRecordCopies(root) }).entries[0]!.tasks_done).toBe(1)
+    expect(listAcrossCopies(root).entries[0]!.tasks_done).toBe(1)
+    expect(listAcrossCopies(root, { here: true })).toEqual(listInitiatives(root))
   })
 
   it('never writes to another copy', () => {
@@ -289,7 +295,79 @@ describe('sofar status / sofar list across copies', () => {
     runStatus(root, undefined, plain, 100)
     runList(root, plain, 100)
     runList(root, styled, 100)
+    runNext(root, plain, 100)
+    runNext(root, styled, 100)
+    getState(createToolContext(root), { view: 'initiatives' })
     expect(readFileSync(logPath(feat), 'utf8')).toBe(before)
     expect(git(feat, 'status', '--porcelain')).toBe(statusBefore)
+  })
+})
+
+describe('sofar next / get_state view:"initiatives" across copies (branch-visibility 3.1)', () => {
+  /** feat writes back a next action main has never seen. */
+  function wroteBack(name: string, nextAction = 'ship 1.2 from feat'): { root: string; feat: string } {
+    const root = repo(name)
+    const feat = worktree(root, 'feat')
+    append(feat, [
+      ev(SLUG, 'session_started', { tool: 'claude-code' }),
+      done('1.1'),
+      ev(SLUG, 'session_ended', { summary: 'did 1.1', next_action: nextAction }),
+    ])
+    return { root, feat }
+  }
+
+  it('next shows the last write-back any copy holds, and where its events live', () => {
+    const { root } = wroteBack('next')
+    expect(runNext(root, plain, 100).stdout).toContain(
+      '- demo [main] — ship 1.2 from feat — across branches: here 0/2 tasks done, +3 event(s) on feat',
+    )
+    const here = runNext(root, plain, 100, { here: true }).stdout
+    expect(here).toContain('- demo [main] — (no next action recorded)\n')
+    expect(here).not.toContain('across branches')
+  })
+
+  it('styled next adds the across-branches line under the action', () => {
+    const { root } = wroteBack('next-styled')
+    const out = runNext(root, styled, 100).stdout.replace(/\x1b\[[0-9;]*m/g, '')
+    expect(out).toContain('    ship 1.2 from feat\n    ⚠ across branches: here 0/2 tasks done, +3 event(s) on feat')
+  })
+
+  it('next omits a record another copy closed', () => {
+    const root = repo('next-closed')
+    const feat = worktree(root, 'feat')
+    append(feat, [ev(SLUG, 'initiative_status_changed', { status: 'done' })])
+    expect(runNext(root, plain, 100).stdout).toContain('# Sofar next actions (0)')
+    expect(runNext(root, plain, 100, { here: true }).stdout).toContain('# Sofar next actions (1)')
+  })
+
+  it('with no other copy, next prints byte-identically either way', () => {
+    const lone = repo('next-lone')
+    expect(runNext(lone, plain, 100).stdout).toBe(runNext(lone, plain, 100, { here: true }).stdout)
+    expect(runNext(lone, styled, 100).stdout).toBe(runNext(lone, styled, 100, { here: true }).stdout)
+  })
+
+  it('get_state view:"initiatives" folds every copy and keeps the next action inside the widened budget', () => {
+    const action = `resume from feat ${'x'.repeat(100)} END`
+    const { root } = wroteBack('mcp-view', action)
+    const text = getState(createToolContext(root), { view: 'initiatives' }) as string
+    const entry = text.split('\n').find((l) => l.startsWith('- demo'))!
+    expect(entry).toContain('1/2 tasks (50%) — across branches: here 0/2 tasks done, +3 event(s) on feat')
+    expect(entry).toContain(`next: ${action}`) // a 220 budget alone would clip it
+    expect(entry.length).toBeGreaterThan(LIST_LINE_BUDGET)
+    expect(entry.length).toBeLessThanOrEqual(LIST_LINE_BUDGET + PROVENANCE_LINE_BUDGET)
+  })
+
+  it('get_state view:"initiatives" caps a long provenance part at its budget', () => {
+    const root = repo('mcp-long')
+    const branch = `feat-${'y'.repeat(150)}`
+    const feat = worktree(root, branch)
+    append(feat, [
+      ev(SLUG, 'session_started', { tool: 'claude-code' }),
+      ev(SLUG, 'session_ended', { summary: 's', next_action: 'z'.repeat(300) }),
+    ])
+    const text = getState(createToolContext(root), { view: 'initiatives' }) as string
+    const entry = text.split('\n').find((l) => l.startsWith('- demo'))!
+    expect(entry.length).toBe(LIST_LINE_BUDGET + PROVENANCE_LINE_BUDGET)
+    expect(entry.endsWith('…')).toBe(true)
   })
 })

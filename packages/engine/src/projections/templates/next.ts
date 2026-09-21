@@ -1,4 +1,5 @@
 import type { InitiativeListing } from '../../core/listing'
+import { provenanceSummary } from './copies'
 import { EMPTY_LISTING } from './list'
 import { clip, doc } from './shared'
 
@@ -11,7 +12,9 @@ import { clip, doc } from './shared'
  * ⚠ may-be-stale suffix: a next action that predates record movement
  * misleads exactly the reader this surface exists for. Terminal surface:
  * uncapped entry count, whitespace-collapsed lines (the sofar-list
- * precedent).
+ * precedent). On a union listing, an entry another copy of the record adds
+ * events to ends with where they live (branch-visibility 3.1): the action may
+ * have been written back on a branch whose work has not reached this one.
  */
 export function renderNextActions(listing: InitiativeListing): string {
   const lines: string[] = [`# Sofar next actions (${listing.entries.length})`, '']
@@ -25,8 +28,9 @@ export function renderNextActions(listing: InitiativeListing): string {
         entry.drift_events > 0
           ? ` ⚠ may be stale (${entry.drift_events} event${entry.drift_events === 1 ? '' : 's'} since write-back)`
           : ''
+      const where = entry.elsewhere !== undefined ? ` — ${provenanceSummary(entry.elsewhere)}` : ''
       // clip() with an unreachable budget = whitespace collapse only.
-      lines.push(clip(`- ${entry.slug} [${branch}] — ${action}${stale}`, Number.MAX_SAFE_INTEGER))
+      lines.push(clip(`- ${entry.slug} [${branch}] — ${action}${stale}${where}`, Number.MAX_SAFE_INTEGER))
     }
   }
   return doc(lines)

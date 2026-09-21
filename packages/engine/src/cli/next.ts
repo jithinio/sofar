@@ -1,6 +1,7 @@
 import { isClosedInitiativeStatus } from '@sofar/schema'
-import { listInitiatives, type InitiativeListing } from '../core/listing'
+import { listAcrossCopies, type CopyOptions, type InitiativeListing } from '../core/listing'
 import { currentBranch } from '../mcp/context'
+import { provenanceSummary } from '../projections/templates/copies'
 import { renderNextActions } from '../projections/templates/next'
 import { clip } from '../projections/templates/shared'
 import { ok, type CmdResult } from './shared'
@@ -30,13 +31,18 @@ import {
  * warning on its own line, blank line between entries — so a wrapped
  * action never breaks the gutter. Piped/NO_COLOR output keeps the
  * pre-styling plain bytes; entry set and order stay the derivation's.
+ *
+ * Like list, it folds every copy of the record (branch-visibility 3.1): the
+ * next action a checkout shows is the last write-back ANY copy holds, and an
+ * entry another copy adds to says where those events live.
  */
 export function runNext(
   rootDir: string,
   caps: Caps = stdoutCaps(),
   columns: number = columnsOf(process.stdout),
+  options: CopyOptions = {},
 ): CmdResult {
-  const full = listInitiatives(rootDir)
+  const full = listAcrossCopies(rootDir, options)
   // Closed records are omitted entirely (initiative-lifecycle 4.2): a finished
   // record HAS no next action, and listing one is an invitation to resume work
   // that was decided to be over. Filtered before render so the styled and
@@ -104,6 +110,11 @@ function renderStyledNext(
           `${sym.warn} may be stale (${entry.drift_events} event${entry.drift_events === 1 ? '' : 's'} since write-back)`,
         )}`,
       )
+    }
+    if (entry.elsewhere !== undefined) {
+      // Wrapped like the action: a copy's branch name has no length bound.
+      const where = wrapPlain(sanitizeProse(provenanceSummary(entry.elsewhere)), Math.max(20, bodyWidth - 2))
+      where.forEach((w, i) => lines.push(`${INDENT}${s.warn(i === 0 ? `${sym.warn} ${w}` : `  ${w}`)}`))
     }
     lines.push('')
   }

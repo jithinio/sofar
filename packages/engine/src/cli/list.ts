@@ -4,11 +4,11 @@ import { isClosedInitiativeStatus } from '@sofar/schema'
 import { join } from 'node:path'
 import { emptyState, foldLog, type InitiativeState } from '../core/fold'
 import {
-  listInitiatives,
+  listAcrossCopies,
+  type CopyOptions,
   type InitiativeListEntry,
   type InitiativeListing,
 } from '../core/listing'
-import { scanRecordCopies } from '../core/record-copies'
 import { currentBranch } from '../mcp/context'
 import { renderFullInitiativeList } from '../projections/templates/list'
 import { ok, type CmdResult } from './shared'
@@ -45,13 +45,7 @@ import {
 /** Block gutter: pointer + space marks the current-branch initiative. */
 const GUTTER = 2
 
-/** Which copies of the record to fold (branch-visibility D1). */
-export interface CopyOptions {
-  /** This checkout's copy alone — the pre-union view. */
-  here?: boolean
-  /** Also fold remote-tracking refs (opt-in). */
-  remotes?: boolean
-}
+export type { CopyOptions }
 
 export function runList(
   rootDir: string,
@@ -59,11 +53,7 @@ export function runList(
   columns: number = columnsOf(process.stdout),
   options: CopyOptions = {},
 ): CmdResult {
-  // Every initiative is folded across the other copies of the record, so a
-  // checkout never lists a branch's work as it stood when that branch forked.
-  // With no other copy there is nothing to add and the classic path runs.
-  const scan = options.here === true ? null : scanRecordCopies(rootDir, { remotes: options.remotes === true })
-  const listing = listInitiatives(rootDir, scan !== null && scan.logs.size > 0 ? { copies: scan } : {})
+  const listing = listAcrossCopies(rootDir, options)
   const stdout = caps.color
     ? renderStyledList(rootDir, listing, caps, columns)
     : renderFullInitiativeList(listing)
