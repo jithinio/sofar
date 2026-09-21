@@ -683,6 +683,8 @@ fn parse_body(raw: &Object) -> Option<(String, SnapshotPrefix, String, FoldCheck
         guard_seen: string_list(cp.get("guardSeen"))?.into_iter().collect(),
         last_id: cp.get("lastId")?.as_str()?.to_owned(),
         line_count: usize_of(cp.get("lineCount"))?,
+        // Like guard_cache: indexes the restored sessions on first lookup.
+        session_index: crate::fold::SessionIndex::default(),
     };
     Some((cursor, prefix, slug, checkpoint))
 }

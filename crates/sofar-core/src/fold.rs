@@ -396,6 +396,34 @@ pub struct FoldCheckpoint {
     pub last_id: String,
     /// Lines of the log consumed, so an appended line gets the number a fresh read would give it.
     pub line_count: usize,
+    /// Id → position in `state.sessions`. Rebuilt on demand, never serialized.
+    pub session_index: SessionIndex,
+}
+
+/// What `sessions.iter().position(|s| s.id == id)` answers, in O(1): the
+/// TypeScript `sessionById` (r1-fixes D18, 4d21c26). `record_freshness` asks
+/// once per event, so the scan made the fold O(events × sessions).
+///
+/// Exact because a fold only ever PUSHES to `state.sessions` and ids are
+/// unique in it (`session_started` refuses a repeat; `session_ended` stubs only
+/// a miss), so indexing the vec's new tail on each call sees every session a
+/// scan would, and the first occurrence wins as `position` returns it. Kept on
+/// the checkpoint beside the state it indexes: a restored checkpoint starts
+/// empty and indexes its sessions on first use.
+#[derive(Debug, Clone, Default)]
+pub struct SessionIndex {
+    indexed: usize,
+    by_id: HashMap<String, usize>,
+}
+
+impl SessionIndex {
+    fn position(&mut self, sessions: &[SessionState], id: &str) -> Option<usize> {
+        for (i, session) in sessions.iter().enumerate().skip(self.indexed) {
+            self.by_id.entry(session.id.clone()).or_insert(i);
+        }
+        self.indexed = sessions.len();
+        self.by_id.get(id).copied()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -417,6 +445,7 @@ pub fn replay_decoded(decoded: DecodedLog, slug: &str, line_count: usize) -> Fol
         guard_seen: OrderedSet::new(),
         last_id: String::new(),
         line_count,
+        session_index: SessionIndex::default(),
     };
     for line in decoded.parsed {
         replay_one(&mut cp, line);
@@ -502,6 +531,7 @@ fn replay_one(cp: &mut FoldCheckpoint, line: ParsedLine) {
     }
     apply_event(
         &mut cp.state,
+        &mut cp.session_index,
         &event,
         &mut cp.block_notes,
         &mut cp.warnings,
@@ -510,7 +540,7 @@ fn replay_one(cp: &mut FoldCheckpoint, line: ParsedLine) {
     // Adjacency AFTER apply, against the plan as it now stands.
     let active = active_task_ids(&cp.state);
     edges_for_event(&event, &cp.slug, &active, &mut cp.edges);
-    record_freshness(&mut cp.state, &event);
+    record_freshness(&mut cp.state, &mut cp.session_index, &event);
     // Guards AFTER apply for the same reason: a guard only ever sees the
     // work that followed it (D3, non-retroactive).
     record_guard_violations(
@@ -684,6 +714,7 @@ fn status_or_pending(p: &Object) -> String {
 )]
 fn apply_event(
     state: &mut InitiativeState,
+    session_index: &mut SessionIndex,
     event: &Envelope,
     block_notes: &mut StringMap,
     warnings: &mut Vec<String>,
@@ -943,8 +974,8 @@ fn apply_event(
                 detail: opt_str(p, "detail"),
             });
             // The session's side, attached to REGISTERED sessions only.
-            if let Some(session) = state.sessions.iter_mut().find(|s| s.id == session_id) {
-                session.handoff = Some(SessionHandoff {
+            if let Some(i) = session_index.position(&state.sessions, &session_id) {
+                state.sessions[i].handoff = Some(SessionHandoff {
                     run: run_id,
                     reason: req_str(p, "reason"),
                     ts: event.ts.clone(),
@@ -982,7 +1013,10 @@ fn apply_event(
             run.stop_requests.push(event.ts.clone());
         }
         "session_started" => {
-            if state.sessions.iter().any(|s| s.id == event.session) {
+            if session_index
+                .position(&state.sessions, &event.session)
+                .is_some()
+            {
                 warnings.push(format!(
                     "line {line_no}: session \"{}\" already started — skipped",
                     event.session
@@ -1005,7 +1039,7 @@ fn apply_event(
         }
         "session_ended" => {
             let sid = opt_str(p, "session_id").unwrap_or_else(|| event.session.clone());
-            let index = if let Some(i) = state.sessions.iter().position(|s| s.id == sid) {
+            let index = if let Some(i) = session_index.position(&state.sessions, &sid) {
                 i
             } else {
                 warnings.push(format!(
@@ -1035,13 +1069,14 @@ fn apply_event(
         }
         "session_closed" => {
             // Mechanical close: sets ended (and the reason) only, never a stub.
-            let Some(session) = state.sessions.iter_mut().find(|s| s.id == event.session) else {
+            let Some(i) = session_index.position(&state.sessions, &event.session) else {
                 warnings.push(format!(
                     "line {line_no}: session \"{}\" closed without session_started — skipped",
                     event.session
                 ));
                 return;
             };
+            let session = &mut state.sessions[i];
             if session.ended.is_none() {
                 session.ended = Some(event.ts.clone());
                 session.closed_reason = Some(req_str(p, "reason"));
@@ -1417,8 +1452,12 @@ fn attach_activity(state: &mut InitiativeState, mut derived: HashMap<String, Ses
     clippy::match_same_arms,
     reason = "the driver events are listed by name: their exclusion from drift is a decision, not an omission"
 )]
-fn record_freshness(state: &mut InitiativeState, event: &Envelope) {
-    let own = state.sessions.iter().position(|s| s.id == event.session);
+fn record_freshness(
+    state: &mut InitiativeState,
+    session_index: &mut SessionIndex,
+    event: &Envelope,
+) {
+    let own = session_index.position(&state.sessions, &event.session);
     let mutation = |state: &mut InitiativeState, bump: fn(&mut FreshnessCounts)| {
         bump(&mut state.freshness.events_since_writeback);
         match own {
@@ -1435,8 +1474,8 @@ fn record_freshness(state: &mut InitiativeState, event: &Envelope) {
             // The NAMED session's debt is settled, resolved as apply resolves it.
             let sid =
                 opt_str(&event.payload, "session_id").unwrap_or_else(|| event.session.clone());
-            if let Some(ended) = state.sessions.iter_mut().find(|s| s.id == sid) {
-                ended.unwritten = 0;
+            if let Some(i) = session_index.position(&state.sessions, &sid) {
+                state.sessions[i].unwritten = 0;
             }
         }
         "file_touched" => mutation(state, |c| c.files += 1),
@@ -2478,6 +2517,35 @@ mod tests {
         format!(
             "{{\"v\":1,\"id\":\"{id}\",\"ts\":\"{ts}\",\"initiative\":\"demo\",\"session\":\"{session}\",\"source\":\"hook\",\"actor\":\"agent\",\"type\":\"{event_type}\",\"payload\":{payload}}}"
         )
+    }
+
+    #[test]
+    fn session_index_answers_what_a_scan_would_as_the_vec_grows() {
+        let session = |id: &str| SessionState {
+            id: id.to_owned(),
+            tool: "claude-code".to_owned(),
+            model: None,
+            started: String::new(),
+            ended: None,
+            summary: None,
+            next_action: None,
+            closed_reason: None,
+            activity: None,
+            handoff: None,
+            unwritten: 0,
+        };
+        let scan = |sessions: &[SessionState], id: &str| sessions.iter().position(|s| s.id == id);
+        let mut sessions = vec![session("a"), session("b")];
+        let mut index = SessionIndex::default();
+        assert_eq!(index.position(&sessions, "b"), Some(1));
+        // A miss, then the push that answers it: the next call indexes the new tail.
+        assert_eq!(index.position(&sessions, "c"), None);
+        sessions.push(session("c"));
+        // A repeat id never reaches a fold's vec; were it to, the first still wins.
+        sessions.push(session("a"));
+        for id in ["a", "b", "c", "z"] {
+            assert_eq!(index.position(&sessions, id), scan(&sessions, id), "{id}");
+        }
     }
 
     #[test]
