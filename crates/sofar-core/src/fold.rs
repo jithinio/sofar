@@ -1571,17 +1571,19 @@ fn record_guard_violations(
         "command_run" => (GuardDomain::Cmd, req_str(&event.payload, "cmd")),
         _ => return,
     };
-    for index in 0..state.decisions.len() {
-        let (Some(spec), Some(rule)) = (
-            state.decisions[index].guard.clone(),
-            state.decisions[index].rule.clone(),
-        ) else {
+    // Borrowed, never cloned, until a crossing is recorded: this loop runs for
+    // every decision on every file and command event, and a clone per
+    // decision was 56% of team100's replay (2,014 decisions, 98,605 events).
+    for (index, decision) in state.decisions.iter().enumerate() {
+        let (Some(spec), Some(rule)) = (&decision.guard, &decision.rule) else {
             continue;
         };
-        let compiled = cache
-            .entry(spec.clone())
-            .or_insert_with(|| parse_guard(&spec));
-        let Some(compiled) = compiled else { continue };
+        if !cache.contains_key(spec) {
+            cache.insert(spec.clone(), parse_guard(spec));
+        }
+        let Some(compiled) = &cache[spec] else {
+            continue;
+        };
         if compiled.domain != domain || !guard_matches(compiled, &subject) {
             continue;
         }
@@ -1595,8 +1597,8 @@ fn record_guard_violations(
         }
         state.guard_violations.push(GuardViolation {
             decision: index as u64 + 1,
-            rule,
-            guard: spec,
+            rule: rule.clone(),
+            guard: spec.clone(),
             domain,
             subject: subject.clone(),
             event_id: event.id.clone(),
