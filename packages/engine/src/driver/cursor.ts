@@ -126,9 +126,10 @@ export function cursorPrompt(request: LaunchRequest, sessionId: string, sofarBin
 
 /**
  * The argv, exported so a test can pin it without spawning. The prompt is
- * POSITIONAL and therefore last. `--trust` because every session runs in a
- * worktree Cursor has never seen, and print mode exits 1 there without it; the
- * operator answered that question by starting the run. Never `--approve-mcps`,
+ * POSITIONAL and therefore last. `--trust` because print mode cannot ask whether
+ * to trust a directory Cursor has not seen, and exits 1 there instead ("Workspace
+ * Trust Required"); the operator answered that question by starting the run in
+ * it (the driver makes no worktrees, session-driver D6). Never `--approve-mcps`,
  * which approves EVERY project MCP server, not just sofar's (D38): a session
  * whose sofar server the operator never approved writes through the CLI.
  */
@@ -257,10 +258,11 @@ export class CursorSession implements AgentSession {
     if (decoded.is_error === true && typeof decoded.result === 'string') this.failure = decoded.result
     const u = decoded.usage
     if (!isObj(u)) return
-    // Claude Code's definition — input + cache read + cache write — read from
-    // the field names. Whether Cursor's inputTokens already includes the cache
-    // reads is unverified; the number is recorded on the handoff and gates
-    // nothing, since this adapter has no gauge.
+    // Input + cache read + cache write. Cursor's inputTokens EXCLUDES the
+    // cache reads (live 6.9: cacheReadTokens 253,696 beside inputTokens
+    // 193,739), so the sum does not double-count. It is the session's total
+    // across every model call, not the context held at the end — recorded on
+    // the handoff, gating nothing, since this adapter has no gauge.
     this.finalUsage = {
       context_tokens: num(u.inputTokens) + num(u.cacheReadTokens) + num(u.cacheWriteTokens),
       output_tokens: num(u.outputTokens),

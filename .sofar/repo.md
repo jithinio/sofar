@@ -137,3 +137,10 @@
   Cursor, and confirm with a `command -v sofar` trace in a scratch shim.
   Symptom: a Cursor session with no digest (an older sofar's plain text is
   dropped). Found in the 6.3/6.5 live proof, 2026-09-17.
+- A re-homed session's write-back moves main's binding (r1-fixes M8):
+  sofar_end_session rebinds the branch to the session's home initiative
+  (the result carries `rebound`). On this shared main checkout, every peer
+  whose hooks follow the binding then logs into that record. When a
+  write-back shows `rebound` for main, run `sofar switch <previous slug>` at
+  once (main = drive-visibility as of 2026-09-21), and never commit the
+  moved bindings.json. Seen twice on 2026-09-21.

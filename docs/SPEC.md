@@ -1394,9 +1394,13 @@ no longer reachable only through its prompt.
 6.3 (S1c) and exits captured against an unreachable `--endpoint`, which cost
 nothing (fixtures in test/fixtures/cursor/). `{"type":"system","subtype":
 "init","session_id",…}` carries the chat id, the same id Cursor hands its
-hooks as `session_id` (equal in S1c). `{"type":"result","is_error","result",
+hooks as `session_id` (equal in S1c and in every 6.9 driven launch).
+`{"type":"result","is_error","result",
 "session_id","usage":{inputTokens, outputTokens, cacheReadTokens,
-cacheWriteTokens}}` is the only line with numbers and the last line;
+cacheWriteTokens}}` is the only line with numbers and the last line.
+`inputTokens` excludes the cache reads (6.9: 193,739 beside 253,696 read),
+so the exit's `context_tokens` is their sum plus cache writes. That is the
+session's total across its model calls, not the context it ended with.
 `user`, `assistant`, `thinking` and `tool_call` lines are skipped. A
 transport failure prints nothing on stdout and exits 1 with its cause on
 stderr, so the stderr tail is the diagnostic that reaches the stall note.
@@ -1410,8 +1414,9 @@ stderr, so the stderr tail is the diagnostic that reaches the stall note.
   approval: `plan` → `--mode plan`, `bypassPermissions` → `--force
   --sandbox disabled`, every other mode → `--force`, with the sandbox left
   to the operator's own Cursor config. A mode with no Cursor meaning throws.
-- `--trust` always: every session runs in a worktree Cursor has never seen,
-  where print mode otherwise exits 1 with "Workspace Trust Required". Never
+- `--trust` always: print mode cannot ask whether to trust a directory Cursor
+  has not seen, and exits 1 there with "Workspace Trust Required"; starting
+  the run in that directory answered the question. Never
   `--approve-mcps`, which approves every project MCP server and not just
   sofar's. A session whose sofar server the operator never approved writes
   through the CLI dialect; an operator who wants blanket approval passes it
@@ -1897,7 +1902,9 @@ and carry no `.claude/`; adding Claude Code later repoints them to the
 
 **Limits stated, not worked around.** Headless `cursor-agent -p` fires no
 stop, beforeSubmitPrompt or afterAgentResponse hook, so no write-back gate
-reaches a print-mode session; a driven Cursor session's write-back is judged
+reaches a print-mode session. It does fire sessionStart, postToolUse,
+postToolUseFailure (Shell and Write) and sessionEnd, as seen live in r1-fixes
+6.9. A driven Cursor session's write-back is judged
 from the fold, as for every adapter (session-driver D3). A resumed chat
 (`--resume`) gets no sessionStart context. The MCP server cannot learn the
 conversation id from its environment, so `sofar_start_session` still takes
@@ -1921,6 +1928,16 @@ Interactive mode: sessionStart, beforeSubmitPrompt, postToolUse (Write) and
 stop each fired exactly once. Stop arrived with `loop_count: 0` and returned
 `followup_message`, the follow-up turn wrote session_ended, and no second
 stop fired. Evidence: r1-fixes note 01M2QE7G.
+
+**Proven live, driven (r1-fixes 6.9, 2026-09-21, cursor-agent
+2026.09.15-d2fe57e, tree from `sofar init --agents cursor`, sofar server
+approved once with `cursor-agent mcp enable sofar`).** `sofar drive --agent
+cursor` on a 3-task plan made 3 launches, 3 `task_done` handoffs and 0 stalls,
+and stopped `closed`. Every launch's `system/init.session_id`, its
+sessionStart hook's `session_id` and its handoff named the same chat id. Each
+session registered and wrote back through the MCP tools under the injected
+id, one session per launch, and none used the assigned fallback id or the
+CLI dialect. Evidence: r1-fixes 6.9's note.
 
 ## Codex host (agents-parity 1.1 contract, r1-fixes 7.2)
 This section records what Codex reads, sends and honours. It was captured
@@ -3762,8 +3779,11 @@ initiatives:` suffix, or a `sofar new` hint when none exist
 ## Hooks (installed by `sofar init` as standalone scripts in .claude/hooks/)
 Claude Code runs them from .claude/settings.json and Cursor from
 .cursor/hooks.json; Cursor's payloads and outputs are converted at the
-dispatch, and every behaviour below holds for both hosts (§Cursor host).
-Codex runs its own five copies from .codex/hooks.json, each declaring
+dispatch, and every behaviour below holds for both hosts (§Cursor host),
+except that Cursor's print mode (`cursor-agent -p`, what `sofar drive
+--agent cursor` launches) fires only sessionStart, postToolUse,
+postToolUseFailure and sessionEnd: no Stop gate and no per-prompt lines reach
+a headless Cursor session. Codex runs its own five copies from .codex/hooks.json, each declaring
 `--host codex`; every behaviour below holds for Codex too, except where
 §Codex host says otherwise (no PostToolUseFailure, no asserted `ok`, JSON
 context carriers). Codex runs them only in a project it trusts, and only
@@ -6184,6 +6204,55 @@ stay the underlying derivation's, and exit codes are styling-independent.
   before the write-back and releasing it after. With hooks untrusted it hands
   off on the assigned id, and a nudge reaches the PostToolUse output valid
   against Codex's schema.
+- **Cursor host (r1-fixes 6.2–6.7, D34):** a payload is Cursor's only when it
+  carries a string `cursor_version`; Shell maps to Bash, Write stays, every
+  original field is kept, `loop_count` becomes `stop_hook_active`,
+  `error_message` becomes `error`, and `conversation_id` stands in for an
+  absent `session_id`. Output takes the form Cursor reads: session-start text
+  and PostToolUse's `hookSpecificOutput` become `additional_context`, the Stop
+  gate's exit 2 becomes exit 0 with `followup_message`, a per-prompt or
+  per-tool line is clipped under Cursor's 10,000-character carrier cap while
+  the digest never is, and nothing is printed when there is nothing to say.
+  Through the hook table, a Cursor session gets the digest with its Session
+  line as `additional_context`, a Shell call records command_run (with `ok`
+  false on failure) and registers the session as `cursor`, a Write records
+  file_touched, a session owing a write-back is held once through
+  `followup_message` and then let go, and sessionEnd closes it. A Claude Code
+  invocation passes through byte-identical. `sofar init` writes
+  `.cursor/hooks.json` with commands byte-identical to settings.json, so each
+  hook fires once, and registers the same sofar server in `.cursor/mcp.json`
+  as in `.mcp.json`. It is idempotent, names the Cursor approval step only on
+  the run that registered the server, merges into the user's own Cursor
+  files, and refuses to modify an unparseable `.cursor/hooks.json`. `sofar
+  uninit` strips only sofar's entries, and `--purge` removes the Cursor files
+  and the `.cursor/` that init alone created. doctor reports a Cursor-wired
+  repo's AGENTS.md block as current, stale or absent.
+- **Cursor adapter (r1-fixes 6.8, D38):** tested against a stubbed
+  `cursor-agent`, never the real one, replaying the live 6.3 print-mode
+  stream and failure exits captured against an unreachable `--endpoint`. It
+  declares `model` true and `usage`, `nudge`, `effort`, `permission_rules`
+  and `cost` false. `policyUnavailable` refuses the threshold policy naming
+  both missing halves. `inertOptions` says the rules, the cost cap and an
+  effort hint do not reach it, and says nothing about a model. Every
+  permission mode maps (`plan` → `--mode plan`, `bypassPermissions` →
+  `--force --sandbox disabled`, the rest → `--force`), and an unmappable mode
+  throws before anything is spawned. The argv starts `-p --output-format
+  stream-json --trust`, routes `--model`, never carries effort, rules or
+  `--approve-mcps`, keeps the operator's `--agent-arg` before the prompt, and
+  puts the prompt LAST. The pin line is `drivenPinLine` with tool
+  `"cursor"`, identical to codex's apart from the agent it names. The exit
+  shows `system/init.session_id` as `session_id` and the assigned id beside
+  it. The final usage comes from `result` while `usage()` stays undefined. A
+  transport failure (nothing on stdout, exit 1) keeps its cause in the
+  stderr tail. An `is_error` result keeps its text, and the result line's id
+  stands in when init was missed. A missing binary exits 127, and the child
+  runs in the request cwd. `sofar drive --agent cursor` records the run
+  under adapter `cursor`. And the PROOF: after `sofar init --agents cursor`,
+  a stub `cursor-agent` fires the real shims through the built CLI and
+  follows the pin line. A 3-task plan then drives to 3 `task_done` handoffs
+  with no stall, each naming the chat id the hooks registered, one cursor
+  session per launch. A project with no hooks Cursor runs hands off on the
+  assigned id beside a parallel cursor session.
 - **Per-task routing (session-driver 3.2):** a plan task carries
   `route {agent?, model?, effort?}` — validated strictly (a non-object route,
   or an empty agent/model/effort, rejects the payload), folded onto the task,
@@ -6635,6 +6704,30 @@ stay the underlying derivation's, and exit codes are styling-independent.
     showed, whichever way it went, in §Codex host and in §Driver. The tier
     sentence in §Host tiers loses "rests on the wiring and its tests" or
     names what did not reach Codex.
+- **Cursor live proof (r1-fixes 6.3/6.5/6.7/6.9):** checked LIVE with the
+  operator's consent, on a scratch repo, with sofar's shims and MCP entry
+  pinned by absolute path to a logging wrapper around the build under test
+  (Cursor runs the login shell's `sofar` otherwise, r1-fixes M6). The
+  wrapper's per-hook stdin, stdout and exit, and each launch's argv and
+  stream, are the evidence, filed as a record note. Done when:
+  - Orient (print mode). sessionStart returns `additional_context` carrying
+    the digest and its Session line, and the model states the seeded code
+    word and that Session id with no command run and no file read. It
+    registers and writes back through the MCP tools as tool `cursor`.
+  - Hold (interactive). sessionStart, beforeSubmitPrompt, postToolUse and
+    stop each fire exactly once for one turn. Stop arrives with `loop_count`
+    0 and returns `followup_message`, the follow-up turn writes
+    session_ended, and no second stop fires.
+  - Protocol. With both blocks loaded, no session runs `sofar status` or
+    mints its own id.
+  - Drive. On a tree from `sofar init --agents cursor` with the sofar server
+    approved once, `sofar drive --agent cursor` on a 3-task plan hands off 3
+    `task_done` with 0 stalls and stops `closed`. Each launch's
+    `system/init.session_id` equals its sessionStart hook's `session_id` and
+    its handoff's session, and each launch registers one session.
+  - Filed. What the run settles is written into §Cursor host and §Driver,
+    whichever way it went. It settled: print mode's hook set, the chat id's
+    identity across stream and hooks, and `inputTokens` excluding cache reads.
 - **Rule fidelity (memory-lead 1.2):** decision_logged accepts `quote` with a
   `rule` up to 300 chars and rejects it without one, empty, or longer. The
   round-1 pair (rule "…reject anything else with 4xx.", quote "Reject

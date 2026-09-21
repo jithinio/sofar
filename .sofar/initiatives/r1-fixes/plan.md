@@ -4,7 +4,7 @@
 
 Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
 
-Progress: 33 done, 6 dropped, 4 remaining
+Progress: 34 done, 6 dropped, 3 remaining
 
 ## Phase 1 — Wave 1: correctness and quick wins [done] — 6/6 done
 
@@ -54,7 +54,9 @@ Progress: 33 done, 6 dropped, 4 remaining
 - [x] 5.1 Public incremental fold API on sofar.sh/engine (run-owner approval via peer sofar-4c, 2026-09-16; rust-core D14 mirrors it): `fold(snapshot, events)` over a VERSIONED serialisable snapshot with a cursor — the 2.7 FoldCheckpoint promoted — plus since-cursor reads that never fold the whole stream; derived state only, never committed or synced, version mismatch forces a full refold; one shared parity suite with rust-core (snapshot+tail === full fold, order independence); no wall-clock or env input; semver-stable for sofar-cloud ingest and the Mac app. PREDICT: a 1-event tail on a 10 MB log folds in ≤5 ms vs 79 ms full (the Mac app's 300–400 ms per-repo spawn becomes an in-process call); since-cursor reads cost O(tail bytes).
 - [x] 5.2 Sort every shared-surface path, slug, session id and term by UTF-16 code units, never localeCompare (rust-core D6, flagged by peer sofar-rust-core-90 2026-09-16): one comparator in core/order.ts behind fold.ts openSessionFileConflicts, cross-conflicts, index-tier0/1, listing, lexicon, graph, index-reach, doctor, event.ts. PREDICT: zero byte change on every existing golden and on the real record (all lowercase ASCII); a mixed-case conflict set (README.md beside readme.md in two open sessions) orders identically in both implementations.
 
-## Phase 6 — Cursor compatibility (user ruling 2026-09-17: sofar must be fully compatible with Cursor, not only Claude Code) [active] — 8/9 done
+## Phase 6 — Cursor compatibility (user ruling 2026-09-17: sofar must be fully compatible with Cursor, not only Claude Code) [done] — 9/9 done
+
+> 6.1–6.9 done. Cursor is served by init, hooks, MCP, the protocol blocks and drive, each proven live (6.3/6.5/6.7 on 2026-09-17, drive 6.9 on 2026-09-21). D33 is met for Cursor.
 
 - [x] 6.1 Contract capture: pin Cursor's hook (.cursor/hooks.json events, stdin fields, outputs), third-party Claude-hook translation, MCP config, rules loading and cursor-agent headless contracts against cursor-agent 2026.09.10 and the docs; record them as a note and SPEC text, with captured stdin payloads as test fixtures. Enabler for 6.2–6.9: every later task tests against these fixtures, never against guessed shapes.
 - [x] 6.2 G1 MCP: `sofar init` merges the sofar server into .cursor/mcp.json (merge, never clobber; unparseable JSON aborts), `sofar uninit` strips it, `sofar doctor` reports it missing or stale. PREDICT: sofar MCP calls in Cursor sofar cells 0 → ≥1 per session; `sofar event append` shell failures in Cursor cells → 0.
@@ -64,7 +66,7 @@ Progress: 33 done, 6 dropped, 4 remaining
 - [x] 6.6 One firing per event: when Cursor loads both native .cursor/hooks.json and third-party .claude/settings.json hooks, each hook event records and injects exactly once. PREDICT: duplicate file_touched/command_run per tool call and doubled digests in Cursor sessions = 0.
 - [x] 6.7 Protocol text: Cursor always reads AGENTS.md and reads CLAUDE.md only with third-party extensibility on, so the two blocks must agree when both load (MCP loop where Cursor has MCP, CLI loop otherwise); `sofar doctor` flags a repo whose AGENTS.md lacks the block (the user's Next.js repo, where create-next-app's AGENTS.md carried no sofar block). PREDICT: Cursor sessions that skip session registration or write-back because the protocol never loaded → 0.
 - [x] 6.8 G4 drive adapter: `sofar drive --agent cursor` launches `cursor-agent -p` through the launch/usage/wait contract, declaring what it cannot do (usage, nudge, permission rules, cost) per session-driver D9, with transport shapes captured without spending inference where possible. PREDICT: a 3-task fixture drives to 3 task_done with 0 stalls.
-- [ ] 6.9 Proof: a live Cursor end-to-end on a scratch repo (init → oriented session → MCP writes → write-back gate → drive run) with the operator's consent for the usage it spends, plus SPEC updates (§Hooks, §CLI, §Driver) and acceptance criteria covering Cursor alongside Claude Code.
+- [x] 6.9 Proof: a live Cursor end-to-end on a scratch repo (init → oriented session → MCP writes → write-back gate → drive run) with the operator's consent for the usage it spends, plus SPEC updates (§Hooks, §CLI, §Driver) and acceptance criteria covering Cursor alongside Claude Code.
 
 ## Phase 7 — Agent picker and Codex compatibility (user ruling 2026-09-17: fully compatible with Claude Code, Cursor and Codex; init installs only the agents selected) [pending] — 1/7 (6 dropped) done
 
@@ -77,5 +79,5 @@ Progress: 33 done, 6 dropped, 4 remaining
 - [-] 7.7 Proof: a live Codex end-to-end on a scratch repo (init with the picker → oriented session → MCP writes → write-back gate → drive run) with the operator's consent for the usage it spends, plus SPEC updates (§Host tiers moves Codex out of Tier 3, §Hooks, §CLI, §Driver) and acceptance criteria. (dropped)
 
 Active phase: Phase 4 — Release
-Next action: 6.9: live Cursor drive run on a scratch repo, with operator consent
+Next action: 4.3: hand rc.2 to bench-refresh round 2 once its addendum chain is frozen
 Blocked on: task 4.3: ROUND-2 HANDOFF PACKET re-issued 2026-09-21 for rc.2. It supersedes the 2026-09-16 packet's artifact. ARTIFACT: sha cf8c117, tag v0.33.0-rc.2 = sofar.sh 0.33.0-rc.2 with @sofar/schema 0.10.0; local pinned build at ~/.bench/sofar-0.33.0-rc.2 (node ~/.bench/sofar-0.33.0-rc.2/node_modules/sofar.sh/dist/cli.js). D18 gate passed on both fixtures (see the rc.2 cut note). Still blocked until bench-refresh 5.0 freezes PRE-REGISTRATION-R2 with this sha, with the quick-work addendum chain frozen, and round 2 starts. Round 1's remainder is still running (resumed 2026-09-21).

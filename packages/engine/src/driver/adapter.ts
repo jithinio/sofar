@@ -98,7 +98,7 @@ export function inertOptions(
 
 /** One launch: everything the driver knows that the session should start with. */
 export interface LaunchRequest {
-  /** Absolute path the session works in — its own worktree under the driver (2.2). */
+  /** Absolute path the session works in — the repo root or the run's `--cwd`; the driver makes no worktrees (D6). */
   cwd: string
   /**
    * The record the session serves. The agent's own hooks and MCP tools find
