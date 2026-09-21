@@ -3065,13 +3065,29 @@ single-copy fold. `--here` restores the single-copy view on the commands.
 view:"initiatives", all through `listAcrossCopies` except status, which folds
 its one initiative directly. The MCP view reads worktrees and unmerged local
 branches, never remote-tracking refs, and takes no single-copy switch.
-`status --watch`, the get_state digest and full views, and every hook still
-read this checkout alone (branch-visibility 3.2–3.3). Reading N checkouts
+The get_state digest and full views and every hook still read this checkout
+alone (branch-visibility 3.3). Reading N checkouts
 costs about 80 ms per listing on this repo's 5 worktrees and 62 initiatives
 (0.18 s to 0.26 s for `sofar list`). That is fine for an operator command or
 an on-demand tool call, and too much for the hot path. Writes always land in
 this checkout's copy: never write to, or rewrite, another checkout's copy
 (D1).
+
+**Live status.** `status --watch` folds the same union as the one-shot
+status, honours `--here` and `--remotes`, and resolves a slug only another
+copy holds. A scan spawns git, so it never runs on the 600 ms pulse. The
+pulse re-renders the cached fold, backed by one `stat` of this checkout's
+log that re-folds only when its size or mtime moved. The copies are
+rescanned when something that decides them changes, one rescan per burst
+(150 ms debounce). `copyWatch` in `core/record-copies.ts` names the targets:
+the common git dir and every other checkout's `.sofar/initiatives`, both
+existing paths only, since a watcher drops a missing one. Its filter lets
+through only this initiative's `events.jsonl` on any checkout, a `HEAD`,
+`packed-refs`, `refs/heads` (and `refs/remotes` with `--remotes`), and a
+worktree appearing or going. Git's objects, indexes, logs and lock files
+are never walked. A change to this checkout's own log re-folds against the
+copies already scanned, with no rescan. The watched set is re-derived after
+every rescan, so a worktree added mid-watch is picked up.
 
 ## Sync client (v2 — api.sofar.sh, the D14 seam; sync-client, Jul 2026)
 The client half of sofar-cloud sync. The server (private repo) is
@@ -4671,7 +4687,8 @@ Shims contain no logic — they invoke the sofar CLI.
   copies of the record, the orientation's status and list included, and an
   initiative that only another copy holds still resolves
   (§Record copies across branches); `--here` reads this checkout alone,
-  `--remotes` adds remote-tracking refs, `--watch` reads this checkout only.
+  `--remotes` adds remote-tracking refs, and `--watch` folds the same union
+  live, rescanning only when another copy changes.
 - `sofar list` — every initiative under .sofar/initiatives/, one line each
   (slug, bound branch(es) or "unbound", done/total tasks with %, active
   phase, next action), most recently active first per §State's
@@ -5185,7 +5202,7 @@ the stdout bytes equal the plain renderer):
 | Command | stdout (report) | stderr (messaging) |
 |---|---|---|
 | status | full-zoom layout grammar / renderFullStatus | fold warnings + resolution failures — always plain |
-| status --watch | live full-zoom render: redraw on record changes (chokidar) + active-task marker pulses warn↔dim @600ms; TTY-gated by animate, piped/CI falls back to the one-shot result; ^C restores the cursor and re-raises | (same as status) |
+| status --watch | live full-zoom render across copies: redraw on record changes (chokidar; other copies rescanned on change, never per pulse) + active-task marker pulses warn↔dim @600ms; TTY-gated by animate, piped/CI falls back to the one-shot result; ^C restores the cursor and re-raises | (same as status) |
 | list | portfolio-zoom blocks / renderFullInitiativeList | derivation warnings — always plain |
 | next | two-part entry blocks (header: pointer + pie + bold slug + dim branch tag + dim task fraction; body: hanging-indent word-wrapped action; stale warning on its own line; blank line between entries) / renderNextActions | derivation warnings — always plain |
 | doctor | ✓/⚠/✗ findings report / marker-column report | scan spinner (animate-gated) |
@@ -5574,7 +5591,7 @@ stay the underlying derivation's, and exit codes are styling-independent.
   the available-initiatives suffix (≤10 named) or the `sofar new` hint on
   an initiative-less repo; the derivation is deterministic (same records
   → deep-equal listing, same warnings).
-- **Record copies (branch-visibility 1.1–3.1):** against real git repos with
+- **Record copies (branch-visibility 1.1–3.2):** against real git repos with
   linked worktrees, the scan returns every other worktree (an uncommitted
   append included) and every unmerged branch that has no checkout, and never
   returns this checkout, a merged branch, or a ref at a taken commit. Seen
@@ -5593,8 +5610,15 @@ stay the underlying derivation's, and exit codes are styling-independent.
   get_state view:"initiatives" folds the union, and a line carrying the
   across-branches part keeps a next action a flat 220-character clip would
   cut, never exceeding 320. `listInitiatives` without copies stays
-  single-copy; `listAcrossCopies` with `here` equals it. None of these
-  surfaces changes a byte of another copy or its `git status`.
+  single-copy; `listAcrossCopies` with `here` equals it. The live status
+  model (3.2) scans once at start and never on a pulse, re-folds a local
+  append without a rescan, rescans once per copy change, and never scans
+  under `--here`. `copyWatch` targets the common git dir and every other
+  checkout's record but never this one, and its filter keeps HEADs, refs,
+  worktree entries and this initiative's logs while ignoring objects,
+  indexes, locks, tags, projections and other initiatives. A real watcher on
+  those targets hears another worktree's append and a new branch. None of
+  these surfaces changes a byte of another copy or its `git status`.
 - **CLI UI (cli-ui):** with stdout and stderr both piped and no explicit
   opt-in, every command emits ZERO ESC (\x1b) bytes — ambient CI included;
   FORCE_COLOR=1 on the same piped invocation carries ANSI-16 SGR on the

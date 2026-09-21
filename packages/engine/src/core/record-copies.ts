@@ -347,6 +347,88 @@ export function scanRecordCopies(rootDir: string, options: ScanOptions = {}): Co
 }
 
 // ---------------------------------------------------------------------------
+// Watching the copies (branch-visibility 3.2).
+// ---------------------------------------------------------------------------
+
+export interface CopyWatch {
+  /**
+   * What a live view watches to learn that a scan's answer may have changed:
+   * the common git dir, then every other checkout's `.sofar/initiatives`.
+   * Only paths that exist, because a watcher silently drops one that does not.
+   */
+  paths: string[]
+  /**
+   * A watcher `ignored` filter over those paths. It lets through only what
+   * can change one initiative's copies: that initiative's log on any
+   * checkout, a HEAD (a checkout switching branch changes which branches are
+   * covered), packed-refs and the ref namespaces the scan reads, and a
+   * worktree appearing or going. Everything else is ignored, so git's object
+   * store and index are never walked. Lock files are ignored too, because git
+   * renames each one onto the path this lets through.
+   */
+  ignored: (path: string) => boolean
+  /** The common git dir, so a caller can tell a git event from a record event. */
+  common: string | null
+}
+
+/** A path's segments below `base`, or null when it is not under it. */
+function below(path: string, base: string): string[] | null {
+  if (path === base) return []
+  if (!path.startsWith(`${base}/`)) return null
+  return path.slice(base.length + 1).split('/')
+}
+
+/**
+ * Filter for any `<checkout>/.sofar/initiatives` tree: that directory, the
+ * slug's directory, and the slug's events.jsonl. Projections regenerate on
+ * every append and would only double the signal.
+ */
+function recordNoise(path: string, slug: string): boolean | null {
+  const at = path.lastIndexOf('/.sofar/initiatives')
+  if (at === -1) return null
+  const rest = below(path, path.slice(0, at + '/.sofar/initiatives'.length))
+  if (rest === null) return null
+  if (rest.length === 0) return false
+  if (rest[0] !== slug) return true
+  return !(rest.length === 1 || (rest.length === 2 && rest[1] === 'events.jsonl'))
+}
+
+function gitNoise(path: string, common: string, remotes: boolean): boolean {
+  const rest = below(path, common)
+  if (rest === null) return false
+  if (rest.length === 0) return false
+  if (rest[rest.length - 1]!.endsWith('.lock')) return true
+  const [top, second, third] = rest
+  if (rest.length === 1) return !['HEAD', 'packed-refs', 'refs', 'worktrees'].includes(top!)
+  if (top === 'refs') return !(second === 'heads' || (remotes && second === 'remotes'))
+  if (top === 'worktrees') return !(rest.length === 2 || (rest.length === 3 && third === 'HEAD'))
+  return true
+}
+
+/**
+ * The watch targets for one initiative's copies. The caller watches its own
+ * checkout's record itself; that is a local change, never a rescan.
+ */
+export function copyWatch(rootDir: string, slug: string, options: { remotes?: boolean } = {}): CopyWatch {
+  const common = commonGitDir(rootDir)
+  const remotes = options.remotes === true
+  const ignored = (path: string): boolean => {
+    const record = recordNoise(path, slug)
+    if (record !== null) return record
+    return common === null ? false : gitNoise(path, common, remotes)
+  }
+  if (common === null) return { paths: [], ignored, common }
+  const self = realpathOrNull(rootDir)
+  const paths = [common]
+  for (const checkout of listCheckouts(common)) {
+    if (self !== null && realpathOrNull(checkout.root) === self) continue
+    const dir = join(checkout.root, '.sofar', 'initiatives')
+    if (existsSync(dir)) paths.push(dir)
+  }
+  return { paths, ignored, common }
+}
+
+// ---------------------------------------------------------------------------
 // The union fold.
 // ---------------------------------------------------------------------------
 

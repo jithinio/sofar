@@ -180,7 +180,7 @@ program
   .description(
     'fold and print the initiative: goal, progress, phase tree, next action, blocked, last session — across every copy of the record on other worktrees and unmerged branches',
   )
-  .option('--watch', 'live status (TTY only; piped falls back to one shot): re-render on record changes, active tasks pulse, ^C to exit — reads this checkout only')
+  .option('--watch', "live status (TTY only; piped falls back to one shot): re-render on record changes, other copies' included, active tasks pulse, ^C to exit")
   .option('--here', "this checkout's copy of the record only, ignoring other worktrees and branches")
   .option('--remotes', 'also fold remote-tracking branches (origin/*)')
   .option('--root <dir>', 'repo root (default: current directory)')
@@ -189,12 +189,12 @@ program
       slug: string | undefined,
       opts: { watch?: boolean; here?: boolean; remotes?: boolean; root?: string },
     ) => {
+      const copies = { here: opts.here, remotes: opts.remotes }
       if (opts.watch === true) {
-        const result = runStatusWatch(rootOf(opts), slug)
+        const result = runStatusWatch(rootOf(opts), slug, undefined, copies)
         if (result !== undefined) emit(result) // non-TTY fallback / resolution failure
         return // live path: watcher + timer hold the process until ^C
       }
-      const copies = { here: opts.here, remotes: opts.remotes }
       emit(withUpdateNotice(runStatus(rootOf(opts), slug, undefined, undefined, copies)))
     },
   )

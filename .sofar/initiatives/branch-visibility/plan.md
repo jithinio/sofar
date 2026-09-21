@@ -4,7 +4,7 @@
 
 Goal: sofar list and sofar status report each initiative from the union of every copy of its log — each local worktree (uncommitted appends included), each local branch, each remote-tracking ref — and say which branch the progress lives on, so no checkout shows a stale or partial status. Read-only: never writes to another checkout's copy, never a new event type.
 
-Progress: 7/10 tasks done (70%)
+Progress: 8/10 tasks done (80%)
 
 ## Phase 1 — Union read [done] — 2/2 done
 
@@ -17,10 +17,10 @@ Progress: 7/10 tasks done (70%)
 - [x] 2.2 sofar list: union by default, slugs only on other copies listed, provenance per entry (plain + styled), --here / --remotes
 - [x] 2.3 SPEC section + acceptance criteria; tests against real git worktrees
 
-## Phase 3 — Other surfaces [pending] — 1/4 done
+## Phase 3 — Other surfaces [pending] — 2/4 done
 
 - [x] 3.1 sofar next and get_state view:initiatives: same union (MCP budget and speed permitting)
-- [ ] 3.2 status --watch: rescan copies on change, not per pulse
+- [x] 3.2 status --watch: rescan copies on change, not per pulse
 - [ ] 3.3 SessionStart one-liner: N events of this record live on branch X (stat-based, inside the hook budget)
 - [ ] 3.4 Write guard: warn when this checkout's copy is behind another's (never redirect the write)
 

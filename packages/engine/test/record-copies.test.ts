@@ -5,11 +5,12 @@ import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { runList } from '../src/cli/list'
 import { runNext } from '../src/cli/next'
-import { runStatus } from '../src/cli/status'
+import { createStatusWatchModel, runStatus } from '../src/cli/status'
 import { makeEvent, type EventEnvelope } from '../src/core/envelope'
 import { listAcrossCopies, listInitiatives } from '../src/core/listing'
 import { serializeEvent } from '../src/core/log'
-import { lineId, scanRecordCopies, unionFold } from '../src/core/record-copies'
+import { copyWatch, lineId, scanRecordCopies, unionFold } from '../src/core/record-copies'
+import { watch } from 'chokidar'
 import type { Caps } from '../src/cli/ui/caps'
 import { createToolContext } from '../src/mcp/context'
 import { getState } from '../src/mcp/get-state'
@@ -369,5 +370,113 @@ describe('sofar next / get_state view:"initiatives" across copies (branch-visibi
     const entry = text.split('\n').find((l) => l.startsWith('- demo'))!
     expect(entry.length).toBe(LIST_LINE_BUDGET + PROVENANCE_LINE_BUDGET)
     expect(entry.endsWith('…')).toBe(true)
+  })
+})
+
+describe('status --watch across copies (branch-visibility 3.2)', () => {
+  it('watches the common git dir and every other checkout\'s record, never this one', () => {
+    const root = repo('watch-paths')
+    const feat = worktree(root, 'feat')
+    expect(copyWatch(root, SLUG).paths).toEqual([join(root, '.git'), join(feat, '.sofar', 'initiatives')])
+    expect(copyWatch(feat, SLUG).paths).toEqual([join(root, '.git'), join(root, '.sofar', 'initiatives')])
+    const outside = realpathSync(mkdtempSync(join(tmpdir(), 'sofar-copies-nogit-')))
+    roots.push(outside)
+    expect(copyWatch(outside, SLUG).paths).toEqual([])
+  })
+
+  it('lets through only what can change this initiative\'s copies', () => {
+    const root = repo('watch-filter')
+    const feat = worktree(root, 'feat')
+    const common = join(root, '.git')
+    const record = join(feat, '.sofar', 'initiatives')
+    const { ignored } = copyWatch(root, SLUG)
+    const kept = [
+      common,
+      join(common, 'HEAD'),
+      join(common, 'packed-refs'),
+      join(common, 'refs'),
+      join(common, 'refs', 'heads', 'feat'),
+      join(common, 'refs', 'heads', 'team', 'x'),
+      join(common, 'worktrees'),
+      join(common, 'worktrees', 'feat'),
+      join(common, 'worktrees', 'feat', 'HEAD'),
+      record,
+      join(record, SLUG),
+      join(record, SLUG, 'events.jsonl'),
+    ]
+    const noise = [
+      join(common, 'objects'),
+      join(common, 'objects', 'ab', 'cdef'),
+      join(common, 'index'),
+      join(common, 'refs', 'heads', 'feat.lock'),
+      join(common, 'refs', 'tags', 'v1'),
+      join(common, 'refs', 'remotes', 'origin', 'main'),
+      join(common, 'worktrees', 'feat', 'index'),
+      join(common, 'worktrees', 'feat', 'logs', 'HEAD'),
+      join(record, SLUG, 'plan.md'),
+      join(record, SLUG, 'sessions', 's.md'),
+      join(record, 'other'),
+      join(record, 'other', 'events.jsonl'),
+    ]
+    expect(kept.filter(ignored)).toEqual([])
+    expect(noise.filter((p) => !ignored(p))).toEqual([])
+    expect(copyWatch(root, SLUG, { remotes: true }).ignored(join(common, 'refs', 'remotes', 'origin', 'main'))).toBe(false)
+  })
+
+  it('a pulse never rescans; a local change re-folds without a rescan; a copy change rescans once', () => {
+    const { root, feat } = (() => {
+      const r = repo('watch-model')
+      return { root: r, feat: worktree(r, 'feat') }
+    })()
+    const model = createStatusWatchModel(createToolContext(root), SLUG)
+    expect(model.scans).toBe(1)
+    expect(tasksDone(model.view.state)).toBe(0)
+    for (let i = 0; i < 20; i++) expect(model.pollLocal()).toBe(false)
+    expect(model.scans).toBe(1)
+
+    append(root, [done('1.2')])
+    expect(model.pollLocal()).toBe(true) // the backstop sees the local append
+    expect(tasksDone(model.view.state)).toBe(1)
+    expect(model.scans).toBe(1)
+
+    append(feat, [done('1.1')])
+    model.copiesChanged()
+    expect(model.scans).toBe(2)
+    expect(tasksDone(model.view.state)).toBe(2)
+    expect(model.view.provenance?.copies.map((c) => c.copy.ref)).toEqual(['feat'])
+  })
+
+  it('--here never scans', () => {
+    const root = repo('watch-here')
+    append(worktree(root, 'feat'), [done('1.1')])
+    const model = createStatusWatchModel(createToolContext(root), SLUG, { here: true })
+    model.copiesChanged()
+    expect(model.scans).toBe(0)
+    expect(tasksDone(model.view.state)).toBe(0)
+    expect(model.view.provenance).toBeNull()
+  })
+
+  it('a real watcher on those targets hears another worktree\'s append and a new branch', async () => {
+    const root = repo('watch-live')
+    const feat = worktree(root, 'feat')
+    const { paths, ignored } = copyWatch(root, SLUG)
+    const heard: string[] = []
+    const watcher = watch(paths, { ignoreInitial: true, ignored })
+    try {
+      await new Promise<void>((resolve) => watcher.on('ready', () => resolve()))
+      watcher.on('all', (_event, path) => heard.push(path))
+      const until = async (match: (p: string) => boolean): Promise<void> => {
+        const deadline = Date.now() + 3000
+        while (!heard.some(match) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25))
+        expect(heard.some(match), `heard: ${heard.join(', ')}`).toBe(true)
+      }
+      append(feat, [done('1.1')])
+      await until((p) => p === logPath(feat))
+      git(root, 'branch', 'side')
+      await until((p) => p.startsWith(join(root, '.git', 'refs', 'heads')) || p === join(root, '.git', 'packed-refs'))
+      expect(heard.filter(ignored)).toEqual([])
+    } finally {
+      await watcher.close()
+    }
   })
 })
