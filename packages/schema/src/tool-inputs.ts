@@ -230,8 +230,20 @@ export interface ToolOkResult {
  * standing constraints ride along — a reminder at the point of use, where
  * salience is highest, instead of only at session start where it decays.
  */
-/** Bare since r1-fixes 2.1 (D10): the standing-constraint echo on `active` is gone. */
-export type UpdateTaskResult = ToolOkResult
+/**
+ * A write tool's result with advisory lines (typed-judge 3.3, D7): `warnings`
+ * is present only when a filing or evidence line renders, so the common case
+ * stays the bare {ok, event_id}. The append has already happened.
+ */
+export interface WarnedOkResult extends ToolOkResult {
+  warnings?: string[]
+}
+
+/**
+ * Bare since r1-fixes 2.1 (D10): the standing-constraint echo on `active` is
+ * gone. A `done` may carry the evidence judge's line (typed-judge D7).
+ */
+export type UpdateTaskResult = WarnedOkResult
 
 /**
  * log_decision result (memory-lead 1.2, D2): `warnings` names what the rule

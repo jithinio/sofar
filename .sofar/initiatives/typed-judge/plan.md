@@ -4,7 +4,7 @@
 
 Goal: Adopt the shape of TypeSafe Jev / System One models in sofar: typed judgements (noul, choice, score) over record state with calibrated probabilities and confidence-gated escalation, behind a Judge seam whose default is deterministic and whose Jev path is the paid `cloud` provider (D2). Judging runs only at write time (MCP tools), in the driver, on pull surfaces or offline — never on a hook, statusline, shim, fold or projection path. Outputs are advisory: warnings and rankings, never mutations, never blocks. Catalogue A–E and predictions in the record notes.
 
-Progress: 8/15 tasks done (53%)
+Progress: 9/15 tasks done (60%)
 
 ## Phase 1 — Measure on our own record [done] — 2/2 done
 
@@ -18,11 +18,11 @@ Progress: 8/15 tasks done (53%)
 - [x] 2.3 Cloud provider (D2): posts redacted state and questions to the judge endpoint on api.sofar.sh under the existing login/link auth, retries and timeout, disabled unless the repo is linked and judge is enabled in ~/.config/sofar/config.json; no direct TypeSafe provider in the engine
 - [x] 2.4 Enrichment event type in packages/schema for stored judgements (producer, model version, question id, answer, confidence, subject event id); fold ignores them for state, index reads them; arrive via pull when judged server-side
 
-## Phase 3 — Write-time guards [active] — 2/3 done
+## Phase 3 — Write-time guards [done] — 3/3 done
 
 - [x] 3.1 A2/A3 in sofar_log_decision: re-proposal and contradiction Nouls over rejected approaches and standing constraints (candidates by index, state under 32k); warning text cites the target
 - [x] 3.2 A1 in sofar_end_session: next_action Score on described levels, unlogged-decision and repo-memory-fact Nouls over the summary; warning only
-- [ ] 3.3 A4/A5: decision-vs-fact-vs-note routing hint; task-done evidence Noul in sofar_update_task
+- [x] 3.3 A4/A5: decision-vs-fact-vs-note routing hint; task-done evidence Noul in sofar_update_task
 
 ## Phase 4 — Driver [pending] — 0/3 done
 
@@ -39,5 +39,4 @@ Progress: 8/15 tasks done (53%)
 
 - [ ] 6.1 E1: sofar + judge arm in bench-refresh; Jev as calibrated blind reviewer; grade the pre-registered predictions
 
-Active phase: Phase 3 — Write-time guards
-Next action: Start 3.3: task-done evidence noul (A5) in src/mcp/update-task.ts, modelled on core/writeback-judge.ts; then the A4 routing hint.
+Next action: Start 4.1: read how src/driver/drive.ts derives the handoff reason (session-driver D5), then add the B1 progress noul beside it.

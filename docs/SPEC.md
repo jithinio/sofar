@@ -2963,6 +2963,41 @@ provisional threshold, graded in 6.1. It never refuses (the session has
 already ended), writes no `judgement_recorded`, and a provider failure leaves
 the rules' lines.
 
+**Filing judge (typed-judge 3.3, `core/filing-judge.ts`).** Two questions,
+each asked over one entry alone, one request per entry, after the append:
+- `kind` (A4), a choice over `{entry}` with keys `decision`,
+  `operational_fact` and `note`, each described by `what` / `not_for`;
+  `note` is the catch-all and the no-match option. Asked of every decision
+  (sofar_log_decision and batched), memory (sofar_remember and batched) and
+  note (sofar_add_note and batched). The state is the entry (a decision's
+  chose/over/because, 400 chars each; a memory's or note's text, 1,200),
+  never what it was filed as. The rule decides `decision` only for a memory
+  or note holding a sentence the write-back judge's decision rule matches (a
+  choice verb before over / instead of / rather than, no `D<n>`); nothing
+  lexical rules on a decision. A line renders when the answer names a kind
+  other than the one filed with P ≥ 0.9: `<label> reads as <kind> (<how>)[:
+  "<sentence>"]. <how to file it>; the <decision|memory|note> stays as
+  filed.`, where <label> is `D<n>`, `<slug> M<n>`, `This note` or
+  `notes[<i>]`.
+- `evidence` (A5), a noul over `{task, note}` asked whenever a task is
+  marked done (sofar_update_task and a write-back's `tasks`): does the note
+  cite a test run and its result, a commit, a measured outcome or the
+  acceptance criteria met? The rule decides NO for a missing or blank note,
+  or one made only of completion words (done, finished, complete,
+  implemented, works, shipped, ok, lgtm, fixed, …) with no digit, backtick
+  or path; it never decides YES. A task the plan does not hold is not
+  judged. A line renders at p ≤ 0.1: `<ids> marked done without cited
+  evidence (<how>). Name the passing test run, the commit or the acceptance
+  criteria met: …`, one line per distinct <how>, so tasks sharing a reason
+  share a line (`1.1, 1.2 and 1.3`).
+<how> is the rule's reason or `judged P(<kind>)|P(evidence) <p> by <model>`.
+Both thresholds are provisional, graded in 6.1. The entry stays as filed; a
+line only says what to file next. sofar_update_task, sofar_add_note and
+sofar_remember return `warnings` only when a line renders, so the common
+case stays the bare `{ok, event_id}` (typed-judge D7, qualifying r1-fixes
+D10). No `judgement_recorded` is written, and a provider failure leaves the
+rules' lines.
+
 **Stored judgements (typed-judge 2.4).** A judgement worth keeping —
 relevance scores computed at write-back for the next SessionStart to read,
 a driver's progress verdict — lands as an ENRICHMENT event whose payload
@@ -3413,10 +3448,12 @@ sofar_start_session.`
   handles the batch took, and `warnings` carries §Rule fidelity's warning
   for each batched rule, then the write-time judge's lines for the batched
   decisions (typed-judge 3.1, see §Judge), judged against the fold the batch
-  was planned on, then the write-back judge's lines for the summary and
-  next action (typed-judge 3.2, see §Judge); each is omitted when empty, so a
-  write-back with no batch, a concrete next action and nothing flagged in its
-  summary is byte-identical to before. `rebound` names the
+  was planned on, then the filing judge's lines for the batched decisions,
+  memories and notes and its evidence lines for the tasks the batch marked
+  done (typed-judge 3.3), then the write-back judge's lines for the summary
+  and next action (typed-judge 3.2, see §Judge for both); each is omitted
+  when empty, so a write-back with no batch, a concrete next action and
+  nothing flagged in its summary is byte-identical to before. `rebound` names the
   branch binding this write-back moved ({branch, from, to}), omitted when
   none moved — the rebind contract and its four guards are stated with the
   session-before-branch precedence below (binding-follows-session D1,
@@ -3446,7 +3483,9 @@ sofar_start_session.`
   ParallelWriteback — who is reachable is a fact about live host processes,
   and folding it in would make one log fold differently on two machines.
 - sofar_update_task({initiative?, task_id, status, note?}) → ok
-  # bare {ok, event_id} on EVERY status (r1-fixes 2.1, D10). The
+  # bare {ok, event_id} on EVERY status (r1-fixes 2.1, D10), except that a
+  # `done` whose note cites no evidence adds `warnings` (typed-judge 3.3, D7,
+  # §Judge). The
   # standing-constraint echo on `active` (drift-hardening 4.1) is gone:
   # it repeated the [D<n>] lines the session already holds from SessionStart,
   # ~600 chars per activation, while the point-of-use GUARD (§Hooks) is the
@@ -3495,15 +3534,18 @@ sofar_start_session.`
   # is refused as invalid_input naming each reversed D<n>, unless `supersedes`
   # names it or `because` cites it as a word (a narrower exception).
   # WRITE-TIME JUDGE (typed-judge 3.1, §Judge), AFTER the append: `warnings`
-  # gains a line per earlier decision this one may re-propose or contradict.
+  # gains a line per earlier decision this one may re-propose or contradict,
+  # then a filing line when it reads as a fact or a note (typed-judge 3.3).
   # Advisory; the decision is already in the log.
 - sofar_update_plan({initiative?, plan}) → ok   # full-structure replace;
   an omitted status means `pending`, NOT unchanged — restate every status
   you intend to keep, and expect a fold warning if a resolved one is dropped.
   A task may carry `route {agent?, model?, effort?}` for `sofar drive` (3.2),
   and it survives exactly as long as the plan restates it
-- sofar_add_note({initiative?, text}) → ok
+- sofar_add_note({initiative?, text}) → ok   # plus `warnings` when the note
+  reads as a decision or a fact (typed-judge 3.3, D7, §Judge)
 - sofar_remember({initiative?, text, supersedes?}) → ok   # promote a fact to repo memory
+  (plus `warnings` when it reads as a decision or a note, typed-judge 3.3)
   (repo-memory-capture D1): operational knowledge that is NOT a decision — a
   release command, a failure mode — whose repo-wide scope is known when it is
   learned and which no citation behaviour can surface, because nothing derives
@@ -6614,6 +6656,21 @@ stay the underlying derivation's, and exit codes are styling-independent.
   left open; P(level 0) 0.95 on the next action and p 0.93 on a noul each
   warn with `judged … by <model>`, 0.85 does not. A provider that throws
   leaves the rules' lines and never fails the tool.
+- **Filing judge (typed-judge 3.3):** with no provider configured,
+  sofar_update_task `done` with no note, or a note of completion words only
+  ("done", "LGTM, works"), still appends and returns one warning naming the
+  task id; `active`, and `done` with a note naming a check ("suite 12
+  passed"), return the bare `{ok, event_id}`. sofar_add_note and
+  sofar_remember whose text chooses one thing over another, citing no
+  `D<n>`, append and warn naming `This note` or `<slug> M<n>`; other text
+  returns bare. A decision is never flagged without a provider. The state is
+  the entry alone. A provider is sent only what the rules left open; a kind
+  other than the one filed at P 0.95 warns with `judged P(<kind>) 0.95 by
+  <model>`, 0.85 or the filed kind does not; evidence at p 0.05 warns, 0.2
+  does not. A provider that throws leaves the rules' lines. sofar_end_session
+  judges its batched memories, notes and done tasks the same way, filing
+  lines before evidence lines; three note-less dones in one write-back
+  yield one line naming all three.
 - **Stored judgements (typed-judge 2.4):** `judgement_recorded` validates
   producer, model, question and subject as non-empty strings and `answer` by
   its type (noul in [0,1]; choice naming one of 2+ probability keys with

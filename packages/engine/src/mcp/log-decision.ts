@@ -1,6 +1,7 @@
 import type { LogDecisionArgs, LogDecisionResult } from '@sofar/schema/tool-inputs'
 import { resolveJudgeProvider } from '../client/judge'
 import { decisionJudgeWarnings, type DecisionDraft } from '../core/decision-judge'
+import { filingWarnings } from '../core/filing-judge'
 import type { InitiativeState } from '../core/fold'
 import type { JudgeOptions } from '../core/judge'
 import { silentReversal } from '../core/reversal'
@@ -20,11 +21,12 @@ export function logDecision(ctx: ToolContext, args: LogDecisionArgs): LogDecisio
 }
 
 /**
- * What the MCP server runs: logDecision, then the write-time judge (typed-judge
- * 3.1) over the state the decision was logged against. It runs AFTER the
- * append, so its lines can only add to `warnings` and never undo the write.
- * The provider is resolved per call (`judge.provider`, link, login); tests
- * pass `judgeOpts` instead.
+ * What the MCP server runs: logDecision, then the write-time judges over the
+ * state the decision was logged against: re-proposal and contradiction
+ * (typed-judge 3.1), then filing (3.3). They run AFTER the append, so their
+ * lines can only add to `warnings` and never undo the write. The provider is
+ * resolved per call (`judge.provider`, link, login); tests pass `judgeOpts`
+ * instead.
  */
 export async function logDecisionJudged(
   ctx: ToolContext,
@@ -32,7 +34,12 @@ export async function logDecisionJudged(
   judgeOpts?: JudgeOptions,
 ): Promise<LogDecisionResult> {
   const { result, before, draft } = logDecisionLogged(ctx, args)
-  const judged = await decisionJudgeWarnings(before, [draft], judgeOpts ?? judgeOptionsFor(ctx))
+  const opts = judgeOpts ?? judgeOptionsFor(ctx)
+  const [decided, filed] = await Promise.all([
+    decisionJudgeWarnings(before, [draft], opts),
+    filingWarnings([{ kind: 'decision', label: `D${draft.ordinal}`, text: { chose: args.chose, over: args.over, because: args.because } }], opts),
+  ])
+  const judged = [...decided, ...filed]
   if (judged.length === 0) return result
   return { ...result, warnings: [...(result.warnings ?? []), ...judged] }
 }

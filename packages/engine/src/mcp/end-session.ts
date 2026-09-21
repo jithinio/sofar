@@ -6,6 +6,7 @@ import { decisionJudgeWarnings, type DecisionDraft } from '../core/decision-judg
 import { currentBranch } from '../core/git'
 import type { JudgeOptions } from '../core/judge'
 import { writebackJudgeWarnings } from '../core/writeback-judge'
+import { evidenceWarnings, filingWarnings, type DoneTask, type FiledEntry } from '../core/filing-judge'
 import { resolvePeers } from '../core/peers'
 import { silentReversal } from '../core/reversal'
 import { ruleFidelityWarning } from '../core/rule-fidelity'
@@ -62,7 +63,7 @@ export interface EndSessionResult extends ToolOkResult {
   memories?: string[]
   /**
    * Rule-fidelity warnings for the batched decisions (memory-lead D2), then the
-   * write-time judges' lines (typed-judge 3.1, 3.2); never a refusal.
+   * write-time judges' lines (typed-judge 3.1, 3.3, 3.2); never a refusal.
    */
   warnings?: string[]
 }
@@ -318,9 +319,11 @@ export function endSession(ctx: ToolContext, args: EndSessionArgs): EndSessionRe
 /**
  * What the MCP server runs: endSession, then the write-time judges. The
  * decision judge (typed-judge 3.1) reads the batched decisions against the
- * fold the batch was planned on; the write-back judge (3.2) reads the summary
- * and next action against the fold that holds them. The session has already
- * ended; the lines only add to `warnings`, decision lines first.
+ * fold the batch was planned on. The filing judge (3.3) reads each batched
+ * decision, memory and note, and the evidence judge (3.3) each task the batch
+ * marked done, exactly as their own tools would. The write-back judge (3.2)
+ * reads the summary and next action against the fold that holds them. The
+ * session has already ended; the lines only add to `warnings`, in that order.
  */
 export async function endSessionJudged(
   ctx: ToolContext,
@@ -329,11 +332,22 @@ export async function endSessionJudged(
 ): Promise<EndSessionResult> {
   const { result, batch, after, sessionId } = endSessionFiled(ctx, args)
   const opts = judgeOpts ?? judgeOptionsFor(ctx)
-  const [decided, written] = await Promise.all([
+  const filed: FiledEntry[] = [
+    ...batch.drafts.map((d): FiledEntry => ({ kind: 'decision', label: `D${d.ordinal}`, text: { chose: d.chose, over: d.over, because: d.because } })),
+    ...(args.memories ?? []).map((text, i): FiledEntry => ({ kind: 'memory', label: batch.memories[i]!, text })),
+    ...(args.notes ?? []).map((text, i): FiledEntry => ({ kind: 'note', label: `notes[${i}]`, text })),
+  ]
+  const titles = new Map(after.phases.flatMap((p) => p.tasks.map((t) => [t.id, t.title] as const)))
+  const done: DoneTask[] = (args.tasks ?? [])
+    .filter((t) => t.status === 'done')
+    .map((t) => ({ id: t.task_id, title: titles.get(t.task_id) ?? t.title ?? '', ...(t.note !== undefined ? { note: t.note } : {}) }))
+  const [decided, misfiled, unproven, written] = await Promise.all([
     batch.drafts.length === 0 ? [] : decisionJudgeWarnings(batch.before, batch.drafts, opts),
+    filingWarnings(filed, opts),
+    evidenceWarnings(done, opts),
     writebackJudgeWarnings(after, { session_id: sessionId, summary: args.summary, next_action: args.next_action }, opts),
   ])
-  const judged = [...decided, ...written]
+  const judged = [...decided, ...misfiled, ...unproven, ...written]
   if (judged.length === 0) return result
   return { ...result, warnings: [...(result.warnings ?? []), ...judged] }
 }
