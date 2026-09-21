@@ -2,7 +2,7 @@
 
 # Plan: typed-judge
 
-Goal: Adopt the shape of TypeSafe Jev / System One models in sofar: typed judgements (noul, choice, score) over record state with calibrated probabilities and confidence-gated escalation, behind a Judge seam whose default is deterministic and whose Jev provider is explicit opt-in. Judging runs only at write time (MCP tools), in the driver, on pull surfaces or offline — never on a hook, statusline, shim, fold or projection path. Outputs are advisory: warnings and rankings, never mutations, never blocks. Catalogue A–E and predictions in the record notes.
+Goal: Adopt the shape of TypeSafe Jev / System One models in sofar: typed judgements (noul, choice, score) over record state with calibrated probabilities and confidence-gated escalation, behind a Judge seam whose default is deterministic and whose Jev path is the paid `cloud` provider (D2). Judging runs only at write time (MCP tools), in the driver, on pull surfaces or offline — never on a hook, statusline, shim, fold or projection path. Outputs are advisory: warnings and rankings, never mutations, never blocks. Catalogue A–E and predictions in the record notes.
 
 Progress: 0/15 tasks done (0%)
 
@@ -11,12 +11,12 @@ Progress: 0/15 tasks done (0%)
 - [ ] 1.1 Calibration script (scratch, outside the engine): build ground truth from the record — decisions with a rule vs without (constraint vs one-off), decision→task mentions (relevance), rejected `over` text vs the chosen line (re-proposal) — and judge them with Jev in fan-out batches under the 32k state cap; report agreement, calibration by confidence bucket, cost and latency (active)
 - [ ] 1.2 Set provisional thresholds per question type from 1.1 (act / warn / silent) and record them with the model version jev-1.13.0; note which questions are not worth wiring
 
-## Phase 2 — Seam and provider [pending] — 0/4 done
+## Phase 2 — Seam and providers [pending] — 0/4 done
 
-- [ ] 2.1 SPEC: Judge seam contract — question types, state shape, answer shape with probabilities and confidence, provider interface, where judging may run and where it may not, advisory-only rule, redaction before send, model version pinning
+- [ ] 2.1 SPEC: Judge seam contract — question types, state shape, answer shape with probabilities and confidence, provider interface, where judging may run and where it may not, advisory-only rule, redaction before send, model version pinning, and the cloud judge endpoint's request/response contract (client half only; the server is sofar-cloud work)
 - [ ] 2.2 Deterministic default provider: today's counts and lexical rules re-expressed as answers with confidence 1.0 or 0.5, tests
-- [ ] 2.3 Jev provider via fetch (POST /v1/systemone, Bearer TYPESAFE_API_KEY, zero deps, Node 18): retries on 429/529, timeout, redact.ts before send, opt-in via ~/.config/sofar/config.json judge.provider, disabled by default
-- [ ] 2.4 Enrichment event type in packages/schema for stored judgements (producer, model version, question id, answer, confidence, subject event id); fold ignores them for state, index reads them
+- [ ] 2.3 Cloud provider (D2): posts redacted state and questions to the judge endpoint on api.sofar.sh under the existing login/link auth, retries and timeout, disabled unless the repo is linked and judge is enabled in ~/.config/sofar/config.json; no direct TypeSafe provider in the engine
+- [ ] 2.4 Enrichment event type in packages/schema for stored judgements (producer, model version, question id, answer, confidence, subject event id); fold ignores them for state, index reads them; arrive via pull when judged server-side
 
 ## Phase 3 — Write-time guards [pending] — 0/3 done
 
@@ -32,7 +32,7 @@ Progress: 0/15 tasks done (0%)
 
 ## Phase 5 — Context and pull [pending] — 0/2 done
 
-- [ ] 5.1 C1/C2: relevance scores for decisions, notes, rejected approaches, repo memory and adjacent initiatives against the next task, judged at write-back, stored in the index, read by the SessionStart hook
+- [ ] 5.1 C1/C2: relevance scores for decisions, notes, rejected approaches, repo memory and adjacent initiatives against the next task, judged at write-back (or server-side over synced events), stored in the index, read by the SessionStart hook
 - [ ] 5.2 D1/D2: judge-ranked find and answer packets (depends on linked-context Phase 5)
 
 ## Phase 6 — Proof [pending] — 0/1 done
@@ -40,4 +40,4 @@ Progress: 0/15 tasks done (0%)
 - [ ] 6.1 E1: sofar + judge arm in bench-refresh; Jev as calibrated blind reviewer; grade the pre-registered predictions
 
 Active phase: Phase 1 — Measure on our own record
-Next action: User confirms the cloud-provider ruling (then log D2 superseding D1's direct-call clause and reword 2.3), and runs the calibration script with the key.
+Next action: User runs `TYPESAFE_API_KEY=<key> node scripts/judge-calibration.mjs --out <scratch>.json` and pastes the summary; then 1.2 sets thresholds and 1.1 closes.
