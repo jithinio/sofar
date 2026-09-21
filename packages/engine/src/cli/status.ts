@@ -5,7 +5,7 @@ import { watch } from 'chokidar'
 import { isClosedInitiativeStatus } from '@sofar/schema'
 import { readBindingsFile } from '../core/bindings'
 import { currentBranch } from '../core/git'
-import { listInitiatives } from '../core/listing'
+import { listAcrossCopies } from '../core/listing'
 import { createToolContext, ToolError, type ToolContext } from '../mcp/context'
 import { emptyState, foldLog, type InitiativeState } from '../core/fold'
 import {
@@ -16,7 +16,7 @@ import {
   type RecordProvenance,
 } from '../core/record-copies'
 import { renderFullStatus } from '../projections/templates/status'
-import { runList, type CopyOptions } from './list'
+import { listResult, type CopyOptions } from './list'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 import {
   columnsOf,
@@ -143,8 +143,11 @@ function unboundStatus(
     }
   }
   const why = branch !== null ? `No initiative is bound to branch "${branch}"` : 'No current git branch'
-  const recent = listInitiatives(rootDir).entries.find((e) => !isClosedInitiativeStatus(e.status))
-  const list = runList(rootDir, caps, columns, options)
+  // One listing, read across copies, for both the pick and the list under it:
+  // the record named first must be the one the list puts first.
+  const listing = listAcrossCopies(rootDir, options)
+  const recent = listing.entries.find((e) => !isClosedInitiativeStatus(e.status))
+  const list = listResult(rootDir, listing, caps, columns)
   if (recent === undefined) {
     const head = `${why}, and no open initiative exists — create one: sofar new <slug> --goal "<one line>"\n\n`
     return ok(`${head}${list.stdout}`, list.stderr)

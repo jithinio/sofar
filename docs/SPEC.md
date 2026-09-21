@@ -5721,8 +5721,10 @@ stay the underlying derivation's, and exit codes are styling-independent.
   returned. `sofar_start_session` carries it for the record it starts in. A
   copy no worktree has moved past gets exactly `{ok, event_id}`. `sofar
   event append` carries it on `session_started`, `decision_logged` and
-  `session_ended` and on no other type. None of these surfaces changes a
-  byte of another copy or its `git status`.
+  `session_ended` and on no other type. On an unbound branch, `sofar status`
+  names the record the union listing puts first (`--here`: this checkout's
+  listing). None of these surfaces changes a byte of another copy or its
+  `git status`.
 - **CLI UI (cli-ui):** with stdout and stderr both piped and no explicit
   opt-in, every command emits ZERO ESC (\x1b) bytes — ambient CI included;
   FORCE_COLOR=1 on the same piped invocation carries ANSI-16 SGR on the

@@ -617,3 +617,20 @@ describe('write guard: a write into a copy another worktree has moved past (bran
     expect(readFileSync(logPath(root), 'utf8')).toContain('here only')
   })
 })
+
+describe('final review (branch-visibility)', () => {
+  it('unbound `sofar status` names the record the union listing puts first', () => {
+    const root = repo('unbound-pick')
+    append(root, [ev('alpha', 'initiative_created', { slug: 'alpha', goal: 'newest on every copy but one' })], 'alpha')
+    commitAll(root, 'alpha')
+    const loose = worktree(root, 'loose') // bindings name only main: this branch is unbound
+    append(worktree(root, 'feat'), [done('1.1')]) // demo's newest event, on feat alone
+
+    const union = runStatus(loose, undefined, plain, 100).stdout
+    expect(union).toContain('showing the most recently active initiative, demo.')
+    expect(union.indexOf('- demo [main]')).toBeLessThan(union.indexOf('- alpha [unbound]'))
+    const here = runStatus(loose, undefined, plain, 100, { here: true }).stdout
+    expect(here).toContain('showing the most recently active initiative, alpha.')
+  })
+})
+

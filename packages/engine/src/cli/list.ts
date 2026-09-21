@@ -53,7 +53,11 @@ export function runList(
   columns: number = columnsOf(process.stdout),
   options: CopyOptions = {},
 ): CmdResult {
-  const listing = listAcrossCopies(rootDir, options)
+  return listResult(rootDir, listAcrossCopies(rootDir, options), caps, columns)
+}
+
+/** Render a listing already derived, for a caller that also reads it (unbound `sofar status`). */
+export function listResult(rootDir: string, listing: InitiativeListing, caps: Caps, columns: number): CmdResult {
   const stdout = caps.color
     ? renderStyledList(rootDir, listing, caps, columns)
     : renderFullInitiativeList(listing)
