@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: Step 4: merge r1-fixes into main (one trunk), then agents-parity.
+Next action: On sofar-09's resolved files and a user go: assemble the r1-fixes->main merge.
