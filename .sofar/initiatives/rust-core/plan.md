@@ -49,4 +49,4 @@ Progress: 15/22 tasks done (68%)
 - [ ] 5.3 wasm build of the fold for the sofar-cloud webapp and the Bun API, replacing the browser-aliased TypeScript fold (engine-core 3.2). A separate crate, so the hook binary's crate set (D9) is unchanged
 - [ ] 5.4 The TypeScript CLI wraps the core with foldLines keeping its signature (engine-core 3.3): confirm that 3.1's dispatch with TypeScript fallback covers it, then close
 
-Next action: Take turn 1 (files_touched set, the 1.5 IDEA note) to r1-fixes for the TS reference, then mirror it in the core; after that start 4.1.
+Next action: Mirror r1-fixes 4.5 in the core once it lands in the TS reference; meanwhile start 4.1 (benchmark arm under a frozen addendum).
