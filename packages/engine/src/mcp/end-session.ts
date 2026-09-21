@@ -2,11 +2,14 @@ import { isClosedInitiativeStatus, validatePayload } from '@sofar/schema'
 import { validateToolInput, type EndSessionArgs, type ToolOkResult } from '@sofar/schema/tool-inputs'
 import { readBindingsFile, writeBinding } from '../core/bindings'
 import { overlappingWritebacks, type DecisionState, type InitiativeState, type ParallelWriteback } from '../core/fold'
+import { decisionJudgeWarnings, type DecisionDraft } from '../core/decision-judge'
 import { currentBranch } from '../core/git'
+import type { JudgeOptions } from '../core/judge'
 import { resolvePeers } from '../core/peers'
 import { silentReversal } from '../core/reversal'
 import { ruleFidelityWarning } from '../core/rule-fidelity'
 import { homeInitiative, ToolError, type ToolContext } from './context'
+import { judgeOptionsFor } from './log-decision'
 import { resolvePhaseOrThrow } from './update-phase'
 
 /**
@@ -65,6 +68,9 @@ interface PlannedBatch {
   decisions: string[]
   memories: string[]
   warnings: string[]
+  /** The fold the batch was planned against, and its decisions as the judge reads them (typed-judge 3.1). */
+  before: InitiativeState
+  drafts: DecisionDraft[]
 }
 
 /**
@@ -125,6 +131,7 @@ function planBatch(ctx: ToolContext, slug: string, args: EndSessionArgs): Planne
 
   const decisions: string[] = []
   const warnings: string[] = []
+  const drafts: DecisionDraft[] = []
   const seen: DecisionState[] = [...state.decisions]
   ;(args.decisions ?? []).forEach((d, i) => {
     const where = `decisions[${i}]`
@@ -141,6 +148,14 @@ function planBatch(ctx: ToolContext, slug: string, args: EndSessionArgs): Planne
     const ordinal = seen.length + 1
     seen.push({ id: `batch-${i}`, ts: new Date().toISOString(), chose: d.chose, over: d.over, because: d.because, ...(d.rule !== undefined ? { rule: d.rule } : {}) })
     decisions.push(`D${ordinal}`)
+    drafts.push({
+      ordinal,
+      chose: d.chose,
+      over: d.over,
+      because: d.because,
+      ...(d.rule !== undefined ? { rule: d.rule } : {}),
+      ...(d.supersedes !== undefined ? { supersedes: d.supersedes } : {}),
+    })
     if (d.rule !== undefined) {
       const warning = ruleFidelityWarning(ordinal, d.rule, d.quote)
       if (warning !== null) warnings.push(warning)
@@ -153,7 +168,7 @@ function planBatch(ctx: ToolContext, slug: string, args: EndSessionArgs): Planne
   })
   ;(args.notes ?? []).forEach((text, i) => check(`notes[${i}]`, 'note_added', { text }))
 
-  return { appends, decisions, memories, warnings }
+  return { appends, decisions, memories, warnings, before: state, drafts }
 }
 
 /**
@@ -293,6 +308,27 @@ function resolveWriteBackHome(ctx: ToolContext, sessionId: string): string {
  * a write-back is the moment the record learns where the work actually was.
  */
 export function endSession(ctx: ToolContext, args: EndSessionArgs): EndSessionResult {
+  return endSessionFiled(ctx, args).result
+}
+
+/**
+ * What the MCP server runs: endSession, then the write-time judge (typed-judge
+ * 3.1) over the batched decisions, against the fold the batch was planned on.
+ * The session has already ended; the lines only add to `warnings`.
+ */
+export async function endSessionJudged(
+  ctx: ToolContext,
+  args: EndSessionArgs,
+  judgeOpts?: JudgeOptions,
+): Promise<EndSessionResult> {
+  const { result, batch } = endSessionFiled(ctx, args)
+  if (batch.drafts.length === 0) return result
+  const judged = await decisionJudgeWarnings(batch.before, batch.drafts, judgeOpts ?? judgeOptionsFor(ctx))
+  if (judged.length === 0) return result
+  return { ...result, warnings: [...(result.warnings ?? []), ...judged] }
+}
+
+function endSessionFiled(ctx: ToolContext, args: EndSessionArgs): { result: EndSessionResult; batch: PlannedBatch } {
   const active = ctx.session.get()
   // Omitted id = the active session (memory-lead D3): on Claude Code the
   // server adopted it from CLAUDE_CODE_SESSION_ID before this call ran.
@@ -347,7 +383,7 @@ export function endSession(ctx: ToolContext, args: EndSessionArgs): EndSessionRe
   const bound = rebound === undefined ? {} : { rebound }
 
   const parallel = overlappingWritebacks(state, sessionId)
-  if (parallel.length === 0) return { ok: true, event_id: event.id, ...applied, ...bound }
+  if (parallel.length === 0) return { result: { ok: true, event_id: event.id, ...applied, ...bound }, batch }
 
   // Reconciling used to mean leaving a note and hoping the other session read
   // it at its next orientation. Where the host knows the colliding session as
@@ -361,5 +397,5 @@ export function endSession(ctx: ToolContext, args: EndSessionArgs): EndSessionRe
     if (peer === undefined) return p
     return peer.ambiguous ? { ...p, peer: peer.name, peer_cwd: peer.cwd } : { ...p, peer: peer.name }
   })
-  return { ok: true, event_id: event.id, ...applied, parallel_writebacks: withPeers, ...bound }
+  return { result: { ok: true, event_id: event.id, ...applied, parallel_writebacks: withPeers, ...bound }, batch }
 }

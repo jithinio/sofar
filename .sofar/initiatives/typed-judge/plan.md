@@ -4,7 +4,7 @@
 
 Goal: Adopt the shape of TypeSafe Jev / System One models in sofar: typed judgements (noul, choice, score) over record state with calibrated probabilities and confidence-gated escalation, behind a Judge seam whose default is deterministic and whose Jev path is the paid `cloud` provider (D2). Judging runs only at write time (MCP tools), in the driver, on pull surfaces or offline — never on a hook, statusline, shim, fold or projection path. Outputs are advisory: warnings and rankings, never mutations, never blocks. Catalogue A–E and predictions in the record notes.
 
-Progress: 6/15 tasks done (40%)
+Progress: 7/15 tasks done (46%)
 
 ## Phase 1 — Measure on our own record [done] — 2/2 done
 
@@ -18,9 +18,9 @@ Progress: 6/15 tasks done (40%)
 - [x] 2.3 Cloud provider (D2): posts redacted state and questions to the judge endpoint on api.sofar.sh under the existing login/link auth, retries and timeout, disabled unless the repo is linked and judge is enabled in ~/.config/sofar/config.json; no direct TypeSafe provider in the engine
 - [x] 2.4 Enrichment event type in packages/schema for stored judgements (producer, model version, question id, answer, confidence, subject event id); fold ignores them for state, index reads them; arrive via pull when judged server-side
 
-## Phase 3 — Write-time guards [active] — 0/3 done
+## Phase 3 — Write-time guards [active] — 1/3 done
 
-- [ ] 3.1 A2/A3 in sofar_log_decision: re-proposal and contradiction Nouls over rejected approaches and standing constraints (candidates by index, state under 32k); warning text cites the target
+- [x] 3.1 A2/A3 in sofar_log_decision: re-proposal and contradiction Nouls over rejected approaches and standing constraints (candidates by index, state under 32k); warning text cites the target
 - [ ] 3.2 A1 in sofar_end_session: next_action Score on described levels, unlogged-decision and repo-memory-fact Nouls over the summary; warning only
 - [ ] 3.3 A4/A5: decision-vs-fact-vs-note routing hint; task-done evidence Noul in sofar_update_task
 
@@ -40,4 +40,4 @@ Progress: 6/15 tasks done (40%)
 - [ ] 6.1 E1: sofar + judge arm in bench-refresh; Jev as calibrated blind reviewer; grade the pre-registered predictions
 
 Active phase: Phase 3 — Write-time guards
-Next action: Start 3.1: re-proposal and contradiction nouls in sofar_log_decision.
+Next action: Start 3.2: A1 next_action score and unlogged-decision nouls in sofar_end_session.

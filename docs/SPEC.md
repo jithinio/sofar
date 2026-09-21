@@ -2397,6 +2397,42 @@ model version they were measured against.
   seam hands every provider an `AbortSignal` that fires with it, so a
   hung server cannot hold a socket or keep a CLI process alive.
 
+**Write-time decision judge (typed-judge 3.1, `core/decision-judge.ts`).**
+The first consumer. After sofar_log_decision appends a decision, and after
+sofar_end_session appends its batched ones, each new decision D<n> is judged
+against its OWN initiative's record as folded before it (typed-judge D5;
+cross-initiative contradiction waits for an index that carries rule text).
+The candidates are the earlier decisions still in force (not superseded,
+not past their `until`; core/retire.ts) that D<n> has not already answered for: `supersedes` does not
+name them and `because` does not cite them. From these it asks two nouls,
+one state and one request per decision:
+- `reproposal_D<k>` (A2), over every candidate with an `over`: does
+  `decision.chose` bring back `rejected.D<k>.rejected`, the approach D<k>
+  turned down in favour of `rejected.D<k>.chosen_instead`? The rule decides
+  YES only for a near-verbatim restatement: D<n>'s distinguishing chose
+  terms and D<k>'s distinguishing over terms (§MCP tools, reversal check)
+  share at least 3 terms, making up at least 2/3 of the smaller set. It never
+  decides NO, because no lexical test excludes a paraphrase. Anything less
+  is abstained and left to the model.
+- `contradiction_D<k>` (A3), over every candidate with a `rule`: would
+  following `decision` break `rules.D<k>`? No rule answers this. The
+  reversal check has already refused the lexical case, before the append.
+Code selects: every candidate when there are at most 8 per kind; beyond that,
+the 8 BM25-ranked by core/lexicon against the new decision's text, topped up
+with the newest. Each text is clipped to 400 chars. A noul at p ≥ 0.9 from the rule or the
+provider renders one line citing its target, strongest first, at most 3 per
+decision; when D<k> is both re-proposed and contradicted, only the
+contradiction line renders. `D<n> may re-propose what D<k> rejected: "<over>"
+(<how>)` or `D<n> may contradict standing D<k>: "<rule>" (<how>)`, where
+<how> is `near-verbatim match` or `judged p <p> by <model>`, then the way
+out (`Follow D<k>; if the operator changed it, log a decision with
+"supersedes":"D<k>"`, plus `and a new rule` for a contradiction). The 0.9 is
+PROVISIONAL: the record holds no re-proposal ground truth (typed-judge 1.1),
+so it is graded in 6.1, not measured. It never refuses, never re-orders, and
+writes no `judgement_recorded`. Deterministic by default: without a
+configured `cloud` provider only the rule answers, and a provider failure
+leaves the rule's lines.
+
 **Stored judgements (typed-judge 2.4).** A judgement worth keeping —
 relevance scores computed at write-back for the next SessionStart to read,
 a driver's progress verdict — lands as an ENRICHMENT event whose payload
@@ -2816,7 +2852,9 @@ sofar_start_session.`
   session-driver D5). `tasks_applied` is present iff `tasks` was passed;
   `decisions` lists the `D<n>` handles and `memories` the `<slug> M<n>`
   handles the batch took, and `warnings` carries §Rule fidelity's warning
-  for each batched rule; each is omitted when empty, so a bare write-back is
+  for each batched rule, then the write-time judge's lines for the batched
+  decisions (typed-judge 3.1, see §Judge), judged against the fold the batch
+  was planned on; each is omitted when empty, so a bare write-back is
   byte-identical to before. `rebound` names the
   branch binding this write-back moved ({branch, from, to}), omitted when
   none moved — the rebind contract and its four guards are stated with the
@@ -2895,6 +2933,9 @@ sofar_start_session.`
   # the smaller set, both directions, label-sized clauses (≤24 terms) only —
   # is refused as invalid_input naming each reversed D<n>, unless `supersedes`
   # names it or `because` cites it as a word (a narrower exception).
+  # WRITE-TIME JUDGE (typed-judge 3.1, §Judge), AFTER the append: `warnings`
+  # gains a line per earlier decision this one may re-propose or contradict.
+  # Advisory; the decision is already in the log.
 - sofar_update_plan({initiative?, plan}) → ok   # full-structure replace;
   an omitted status means `pending`, NOT unchanged — restate every status
   you intend to keep, and expect a fold warning if a resolved one is dropped.
@@ -5855,6 +5896,22 @@ stay the underlying derivation's, and exit codes are styling-independent.
   a body with no model, an over-long model, an array of answers or non-JSON
   is `malformed response`; a server that never answers is abstained at the
   timeout and its connection closed; a refused connection is abstained.
+- **Write-time decision judge (typed-judge 3.1):** a decision whose chose
+  restates an earlier decision's rejected over near-verbatim is still
+  logged, and returns one warning naming that D<k>, its over and
+  `near-verbatim match`, with no provider configured. One sharing only its
+  subject's words (two terms), a paraphrase, or a rejection of two terms
+  warns nothing on the free path. Candidates exclude retired decisions and
+  any the draft supersedes or cites in `because`. Contradiction candidates
+  carry a `rule`. Past 8 of a kind, the BM25 hit is kept even when it is the
+  oldest and the newest fill the rest. A provider is sent only the
+  questions the rule left open. A provider noul of 0.95 on a contradiction
+  warns with the rule verbatim and `judged p 0.95 by <model>`; 0.85 does
+  not. A D<k> both contradicted and re-proposed yields one line. At most 3
+  lines render, strongest first. A provider that throws leaves the rule's
+  lines and never fails the tool. sofar_end_session judges its batched
+  decisions the same way, and skips a batched decision's target when that
+  decision cites it.
 - **Stored judgements (typed-judge 2.4):** `judgement_recorded` validates
   producer, model, question and subject as non-empty strings and `answer` by
   its type (noul in [0,1]; choice naming one of 2+ probability keys with

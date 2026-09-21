@@ -64,8 +64,8 @@ function lands(a: Set<string>, b: Set<string>): boolean {
   return common > 0 && common * den >= num * Math.min(a.size, b.size)
 }
 
-/** Distinguishing terms of a decision, or null when either clause is prose-sized. */
-function sides(chose: string, over: string): { chose: Set<string>; over: Set<string> } | null {
+/** Distinguishing terms of a decision, or null when either clause is prose-sized. Shared with core/decision-judge.ts. */
+export function sides(chose: string, over: string): { chose: Set<string>; over: Set<string> } | null {
   const c = terms(chose)
   const o = terms(over)
   if (c.size > REVERSAL_MAX_TERMS || o.size > REVERSAL_MAX_TERMS) return null

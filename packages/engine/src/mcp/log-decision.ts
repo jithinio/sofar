@@ -1,4 +1,8 @@
 import type { LogDecisionArgs, LogDecisionResult } from '@sofar/schema/tool-inputs'
+import { resolveJudgeProvider } from '../client/judge'
+import { decisionJudgeWarnings, type DecisionDraft } from '../core/decision-judge'
+import type { InitiativeState } from '../core/fold'
+import type { JudgeOptions } from '../core/judge'
 import { silentReversal } from '../core/reversal'
 import { ruleFidelityWarning } from '../core/rule-fidelity'
 import { ToolError, type ToolContext } from './context'
@@ -12,6 +16,37 @@ import { ToolError, type ToolContext } from './context'
  * log reading as enforcement.
  */
 export function logDecision(ctx: ToolContext, args: LogDecisionArgs): LogDecisionResult {
+  return logDecisionLogged(ctx, args).result
+}
+
+/**
+ * What the MCP server runs: logDecision, then the write-time judge (typed-judge
+ * 3.1) over the state the decision was logged against. It runs AFTER the
+ * append, so its lines can only add to `warnings` and never undo the write.
+ * The provider is resolved per call (`judge.provider`, link, login); tests
+ * pass `judgeOpts` instead.
+ */
+export async function logDecisionJudged(
+  ctx: ToolContext,
+  args: LogDecisionArgs,
+  judgeOpts?: JudgeOptions,
+): Promise<LogDecisionResult> {
+  const { result, before, draft } = logDecisionLogged(ctx, args)
+  const judged = await decisionJudgeWarnings(before, [draft], judgeOpts ?? judgeOptionsFor(ctx))
+  if (judged.length === 0) return result
+  return { ...result, warnings: [...(result.warnings ?? []), ...judged] }
+}
+
+/** The configured provider for this repo, or deterministic only. Never throws. */
+export function judgeOptionsFor(ctx: ToolContext): JudgeOptions {
+  const { provider } = resolveJudgeProvider(ctx.rootDir)
+  return provider !== undefined ? { provider } : {}
+}
+
+function logDecisionLogged(
+  ctx: ToolContext,
+  args: LogDecisionArgs,
+): { result: LogDecisionResult; before: InitiativeState; draft: DecisionDraft } {
   const slug = ctx.resolveWriteInitiative(args.initiative)
   const state = ctx.foldState(slug)
   // A silent reversal of a standing decision is refused before the append (r1-fixes 4.1.2, D31).
@@ -32,5 +67,16 @@ export function logDecision(ctx: ToolContext, args: LogDecisionArgs): LogDecisio
   // What the rule adds to the operator's words (memory-lead 1.2, D2) — after
   // the append, so a warning never reads as a refusal.
   const warning = args.rule !== undefined ? ruleFidelityWarning(ordinal, args.rule, args.quote) : null
-  return { ok: true, event_id: event.id, ...(warning !== null ? { warnings: [warning] } : {}) }
+  return {
+    result: { ok: true, event_id: event.id, ...(warning !== null ? { warnings: [warning] } : {}) },
+    before: state,
+    draft: {
+      ordinal,
+      chose: args.chose,
+      over: args.over,
+      because: args.because,
+      ...(args.rule !== undefined ? { rule: args.rule } : {}),
+      ...(args.supersedes !== undefined ? { supersedes: args.supersedes } : {}),
+    },
+  }
 }
