@@ -30,4 +30,4 @@ Progress: 10/10 tasks done (100%)
 
 - [x] 4.1 Port ebc310f to r1-fixes after tag v0.33.0-rc.2 (cut rule bench-refresh 01M2Q79R): cherry-pick, resolve conflicts in docs/SPEC.md, cli/status.ts, core/listing.ts, templates/status.ts, full suite green there
 
-Next action: Operator: run sofar review branch-visibility, then sofar close.
+Next action: None: record closed. Reopen via sofar switch branch-visibility.
