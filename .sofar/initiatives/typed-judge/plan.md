@@ -40,4 +40,4 @@ Progress: 6/15 tasks done (40%)
 - [ ] 6.1 E1: sofar + judge arm in bench-refresh; Jev as calibrated blind reviewer; grade the pre-registered predictions
 
 Active phase: Phase 3 — Write-time guards
-Next action: Start 3.1: A2/A3 re-proposal and contradiction nouls in sofar_log_decision via resolveJudgeProvider.
+Next action: After r1-fixes merges into main, verify the SPEC/ARCHITECTURE hunks, then start 3.1.
