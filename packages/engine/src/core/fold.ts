@@ -1002,6 +1002,29 @@ function sessionById(sessions: SessionState[], id: string): SessionState | undef
   return index.byId.get(id)
 }
 
+const fileIndexes = new WeakMap<string[], { indexed: number; seen: Set<string> }>()
+
+/**
+ * What `files.includes(path)` answers, in O(1) (r1-fixes 4.5). The
+ * file_touched arm asks once per file event, so the scan made the fold
+ * O(file events × distinct paths): ~70% of the fold on rust-core 1.5's
+ * team100 (60,686 paths in 67,901 file events).
+ *
+ * Exact for the same reason as sessionById: a fold only PUSHES to
+ * state.files_touched, so indexing the array's new tail on each call sees
+ * every path `includes` would, and the array keeps its order and first
+ * occurrences. Keyed by the array, so a restored checkpoint indexes afresh.
+ */
+function hasFile(files: string[], path: string): boolean {
+  let index = fileIndexes.get(files)
+  if (index === undefined) {
+    index = { indexed: 0, seen: new Set() }
+    fileIndexes.set(files, index)
+  }
+  for (; index.indexed < files.length; index.indexed++) index.seen.add(files[index.indexed]!)
+  return index.seen.has(path)
+}
+
 // ---------------------------------------------------------------------------
 // Fold-time freshness (staleness-detection 1.1).
 // ---------------------------------------------------------------------------
@@ -1772,7 +1795,7 @@ function applyEvent(
     }
     case 'file_touched': {
       const p = event.payload as unknown as FileTouchedPayload
-      if (!state.files_touched.includes(p.path)) state.files_touched.push(p.path)
+      if (!hasFile(state.files_touched, p.path)) state.files_touched.push(p.path)
       break
     }
     case 'command_run':
