@@ -59,8 +59,11 @@ sofar new password-reset --goal "Let users reset a forgotten password"
 sofar status
 ```
 
-`sofar init` sets up the record and connects your tools. It is safe to run
-twice and only adds what is missing.
+`sofar init` sets up the record and connects your tools. It asks which
+agents to set up (Claude Code, Cursor, Codex), with the ones it finds on your
+machine already ticked, and writes files only for those. Scripts can pass
+`--agents cursor,codex` or `--agents all`. It is safe to run twice and only
+adds what is missing; run it again with another agent to add that one.
 
 After that, work as usual. In Claude Code the assistant keeps the record
 current on its own. Other tools follow a short instruction block that `init`
@@ -130,7 +133,7 @@ and the result still reads correctly.
 
 | Command | What it does |
 | --- | --- |
-| `sofar init` | Set up the record here and connect your tools |
+| `sofar init` | Set up the record here and connect your tools — asks which agents, or `--agents claude-code,cursor,codex` / `all` |
 | `sofar new <name>` | Start a piece of work and tie it to the current branch — `--supersedes <a>,<b>` when it takes over earlier initiatives, which are closed pointing here |
 | `sofar switch <name>` | Point the current branch at a different initiative (reopens it if it was closed) |
 | `sofar close [name]` | Mark work finished — `--drop --reason <why>` if it was abandoned, `--superseded-by <name>` if it continues in another initiative — and take every branch off it |
@@ -141,7 +144,7 @@ and the result still reads correctly.
 | `sofar related <task-id>` | Tasks that worked on the same files, ranked by shared paths |
 | `sofar review [name]` | The evidence a reviewer needs before a phase closes: what changed, what was claimed, and the rules the work had to keep (`--final` for the close-time pass) |
 | `sofar drive [name]` | Work the plan unattended: a fresh agent session per task, each handoff recorded, until a task needs you or the work runs out |
-| `sofar remember <text>` | Keep an operational fact — a release command, a failure mode — where later sessions will find it |
+| `sofar remember <text>` | Keep an operational fact — a release command, a failure mode — where later sessions will find it. `-` reads stdin (a quoted heredoc keeps every quote), `@<file>` a file; `--supersedes <slug> M<n>` replaces an outdated one |
 | `sofar statusline --install` | Put the status line in Claude Code's status bar — this repo, or `--user` for every project (`--uninstall` takes it back off) |
 | `sofar doctor` | Check the setup and the record for problems |
 | `sofar upgrade` | Update sofar itself — sofar tells you when there is something to update to |
@@ -156,7 +159,7 @@ Less often needed:
 | `sofar serve` | Local server with the record as JSON |
 | `sofar mcp` | The MCP server, which `init` already registers |
 | `sofar statusline` | Renders the line itself — Claude Code calls this, you don't |
-| `sofar event append` | Write one entry by hand |
+| `sofar event append` | Write one entry by hand; `--payload -` reads the JSON from stdin, `--payload @<file>` from a file |
 | `sofar commit-trailer` | Stamps a commit with the initiative that made it — the git hook calls this, you don't |
 | `sofar adopt <file>` | Bring an older, hand written project log into sofar |
 | `sofar uninit` | Undo `init` |
@@ -277,6 +280,17 @@ what Tailwind scans in the first place:
 ```css
 @import "tailwindcss" source("./");
 ```
+
+**Biome, Prettier, markdownlint.** Each formats or lints the whole tree by
+default, and `.sofar/` is generated — so their checks go red on files nobody
+hand-edits. `sofar doctor` names whichever you use, and `sofar doctor --fix`
+writes each tool's own exclusion: `"!**/.sofar"` in `files.includes` for Biome
+2 (`".sofar"` in `files.ignore` for Biome 1), `.sofar/` in `.prettierignore`
+and `.markdownlintignore`, `"**/.sofar/**"` in a markdownlint-cli2 `ignores`.
+A config with comments is left alone and the line to add is printed instead.
+`sofar init` also writes `.mcp.json` and `.claude/settings.json` in the shape
+your formatter would print (Biome's tabs, Prettier's widths, `.editorconfig`),
+so a formatting pass never rewrites them.
 
 The same goes for any tool that scans your whole tree: point it away from
 `.sofar/`.

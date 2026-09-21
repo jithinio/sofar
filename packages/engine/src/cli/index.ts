@@ -4,10 +4,12 @@ import { Command } from 'commander'
 import { version } from '../../package.json'
 import { createSofarServer } from '../mcp/server'
 import { registerCommitTrailerCommand } from './commit-trailer'
+import { registerFoldCommand } from './fold'
 import { registerEventCommand } from './event'
 import { registerReviewCommand } from './review'
 import { runAdopt } from './adopt'
-import { runInit } from './init'
+import { resolveInitAgents, runInit } from './init'
+import { stderrCaps } from './ui'
 import { runDoctor } from './doctor'
 import { runUninit } from './uninit'
 import { runNew, runSwitch } from './new'
@@ -30,7 +32,7 @@ import { runLogin, runLink, runPush, runPull, runPullWatch } from './cloud'
 import { runUpgrade } from './upgrade'
 import { runCheckStatus, runRefresh, withUpdateNotice } from './update-check'
 import { writeAutoUpgrade } from './user-config'
-import { emit, fail, ok, readAllStdin } from './shared'
+import { emit, fail, ok, readAllStdin, readInput } from './shared'
 
 const program = new Command()
 
@@ -55,15 +57,29 @@ function rootOf(opts: { root?: string }): string {
 program
   .command('init')
   .description(
-    'make this repo sofar-ready: .sofar/, hook shims + settings, .mcp.json entry, CLAUDE.md + AGENTS.md protocol blocks (idempotent)',
+    'make this repo sofar-ready for the agents you pick: .sofar/ plus, per agent, hooks, MCP entry and protocol block — Claude Code (.claude/, .mcp.json, CLAUDE.md), Cursor (.cursor/, AGENTS.md), Codex (AGENTS.md) (idempotent)',
+  )
+  .option(
+    '--agents <list>',
+    'agents to set up: claude-code, cursor, codex (comma-separated) or all — default: ask on a terminal, all otherwise',
   )
   .option(
     '--statusline',
     'also wire `sofar statusline` as the project statusLine (merged only when settings.json has none — an existing statusLine is never touched)',
   )
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action((opts: { statusline?: boolean; root?: string }) => {
-    emit(withUpdateNotice(runInit(rootOf(opts), { statusline: opts.statusline === true })))
+  .action(async (opts: { agents?: string; statusline?: boolean; root?: string }) => {
+    const root = rootOf(opts)
+    const caps = stderrCaps()
+    const choice = await resolveInitAgents(root, opts.agents, {
+      input: process.stdin,
+      output: process.stderr,
+      interactive: process.stdin.isTTY === true && caps.animate,
+      caps,
+    })
+    if ('error' in choice) return emit(fail(`sofar init: ${choice.error}`))
+    if ('cancelled' in choice) return emit(fail('sofar init: cancelled — nothing written'))
+    emit(withUpdateNotice(runInit(root, { statusline: opts.statusline === true, agents: choice.agents })))
   })
 
 program
@@ -80,9 +96,12 @@ program
 program
   .command('doctor')
   .description(
-    'audit this repo: wiring integrity, record health, and tree-wide scanner hazards (Tailwind v4 ingesting .sofar); --fix inserts the @source not exclusion',
+    'audit this repo: wiring integrity, record health, and tree-wide tool hazards (Tailwind v4, Biome, Prettier, markdownlint reaching .sofar); --fix writes each tool\'s .sofar exclusion',
   )
-  .option('--fix', 'apply the safe scanner fix (insert `@source not "…/.sofar"` after the tailwindcss import)')
+  .option(
+    '--fix',
+    'apply the safe fixes: insert `@source not "…/.sofar"` after the tailwindcss import; add the .sofar exclusion to biome.json, .prettierignore, .markdownlintignore',
+  )
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((opts: { fix?: boolean; root?: string }) => {
     // withUpdateNotice touches stderr only — doctor's exit code is its verdict
@@ -241,14 +260,25 @@ program
   })
 
 program
-  .command('remember <text>')
+  .command('remember [text]')
   .description(
-    'promote an operational fact to repo memory — a release command, a failure mode, a convention future sessions must know; recorded as <slug> M<n> for .sofar/repo.md to name',
+    'promote an operational fact to repo memory — a release command, a failure mode, a convention future sessions must know; recorded as <slug> M<n> for .sofar/repo.md to name. Text inline, `-` for stdin (quoted heredoc), or @<file>',
   )
+  .option('--supersedes <handle>', 'the memory this fact replaces — `M<n>` in the target initiative or the qualified `<slug> M<n>`; the old one is retired, never edited')
   .option('--initiative <slug>', 'initiative to record it under (default: the branch-bound one)')
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action((text: string, opts: { initiative?: string; root?: string }) => {
-    emit(runRemember(rootOf(opts), text, opts.initiative !== undefined ? { initiative: opts.initiative } : {}))
+  .action(async (text: string | undefined, opts: { supersedes?: string; initiative?: string; root?: string }) => {
+    const input = await readInput(text, 'the text')
+    if (!input.ok) {
+      emit(fail(`sofar remember: ${input.error}`))
+      return
+    }
+    emit(
+      runRemember(rootOf(opts), input.text, {
+        ...(opts.initiative !== undefined ? { initiative: opts.initiative } : {}),
+        ...(opts.supersedes !== undefined ? { supersedes: opts.supersedes } : {}),
+      }),
+    )
   })
 
 program
@@ -471,6 +501,12 @@ program
   .option('--effort <effort>', "effort for every launch — outranks any task's own route hint")
   .option('--resume', 'adopt the latest run when it has no stop, instead of refusing to start')
   .option(
+    '--verify <cmd>',
+    'acceptance command run before a task the agent marked done is accepted (r1-fixes 3.1); a task\'s own plan `verify` wins',
+  )
+  .option('--verify-timeout <seconds>', 'kill an acceptance command that has not ended in this long (default 600)')
+  .option('--max-verify-attempts <n>', 'stop the run once one task has failed verification this many times (default 3)')
+  .option(
     '--agent <name>',
     'default headless agent: claude-code (default) or codex — a task whose plan entry carries route.agent is launched with THAT one instead',
   )
@@ -514,6 +550,9 @@ program
         model?: string
         effort?: string
         resume?: boolean
+        verify?: string
+        verifyTimeout?: string
+        maxVerifyAttempts?: string
         agent?: string
         bin?: string
         agentArg?: string[]
@@ -555,6 +594,9 @@ program
           ...(opts.model !== undefined ? { model: opts.model } : {}),
           ...(opts.effort !== undefined ? { effort: opts.effort } : {}),
           ...(opts.resume === true ? { resume: true } : {}),
+          ...(opts.verify !== undefined ? { verify: opts.verify } : {}),
+          ...(opts.verifyTimeout !== undefined ? { verifyTimeout: opts.verifyTimeout } : {}),
+          ...(opts.maxVerifyAttempts !== undefined ? { maxVerifyAttempts: opts.maxVerifyAttempts } : {}),
           ...(opts.agent !== undefined ? { agent: opts.agent } : {}),
           ...(opts.bin !== undefined ? { bin: opts.bin } : {}),
           ...(opts.agentArg !== undefined ? { agentArgs: opts.agentArg } : {}),
@@ -589,7 +631,8 @@ program
   .description('start the stdio MCP server (server name: sofar) exposing the SPEC §MCP tools')
   .option('--root <dir>', 'repo root containing .sofar/ (default: current directory)')
   .action(async (opts: { root?: string }) => {
-    const handle = createSofarServer({ rootDir: opts.root })
+    // A stdio child of one Claude Code session adopts that session (memory-lead D3).
+    const handle = createSofarServer({ rootDir: opts.root, hostSessionId: process.env.CLAUDE_CODE_SESSION_ID })
     await handle.connectStdio()
     // stdio transport keeps the process alive until the client disconnects
   })
@@ -650,6 +693,7 @@ program
   })
 
 registerEventCommand(program)
+registerFoldCommand(program)
 registerCommitTrailerCommand(program, rootOf)
 registerReviewCommand(program, rootOf)
 registerStatuslineCommand(program, rootOf)

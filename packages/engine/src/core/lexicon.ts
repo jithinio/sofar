@@ -1,3 +1,4 @@
+import { byCodeUnit } from './order'
 /**
  * Lexical seeding (record-index 3.5) — the last step of resolving a question.
  *
@@ -244,7 +245,7 @@ export function rankLexical(
     }
     if (hit.length === 0) continue
     // Ordered by what each word actually contributed — rare and repeated first.
-    hit.sort((a, b) => b.weight - a.weight || a.term.localeCompare(b.term))
+    hit.sort((a, b) => b.weight - a.weight || byCodeUnit(a.term, b.term))
     scored.push({
       id: doc.id,
       score: sum,
@@ -258,7 +259,7 @@ export function rankLexical(
     if (a.score !== b.score) return b.score - a.score
     const at = dated.get(a.id) ?? ''
     const bt = dated.get(b.id) ?? ''
-    return at !== bt ? (at < bt ? 1 : -1) : a.id.localeCompare(b.id)
+    return at !== bt ? (at < bt ? 1 : -1) : byCodeUnit(a.id, b.id)
   })
   return { matches: scored.slice(0, Math.max(0, limit)), total: scored.length, query: wanted }
 }

@@ -74,9 +74,6 @@ export const TOOL_NAMES = [
   'sofar_update_plan',
   'sofar_add_note',
   'sofar_remember',
-  'sofar_review',
-  'sofar_close_initiative',
-  'sofar_find',
 ] as const
 export type ToolName = (typeof TOOL_NAMES)[number]
 
@@ -113,10 +110,48 @@ export interface StartSessionArgs {
   session_id?: string
 }
 export interface EndSessionArgs {
-  session_id: string
+  /**
+   * Optional since memory-lead 1.1 (D3): omitted, the write-back ends the
+   * ACTIVE session — the one `sofar mcp` adopted from Claude Code's
+   * CLAUDE_CODE_SESSION_ID, or the one sofar_start_session pinned.
+   */
+  session_id?: string
   summary: string
   next_action: string
+  /**
+   * Task status changes to file with the write-back (r1-fixes 2.1, D10) —
+   * validated as a whole, then appended in order BEFORE session_ended, so
+   * the write-back's own fold already counts them. One call instead of one
+   * per task at wrap-up.
+   */
+  tasks?: EndSessionTaskChange[]
+  /**
+   * The rest of a session's writes, batched into the write-back (memory-lead
+   * 1.1, D3): round 1 spent one request per update_phase, log_decision,
+   * remember and add_note, each re-sending the whole context. The batch is
+   * validated whole before anything appends.
+   */
+  phases?: EndSessionPhaseChange[]
+  decisions?: EndSessionDecision[]
+  memories?: string[]
+  notes?: string[]
 }
+export interface EndSessionTaskChange {
+  task_id: string
+  status: TaskStatus
+  note?: string
+  /** Adds the task when the plan lacks `task_id` (memory-lead D3); ignored for a task that exists. */
+  title?: string
+  /** Phase an added task joins — name or number; default the active phase. */
+  phase?: string
+}
+export interface EndSessionPhaseChange {
+  phase: string
+  status: PhaseStatus
+  note?: string
+}
+/** sofar_log_decision's arguments minus `initiative` — the write-back has one home. */
+export type EndSessionDecision = Omit<LogDecisionArgs, 'initiative'>
 export interface UpdateTaskArgs {
   initiative?: string
   task_id: string
@@ -142,8 +177,14 @@ export interface LogDecisionArgs {
   because: string
   /** Standing-constraint clause (drift-hardening D1) — see the JSON schema description. */
   rule?: string
+  /** The operator's exact words the rule came from (memory-lead 1.2, D2); only with `rule`. */
+  quote?: string
   /** Machine-checkable half of `rule` (drift-hardening D3) — see guards.ts. */
   guard?: string
+  /** `D<n>` of the earlier decision this one replaces (r1-fixes 3.2, D25). */
+  supersedes?: string
+  /** Task id this decision is in force until; never with `rule` (r1-fixes 3.2, D25). */
+  until?: string
 }
 export interface UpdatePlanArgs {
   initiative?: string
@@ -156,49 +197,11 @@ export interface AddNoteArgs {
 export interface RememberArgs {
   initiative?: string
   text: string
-}
-export interface CloseInitiativeArgs {
-  initiative?: string
-  /** Terminal status only — reopening is a binding act (`sofar switch`). */
-  status: 'done' | 'dropped' | 'superseded'
-  note?: string
-  /** The slug the work continues in. REQUIRED for `superseded`, rejected otherwise. */
-  successor?: string
+  /** Memory this fact replaces: `M<n>` (in the target initiative) or the qualified `<slug> M<n>`. */
+  supersedes?: string
 }
 
-/**
- * review (commit-attribution 4.4): record a review that was actually performed.
- *
- * `watermark` is the load-bearing field. It is the sha the review read through,
- * and it bounds the NEXT review's range (D9) — which is why a review is an
- * event rather than a note.
- */
-export interface ReviewArgs {
-  initiative?: string
-  // The payload's own vocabulary, imported rather than restated: a second
-  // declaration of the same closed set is a fifth edit waiting to be missed,
-  // and a miss desyncs the tool surface from the event it writes.
-  scope: ReviewScope
-  verdict: ReviewVerdict
-  watermark?: string
-  phase?: string
-  findings?: string[]
-}
 
-/**
- * find (record-index 3.4, 3.5): the agent-pulled half of retrieval. Seeds resolve
- * LITERALLY FIRST — a path, a session id, an initiative slug, a decision handle
- * — and a query that denotes none of those is matched against decision and note
- * prose, IDF-ranked with no model (3.5). The order is the contract: a literal
- * reading always wins, so a mistyped path can never quietly become a search, and
- * a text seed is labelled `text` in the result because it is the weakest claim
- * the record makes (D2).
- */
-export interface FindArgs {
-  seed: string
-  hops?: number
-  initiative?: string
-}
 
 /** Hop budget contract, mirrored by the engine's traversal (core/index-reach.ts). */
 export const FIND_DEFAULT_HOPS = 2
@@ -214,9 +217,6 @@ export interface ToolArgs {
   sofar_update_plan: UpdatePlanArgs
   sofar_add_note: AddNoteArgs
   sofar_remember: RememberArgs
-  sofar_review: ReviewArgs
-  sofar_close_initiative: CloseInitiativeArgs
-  sofar_find: FindArgs
 }
 
 /** Result shape for the write tools (SPEC "→ ok"); event_id aids testing/audit. */
@@ -230,8 +230,17 @@ export interface ToolOkResult {
  * standing constraints ride along — a reminder at the point of use, where
  * salience is highest, instead of only at session start where it decays.
  */
-export interface UpdateTaskResult extends ToolOkResult {
-  standing_constraints?: string[]
+/** Bare since r1-fixes 2.1 (D10): the standing-constraint echo on `active` is gone. */
+export type UpdateTaskResult = ToolOkResult
+
+/**
+ * log_decision result (memory-lead 1.2, D2): `warnings` names what the rule
+ * states that the operator's quote does not — status codes, paths, values.
+ * Absent when there is nothing to say; the append has already happened, so a
+ * warning never means the decision was refused.
+ */
+export interface LogDecisionResult extends ToolOkResult {
+  warnings?: string[]
 }
 
 /**
@@ -265,15 +274,15 @@ export interface ToolDef {
   inputSchema: ToolInputSchema
 }
 
-// Lean tool-definition pass (token-opt 5.2): descriptions are agent-facing
-// contract, injected into every session's context — keep load-bearing
-// semantics (adopt-by-id, full-replace, call-first), cut redundancy between
-// tool and property descriptions. Repeated 6×, so every char here counts.
+// Lean tool-definition pass (token-opt 5.2; cut again by r1-fixes 2.4, D13):
+// descriptions are agent-facing contract that hosts without deferred tools
+// carry in EVERY turn — keep the load-bearing sentence (adopt-by-id,
+// full-replace, when to use which), and let SPEC and `sofar event types` hold
+// the documentation. Repeated 7×, so every char here counts.
 const initiativeProp = {
   type: 'string',
-  minLength: 1,
   pattern: SLUG_RE.source,
-  description: 'Initiative slug ([a-z0-9-]+); omit to resolve from the current git branch.',
+  description: "Initiative slug; omit for the current branch's.",
 }
 
 /** Routing hints (session-driver 3.2) — what the run leaves open, the task fills. */
@@ -283,9 +292,7 @@ const taskRouteSchema = {
     agent: {
       type: 'string',
       minLength: 1,
-      description:
-        'Adapter `sofar drive` must launch this task with (e.g. `claude-code`, `codex`). A run ' +
-        'that cannot reach it refuses to start rather than using its default agent.',
+      description: 'Adapter `sofar drive` must launch this task with (e.g. `claude-code`).',
     },
     model: { type: 'string', minLength: 1 },
     effort: { type: 'string', minLength: 1 },
@@ -301,9 +308,7 @@ const planTaskSchema = {
     status: { enum: [...TASK_STATUSES] },
     route: {
       ...taskRouteSchema,
-      description:
-        'Optional routing hints for `sofar drive` (agent/model/effort). Hints only: what the ' +
-        'run itself pinned wins, and the task fills what the run left open.',
+      description: 'Routing hints for `sofar drive`; what the run pinned wins.',
     },
   },
   required: ['id', 'title'],
@@ -338,8 +343,7 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       initiative: initiativeProp,
       view: {
         enum: [...GET_STATE_VIEWS],
-        description:
-          'Detail level; default "digest". "initiatives" lists every initiative in the repo (ignores `initiative`).',
+        description: '"full" = folded state JSON; "initiatives" = every initiative.',
       },
     },
     additionalProperties: false,
@@ -357,8 +361,7 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       session_id: {
         type: 'string',
         minLength: 1,
-        description:
-          'Session id from the injected "Session: <id>" line — pass it to adopt that session; omit to mint a fresh id.',
+        description: 'The id from the injected "Session: <id>" line — adopts that session; omit to mint one.',
       },
     },
     required: ['tool'],
@@ -367,15 +370,46 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
   sofar_end_session: {
     type: 'object',
     properties: {
-      session_id: { type: 'string', minLength: 1 },
+      session_id: { type: 'string', minLength: 1, description: 'Omit when this session was adopted; else the "Session:" id.' },
       summary: { type: 'string', minLength: 1, description: 'What happened this session.' },
       next_action: {
         type: 'string',
         minLength: 1,
         description: 'The single next action for whoever resumes.',
       },
+      tasks: {
+        type: 'array',
+        description: 'Task changes, in order; with title, a task the plan lacks is added (phase: default active).',
+        items: {
+          type: 'object',
+          properties: {
+            task_id: { type: 'string', minLength: 1 },
+            status: { enum: [...TASK_STATUSES] },
+            note: { type: 'string' },
+            title: { type: 'string' },
+            phase: { type: 'string' },
+          },
+          required: ['task_id', 'status'],
+          additionalProperties: false,
+        },
+      },
+      phases: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: { phase: { type: 'string' }, status: { enum: [...PHASE_STATUSES] }, note: { type: 'string' } },
+          required: ['phase', 'status'],
+          additionalProperties: false,
+        },
+      },
+      // Items are shaped by sofar_log_decision's schema (always loaded beside
+      // this tool) and checked by its validators; restating the properties
+      // here would pay for them twice in the budgeted surface (2.4, D13).
+      decisions: { type: 'array', description: 'Decisions not yet logged, each as sofar_log_decision args.', items: { type: 'object' } },
+      memories: { type: 'array', description: 'Facts to promote (sofar_remember).', items: { type: 'string' } },
+      notes: { type: 'array', items: { type: 'string' } },
     },
-    required: ['session_id', 'summary', 'next_action'],
+    required: ['summary', 'next_action'],
     additionalProperties: false,
   },
   sofar_update_task: {
@@ -385,16 +419,11 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       task_id: { type: 'string', minLength: 1 },
       status: {
         enum: [...TASK_STATUSES],
-        description:
-          '`blocked` = wants to happen, cannot yet — stays outstanding and keeps nagging. ' +
-          '`dropped` = decided not to happen, terminal — recorded but no longer counted as ' +
-          'remaining work. Do not use `done` for work that was never built.',
+        description: '`blocked` stays outstanding; `dropped` is terminal. Never `done` for unbuilt work.',
       },
       note: {
         type: 'string',
-        description:
-          'Why. REQUIRED for `blocked` and `dropped` — a drop with no stated reason reads as ' +
-          'forgotten rather than decided. Cite the deciding entry where there is one (e.g. "D3").',
+        description: 'Why; required for dropped. Cite the deciding entry (e.g. "D3").',
       },
     },
     required: ['task_id', 'status'],
@@ -407,22 +436,15 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       phase: {
         type: 'string',
         minLength: 1,
-        description:
-          'The phase name, EXACTLY as the plan spells it — phases have no ids. A name that ' +
-          'matches nothing is an error listing the names that do exist, never a silent no-op.',
+        description: 'Name (any case) or number ("3").',
       },
       status: {
         enum: [...PHASE_STATUSES],
-        description:
-          'Same vocabulary as a task, one level up. `done` = the phase is finished, which is a ' +
-          'separate fact from its tasks being resolved — say it even when the last task landed ' +
-          'days ago. `dropped` = the phase will not happen; `blocked` = it wants to, and cannot yet.',
+        description: '`done` only when you say so; resolved tasks do not imply it.',
       },
       note: {
         type: 'string',
-        description:
-          'Why. REQUIRED for `dropped` — an abandoned phase with no stated reason is ' +
-          'indistinguishable from a forgotten one. Rendered under the phase in plan.md.',
+        description: 'Why; required for `dropped`.',
       },
     },
     required: ['phase', 'status'],
@@ -439,14 +461,21 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
         type: 'string',
         minLength: 1,
         description:
-          'ONE short imperative every future session must obey (e.g. "Never emit `@source not` when the installed tailwindcss is below 4.1."). Its presence makes this decision a standing constraint: rendered verbatim in every digest, never clipped, never ages out. Reserve for decisions that constrain future work; omit for one-off choices.',
+          'ONE imperative every later session must obey, worded as the operator did (no status code, path or value they did not say). Omit for one-off choices.',
       },
+      // Shape and the RULE_QUOTE_MAX cap are the payload validator's (D2),
+      // like supersedes: the tool surface is budgeted (2.4, D13).
+      quote: { type: 'string', description: "The operator's exact words the rule came from (needs rule)." },
       guard: {
         type: 'string',
         minLength: 1,
         description:
-          'Optional machine-checkable half of `rule` (requires `rule`): a glob list matched against the work that follows this decision, warning when the rule is crossed. Form: "path:<globs>" against edited file paths, or "cmd:<globs>" against shell commands; comma-separated, a leading "!" exempts. Globs use * (not crossing / for paths), ** and ?; path patterns match a path tail (`packages/schema/**`), cmd patterns match anywhere in the command (`*npm publish*`). Example: "path:**/*.ts,!packages/schema/src/**". It only ever warns — it never blocks anything. Omit unless the rule is genuinely expressible as "these files" or "these commands".',
+          'Machine-checkable half of `rule` (requires it): "path:<globs>" against edited paths or "cmd:<globs>" against commands; comma-separated, leading "!" exempts. Warns, never blocks. Omit unless the rule is these files or commands.',
       },
+      // Shape is enforced by the payload validator (D25); the schema stays
+      // terse because the whole tool surface is budgeted (2.4, D13).
+      supersedes: { type: 'string', description: 'Earlier decision this replaces (`D<n>`); a rule only by a rule.' },
+      until: { type: 'string', description: 'Task id this holds until it resolves; never with `rule`.' },
     },
     required: ['chose', 'over', 'because'],
     additionalProperties: false,
@@ -471,87 +500,13 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
     properties: {
       initiative: initiativeProp,
       text: { type: 'string', minLength: 1 },
+      supersedes: {
+        type: 'string',
+        pattern: '^(?:[a-z0-9-]+ )?M[1-9][0-9]*$',
+        description: 'The memory this replaces (`M<n>` or `<slug> M<n>`).',
+      },
     },
     required: ['text'],
-    additionalProperties: false,
-  },
-  sofar_review: {
-    type: 'object',
-    properties: {
-      initiative: initiativeProp,
-      scope: {
-        type: 'string',
-        enum: [...REVIEW_SCOPES],
-        description:
-          '`phase` = one phase just completed. `final` = the close-time pass, which asks ONLY what a phase review cannot (goal conformance, cross-phase drift, integration, open findings) and never re-audits per-phase correctness.',
-      },
-      verdict: {
-        type: 'string',
-        enum: [...REVIEW_VERDICTS],
-        description:
-          '`pass` = nothing survived. `findings` = something did, and `findings` must list them. `blocked` = the review could not be performed (e.g. no attributed commits, so there was no diff to read).',
-      },
-      watermark: {
-        type: 'string',
-        minLength: 1,
-        description:
-          'The sha this review read THROUGH — it bounds the next review\'s range. Omit only when the range was empty.',
-      },
-      phase: { type: 'string', minLength: 1, description: 'Phase name; omit for a `final` review.' },
-      findings: {
-        type: 'array',
-        items: { type: 'string', minLength: 1 },
-        description: 'One line each, actionable. Required and non-empty when verdict is `findings`.',
-      },
-    },
-    required: ['scope', 'verdict'],
-    additionalProperties: false,
-  },
-  sofar_close_initiative: {
-    type: 'object',
-    properties: {
-      initiative: initiativeProp,
-      status: {
-        type: 'string',
-        enum: ['done', 'dropped', 'superseded'],
-        description:
-          '`done` = the goal was met. `dropped` = abandoned; requires `note`. `superseded` = the work continues in another initiative; requires `successor`. Reopen by working on it again (`sofar switch <slug>`).',
-      },
-      note: {
-        type: 'string',
-        description: 'Why. REQUIRED for `dropped` — an initiative abandoned with no reason reads as forgotten.',
-      },
-      successor: {
-        type: 'string',
-        pattern: INITIATIVE_SLUG_RE.source,
-        description:
-          'The initiative the work continues in. REQUIRED for `superseded`, rejected on any other status. Must already exist — create it first (`sofar new`). Recorded on THIS record only; the successor never carries a reverse pointer.',
-      },
-    },
-    required: ['status'],
-    additionalProperties: false,
-  },
-  sofar_find: {
-    type: 'object',
-    properties: {
-      seed: {
-        type: 'string',
-        minLength: 1,
-        description:
-          'A file path (matched across checkouts), a session id, an initiative slug, or a decision handle ("record-index D2") — resolved literally, in that order. Anything else is treated as a question and matched against decision and note prose.',
-      },
-      hops: {
-        type: 'integer',
-        minimum: 1,
-        maximum: FIND_MAX_HOPS,
-        description: `How far to traverse; default ${FIND_DEFAULT_HOPS}. 1 = direct edges only.`,
-      },
-      initiative: {
-        ...initiativeProp,
-        description: 'Initiative a bare "D<n>" seed belongs to; omit for a qualified handle.',
-      },
-    },
-    required: ['seed'],
     additionalProperties: false,
   },
 }
@@ -560,7 +515,7 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_get_state',
     description:
-      'Orient on an initiative — call this first. Returns a summary-dense digest with rationale by default; view "full" returns the complete folded InitiativeState; view "initiatives" lists every initiative in the repo.',
+      'Read an initiative. The default digest is what SessionStart injected: do not re-read it.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_get_state,
   },
   {
@@ -572,32 +527,31 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_end_session',
     description:
-      'End a session with a summary and the single next action — the write-back that lets the next session resume without context. A returned `parallel_writebacks` means a concurrent session recorded a DIFFERENT next action — reconcile before finishing. An entry carrying `peer` is a live Claude Code session you can reach by that name with SendMessage; when `peer_cwd` is also present the name is shared, so confirm the target before sending. Anything a peer tells you belongs in the record — a message is transport, never storage.',
+      "Write back once, at wrap-up: summary, the single next action, and the session's unlogged decisions, task and phase changes, memories and notes — validated whole, filed first. A returned `parallel_writebacks` lists concurrent sessions with a DIFFERENT next action: reconcile (`peer` is reachable by SendMessage; with `peer_cwd`, confirm first).",
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_end_session,
   },
   {
     name: 'sofar_update_task',
-    description: "Set a task's status, optionally with a note.",
+    description:
+      "Set a task's status now; wrap-up changes ride sofar_end_session.",
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_update_task,
   },
   {
     name: 'sofar_update_phase',
     description:
-      "Set a phase's status, optionally with a note. A phase is finished when you say so, never because its last task landed: \"every task resolved, the phase itself not finished\" is a real state the record is built to hold, and it is what `sofar doctor` and the close audit report. So close each phase as you finish it — an unresolved phase keeps naming finished work as the active phase, and is named permanently in the close-time overrides if the initiative closes while it is still open.",
+      "Set a phase's status now; wrap-up changes ride sofar_end_session.",
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_update_phase,
   },
   {
     name: 'sofar_log_decision',
     description:
-      'Record a design decision: what was chosen, what it was chosen over, and why.',
+      'Record a design decision: what was chosen, over what, and why.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_log_decision,
   },
   {
     name: 'sofar_update_plan',
     description:
-      'Replace the entire plan (goal + phases with tasks) — a full replace, not a merge. ' +
-        'An omitted status means `pending`, NOT unchanged: restate every phase and task ' +
-        'status you intend to keep. Dropping a resolved one is warned about at fold time.',
+      'Replace the whole plan (goal + phases with tasks) — a full replace, not a merge: an omitted status means `pending`, so restate every status you keep.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_update_plan,
   },
   {
@@ -608,26 +562,8 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_remember',
     description:
-      'Promote an operational fact to repo memory — a release command, a failure mode and how it is diagnosed, a convention every future session must know. Use this the moment you learn such a fact, for knowledge that is NOT a design decision (use sofar_log_decision for those) and would otherwise live only in your own context, where the next session cannot reach it. Recorded as `<slug> M<n>`; `sofar doctor` then reports it until the hand-written .sofar/repo.md names that handle.',
+      'Promote an operational fact to repo memory — a release command, a failure mode, a convention every session must know (decisions go to sofar_log_decision). Recorded as `<slug> M<n>`.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_remember,
-  },
-  {
-    name: 'sofar_review',
-    description:
-      'Record a review that was actually performed. `watermark` is the load-bearing field: it is the sha the review read through, and it bounds the NEXT review\'s range — which is why a review is an event and not a note. A verdict of `findings` MUST list them; a review that can only ever say "looks good" is a rubber stamp, so if nothing is wrong say so with `pass`, but the verdict must be able to be "no".',
-    inputSchema: TOOL_INPUT_SCHEMAS.sofar_review,
-  },
-  {
-    name: 'sofar_close_initiative',
-    description:
-      'Close an initiative: record that it is finished (`done`), abandoned (`dropped`, which requires a reason), or continued elsewhere (`superseded`, which requires the `successor` slug and makes the pointer an edge every surface follows), and unbind every branch pointing at it. This session keeps working in it until it ends; a NEW session on the unbound branch is told to start or switch instead of landing on finished work. Reopening happens by working on it again — `sofar switch <slug>`.',
-    inputSchema: TOOL_INPUT_SCHEMAS.sofar_close_initiative,
-  },
-  {
-    name: 'sofar_find',
-    description:
-      'Traverse the record out from a seed and return what is within a hop budget — the decisions, notes, files, sessions and OTHER INITIATIVES connected to it, each result naming the event id that produced the edge. Use it when work touches a file, a record, or a decision you did not write: it answers "who else has been here, and what did they conclude". A seed that denotes nothing in the record is treated as a QUESTION and matched against decision and note prose; those matches come back on seed.matches with the words that carried each one, never in groups, because word overlap is not an edge. Everything returned is ADJACENCY the record can prove — a session touched this file, the same session logged that decision. It is offered as worth reading, never as a rule about your work: the record does not know a decision was ABOUT a file, nor that a decision your words appear in answers your question, so weigh it yourself and read the cited event before relying on it.',
-    inputSchema: TOOL_INPUT_SCHEMAS.sofar_find,
   },
 ]
 
@@ -670,9 +606,21 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
     if (!optId(a.session_id)) e.push('session_id: must be a non-empty string')
   },
   sofar_end_session(a, e) {
-    if (!str(a.session_id)) e.push('session_id: must be a non-empty string')
+    if (!optId(a.session_id)) e.push('session_id: must be a non-empty string when present')
     if (!str(a.summary)) e.push('summary: must be a non-empty string')
     if (!str(a.next_action)) e.push('next_action: must be a non-empty string')
+    // Shapes only; each entry's contract is its tool's or its payload's,
+    // checked by the handler before anything appends (memory-lead D3).
+    for (const key of ['tasks', 'phases', 'decisions'] as const) {
+      if (a[key] !== undefined && !(Array.isArray(a[key]) && (a[key] as unknown[]).every(isObj))) {
+        e.push(`${key}: must be an array of objects`)
+      }
+    }
+    for (const key of ['memories', 'notes'] as const) {
+      if (a[key] !== undefined && !(Array.isArray(a[key]) && (a[key] as unknown[]).every(str))) {
+        e.push(`${key}: must be an array of non-empty strings`)
+      }
+    }
   },
   sofar_update_task(a, e) {
     if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
@@ -703,27 +651,6 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
       e.push('note: required when status is "dropped" — say why the phase will not happen')
     }
   },
-  sofar_close_initiative(a, e) {
-    if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
-    if (a.status !== 'done' && a.status !== 'dropped' && a.status !== 'superseded') {
-      e.push('status: must be one of done|dropped|superseded')
-    }
-    if (!optStr(a.note)) e.push('note: must be a string')
-    // Same rule as a dropped task (task-drop-state D3), one level up: nothing
-    // else in the record explains why a whole initiative was abandoned.
-    if (a.status === 'dropped' && !str(a.note)) {
-      e.push('note: required when status is "dropped" — say why it was abandoned')
-    }
-    // initiative-supersession D1: the successor is the pointer, and the only
-    // status that has one.
-    if (a.status === 'superseded') {
-      if (!(str(a.successor) && SLUG_RE.test(a.successor))) {
-        e.push('successor: required when status is "superseded" — the slug the work continues in ([a-z0-9-]+)')
-      }
-    } else if (a.successor !== undefined) {
-      e.push('successor: only allowed when status is "superseded"')
-    }
-  },
   sofar_log_decision(a, e) {
     if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
     if (!str(a.chose)) e.push('chose: must be a non-empty string')
@@ -745,42 +672,6 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
   sofar_remember(a, e) {
     if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
     if (!str(a.text)) e.push('text: must be a non-empty string')
-  },
-  sofar_review(a, e) {
-    if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
-    if (!(REVIEW_SCOPES as readonly unknown[]).includes(a.scope)) {
-      e.push(`scope: must be one of ${REVIEW_SCOPES.join('|')}`)
-    }
-    if (!(REVIEW_VERDICTS as readonly unknown[]).includes(a.verdict)) {
-      e.push(`verdict: must be one of ${REVIEW_VERDICTS.join('|')}`)
-    }
-    if (a.watermark !== undefined && !str(a.watermark)) {
-      e.push('watermark: must be a non-empty string when present')
-    }
-    if (a.phase !== undefined && !str(a.phase)) {
-      e.push('phase: must be a non-empty string when present')
-    }
-    if (a.findings !== undefined && !(Array.isArray(a.findings) && a.findings.every(str))) {
-      e.push('findings: must be an array of non-empty strings when present')
-    }
-    // Symmetric with the payload validator: claiming findings while recording
-    // none leaves the next review nothing to carry forward.
-    if (a.verdict === 'findings' && !(Array.isArray(a.findings) && a.findings.length > 0)) {
-      e.push('findings: required and non-empty when verdict is `findings`')
-    }
-  },
-  sofar_find(a, e) {
-    if (!optSlug(a.initiative)) e.push(SLUG_ERROR)
-    if (!str(a.seed)) e.push('seed: must be a non-empty string')
-    if (
-      a.hops !== undefined &&
-      (typeof a.hops !== 'number' ||
-        !Number.isInteger(a.hops) ||
-        a.hops < 1 ||
-        a.hops > FIND_MAX_HOPS)
-    ) {
-      e.push(`hops: must be a whole number from 1 to ${FIND_MAX_HOPS}`)
-    }
   },
 }
 

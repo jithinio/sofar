@@ -7,6 +7,8 @@ import {
   taskFilesFromEdges,
   type GraphEdge,
   type SessionActivity,
+  taskTestsFromEdges,
+  type TaskTestOutcome,
 } from './adjacency'
 import {
   coerceUnknownPlanStatuses,
@@ -19,6 +21,7 @@ import {
   type CompiledGuard,
   type CorrectionPayload,
   type GuardDomain,
+  DECISION_HANDLE_RE,
   type DecisionLoggedPayload,
   type HandoffPayload,
   type HandoffReason,
@@ -28,6 +31,9 @@ import {
   type RunStopReason,
   type RunSurface,
   type RunStoppedPayload,
+  type TaskVerify,
+  type VerificationRecordedPayload,
+  type VerificationResult,
   type RunStopRequestedPayload,
   type ReviewRecordedPayload,
   type ReviewScope,
@@ -48,6 +54,7 @@ import {
   type TaskStatus,
   type TaskStatusChangedPayload,
 } from '@sofar/schema'
+import { byCodeUnit } from './order'
 
 /**
  * Fold/replay: events.jsonl → InitiativeState (SPEC §State).
@@ -72,6 +79,31 @@ export interface TaskState {
    * of a full-replace plan it survives only as long as the plan restates it.
    */
   route?: TaskRoute
+  /** The acceptance command (r1-fixes 3.1, D19), carried through from the plan like `route`. */
+  verify?: TaskVerify
+  /**
+   * The latest verification the driver recorded for this task (D19). A pass
+   * counts only while `checked` names the current tree and `command` is the
+   * one that would run now — the driver re-fingerprints before trusting it.
+   */
+  verification?: TaskVerification
+}
+
+/** One `verification_recorded`, as the task and the run keep it (D19). */
+export interface TaskVerification {
+  run: string
+  attempt: number
+  ts: string
+  command: string
+  cwd: string
+  checked: { head: string; tree: string }
+  validator: string
+  result: VerificationResult
+  exit_code?: number
+  signal?: string
+  duration_ms: number
+  timeout_ms: number
+  diagnostics?: string
 }
 
 export interface PhaseState {
@@ -98,11 +130,24 @@ export interface DecisionState {
    * one. Render contract: verbatim, never clipped, never aged out.
    */
   rule?: string
+  /** The operator's exact words the rule came from (memory-lead 1.2, D2); only alongside `rule`. */
+  quote?: string
   /**
    * The mechanical half of that clause (drift-hardening D3) — a `path:`/`cmd:`
    * glob list. Present only alongside `rule`, by payload validation.
    */
   guard?: string
+  /** `D<n>` of the earlier decision this one replaces, as recorded (r1-fixes 3.2, D25). */
+  supersedes?: string
+  /** Task id this decision is in force until, as recorded (D25); never present with `rule`. */
+  until?: string
+  /**
+   * Ordinal of the decision that replaced this one (D25) — set by the fold
+   * when a later decision's `supersedes` resolves here and is permitted (a
+   * rule is replaced only by a rule). Retirement by `until` is NOT stored: it
+   * depends on the task's final status, so core/retire.ts derives it.
+   */
+  superseded_by?: number
 }
 
 /** One performed review (commit-attribution 4.4). */
@@ -147,6 +192,10 @@ export interface MemoryState {
   id: string
   ts: string
   text: string
+  /** Qualified handle of the memory this one replaces (r1-fixes D8). */
+  supersedes?: string
+  /** Qualified handle of the later memory IN THIS RECORD that replaced this one. */
+  superseded_by?: string
 }
 
 /**
@@ -179,7 +228,7 @@ export interface SessionState {
    * 1.2): which run, and why the driver moved on. Absent for every session a
    * human started by hand.
    */
-  handoff?: { run: string; reason: HandoffReason; ts: string }
+  handoff?: { run: string; reason: HandoffReason; ts: string; detail?: string }
   /**
    * Drift THIS session owes (drift-signal 1.1): mutation-class events carrying
    * its id, appended after its OWN last write-back. Same window and same kinds
@@ -209,6 +258,8 @@ export interface RunHandoff {
   reason: HandoffReason
   task?: string
   tokens?: number
+  /** How the process ended, on stalls and unclean exits (r1-fixes D9). */
+  detail?: string
 }
 
 /**
@@ -234,8 +285,19 @@ export interface RunState {
    * under another is two runs wearing one id.
    */
   surface?: RunSurface
+  /** The run's default acceptance command (D19), when `--verify` stated one. */
+  verify?: string
   /** Log order. */
   handoffs: RunHandoff[]
+  /** Every verification this run recorded, log order (D19). */
+  verifications: { ts: string; task: string; attempt: number; result: VerificationResult }[]
+  /**
+   * Tasks that reached `done` while this run was open, log order, deduplicated
+   * (D19). What a resumed driver checks for a missing verification: a crash
+   * between the agent's done and the driver's check leaves the task here with
+   * no pass, so the resume verifies before it moves on.
+   */
+  done_tasks: string[]
   /**
    * When `sofar drive --stop` asked this run's driver to end it (in-session-drive
    * D2), log order. Envelope timestamps, because a driver honours only the
@@ -362,15 +424,24 @@ export function sessionDebt(state: InitiativeState, session: SessionState): numb
  * Standing constraints (drift-hardening D1): every decision carrying a
  * `rule`, with its 1-based ordinal in log order — the D<n> handle the
  * citation grammar resolves. The single selector behind the digest section,
- * the full-status section, and the update_task point-of-use reminder, so no
- * surface can disagree with another about what the law says.
+ * the full-status section, and the review packet, so no surface can disagree
+ * with another about what the law says.
+ *
+ * A rule replaced by a later rule (`superseded_by`, r1-fixes 3.2, D25) is
+ * not law any more and is skipped while `retire` holds — the default; the
+ * digest passes `SOFAR_RETIRE`'s value so round 3's ablation arm renders
+ * every rule as before. Rules never age out any other way: `until` is
+ * rejected on them, and a rule-less superseder leaves them standing.
  */
 export function standingRules(
   decisions: readonly DecisionState[],
-): Array<{ ordinal: number; rule: string }> {
-  const rules: Array<{ ordinal: number; rule: string }> = []
+  retire = true,
+): Array<{ ordinal: number; rule: string; quote?: string }> {
+  const rules: Array<{ ordinal: number; rule: string; quote?: string }> = []
   decisions.forEach((d, i) => {
-    if (d.rule !== undefined) rules.push({ ordinal: i + 1, rule: d.rule })
+    if (d.rule === undefined) return
+    if (retire && d.superseded_by !== undefined) return
+    rules.push({ ordinal: i + 1, rule: d.rule, ...(d.quote !== undefined ? { quote: d.quote } : {}) })
   })
   return rules
 }
@@ -489,6 +560,13 @@ export interface InitiativeState {
    * file_touched attributes to EVERY task active at that point in the log.
    */
   task_files: Record<string, string[]>
+  /**
+   * Latest test outcome per task (r1-fixes 2.5, D24): task id → the newest
+   * test-shaped command_run with a KNOWN `ok` while the task was ACTIVE, the
+   * window task_files uses. OPTIONAL and present only when non-empty, so a
+   * record without outcome fields folds to byte-identical state (D21).
+   */
+  task_tests?: Record<string, TaskTestOutcome>
   /**
    * Task id → the reason given when it was dropped (task-drop-state D3).
    * A drop is the one way a task closes without being delivered, so the
@@ -697,97 +775,177 @@ export function decodeLines(lines: readonly string[]): DecodedLog {
   return { parsed, voided, warnings }
 }
 
-export function foldLines(lines: readonly string[], slug = ''): FoldResult {
-  const { parsed, voided, warnings } = decodeLines(lines)
+/**
+ * A replay in progress (r1-fixes 2.7, D17): the state as the loop left it
+ * plus every side table the loop carries, NOT yet finalized. Kept by the
+ * caller so the next appended event can be applied without replaying the
+ * log — a hook that appends once used to fold twice (handler, then
+ * regenerateProjections), and on an 11 MB log each fold is ~79 ms of which
+ * ~41 is this replay. Finalizing never touches it: `finalizeFold` derives on
+ * a CLONE, so a checkpoint can be finalized any number of times and each
+ * result is what a fresh fold of the same lines would return.
+ */
+export interface FoldCheckpoint {
+  slug: string
+  /** Un-finalized: no task_files, no session activity, no derived `current`. */
+  state: InitiativeState
+  warnings: string[]
+  voided: Set<string>
+  blockNotes: Map<string, string>
+  edges: GraphEdge[]
+  seenSessions: Set<string>
+  orphanCandidates: OrphanTaskEvent[]
+  guardCache: Map<string, CompiledGuard | null>
+  guardSeen: Set<string>
+  /** Greatest event id replayed so far — an append must not precede it. */
+  lastId: string
+  /** Lines of the log consumed, so an appended line gets the number a fresh read would give it. */
+  lineCount: number
+}
 
-  // Pass 2 — replay in id order.
-  const state = emptyState()
-  const blockNotes = new Map<string, string>() // task id → note from its blocking event
-  const edges: GraphEdge[] = [] // per-log adjacency, emitted as this replay goes (4.1/4.2)
-  const seenSessions = new Set<string>() // every session id on any event (record-integrity 2.1)
-  const orphanCandidates: OrphanTaskEvent[] = [] // task 12.2: replay-time skips, filtered against the final plan below
-  const guardCache = new Map<string, CompiledGuard | null>() // spec → compiled, once per fold (D3)
-  const guardSeen = new Set<string>() // decision + session + subject — one crossing, one violation
+/** The line count a fresh `split('\n')` implies: a trailing empty element is the final newline, not a line. */
+export function countLines(lines: readonly string[]): number {
+  return lines.length > 0 && lines[lines.length - 1] === '' ? lines.length - 1 : lines.length
+}
 
-  for (const { lineNo, event } of parsed) {
-    // Cursor tracks the last envelope-valid event: sync (export/import)
-    // moves events by envelope, regardless of payload validity.
-    state.cursor = event.id
+/** Pass 2 — replay in id order, retaining the accumulator. */
+export function replayDecoded(decoded: DecodedLog, slug = '', lineCount = 0): FoldCheckpoint {
+  const cp: FoldCheckpoint = {
+    slug,
+    state: emptyState(),
+    warnings: decoded.warnings,
+    voided: decoded.voided,
+    blockNotes: new Map<string, string>(), // task id → note from its blocking event
+    edges: [], // per-log adjacency, emitted as this replay goes (4.1/4.2)
+    seenSessions: new Set<string>(), // every session id on any event (record-integrity 2.1)
+    orphanCandidates: [], // task 12.2: replay-time skips, filtered against the final plan at finalize
+    guardCache: new Map<string, CompiledGuard | null>(), // spec → compiled, once per fold (D3)
+    guardSeen: new Set<string>(), // decision + session + subject — one crossing, one violation
+    lastId: '',
+    lineCount,
+  }
+  for (const line of decoded.parsed) replayOne(cp, line)
+  return cp
+}
 
-    if (voided.has(event.id)) continue
+/** One event through the loop body — the single definition both the replay and the append use. */
+function replayOne(cp: FoldCheckpoint, { lineNo, event }: ParsedLine): void {
+  const state = cp.state
+  if (event.id > cp.lastId) cp.lastId = event.id
+  // Cursor tracks the last envelope-valid event: sync (export/import)
+  // moves events by envelope, regardless of payload validity.
+  state.cursor = event.id
 
-    if (!isKnownEventType(event.type)) {
-      warnings.push(`line ${lineNo}: unknown event type "${event.type}" — skipped`)
-      continue
-    }
+  if (cp.voided.has(event.id)) return
 
-    // Forward compat (D2): a plan_updated from a newer engine may carry a
-    // status this build cannot read. Coerce those tasks rather than let one
-    // of them reject the whole plan — see coerceUnknownPlanStatuses.
-    if (event.type === 'plan_updated') {
-      for (const c of coerceUnknownPlanStatuses(event.payload)) {
-        warnings.push(
-          `line ${lineNo}: ${c.path} ("${c.subject}") has status "${c.status}", which this ` +
-            `build does not know — counted as pending; upgrade sofar to read it correctly`,
-        )
-      }
-    }
+  if (!isKnownEventType(event.type)) {
+    cp.warnings.push(`line ${lineNo}: unknown event type "${event.type}" — skipped`)
+    return
+  }
 
-    const payloadCheck = validatePayload(event.type, event.payload)
-    if (!payloadCheck.ok) {
-      warnings.push(`line ${lineNo}: invalid ${event.type} payload (${payloadCheck.errors.join('; ')}) — skipped`)
-      continue
-    }
-
-    if (event.session !== 'cli') seenSessions.add(event.session)
-    // The omitted half of the coercion above (plan-carry-forward D1). Runs
-    // BEFORE applyEvent because it needs the plan as it stands, which the
-    // full replace is about to overwrite.
-    if (event.type === 'plan_updated') {
-      for (const d of droppedResolvedStatuses(state, event.payload as unknown as PlanUpdatedPayload)) {
-        warnings.push(
-          `line ${lineNo}: ${d.path} ("${d.subject}") was ${d.was} and this plan omits its ` +
-            `status — counted as pending; restate a status to keep it`,
-        )
-      }
-    }
-    applyEvent(state, event, blockNotes, warnings, lineNo)
-    // Adjacency is emitted AFTER applyEvent, against the plan as it now
-    // stands: a task_status_changed that activates a task takes effect for
-    // the file_touched events that follow it, exactly as the pre-consolidation
-    // recordTaskFiles did (it read the same mutated state.phases).
-    edges.push(...edgesForEvent(event, slug, activeTaskIds(state)))
-    recordFreshness(state, event)
-    // Guards run AFTER applyEvent for the same reason adjacency does: the
-    // decisions in state are exactly those already logged, so a guard can
-    // only ever see the work that followed it (D3, non-retroactive).
-    recordGuardViolations(state, event, guardCache, guardSeen)
-
-    // Orphan candidate (task 12.2): a task_status_changed that applyEvent
-    // just skipped — the id is not (yet) in the plan.
-    if (event.type === 'task_status_changed') {
-      const p = event.payload as unknown as TaskStatusChangedPayload
-      if (findTask(state, p.id) === undefined) {
-        orphanCandidates.push({
-          event_id: event.id,
-          ts: event.ts,
-          session: event.session,
-          task_id: p.id,
-          status: p.status,
-        })
-      }
+  // Forward compat (D2): a plan_updated from a newer engine may carry a
+  // status this build cannot read. Coerce those tasks rather than let one
+  // of them reject the whole plan — see coerceUnknownPlanStatuses.
+  if (event.type === 'plan_updated') {
+    for (const c of coerceUnknownPlanStatuses(event.payload)) {
+      cp.warnings.push(
+        `line ${lineNo}: ${c.path} ("${c.subject}") has status "${c.status}", which this ` +
+          `build does not know — counted as pending; upgrade sofar to read it correctly`,
+      )
     }
   }
 
+  const payloadCheck = validatePayload(event.type, event.payload)
+  if (!payloadCheck.ok) {
+    cp.warnings.push(`line ${lineNo}: invalid ${event.type} payload (${payloadCheck.errors.join('; ')}) — skipped`)
+    return
+  }
+
+  if (event.session !== 'cli') cp.seenSessions.add(event.session)
+  // The omitted half of the coercion above (plan-carry-forward D1). Runs
+  // BEFORE applyEvent because it needs the plan as it stands, which the
+  // full replace is about to overwrite.
+  if (event.type === 'plan_updated') {
+    for (const d of droppedResolvedStatuses(state, event.payload as unknown as PlanUpdatedPayload)) {
+      cp.warnings.push(
+        `line ${lineNo}: ${d.path} ("${d.subject}") was ${d.was} and this plan omits its ` +
+          `status — counted as pending; restate a status to keep it`,
+      )
+    }
+  }
+  applyEvent(state, event, cp.blockNotes, cp.warnings, lineNo)
+  // Adjacency is emitted AFTER applyEvent, against the plan as it now
+  // stands: a task_status_changed that activates a task takes effect for
+  // the file_touched events that follow it, exactly as the pre-consolidation
+  // recordTaskFiles did (it read the same mutated state.phases).
+  cp.edges.push(...edgesForEvent(event, cp.slug, activeTaskIds(state)))
+  recordFreshness(state, event)
+  // Guards run AFTER applyEvent for the same reason adjacency does: the
+  // decisions in state are exactly those already logged, so a guard can
+  // only ever see the work that followed it (D3, non-retroactive).
+  recordGuardViolations(state, event, cp.guardCache, cp.guardSeen)
+
+  // Orphan candidate (task 12.2): a task_status_changed that applyEvent
+  // just skipped — the id is not (yet) in the plan.
+  if (event.type === 'task_status_changed') {
+    const p = event.payload as unknown as TaskStatusChangedPayload
+    if (findTask(state, p.id) === undefined) {
+      cp.orphanCandidates.push({
+        event_id: event.id,
+        ts: event.ts,
+        session: event.session,
+        task_id: p.id,
+        status: p.status,
+      })
+    }
+  }
+
+}
+
+/**
+ * Apply ONE line appended after the checkpoint's log, exactly as a fresh
+ * fold of log + line would — or return null when that cannot be proven
+ * cheaply, and the caller refolds: a line the decoder rejects (its warning
+ * would need the fresh numbering), a correction (it voids an event already
+ * replayed), or an id below the last replayed one (the convergent sort would
+ * place it earlier). Mutates and returns the checkpoint; a null leaves it
+ * unusable, since the log has moved past it.
+ */
+export function appendToCheckpoint(cp: FoldCheckpoint, line: string): FoldCheckpoint | null {
+  const decoded = decodeLines([line])
+  if (decoded.warnings.length > 0 || decoded.parsed.length !== 1) return null
+  const parsed = decoded.parsed[0]!
+  if (parsed.event.type === 'correction') return null
+  if (parsed.event.id < cp.lastId) return null
+  cp.lineCount += 1
+  replayOne(cp, { lineNo: cp.lineCount, event: parsed.event })
+  return cp
+}
+
+/**
+ * The post-loop passes, on a clone: task_files and activity from the edges,
+ * the derived `current`, the orphan filter against the final plan, the
+ * unregistered-session list. The checkpoint is left exactly as it was.
+ */
+export function finalizeFold(cp: FoldCheckpoint): FoldResult {
+  const state = structuredClone(cp.state)
+  const warnings = cp.warnings.slice()
+  const edges = cp.edges.slice()
   state.task_files = taskFilesFromEdges(edges)
+  const tests = taskTestsFromEdges(edges)
+  if (Object.keys(tests).length > 0) state.task_tests = tests
   attachActivity(state, activityFromEdges(edges))
-  deriveCurrent(state, blockNotes)
+  deriveCurrent(state, cp.blockNotes)
   // Keep only ids the FINAL plan never absorbed (a later task_added /
   // plan_updated clears the candidate — that skip was ordering, not misroute).
-  const orphans = orphanCandidates.filter((c) => findTask(state, c.task_id) === undefined)
+  const orphans = cp.orphanCandidates.filter((c) => findTask(state, c.task_id) === undefined)
   const registered = new Set(state.sessions.map((s) => s.id))
-  const unregistered = [...seenSessions].filter((id) => !registered.has(id)).sort()
+  const unregistered = [...cp.seenSessions].filter((id) => !registered.has(id)).sort()
   return { state, warnings, orphan_task_events: orphans, edges, unregistered_sessions: unregistered }
+}
+
+export function foldLines(lines: readonly string[], slug = ''): FoldResult {
+  return finalizeFold(replayDecoded(decodeLines(lines), slug, countLines(lines)))
 }
 
 /** Task ids ACTIVE right now — the attribution window `worked` edges use. */
@@ -815,6 +973,36 @@ function attachActivity(state: InitiativeState, derived: Map<string, SessionActi
 }
 
 // ---------------------------------------------------------------------------
+// Session lookup during the replay (r1-fixes D18).
+// ---------------------------------------------------------------------------
+
+const sessionIndexes = new WeakMap<SessionState[], { indexed: number; byId: Map<string, SessionState> }>()
+
+/**
+ * What `sessions.find((s) => s.id === id)` answers, in O(1). recordFreshness
+ * asks once per event, so the scan made the fold O(events × sessions): +30–36
+ * ms on every hook at 1,485 sessions, the rc.2 D18 failure on i1000-10mb.
+ *
+ * Exact because a fold only ever PUSHES to state.sessions and ids are unique
+ * in it (session_started refuses a repeat; session_ended stubs only a miss),
+ * so indexing the array's new tail on each call sees every session `find`
+ * would. First occurrence wins all the same, as `find` does. Keyed by the
+ * array itself, so a state restored from a checkpoint indexes afresh.
+ */
+function sessionById(sessions: SessionState[], id: string): SessionState | undefined {
+  let index = sessionIndexes.get(sessions)
+  if (index === undefined) {
+    index = { indexed: 0, byId: new Map() }
+    sessionIndexes.set(sessions, index)
+  }
+  for (; index.indexed < sessions.length; index.indexed++) {
+    const session = sessions[index.indexed]!
+    if (!index.byId.has(session.id)) index.byId.set(session.id, session)
+  }
+  return index.byId.get(id)
+}
+
+// ---------------------------------------------------------------------------
 // Fold-time freshness (staleness-detection 1.1).
 // ---------------------------------------------------------------------------
 
@@ -835,7 +1023,7 @@ function attachActivity(state: InitiativeState, derived: Map<string, SessionActi
  */
 function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
   const counts = state.freshness.events_since_writeback
-  const own = state.sessions.find((s) => s.id === event.session)
+  const own = sessionById(state.sessions, event.session)
   /** Count one mutation for the initiative and for whoever must write it back. */
   const mutation = (bump: () => void): void => {
     bump()
@@ -850,7 +1038,7 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
       // tool takes session_id explicitly), and it is the NAMED session whose
       // debt it settles — resolved exactly as applyEvent resolves it.
       const p = event.payload as unknown as SessionEndedPayload
-      const ended = state.sessions.find((s) => s.id === (p.session_id ?? event.session))
+      const ended = sessionById(state.sessions, p.session_id ?? event.session)
       if (ended !== undefined) ended.unwritten = 0
       break
     }
@@ -865,6 +1053,7 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
     case 'handoff':
     case 'run_stopped':
     case 'run_stop_requested':
+    case 'verification_recorded':
       // Driver events are EXCLUDED from drift, deliberately (commit-attribution
       // D18 requires the class decided here). Drift asks whether the recorded
       // next_action is now wrong; these say how sessions were scheduled, never
@@ -1061,7 +1250,7 @@ export function openSessionFileConflicts(
   for (const [path, sessions] of byFile) {
     if (sessions.length >= 2) conflicts.push({ path, sessions })
   }
-  conflicts.sort((a, b) => a.path.localeCompare(b.path))
+  conflicts.sort((a, b) => byCodeUnit(a.path, b.path))
   return conflicts
 }
 
@@ -1281,6 +1470,7 @@ function applyEvent(
           title: task.title,
           status: task.status ?? 'pending',
           ...(task.route !== undefined ? { route: task.route } : {}),
+          ...(task.verify !== undefined ? { verify: task.verify } : {}),
         })),
       }))
       break
@@ -1300,7 +1490,12 @@ function applyEvent(
         break
       }
       const phase = findOrCreatePhase(state, p.phase, warnings, lineNo)
-      phase.tasks.push({ id: p.id, title: p.title, status: p.status ?? 'pending' })
+      phase.tasks.push({
+        id: p.id,
+        title: p.title,
+        status: p.status ?? 'pending',
+        ...(p.verify !== undefined ? { verify: p.verify } : {}),
+      })
       break
     }
     case 'task_status_changed': {
@@ -1311,6 +1506,13 @@ function applyEvent(
         break
       }
       task.status = p.status
+      // A task done while a run is open is one that run must have verified
+      // before accepting (D19); kept on the run so a resumed driver can see a
+      // done task whose check never landed.
+      if (p.status === 'done') {
+        const open = state.runs.find((r) => r.stopped === undefined)
+        if (open !== undefined && !open.done_tasks.includes(p.id)) open.done_tasks.push(p.id)
+      }
       if (p.status === 'blocked' && p.note) {
         blockNotes.set(p.id, p.note)
       } else if (p.status !== 'blocked') {
@@ -1335,13 +1537,49 @@ function applyEvent(
         because: p.because,
         // Absent stays absent — a missing rule must not serialize as a key.
         ...(p.rule !== undefined ? { rule: p.rule } : {}),
+        ...(p.quote !== undefined ? { quote: p.quote } : {}),
         ...(p.guard !== undefined ? { guard: p.guard } : {}),
+        ...(p.supersedes !== undefined ? { supersedes: p.supersedes } : {}),
+        ...(p.until !== undefined ? { until: p.until } : {}),
       })
+      // Supersession (r1-fixes 3.2, D25): resolve `D<n>` against the
+      // decisions already folded — the log alone, no clock, no env. Inert
+      // when it points forward or at itself (nothing to retire yet; a
+      // decision cannot retire the future), or when a rule-less decision
+      // names a rule: a standing constraint is replaced only by a new
+      // constraint, never dropped by a plain choice. Ordinals are 1-based in
+      // id order, which is what the fold applies in, so the same log folds
+      // to the same marks whatever order the lines arrived.
+      if (p.supersedes !== undefined) {
+        const m = DECISION_HANDLE_RE.exec(p.supersedes)
+        const n = m === null ? NaN : Number(m[1])
+        const ordinal = state.decisions.length
+        const target = Number.isInteger(n) && n < ordinal ? state.decisions[n - 1] : undefined
+        if (target !== undefined && (target.rule === undefined || p.rule !== undefined)) {
+          target.superseded_by = ordinal
+        }
+      }
       break
     }
     case 'memory_promoted': {
       const p = event.payload as unknown as MemoryPromotedPayload
-      state.memories.push({ id: event.id, ts: event.ts, text: p.text })
+      state.memories.push({
+        id: event.id,
+        ts: event.ts,
+        text: p.text,
+        ...(p.supersedes !== undefined ? { supersedes: p.supersedes } : {}),
+      })
+      // Retire the replaced memory when it lives in this record: ordinals are
+      // log order, so `M<n>` with n at or below the count already promoted is
+      // resolvable here and now. A handle in another record is left to the
+      // cross-record readers (doctor folds every log).
+      if (p.supersedes !== undefined) {
+        const m = /^([a-z0-9-]+) M([1-9][0-9]*)$/.exec(p.supersedes)
+        const n = m === null ? 0 : Number.parseInt(m[2]!, 10)
+        if (m !== null && m[1] === event.initiative && n < state.memories.length) {
+          state.memories[n - 1]!.superseded_by = `${event.initiative} M${state.memories.length}`
+        }
+      }
       break
     }
     case 'judgement_recorded':
@@ -1377,9 +1615,44 @@ function applyEvent(
         ...(p.context_window !== undefined ? { context_window: p.context_window } : {}),
         ...(p.max_sessions !== undefined ? { max_sessions: p.max_sessions } : {}),
         ...(p.surface !== undefined ? { surface: p.surface } : {}),
+        ...(p.verify !== undefined ? { verify: p.verify } : {}),
         handoffs: [],
+        verifications: [],
+        done_tasks: [],
         stop_requests: [],
       })
+      break
+    }
+    case 'verification_recorded': {
+      // Same rule as a handoff: the driver that records a verification minted
+      // its run first, so one with no run is a misroute and gets no stub.
+      const p = event.payload as unknown as VerificationRecordedPayload
+      const run = state.runs.find((r) => r.id === p.run)
+      if (!run) {
+        warnings.push(`line ${lineNo}: verification for run "${p.run}" that never started — skipped`)
+        break
+      }
+      run.verifications.push({ ts: event.ts, task: p.task, attempt: p.attempt, result: p.result })
+      const task = findTask(state, p.task)
+      if (!task) {
+        warnings.push(`line ${lineNo}: verification for task "${p.task}" not in the plan — kept on the run only`)
+        break
+      }
+      task.verification = {
+        run: p.run,
+        attempt: p.attempt,
+        ts: event.ts,
+        command: p.command,
+        cwd: p.cwd,
+        checked: { head: p.checked.head, tree: p.checked.tree },
+        validator: p.validator,
+        result: p.result,
+        ...(p.exit_code !== undefined ? { exit_code: p.exit_code } : {}),
+        ...(p.signal !== undefined ? { signal: p.signal } : {}),
+        duration_ms: p.duration_ms,
+        timeout_ms: p.timeout_ms,
+        ...(p.diagnostics !== undefined ? { diagnostics: p.diagnostics } : {}),
+      }
       break
     }
     case 'handoff': {
@@ -1398,12 +1671,20 @@ function applyEvent(
         reason: p.reason,
         ...(p.task !== undefined ? { task: p.task } : {}),
         ...(p.tokens !== undefined ? { tokens: p.tokens } : {}),
+        ...(p.detail !== undefined ? { detail: p.detail } : {}),
       })
       // The session's side of the same fact, attached to REGISTERED sessions
       // only (the attachActivity rule). The run keeps the handoff either way:
       // it is the run's history, whoever the session turns out to be.
-      const session = state.sessions.find((s) => s.id === p.session_id)
-      if (session !== undefined) session.handoff = { run: p.run, reason: p.reason, ts: event.ts }
+      const session = sessionById(state.sessions, p.session_id)
+      if (session !== undefined) {
+        session.handoff = {
+          run: p.run,
+          reason: p.reason,
+          ts: event.ts,
+          ...(p.detail !== undefined ? { detail: p.detail } : {}),
+        }
+      }
       break
     }
     case 'run_stopped': {
@@ -1440,7 +1721,7 @@ function applyEvent(
     }
     case 'session_started': {
       const p = event.payload as unknown as SessionStartedPayload
-      if (state.sessions.some((s) => s.id === event.session)) {
+      if (sessionById(state.sessions, event.session) !== undefined) {
         warnings.push(`line ${lineNo}: session "${event.session}" already started — skipped`)
         break
       }
@@ -1457,7 +1738,7 @@ function applyEvent(
     case 'session_ended': {
       const p = event.payload as unknown as SessionEndedPayload
       const sid = p.session_id ?? event.session
-      let session = state.sessions.find((s) => s.id === sid)
+      let session = sessionById(state.sessions, sid)
       if (!session) {
         warnings.push(`line ${lineNo}: session "${sid}" ended without session_started — stub created`)
         session = { id: sid, tool: 'unknown', started: event.ts, unwritten: 0 }
@@ -1476,7 +1757,7 @@ function applyEvent(
       // write-back), and never creates stub sessions (a close marker for an
       // unregistered session carries no information).
       const p = event.payload as unknown as SessionClosedPayload
-      const session = state.sessions.find((s) => s.id === event.session)
+      const session = sessionById(state.sessions, event.session)
       if (!session) {
         warnings.push(
           `line ${lineNo}: session "${event.session}" closed without session_started — skipped`,

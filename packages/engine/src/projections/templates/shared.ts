@@ -5,6 +5,9 @@ import {
   type RunState,
   type SessionActivity,
 } from '../../core/fold'
+import type { TestOutcome } from '../../core/adjacency'
+import { lexicalCounts } from '../../core/lexicon'
+import { renderRule } from '../../core/rule-fidelity'
 
 /**
  * Shared template pieces. Projections are generated files — the header
@@ -29,8 +32,10 @@ export function describeActivity(activity: SessionActivity): string {
     parts.push(`${count} file${count === 1 ? '' : 's'} (${activity.files.join(', ')})`)
   }
   if (activity.commands > 0) {
-    parts.push(`${activity.commands} command${activity.commands === 1 ? '' : 's'}`)
+    const failed = activity.failed !== undefined && activity.failed > 0 ? ` (${activity.failed} failed)` : ''
+    parts.push(`${activity.commands} command${activity.commands === 1 ? '' : 's'}${failed}`)
   }
+  if (activity.last_test !== undefined) parts.push(`tests ${activity.last_test.ok ? 'pass' : 'fail'}`)
   if (activity.task_changes.length > 0) {
     parts.push(`task changes: ${activity.task_changes.join(', ')}`)
   }
@@ -53,7 +58,12 @@ export function describeRun(run: RunState): string {
   for (const h of run.handoffs) byReason.set(h.reason, (byReason.get(h.reason) ?? 0) + 1)
   const breakdown = [...byReason].map(([reason, n]) => `${n} ${reason}`).join(', ')
   const n = run.handoffs.length
-  const handoffs = `${n} handoff${n === 1 ? '' : 's'}${breakdown.length > 0 ? ` (${breakdown})` : ''}`
+  // Verifications (r1-fixes 3.1, D19), only when the run recorded any, so an
+  // unverified run's line is byte-identical to before the gate existed.
+  const passes = run.verifications.filter((v) => v.result === 'pass').length
+  const checks =
+    run.verifications.length > 0 ? `, ${passes}/${run.verifications.length} verification${run.verifications.length === 1 ? '' : 's'} passed` : ''
+  const handoffs = `${n} handoff${n === 1 ? '' : 's'}${breakdown.length > 0 ? ` (${breakdown})` : ''}${checks}`
   const fate =
     run.stop_reason !== undefined
       ? `stopped: ${run.stop_reason}${run.stop_note !== undefined ? ` — ${run.stop_note}` : ''}`
@@ -101,19 +111,30 @@ export function describeFreshness(counts: FreshnessState['events_since_writeback
  * Budget semantics: whole entries drop with a count pointer; the first entry
  * always renders whole (a budget that could silence every rule would be a
  * clip by other means). Whitespace is collapsed to keep the list shape — that
- * is normalization, not clipping.
+ * is normalization, not clipping. `retire` (r1-fixes 3.2, D25) is
+ * `SOFAR_RETIRE`'s value: false renders rules a later rule replaced.
  */
 export function standingConstraintLines(
   decisions: readonly DecisionState[],
   budget?: number,
+  retire = true,
+  focus?: ReadonlySet<string>,
 ): string[] {
-  const standing = standingRules(decisions)
+  // The digest passes a focus (memory-lead D4): most relevant first, so the
+  // budget drops the least relevant rules instead of the newest.
+  const inOrder = standingRules(decisions, retire)
+  const standing = focus === undefined ? inOrder : rankByRelevance(inOrder, focus, (d) => `${d.rule} ${d.quote ?? ''}`)
   if (standing.length === 0) return []
-  const lines = [`Standing constraints — obey verbatim (${standing.length}):`]
+  // A quoted rule has a source that outranks its wording (memory-lead D2);
+  // the header says so only when one exists, so quote-less records render
+  // byte-identically to before.
+  const quoted = standing.some((d) => d.quote !== undefined)
+  const law = quoted ? 'obey verbatim; where a rule quotes the operator, the quote decides' : 'obey verbatim'
+  const lines = [`Standing constraints — ${law} (${standing.length}):`]
   let used = 0
   let shown = 0
   for (const d of standing) {
-    const line = `- [D${d.ordinal}] ${d.rule.replace(/\s+/g, ' ').trim()}`
+    const line = `- [D${d.ordinal}] ${renderRule(d.rule, d.quote)}`
     if (budget !== undefined && shown > 0 && used + line.length + 1 > budget) break
     lines.push(line)
     used += line.length + 1
@@ -123,6 +144,23 @@ export function standingConstraintLines(
     lines.push(`- …and ${standing.length - shown} more (see decisions.md)`)
   }
   return lines
+}
+
+/**
+ * Stable relevance order (D4): distinct lexicon terms shared with the focus,
+ * most first; ties newest (highest ordinal) first — so with no focus the
+ * newest lead, and a budget drops the oldest rather than the newest.
+ */
+export function rankByRelevance<T extends { ordinal: number }>(items: readonly T[], focus: ReadonlySet<string>, text: (item: T) => string): T[] {
+  return items
+    .map((item) => ({ item, score: relevanceScore(text(item), focus) }))
+    .sort((a, b) => b.score - a.score || b.item.ordinal - a.item.ordinal)
+    .map((x) => x.item)
+}
+
+/** Distinct lexicon terms (core/lexicon stems) `text` shares with `focus`. */
+export function relevanceScore(text: string, focus: ReadonlySet<string>): number {
+  return Object.keys(lexicalCounts(text)).filter((t) => focus.has(t)).length
 }
 
 /** Join non-empty template sections into a document with a trailing newline. */
@@ -245,4 +283,14 @@ export function pct(done: number, total: number, dropped = 0): string {
   const resolved = done + dropped
   const raw = Math.floor((resolved / total) * 100)
   return `${resolved === total ? 100 : Math.min(raw, 99)}%`
+}
+
+/**
+ * One test outcome as a surface line (r1-fixes 2.5, D24): `pass — npm test`,
+ * `fail (exit 1) — npm test`. The exit code is shown only on a failure —
+ * on a pass it is 0 or unknown, and neither adds a fact.
+ */
+export function testOutcomeLine(test: TestOutcome): string {
+  const exit = !test.ok && test.exit !== undefined ? ` (exit ${test.exit})` : ''
+  return `${test.ok ? 'pass' : 'fail'}${exit} — ${test.cmd}`
 }

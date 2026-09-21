@@ -1,4 +1,5 @@
-import type { DecisionState, InitiativeState, PhaseState } from '../../core/fold'
+import { standingRules, type DecisionState, type InitiativeState, type PhaseState } from '../../core/fold'
+import { renderRule } from '../../core/rule-fidelity'
 import { doc } from './shared'
 
 /**
@@ -69,11 +70,14 @@ export interface ReviewPacketInput {
  * to check conformance against it would defeat the packet entirely.
  */
 function constraintLines(decisions: readonly DecisionState[]): string[] {
-  const standing = decisions
-    .map((decision, i) => ({ decision, handle: `D${i + 1}` }))
-    .filter((entry) => entry.decision.rule !== undefined)
+  // In force only (r1-fixes 3.2, D25): a rule a later rule replaced is not
+  // law, and a packet that demanded conformance to it would fail the work
+  // for obeying the record. The rejected list below stays complete.
+  const standing = standingRules(decisions)
   if (standing.length === 0) return ['- (none)']
-  return standing.map((entry) => `- [${entry.handle}] ${entry.decision.rule!}`)
+  // The operator's words ride beside the rule (memory-lead D2): conformance
+  // is checked against what was said, and the packet names what the rule adds.
+  return standing.map((entry) => `- [D${entry.ordinal}] ${entry.quote === undefined ? entry.rule : renderRule(entry.rule, entry.quote)}`)
 }
 
 /**
@@ -244,10 +248,13 @@ export function renderReviewPacket(state: InitiativeState, input: ReviewPacketIn
     '## What to do',
     ...questions(scope),
     '',
-    'Record the verdict with `sofar_review` (or `sofar event append --type',
-    'review_recorded` if your host has no MCP). A review that can only',
-    'say "looks good" is a rubber stamp — if nothing is wrong, say so plainly,',
-    'but the verdict must be able to be "no".',
+    'Record the verdict (r1-fixes 2.4, D13 — CLI, no MCP tool):',
+    "  sofar event append --type review_recorded --payload - <<'EOF'",
+    `  {"scope": "${scope}", "verdict": "pass" | "findings" | "blocked",${scope === 'phase' ? ` "phase": ${JSON.stringify(phase?.name ?? '')},` : ''} "watermark": "<sha read through>", "findings": ["one actionable line each — required when verdict is findings"]}`,
+    '  EOF',
+    '`watermark` bounds the NEXT review\'s range; omit it only when the range was',
+    'empty. A review that can only say "looks good" is a rubber stamp — if',
+    'nothing is wrong, say so plainly, but the verdict must be able to be "no".',
     // The one field the packet used to demand without ever answering. Every
     // other sha here is a 12-char display abbreviation: recording one of those
     // under-advances the mark or stores a prefix that can go ambiguous, and an

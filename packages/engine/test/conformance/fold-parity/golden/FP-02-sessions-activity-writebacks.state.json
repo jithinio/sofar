@@ -1,0 +1,120 @@
+{
+  "state": {
+    "current": {
+      "active_phase": "Phase 1 — first",
+      "next_action": "B continues"
+    },
+    "cursor": "01KDVDNQNGNGF2S4KPXRQA1CVY",
+    "decisions": [],
+    "drop_notes": {},
+    "files_touched": [
+      "src/shared.ts",
+      "src/A.ts",
+      "src/B.ts"
+    ],
+    "freshness": {
+      "events_since_writeback": {
+        "commands": 1,
+        "decisions": 0,
+        "files": 0,
+        "memories": 0,
+        "notes": 0,
+        "phases": 0,
+        "reviews": 0,
+        "tasks": 0
+      },
+      "last_writeback_ts": "2026-01-01T00:00:12.000Z",
+      "notes": [],
+      "unattributed_mutations": 0
+    },
+    "goal": "a goal of realistic length for the parity suite",
+    "guard_violations": [],
+    "memories": [],
+    "phases": [
+      {
+        "name": "Phase 1 — first",
+        "status": "active",
+        "tasks": [
+          {
+            "id": "1.1",
+            "status": "active",
+            "title": "task 1"
+          },
+          {
+            "id": "1.2",
+            "status": "pending",
+            "title": "task 2"
+          }
+        ]
+      },
+      {
+        "name": "Phase 2 — second",
+        "status": "pending",
+        "tasks": [
+          {
+            "id": "2.1",
+            "route": {
+              "agent": "codex"
+            },
+            "status": "pending",
+            "title": "later",
+            "verify": {
+              "cmd": "npm test"
+            }
+          }
+        ]
+      }
+    ],
+    "reviews": [],
+    "runs": [],
+    "sessions": [
+      {
+        "activity": {
+          "commands": 1,
+          "files": [
+            "src/shared.ts",
+            "src/A.ts"
+          ],
+          "task_changes": []
+        },
+        "ended": "2026-01-01T00:00:12.000Z",
+        "id": "A",
+        "next_action": "B continues",
+        "started": "2026-01-01T00:00:03.000Z",
+        "summary": "A done",
+        "tool": "claude-code",
+        "unwritten": 0
+      },
+      {
+        "activity": {
+          "commands": 1,
+          "files": [
+            "src/shared.ts",
+            "src/B.ts"
+          ],
+          "task_changes": []
+        },
+        "closed_reason": "exit",
+        "ended": "2026-01-01T00:00:13.000Z",
+        "id": "B",
+        "started": "2026-01-01T00:00:07.000Z",
+        "tool": "codex",
+        "unwritten": 2
+      }
+    ],
+    "slug": "demo",
+    "status": "active",
+    "status_note": null,
+    "status_overrides": [],
+    "status_ts": null,
+    "successor": null,
+    "task_files": {
+      "1.1": [
+        "src/B.ts",
+        "src/shared.ts",
+        "src/A.ts"
+      ]
+    }
+  },
+  "warnings": []
+}

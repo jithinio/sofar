@@ -3,6 +3,7 @@ import { foldLog, openSessionFiles, type FileConflict, type InitiativeState } fr
 import type { Tier0Session } from './index-tier0'
 import { initiativeSlugs } from './listing'
 import { isWarm } from './warmth'
+import { byCodeUnit } from './order'
 
 /**
  * Concurrent-edit hazards ACROSS initiatives (cross-initiative-conflicts 2.1).
@@ -121,12 +122,12 @@ export function crossConflictsFromStates(
     if (initiatives.length < 2) continue
     holders.sort((a, b) =>
       a.initiative === b.initiative
-        ? a.session.localeCompare(b.session)
-        : a.initiative.localeCompare(b.initiative),
+        ? byCodeUnit(a.session, b.session)
+        : byCodeUnit(a.initiative, b.initiative),
     )
     conflicts.push({ path, holders, initiatives })
   }
-  conflicts.sort((a, b) => a.path.localeCompare(b.path))
+  conflicts.sort((a, b) => byCodeUnit(a.path, b.path))
   return conflicts
 }
 
@@ -202,12 +203,12 @@ export function crossConflictsFromOpenSessions(
     if (initiatives.length < 2) continue // same-initiative: openSessionFileConflicts already said so
     holders.sort((a, b) =>
       a.initiative === b.initiative
-        ? a.session.localeCompare(b.session)
-        : a.initiative.localeCompare(b.initiative),
+        ? byCodeUnit(a.session, b.session)
+        : byCodeUnit(a.initiative, b.initiative),
     )
     conflicts.push({ path, holders, initiatives })
   }
-  conflicts.sort((a, b) => a.path.localeCompare(b.path))
+  conflicts.sort((a, b) => byCodeUnit(a.path, b.path))
   return conflicts
 }
 

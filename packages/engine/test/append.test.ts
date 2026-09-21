@@ -225,9 +225,8 @@ describe('event append — failures exit 1 with typed-error JSON and ZERO append
     expectTypedFailure(boundRepo(), { type: 'note_added', payload: '[1,2]' }, 'invalid_input')
   })
 
-  it('unknown --source / --actor → invalid_input', () => {
+  it('unknown --actor → invalid_input (an unknown --source is accepted as `cli` — r1-fixes 1.3)', () => {
     const root = boundRepo()
-    expectTypedFailure(root, { type: 'note_added', payload: '{"text":"x"}', source: 'emacs' }, 'invalid_input')
     expectTypedFailure(root, { type: 'note_added', payload: '{"text":"x"}', actor: 'robot' }, 'invalid_input')
   })
 

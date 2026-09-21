@@ -1,0 +1,11 @@
+{
+  "tail_at": 4,
+  "seeds": [
+    19,
+    20,
+    21
+  ],
+  "refusal": "invalid_line",
+  "order_independence": true,
+  "note": "a torn line, an unknown type, a bad envelope, a blank line, an invalid payload: warnings keep file-order line numbers; the fast path refuses a tail holding a rejected line"
+}

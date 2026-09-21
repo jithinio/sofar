@@ -1,6 +1,5 @@
 import { existsSync } from 'node:fs'
 import { isClosedInitiativeStatus, type InitiativeStatus } from '@sofar/schema'
-import type { CloseInitiativeArgs } from '@sofar/schema/tool-inputs'
 import { unbindAll } from '../core/bindings'
 import { closeoutFindings } from '../core/closeout'
 import { ToolError, type AppendOptions, type ToolContext } from './context'
@@ -21,8 +20,10 @@ export interface CloseInitiativeResult {
 }
 
 /**
- * The two-step close, shared by the MCP tool and `sofar close` so they can
- * never drift on what closing means.
+ * The two-step close behind `sofar close` (and `sofar new --supersedes`) —
+ * one implementation so no surface can drift on what closing means. It was
+ * also the MCP tool sofar_close_initiative until r1-fixes 2.4 (D13) made
+ * closing CLI-first.
  *
  * Order is load-bearing: append FIRST, unbind second. The log is truth, so a
  * crash between the steps leaves a record correctly marked closed with a
@@ -39,7 +40,7 @@ export function applyClose(
   status: InitiativeStatus,
   note?: string,
   successor?: string,
-  /** Envelope identity for the append — the CLI passes cli/human (BD26); the MCP tool lets the session pin decide. */
+  /** Envelope identity for the append — the CLI passes cli/human (BD26). */
   meta?: AppendOptions,
 ): { event_id: string | null; unbound: string[]; overrides: string[] } {
   if (!isClosedInitiativeStatus(status)) {
@@ -83,18 +84,4 @@ export function applyClose(
     eventId = ctx.appendAndProject(slug, 'initiative_status_changed', payload, meta).id
   }
   return { event_id: eventId, unbound: unbindAll(ctx.bindingsPath, slug), overrides }
-}
-
-/**
- * sofar_close_initiative — resolution pins to the ACTIVE session's initiative
- * like every other write tool: an agent closing "the initiative I am working
- * in" must not have that mean "whatever the branch happens to say" mid-session.
- */
-export function closeInitiative(
-  ctx: ToolContext,
-  args: CloseInitiativeArgs,
-): CloseInitiativeResult {
-  const slug = ctx.resolveWriteInitiative(args.initiative)
-  const { event_id, unbound, overrides } = applyClose(ctx, slug, args.status, args.note, args.successor)
-  return { ok: true, event_id, unbound, overrides }
 }

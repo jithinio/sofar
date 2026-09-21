@@ -1,7 +1,24 @@
-import { readFileSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
+import { readBindingsFile } from '../core/bindings'
+import { currentBranch } from '../core/git'
+import { ensureIndexDir } from '../core/index-store'
+import { QUICK_LANE, QUICK_LANE_GOAL } from '../core/lane'
+import { lessonsEnabled, relevantLessons, type Lesson } from '../core/lessons'
+import { withFileLock } from '../core/lock'
+import { silentReversal } from '../core/reversal'
+import { ruleFidelityWarning } from '../core/rule-fidelity'
+import { clearSessionPointer, readSessionPointer, writeSessionPointer } from '../core/session-pointer'
 import type { Command } from 'commander'
-import { isClosedInitiativeStatus, type GuardDomain } from '@sofar/schema'
+import { ulid } from 'ulid'
+import {
+  EVENT_TYPE_REFERENCE,
+  EVENT_TYPES,
+  isClosedInitiativeStatus,
+  isKnownEventType,
+  type GuardDomain,
+  type KnownEventType,
+} from '@sofar/schema'
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
 import { crossConflictsFromOpenSessions, type CrossFileConflict } from '../core/cross-conflicts'
 import {
@@ -14,13 +31,18 @@ import {
   type InitiativeState,
   type SessionState,
 } from '../core/fold'
-import { readAttribution, readShipping } from '../core/attribution'
+import { commitsByTask, readAttribution, readShippingFrom, type CommitAttribution } from '../core/attribution'
+import { activityEnabled } from '../core/derived'
+import { retireEnabled } from '../core/retire'
 import { readGitState, type GitState } from '../core/git'
 import { noteEngine, noteUpstream } from '../core/shipwatch'
 import { version as ENGINE_VERSION } from '../../package.json'
+import { byCodeUnit } from '../core/order'
 
 /** Commits walked for the SessionStart shipping notice — bounded per D6. */
 const SHIPPING_WINDOW = 30
+/** Subject clip on the commits-by-task line (D24). */
+const COMMIT_SUBJECT_BUDGET = 72
 import { refreshTier0, refreshTier0Known } from '../core/index-tier0'
 import {
   guardsForSubject,
@@ -33,6 +55,7 @@ import {
 } from '../core/index-tier1'
 import { resolvePeers, type Peer } from '../core/peers'
 import { nudgeLine, readNudge } from '../driver/nudge'
+import { resolvePhaseOrThrow } from '../mcp/update-phase'
 import { redactCommand } from '../core/redact'
 import { recordDiagnostic } from '../core/diagnostics'
 import { clipDiagnosticText, DIAGNOSTIC_HEAD_CLIP } from '@sofar/schema/diagnostics'
@@ -41,13 +64,16 @@ import {
   createToolContext,
   homeInitiative,
   initiativeSlugs,
+  registrationIn,
   resolveSessionFirst,
+  toSource,
   ToolError,
   type ResolvedVia,
   type ToolContext,
 } from '../mcp/context'
-import { enforceStatusLimit, renderStatus } from '../projections/templates/status'
-import { REPO_MD_STUB } from './shared'
+import { enforceStatusLimit, renderStatus, sessionIdLine } from '../projections/templates/status'
+import { REPO_MD_STUB, readInput } from './shared'
+import { forHost, hookHost, type HookHost } from './host'
 
 /**
  * `sofar event <subcommand>` — the internal surface hook shims call
@@ -73,9 +99,6 @@ const OK: HookResult = { exitCode: 0, stdout: '', stderr: '' }
 
 export const STOP_BLOCK_MESSAGE =
   'Write back to the sofar record before finishing: call sofar_end_session (or append session_ended via `sofar event append`).'
-
-/** Hook payload tool = the agent tool whose hooks feed this surface. */
-const HOOK_TOOL = 'claude-code'
 
 // ---------------------------------------------------------------------------
 // Self-recording commands (record-hygiene D1) — the exemption that lets the
@@ -251,6 +274,66 @@ function resolveBound(
 }
 
 /**
+ * Whether the quick lane (r1-fixes 2.6, D14) can catch this repo's unbound
+ * work: `ready` — it exists and is open, or can be created; `closed` — it was
+ * closed on purpose, so it is off and the hooks discard as before; `none` —
+ * this repo cannot hold one (no .sofar/, a detached HEAD with no branch to be
+ * unbound, or a branch that IS bound, to a record that is missing or
+ * unreadable — a broken binding is not an unbound branch).
+ */
+export function laneAvailability(rootDir: string): 'ready' | 'closed' | 'none' {
+  try {
+    const ctx = createToolContext(rootDir)
+    if (!existsSync(ctx.sofarDir)) return 'none'
+    const branch = currentBranch(rootDir)
+    if (branch === null) return 'none'
+    if (readBindingsFile(ctx.bindingsPath)[branch] !== undefined) return 'none'
+    if (!existsSync(ctx.initiativeDir(QUICK_LANE))) return 'ready'
+    return isClosedInitiativeStatus(ctx.foldState(QUICK_LANE).status) ? 'closed' : 'ready'
+  } catch {
+    return 'none'
+  }
+}
+
+/**
+ * Create the lane on the first captured edit (D14). Returns true when the lane
+ * exists afterwards, false when this repo cannot hold one. Never at
+ * SessionStart: that path appends nothing (record-hygiene D2), and a lane
+ * that only ever gets read is a lane nobody used. Under a lock for the same
+ * reason registration is (r1-fixes 1.2): hosts that fire hooks in parallel
+ * would otherwise mint one initiative_created per process. Degrades to
+ * unlocked like every lock here — the fold reads a duplicate create as a
+ * harmless repeat of the same slug and goal.
+ */
+function ensureLane(rootDir: string): boolean {
+  if (laneAvailability(rootDir) !== 'ready') return false
+  try {
+    const ctx = createToolContext(rootDir)
+    const create = (): void => {
+      if (existsSync(ctx.eventsPath(QUICK_LANE))) return
+      mkdirSync(ctx.initiativeDir(QUICK_LANE), { recursive: true })
+      ctx.appendAndProject(
+        QUICK_LANE,
+        'initiative_created',
+        { slug: QUICK_LANE, goal: QUICK_LANE_GOAL },
+        { session: 'cli', source: 'hook' },
+      )
+    }
+    let lockPath: string | null = null
+    try {
+      lockPath = join(ensureIndexDir(ctx.sofarDir), 'locks', `${QUICK_LANE}.create.lock`)
+    } catch {
+      lockPath = null
+    }
+    if (lockPath === null) create()
+    else withFileLock(lockPath, create)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Repo memory (task 6.5, BD40) — .sofar/repo.md is hand-written
  * repo-scoped memory (SPEC §Record layout). Surfaced in the SessionStart
  * context only when it says something: missing, unreadable, empty, or still
@@ -259,8 +342,11 @@ function resolveBound(
 function readRepoMemory(rootDir: string): string | null {
   try {
     const text = readFileSync(join(rootDir, '.sofar', 'repo.md'), 'utf8')
-    if (text.trim().length === 0 || text.trim() === REPO_MD_STUB.trim()) return null
-    return text
+    // The stub's preamble is init boilerplate, not memory (memory-lead D4):
+    // what the operator added after it is what the digest spends its budget on.
+    const body = text.startsWith(REPO_MD_STUB) ? text.slice(REPO_MD_STUB.length) : text
+    if (body.trim().length === 0) return null
+    return body
   } catch {
     return null
   }
@@ -373,25 +459,73 @@ function coldResumeAdvisory(hook: Obj, eventsPath: string): string | null {
  * nothing, exactly as before. Slugs come from the directory listing — no
  * folds, because this runs inside the shim's 100ms budget and `sofar list` is
  * the surface that ranks and marks them.
+ *
+ * "Carries a record" means `.sofar/` exists, NOT that an initiative does
+ * (r1-fixes 1.1). A freshly `sofar init`-ed repo has no initiative yet, and
+ * gating on slugs made its first session — the one that has to create the
+ * record — the only session that got nothing at all: no Session id, no hint.
+ * Round-1 Claude S1 cells injected 0 chars and paid for it in turns: probe
+ * the state tool, discover `sofar new`, then call sofar_start_session with no
+ * id, which mints a SECOND identity beside the hook-registered one (a split
+ * session the Stop gate then blocks). The id line and the three moves in
+ * order — create, adopt, plan — are what those turns were spent finding.
  */
-export function unboundNotice(rootDir: string): string {
+export function unboundNotice(rootDir: string, sessionId: string | null = null): string {
   try {
-    const slugs = initiativeSlugs(join(rootDir, '.sofar'))
-    if (slugs.length === 0) return ''
+    const sofarDir = join(rootDir, '.sofar')
+    if (!existsSync(sofarDir)) return ''
+    const idLine = sessionIdLine(sessionId)
+    const head = (title: string): string[] => [title, '', ...(idLine !== null ? [idLine, ''] : [])]
+    // The quick lane (r1-fixes 2.6, D14): when it can catch this work, the
+    // notice says so and the ceremony becomes optional — a one-off fix needs
+    // nothing, a decision needs one line, a project still needs its record.
+    // Wording avoids the exact "sofar_start_session with the session_id
+    // above" phrase, which belongs to the create → adopt → plan moves.
+    const lane = laneAvailability(rootDir)
+    const decisionAsk = `Made a decision? sofar_start_session${idLine !== null ? ' (session_id above)' : ''} then sofar_log_decision — one line of why.`
+    const captured = [
+      `Edits here are captured in the quick-work lane (\`${QUICK_LANE}\`, created by the first`,
+      'edit) — enough for a one-off fix: no sofar new, no plan, no write-back.',
+      decisionAsk,
+      '',
+    ]
+    const discarded =
+      lane === 'closed'
+        ? [
+            `The quick-work lane (\`${QUICK_LANE}\`) is closed, so nothing you do here is recorded —`,
+            `hook events are discarded, not queued. \`sofar switch ${QUICK_LANE}\` reopens it; otherwise:`,
+            '',
+          ]
+        : [
+            'Nothing resolves for this session, so nothing you do here is recorded —',
+            'hook events are discarded, not queued. Fix it before working:',
+            '',
+          ]
+    const slugs = initiativeSlugs(sofarDir)
+    if (slugs.length === 0) {
+      return enforceStatusLimit(
+        [
+          ...head('# Sofar: no initiative yet'),
+          'This repo carries a sofar record but no initiative.',
+          ...(lane === 'ready' ? captured : discarded),
+          'Project-sized work needs its own record, before the first edit:',
+          '  1. sofar new <slug> --goal "<one line>"   one initiative for the project or roadmap, not per feature',
+          `  2. sofar_start_session${idLine !== null ? ' with the session_id above' : ''}`,
+          '  3. sofar_update_plan                        phases and tasks',
+        ].join('\n'),
+      )
+    }
     const MAX_LISTED = 10
     const listed = slugs.slice(0, MAX_LISTED).join(', ')
     const more = slugs.length > MAX_LISTED ? `, …+${slugs.length - MAX_LISTED} more` : ''
     return enforceStatusLimit(
       [
-        '# Sofar: this branch is not bound to an initiative',
-        '',
-        'No record resolves for this session, so nothing you do here is being',
-        'recorded — hook events are discarded, not queued. Fix it before working:',
-        '',
+        ...head('# Sofar: this branch is not bound to an initiative'),
+        ...(lane === 'ready' ? captured : discarded),
         `  sofar switch <slug>   work on an existing record (${listed}${more})`,
         '  sofar new <slug>      start a new one (work that matches no existing record)',
         '',
-        'Then call sofar_start_session. `sofar list` shows progress and marks closed records.',
+        `Then call sofar_start_session${idLine !== null ? ' with the session_id above' : ''}. \`sofar list\` shows progress and marks closed records.`,
       ].join('\n'),
     )
   } catch {
@@ -563,8 +697,11 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
   try {
     const hook = parseHook(input)
     const sessionId = strField(hook, 'session_id')
+    // Hand the host's id to CLI appends that omit --session (r1-fixes 4.1.3, D29)
+    // — before resolution, because an unbound session's appends name a slug.
+    if (sessionId !== null) writeSessionPointer(rootDir, sessionId, 'hook')
     const bound = resolveBound(rootDir, sessionId)
-    if (bound === null) return { ...OK, stdout: unboundNotice(rootDir) }
+    if (bound === null) return { ...OK, stdout: unboundNotice(rootDir, sessionId) }
     const { ctx, slug, via } = bound
 
     // The gap is measured to the prior session's last event; with lazy
@@ -594,45 +731,55 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     // which OTHER records have worked these files. Derived here rather than in
     // renderStatus, which is handed a folded state and cannot reach the index.
     const neighbours = adjacentRecords(ctx.sofarDir, slug)
+    // The per-session notices — recent work elsewhere, the closed banner, the
+    // cold-resume advisory, shipping — once led the output as a preface. Since
+    // r1-fixes 2.3 (D12) they ride INTO renderStatus as `notices` and land in
+    // its volatile tail: they change every session (a sha count, an age), and
+    // as the first bytes they denied every session a cached prefix. Order is
+    // unchanged — the recent-work line still comes first among them
+    // (session-orientation 2.2). The block's state-derived sections stay
+    // byte-stable for an unchanged record (felt-cost 1.2): the tail is
+    // appended after them, never interleaved.
+    // ONE bounded attribution walk (SPEC §Commit attribution, D6) feeds both
+    // the shipping notice and the commits-by-task line (r1-fixes 2.5, D24):
+    // the same window, read once, never a second spawn on the hook path.
+    const commits = readAttribution(rootDir, { maxCount: SHIPPING_WINDOW })
+    const activity = activityEnabled()
+    const notices = [
+      recentWorkElsewhereNotice(ctx.sofarDir, slug, via),
+      closedBanner(state),
+      advisory,
+      shippingNotice(rootDir, slug, commits),
+      activity ? commitsNotice(commits, slug) : null,
+    ].filter((p): p is string => p !== null)
+    // The quick lane renders its own lean block (r1-fixes 2.6, D14): the same
+    // template, minus every section that presumes a plan or a write-back.
     const status = renderStatus(state, {
       ...(repoMemory !== null ? { repoMemory } : {}),
       ...(sessionId !== null ? { sessionId } : {}),
       ...(git !== null ? { git } : {}),
       ...(neighbours.length > 0 ? { neighbours } : {}),
+      ...(notices.length > 0 ? { notices } : {}),
+      ...(slug === QUICK_LANE ? { lane: true } : {}),
+      ...(activity ? {} : { activity: false }),
     })
-    // Both the closed banner and the cold-resume advisory compose AROUND the
-    // status block, never inside it — the block's byte-stability is pinned
-    // (felt-cost 1.2), and the composed output is re-capped so the injection
-    // contract stays ≤10,000 chars.
-    // The recent-work line leads (session-orientation 2.2): every other part of
-    // this output describes the bound record, and that line questions whether
-    // the bound record is the right one at all — read after them it arrives too
-    // late to change how they were read.
-    const preface = [
-      recentWorkElsewhereNotice(ctx.sofarDir, slug, via),
-      closedBanner(state),
-      advisory,
-      shippingNotice(rootDir, slug),
-    ]
-      .filter((p) => p !== null)
-      .join('\n\n')
-    const stdout = preface.length === 0 ? status : enforceStatusLimit(`${preface}\n\n${status}`)
     // The size half of a memory-use signal (self-improve 1.2): how many bytes
     // this hook put in front of the model, and how many of them were repo
     // memory. Private row, never an event — the block's byte-stability is
-    // pinned and reads nothing back from the store.
+    // pinned and reads nothing back from the store. `status` already carries
+    // the notices (r1-fixes 2.3), so its length is the whole injection.
     recordDiagnostic(rootDir, {
       kind: 'injection',
       initiative: slug,
       session: sessionId ?? 'cli',
-      host: { tool: HOOK_TOOL },
+      host: hookHost(hook),
       data: {
         hook: 'SessionStart',
-        bytes: stdout.length,
+        bytes: status.length,
         ...(repoMemory !== null ? { memory_bytes: repoMemory.length } : {}),
       },
     })
-    return { ...OK, stdout }
+    return { ...OK, stdout: status }
   } catch {
     return { ...OK }
   }
@@ -703,11 +850,15 @@ function classifyToolCall(hook: Obj): ClassifiedCall | null {
   return null
 }
 
-/** Lazy registration (record-hygiene D2): "cli" is never a session identity, so it is never registered. */
-function registerLazily(ctx: ToolContext, slug: string, session: string): void {
-  if (session !== 'cli' && !ctx.foldState(slug).sessions.some((s) => s.id === session)) {
-    ctx.appendAndProject(slug, 'session_started', { tool: HOOK_TOOL }, { session, source: 'hook' })
-  }
+/**
+ * Lazy registration through the ONE locked path (r1-fixes D2, 1.2): hosts
+ * that fire hooks in parallel otherwise registered a session once per
+ * process. "cli" is never a session identity, so it is never registered.
+ * The tool is the host that fired the hook (r1-fixes 6.4, D34) — a Cursor
+ * session recorded as claude-code misattributes every event it carries.
+ */
+function registerLazily(ctx: ToolContext, slug: string, session: string, host: HookHost): void {
+  if (session !== 'cli') ctx.registerSession(slug, session, { tool: host.tool }, { source: 'hook' })
 }
 
 /**
@@ -730,7 +881,11 @@ export function handlePostToolFailure(rootDir: string, input: string): HookResul
   try {
     const hook = parseHook(input)
     const session = strField(hook, 'session_id') ?? 'cli'
-    const bound = resolveBound(rootDir, session)
+    if (session !== 'cli') writeSessionPointer(rootDir, session, 'hook') // D29
+    // Same routing as the success path (r1-fixes 2.6, D14): nothing resolves
+    // → the quick lane, created here if this failure is the first captured call.
+    let bound = resolveBound(rootDir, session)
+    if (bound === null && ensureLane(rootDir)) bound = resolveBound(rootDir, session)
     if (bound === null) return { ...OK }
     const { ctx, slug } = bound
 
@@ -741,7 +896,7 @@ export function handlePostToolFailure(rootDir: string, input: string): HookResul
     const exit = typeof hook.exit_code === 'number' ? hook.exit_code : null
     const interrupt = typeof hook.is_interrupt === 'boolean' ? hook.is_interrupt : null
     if (!exempt) {
-      registerLazily(ctx, slug, session)
+      registerLazily(ctx, slug, session, hookHost(hook))
       ctx.appendAndProject(
         slug,
         type,
@@ -759,7 +914,7 @@ export function handlePostToolFailure(rootDir: string, input: string): HookResul
       kind: 'tool_failure',
       initiative: slug,
       session,
-      host: { tool: HOOK_TOOL },
+      host: hookHost(hook),
       data: {
         tool: call.toolName,
         ...(head !== undefined ? { head } : {}),
@@ -795,6 +950,9 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
   try {
     const hook = parseHook(input)
     const session = strField(hook, 'session_id') ?? 'cli'
+    // The first shell call (`sofar status`) lands here before the agent's own
+    // session_started, so a host with no SessionStart still hands its id over (D29).
+    if (session !== 'cli') writeSessionPointer(rootDir, session, 'hook')
 
     // The driver's threshold nudge (session-driver 2.3) — read BEFORE the
     // record is resolved and delivered even when it cannot be: the nudge is a
@@ -804,7 +962,12 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
     const nudge = readNudge()
     const driven = nudge === null ? [] : [nudgeLine(nudge)]
 
-    const bound = resolveBound(rootDir, session)
+    // Nothing resolves → the quick lane (r1-fixes 2.6, D14), created here on
+    // the first captured edit. Resolution is re-run rather than assumed: the
+    // lane is a FALLBACK inside resolveInitiative, and this hook must route
+    // exactly as every other surface does.
+    let bound = resolveBound(rootDir, session)
+    if (bound === null && ensureLane(rootDir)) bound = resolveBound(rootDir, session)
     if (bound === null) return driven.length === 0 ? { ...OK } : { ...OK, stdout: postToolContext(driven) }
     const { ctx, slug } = bound
 
@@ -837,9 +1000,11 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
       // Lazy registration: one fold to see whether this session is already in
       // the log — the same read the Stop and UserPromptSubmit shims already do
       // on every invocation, and it only precedes an append that folds anyway.
+      // A new session re-checks under a lock (r1-fixes 1.2): hosts that fire
+      // hooks in parallel (Cursor) otherwise registered it once per process.
       // "cli" is never a session identity (the fold skips it), so it is never
       // registered.
-      registerLazily(ctx, slug, session)
+      registerLazily(ctx, slug, session, hookHost(hook))
       ctx.appendAndProject(slug, type, payload, { session, source: 'hook' })
     }
 
@@ -856,7 +1021,7 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
       kind: 'tool_outcome',
       initiative: slug,
       session,
-      host: { tool: HOOK_TOOL },
+      host: hookHost(hook),
       data: {
         tool: call.toolName,
         ok,
@@ -919,6 +1084,11 @@ export function handleStop(
     if (bound === null) return { ...OK }
     const { ctx, slug } = bound
 
+    // The quick lane has no write-back (r1-fixes 2.6, D14): the commit is the
+    // summary, the decision line is the why, and a gate here would be the
+    // ceremony the lane exists to remove.
+    if (slug === QUICK_LANE) return { ...OK }
+
     const state = ctx.foldState(slug)
     const session = state.sessions.find((s) => s.id === sessionId)
     if (session === undefined) return { ...OK } // never registered — not ours to block
@@ -966,6 +1136,7 @@ export function handleSessionEnd(rootDir: string, input: string): HookResult {
     const hook = parseHook(input)
     const sessionId = strField(hook, 'session_id')
     if (sessionId === null) return { ...OK }
+    clearSessionPointer(rootDir, sessionId) // D29: only when it still names this session
 
     const bound = resolveBound(rootDir, sessionId)
     if (bound === null) return { ...OK }
@@ -1016,6 +1187,25 @@ export const PEER_LINE_BUDGET = 300
 
 /** Peers named in full on the peer line before it falls back to a count. */
 export const PEER_MAX_NAMES = 3
+
+/** Character budget per relevant-lesson line (r1-fixes 3.3, D16). */
+export const LESSON_LINE_BUDGET = 320
+
+/**
+ * The lessons a prompt re-proposes (r1-fixes 3.3, D16), one line each: the
+ * handle, what was ruled out, and the prompt's own words that matched — so
+ * the reader can see why, and disagree. Wording is a claim about the RECORD
+ * ("ruled out before"), never about the prompt being wrong: a decision can be
+ * revisited, and the line's job is to make that a choice rather than a lapse.
+ */
+export function lessonLines(lessons: readonly Lesson[]): string[] {
+  return lessons.map((l) =>
+    clipTo(
+      `sofar: ruled out before — [${l.handle}] ${l.text} (matched: ${l.terms.join(', ')}; full text in decisions.md)`,
+      LESSON_LINE_BUDGET,
+    ),
+  )
+}
 
 function clipTo(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, Math.max(0, max - 1))}…`
@@ -1082,10 +1272,10 @@ function gitStateLine(git: ReturnType<typeof readGitState>): string | null {
  *
  * Best-effort like every other reader on a shim path: any failure is silence.
  */
-function shippingNotice(rootDir: string, slug: string): string | null {
+function shippingNotice(rootDir: string, slug: string, commits: CommitAttribution[] | null): string | null {
   try {
-    const shipping = readShipping(rootDir, { maxCount: SHIPPING_WINDOW })
-    const mine = shipping?.get(slug)
+    if (commits === null) return null
+    const mine = readShippingFrom(rootDir, commits).get(slug)
     if (mine === undefined) return null
     if (mine.unknown.length > 0) {
       // Two causes, both honest as `unknown` and neither worth guessing
@@ -1100,6 +1290,22 @@ function shippingNotice(rootDir: string, slug: string): string | null {
   } catch {
     return null
   }
+}
+
+/**
+ * Commits by task (r1-fixes 2.5, D24) — the third fact a session used to
+ * narrate. Read from the walk SessionStart already pays, counted by the
+ * CLAUDE.md task-id prefix, never recorded (SPEC §Commit attribution). One
+ * volatile-tail line; silent when the window holds none of this record's.
+ */
+function commitsNotice(commits: CommitAttribution[] | null, slug: string): string | null {
+  if (commits === null) return null
+  const mine = commitsByTask(commits, slug)
+  if (mine.total === 0) return null
+  const counts = mine.by_task.map(([task, n]) => `${task} ×${n}`).join(', ')
+  const newest =
+    mine.newest === null ? '' : ` — newest ${mine.newest.sha.slice(0, 7)} ${clipTo(mine.newest.subject, COMMIT_SUBJECT_BUDGET)}`
+  return `Commits (this record, last ${commits.length} walked): ${counts}${newest}. Files, commands, test outcomes and commits are captured — write only why.`
 }
 
 /** Commits walked when origin actually moves — the arrival window (3.4). */
@@ -1192,8 +1398,8 @@ function landedNotice(
  * is simply absent, and an OLD tool silently does the old thing.
  *
  * That is not hypothetical: it cost this repo two wrong conclusions in one day
- * (commit-attribution M5). `sofar_review` never appeared for the sessions that
- * built it, and `sofar_close_initiative` closed a record with no close audit
+ * (commit-attribution M5). A review never appeared for the sessions that
+ * built it, and the close tool closed a record with no close audit
  * because the installed engine predated it — the only visible tell being a
  * field missing from the tool result.
  *
@@ -1502,7 +1708,7 @@ export function guardNoticeLines(
 
   const ordered = [...hits].sort((a, b) => {
     if ((a.initiative === slug) !== (b.initiative === slug)) return a.initiative === slug ? 1 : -1
-    return a.initiative === b.initiative ? a.ordinal - b.ordinal : a.initiative.localeCompare(b.initiative)
+    return a.initiative === b.initiative ? a.ordinal - b.ordinal : byCodeUnit(a.initiative, b.initiative)
   })
 
   const rendered = renderSubject(domain, subject, rootDir)
@@ -1775,8 +1981,10 @@ function reachablePeerLine(others: string[]): string | null {
 
 export function handleUserPrompt(rootDir: string, input: string): HookResult {
   try {
-    const sessionId = strField(parseHook(input), 'session_id')
+    const hook = parseHook(input)
+    const sessionId = strField(hook, 'session_id')
     if (sessionId === null) return { ...OK }
+    writeSessionPointer(rootDir, sessionId, 'hook') // D29
 
     const bound = resolveBound(rootDir, sessionId)
     if (bound === null) return { ...OK }
@@ -1820,6 +2028,15 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     // constraint, and it is the surface the mechanical tier actually reaches
     // an agent through — a Stop-only warning would arrive after the fact
     // (D3), and a non-blocking Stop exit is not fed back to the model at all.
+    // Between the crossed rules and the live hazard (r1-fixes 3.3, D16): a
+    // guard says work already done crossed a rule; this says the intent just
+    // typed was ruled out before. Both are about the record's constraints,
+    // and both outrank news about siblings. Read from the prompt text the
+    // host passes; a payload without one renders nothing.
+    // `SOFAR_LESSONS=off` is the ablation switch (D18): round 2 prices the
+    // line's tokens on their own, and a lever must be separable to be priced.
+    const prompt = strField(hook, 'prompt')
+    if (prompt !== null && lessonsEnabled()) lines.unshift(...lessonLines(relevantLessons(state, prompt, retireEnabled())))
     lines.unshift(...guardViolationLines(sessionGuardViolations(state, sessionId, me.ended), rootDir))
 
     const wrap = parallelWrapLine(state, sessionId)
@@ -1844,7 +2061,9 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     // line asks THIS session to act, and the initiative-wide total nagged a
     // session that had just written back, for a sibling's edits it could not
     // speak to.
-    const debt = sessionDebt(state, me)
+    // Silent in the quick lane (r1-fixes 2.6, D14): there is no write-back to
+    // nudge toward, and the Stop gate the line warns about never fires there.
+    const debt = slug === QUICK_LANE ? 0 : sessionDebt(state, me)
     if (debt >= NUDGE_DRIFT_MIN) {
       lines.push(
         `sofar: ${debt} unwritten events in THIS session — if the current batch of work ` +
@@ -1868,9 +2087,12 @@ export interface AppendArgs {
   type: string
   /** Payload as a raw JSON-object string. */
   payload: string
-  /** Envelope session id (dialect callers reuse one id all session). */
-  session: string
-  /** Envelope source — must name a SOURCES member. */
+  /**
+   * Envelope session id. Omitted: the worktree's live-session pointer decides
+   * (r1-fixes 4.1.3, D30) — see adoptSession.
+   */
+  session?: string
+  /** Agent name; recorded as the envelope source when it names a SOURCES member, else `cli`. */
   source: string
   /** Envelope actor — must name an ACTORS member. */
   actor: string
@@ -1891,13 +2113,20 @@ export interface AppendArgs {
  */
 export function runAppend(rootDir: string, args: AppendArgs): HookResult {
   try {
-    if (!(SOURCES as readonly string[]).includes(args.source)) {
-      throw new ToolError('invalid_input', `--source must be one of: ${SOURCES.join('|')}`)
-    }
+    // Any --source is accepted (r1-fixes 1.3). Refusing names outside SOURCES
+    // cost every agent not on that list a failed append and a retry — Cursor
+    // first of all, told by the protocol block to put its own name there. The
+    // name is NOT written into the envelope, though: SOURCES is part of
+    // envelope v1 validation, and a log line whose source an older engine does
+    // not know is skipped by that engine's fold as corrupt. So an unknown name
+    // records as `cli` — the mapping sofar_start_session has always applied
+    // (toSource) — and the tool's own name survives in session_started's
+    // `tool`, which is where every reader already looks for it.
+    const source: Source = toSource(args.source)
     if (!(ACTORS as readonly string[]).includes(args.actor)) {
       throw new ToolError('invalid_input', `--actor must be one of: ${ACTORS.join('|')}`)
     }
-    if (args.session.length === 0) {
+    if (args.session !== undefined && args.session.length === 0) {
       throw new ToolError('invalid_input', '--session must be a non-empty session id')
     }
 
@@ -1916,14 +2145,60 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
 
     const ctx = createToolContext(rootDir)
     const slug = ctx.resolveInitiative(args.slug)
+    // Same refusal as sofar_log_decision (r1-fixes 4.1.2, D31); malformed
+    // payloads skip it and fail validation inside appendAndProject as before.
+    let fidelity: string | null = null
+    if (args.type === 'decision_logged') {
+      const { chose, over, because, supersedes } = payload
+      if (typeof chose === 'string' && typeof over === 'string' && typeof because === 'string') {
+        const draft = { chose, over, because, ...(typeof supersedes === 'string' ? { supersedes } : {}) }
+        const refusal = silentReversal(ctx.foldState(slug), draft)
+        if (refusal !== null) throw new ToolError('invalid_input', refusal.message, refusal.errors)
+      }
+      // What the rule adds to the operator's words (memory-lead 1.2, D2), the
+      // warning sofar_log_decision returns; reported only once the append lands.
+      if (typeof payload.rule === 'string' && typeof payload.quote === 'string') {
+        fidelity = ruleFidelityWarning(ctx.foldState(slug).decisions.length + 1, payload.rule, payload.quote)
+      }
+    }
+    // A phase by number or in any case records the plan's own name, and a miss
+    // is refused rather than minting a phantom phase (r1-fixes 4.1.5, D32).
+    if (args.type === 'phase_status_changed' && typeof payload.phase === 'string') {
+      payload.phase = resolvePhaseOrThrow(ctx.foldState(slug).phases, payload.phase, slug).name
+    }
+    const session = args.session ?? adoptSession(ctx, rootDir, slug, args.type)
+    // The id is only news when sofar chose it.
+    const named = args.session === undefined ? { session } : {}
+    // A repeat start is a no-op, not a second line (r1-fixes 1.2): the dialect
+    // has agents register by hand, and they re-run the command — round 1 found
+    // one Cursor session registered 4 times. Same {ok, event_id} contract,
+    // naming the registration that already stands, plus a flag that says the
+    // call changed nothing so the agent does not retry.
+    if (args.type === 'session_started' && session !== 'cli') {
+      const appended = ctx.registerSession(slug, session, payload, {
+        source,
+        actor: args.actor as Actor,
+      })
+      const body =
+        appended !== null
+          ? { ok: true, event_id: appended.id, ...named }
+          : {
+              ok: true,
+              event_id: registrationIn(ctx.eventsPath(slug), session)?.id ?? null,
+              already_started: true,
+              ...named,
+            }
+      return { exitCode: 0, stdout: `${JSON.stringify(body)}\n`, stderr: '' }
+    }
     // appendAndProject validates the payload against its type's schema BEFORE
     // any write — invalid type/payload throws here with zero appends.
     const event = ctx.appendAndProject(slug, args.type, payload, {
-      session: args.session,
-      source: args.source as Source,
+      session,
+      source,
       actor: args.actor as Actor,
     })
-    return { exitCode: 0, stdout: `${JSON.stringify({ ok: true, event_id: event.id })}\n`, stderr: '' }
+    const warnings = fidelity !== null ? { warnings: [fidelity] } : {}
+    return { exitCode: 0, stdout: `${JSON.stringify({ ok: true, event_id: event.id, ...named, ...warnings })}\n`, stderr: '' }
   } catch (err) {
     const shape =
       err instanceof ToolError
@@ -1931,6 +2206,90 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
         : { code: 'io_error', message: err instanceof Error ? err.message : String(err) }
     return { exitCode: 1, stdout: '', stderr: `${JSON.stringify(shape)}\n` }
   }
+}
+
+/**
+ * The session an append with no `--session` belongs to (r1-fixes 4.1.3, L09,
+ * D30). Round 1's Cursor launches carried two ids — the hooks' and one the
+ * agent minted because the block told it to — so the block now says to omit
+ * the flag and this picks the one id:
+ *  - session_started joins the worktree's pointer when that session has not
+ *    ended in this record (the hooks registered it, or a repeat start in the
+ *    same CLI session); otherwise it is a new hookless session, so a fresh id
+ *    is minted and becomes the pointer. A start refused later by validation
+ *    leaves an unregistered pointer, which the retry simply joins.
+ *  - every other type joins the pointer, and with none keeps the old `cli`.
+ */
+function adoptSession(ctx: ToolContext, rootDir: string, slug: string, type: string): string {
+  const pointer = readSessionPointer(rootDir)
+  if (type !== 'session_started') return pointer?.session ?? 'cli'
+  if (pointer !== null) {
+    const known = ctx.foldState(slug).sessions.find((s) => s.id === pointer.session)
+    if (known?.ended === undefined) return pointer.session
+  }
+  const minted = `cli-${ulid()}`
+  writeSessionPointer(rootDir, minted, 'cli')
+  return minted
+}
+
+// ---------------------------------------------------------------------------
+// `sofar event types` — the payload reference for the CLI dialect (r1-fixes 1.3).
+// ---------------------------------------------------------------------------
+
+/**
+ * Print EVENT_TYPE_REFERENCE (packages/schema) — every payload shape an
+ * MCP-less agent can append, with a validating example, grouped by who
+ * writes it. The protocol block names five payloads inline and points here
+ * for the rest, which is what keeps the block (paid every session) short
+ * while the reference (paid when needed) is complete.
+ *
+ * Byte-plain (cli-ui D1): the reader is an agent. With a type it prints that
+ * one entry; `--json` prints the reference itself. An unknown type exits 1
+ * with the typed-error JSON, like `append`, naming the known types.
+ */
+export function runEventTypes(type?: string, opts: { json?: boolean } = {}): HookResult {
+  if (type !== undefined && !isKnownEventType(type)) {
+    const err = new ToolError('unknown_event', `unknown event type: ${type}`, [
+      `known types: ${EVENT_TYPES.join(', ')}`,
+    ])
+    return { exitCode: 1, stdout: '', stderr: `${JSON.stringify(err.toShape())}\n` }
+  }
+  if (opts.json === true) {
+    const body = type !== undefined ? { [type]: EVENT_TYPE_REFERENCE[type] } : EVENT_TYPE_REFERENCE
+    return { exitCode: 0, stdout: `${JSON.stringify(body, null, 2)}\n`, stderr: '' }
+  }
+  const detail = (t: KnownEventType): string[] => {
+    const ref = EVENT_TYPE_REFERENCE[t]
+    return [
+      `${t} — ${ref.summary}`,
+      `  fields:  ${ref.fields}`,
+      ...(ref.writer === 'command' || ref.writer === 'agent'
+        ? ref.via !== undefined
+          ? [`  ${ref.writer === 'command' ? 'use:     ' : 'note:    '}${ref.via}`]
+          : []
+        : [`  written by the ${ref.writer === 'hook' ? 'hooks' : 'sofar drive'} — never append it yourself`]),
+      `  example: --payload '${JSON.stringify(ref.example)}'`,
+    ]
+  }
+  if (type !== undefined) return { exitCode: 0, stdout: `${detail(type).join('\n')}\n`, stderr: '' }
+
+  const of = (writer: string): KnownEventType[] =>
+    EVENT_TYPES.filter((t) => EVENT_TYPE_REFERENCE[t].writer === writer)
+  const lines = [
+    "Payloads for: sofar event append <slug> --type <type> --source <tool> --payload '<json>'  (no --session: it joins your registered session)",
+    'Grammar: name = required, name? = optional, a|b = one of. Single-quote the JSON —',
+    "or skip the shell: --payload - <<'EOF' with the JSON on the next lines then EOF (any quote survives), or --payload @<file>.",
+    '',
+    'APPEND THESE YOURSELF',
+    ...of('agent').flatMap((t) => [...detail(t), '']),
+    'APPENDED BY A COMMAND — run the command instead (`sofar event types <type>` for fields)',
+    ...of('command').map((t) => `  ${t} → ${EVENT_TYPE_REFERENCE[t].via ?? ''}`),
+    '',
+    'WRITTEN FOR YOU — never append',
+    `  hooks: ${of('hook').join(', ')}`,
+    `  sofar drive: ${of('driver').join(', ')}`,
+  ]
+  return { exitCode: 0, stdout: `${lines.join('\n')}\n`, stderr: '' }
 }
 
 // ---------------------------------------------------------------------------
@@ -1950,7 +2309,9 @@ export async function readStdin(): Promise<string> {
  * The hook name → handler map, exported so the hot-path entry (cli/fast.ts)
  * can dispatch a shim WITHOUT constructing the commander program. One source
  * of truth: registerEventCommand builds its subcommands from this same list,
- * so a hook can never exist on one path and not the other.
+ * so a hook can never exist on one path and not the other. Every handler is
+ * served through forHost (r1-fixes 6.3–6.6, D34): the handlers speak Claude
+ * Code's hook dialect, and a Cursor invocation is converted on both sides.
  */
 export const SUBCOMMANDS: ReadonlyArray<{
   name: string
@@ -1961,36 +2322,36 @@ export const SUBCOMMANDS: ReadonlyArray<{
     name: 'session-start',
     description:
       'SessionStart hook: register the session in the log, print the status projection (≤10,000 chars) as injected context',
-    handler: handleSessionStart,
+    handler: forHost('session-start', handleSessionStart),
   },
   {
     name: 'post-tool',
     description:
       'PostToolUse hook: append mechanical file_touched (Edit|Write|MultiEdit) / command_run (Bash) events, and surface any repo-wide guarded rule the subject crosses',
-    handler: handlePostTool,
+    handler: forHost('post-tool', handlePostTool),
   },
   {
     name: 'post-tool-failure',
     description:
       'PostToolUseFailure hook: append the same mechanical event with ok:false (and exit when the host gives one); the error text goes to the private diagnostics store, never the record',
-    handler: handlePostToolFailure,
+    handler: forHost('post-tool-failure', handlePostToolFailure),
   },
   {
     name: 'user-prompt',
     description:
       'UserPromptSubmit hook: nudge an in-flow write-back (one additionalContext line) when drift since the last session_ended ≥5 events',
-    handler: handleUserPrompt,
+    handler: forHost('user-prompt', handleUserPrompt),
   },
   {
     name: 'stop',
     description:
       'Stop hook: exit 2 (blocking) when the registered session has not written back via session_ended; loop-guarded by stop_hook_active',
-    handler: handleStop,
+    handler: forHost('stop', (rootDir, input) => handleStop(rootDir, input)),
   },
   {
     name: 'session-end',
     description: 'SessionEnd hook: append a mechanical session_closed marker (fallback only)',
-    handler: handleSessionEnd,
+    handler: forHost('session-end', handleSessionEnd),
   },
 ]
 
@@ -2016,21 +2377,32 @@ export function registerEventCommand(program: Command): void {
       'append one validated event and regenerate projections — the convention-dialect surface for tools without MCP (prints {ok, event_id} JSON)',
     )
     .requiredOption('--type <event_type>', 'event type (SPEC §Event types)')
-    .requiredOption('--payload <json>', 'event payload as a JSON object string')
-    .option('--session <id>', 'session id recorded on the envelope (reuse one id all session)', 'cli')
-    .option('--source <source>', `envelope source: ${SOURCES.join('|')}`, 'cli')
+    .option('--payload <json>', 'event payload as a JSON object: inline, `-` for stdin (quoted heredoc — quotes and newlines survive), or @<file>; omitted with stdin piped reads stdin')
+    .option('--session <id>', 'session id recorded on the envelope; omit it to join the session your hooks registered (a session_started with none mints one and prints it)')
+    .option('--source <tool>', `your agent's name (any; recorded as the envelope source when one of ${SOURCES.join('|')}, else cli)`, 'cli')
     .option('--actor <actor>', `envelope actor: ${ACTORS.join('|')}`, 'agent')
     .option('--root <dir>', 'repo root containing .sofar/ (default: current directory)')
     .action(
-      (
+      async (
         slug: string | undefined,
-        opts: { type: string; payload: string; session: string; source: string; actor: string; root?: string },
+        opts: { type: string; payload?: string; session?: string; source: string; actor: string; root?: string },
       ) => {
+        // r1-fixes 1.5 (D8): the payload may arrive on stdin or from a file —
+        // the shell-proof forms — so it is resolved here, before the handler.
+        const input = await readInput(opts.payload, '--payload')
+        if (!input.ok) {
+          mirror({
+            exitCode: 1,
+            stdout: '',
+            stderr: `${JSON.stringify({ code: 'invalid_input', message: input.error })}\n`,
+          })
+          return
+        }
         mirror(
           runAppend(resolve(opts.root ?? process.cwd()), {
             type: opts.type,
-            payload: opts.payload,
-            session: opts.session,
+            payload: input.text,
+            ...(opts.session !== undefined ? { session: opts.session } : {}),
             source: opts.source,
             actor: opts.actor,
             ...(slug !== undefined ? { slug } : {}),
@@ -2038,6 +2410,16 @@ export function registerEventCommand(program: Command): void {
         )
       },
     )
+
+  event
+    .command('types [type]')
+    .description(
+      'payload reference for `event append`: every event type, its fields, a validating example, and who writes it',
+    )
+    .option('--json', 'print the reference as JSON')
+    .action((type: string | undefined, opts: { json?: boolean }) => {
+      mirror(runEventTypes(type, opts))
+    })
 
   for (const { name, description, handler } of SUBCOMMANDS) {
     event

@@ -409,3 +409,30 @@ describe('confirmation styling (cli-ui 2.5)', () => {
     )
   })
 })
+
+describe('sofar uninit and the Cursor wiring (r1-fixes 6.2/6.6)', () => {
+  it('strips only sofar entries from .cursor/hooks.json and .cursor/mcp.json', () => {
+    const root = freshRepo()
+    mkdirSync(join(root, '.cursor'), { recursive: true })
+    writeFileSync(
+      join(root, '.cursor', 'hooks.json'),
+      `${JSON.stringify({ version: 1, hooks: { stop: [{ command: 'echo bye' }] } }, null, 2)}\n`,
+    )
+    expect(runInit(root).exitCode).toBe(0)
+    const result = runUninit(root)
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('updated .cursor/hooks.json (sofar hook entries removed)')
+    expect(result.stdout).toContain('updated .cursor/mcp.json (sofar server entry removed)')
+    expect(readJSON(join(root, '.cursor', 'hooks.json'))).toEqual({
+      version: 1,
+      hooks: { stop: [{ command: 'echo bye' }] },
+    })
+  })
+
+  it('--purge removes the Cursor files and the .cursor/ that init alone created', () => {
+    const root = freshRepo()
+    runInit(root)
+    expect(runUninit(root, { purge: true }).exitCode).toBe(0)
+    expect(existsSync(join(root, '.cursor'))).toBe(false)
+  })
+})

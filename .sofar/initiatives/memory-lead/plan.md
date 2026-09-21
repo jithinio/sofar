@@ -4,13 +4,13 @@
 
 Goal: Make sofar measurably the best work memory for AI coding agents: never below any agent's native memory on any rep, bookkeeping at or below native overhead, and a lead of at least 25-30% (target 2x) on held-out long-horizon, cross-agent, decision-churn work. The lead must survive a native memory that syncs across machines and teammates, so it may never rest on native memory being machine-local.
 
-Progress: 1/17 tasks done (5%)
+Progress: 4/17 tasks done (23%)
 
-## Phase 1 — Wave A: parity at native overhead (ships in 0.33.0-rc.2) [active] — 0/4 done
+## Phase 1 — Wave A: parity at native overhead (ships in 0.33.0-rc.2) [active] — 3/4 done
 
-- [ ] 1.1 A1 overhead cut: adopt the session from CLAUDE_CODE_SESSION_ID (start_session becomes a fallback), load sofar MCP tools up front (no ToolSearch), a batched end_session taking decisions[]/tasks[]/notes[], task status derived from commits and tests instead of per-subtask update_task. PREDICT (chain A, prompt-matched pairs): store share ≤12% of tool calls on every rep; sofar/automemory cost ≤0.9; retention within ±1 decision. Contract Decisions first (SPEC start_session and end_session).
-- [ ] 1.2 A2 rule fidelity: a rule stores the operator's quote beside it, the digest renders the quote, and a warning fires when a rule adds status codes, paths or values the quote lacks. PREDICT: claude-sofar S9 and A6 at 100% in 3 of 3 reps.
-- [ ] 1.3 A3 digest composition: next task's spec first; remember entries surfaced; implementation minutiae dropped from rejected approaches and recent decisions; rules ranked by relevance and rendered last; ≤6k chars. PREDICT: ≤1 raw .sofar read per session; M3 unchanged or better.
+- [x] 1.1 A1 overhead cut: adopt the session from CLAUDE_CODE_SESSION_ID (start_session becomes a fallback), load sofar MCP tools up front (no ToolSearch), a batched end_session taking decisions[]/tasks[]/notes[], task status derived from commits and tests instead of per-subtask update_task. PREDICT (chain A, prompt-matched pairs): store share ≤12% of tool calls on every rep; sofar/automemory cost ≤0.9; retention within ±1 decision. Contract Decisions first (SPEC start_session and end_session).
+- [x] 1.2 A2 rule fidelity: a rule stores the operator's quote beside it, the digest renders the quote, and a warning fires when a rule adds status codes, paths or values the quote lacks. PREDICT: claude-sofar S9 and A6 at 100% in 3 of 3 reps.
+- [x] 1.3 A3 digest composition: next task's spec first; remember entries surfaced; implementation minutiae dropped from rejected approaches and recent decisions; rules ranked by relevance and rendered last; ≤6k chars. PREDICT: ≤1 raw .sofar read per session; M3 unchanged or better.
 - [ ] 1.4 rust-core mirrors 1.1–1.3 (hooks, digest render) with conformance parity before rc.2 is pinned
 
 ## Phase 2 — Wave B: structural lead [pending] — 0/4 done
@@ -39,3 +39,4 @@ Progress: 1/17 tasks done (5%)
 - [ ] 5.4 Run round 3, report per claim with per-rep values; publish only what clears the pre-registered margin
 
 Active phase: Phase 1 — Wave A: parity at native overhead (ships in 0.33.0-rc.2)
+Next action: After the rust-core record unions in, mark Phase 1 done; then Phase 2 (B1 read-time surfacing).

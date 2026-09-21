@@ -1,8 +1,10 @@
-import { appendFileSync, rmSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import type { EventEnvelope } from '../src/core/envelope'
 import { makeEvent } from '../src/core/envelope'
 import { appendEvents } from '../src/core/log'
+import { runList } from '../src/cli/list'
 import { runStatus } from '../src/cli/status'
 import type { Caps } from '../src/cli/ui'
 import { makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
@@ -147,21 +149,79 @@ describe('sofar status', () => {
     expect(result.stdout).toContain('Progress: 0/0 tasks done (0%)')
   })
 
-  it('exits 1 with a helpful message when unresolvable', () => {
+  it('exits 1 with a helpful message when an explicit slug or the binding is unresolvable', () => {
     const unbound = fx({ bind: false })
-    const noBinding = runStatus(unbound.root)
-    expect(noBinding.exitCode).toBe(1)
-    expect(noBinding.stderr).toContain('no initiative bound to branch "main"')
-    expect(noBinding.stderr).toContain('usage: sofar status [slug]')
-
     const unknown = runStatus(unbound.root, 'ghost')
     expect(unknown.exitCode).toBe(1)
     expect(unknown.stderr).toContain('initiative "ghost" not found')
 
+    // Bound to a directory that is gone: a broken binding, not an unbound branch.
+    const broken = fx()
+    rmSync(broken.initiativeDir, { recursive: true, force: true })
+    const noDir = runStatus(broken.root)
+    expect(noDir.exitCode).toBe(1)
+    expect(noDir.stderr).toContain('initiative "demo" not found')
+  })
+})
+
+describe('sofar status on an unbound branch orients instead of failing (r1-fixes 4.1.4, L10, D28)', () => {
+  it('names why and the slug to pass, shows the most recently active open initiative, then the list — exit 0', () => {
+    const fixture = fx({ bind: false })
+    seed(fixture)
+    const r = runStatus(fixture.root, undefined, PLAIN)
+    expect(r.exitCode).toBe(0)
+    const [head, rest] = r.stdout.split('\n\n', 2) as [string, string]
+    expect(head).toBe(
+      'No initiative is bound to branch "main" — showing the most recently active initiative, demo. ' +
+        'Pass it explicitly: sofar status demo, sofar event append demo …',
+    )
+    // The status block is byte-identical to `sofar status demo`, and the list follows it.
+    const direct = runStatus(fixture.root, 'demo', PLAIN).stdout
+    expect(r.stdout.slice(head.length + 2)).toBe(`${direct}\n${runList(fixture.root, PLAIN).stdout}`)
+    expect(rest).toContain('# demo')
+    expect(r.stdout).toContain('# Sofar initiatives (1)')
+  })
+
+  it('picks by record recency and skips closed records', () => {
+    const fixture = fx({ bind: false, slug: 'older' })
+    seed(fixture)
+    const newer = { ...fixture, slug: 'newer', eventsPath: join(fixture.root, '.sofar', 'initiatives', 'newer', 'events.jsonl') }
+    mkdirSync(join(fixture.root, '.sofar', 'initiatives', 'newer'), { recursive: true })
+    appendEvents(newer.eventsPath, [ev(newer, 'initiative_created', { slug: 'newer', goal: 'g' })])
+    expect(runStatus(fixture.root, undefined, PLAIN).stdout).toContain('most recently active initiative, newer.')
+
+    appendEvents(newer.eventsPath, [ev(newer, 'initiative_status_changed', { status: 'done' })])
+    expect(runStatus(fixture.root, undefined, PLAIN).stdout).toContain('most recently active initiative, older.')
+  })
+
+  it('with no open initiative: says so with the create move, lists, exits 0', () => {
+    const fixture = fx({ bind: false })
+    appendEvents(fixture.eventsPath, [
+      ev(fixture, 'initiative_created', { slug: 'demo', goal: 'g' }),
+      ev(fixture, 'initiative_status_changed', { status: 'done' }),
+    ])
+    const r = runStatus(fixture.root, undefined, PLAIN)
+    expect(r.exitCode).toBe(0)
+    expect(r.stdout.startsWith('No initiative is bound to branch "main", and no open initiative exists — create one: sofar new <slug> --goal "<one line>"\n\n# Sofar initiatives (1)')).toBe(true)
+  })
+
+  it('orients on a detached HEAD too, and still fails where the repo carries no record', () => {
     const detached = fx({ branch: null, bind: false })
-    const noBranch = runStatus(detached.root)
-    expect(noBranch.exitCode).toBe(1)
-    expect(noBranch.stderr).toContain('no current git branch')
+    const r = runStatus(detached.root, undefined, PLAIN)
+    expect(r.exitCode).toBe(0)
+    expect(r.stdout.startsWith('No current git branch — showing the most recently active initiative, demo.')).toBe(true)
+
+    const bare = fx({ bind: false })
+    rmSync(join(bare.root, '.sofar'), { recursive: true, force: true })
+    const none = runStatus(bare.root, undefined, PLAIN)
+    expect(none.exitCode).toBe(1)
+    expect(none.stderr).toContain('usage: sofar status [slug]')
+  })
+
+  it('writes nothing: bindings.json stays absent', () => {
+    const fixture = fx({ bind: false })
+    runStatus(fixture.root, undefined, PLAIN)
+    expect(existsSync(join(fixture.root, '.sofar', 'bindings.json'))).toBe(false)
   })
 })
 
@@ -265,9 +325,9 @@ describe('sofar status: styled path (cli-ui 2.2)', () => {
 
   it('resolution failures stay plain regardless of caps', () => {
     const unbound = fx({ bind: false })
-    const r = runStatus(unbound.root, undefined, STYLED)
+    const r = runStatus(unbound.root, 'ghost', STYLED)
     expect(r.exitCode).toBe(1)
-    expect(r.stderr).toContain('no initiative bound to branch "main"')
+    expect(r.stderr).toContain('initiative "ghost" not found')
     expect(r.stderr).not.toContain('\x1b[')
   })
 })
@@ -285,8 +345,11 @@ describe('sofar status --watch (cli-ui 4.3)', () => {
   it('fails like runStatus on an unresolvable initiative', async () => {
     const { runStatusWatch } = await import('../src/cli/status')
     const fixture = fx({ bind: false })
-    const r = runStatusWatch(fixture.root, undefined, { color: false, unicode: true, animate: false })
+    const piped = { color: false, unicode: true, animate: false }
+    const r = runStatusWatch(fixture.root, 'ghost', piped)
     expect(r).toBeDefined()
     expect(r!.exitCode).toBe(1)
+    // The piped fallback IS runStatus, so an unbound branch orients there too (D28).
+    expect(runStatusWatch(fixture.root, undefined, piped)).toEqual(runStatus(fixture.root, undefined, piped))
   })
 })

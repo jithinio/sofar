@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { isClosedInitiativeStatus, type InitiativeStatus } from '@sofar/schema'
 import { foldLog, freshnessTotal, type InitiativeState } from './fold'
 import { currentBranch } from './git'
+import { byCodeUnit } from './order'
 import { unionFold, type CopyScan, type RecordProvenance } from './record-copies'
 
 /**
@@ -249,7 +250,7 @@ export function listInitiatives(rootDir: string, options: ListOptions = {}): Ini
     if ((a.last_event_id === null) !== (b.last_event_id === null)) {
       return a.last_event_id === null ? 1 : -1 // never-logged initiatives sink
     }
-    return a.slug.localeCompare(b.slug)
+    return byCodeUnit(a.slug, b.slug)
   })
 
   return states === undefined ? { entries, warnings } : { entries, warnings, states }

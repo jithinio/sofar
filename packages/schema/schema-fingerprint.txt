@@ -1,0 +1,27 @@
+0.10.0
+initiative_created: slug ([a-z0-9-]+), goal
+initiative_status_changed: status: active|done|dropped|superseded, note? (required for dropped), successor? (required for superseded, else rejected), overrides?: string[]
+plan_updated: plan: {goal?, phases: [{name, status?: pending|active|done|blocked|dropped, tasks: [{id, title, status?: pending|active|done|blocked|dropped, route?: {agent?, model?, effort?}, verify?: {cmd, cwd?, timeout_ms?}}]}]}
+phase_status_changed: phase, status: pending|active|done|blocked|dropped, note? (say why when dropped)
+task_added: phase, id, title, status?: pending|active|done|blocked|dropped, verify?: {cmd, cwd?, timeout_ms?} (the acceptance command sofar drive runs before accepting the task)
+task_status_changed: id, status: pending|active|done|blocked|dropped, note? (say why when blocked or dropped)
+decision_logged: chose, over, because, rule? (one imperative every later session must obey), quote? (the operator's exact words the rule came from; only with rule), guard? (path:<globs> or cmd:<globs>; only with rule), supersedes? (D<n> of the earlier decision this one replaces), until? (task id — in force until it resolves; never with rule)
+session_started: tool (your agent name), model?
+session_ended: summary, next_action (the single next step)
+session_closed: reason
+file_touched: path, op, ok? (what the host said; absent = unknown, never success)
+command_run: cmd, ok? (what the host said; absent = unknown), exit? (only when the host gives a number)
+note_added: text
+memory_promoted: text, supersedes? (qualified handle `<slug> M<n>` of the fact this one replaces)
+judgement_recorded: producer, model (the exact version), question, subject (an event id or task id), answer {type: noul|choice|score, …}, state_hash?
+review_recorded: scope: phase|final, verdict: pass|findings|blocked, watermark? (sha read through), phase?, findings?: string[] (required, non-empty, for findings)
+run_started: run, adapter, policy: task|threshold, threshold_pct? and context_window? (both required for threshold), max_sessions?, surface?, verify? (the run's default acceptance command)
+handoff: run, session_id, reason: task_done|threshold|stall|needs_user|verify_failed, task?, tokens?, detail? (how the process ended: exit, spawn error, last stderr line)
+run_stopped: run, reason: closed|needs_user|stall|cost_cap|max_sessions|interrupted|error, note? (required for error)
+run_stop_requested: run
+verification_recorded: run, task, attempt, command, cwd, checked: {head, tree}, validator, result: pass|fail|timeout|error|refused, exit_code?, signal?, duration_ms, timeout_ms, diagnostics? (≤1,024 chars)
+correction: ref (the bad event id), reason?
+suggestion_proposed: candidate (sha256 over version, signal, scope, sorted evidence), signal, evidence (non-empty: event ids or row hashes), count (≥1), cutoff?, engine, detector_version, trust {protocol, verdict, precision, recall, judged}
+suggestion_approved: candidate, reason?
+suggestion_rejected: candidate, reason? (the command requires it)
+suggestion_reverted: candidate, reason? (the command requires it)

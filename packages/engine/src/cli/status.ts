@@ -1,13 +1,21 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { watch } from 'chokidar'
-import { createToolContext, ToolError } from '../mcp/context'
-import { emptyState, foldLog, type InitiativeState } from '../core/fold'
+import { isClosedInitiativeStatus } from '@sofar/schema'
+import { readBindingsFile } from '../core/bindings'
 import { currentBranch } from '../core/git'
-import { scanRecordCopies, unionFold, type RecordProvenance } from '../core/record-copies'
+import { listInitiatives } from '../core/listing'
+import { createToolContext, ToolError, type ToolContext } from '../mcp/context'
+import { emptyState, foldLog, type InitiativeState } from '../core/fold'
+import {
+  scanRecordCopies,
+  unionFold,
+  type CopyScan,
+  type RecordProvenance,
+} from '../core/record-copies'
 import { renderFullStatus } from '../projections/templates/status'
-import type { CopyOptions } from './list'
+import { runList, type CopyOptions } from './list'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 import {
   columnsOf,
@@ -33,9 +41,6 @@ import {
  * renderFullStatus bytes, which the agent-facing surfaces also share.
  */
 
-/** Slug shape, checked before an explicit slug is looked up on another copy. */
-const SLUG = /^[a-z0-9-]+$/
-
 export function runStatus(
   rootDir: string,
   slug?: string,
@@ -44,36 +49,100 @@ export function runStatus(
   options: CopyOptions = {},
 ): CmdResult {
   const ctx = createToolContext(rootDir)
-  const scanFor = (target: string) =>
-    options.here === true
-      ? null
-      : scanRecordCopies(rootDir, { slugs: [target], remotes: options.remotes === true })
 
   let resolved: string
-  let scan: ReturnType<typeof scanFor> = null
   try {
     resolved = ctx.resolveInitiative(slug)
   } catch (err) {
     // An initiative that exists only on another branch still has a status
     // (branch-visibility D1): look for it there before giving up.
-    if (err instanceof ToolError && slug !== undefined && SLUG.test(slug)) {
-      scan = scanFor(slug)
+    if (err instanceof ToolError && slug !== undefined && SLUG.test(slug) && options.here !== true) {
+      const scan = scanRecordCopies(rootDir, { slugs: [slug], remotes: options.remotes === true })
+      if ((scan.logs.get(slug)?.length ?? 0) > 0) return statusOf(ctx, slug, caps, columns, options, scan)
     }
-    if (scan !== null && (scan.logs.get(slug!)?.length ?? 0) > 0) {
-      resolved = slug!
-    } else if (err instanceof ToolError) {
+    if (err instanceof ToolError) {
+      if (slug === undefined && err.code === 'unknown_initiative') {
+        const oriented = unboundStatus(ctx, rootDir, caps, columns, options)
+        if (oriented !== null) return oriented
+      }
       return fail(`sofar status: ${err.message} (usage: sofar status [slug])`)
-    } else {
-      return fail(`sofar status: ${errMessage(err)}`)
+    }
+    return fail(`sofar status: ${errMessage(err)}`)
+  }
+  return statusOf(ctx, resolved, caps, columns, options)
+}
+
+/** Slug shape, checked before an explicit slug is looked up on another copy. */
+const SLUG = /^[a-z0-9-]+$/
+
+/**
+ * `sofar status` with no slug on an unbound branch (r1-fixes 4.1.4, L10, D28)
+ * orients instead of failing: a line naming why and the slug to pass, the
+ * most recently active open initiative's status, then the listing — exit 0.
+ * Round 1: that exit 1 was the first call of 9 in 10 Codex sessions, and the
+ * cells it happened in went on to open one initiative per roadmap item.
+ *
+ * Null — keep failing — when the repo carries no record, or the branch IS
+ * bound (to a directory that is gone: a broken binding, not an unbound
+ * branch), or bindings.json cannot be read. Read-only: binding is `sofar
+ * switch`'s job, never a status side effect.
+ */
+function unboundStatus(
+  ctx: ToolContext,
+  rootDir: string,
+  caps: Caps,
+  columns: number,
+  options: CopyOptions,
+): CmdResult | null {
+  if (!existsSync(join(rootDir, '.sofar'))) return null
+  const branch = currentBranch(rootDir)
+  if (branch !== null) {
+    try {
+      if (typeof readBindingsFile(join(rootDir, '.sofar', 'bindings.json'))[branch] === 'string') return null
+    } catch {
+      return null
     }
   }
+  const why = branch !== null ? `No initiative is bound to branch "${branch}"` : 'No current git branch'
+  const recent = listInitiatives(rootDir).entries.find((e) => !isClosedInitiativeStatus(e.status))
+  const list = runList(rootDir, caps, columns, options)
+  if (recent === undefined) {
+    const head = `${why}, and no open initiative exists — create one: sofar new <slug> --goal "<one line>"\n\n`
+    return ok(`${head}${list.stdout}`, list.stderr)
+  }
+  const head =
+    `${why} — showing the most recently active initiative, ${recent.slug}. ` +
+    `Pass it explicitly: sofar status ${recent.slug}, sofar event append ${recent.slug} …\n\n`
+  const shown = statusOf(ctx, recent.slug, caps, columns, options)
+  if (shown.exitCode !== 0) return shown
+  const stderr = [shown.stderr, list.stderr].filter((s) => s !== '').join('\n')
+  return ok(`${head}${shown.stdout}\n${list.stdout}`, stderr)
+}
 
+/**
+ * One initiative's status, already resolved to a slug this checkout or
+ * another copy holds. Folded across the other copies of the record unless
+ * `--here` (branch-visibility D1); `scan` is passed when resolution already
+ * had to look for the slug elsewhere.
+ */
+function statusOf(
+  ctx: ToolContext,
+  resolved: string,
+  caps: Caps,
+  columns: number,
+  options: CopyOptions = {},
+  scan?: CopyScan,
+): CmdResult {
   const logPath = ctx.eventsPath(resolved)
   let state: InitiativeState
   let warnings: string[] = []
   let provenance: RecordProvenance | null = null
-  scan ??= scanFor(resolved)
-  const foreign = scan?.logs.get(resolved) ?? []
+  const copies =
+    scan ??
+    (options.here === true
+      ? undefined
+      : scanRecordCopies(ctx.rootDir, { slugs: [resolved], remotes: options.remotes === true }))
+  const foreign = copies?.logs.get(resolved) ?? []
   if (foreign.length > 0) {
     let localText: string | null = null
     try {
@@ -81,7 +150,7 @@ export function runStatus(
     } catch (err) {
       return fail(`sofar status: failed to read ${logPath}: ${errMessage(err)}`)
     }
-    const union = unionFold(resolved, localText, foreign, currentBranch(rootDir))
+    const union = unionFold(resolved, localText, foreign, currentBranch(ctx.rootDir))
     state = union.state
     warnings = union.warnings
     provenance = union.provenance

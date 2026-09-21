@@ -145,7 +145,10 @@ export function codexPinLine(initiative: string, sessionId: string, sofarBin = '
     `  ${sofarBin} status ${initiative}`,
     'Log a decision, and set the task status, as they happen — note the task',
     'key is `id`, not `task_id`:',
-    `  ${append} decision_logged --payload '{"chose":"…","over":"…","because":"…"}'`,
+    `  ${append} decision_logged --payload '{"chose":"…","over":"…","because":"…","rule":"…"}'`,
+    'Add `rule` (one short imperative) when the operator states the choice for the',
+    'whole project — every later session sees it as a standing constraint. Omit it',
+    'for a one-off choice.',
     `  ${append} task_status_changed --payload '{"id":"…","status":"done"}'`,
     'If the task needs a decision only the operator can take, set it `blocked`',
     'with the question as the note instead — that is what stops the run:',
@@ -250,6 +253,8 @@ export class CodexSession implements AgentSession {
           // unless the record registered it (D3).
           session_id: this.sessionId,
           ...(this.finalUsage !== undefined ? { usage: this.finalUsage } : {}),
+          ...(this.stderrTail.trim() !== '' ? { stderr_tail: this.stderrTail } : {}),
+          ...(this.spawnError !== undefined ? { spawn_error: this.spawnError } : {}),
         })
       }
       let exited: { code: number | null; signal: NodeJS.Signals | null } | undefined

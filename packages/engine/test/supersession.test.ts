@@ -24,8 +24,7 @@ import {
   isClosedInitiativeStatus,
   validatePayload,
 } from '../../schema/src/events'
-import { validateToolInput } from '../../schema/src/tool-inputs'
-import { callTool, callToolExpectError, connectServer, makeRepoFixture } from './helpers/mcp'
+import { makeRepoFixture } from './helpers/mcp'
 
 /**
  * initiative-supersession acceptance: one record can continue in another, and
@@ -126,9 +125,8 @@ describe('schema (1.1)', () => {
   })
 
   it('the close tool input mirrors the payload rule', () => {
-    expect(validateToolInput('sofar_close_initiative', { status: 'superseded', successor: 'new' }).ok).toBe(true)
-    expect(validateToolInput('sofar_close_initiative', { status: 'superseded' }).ok).toBe(false)
-    expect(validateToolInput('sofar_close_initiative', { status: 'done', successor: 'new' }).ok).toBe(false)
+    // The MCP close tool left the surface (r1-fixes 2.4, D13); the referent
+    // checks live in applyClose and `sofar close`, covered below.
   })
 })
 
@@ -325,8 +323,8 @@ describe('close audit (2.4)', () => {
   })
 })
 
-describe('sofar_close_initiative (2.1, MCP)', () => {
-  it('closes superseded with a successor and refuses one that is not a record', async () => {
+describe('closing superseded (2.1) — CLI-first since r1-fixes 2.4 (D13)', () => {
+  it('closes superseded with a successor and refuses one that is not a record', () => {
     const fixture = makeRepoFixture({ slug: 'old' })
     roots.push(fixture.root)
     writeFileSync(
@@ -334,24 +332,18 @@ describe('sofar_close_initiative (2.1, MCP)', () => {
       `${serializeEvent(ev('initiative_created', { slug: 'old', goal: 'g' }, { initiative: 'old' }))}\n`,
     )
     mkdirSync(join(fixture.root, '.sofar', 'initiatives', 'new'), { recursive: true })
-    const { client } = await connectServer(fixture.root)
 
-    const missing = await callToolExpectError(client, 'sofar_close_initiative', {
-      status: 'superseded',
-      successor: 'ghost',
-    })
-    expect(missing.code).toBe('unknown_initiative')
+    const missing = runClose(fixture.root, 'old', { supersededBy: 'ghost' }, PLAIN, PLAIN)
+    expect(missing.exitCode).toBe(1)
+    expect(missing.stderr).toContain('ghost')
+    expect(foldLog(fixture.eventsPath).state.status).not.toBe('superseded')
 
-    const { body } = await callTool<{ event_id: string | null; unbound: string[] }>(
-      client,
-      'sofar_close_initiative',
-      { status: 'superseded', successor: 'new' },
-    )
-    expect(body.event_id).not.toBeNull()
-    expect(body.unbound).toEqual(['main'])
+    const res = runClose(fixture.root, 'old', { supersededBy: 'new' }, PLAIN, PLAIN)
+    expect(res.exitCode).toBe(0)
     const state = foldLog(fixture.eventsPath).state
     expect(state.status).toBe('superseded')
     expect(state.successor).toBe('new')
+    expect(JSON.parse(readFileSync(join(fixture.root, '.sofar', 'bindings.json'), 'utf8'))).not.toHaveProperty('main')
   })
 })
 

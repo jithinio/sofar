@@ -1,0 +1,104 @@
+{
+  "state": {
+    "current": {
+      "active_phase": "Phase 1 — first",
+      "next_action": null
+    },
+    "cursor": "01KDVDNGTRA1CVY50ZJ9M36D87",
+    "decisions": [
+      {
+        "because": "fixed",
+        "chose": "right",
+        "id": "01KDVDNGTRA1CVY50ZJ9M36D87",
+        "over": "wrong",
+        "ts": "2026-01-01T00:00:07.000Z"
+      }
+    ],
+    "drop_notes": {},
+    "files_touched": [
+      "src/a.ts"
+    ],
+    "freshness": {
+      "events_since_writeback": {
+        "commands": 0,
+        "decisions": 1,
+        "files": 1,
+        "memories": 0,
+        "notes": 0,
+        "phases": 0,
+        "reviews": 0,
+        "tasks": 0
+      },
+      "last_writeback_ts": null,
+      "notes": [],
+      "unattributed_mutations": 0
+    },
+    "goal": "a goal of realistic length for the parity suite",
+    "guard_violations": [],
+    "memories": [],
+    "phases": [
+      {
+        "name": "Phase 1 — first",
+        "status": "active",
+        "tasks": [
+          {
+            "id": "1.1",
+            "status": "active",
+            "title": "task 1"
+          },
+          {
+            "id": "1.2",
+            "status": "pending",
+            "title": "task 2"
+          }
+        ]
+      },
+      {
+        "name": "Phase 2 — second",
+        "status": "pending",
+        "tasks": [
+          {
+            "id": "2.1",
+            "route": {
+              "agent": "codex"
+            },
+            "status": "pending",
+            "title": "later",
+            "verify": {
+              "cmd": "npm test"
+            }
+          }
+        ]
+      }
+    ],
+    "reviews": [],
+    "runs": [],
+    "sessions": [
+      {
+        "activity": {
+          "commands": 0,
+          "files": [
+            "src/a.ts"
+          ],
+          "task_changes": []
+        },
+        "id": "A",
+        "started": "2026-01-01T00:00:03.000Z",
+        "tool": "claude-code",
+        "unwritten": 2
+      }
+    ],
+    "slug": "demo",
+    "status": "active",
+    "status_note": null,
+    "status_overrides": [],
+    "status_ts": null,
+    "successor": null,
+    "task_files": {
+      "1.1": [
+        "src/a.ts"
+      ]
+    }
+  },
+  "warnings": []
+}

@@ -96,7 +96,7 @@ function canonicalJSON(value: unknown): string | undefined {
  * Lexicographic by Unicode code point — NOT the default sort, which compares
  * UTF-16 code units and misorders keys containing astral-plane characters.
  */
-function compareCodePoints(a: string, b: string): number {
+export function compareCodePoints(a: string, b: string): number {
   const iterA = a[Symbol.iterator]()
   const iterB = b[Symbol.iterator]()
   for (;;) {

@@ -47,15 +47,18 @@ Three consequences run through every design decision in the codebase:
 | `core/envelope.ts` | Envelope v1: mint, validate, canonical field order. |
 | `core/log.ts` | `appendEvent` — O_APPEND, one line, never partial. Canonical serialization. |
 | `core/atomic.ts` | `writeFileAtomic` — temp + rename, so readers never see a torn file. |
+| `core/lock.ts` | `withFileLock` — exclusive-create mutex for short check-then-append sections (session registration). Degrades to unlocked rather than blocking a hook; lock files live in the self-ignoring `.index/`. |
 | `core/redact.ts` | Secret redaction on captured commands before they reach the log. |
 | `core/judge.ts` | Judge seam (typed-judge 2.1/2.2, SPEC §Judge): typed noul/choice/score questions over a bounded state; rules decide first with confidence 1, only abstentions go to a non-deterministic provider in one request, provider failure leaves abstentions and never throws; confidence recomputed from probabilities; state redacted before any provider; never imported by hooks, projections, the fold or the fast/statusline CLI (pinned by test). |
+| `core/lane.ts` | The quick-work lane's constants (r1-fixes 2.6, D14): the reserved slug `quick` an unbound branch falls back to, its fixed goal, and the block's recent-session cap. A fallback, never a binding and never a home. |
+| `core/snapshot.ts` | The public incremental fold (r1-fixes 5.1, D20–D22): `foldAll`/`foldFile` retain the replay as a versioned, serialisable snapshot with a byte-defined prefix; `fold`/`foldFileSince` apply a tail or refuse with a closed reason; `stateOf` finalizes on a clone; `canonicalJSON` is the golden form. Derived state only — never committed, exported or synced. |
 | `core/identity.ts` | Optional `user` stamp from git config. `identity.browser.ts` is the browser build. |
 
 ### 2. Derivation — pure functions of the log
 
 | module | what it derives |
 | --- | --- |
-| `core/fold.ts` | `InitiativeState` — the fold. Tolerant (corrupt lines skipped, never fatal), deterministic, ULID-ordered. Also `openSessionFiles`, `openSessionFileConflicts`, `overlappingWritebacks`, `sessionDebt`, `sessionGuardViolations`, `reviewWatermark`, `openFindings`. |
+| `core/fold.ts` | `InitiativeState` — the fold. Tolerant (corrupt lines skipped, never fatal), deterministic, ULID-ordered. Since r1-fixes 2.7 (D17) the replay is a retained `FoldCheckpoint` (`replayDecoded`, `appendToCheckpoint`, `finalizeFold`), so an appended event is applied without replaying the log. Also `openSessionFiles`, `openSessionFileConflicts`, `overlappingWritebacks`, `sessionDebt`, `sessionGuardViolations`, `reviewWatermark`, `openFindings`. |
 | `core/adjacency.ts` | Typed edges (`touched`, `ran`, `changed`, `worked`) and the derived `SessionActivity`. Caps live here (`ACTIVITY_LIST_CAP`, `TASK_FILES_CAP`). |
 | `core/graph.ts` | The cross-record adjacency graph — facts that outlive one log. **Never on the hot path**: it reads N logs where a shim can afford one. |
 | `core/citations.ts` | The citation grammar — scan handles from prose (lexical, permanent), bind them to initiatives (current, because `sofar new` changes the answer). Below `graph.ts` so the index can reach it. |
@@ -69,6 +72,7 @@ Three consequences run through every design decision in the codebase:
 | `core/shipwatch.ts` | Per-session `origin/<branch>` marks in the derived index — the free ref-movement gate that lets the per-prompt path pay for `attribution.ts`'s walk only when a push actually happened (3.4, D11). Edge-triggered: marking is what stops a transition being announced twice. |
 | `core/closeout.ts` | The mechanical audit run at close (5.1) — outstanding tasks, unresolved phases, done tasks with no file evidence, unaddressed guard crossings, drift since the write-back, unreviewed phases. Refuses nothing: the findings ride on the close event so an override is recorded rather than prevented (5.2). |
 | `core/cursor.ts` | Export/import cursors: the entire sync interface. |
+| `core/session-pointer.ts` | The live-session pointer (r1-fixes 4.1.3, D30): `.sofar/.index/session.json` names the session hooks registered (or a hookless `session_started` minted), so a CLI append with no `--session` joins it instead of splitting the launch into two ids. Derived and per-worktree; whether that session ended is read from the record. |
 | `core/state-dir.ts` | Per-clone state OUTSIDE the repo: `$XDG_STATE_HOME/sofar`, keyed by a hash of the clone's real path. Shared by sync cursors and the diagnostics store. |
 | `core/diagnostics.ts` | The private diagnostics store (self-improve D3): append-only rows per initiative under the clone's state dir, 90-day retention, byte cap, best-effort writes that never recurse, refused outright if the path would land inside the repo. A third class — not truth, not derived. |
 | `core/signals.ts` | The signal availability map (self-improve 1.3): every signal the improvement loop may consume, with its ceiling (capturable / partial / unavailable), the blind spot behind it, and what the clone must have wired for it — a consumer prints UNKNOWN for anything else. |
@@ -90,6 +94,12 @@ synced, and any absence, staleness, or corruption falls back to reading the logs
 | `core/index-tier1.ts` | **Keyed tier.** Declared relevance (which decisions guard this path) and derived relevance (who else touched it, from which initiative). |
 | `core/index-reach.ts` | **Reach tier.** What `sofar find` traverses: decisions, notes, files, sessions and citation edges, each carrying the event id that produced it. Read only when asked, so it can afford prose the hot tiers cannot. |
 | `core/lexicon.ts` | Turns a question into seeds when nothing denotes it: tokenize, fold plurals and tenses, rank by IDF. No model, and every match returns the words that carried it. |
+| `core/lessons.ts` | Relevant lessons at the prompt (r1-fixes 3.3, D16): BM25-ranks the prompt against this initiative's decisions and stall handoffs with the lexicon's ranker, in-process from the fold — no model, no file read, two lines at most; bounded to the last 60 decisions and switchable off with `SOFAR_LESSONS=off` (D18). |
+| `core/derived.ts` | Derived activity (r1-fixes 2.5, D24): the closed test-command recognizer the fold uses to mark test-shaped `command_run` events, the `SOFAR_ACTIVITY` switch, and the "log only why" sentences the MCP server appends to two tool descriptions. Pure — the fold never reads the env. |
+| `core/reversal.ts` | The reversal check (r1-fixes 4.1.2, D31): a new decision whose distinguishing chose/over terms land on a standing decision's over/chose is refused by sofar_log_decision and `event append` unless `supersedes` names it or `because` cites it. Lexical, label-sized clauses only, same record, no model. |
+| `core/retire.ts` | Decision retirement (r1-fixes 3.2, D25): which decisions have left the digest — superseded by a later one (`superseded_by`, set by the fold) or scoped by `until` to a task that resolved — derived from the record, never a clock; plus the `SOFAR_RETIRE` switch the renderers read. |
+| `core/rule-fidelity.ts` | Rule fidelity (memory-lead 1.2, D2): the status codes, paths and values a standing rule states that the operator's `quote` does not — rendered beside the rule on every rule surface and returned as a warning by sofar_log_decision and `event append`. Pure token classification, no model. |
+| `core/order.ts` | One string order for every shared surface (r1-fixes 5.2, rust-core D6): `byCodeUnit`, UTF-16 code-unit comparison behind every sort of a path, slug, id or term — what Rust's `str` orders by; `localeCompare` is ICU collation and diverges on case and punctuation. |
 
 ### 4. Projections — state rendered to disk
 
@@ -118,11 +128,11 @@ silence, never a broken session.
 
 | hook | what it does |
 | --- | --- |
-| SessionStart | Injects the record — goal, progress, next action, decisions, standing constraints, rejected approaches, repo memory. |
-| UserPromptSubmit | Live hazards first: file conflicts, reachable peers, crossed guards, parallel wrap-ups, git state, drift nudge. |
-| PostToolUse | Captures file touches and commands as events (`ok: true`). The point-of-use guard fires here. A `tool_outcome` diagnostics row goes to the private store — including for the self-recording commands the record exempts. |
-| PostToolUseFailure | The failed half: the same mechanical event with `ok: false` (and `exit` when the host gives one), and a `tool_failure` row carrying the redacted, clipped error text the record must never hold. |
-| Stop | Blocks a session that owes a write-back. |
+| SessionStart | Injects the record — goal, progress, next action, decisions, standing constraints, rejected approaches, repo memory. One bounded attribution walk feeds the shipping notice and the commits-by-task line (D24). |
+| UserPromptSubmit | Crossed guards and the lessons the prompt re-proposes first (D16), then live hazards: file conflicts, reachable peers, parallel wrap-ups, git state, drift nudge. |
+| PostToolUse | Captures file touches and commands as events (`ok: true`). The point-of-use guard fires here. On an unbound branch it creates the quick lane (`quick`) on the first edit and captures there (D14). A `tool_outcome` diagnostics row goes to the private store — including for the self-recording commands the record exempts. Outcomes (`ok`/`exit`) fold into per-session failed counts and per-task test outcomes (D24). |
+| PostToolUseFailure | The failed half: the same mechanical event with `ok: false` (and `exit` when the host gives one), and a `tool_failure` row carrying the redacted, clipped error text the record must never hold. Routes like PostToolUse, quick lane included. |
+| Stop | Blocks a session that owes a write-back — never in the quick lane, which has no write-back. |
 | SessionEnd | Closes the session. |
 
 A seventh shim, `hooks/prepare-commit-msg.sh`, is a **git** hook rather than a
@@ -136,16 +146,19 @@ worse than no attribution.
 | --- | --- |
 | `cli/index.ts` | Command registration. |
 | `cli/event.ts` | All five hook handlers, plus `sofar event append`. |
-| `cli/review.ts` | `sofar review` — prints the evidence packet (read half). `sofar_review` records the verdict (write half). |
+| `cli/host.ts` | Which agent fired a hook, and its dialect: detects Cursor from the payload, converts Cursor's input to the Claude Code field names the handlers read and their output to `additional_context` / `followup_message` (r1-fixes 6.3–6.6, D34). |
+| `cli/fold.ts` | `sofar fold` (hidden) — the black-box face of the incremental fold for the shared fold-parity suite: fold raw lines, or apply a file tail to a serialized snapshot, print canonical state JSON. |
+| `cli/review.ts` | `sofar review` — prints the evidence packet (read half); the packet ends with the `sofar event append --type review_recorded` command that records the verdict (write half; r1-fixes 2.4, D13). |
 | `cli/commit-trailer.ts` | `sofar commit-trailer` — the prepare-commit-msg worker that stamps `Sofar-Initiative:` from the session that made the commit (D5). Session-only resolution; never fails a commit. |
-| `cli/init.ts` | `sofar init` — hooks, MCP wiring, protocol block, `.gitattributes`. Owns the protocol-block ledger. |
+| `cli/init.ts` | `sofar init` — for the agents picked, hooks (`.claude/settings.json` and `.cursor/hooks.json`), MCP wiring (`.mcp.json` and `.cursor/mcp.json`) and protocol blocks; `.gitattributes` for all. Decides where the shims live and which agents a repo is already wired for (r1-fixes 7.1, D36). Owns the protocol-block ledger. |
+| `cli/agents.ts` | The agents `sofar init` can set up (Claude Code, Cursor, Codex): the `--agents` grammar, which agents this machine has, and the terminal multi-select picker (r1-fixes 7.1, D36). Writes no file. |
 | `cli/uninit.ts` | `sofar uninit` — removes what init wrote. |
 | `cli/new.ts` | `sofar new` — create an initiative, bind the branch. |
 | `cli/close.ts` | `sofar close` — close an initiative, unbind its branches. |
 | `cli/status.ts` | `sofar status` — the digest. |
 | `cli/next.ts` | `sofar next` — the single next action. |
 | `cli/list.ts` | `sofar list` — the portfolio. |
-| `cli/doctor.ts` | `sofar doctor` — the audit: records, lifecycle, split sessions, concurrency, guards, repo memory, scanners. |
+| `cli/doctor.ts` | `sofar doctor` — the audit: records, lifecycle, split sessions, concurrency, guards, repo memory, scanners, formatters. |
 | `cli/drive.ts` | `sofar drive` — the CLI skin on the driver loop: builds the adapter, streams progress to stderr, and mirrors the run back through `describeRun`. Exit 0 for every stop the record can explain; 1 for `error` and for a preflight that refused to start. `--detach` re-spawns the command detached and answers its caller over IPC once the run is certain to start; `--stop` appends `run_stop_requested` and watches for the stop (in-session-drive D1/D2). |
 | `cli/graph.ts` | `sofar graph` — cross-record queries. |
 | `cli/find.ts` | `sofar find` — traverse from a seed within a hop budget. Offers adjacency, never asserts relevance; every row cites its event. |
@@ -159,6 +172,7 @@ worse than no attribution.
 | `cli/adopt.ts` | `sofar adopt` — migrate a legacy prose record. |
 | `cli/cloud.ts` | `sofar login` / `link` / `push` / `pull`. |
 | `cli/scanners.ts` | Host-config scanners (e.g. emitted stylesheet directives). |
+| `cli/formatters.ts` | Host formatter defence: the JSON shape init writes (Biome/Prettier/.editorconfig), and the Biome/Prettier/markdownlint `.sofar` exclusions doctor audits and `--fix` writes. |
 | `cli/upgrade.ts`, `cli/update-check.ts` | Version checks and self-upgrade. |
 | `cli/boot.ts`, `cli/fast.ts`, `cli/shared.ts` | Startup path, fast path, shared helpers. |
 | `cli/user-config.ts` | User-level config. |
@@ -168,7 +182,7 @@ worse than no attribution.
 
 | module | tool |
 | --- | --- |
-| `mcp/server.ts`, `mcp/register.ts`, `mcp/context.ts` | Server, tool registration, tool context and initiative resolution. |
+| `mcp/server.ts`, `mcp/register.ts`, `mcp/context.ts` | Server, tool registration, tool context and initiative resolution. The context caches one fold checkpoint per slug by log size and mtime (D17): a hook or tool that appends folds once, not twice. |
 | `mcp/start-session.ts` | `sofar_start_session` — pins which record writes land in. |
 | `mcp/end-session.ts` | `sofar_end_session` — the write-back. Reports parallel write-backs and reachable peers. |
 | `mcp/log-decision.ts` | `sofar_log_decision` — including standing constraints and guards. |
@@ -176,10 +190,8 @@ worse than no attribution.
 | `mcp/update-phase.ts` | Phase status, addressed by exact phase name. Unknown name = typed error, not the fold's create-on-miss; already-at-status = no event. |
 | `mcp/add-note.ts` | `sofar_add_note`. |
 | `mcp/remember.ts` | `sofar_remember`. |
-| `mcp/review.ts` | `sofar_review` — records a performed review and its watermark. Records, never judges. |
 | `mcp/get-state.ts` | `sofar_get_state`. |
-| `mcp/close-initiative.ts` | `sofar_close_initiative`. |
-| `mcp/find.ts` | `sofar_find` — index-backed retrieval. Read-only, appends nothing, never builds the graph. |
+| `mcp/close-initiative.ts` | `applyClose` — the two-step close behind `sofar close` and `sofar new --supersedes` (the MCP tool left in r1-fixes 2.4, D13). |
 
 **Library** — importable entry points, side-effect free.
 
@@ -222,6 +234,7 @@ three-call adapter and the driver never becomes an agent loop of its own.
 | `driver/codex.ts` | The codex adapter (3.1): `codex exec --json`, thread/turn/item events, usage only on `turn.completed`. Declares what it cannot do — no live gauge, no nudge, no per-tool permission rules, no cost — maps the surface's mode to a sandbox plus `approval_policy=never`, assigns the session id it writes into the pin line, and hands the session the CLI dialect because codex carries no sofar MCP server. |
 | `driver/permissions.ts` | The permission surface a driven session runs under (2.4, D8): the default `acceptEdits` mode and the allow-list floor — sofar's own MCP tools, `sofar`, and the local git verbs the prompt orders — plus `buildSurface`, `sameSurface` for the resume comparison, and `writeVerifiedSettings`, which writes a settings file and reads it back before any launch is allowed to happen. |
 | `driver/nudge.ts` | The threshold nudge file: the env var carrying its path, the write, the tolerant read, and the line the hook injects. Dependency-free because it sits on the PostToolUse hot path — existence is the signal, contents are detail. |
+| `driver/verify.ts` | The verification gate (r1-fixes 3.1, D19): which acceptance command applies to a task, whether the run's surface lets the driver run it, the tree fingerprint (HEAD plus tracked diff and untracked blobs, `.sofar/` excluded), running the command with a bounded redacted tail, and whether a recorded pass still covers the tree. |
 | `driver/routing.ts` | Per-task routing (3.2, D10): a task's `route {agent, model, effort}` resolved against the run. The run's pins win and an overridden hint is stated rather than dropped; `route.agent` is refused outright when the run cannot reach that adapter or when the adapter cannot run the run's policy, so no route ever falls back to the default agent silently. `previewRoutes` runs the whole queue through it before `run_started`. |
 | `driver/drive.ts` | The `sofar drive` loop: fold → next task (active-first, then plan order) → launch → wait → handoff, until a stop rule fires. Reasons are read from the record (D5) — `needs_user` is the named task in `blocked`, `task_done` needs a write-back plus a resolved task, everything else stalls. One launch directory per run, verified by realpath to serve the same log (D6). A stop request is honoured before each launch from the fold and during a session by `watchStopRequests`, which reads only appended bytes (in-session-drive D2). |
 
