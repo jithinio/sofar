@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: User rules on main's version label; then merge agents-parity after the 6.8 call.
+Next action: When sofar-ed reports 6.8 and agents-parity ready: coordinate the agents-parity -> main merge.
