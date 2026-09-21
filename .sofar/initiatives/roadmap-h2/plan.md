@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: Bisect the rc.2 i1000-10mb hook regression on r1-fixes (note 01M31QND8).
+Next action: Step 4: merge r1-fixes into main (one trunk), then agents-parity.
