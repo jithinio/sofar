@@ -1,5 +1,5 @@
-import type { RecordCopy, RecordProvenance } from '../../core/record-copies'
-import { progressText } from './shared'
+import type { RecordCopy, RecordProvenance, WorktreeLead } from '../../core/record-copies'
+import { clip, progressText } from './shared'
 
 /**
  * Where a record's events live (branch-visibility D1): the lines `sofar
@@ -55,4 +55,26 @@ export function provenanceSummary(p: RecordProvenance): string {
   const named = p.copies.slice(0, SUMMARY_NAMES).map((c) => copyName(c.copy))
   const more = p.copies.length > SUMMARY_NAMES ? `, +${p.copies.length - SUMMARY_NAMES} more` : ''
   return `across branches: ${here}, +${p.unseen} event(s) on ${named.join(', ')}${more}`
+}
+
+/** The SessionStart hint's budget: one notice among several in the block's tail. */
+export const WORKTREE_LEADS_BUDGET = 360
+
+/**
+ * The SessionStart line (branch-visibility 3.3), naming other worktrees whose
+ * copy of this record holds events this checkout's copy lacks. The block is
+ * folded from this checkout alone, as the hook budget requires, so this says
+ * how far behind it may be and which command shows the rest. Null when no
+ * worktree adds anything, so the block stays byte-identical.
+ */
+export function worktreeLeadsNotice(leads: readonly WorktreeLead[], home?: string): string | null {
+  if (leads.length === 0) return null
+  const total = leads.reduce((sum, lead) => sum + lead.unseen, 0)
+  const named = leads.slice(0, SUMMARY_NAMES).map((lead) => `+${lead.unseen} on ${copyLabel(lead.copy, home)}`)
+  const more = leads.length > SUMMARY_NAMES ? `, +${leads.length - SUMMARY_NAMES} more` : ''
+  return clip(
+    `⚠ ${total} event(s) of this record live on other worktrees, not on this checkout: ${named.join(', ')}${more}. ` +
+      `This block folds this checkout's copy alone; \`sofar status\` folds them in. They reach this branch only by a merge.`,
+    WORKTREE_LEADS_BUDGET,
+  )
 }

@@ -17,6 +17,7 @@ import {
   STATUS_TRUNCATION_MARKER,
 } from '../src/projections/templates/status'
 import { GENERATED_HEADER, clip } from '../src/projections/templates/shared'
+import { WORKTREE_LEADS_BUDGET } from '../src/projections/templates/copies'
 
 const scratch = mkdtempSync(join(tmpdir(), 'sofar-projections-'))
 
@@ -792,11 +793,14 @@ describe('standing constraints — verbatim render contract (drift-hardening 2.1
       repoMemory: 'R'.repeat(1_500),
       sessionId: 'sess-1',
       git: git as never,
-      notices: ['N'.repeat(480), 'M'.repeat(300)],
+      // recent work elsewhere, other worktrees (branch-visibility 3.3), shipping — each at its budget
+      notices: ['N'.repeat(480), 'W'.repeat(WORKTREE_LEADS_BUDGET), 'M'.repeat(300)],
     })
     expect(out.length).toBeLessThanOrEqual(STATUS_CHAR_LIMIT)
     expect(out).not.toContain(STATUS_TRUNCATION_MARKER)
     expect(out).toContain('N'.repeat(480))
+    expect(out).toContain('W'.repeat(WORKTREE_LEADS_BUDGET))
+    expect(out).toContain('M'.repeat(300))
     expect(out).toContain('Read-back:')
     expect(out).toMatch(/- …and \d+ more \(see decisions\.md\)/)
   })

@@ -12,6 +12,9 @@
   Both run at the workspace root; typecheck: `npm run typecheck`.
   A fresh worktree needs `npm ci` then `npm run build` first (r1-fixes M1):
   dist/ is gitignored and spawn-based suites execute dist/cli.js.
+  Load-flaky under a busy full run (branch-visibility M1): reach-index's
+  "3.5 lexical seeds" case and shim-latency's 100 ms SessionStart budget.
+  Rerun the file alone (`npx vitest run <file>`); a pass alone means load.
 - Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
   (source-shipped, no build); packages/engine → sofar bin
   (packages/engine/dist/cli.js after build).

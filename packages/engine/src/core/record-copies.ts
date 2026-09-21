@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { foldLines, type InitiativeState } from './fold'
 import { commonGitDir } from './git'
@@ -426,6 +426,110 @@ export function copyWatch(rootDir: string, slug: string, options: { remotes?: bo
     if (existsSync(dir)) paths.push(dir)
   }
   return { paths, ignored, common }
+}
+
+// ---------------------------------------------------------------------------
+// The SessionStart hint (branch-visibility 3.3).
+// ---------------------------------------------------------------------------
+
+export interface WorktreeLead {
+  copy: RecordCopy
+  /** Events that checkout's copy holds and this one lacks. */
+  unseen: number
+}
+
+/**
+ * How much of a copy's tail is compared with this checkout's log at the same
+ * offset to call the copy an older prefix of it. Every line carries a ulid
+ * and a timestamp, so two diverged logs cannot agree on a whole window at the
+ * same offset. The worst a false match could cost is one missing hint.
+ */
+const PREFIX_PROBE_BYTES = 4096
+
+function readWindow(path: string, offset: number, length: number): Buffer | null {
+  let fd: number | null = null
+  try {
+    fd = openSync(path, 'r')
+    const buf = Buffer.alloc(length)
+    const read = readSync(fd, buf, 0, length, offset)
+    return read === length ? buf : null
+  } catch {
+    return null
+  } finally {
+    if (fd !== null) closeSync(fd)
+  }
+}
+
+function idsOf(text: string): Set<string> {
+  const ids = new Set<string>()
+  for (const raw of text.split('\n')) {
+    const line = raw.trim()
+    if (line.length === 0) continue
+    const id = lineId(line)
+    if (id !== null) ids.add(id)
+  }
+  return ids
+}
+
+/**
+ * Which OTHER worktrees hold events of this record that this checkout's copy
+ * lacks, for the SessionStart block. Unlike scanRecordCopies it runs inside
+ * the hook budget, so it reads files only and never spawns git. Branches with
+ * no checkout are out of reach, and `sofar status` covers them.
+ *
+ * Most copies are older prefixes of this log (a checkout that has not written
+ * to this record since it forked), and a stat plus one small window at the
+ * copy's own end proves that without reading either log. Only a copy that
+ * diverged is read in full, and this log's ids are read once, the first time
+ * one is needed.
+ */
+export function worktreeLeads(rootDir: string, slug: string, localPath: string): WorktreeLead[] {
+  if (!SLUG.test(slug)) return []
+  const common = commonGitDir(rootDir)
+  if (common === null) return []
+  const self = realpathOrNull(rootDir)
+  let localSize = 0
+  try {
+    localSize = statSync(localPath).size
+  } catch {
+    // no copy here: every event another checkout holds is unseen
+  }
+  let localIds: Set<string> | null = null
+  const leads: WorktreeLead[] = []
+  for (const checkout of listCheckouts(common)) {
+    if (self !== null && realpathOrNull(checkout.root) === self) continue
+    const path = join(checkout.root, '.sofar', 'initiatives', slug, 'events.jsonl')
+    let size: number
+    try {
+      size = statSync(path).size
+    } catch {
+      continue // that checkout does not hold this record
+    }
+    if (size === 0) continue
+    if (size <= localSize) {
+      const width = Math.min(PREFIX_PROBE_BYTES, size)
+      const theirs = readWindow(path, size - width, width)
+      const ours = readWindow(localPath, size - width, width)
+      if (theirs !== null && ours !== null && theirs.equals(ours)) continue
+    }
+    let text: string
+    try {
+      text = readFileSync(path, 'utf8')
+    } catch {
+      continue
+    }
+    if (localIds === null) {
+      try {
+        localIds = localSize > 0 ? idsOf(readFileSync(localPath, 'utf8')) : new Set()
+      } catch {
+        localIds = new Set()
+      }
+    }
+    let unseen = 0
+    for (const id of idsOf(text)) if (!localIds.has(id)) unseen += 1
+    if (unseen > 0) leads.push({ copy: { kind: 'worktree', ref: checkout.branch, path: checkout.root }, unseen })
+  }
+  return leads.sort((a, b) => b.unseen - a.unseen) // stable: ties keep checkout order
 }
 
 // ---------------------------------------------------------------------------

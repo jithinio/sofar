@@ -9,7 +9,9 @@ import { createStatusWatchModel, runStatus } from '../src/cli/status'
 import { makeEvent, type EventEnvelope } from '../src/core/envelope'
 import { listAcrossCopies, listInitiatives } from '../src/core/listing'
 import { serializeEvent } from '../src/core/log'
-import { copyWatch, lineId, scanRecordCopies, unionFold } from '../src/core/record-copies'
+import { copyWatch, lineId, scanRecordCopies, unionFold, worktreeLeads } from '../src/core/record-copies'
+import { handleSessionStart } from '../src/cli/event'
+import { WORKTREE_LEADS_BUDGET, worktreeLeadsNotice } from '../src/projections/templates/copies'
 import { watch } from 'chokidar'
 import type { Caps } from '../src/cli/ui/caps'
 import { createToolContext } from '../src/mcp/context'
@@ -478,5 +480,68 @@ describe('status --watch across copies (branch-visibility 3.2)', () => {
     } finally {
       await watcher.close()
     }
+  })
+})
+
+describe('SessionStart: events of this record on other worktrees (branch-visibility 3.3)', () => {
+  const leadsOf = (root: string): string[] =>
+    worktreeLeads(root, SLUG, logPath(root)).map((lead) => `${lead.copy.ref}+${lead.unseen}`)
+
+  it('an idle fork, and one this checkout has moved past, hold nothing new', () => {
+    const root = repo('leads-prefix')
+    worktree(root, 'idle')
+    expect(leadsOf(root)).toEqual([])
+    append(root, [done('1.1'), done('1.2')]) // main moves on: the fork is now an older prefix
+    expect(leadsOf(root)).toEqual([])
+  })
+
+  it('counts a worktree\'s uncommitted appends, most first, never this checkout', () => {
+    const root = repo('leads-count')
+    append(worktree(root, 'feat'), [done('1.1')])
+    append(worktree(root, 'wide'), [done('1.1'), done('1.2')])
+    expect(leadsOf(root)).toEqual(['wide+2', 'feat+1'])
+  })
+
+  it('a diverged copy smaller than this log is still read, not taken for a prefix', () => {
+    const root = repo('leads-diverged')
+    const feat = worktree(root, 'feat')
+    append(feat, [done('1.1')])
+    append(root, [done('1.2'), done('1.2'), done('1.2')]) // this log is now the larger
+    expect(leadsOf(root)).toEqual(['feat+1'])
+    // Seen from the worktree, main holds three events it lacks.
+    expect(worktreeLeads(feat, SLUG, logPath(feat)).map((l) => `${l.copy.ref}+${l.unseen}`)).toEqual(['main+3'])
+  })
+
+  it('with no copy here, every event another worktree holds is unseen; outside git there are none', () => {
+    const root = repo('leads-absent')
+    const feat = worktree(root, 'feat')
+    append(feat, [ev('solo', 'initiative_created', { slug: 'solo', goal: 'only on feat' })], 'solo')
+    expect(worktreeLeads(root, 'solo', logPath(root, 'solo')).map((l) => l.unseen)).toEqual([1])
+    const outside = realpathSync(mkdtempSync(join(tmpdir(), 'sofar-copies-nogit-')))
+    roots.push(outside)
+    expect(worktreeLeads(outside, SLUG, logPath(outside))).toEqual([])
+  })
+
+  it('the SessionStart block names the worktree, and stays as it was without one', () => {
+    const input = (id: string): string => JSON.stringify({ session_id: id, hook_event_name: 'SessionStart', source: 'startup' })
+    const root = repo('leads-hook')
+    const lone = handleSessionStart(root, input('s-lone')).stdout
+    expect(lone).toContain('# Sofar status: demo')
+    expect(lone).not.toContain('live on other worktrees')
+
+    append(worktree(root, 'feat'), [done('1.1')])
+    const out = handleSessionStart(root, input('s-feat')).stdout
+    expect(out).toMatch(
+      /⚠ 1 event\(s\) of this record live on other worktrees, not on this checkout: \+1 on feat \(worktree .*feat\)\. This block folds this checkout's copy alone; `sofar status` folds them in\./,
+    )
+  })
+
+  it('the notice names two worktrees, counts the rest, and holds its budget', () => {
+    expect(worktreeLeadsNotice([])).toBeNull()
+    const lead = (ref: string, unseen: number) => ({ copy: { kind: 'worktree' as const, ref, path: `/w/${ref}` }, unseen })
+    const three = worktreeLeadsNotice([lead('a', 5), lead('b', 2), lead('c', 1)])!
+    expect(three).toContain('⚠ 8 event(s) of this record live on other worktrees, not on this checkout: +5 on a (worktree /w/a), +2 on b (worktree /w/b), +1 more.')
+    const long = worktreeLeadsNotice([lead('x'.repeat(300), 1), lead('y'.repeat(300), 1)])!
+    expect(long.length).toBeLessThanOrEqual(WORKTREE_LEADS_BUDGET)
   })
 })

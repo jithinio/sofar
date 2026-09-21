@@ -3100,8 +3100,9 @@ single-copy fold. `--here` restores the single-copy view on the commands.
 view:"initiatives", all through `listAcrossCopies` except status, which folds
 its one initiative directly. The MCP view reads worktrees and unmerged local
 branches, never remote-tracking refs, and takes no single-copy switch.
-The get_state digest and full views and every hook still read this checkout
-alone (branch-visibility 3.3). Reading N checkouts
+The get_state digest and full views and every hook still fold this
+checkout's copy alone, because they run on the hot path. The SessionStart
+block adds one hint line instead (below). Reading N checkouts
 costs about 80 ms per listing on this repo's 5 worktrees and 62 initiatives
 (0.18 s to 0.26 s for `sofar list`). That is fine for an operator command or
 an on-demand tool call, and too much for the hot path. Writes always land in
@@ -3123,6 +3124,25 @@ worktree appearing or going. Git's objects, indexes, logs and lock files
 are never walked. A change to this checkout's own log re-folds against the
 copies already scanned, with no rescan. The watched set is re-derived after
 every rescan, so a worktree added mid-watch is picked up.
+
+**SessionStart hint.** The hook's block is folded from this checkout's copy
+alone, so when other WORKTREES hold events of the bound record that this
+copy lacks, the block carries one notice in its volatile tail, after the
+recent-work-elsewhere notice: `` ⚠ N event(s) of this record live on other
+worktrees, not on this checkout: +n on <branch> (worktree <path>), …, +K
+more. This block folds this checkout's copy alone; `sofar status` folds them
+in. They reach this branch only by a merge. `` It names two worktrees at most
+and is clipped to 360 characters. `worktreeLeads` in `core/record-copies.ts`
+computes it from files alone, with no subprocess, to fit the hook budget,
+so branches with no checkout are out of its reach. A copy no longer than
+this log whose last 4,096 bytes equal this log's bytes at the same offset
+is an older prefix and is skipped without reading either file, which is the
+usual case. Only a copy that diverged is read in full, against this log's
+ids, which are read once. Measured on this repo: 0.2 to 0.3 ms when every
+copy is a prefix (r1-fixes, four 1.7 MB copies), 3.3 ms when one diverged
+copy is read (rust-core, 1.8 MB). The quick lane gets no hint: each
+checkout's lane is its own unplanned work. No worktree adding an event means
+no notice, and the block is byte-identical to before.
 
 ## Sync client (v2 — api.sofar.sh, the D14 seam; sync-client, Jul 2026)
 The client half of sofar-cloud sync. The server (private repo) is
@@ -5357,10 +5377,11 @@ stay the underlying derivation's, and exit codes are styling-independent.
   with different session id, sha and notices are byte-identical up to the
   `Session:` line, and a render with no per-session inputs shares that
   prefix too. The SessionStart hook passes its notices (recent work
-  elsewhere first, then closed banner, cold-resume advisory, shipping) as
-  `notices`; the hook output starts with `# Sofar status:` even when every
-  notice fires, and on a heavy record (24 rules, 33 decisions, summary at
-  budget, repo memory at budget, 780 chars of notices) the block stays
+  elsewhere first, then other worktrees, closed banner, cold-resume
+  advisory, shipping) as `notices`; the hook output starts with
+  `# Sofar status:` even when every notice fires, and on a heavy record (24
+  rules, 33 decisions, summary at budget, repo memory at budget, 1,140 chars
+  of notices) the block stays
   ≤10,000 chars with no truncation marker, every notice present, the ledger
   carrying the `…and N more` pointer and the read-back after it.
 - **Quick-work lane (r1-fixes 2.6):** on a branch bound to nothing, the first
@@ -5633,7 +5654,7 @@ stay the underlying derivation's, and exit codes are styling-independent.
   the available-initiatives suffix (≤10 named) or the `sofar new` hint on
   an initiative-less repo; the derivation is deterministic (same records
   → deep-equal listing, same warnings).
-- **Record copies (branch-visibility 1.1–3.2):** against real git repos with
+- **Record copies (branch-visibility 1.1–3.3):** against real git repos with
   linked worktrees, the scan returns every other worktree (an uncommitted
   append included) and every unmerged branch that has no checkout, and never
   returns this checkout, a merged branch, or a ref at a taken commit. Seen
@@ -5659,8 +5680,15 @@ stay the underlying derivation's, and exit codes are styling-independent.
   checkout's record but never this one, and its filter keeps HEADs, refs,
   worktree entries and this initiative's logs while ignoring objects,
   indexes, locks, tags, projections and other initiatives. A real watcher on
-  those targets hears another worktree's append and a new branch. None of
-  these surfaces changes a byte of another copy or its `git status`.
+  those targets hears another worktree's append and a new branch. The
+  SessionStart hint (3.3) counts each other worktree's uncommitted appends,
+  most first, and never this checkout. An idle fork, and one this checkout
+  has moved past, count nothing. A diverged copy smaller than this log is
+  still counted. With no copy here, every event another worktree holds
+  counts. Outside git there is no hint. The hook block names the worktree
+  and is unchanged without one, and the notice names two worktrees, counts
+  the rest, and holds 360 characters. None of these surfaces changes a byte
+  of another copy or its `git status`.
 - **CLI UI (cli-ui):** with stdout and stderr both piped and no explicit
   opt-in, every command emits ZERO ESC (\x1b) bytes — ambient CI included;
   FORCE_COLOR=1 on the same piped invocation carries ANSI-16 SGR on the

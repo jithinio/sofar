@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
 import { readBindingsFile } from '../core/bindings'
 import { currentBranch } from '../core/git'
@@ -60,6 +61,8 @@ import { redactCommand } from '../core/redact'
 import { recordDiagnostic } from '../core/diagnostics'
 import { clipDiagnosticText, DIAGNOSTIC_HEAD_CLIP } from '@sofar/schema/diagnostics'
 import { newestEvent } from '../core/warmth'
+import { worktreeLeads } from '../core/record-copies'
+import { worktreeLeadsNotice } from '../projections/templates/copies'
 import {
   createToolContext,
   homeInitiative,
@@ -581,6 +584,21 @@ function agoLabel(ms: number): string {
  * nothing. Silence is the correct failure mode for a line whose whole claim is
  * that the record cannot be sure.
  */
+/**
+ * Events of this record that other worktrees hold and this checkout lacks
+ * (branch-visibility 3.3). Files only, no subprocess, so it fits the hook
+ * budget. The quick lane is skipped: each checkout's lane is its own
+ * unplanned work, and another lane's events are not this one's backlog.
+ */
+export function otherWorktreesNotice(rootDir: string, slug: string, logPath: string): string | null {
+  if (slug === QUICK_LANE) return null
+  try {
+    return worktreeLeadsNotice(worktreeLeads(rootDir, slug, logPath), homedir())
+  } catch {
+    return null
+  }
+}
+
 export function recentWorkElsewhereNotice(
   sofarDir: string,
   slug: string,
@@ -756,6 +774,7 @@ export function handleSessionStart(rootDir: string, input: string, declared?: Ho
     const activity = activityEnabled()
     const notices = [
       recentWorkElsewhereNotice(ctx.sofarDir, slug, via),
+      otherWorktreesNotice(rootDir, slug, ctx.eventsPath(slug)),
       closedBanner(state),
       advisory,
       shippingNotice(rootDir, slug, commits),
