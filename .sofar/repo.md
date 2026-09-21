@@ -125,3 +125,11 @@
   felt-cost D3 (zero model calls) and BD22 (best-effort, never break the
   session). Named here so doctor's repo-memory axis reads as judged rather
   than unnoticed (2026-08-03).
+- Cursor runs whatever `sofar` the user's LOGIN SHELL finds (r1-fixes M6):
+  it rebuilds PATH for hooks, and very likely for the MCP server, ignoring
+  the PATH it was launched with. So a local build put first on PATH is NOT
+  what a Cursor session runs. Pin the shims and MCP command by absolute path
+  (or through the login shell's startup files) when testing a build in
+  Cursor, and confirm with a `command -v sofar` trace in a scratch shim.
+  Symptom: a Cursor session with no digest (an older sofar's plain text is
+  dropped). Found in the 6.3/6.5 live proof, 2026-09-17.

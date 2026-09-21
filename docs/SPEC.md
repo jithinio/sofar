@@ -1672,6 +1672,25 @@ from the fold, as for every adapter (session-driver D3). A resumed chat
 conversation id from its environment, so `sofar_start_session` still takes
 the id from the injected Session line.
 
+**Which `sofar` Cursor runs (live finding, r1-fixes M6).** Cursor rebuilds
+PATH from the user's login shell for its hooks, ignoring the PATH it was
+launched with. A bare `sofar` in the shims resolves to whatever that shell
+finds, usually the global install, and the stdio MCP server very likely
+resolves the same way. An older sofar there prints plain text that Cursor
+drops, so the symptom is a session that never receives the digest. A
+harness that pins a build must pin it in the login shell's startup files
+or by absolute path, and prove the resolution before trusting a result.
+
+**Proven live (r1-fixes 6.3/6.5/6.7, 2026-09-17, cursor-agent
+2026.09.15-d2fe57e, tree from `sofar init --agents claude-code,cursor`).**
+Print mode: sessionStart fired, the injected digest let the model state the
+record's next action and its Session id without a command or a file read,
+and it registered and wrote back through the MCP tools as tool `cursor`.
+Interactive mode: sessionStart, beforeSubmitPrompt, postToolUse (Write) and
+stop each fired exactly once. Stop arrived with `loop_count: 0` and returned
+`followup_message`, the follow-up turn wrote session_ended, and no second
+stop fired. Evidence: r1-fixes note 01M2QE7G.
+
 ## Derived index (record-index — local, incremental, never truth)
 Every cross-record question — which initiatives hold open sessions, who else
 has this file, what guards this path, what else bears on this work — costs a
@@ -3349,7 +3368,16 @@ Shims contain no logic — they invoke the sofar CLI.
   registered it; see §Cursor host), append
   protocol blocks to CLAUDE.md and AGENTS.md (idempotent; the AGENTS.md
   block is the CLI convention dialect for MCP-less tools — added Phase 5,
-  BD31).
+  BD31). Since r1-fixes 6.7 (D37) an AGENTS.md reader may also have sofar's
+  hooks and MCP tools (Cursor reads AGENTS.md, and CLAUDE.md too when both
+  are wired), so the block opens with the two facts that decide the loop:
+  a record already INJECTED by the hooks is oriented from, never re-read
+  with `sofar status`; with `sofar_*` tools available the writes go through
+  them — `sofar_start_session` first with the "Session:" line's id, then
+  ONE `sofar_end_session` carrying decisions, tasks, phases, memories and
+  notes, with the memory/note boundary stated. The CLI loop that follows
+  names no MCP tool, and agreeing with the CLAUDE.md block is the invariant:
+  both blocks loading in one Cursor session must never give two answers.
   ONLY THE AGENTS PICKED are set up (r1-fixes 7.1, D35, D36). Each agent owns
   its files: Claude Code `.claude/settings.json`, `.mcp.json`, CLAUDE.md;
   Cursor `.cursor/hooks.json`, `.cursor/mcp.json`, AGENTS.md; Codex AGENTS.md

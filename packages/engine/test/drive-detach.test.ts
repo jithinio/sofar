@@ -1,5 +1,5 @@
 import { buildSync } from 'esbuild'
-import { spawnSync, type SpawnSyncReturns } from 'node:child_process'
+import { execFileSync, spawnSync, type SpawnSyncReturns } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -219,6 +219,61 @@ describe('sofar drive --stop reaches a detached driver (in-session-drive D2)', (
     const res = cli(r, ['drive', 'demo', '--stop', '--max-sessions', '2'])
     expect(res.status).toBe(1)
     expect(res.stderr).toContain('--max-sessions')
+  })
+})
+
+describe('verification flags reach the run through the CLI (r1-fixes 3.1)', () => {
+  /**
+   * The verification gate was only ever tested by calling runDrive directly,
+   * so the CLI action could drop its three flags and every test stayed green
+   * while `sofar drive --verify` ran no check at all (found live on
+   * agents-parity run 01M2QT1477SE9CBGJQ1ZXDHY67). This goes through argv.
+   */
+  it('--verify, --verify-timeout and --max-verify-attempts are honoured, not silently dropped', () => {
+    const r = repo('verify-flags', ['1.1'])
+    // The gate fingerprints the tree it checked, so the run needs a real git repo.
+    for (const args of [
+      ['init', '-q', '-b', 'main'],
+      ['config', 'user.email', 't@e.com'],
+      ['config', 'user.name', 't'],
+      ['add', '-A'],
+      ['commit', '-qm', 'init'],
+    ]) {
+      execFileSync('git', args, { cwd: r.root, stdio: 'ignore' })
+    }
+    const res = cli(
+      r,
+      ['drive', 'demo', '--bin', stub, '--verify', 'exit 3', '--verify-timeout', '30', '--max-verify-attempts', '1'],
+      CALLER,
+    )
+    const run = latestRun(fold(r))
+    expect(run, res.stderr).toBeDefined()
+    expect(run!.verify).toBe('exit 3')
+    const checks = readFileSync(r.log, 'utf8')
+      .split('\n')
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as { type: string; payload: Record<string, unknown> })
+      .filter((e) => e.type === 'verification_recorded')
+      .map((e) => e.payload)
+    // One failed check, with the timeout the flag set, and the run stops there
+    // because one attempt is all --max-verify-attempts allowed.
+    expect(checks).toHaveLength(1)
+    expect(checks[0]).toMatchObject({ task: '1.1', attempt: 1, command: 'exit 3', result: 'fail', timeout_ms: 30_000 })
+    expect(run!.stop_reason).toBe('stall')
+    expect(run!.handoffs.map((h) => h.reason)).toEqual(['verify_failed'])
+  })
+
+  it('every flag the drive command registers is read by its action', () => {
+    // The class of bug above, for every flag: commander accepts an option the
+    // action never forwards, and the run silently ignores it.
+    const source = readFileSync(join(here, '..', 'src', 'cli', 'index.ts'), 'utf8')
+    const start = source.indexOf(".command('drive")
+    const block = source.slice(start, source.indexOf('\nprogram', start))
+    const flags = [...block.matchAll(/\.option\(\s*'--([a-z-]+)/g)].map((m) => m[1]!)
+    expect(flags).toContain('verify')
+    const camel = (flag: string): string => flag.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())
+    const unread = flags.filter((flag) => flag !== 'root' && !new RegExp(`opts\\.${camel(flag)}\\b`).test(block))
+    expect(unread).toEqual([])
   })
 })
 

@@ -274,9 +274,21 @@ describe('guidance and the switch (D24 (5), (6))', () => {
     expect(prevAgents).not.toContain('is WHY')
     // The only difference is the clause: the ledger entry is the old block byte-exact.
     expect(d24Claude.replace(/ A note or summary is WHY:\n  files, commands, test outcomes and commits are captured by hooks and\n  derived, never restated\./, '')).toBe(prevClaude)
-    // 4.1.1 (L07, D27) and 4.1.3 (L09, D30) edited the same unreleased block in
-    // place; undo their lines too.
-    const withoutL07 = AGENTS_PROTOCOL_BLOCK.replace(',"rule":"..."}', '}')
+    // 4.1.1 (L07, D27), 4.1.3 (L09, D30) and 6.7 (Cursor's loop choice) edited
+    // the same unreleased block in place; undo their lines too.
+    const without67 = AGENTS_PROTOCOL_BLOCK.replace(
+      'Any\nagent can drive the whole loop with the `sofar` CLI below — no MCP\nsupport is required.',
+      'Drive\nthe whole loop with the `sofar` CLI — no MCP support is required.',
+    )
+      .replace(
+        /Two facts about THIS session decide how you use the loop:\n[\s\S]*?\nSession loop on the CLI:\n/,
+        'Session loop (every write is one `sofar event append` call):\n',
+      )
+      .replace(
+        '- BEFORE any work: unless the record is already INJECTED (above),\n  run `sofar status` and orient from it.',
+        '- BEFORE any work: run `sofar status` and orient from it.',
+      )
+    const withoutL07 = without67.replace(',"rule":"..."}', '}')
       .replace(/  A decision's "rule" is ONE short imperative[^\n]*\n(?:  [^\n]*\n){2}  Omit it for a one-off choice\.\n/, '')
       .replace(
         /- START: register this session WITHOUT --session \(repeating it is a\n  harmless no-op\):\n(  [^\n]*\n  [^\n]*\n)(?:  [^\n]*\n){4}/,

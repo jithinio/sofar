@@ -973,6 +973,36 @@ function attachActivity(state: InitiativeState, derived: Map<string, SessionActi
 }
 
 // ---------------------------------------------------------------------------
+// Session lookup during the replay (r1-fixes D18).
+// ---------------------------------------------------------------------------
+
+const sessionIndexes = new WeakMap<SessionState[], { indexed: number; byId: Map<string, SessionState> }>()
+
+/**
+ * What `sessions.find((s) => s.id === id)` answers, in O(1). recordFreshness
+ * asks once per event, so the scan made the fold O(events × sessions): +30–36
+ * ms on every hook at 1,485 sessions, the rc.2 D18 failure on i1000-10mb.
+ *
+ * Exact because a fold only ever PUSHES to state.sessions and ids are unique
+ * in it (session_started refuses a repeat; session_ended stubs only a miss),
+ * so indexing the array's new tail on each call sees every session `find`
+ * would. First occurrence wins all the same, as `find` does. Keyed by the
+ * array itself, so a state restored from a checkpoint indexes afresh.
+ */
+function sessionById(sessions: SessionState[], id: string): SessionState | undefined {
+  let index = sessionIndexes.get(sessions)
+  if (index === undefined) {
+    index = { indexed: 0, byId: new Map() }
+    sessionIndexes.set(sessions, index)
+  }
+  for (; index.indexed < sessions.length; index.indexed++) {
+    const session = sessions[index.indexed]!
+    if (!index.byId.has(session.id)) index.byId.set(session.id, session)
+  }
+  return index.byId.get(id)
+}
+
+// ---------------------------------------------------------------------------
 // Fold-time freshness (staleness-detection 1.1).
 // ---------------------------------------------------------------------------
 
@@ -993,7 +1023,7 @@ function attachActivity(state: InitiativeState, derived: Map<string, SessionActi
  */
 function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
   const counts = state.freshness.events_since_writeback
-  const own = state.sessions.find((s) => s.id === event.session)
+  const own = sessionById(state.sessions, event.session)
   /** Count one mutation for the initiative and for whoever must write it back. */
   const mutation = (bump: () => void): void => {
     bump()
@@ -1008,7 +1038,7 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
       // tool takes session_id explicitly), and it is the NAMED session whose
       // debt it settles — resolved exactly as applyEvent resolves it.
       const p = event.payload as unknown as SessionEndedPayload
-      const ended = state.sessions.find((s) => s.id === (p.session_id ?? event.session))
+      const ended = sessionById(state.sessions, p.session_id ?? event.session)
       if (ended !== undefined) ended.unwritten = 0
       break
     }
@@ -1633,7 +1663,7 @@ function applyEvent(
       // The session's side of the same fact, attached to REGISTERED sessions
       // only (the attachActivity rule). The run keeps the handoff either way:
       // it is the run's history, whoever the session turns out to be.
-      const session = state.sessions.find((s) => s.id === p.session_id)
+      const session = sessionById(state.sessions, p.session_id)
       if (session !== undefined) {
         session.handoff = {
           run: p.run,
@@ -1678,7 +1708,7 @@ function applyEvent(
     }
     case 'session_started': {
       const p = event.payload as unknown as SessionStartedPayload
-      if (state.sessions.some((s) => s.id === event.session)) {
+      if (sessionById(state.sessions, event.session) !== undefined) {
         warnings.push(`line ${lineNo}: session "${event.session}" already started — skipped`)
         break
       }
@@ -1695,7 +1725,7 @@ function applyEvent(
     case 'session_ended': {
       const p = event.payload as unknown as SessionEndedPayload
       const sid = p.session_id ?? event.session
-      let session = state.sessions.find((s) => s.id === sid)
+      let session = sessionById(state.sessions, sid)
       if (!session) {
         warnings.push(`line ${lineNo}: session "${sid}" ended without session_started — stub created`)
         session = { id: sid, tool: 'unknown', started: event.ts, unwritten: 0 }
@@ -1714,7 +1744,7 @@ function applyEvent(
       // write-back), and never creates stub sessions (a close marker for an
       // unregistered session carries no information).
       const p = event.payload as unknown as SessionClosedPayload
-      const session = state.sessions.find((s) => s.id === event.session)
+      const session = sessionById(state.sessions, event.session)
       if (!session) {
         warnings.push(
           `line ${lineNo}: session "${event.session}" closed without session_started — skipped`,
