@@ -34,4 +34,4 @@ Progress: 0/15 tasks done (0%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: In ~/IO/sofar-rust-core: rust-core 1.1 inventory hot-path surface from SPEC and engine
+Next action: Close 1.5 in a quiet window (bench runners idle, swap near empty): team100 interleaved perf rerun, plus i1000-10mb to measure SessionIndex; file numbers, write perf README + HOTPATH section.
