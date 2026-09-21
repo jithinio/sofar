@@ -301,9 +301,16 @@ function measure(cell: Cell, m: Measure): { stat: Stat; ab?: Stat } {
   const abSamples: number[] = []
   const one = (i: number, command?: readonly string[]) => {
     m.before?.(cell)
-    const { ms, exit, stderr } = spawnTimed(cell, m.argv, m.stdin(i), command ?? m.command)
-    expect(exit, `${cell.name} / ${m.name} run ${i}${command ? ' (comparator)' : ''}: exit ${exit}\n${stderr}`).toBe(m.expectedExit)
-    return ms
+    const label = `${cell.name} / ${m.name} run ${i}${command ? ' (comparator)' : ''}`
+    let run: ReturnType<typeof spawnTimed>
+    try {
+      run = spawnTimed(cell, m.argv, m.stdin(i), command ?? m.command)
+    } catch (error) {
+      // A bare `spawnSync node ETIMEDOUT` names neither the command nor the side.
+      throw new Error(`${label}: ${(error as Error).message}`, { cause: error })
+    }
+    expect(run.exit, `${label}: exit ${run.exit}\n${run.stderr}`).toBe(m.expectedExit)
+    return run.ms
   }
   for (let i = 0; i < ITER; i++) {
     if (AB === null) {

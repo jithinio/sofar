@@ -311,8 +311,8 @@ This branch is bound to no initiative, so the hooks capture edits and commands h
 - Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
 - Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
 
-Recent quick work (1 session, 0 decisions since 2026-09-17):
-- 2026-09-17 claude-code — 1 file (<ROOT>/x.ts)
+Recent quick work (1 session, 0 decisions since <DATE>):
+- <DATE> claude-code — 1 file (<ROOT>/x.ts)
 
 Session: conf-session — adopted on Claude Code; else pass to sofar_start_session.
 
@@ -367,8 +367,8 @@ This branch is bound to no initiative, so the hooks capture edits and commands h
 - Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
 - Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
 
-Recent quick work (1 session, 0 decisions since 2026-09-17):
-- 2026-09-17 claude-code — 1 file (<ROOT>/x.ts)
+Recent quick work (1 session, 0 decisions since <DATE>):
+- <DATE> claude-code — 1 file (<ROOT>/x.ts)
 
 Session: conf-session — adopted on Claude Code; else pass to sofar_start_session.
 Git: main @ ce11ce1 — no origin ref — never pushed

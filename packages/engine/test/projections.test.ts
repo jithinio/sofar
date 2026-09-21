@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -194,11 +194,16 @@ describe('projection templates (v0 seam — BD14)', () => {
     // …and the content is still exactly what an unconditional write produces.
     expect(files.map((f) => readFileSync(join(dir, f), 'utf8'))).toEqual(bytesBefore)
 
-    // A real change still lands, and only where it belongs.
+    // A real change still lands, and only where it belongs. Backdate plan.md
+    // first: Linux advances file times on a coarse kernel tick, so a rewrite
+    // milliseconds after the first write can carry the very same mtime.
+    const past = new Date(before[0]! - 60_000)
+    utimesSync(join(dir, 'plan.md'), past, past)
+    const backdated = statSync(join(dir, 'plan.md')).mtimeMs
     const updated: InitiativeState = { ...state, goal: 'ship it faster' }
     regenerateProjections(dir, updated)
     expect(readFileSync(join(dir, 'plan.md'), 'utf8')).toBe(renderPlan(updated))
-    expect(statSync(join(dir, 'plan.md')).mtimeMs).not.toBe(before[0])
+    expect(statSync(join(dir, 'plan.md')).mtimeMs).not.toBe(backdated)
   })
 })
 

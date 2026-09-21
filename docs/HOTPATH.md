@@ -525,8 +525,8 @@ session}.ts` — short, port verbatim.
 ## Status block (`renderStatus`) and full status
 
 Since the wave-a merge (rust-core 17817db, memory-lead 1.4) the digest is
-memory-lead D4's composition — docs/SPEC.md §Digest composition is the byte
-contract (the next task's spec first; memory, repo memory, the decision index
+memory-lead D4's composition, whose byte contract is
+docs/SPEC.md §Digest composition (the next task's spec first; memory, repo memory, the decision index
 and the last session yielding to the 6,000-unit cap in that precedence; the
 standing constraints last, ranked by relevance to the focus with the
 operator's quote beside a rule, memory-lead D2; minutiae heads on decision

@@ -29,8 +29,9 @@ import { fileURLToPath } from 'node:url'
  * Volatile bytes are MASKED BY SHAPE, never dropped (O6 in
  * docs/HOTPATH.md §Open decisions): a ulid minted during the run becomes `<ULID>` only
  * after its 48-bit time part decodes to the run's own window, an ISO
- * timestamp becomes `<TS>` only when it is newer than the run's start, and
- * the two relative-age labels (`Nm/Nh/Nd ago`, `~Nh since`) become `<AGO>`.
+ * timestamp becomes `<TS>` only when it is newer than the run's start, a bare
+ * `YYYY-MM-DD` becomes `<DATE>` only when it is one of the run's own UTC days,
+ * and the two relative-age labels (`Nm/Nh/Nd ago`, `~Nh since`) become `<AGO>`.
  * A fixture byte is never masked — fixtures are all older than any run — so
  * a wrong id in an unchanged line still fails. Every other source of
  * variance is pinned by construction: HOME, git identity, the peer
@@ -358,6 +359,8 @@ export function runStep(m: Materialized, step: Step): StepOutcome {
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
 const ULID_RE = /\b[0-9A-HJKMNP-TV-Z]{26}\b/g
 const ISO_RE = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/g
+/** A bare calendar day — never one inside an ISO timestamp (no word boundary before its `T`). */
+const DATE_RE = /\b\d{4}-\d{2}-\d{2}\b/g
 const AGO_RE = /\b\d+[mhd] ago\b/g
 const SINCE_RE = /~\d+[hd] since/g
 /** Anything minted more than a day after the run started is not this run's. */
@@ -372,6 +375,10 @@ function ulidTime(id: string): number {
 /** Mask the bytes a run cannot help minting differently each time (see the module doc). */
 export function mask(text: string, m: Materialized): string {
   const upper = m.floor + RUN_WINDOW_MS
+  // The days a session minted in this run can render as (childEnv pins TZ to
+  // UTC); zero-padded YYYY-MM-DD compares lexically in calendar order.
+  const firstDay = new Date(m.floor).toISOString().slice(0, 10)
+  const lastDay = new Date(upper).toISOString().slice(0, 10)
   return text
     .replaceAll(m.root, '<ROOT>')
     .replaceAll(m.home, '<HOME>')
@@ -383,6 +390,7 @@ export function mask(text: string, m: Materialized): string {
       const t = Date.parse(ts)
       return t >= m.floor && t <= upper ? '<TS>' : ts
     })
+    .replace(DATE_RE, (day) => (day >= firstDay && day <= lastDay ? '<DATE>' : day))
     .replace(AGO_RE, '<AGO> ago')
     .replace(SINCE_RE, '~<AGO> since')
     // V8's JSON.parse message grew a ` (line N column M)` suffix in Node 22
