@@ -41,4 +41,4 @@ Progress: 14/18 tasks done (77%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: Close 1.5: rerun the team100 cell interleaved (SOFAR_PERF=1 SOFAR_PERF_CELLS=team100, sofar-core vs TS per D12) with swap near empty, file the numbers, write the perf README + HOTPATH section. On 2026-09-22 re-record goldens against the rc.2 commit.
+Next action: Close 1.5 in a quiet window (bench runners idle, swap near empty): team100 interleaved perf rerun, plus i1000-10mb to measure SessionIndex; file numbers, write perf README + HOTPATH section.
