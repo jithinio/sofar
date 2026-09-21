@@ -956,6 +956,19 @@ describe('the CLI skin', () => {
     expect(argv.indexOf('--debug')).toBeGreaterThan(argv.indexOf('--permission-mode'))
   })
 
+  it('--agent cursor launches cursor-agent in print mode and records the run under it (r1-fixes 6.8)', async () => {
+    const root = repo('cli-agent-cursor')
+    const out = join(root, 'out')
+    mkdirSync(out)
+    const bin = join(root, 'stub-cursor-agent')
+    writeFileSync(bin, `#!/bin/sh\nprintf '%s\\n' "$@" > "${join(out, 'argv')}"\nexit 0\n`, { mode: 0o755 })
+    await runDrive(root, 'demo', { agent: 'cursor', bin, maxStalls: '1' }, () => {})
+    const argv = readFileSync(join(out, 'argv'), 'utf8').split('\n')
+    expect(argv.slice(0, 4)).toEqual(['-p', '--output-format', 'stream-json', '--trust'])
+    expect(argv).toContain('--force')
+    expect(state(root).runs.at(-1)?.adapter).toBe('cursor')
+  })
+
   it('a run that ends in `error` is exit 1; one that ends in needs_user is not', async () => {
     const broken = repo('cli-error')
     const thrower: Adapter = {

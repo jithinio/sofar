@@ -14,7 +14,7 @@ import type {
   SessionExit,
   Usage,
 } from './adapter'
-import { launchEnv } from './adapter'
+import { drivenPinLine, launchEnv } from './adapter'
 
 /**
  * The codex adapter (session-driver 3.1, D9): `codex exec --json`, one JSON
@@ -139,61 +139,18 @@ export function codexPermissionArgs(surface: PermissionSurface): string[] {
 }
 
 /**
- * The preamble a driven codex session opens with. It does two jobs Claude
- * Code's `pinLine` does not have to, both because the driver cannot know at
- * launch whether Codex trusts this project's hooks and MCP server.
- *
- * It settles the session id: the injected Session line's when sofar's hook ran
- * (the id the hooks already record under), the driver's assigned one only when
- * none arrived. Never both — one launch writing under two ids is the split
- * r1-fixes D30 removed for Cursor. The CLI commands therefore spell `<id>`,
- * never the assigned id, which a hooked session would otherwise copy.
- *
- * And it spells the protocol twice: sofar's MCP tools for a session that has
- * them (agents-parity 2.2), the CLI dialect for one that does not.
- *
- * `tool` is stated exactly, and it is load-bearing: `resolveLaunchedSession`
- * matches candidate sessions on the adapter's name, so a session registered
- * under any other tool is invisible to the driver that launched it.
+ * The preamble a driven codex session opens with — `drivenPinLine`, because
+ * the driver cannot know at launch whether Codex trusts this project's hooks
+ * and MCP server (agents-parity 2.2).
  */
 export function codexPinLine(initiative: string, sessionId: string, sofarBin = 'sofar'): string {
-  const append = `${sofarBin} event append ${initiative} --session <id> --source codex --type`
-  return [
-    `This session is driven by sofar and serves the initiative \`${initiative}\`.`,
-    '',
-    'Your session id: if sofar\'s hook injected a "Session: <id>" line into your',
-    'context, that id is yours, and the hooks already record your work under it.',
-    'Only if no Session line arrived (Codex has not trusted this project\'s hooks),',
-    `use the id the driver assigned: ${sessionId}`,
-    'Use that one id on every sofar call, unchanged. Never use both.',
-    '',
-    `If you have sofar MCP tools, call sofar_start_session with initiative "${initiative}",`,
-    'tool "codex" and your session id before anything else. If no record was',
-    'injected, read it with sofar_get_state. Log decisions (sofar_log_decision) and',
-    'task status (sofar_update_task) as they happen, and write back LAST, before you',
-    'commit, with one sofar_end_session.',
-    '',
-    'If you have no sofar MCP tools, use the `sofar` CLI from the repo root, with your',
-    'session id in place of <id>. Before anything else, register this session:',
-    `  ${append} session_started --payload '{"tool":"codex"}'`,
-    'If no record was injected, read the record you are serving with:',
-    `  ${sofarBin} status ${initiative}`,
-    'Log a decision, and set the task status, as they happen — note the task',
-    'key is `id`, not `task_id`:',
-    `  ${append} decision_logged --payload '{"chose":"…","over":"…","because":"…","rule":"…"}'`,
-    'Add `rule` (one short imperative) when the operator states the choice for the',
-    'whole project — every later session sees it as a standing constraint. Omit it',
-    'for a one-off choice.',
-    `  ${append} task_status_changed --payload '{"id":"…","status":"done"}'`,
-    'If the task needs a decision only the operator can take, set it `blocked`',
-    'with the question as the note instead — that is what stops the run:',
-    `  ${append} task_status_changed --payload '{"id":"…","status":"blocked","note":"…"}'`,
-    'And write back LAST, before you commit:',
-    `  ${append} session_ended --payload '{"summary":"…","next_action":"…"}'`,
-    '',
-    'The write-back is what hands off to the next session; a session that skips',
-    'it is recorded as a stall however much work it did.',
-  ].join('\n')
+  return drivenPinLine({
+    initiative,
+    sessionId,
+    tool: 'codex',
+    noHooks: "Codex has not trusted this project's hooks",
+    sofarBin,
+  })
 }
 
 export function codexPrompt(request: LaunchRequest, sessionId: string, sofarBin?: string): string {

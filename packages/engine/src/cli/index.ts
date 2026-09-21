@@ -508,9 +508,9 @@ program
   .option('--max-verify-attempts <n>', 'stop the run once one task has failed verification this many times (default 3)')
   .option(
     '--agent <name>',
-    'default headless agent: claude-code (default) or codex — a task whose plan entry carries route.agent is launched with THAT one instead',
+    'default headless agent: claude-code (default), codex or cursor (cursor-agent) — a task whose plan entry carries route.agent is launched with THAT one instead',
   )
-  .option('--bin <path>', "agent binary to spawn (default: the agent's own name)")
+  .option('--bin <path>', "agent binary to spawn (default: the agent's own — claude, codex, cursor-agent)")
   .option(
     '--agent-arg <arg>',
     "extra argv for the agent named by --agent, repeat once per argument (e.g. --agent-arg=--debug) — the escape hatch past sofar's own flags",

@@ -172,6 +172,74 @@ export function launchEnv(
   return { ...env, ...extra }
 }
 
+/**
+ * The preamble for a driven session whose hooks MAY not run, so the driver
+ * cannot know at launch which session id it will write under (codex,
+ * agents-parity 3.1; cursor, r1-fixes 6.8). It does two jobs Claude Code's
+ * `pinLine` does not have to.
+ *
+ * It settles the session id: the injected Session line's when sofar's hook ran
+ * (the id the hooks already record under), the driver's assigned one only when
+ * none arrived. Never both — one launch writing under two ids is the split
+ * r1-fixes D30 removed for Cursor. The CLI commands therefore spell `<id>`,
+ * never the assigned id, which a hooked session would otherwise copy.
+ *
+ * And it spells the protocol twice: sofar's MCP tools for a session that has
+ * them, the CLI dialect for one that does not.
+ *
+ * `tool` is stated exactly, and it is load-bearing: `resolveLaunchedSession`
+ * matches candidate sessions on the adapter's name, so a session registered
+ * under any other tool is invisible to the driver that launched it.
+ * `noHooks` says why a Session line might not arrive on this agent.
+ */
+export function drivenPinLine(options: {
+  initiative: string
+  sessionId: string
+  tool: string
+  noHooks: string
+  sofarBin?: string
+}): string {
+  const { initiative, sessionId, tool, noHooks } = options
+  const sofarBin = options.sofarBin ?? 'sofar'
+  const append = `${sofarBin} event append ${initiative} --session <id> --source ${tool} --type`
+  return [
+    `This session is driven by sofar and serves the initiative \`${initiative}\`.`,
+    '',
+    'Your session id: if sofar\'s hook injected a "Session: <id>" line into your',
+    'context, that id is yours, and the hooks already record your work under it.',
+    `Only if no Session line arrived (${noHooks}),`,
+    `use the id the driver assigned: ${sessionId}`,
+    'Use that one id on every sofar call, unchanged. Never use both.',
+    '',
+    `If you have sofar MCP tools, call sofar_start_session with initiative "${initiative}",`,
+    `tool "${tool}" and your session id before anything else. If no record was`,
+    'injected, read it with sofar_get_state. Log decisions (sofar_log_decision) and',
+    'task status (sofar_update_task) as they happen, and write back LAST, before you',
+    'commit, with one sofar_end_session.',
+    '',
+    'If you have no sofar MCP tools, use the `sofar` CLI from the repo root, with your',
+    'session id in place of <id>. Before anything else, register this session:',
+    `  ${append} session_started --payload '{"tool":"${tool}"}'`,
+    'If no record was injected, read the record you are serving with:',
+    `  ${sofarBin} status ${initiative}`,
+    'Log a decision, and set the task status, as they happen — note the task',
+    'key is `id`, not `task_id`:',
+    `  ${append} decision_logged --payload '{"chose":"…","over":"…","because":"…","rule":"…"}'`,
+    'Add `rule` (one short imperative) when the operator states the choice for the',
+    'whole project — every later session sees it as a standing constraint. Omit it',
+    'for a one-off choice.',
+    `  ${append} task_status_changed --payload '{"id":"…","status":"done"}'`,
+    'If the task needs a decision only the operator can take, set it `blocked`',
+    'with the question as the note instead — that is what stops the run:',
+    `  ${append} task_status_changed --payload '{"id":"…","status":"blocked","note":"…"}'`,
+    'And write back LAST, before you commit:',
+    `  ${append} session_ended --payload '{"summary":"…","next_action":"…"}'`,
+    '',
+    'The write-back is what hands off to the next session; a session that skips',
+    'it is recorded as a stall however much work it did.',
+  ].join('\n')
+}
+
 /** Token accounting as the agent's transport reports it. */
 export interface Usage {
   /**

@@ -1388,6 +1388,43 @@ no longer reachable only through its prompt.
   `resolveLaunchedSession` falls back to the diff when the thread id matches
   no registered session (§Codex host, its Live proof paragraph).
 
+**The cursor adapter (r1-fixes 6.8, D38).** `cursor-agent -p
+--output-format stream-json --trust`, read from cursor-agent
+2026.09.15-d2fe57e: the stream of the live print-mode session in r1-fixes
+6.3 (S1c) and exits captured against an unreachable `--endpoint`, which cost
+nothing (fixtures in test/fixtures/cursor/). `{"type":"system","subtype":
+"init","session_id",…}` carries the chat id, the same id Cursor hands its
+hooks as `session_id` (equal in S1c). `{"type":"result","is_error","result",
+"session_id","usage":{inputTokens, outputTokens, cacheReadTokens,
+cacheWriteTokens}}` is the only line with numbers and the last line;
+`user`, `assistant`, `thinking` and `tool_call` lines are skipped. A
+transport failure prints nothing on stdout and exits 1 with its cause on
+stderr, so the stderr tail is the diagnostic that reaches the stall note.
+- Declared, not worked around (session-driver D9). No live gauge: usage
+  rides the exit, and the threshold policy is refused. No nudge: Cursor
+  rebuilds its hooks' environment from the login shell (§Cursor host, its
+  "Which `sofar` Cursor runs" paragraph), so `SOFAR_DRIVE_NUDGE` is not
+  set. No effort: Cursor spells it inside a parameterized model name only
+  some models accept. No per-tool rules and no cost. `--model` is routed.
+- The surface's mode maps to flags, because print mode cannot answer an
+  approval: `plan` → `--mode plan`, `bypassPermissions` → `--force
+  --sandbox disabled`, every other mode → `--force`, with the sandbox left
+  to the operator's own Cursor config. A mode with no Cursor meaning throws.
+- `--trust` always: every session runs in a worktree Cursor has never seen,
+  where print mode otherwise exits 1 with "Workspace Trust Required". Never
+  `--approve-mcps`, which approves every project MCP server and not just
+  sofar's. A session whose sofar server the operator never approved writes
+  through the CLI dialect; an operator who wants blanket approval passes it
+  with `--agent-arg`.
+- Session identity is codex's scheme. The exit's `session_id` is the chat
+  id, and the adapter also assigns a fallback id for a project with no
+  sofar hooks Cursor runs. The pin line (`drivenPinLine`, shared with codex)
+  settles one id in both dialects, with tool `"cursor"` and `--source
+  cursor`, which the envelope maps to `cli` (r1-fixes D3).
+- Headless `cursor-agent -p` fires no stop hook, so a driven Cursor session
+  has no write-back gate; the fold judges its write-back, as for every
+  adapter. The live drive run is r1-fixes 6.9.
+
 **The loop (2.2).** Fold → next task → launch → wait → handoff, repeat. The
 next task is the one already `active` in the active phase, else its first
 `pending`, then the same in the remaining phases in plan order; `done`,
@@ -4596,13 +4633,15 @@ Shims contain no logic — they invoke the sofar CLI.
   [--context-window <tokens>] [--max-sessions <n>] [--max-stalls <n>]
   [--cost-cap <usd>] [--session-timeout <seconds>] [--cwd <dir>] [--model <m>]
   [--effort <e>] [--resume]
-  [--agent claude-code|codex] [--bin <path>] [--agent-arg <arg>]
+  [--agent claude-code|codex|cursor] [--bin <path>] [--agent-arg <arg>]
   [--permission-mode <mode>]
   [--allow <rule...>] [--deny <rule...>] [--bare-tools] [--detach] [--stop]` — run an initiative task-by-task through
   fresh headless sessions (§Driver, the loop). `--agent codex` launches
   `codex exec`. In a repo `sofar init --agents codex` wired and Codex trusts,
   its sessions are hooked; elsewhere they run on the id the pin line assigns
-  (§Driver, the codex adapter). `--detach` starts the run as a
+  (§Driver, the codex adapter). `--agent cursor` launches `cursor-agent -p`
+  the same way: hooked where the project has sofar hooks Cursor runs, on the
+  assigned id elsewhere (§Driver, the cursor adapter). `--detach` starts the run as a
   process that outlives the shell that asked for it, returning once the run is
   certain to start; `--stop` asks the latest unstopped run's driver to end it
   and takes no other flag but `--root` (§Driver, starting a run from inside a

@@ -7,6 +7,7 @@ import { latestRun } from '../core/fold'
 import { describeRun } from '../projections/templates/shared'
 import { ClaudeCodeAdapter } from '../driver/claude-code'
 import { CodexAdapter } from '../driver/codex'
+import { CursorAdapter } from '../driver/cursor'
 import { drive, type DriveOptions } from '../driver/drive'
 import { buildSurface, SurfaceError } from '../driver/permissions'
 import { launchEnv, type Adapter } from '../driver/adapter'
@@ -44,9 +45,9 @@ export interface DriveCliOptions {
   verifyTimeout?: string
   /** Failed verifications on one task before the run stops (default 3). */
   maxVerifyAttempts?: string
-  /** Which agent to drive: `claude-code` (default) or `codex` (3.1). */
+  /** Which agent to drive: `claude-code` (default), `codex` (3.1) or `cursor` (r1-fixes 6.8). */
   agent?: string
-  /** Binary the adapter spawns (default: the agent's own name). */
+  /** Binary the adapter spawns (default: the agent's own — claude, codex, cursor-agent). */
   bin?: string
   /** Permission surface for every session in the run (2.4). */
   permissionMode?: string
@@ -104,13 +105,14 @@ function integer(name: string, raw: string | undefined): number | undefined {
  * cannot answer, so the CLI is the only place that knows the names — and
  * per-task routing (3.2) is a lookup in THIS list rather than a second one.
  */
-export const AGENTS = ['claude-code', 'codex'] as const
+export const AGENTS = ['claude-code', 'codex', 'cursor'] as const
 
 type AgentOptions = { bin?: string; args?: string[] }
 
 function adapterNamed(agent: string, options: AgentOptions): Adapter {
   if (agent === 'claude-code') return new ClaudeCodeAdapter(options)
   if (agent === 'codex') return new CodexAdapter(options)
+  if (agent === 'cursor') return new CursorAdapter(options)
   throw new ToolError('invalid_input', `sofar drive: --agent must be one of ${AGENTS.join('|')}, got "${agent}"`)
 }
 
