@@ -683,8 +683,9 @@ fn parse_body(raw: &Object) -> Option<(String, SnapshotPrefix, String, FoldCheck
         guard_seen: string_list(cp.get("guardSeen"))?.into_iter().collect(),
         last_id: cp.get("lastId")?.as_str()?.to_owned(),
         line_count: usize_of(cp.get("lineCount"))?,
-        // Like guard_cache: indexes the restored sessions on first lookup.
+        // Like guard_cache: indexes the restored sessions and paths on first lookup.
         session_index: crate::fold::SessionIndex::default(),
+        file_index: crate::fold::FileIndex::default(),
     };
     Some((cursor, prefix, slug, checkpoint))
 }
@@ -792,6 +793,53 @@ mod tests {
             assert_eq!(next.prefix.lines, all.len());
         }
         assert_eq!(fresh.state.guard_violations.len(), 1);
+    }
+
+    #[test]
+    fn a_path_retouched_across_a_restored_cut_is_listed_once() {
+        // The FileIndex is never serialized: a parsed snapshot must index the
+        // paths it restored before the tail's first file_touched asks.
+        let touch = |id: &str, path: &str| {
+            line(
+                id,
+                "2026-09-16T00:00:01.000Z",
+                "s1",
+                "file_touched",
+                &format!("{{\"path\":\"{path}\",\"op\":\"edit\"}}"),
+            )
+        };
+        let all = [
+            line(
+                "01K4C0000000000000000000A0",
+                "2026-09-16T00:00:00.000Z",
+                "cli",
+                "initiative_created",
+                "{\"slug\":\"demo\",\"goal\":\"g\"}",
+            ),
+            line(
+                "01K4C0000000000000000000A1",
+                "2026-09-16T00:00:00.000Z",
+                "s1",
+                "session_started",
+                "{\"tool\":\"claude-code\"}",
+            ),
+            touch("01K4C0000000000000000000A2", "src/a.ts"),
+            touch("01K4C0000000000000000000A3", "src/b.ts"),
+            touch("01K4C0000000000000000000A4", "src/a.ts"),
+            touch("01K4C0000000000000000000A5", "src/b.ts"),
+        ];
+        let fresh = fold_text(&format!("{}\n", all.join("\n")), "demo");
+        assert_eq!(fresh.state.files_touched, ["src/a.ts", "src/b.ts"]);
+        for n in 0..=all.len() {
+            let base = fold_all(all[..n].iter().map(String::as_str), "demo");
+            let ParsedSnapshot::Ok(round) = parse_snapshot(&serialize_snapshot(&base)) else {
+                panic!("round trip at {n}");
+            };
+            let FoldStep::Ok(next) = fold_lines(&round, all[n..].iter().map(String::as_str)) else {
+                panic!("prefix {n} refused");
+            };
+            assert_eq!(state_of(&next), fresh, "prefix {n}");
+        }
     }
 
     #[test]

@@ -15,7 +15,7 @@
 //! Sorts compare UTF-16 code units (D6). Nothing here reads the clock or the
 //! environment — every timestamp in a state comes from an event.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::collections::{OrderedSet, StringMap};
 use crate::derived::test_shaped_command;
@@ -398,6 +398,8 @@ pub struct FoldCheckpoint {
     pub line_count: usize,
     /// Id → position in `state.sessions`. Rebuilt on demand, never serialized.
     pub session_index: SessionIndex,
+    /// The paths in `state.files_touched`. Rebuilt on demand, never serialized.
+    pub file_index: FileIndex,
 }
 
 /// What `sessions.iter().position(|s| s.id == id)` answers, in O(1): the
@@ -426,6 +428,33 @@ impl SessionIndex {
     }
 }
 
+/// What `files_touched.contains(path)` answers, in O(1): the TypeScript
+/// `hasFile` (r1-fixes 4.5, 6ee2782). The `file_touched` arm asks once per
+/// file event, so the scan made the fold O(file events × distinct paths):
+/// ~70% of the fold on rust-core 1.5's team100 (60,686 paths in 67,901 file
+/// events).
+///
+/// Exact for the same reason as [`SessionIndex`]: a fold only PUSHES to
+/// `state.files_touched`, so indexing the vec's new tail on each call sees
+/// every path a scan would, and the vec keeps its order and first
+/// occurrences. A restored checkpoint starts empty and indexes its paths on
+/// first use.
+#[derive(Debug, Clone, Default)]
+pub struct FileIndex {
+    indexed: usize,
+    seen: HashSet<String>,
+}
+
+impl FileIndex {
+    fn contains(&mut self, files: &[String], path: &str) -> bool {
+        for file in files.iter().skip(self.indexed) {
+            self.seen.insert(file.clone());
+        }
+        self.indexed = files.len();
+        self.seen.contains(path)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Replay
 
@@ -446,6 +475,7 @@ pub fn replay_decoded(decoded: DecodedLog, slug: &str, line_count: usize) -> Fol
         last_id: String::new(),
         line_count,
         session_index: SessionIndex::default(),
+        file_index: FileIndex::default(),
     };
     for line in decoded.parsed {
         replay_one(&mut cp, line);
@@ -532,6 +562,7 @@ fn replay_one(cp: &mut FoldCheckpoint, line: ParsedLine) {
     apply_event(
         &mut cp.state,
         &mut cp.session_index,
+        &mut cp.file_index,
         &event,
         &mut cp.block_notes,
         &mut cp.warnings,
@@ -715,6 +746,7 @@ fn status_or_pending(p: &Object) -> String {
 fn apply_event(
     state: &mut InitiativeState,
     session_index: &mut SessionIndex,
+    file_index: &mut FileIndex,
     event: &Envelope,
     block_notes: &mut StringMap,
     warnings: &mut Vec<String>,
@@ -1084,7 +1116,7 @@ fn apply_event(
         }
         "file_touched" => {
             let path = req_str(p, "path");
-            if !state.files_touched.contains(&path) {
+            if !file_index.contains(&state.files_touched, &path) {
                 state.files_touched.push(path);
             }
         }
@@ -2546,6 +2578,70 @@ mod tests {
         for id in ["a", "b", "c", "z"] {
             assert_eq!(index.position(&sessions, id), scan(&sessions, id), "{id}");
         }
+    }
+
+    #[test]
+    fn file_index_answers_what_a_scan_would_as_the_vec_grows() {
+        let mut files = vec!["src/a.ts".to_owned(), "src/b.ts".to_owned()];
+        let mut index = FileIndex::default();
+        assert!(index.contains(&files, "src/b.ts"));
+        // A miss, then the push that answers it: the next call indexes the new tail.
+        assert!(!index.contains(&files, "src/c.ts"));
+        files.push("src/c.ts".to_owned());
+        for path in ["src/a.ts", "src/b.ts", "src/c.ts", "src/z.ts"] {
+            assert_eq!(
+                index.contains(&files, path),
+                files.iter().any(|f| f == path),
+                "{path}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_retouched_path_keeps_its_first_position() {
+        let text = [
+            line(
+                "01K4C0000000000000000000A1",
+                "2026-09-01T10:00:00.000Z",
+                "S",
+                "session_started",
+                "{\"tool\":\"claude-code\"}",
+            ),
+            line(
+                "01K4C0000000000000000000A2",
+                "2026-09-01T10:00:01.000Z",
+                "S",
+                "file_touched",
+                "{\"path\":\"src/b.ts\",\"op\":\"edit\"}",
+            ),
+            line(
+                "01K4C0000000000000000000A3",
+                "2026-09-01T10:00:02.000Z",
+                "S",
+                "file_touched",
+                "{\"path\":\"src/a.ts\",\"op\":\"edit\"}",
+            ),
+            line(
+                "01K4C0000000000000000000A4",
+                "2026-09-01T10:00:03.000Z",
+                "S",
+                "file_touched",
+                "{\"path\":\"src/b.ts\",\"op\":\"write\"}",
+            ),
+            line(
+                "01K4C0000000000000000000A5",
+                "2026-09-01T10:00:04.000Z",
+                "S",
+                "file_touched",
+                "{\"path\":\"src/a.ts\",\"op\":\"edit\"}",
+            ),
+        ]
+        .join("\n")
+            + "\n";
+        assert_eq!(
+            fold_text(&text, "demo").state.files_touched,
+            ["src/b.ts", "src/a.ts"]
+        );
     }
 
     #[test]
