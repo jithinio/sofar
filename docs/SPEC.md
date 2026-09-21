@@ -2905,6 +2905,47 @@ writes no `judgement_recorded`. Deterministic by default: without a
 configured `cloud` provider only the rule answers, and a provider failure
 leaves the rule's lines.
 
+**Write-back judge (typed-judge 3.2, `core/writeback-judge.ts`).** The
+second consumer. After sofar_end_session appends session_ended, its two
+fields are judged against the fold that holds them, in two requests so each
+state carries only what its judgement needs:
+- `next_action` (A1), a score over `{next_action, plan_next_task}` on four
+  levels, lowest first: names no task, file, command or outcome; names the
+  task but not how to begin it; names the task and a concrete first step;
+  executable verbatim. `plan_next_task` is the task the digest names next
+  (the active phase's active, pending or blocked task, else the first open
+  phase's). No open task asks nothing, since "nothing left" is then the right
+  next action. The rule decides level 0 only when the text carries no digit,
+  no backtick, no path and no term outside a closed set of continuation words
+  (continue, keep going, next, task, remaining, finish, pick up, left, …); it
+  never decides a higher level. Only level 0 warns: a next action that names
+  its task without a first step is how records normally write them.
+- `unlogged_decision` and `memory_fact` (A1), nouls over `{summary,
+  decisions, memories}`: does the summary report a choice between
+  alternatives that no entry of `decisions` records; does it state a build,
+  test or release command, a failure mode and its diagnosis, or a convention
+  that no entry of `memories` holds. `decisions` is every decision logged
+  since the session's own session_started (a peer's included), then the
+  older ones BM25-ranked against the summary and topped up newest, 8 in all
+  unless the session logged more; `memories` is the same over memories not
+  superseded. The summary is clipped to 6,000 chars, each entry to 400. The
+  decision rule decides YES only when the session logged no decision and a
+  summary sentence, code spans removed, carries a choice verb (chose,
+  decided, ruled, opted for, settled on, went with) followed by over /
+  instead of / rather than, and cites no `D<n>`. It never decides NO. The
+  memory noul has no rule.
+A level-0 score (P(level 0) ≥ 0.9 from a provider) or a noul at p ≥ 0.9
+renders one line, in that order: `next_action may be too vague to resume
+from (<how>): "<next_action>". Write back again with one that names the
+task (next in the plan: <id>) and its first concrete step.`; `The summary
+may report a decision the record does not hold (<how>)[: "<sentence>"]. Log
+it with sofar_log_decision …`; `The summary may state an operational fact
+later sessions need (<how>). Promote it with sofar_remember …`. <how> is the
+rule's reason or `judged p|P(vague) <p> by <model>`. The 0.9 is 3.1's
+provisional threshold, graded in 6.1. It never refuses (the session has
+already ended), writes no `judgement_recorded`, and a provider failure leaves
+the rules' lines.
+
 **Stored judgements (typed-judge 2.4).** A judgement worth keeping —
 relevance scores computed at write-back for the next SessionStart to read,
 a driver's progress verdict — lands as an ENRICHMENT event whose payload
@@ -3339,8 +3380,10 @@ sofar_start_session.`
   handles the batch took, and `warnings` carries §Rule fidelity's warning
   for each batched rule, then the write-time judge's lines for the batched
   decisions (typed-judge 3.1, see §Judge), judged against the fold the batch
-  was planned on; each is omitted when empty, so a bare write-back is
-  byte-identical to before. `rebound` names the
+  was planned on, then the write-back judge's lines for the summary and
+  next action (typed-judge 3.2, see §Judge); each is omitted when empty, so a
+  write-back with no batch, a concrete next action and nothing flagged in its
+  summary is byte-identical to before. `rebound` names the
   branch binding this write-back moved ({branch, from, to}), omitted when
   none moved — the rebind contract and its four guards are stated with the
   session-before-branch precedence below (binding-follows-session D1,
@@ -6464,6 +6507,20 @@ stay the underlying derivation's, and exit codes are styling-independent.
   lines and never fails the tool. sofar_end_session judges its batched
   decisions the same way, and skips a batched decision's target when that
   decision cites it.
+- **Write-back judge (typed-judge 3.2):** with no provider configured,
+  sofar_end_session whose next_action is only continuation words ("continue",
+  "keep going", "n") still ends the session and returns one warning naming
+  the plan's next task id; one carrying a task id, a backtick, a path or any
+  other term warns nothing, and a plan with no open task asks nothing. A
+  summary sentence choosing one thing over another, citing no `D<n>`, in a
+  session that logged no decision, warns with that sentence; a decision
+  logged since the session started, a cited handle, a code span or "over"
+  without a choice verb silences it. The summary is judged against this
+  session's decisions plus the BM25 hit among older ones (8 in all) and only
+  unsuperseded memories. A provider is sent only the questions the rules
+  left open; P(level 0) 0.95 on the next action and p 0.93 on a noul each
+  warn with `judged … by <model>`, 0.85 does not. A provider that throws
+  leaves the rules' lines and never fails the tool.
 - **Stored judgements (typed-judge 2.4):** `judgement_recorded` validates
   producer, model, question and subject as non-empty strings and `answer` by
   its type (noul in [0,1]; choice naming one of 2+ probability keys with

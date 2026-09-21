@@ -5,6 +5,7 @@ import { overlappingWritebacks, type DecisionState, type InitiativeState, type P
 import { decisionJudgeWarnings, type DecisionDraft } from '../core/decision-judge'
 import { currentBranch } from '../core/git'
 import type { JudgeOptions } from '../core/judge'
+import { writebackJudgeWarnings } from '../core/writeback-judge'
 import { resolvePeers } from '../core/peers'
 import { silentReversal } from '../core/reversal'
 import { ruleFidelityWarning } from '../core/rule-fidelity'
@@ -59,7 +60,10 @@ export interface EndSessionResult extends ToolOkResult {
   decisions?: string[]
   /** Handles the batched `memories` took, in order (`<slug> M<n>`). */
   memories?: string[]
-  /** Rule-fidelity warnings for the batched decisions (memory-lead D2); never a refusal. */
+  /**
+   * Rule-fidelity warnings for the batched decisions (memory-lead D2), then the
+   * write-time judges' lines (typed-judge 3.1, 3.2); never a refusal.
+   */
   warnings?: string[]
 }
 
@@ -312,23 +316,32 @@ export function endSession(ctx: ToolContext, args: EndSessionArgs): EndSessionRe
 }
 
 /**
- * What the MCP server runs: endSession, then the write-time judge (typed-judge
- * 3.1) over the batched decisions, against the fold the batch was planned on.
- * The session has already ended; the lines only add to `warnings`.
+ * What the MCP server runs: endSession, then the write-time judges. The
+ * decision judge (typed-judge 3.1) reads the batched decisions against the
+ * fold the batch was planned on; the write-back judge (3.2) reads the summary
+ * and next action against the fold that holds them. The session has already
+ * ended; the lines only add to `warnings`, decision lines first.
  */
 export async function endSessionJudged(
   ctx: ToolContext,
   args: EndSessionArgs,
   judgeOpts?: JudgeOptions,
 ): Promise<EndSessionResult> {
-  const { result, batch } = endSessionFiled(ctx, args)
-  if (batch.drafts.length === 0) return result
-  const judged = await decisionJudgeWarnings(batch.before, batch.drafts, judgeOpts ?? judgeOptionsFor(ctx))
+  const { result, batch, after, sessionId } = endSessionFiled(ctx, args)
+  const opts = judgeOpts ?? judgeOptionsFor(ctx)
+  const [decided, written] = await Promise.all([
+    batch.drafts.length === 0 ? [] : decisionJudgeWarnings(batch.before, batch.drafts, opts),
+    writebackJudgeWarnings(after, { session_id: sessionId, summary: args.summary, next_action: args.next_action }, opts),
+  ])
+  const judged = [...decided, ...written]
   if (judged.length === 0) return result
   return { ...result, warnings: [...(result.warnings ?? []), ...judged] }
 }
 
-function endSessionFiled(ctx: ToolContext, args: EndSessionArgs): { result: EndSessionResult; batch: PlannedBatch } {
+function endSessionFiled(
+  ctx: ToolContext,
+  args: EndSessionArgs,
+): { result: EndSessionResult; batch: PlannedBatch; after: InitiativeState; sessionId: string } {
   const active = ctx.session.get()
   // Omitted id = the active session (memory-lead D3): on Claude Code the
   // server adopted it from CLAUDE_CODE_SESSION_ID before this call ran.
@@ -383,7 +396,7 @@ function endSessionFiled(ctx: ToolContext, args: EndSessionArgs): { result: EndS
   const bound = rebound === undefined ? {} : { rebound }
 
   const parallel = overlappingWritebacks(state, sessionId)
-  if (parallel.length === 0) return { result: { ok: true, event_id: event.id, ...applied, ...bound }, batch }
+  if (parallel.length === 0) return { result: { ok: true, event_id: event.id, ...applied, ...bound }, batch, after: state, sessionId }
 
   // Reconciling used to mean leaving a note and hoping the other session read
   // it at its next orientation. Where the host knows the colliding session as
@@ -397,5 +410,5 @@ function endSessionFiled(ctx: ToolContext, args: EndSessionArgs): { result: EndS
     if (peer === undefined) return p
     return peer.ambiguous ? { ...p, peer: peer.name, peer_cwd: peer.cwd } : { ...p, peer: peer.name }
   })
-  return { result: { ok: true, event_id: event.id, ...applied, parallel_writebacks: withPeers, ...bound }, batch }
+  return { result: { ok: true, event_id: event.id, ...applied, parallel_writebacks: withPeers, ...bound }, batch, after: state, sessionId }
 }
