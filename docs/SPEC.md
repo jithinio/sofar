@@ -1911,6 +1911,142 @@ evaluator integrity, permissions and release policy are never in it. No
 candidate kind that changes what is INJECTED may ship before the offline
 replay check (context size, information preservation) exists.
 
+## Judge (typed-judge — advisory judgements, deterministic by default)
+A JUDGEMENT is a typed question answered over a bounded state with a
+probability attached: is this proposal a re-proposal of that rejected
+approach (yes/no), which of these candidates bears on the next task
+(a ranking), how done is this task against its acceptance text (a level).
+The shape is TypeSafe's System One contract (noul / choice / score) and is
+adopted as sofar's own interface so that the same question can be answered
+by a rule today and by a model tomorrow without the caller changing. Two
+laws bound it, both standing decisions:
+
+- **Where it may run (typed-judge D1).** Only inside an MCP tool call, the
+  driver between sessions, a pull command (`find`, `related`, `why`,
+  `review`) or an explicit offline command. NEVER a hook, the statusline, a
+  shim, the fold or a projection: a model answers in 70–500ms against speed
+  T2's 100ms budget, and the fold's determinism law admits no inference. A
+  hook that needs a judgement reads one made earlier at write time (the
+  index, or an enrichment event) — it never asks. Pinned by test: no module
+  under `hooks/`, `projections/`, nor `core/fold.ts`, `core/atomic.ts`,
+  `core/log.ts`, `cli/fast*.ts` or `cli/statusline*.ts` imports
+  `core/judge`.
+- **Who may answer (typed-judge D2).** The engine ships exactly two
+  providers: `deterministic` (rules, free, the default everywhere) and
+  `cloud` (the paid path: the judge endpoint on api.sofar.sh under the
+  sync client's own auth, where sofar-cloud enforces the plan and calls the
+  model with sofar's key). No direct model provider ships in the engine and
+  no key is ever read by it. A default install therefore still makes zero
+  model API calls (§Architectural invariants, which holds for everyone who does
+  not opt in), and the free path is not a crippled one — it is exactly what
+  sofar does today, expressed as answers.
+
+**Advisory only.** A judgement never mutates the record, never blocks a
+tool call, never removes anything a recorded edge or a lexical rule put
+there. It ADDS: a warning line in a tool result, a rank among candidates
+that were already candidates, a hint the operator may ignore. Best-effort
+per BD22: a provider failure of any kind (network, 4xx, 5xx, entitlement,
+malformed answer) leaves the question ABSTAINED and the caller proceeds as
+if no judge existed; nothing waits on a retry loop inside a tool call.
+
+**Questions.** One request = one state + a map of named questions, each
+evaluated INDEPENDENTLY against that state (answers never cascade; a
+dependent question is a second request after the state moved). Ids match
+`[A-Za-z0-9_]+`. Three types, fields as TypeSafe's wire, so the cloud
+provider forwards them unchanged:
+- `noul` — "is this true?" `instructions` (string or JSON), optional
+  `criteria {true?, false?}`. Answer `{noul: p}`, p ∈ [0,1] = P(yes).
+- `choice` — one option from `criteria: {key: description|null}`, 2–255
+  keys; describe options with `what` / `not_for` / `examples` objects when
+  a boundary is subtle. Answer `{choice, probabilities, confidence}`,
+  probabilities summing to 1 over the keys.
+- `score` — a position on `criteria: [level0, level1, …]`, 2–10 ordered
+  levels that each describe a CONCRETE situation (never low/medium/high).
+  Answer `{score, probabilities, legend, confidence}`; score is the
+  probability-weighted position and may fall between levels.
+Instructions cite state fields by backticked path (`` `pairs[3].task` ``);
+one narrow judgement per question; a no-match option is always present in
+a choice. Questions carry an engine-only field the wire never sees:
+`decide?(state) → Answer | null`, the RULE that answers this question
+without a model or returns null to abstain — the deterministic provider is
+nothing but the runner of these.
+
+**State.** A string, a JSON object (preferred: named fields) or an array
+of text; text only. Code selects, the judge judges: the caller narrows to
+candidates first (the index, the reach set, the lexical grammar) and sends
+only what the judgement needs, because accuracy falls with unrelated
+state and the wire caps state plus the longest question at 32k tokens.
+The seam REFUSES a state whose serialization exceeds 100,000 characters
+with a typed error before any provider sees it — a request that would be
+truncated or rejected upstream is a request that was mis-scoped here.
+Redaction (`core/redact.ts`, applied to every string leaf) runs on the
+state before a non-deterministic provider receives it; the deterministic
+provider sees the original because it sends nothing anywhere.
+
+**The seam order.** `judge(request)` runs the deterministic provider FIRST
+over every question. A question its rule DECIDES is answered with
+confidence 1 (noul 0 or 1; choice/score with all mass on one key) and
+`origin: "rule"`, and is never sent on — code decides, the model judges
+only what code cannot. Every question the rules ABSTAIN on is answered
+`origin: "abstain"` (noul 0.5; choice and score uniform over their keys
+with confidence 0, `choice` the first key so the answer is still typed and
+deterministic) and, only when a non-deterministic provider is configured,
+those and only those are forwarded in ONE fan-out request; each answer
+that comes back replaces its abstention with `origin: "model"` and the
+provider's pinned `model` string. Any failure keeps the abstentions and
+names the reason in `response.fell_back`. This ordering is what makes
+"never remove a lexically linked item" structural rather than a rule each
+caller has to remember.
+
+**Confidence.** For a choice or score it is the wire's own statistic —
+`(n·pmax − 1)/(n − 1)` over n keys or levels, 0 for uniform, 1 for a
+point mass — recomputed by the seam from the probabilities so a provider
+cannot report one number and mean another. A noul carries no confidence
+on the wire; the engine's `noulConfidence(p) = |p − 0.5|·2` is a
+convenience for gating, and p ≈ 0.5 means UNDECIDED, never "medium".
+Calibration is a property of groups, not of one answer: a confident answer
+can be wrong, and structural invariants do not hold across questions
+(P(A) + P(not A) from two nouls need not be 1), so a threshold is never
+carried from one question type to another.
+
+**Thresholds (typed-judge 1.2, measured on this record against
+jev-1.13.0; re-measure on every model version).** Relevance nouls carry a
+candidate at p ≥ 0.8 (86% agreement measured) and drop one at p ≤ 0.2;
+between, the deterministic order decides. A constraint hint ("this reads
+as a standing rule — add a rule?") renders only at confidence ≥ 0.95 with
+no rule set. Nothing acts below confidence 0.6 on any question.
+Thresholds live in code beside the question that uses them, named for the
+model version they were measured against.
+
+**Providers.**
+- `deterministic` — pure, synchronous, no I/O, no clock: runs each
+  question's `decide`, abstains where there is none. The default, and the
+  whole judge for an unlinked repo or an operator who has not opted in.
+- `cloud` (typed-judge 2.3) — the client half of `POST {api_url}/v1/judge`
+  under the base-URL resolution, https rule and bearer credential of §Sync client,
+  body `{state, questions}` with `decide` stripped and the
+  state redacted; response `{model, answers, usage}` in the wire's answer
+  shapes, `model` the exact version the server ran (never an alias) and
+  carried onto every answer. Errors are normalized as in §Sync client;
+  402/403 (no plan, no entitlement) and every other failure fall back to
+  abstention silently — the engine carries no entitlement logic (drive-
+  visibility D6), it only hears "no" and proceeds. Enabled only when the
+  repo is linked AND `judge.provider` is `"cloud"` in
+  `~/.config/sofar/config.json` (§CLI, user config); absent or anything
+  else means `deterministic`. One request per seam call, a bounded
+  timeout, no retry inside a tool call.
+
+**Stored judgements (typed-judge 2.4).** A judgement worth keeping —
+relevance scores computed at write-back for the next SessionStart to read,
+a driver's progress verdict — lands as an ENRICHMENT event whose payload
+carries `producer`, `model`, the question id, the answer and the subject
+event id; schema in `packages/schema` only. The fold ignores enrichment
+for state (replay stays a pure function of the recorded facts), the index
+reads it, and a stored judgement is always attributable to the exact model
+version that made it. Until 2.4 ships, nothing is stored: every judgement
+is computed, used in the tool result or the driver's decision, and
+forgotten.
+
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
 events not already present (dedupe by id — idempotent). Per-initiative
@@ -4441,3 +4577,18 @@ stay the underlying derivation's, and exit codes are styling-independent.
   and names the replacement; `reject` and `revert` without `--reason` exit 1;
   `revert` works on a stale approval and leaves proposed/approved/reverted in
   the log in order; the lifecycle leaves `events_since_writeback` unchanged.
+- **Judge seam (typed-judge 2.1, 2.2):** `core/judge.ts` validates ids,
+  choice key counts (2–255), score level counts (2–10) and the 100,000-char
+  state ceiling with typed errors before any provider runs; a question whose
+  `decide` returns an answer is reported `origin: "rule"` with confidence 1
+  and is absent from what a non-deterministic provider is sent; one it
+  abstains on is `origin: "abstain"` with noul 0.5 or uniform probabilities,
+  confidence 0 and the first key as `choice`; the same request judged twice
+  by the deterministic provider is deep-equal; confidence is recomputed from
+  probabilities (`(n·pmax − 1)/(n − 1)`), so a provider's own number is
+  ignored; a provider that throws, times out or returns a malformed answer
+  leaves every forwarded question abstained and names the reason in
+  `fell_back`, never throws to the caller; `redactState` reaches every string
+  leaf of an object or array state; the module is imported by no file under
+  `hooks/` or `projections/` nor by `core/fold.ts`, `core/atomic.ts`,
+  `core/log.ts`, `cli/fast*.ts` or `cli/statusline*.ts` (pinned by test).

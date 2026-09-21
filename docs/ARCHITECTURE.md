@@ -48,6 +48,7 @@ Three consequences run through every design decision in the codebase:
 | `core/log.ts` | `appendEvent` — O_APPEND, one line, never partial. Canonical serialization. |
 | `core/atomic.ts` | `writeFileAtomic` — temp + rename, so readers never see a torn file. |
 | `core/redact.ts` | Secret redaction on captured commands before they reach the log. |
+| `core/judge.ts` | Judge seam (typed-judge 2.1/2.2, SPEC §Judge): typed noul/choice/score questions over a bounded state; rules decide first with confidence 1, only abstentions go to a non-deterministic provider in one request, provider failure leaves abstentions and never throws; confidence recomputed from probabilities; state redacted before any provider; never imported by hooks, projections, the fold or the fast/statusline CLI (pinned by test). |
 | `core/identity.ts` | Optional `user` stamp from git config. `identity.browser.ts` is the browser build. |
 
 ### 2. Derivation — pure functions of the log
