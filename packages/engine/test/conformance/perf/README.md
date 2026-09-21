@@ -111,6 +111,66 @@ hooks on a real record (same table on both records); n ≥ 25, same record and
 session id, and the report's `load` header (1-minute load average at start
 and end) says what the machine was doing.
 
+## Team scale (rust-core 1.5)
+
+`corpus.ts` generates a record shaped like 100 users on one repo (`TEAM100`):
+20 initiatives, 500,188 events, 345 MB. The bound log is 95.6 MB with
+138,950 events and 8,576 sessions, 100 of them open. The writer profiles
+blend `agent` (0.7) and `human` (0.3). Four writer-sweep cells hold ~100k
+events each, with a 19 MB bound log of ~27.8k events and ~1,740 sessions,
+written by 10, 25, 50 and 100 writers.
+
+```sh
+CELLS=team100-w10,team100-w25,team100-w50,team100-w100,team100
+# the reference: in-process fold curve and RSS (5 spawns per measure is enough for those)
+SOFAR_PERF=1 SOFAR_PERF_CELLS=$CELLS SOFAR_PERF_ITER=5 npx vitest run --project perf
+# the core against node, interleaved per D12 (~55 min; team100 alone ~35)
+SOFAR_PERF=1 SOFAR_PERF_CELLS=$CELLS SOFAR_PERF_ITER=25 \
+  SOFAR_CONFORMANCE_BIN=$PWD/target/release/sofar-core \
+  SOFAR_PERF_AB_BIN="node $PWD/packages/engine/dist/cli.js" npx vitest run --project perf
+```
+
+Recorded in one sitting on 2026-09-21 at c52db84 (rc.2 plus the core's
+SessionIndex), load average 2.9 to 5.2:
+
+- `team100.c52db84.typescript.*`: the reference, with spawns (n = 5), the
+  in-process fold curve and RSS.
+- `team100.c52db84.sofar-core.*`: the core direct against node `dist/cli.js`,
+  ABAB with n = 25.
+- `sessionindex.c52db84-vs-da1ae8b.*`: the core with and without SessionIndex
+  (the mirror of r1-fixes 4d21c26), ABAB with n = 25 on the 10 MB cells. Every
+  hook runs at 0.81–0.92× p50, 25–35 ms faster at ~1,400 sessions.
+- `team100.17817db.*`: the earlier attempt from before rc.2, whose team100
+  cell never completed. Kept per D11.
+
+| cells | bound log | core / TypeScript p50 | core p50 | core RSS | TypeScript RSS |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 10, 25, 50, 100 writers | 19 MB, ~27.8k events, ~1,740 sessions | 0.61–0.82× | 0.24–0.77 s | 247–402 MB | 375–548 MB |
+| team100 | 95.6 MB, 138,950 events, 8,576 sessions | 0.60–0.69×; session-start 1.02–1.03× | 2.6–8.4 s | 1.25–1.75 GB | 1.13–1.46 GB |
+
+Writer count does not move the numbers. At a fixed ~28k events, every
+writer cell folds in 280–285 ms (TypeScript, in-process), and the core's
+ratios hold. Event count does move them, and faster than linearly. The fold of
+the team100 bound log, TypeScript in-process against the core as a process
+(boot and JSON output included), minimum of 3:
+
+| events | bytes | TypeScript ms | µs/event | core ms | µs/event |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 2,783 | 1.9 MB | 16 | 5.8 | 26 | 9.5 |
+| 13,916 | 9.6 MB | 106 | 7.6 | 136 | 9.8 |
+| 27,831 | 19.2 MB | 276 | 9.9 | 306 | 11.0 |
+| 69,579 | 48.0 MB | 1,225 | 17.6 | 1,052 | 15.1 |
+| 139,157 | 95.7 MB | 3,613 | 26.0 | 2,917 | 21.0 |
+
+TypeScript's fold crosses 100 ms at ~13.2k events (9.1 MB), and a full refold
+reaches 250 ms at ~25.7k events (17.7 MB). The profiles' growth budget is 163
+events and 0.11 MB per user per week. The bound initiative takes 28% of the
+corpus, so at 100 users it crosses the first line in about 3 weeks, the
+second in about 6, and reaches team100's size in about 7 months. The
+non-linear turns and what fixing each would buy are in docs/HOTPATH.md
+§Team scale, and the ideas are recorded in the rust-core record. None of
+them is built here.
+
 ## Reading the baseline
 
 The recorded machine is in the JSON header (`machine`, `commit`,

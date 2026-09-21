@@ -846,6 +846,64 @@ by the appended line (rust-core D33). Through the `sofar` stub instead of the
 shim (3.1's mixed install through node) the core is 0.8×–0.9× on read hooks —
 node's boot is the floor there, which is why 3.2's shims exec the binary.
 
+### Team scale (rust-core 1.5)
+
+The team100 corpus models 100 users on one repo: 345 MB across 20
+initiatives, with a 95.6 MB bound log of 138,950 events and 8,576 sessions.
+The perf README has the method and tables. The results are in
+`perf/team100.c52db84.*`, recorded at rc.2 plus SessionIndex, interleaved per
+D12, with load 2.9 to 5.2.
+
+- Up to ~28k events (19 MB) the core keeps its lead: 0.61–0.82× of node on
+  every hook, at 60–75% of node's RSS. Writer count (10 to 100) changes
+  nothing at a fixed event count.
+- At 95.6 MB the lead narrows to 0.60–0.69×, and it is gone on
+  session-start (1.02–1.03× warm and cold). The core's RSS (1.25–1.75 GB)
+  is also above node's (1.13–1.46 GB). Every hook takes 2.6–8.4 s.
+- Both folds are super-linear. Per-event cost goes from ~6–10 µs at 3k events
+  to 21–26 µs at 139k.
+- Growth: at the corpus profiles' 163 events per user per week, a
+  100-person repo's hottest initiative crosses the 100 ms warm fold in about
+  3 weeks and 250 ms in about 6.
+
+The non-linear turns follow, each an idea with its predicted gain. They are
+recorded in the rust-core record, and none is built here (1.5).
+
+1. **`files_touched` membership is a linear scan per event.** It is
+   `includes` in fold.ts's `file_touched` arm and `Vec::contains` in fold.rs.
+   The corpus touches 60,686 distinct paths in 67,901 `file_touched` events,
+   so the fold is O(file events × paths). On the 95.6 MB log it is ~70% of
+   the fold in both implementations. In TypeScript, `replayOne`'s self time is
+   2.9 of 4.2 s, with `applyEvent` inlined and GC at 0.1 s. In the core,
+   `apply_event` plus its `memcmp` take ~940 of `replay_one`'s ~1,300
+   samples. The fix keeps an insertion-ordered set beside the array. That is
+   behaviour-identical: order and first occurrence are kept, and no golden
+   moves. It lands in TypeScript first (rust-core D1), then as a mirror.
+   Predicted: the team100 fold from 3.6 s to ~1.1 s (TypeScript) and from
+   2.9 s to ~0.9 s (core), per-event cost flat at ~6–10 µs, every team100 hook
+   down ~60%, and ~40% at 19 MB.
+2. **Memory high-water in the core.** The core decodes every line into an
+   owned JSON tree and holds them all for the id-ordered replay. That comes
+   to 13–18× the log's bytes, and malloc/free is ~20% of the fold's samples.
+   Idea: parse into values that borrow from the file buffer, and replay as a
+   stream when the log is already in id order (append-only ULIDs almost
+   always are), taking the voided set from a cheap first pass. Predicted: RSS
+   ~2–3× the log (~250–300 MB at 95.6 MB), and 15–20% off the fold.
+3. **Session-start does not win at team scale.** A cold-index sample puts
+   1,675 of `handle_session_start`'s 2,147 samples in
+   `index_tier1::refresh_file_states`, the derived index's tail read over the
+   siblings' 345 MB. The warm path still pays the bound fold and ~1.7 s the
+   sample did not isolate. Idea: profile the warm path after turn 1 lands,
+   before designing anything. Predicted: turn 1 alone takes ~2 s off the
+   4.7 s warm start.
+4. **Every hook refolds the whole log.** The incremental-fold snapshot is a
+   consumer API that the engine never persists under `.sofar/` (r1-fixes
+   5.1, D20), so a hook on a 139k-event log replays all of it every time. Idea: a per-clone persisted checkpoint in the state directory, not
+   `.sofar/`, validated by cursor and refused by D22's closed set, with hooks
+   replaying only the tail. Predicted: warm hooks from 2.6–4.7 s to roughly
+   snapshot load plus render (~0.1–0.3 s at team100). This needs a Decision
+   that cites r1-fixes D20.
+
 ## Open decisions (for the run owner)
 
 - O1 Sort collation (P4): keep ICU `localeCompare` (Rust would need ICU or

@@ -69,7 +69,9 @@ export default defineConfig({
           sequence: { groupOrder: 2 },
           include: ['packages/engine/test/conformance/perf/perf.test.ts'],
           fileParallelism: false,
-          testTimeout: 1_800_000,
+          // The full team100 cell interleaved at n = 25 (rust-core 1.5) runs
+          // ~35 min on its own: ~4.6 s per TypeScript spawn on a 95.6 MB log.
+          testTimeout: 3_600_000,
           hookTimeout: 600_000,
         },
       },

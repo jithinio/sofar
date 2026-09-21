@@ -4,15 +4,17 @@
 
 Goal: Move sofar's hot path to a native Rust core incrementally (rust-core D1): contract first, then sofar-core in Rust behind the same CLI and hook contract, integrated with TypeScript fallback, shipped as prebuilt binaries, and proven as its own benchmark arm that shrinks no held-out lead margin (bench-refresh D19). After parity, new hot-path code is Rust-only.
 
-Progress: 14/22 tasks done (63%)
+Progress: 15/22 tasks done (68%)
 
-## Phase 1 — Contract [active] — 5/6 done
+## Phase 1 — Contract [done] — 6/6 done
+
+> Contract, conformance, perf baseline, RC re-pins (rc.1 in 1.4; rc.2 on 2026-09-21), order independence (1.6) and team scale (1.5) all landed.
 
 - [x] 1.1 Inventory the hot-path surface from docs/SPEC.md and engine code: every hook's stdin/stdout/exit behaviour, CLI commands in scope (event append, status, statusline), env vars, files written, event envelope and projection outputs. List every SPEC gap found.
 - [x] 1.2 Black-box conformance suite in the TS repo: runs an implementation binary against golden fixtures (real records including this repo's 9.7 MB log, calib and smoke cells, corrupt and unknown lines, concurrent appends) and compares stdout, exit codes and record bytes. Green on TypeScript first.
 - [x] 1.3 Perf baseline harness: hook p50/p95 cold start and fold/digest latency at 10, 100 and 1,000 initiatives and 1–10 MB records, TypeScript numbers recorded as the target to beat
 - [x] 1.4 Re-pin both parity targets to the RC: re-record the conformance goldens and the perf baseline against r1-fixes 179b8fd (sofar.sh 0.33.0-rc.1, schema 0.10.0) with a reason per changed golden, keeping the 0.32.0 as-shipped and a45ea21 sets alongside (D11); regenerate crates/sofar-schema from the RC's packages/schema/src (task_added/plan verify, run_started verify, handoff detail, memory_promoted supersedes, verification_recorded)
-- [ ] 1.5 team100 scale corpus and perf cell: a PARAMETERISED, exported synthetic-record generator (named writer profiles `agent` 14.3 ev/session 593 B/ev file_touched-heavy and `human` 21 ev/session 798 B/ev with a 1–4 KB session_ended tail, blend ratio, initiatives, writers, events per stream, heavy-tail size distribution) shaped like 100 users on one repo (~20 initiatives, ~500k events, largest log ≥50 MB, 100 session ids); report cold process and warm fold separately, the fold-cost curve vs events and vs bytes (name the log size crossing 100 ms and the full-refold ≥250 ms point), session-start digest, user-prompt, statusline, find/index build, memory high-water, digest and statusline cost as sessions[] grows to 100 writers; interleaved per D12; record the growth budget (MB and events per user per week) and every non-linear turn as an idea with a predicted gain, never built here
+- [x] 1.5 team100 scale corpus and perf cell: a PARAMETERISED, exported synthetic-record generator (named writer profiles `agent` 14.3 ev/session 593 B/ev file_touched-heavy and `human` 21 ev/session 798 B/ev with a 1–4 KB session_ended tail, blend ratio, initiatives, writers, events per stream, heavy-tail size distribution) shaped like 100 users on one repo (~20 initiatives, ~500k events, largest log ≥50 MB, 100 session ids); report cold process and warm fold separately, the fold-cost curve vs events and vs bytes (name the log size crossing 100 ms and the full-refold ≥250 ms point), session-start digest, user-prompt, statusline, find/index build, memory high-water, digest and statusline cost as sessions[] grows to 100 writers; interleaved per D12; record the growth budget (MB and events per user per week) and every non-linear turn as an idea with a predicted gain, never built here
 - [x] 1.6 Order-independence and merge conformance: a property test that the same event SET folds to an identical state under any arrival order (shuffle N times; duplicate ids, out-of-order session_started/ended, corrections; proptest shapes fine), and a union-merge test where N branches append to the SAME initiative's events.jsonl (merge=union .gitattributes path) plus across-initiative merges, asserting the merged fold equals the fold of the union and measuring merged-log fold time
 
 ## Phase 2 — Rust core [done] — 6/6 done
@@ -47,5 +49,4 @@ Progress: 14/22 tasks done (63%)
 - [ ] 5.3 wasm build of the fold for the sofar-cloud webapp and the Bun API, replacing the browser-aliased TypeScript fold (engine-core 3.2). A separate crate, so the hook binary's crate set (D9) is unchanged
 - [ ] 5.4 The TypeScript CLI wraps the core with foldLines keeping its signature (engine-core 3.3): confirm that 3.1's dispatch with TypeScript fallback covers it, then close
 
-Active phase: Phase 1 — Contract
-Next action: Resume 1.5: rerun perf-15.sh steps (core interleaved on team cells, SessionIndex A/B vs da1ae8b on 10 MB cells), file results, write README + HOTPATH. Then add engine-core B1-B3 + real-log gate to the plan from the rust-core worktree (note 01M31WCHQXH05H6BN46NVBKDPF).
+Next action: Take turn 1 (files_touched set, the 1.5 IDEA note) to r1-fixes for the TS reference, then mirror it in the core; after that start 4.1.
