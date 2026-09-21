@@ -1,21 +1,5 @@
 # Golden manifest (rust-core D11)
 
-Re-pinned to **r1-fixes v0.33.0-rc.2 (cf8c117)**, merged into rust-core and
-re-recorded from the TypeScript reference on Node 24. Only the version moved:
-argv.fast-path (`--version`) and open.O2-update-segment (`you have
-0.33.0-rc.2`). Every other golden and every synthetic fixture came back
-byte-identical, which is the proof that rc.2's fold change (4d21c26, an O(1)
-session lookup for r1-fixes D18) changes no behaviour. The previous set is
-kept as `../golden-b72624c-rc.1-version/`. One more change landed just
-before the re-pin (88a5c96): syn.lifecycle's two "Recent quick work" lines
-now read `<DATE>` where they held their recording day. The harness masks a
-bare `YYYY-MM-DD` only when it falls on one of the run's own UTC days, so the
-golden no longer fails on every later day; the bytes before that change are
-in c7ca489. Verified 27/27 on the reference and 27/27 through the stub
-dispatching to `target/release/sofar-core`, with the core's fold mirroring
-4d21c26. Fold-parity is 39/39 and render parity passes. Direct mode fails
-the same 11 hand-back cases with and without the mirror (D29/D31).
-
 Runtime-neutral since **rust-core D37** (after 17817db): the harness masks
 V8's JSON.parse position suffix (` (line N column M)`, Node ≥22) down to
 `in JSON at position N`, so repo.append and syn.lifecycle lost that suffix in
