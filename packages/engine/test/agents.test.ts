@@ -27,6 +27,9 @@ import {
 } from '../src/cli/agents'
 import { runDoctor } from '../src/cli/doctor'
 import {
+  CODEX_SHIM_DIR,
+  CODEX_SHIMS,
+  CODEX_TRUST_HINT,
   CURSOR_HOOKS,
   hookCommand,
   resolveInitAgents,
@@ -160,7 +163,7 @@ describe('the picker', () => {
         '? Set up sofar for which agents? space toggles · a all · enter confirms',
         '▸ [ ] Claude Code  .claude/, .mcp.json, CLAUDE.md',
         '  [✓] Cursor       .cursor/, AGENTS.md  found',
-        '  [ ] Codex        AGENTS.md',
+        '  [ ] Codex        .codex/, AGENTS.md',
       ].join('\n'),
     )
     expect(renderPicker(reducePicker(state, 'confirm'), plain)).toBe(
@@ -286,14 +289,27 @@ describe('sofar init for a subset of agents', () => {
     }
     expect(hooks.hooks.stop?.[0]?.command).toBe('$CURSOR_PROJECT_DIR/.cursor/hooks/sofar/stop.sh')
     expect(result.stdout).not.toContain('statusline not wired') // a Claude Code hint
-    expect(wiredAgents(root)).toEqual(['cursor', 'codex']) // AGENTS.md stands for Codex until 7.3
+    expect(wiredAgents(root)).toEqual(['cursor']) // AGENTS.md is shared, so it no longer stands for Codex
   })
 
-  it('Codex alone writes AGENTS.md and no hook config', () => {
+  it('Codex alone carries no other agent’s files: its own shims under .codex/hooks/sofar/, run from the git root', () => {
     const root = freshRepo()
-    expect(init(root, ['codex']).exitCode).toBe(0)
+    const result = init(root, ['codex'])
+    expect(result.exitCode).toBe(0)
     const written = files(root).filter((rel) => !rel.startsWith('.git/') && !rel.startsWith('.sofar/'))
-    expect(written).toEqual(['.gitattributes', 'AGENTS.md'])
+    expect(written).toEqual([
+      '.codex/config.toml',
+      '.codex/hooks.json',
+      ...CODEX_SHIMS.map((shim) => `.codex/hooks/sofar/${shim.file}`).sort(),
+      '.gitattributes',
+      'AGENTS.md',
+    ])
+    for (const shim of CODEX_SHIMS) {
+      expect(statSync(join(root, CODEX_SHIM_DIR, shim.file)).mode & 0o777).toBe(0o755)
+    }
+    expect(result.stdout).toContain(CODEX_TRUST_HINT)
+    expect(result.stdout).not.toContain('statusline not wired')
+    expect(wiredAgents(root)).toEqual(['codex'])
   })
 
   it('is byte-idempotent for a subset', () => {
@@ -346,6 +362,25 @@ describe('sofar init for a subset of agents', () => {
       expect(entries.map((e) => e.command)).toEqual([settings.hooks[shim.event]?.[0]?.hooks[0]?.command])
     }
     expect(moved.hooks.stop?.[0]).toEqual({ command: hookCommand('stop.sh'), loop_limit: 1, timeout: 30 })
+    // Now the same tree as an init for both agents at once.
+    expect(init(root, ['claude-code', 'cursor']).stdout).toContain('already initialized')
+  })
+
+  it('adding Codex to a Claude Code and Cursor repo changes none of their files', () => {
+    const root = freshRepo()
+    init(root, ['claude-code', 'cursor'])
+    const before = hashTree(root)
+    const result = init(root, ['codex'])
+    expect(result.exitCode).toBe(0)
+    const after = hashTree(root)
+    for (const [rel, hash] of before) {
+      if (!rel.startsWith('.sofar/')) expect({ rel, hash: after.get(rel) }).toEqual({ rel, hash })
+    }
+    expect([...after.keys()].filter((rel) => !before.has(rel)).sort()).toEqual([
+      '.codex/config.toml',
+      '.codex/hooks.json',
+      ...CODEX_SHIMS.map((shim) => `${CODEX_SHIM_DIR}/${shim.file}`).sort(),
+    ])
     expect(init(root).stdout).toContain('already initialized') // now the same tree as an all-agent init
   })
 
@@ -363,6 +398,32 @@ describe('uninit and doctor for a subset of agents', () => {
     init(root, ['cursor'])
     expect(runUninit(root, { purge: true }, plain, plain).exitCode).toBe(0)
     expect(files(root)).toEqual(['.git/HEAD'])
+  })
+
+  it('a Codex-only init round-trips byte-clean through uninit --purge', () => {
+    const root = freshRepo()
+    init(root, ['codex'])
+    expect(runUninit(root, { purge: true }, plain, plain).exitCode).toBe(0)
+    expect(files(root)).toEqual(['.git/HEAD'])
+  })
+
+  it('doctor checks a Codex-only repo for its own shims and hooks.json', () => {
+    const root = freshRepo()
+    init(root, ['codex'])
+    const clean = runDoctor(root, {}, plain)
+    expect(clean.stdout).toContain(`Codex hook shims installed (${CODEX_SHIMS.length}/${CODEX_SHIMS.length})`)
+    expect(clean.stdout).toContain('.codex/hooks.json hooks wired')
+    expect(clean.stdout).toContain('.codex/config.toml sofar server registered')
+    expect(clean.stdout).not.toContain('.claude/settings.json')
+    expect(clean.stdout).not.toContain('FAIL')
+
+    rmSync(join(root, CODEX_SHIM_DIR, 'stop.sh'))
+    writeFileSync(join(root, '.codex', 'hooks.json'), '{"hooks":{"PostToolUse":[{"hooks":[{"type":"command","command":"\\"$(git rev-parse --show-toplevel)/.codex/hooks/sofar/post-tool-use.sh\\""}]}]}}\n')
+    const broken = runDoctor(root, {}, plain)
+    expect(broken.exitCode).toBe(1)
+    expect(broken.stdout).toContain('Codex hook shims missing: stop.sh')
+    expect(broken.stdout).toContain('.codex/hooks.json missing hooks: SessionStart, UserPromptSubmit, Stop, SessionEnd')
+    expect(broken.stdout).toContain('run `sofar init --agents codex` to (re)install it')
   })
 
   it('doctor checks only the wired agents and names the rest with the command that adds them', () => {
@@ -384,7 +445,7 @@ describe('uninit and doctor for a subset of agents', () => {
     const result = runDoctor(root, {}, plain)
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toContain('hook shims missing: stop.sh')
-    expect(result.stdout).toContain('run `sofar init --agents cursor,codex` to (re)install it')
+    expect(result.stdout).toContain('run `sofar init --agents cursor` to (re)install it')
   })
 
   it('doctor fails a record with no agent wired at all', () => {
@@ -402,5 +463,14 @@ describe('uninit and doctor for a subset of agents', () => {
     const environment = readSignalEnvironment(root, {})
     expect(environment.post_tool_hook).toBe(true)
     expect(environment.session_start_hook).toBe(true)
+  })
+
+  it('the signal map sees hooks a Codex-only repo runs, and no failure hook, which Codex lacks', () => {
+    const root = freshRepo()
+    init(root, ['codex'])
+    const environment = readSignalEnvironment(root, {})
+    expect(environment.post_tool_hook).toBe(true)
+    expect(environment.session_start_hook).toBe(true)
+    expect(environment.post_tool_failure_hook).toBe(false)
   })
 })

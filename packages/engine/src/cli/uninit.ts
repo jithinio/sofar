@@ -9,7 +9,10 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 import { commonGitDir } from '../core/git'
+import { CODEX_CONFIG, codexMcpState, withoutSofarServer } from './codex-config'
 import {
+  CODEX_SHIM_DIR,
+  CODEX_SHIMS,
   GITATTRIBUTES_LINE,
   GIT_HOOK_MARKER,
   isSofarStatusline,
@@ -40,6 +43,9 @@ import { type Caps, createStyle, stderrCaps, stdoutCaps, symbolsFor } from './ui
  *   - .mcp.json's mcpServers.sofar (other servers/keys untouched)
  *   - Cursor's copies (r1-fixes 6.2/6.6): .cursor/hooks.json entries running
  *     one of our shims, and .cursor/mcp.json's mcpServers.sofar
+ *   - Codex's (agents-parity 2.1, D5): the shims in .codex/hooks/sofar/ and
+ *     the .codex/hooks.json entries running them, and (2.2, D7) the
+ *     [mcp_servers.sofar] table in .codex/config.toml
  *   - the marker-delimited protocol blocks in CLAUDE.md / AGENTS.md, plus
  *     exactly one adjacent blank-line seam so pre-init spacing is restored
  *
@@ -89,10 +95,11 @@ function stableJSON(rootDir: string, rel: string, value: unknown): string {
   return hostShapedJSON(rootDir, rel, value)
 }
 
-/** A hook command is ours iff it points at one of the shim paths, in either home. */
-const SHIM_PATH_SUBSTRINGS = Object.values(SHIM_HOMES).flatMap(({ dir }) =>
-  SHIMS.map((shim) => `${dir}/${shim.file}`),
-)
+/** A hook command is ours iff it points at one of the shim paths, in any home. */
+const SHIM_PATH_SUBSTRINGS = [
+  ...Object.values(SHIM_HOMES).flatMap(({ dir }) => SHIMS.map((shim) => `${dir}/${shim.file}`)),
+  ...CODEX_SHIMS.map((shim) => `${CODEX_SHIM_DIR}/${shim.file}`),
+]
 
 function isShimCommand(hook: unknown): boolean {
   return (
@@ -106,9 +113,9 @@ function isShimCommand(hook: unknown): boolean {
 // Steps — each pushes "removed …"/"updated …" report lines (changes only).
 // ---------------------------------------------------------------------------
 
-function removeShims(rootDir: string, dir: string, report: string[]): number {
+function removeShims(rootDir: string, dir: string, report: string[], shims = SHIMS): number {
   let removed = 0
-  for (const shim of SHIMS) {
+  for (const shim of shims) {
     const path = join(rootDir, dir, shim.file)
     if (!existsSync(path)) continue
     unlinkSync(path)
@@ -143,6 +150,35 @@ function removeGitHook(rootDir: string, report: string[]): void {
   report.push('removed .git/hooks/prepare-commit-msg')
 }
 
+/**
+ * Strip our commands from a `hooks` object of matcher groups — the shape
+ * settings.json and .codex/hooks.json share — pruning emptied groups, event
+ * arrays, and the key itself. True when anything was removed.
+ */
+function stripHookGroups(config: Obj): boolean {
+  if (!isObj(config.hooks)) return false
+  const hooks = config.hooks
+  let changed = false
+  // Scan EVERY event key, not just ours — a user may have moved an entry.
+  for (const eventName of Object.keys(hooks)) {
+    const entries = hooks[eventName]
+    if (!Array.isArray(entries)) continue
+    const kept = entries.filter((entry) => {
+      if (!isObj(entry) || !Array.isArray(entry.hooks)) return true // foreign shape — keep
+      const remaining = entry.hooks.filter((h) => !isShimCommand(h))
+      if (remaining.length === entry.hooks.length) return true // untouched
+      changed = true
+      if (remaining.length === 0) return false // emptied matcher group → drop
+      entry.hooks = remaining
+      return true
+    })
+    if (kept.length === 0) delete hooks[eventName] // emptied event array → drop key
+    else hooks[eventName] = kept
+  }
+  if (changed && Object.keys(hooks).length === 0) delete config.hooks
+  return changed
+}
+
 function stripSettings(rootDir: string, purge: boolean, report: string[]): boolean {
   const path = join(rootDir, '.claude', 'settings.json')
   if (!existsSync(path)) return false
@@ -150,30 +186,7 @@ function stripSettings(rootDir: string, purge: boolean, report: string[]): boole
 
   const removedParts: string[] = []
 
-  if (isObj(settings.hooks)) {
-    const hooks = settings.hooks
-    let changed = false
-    // Scan EVERY event key, not just our five — a user may have moved an entry.
-    for (const eventName of Object.keys(hooks)) {
-      const entries = hooks[eventName]
-      if (!Array.isArray(entries)) continue
-      const kept = entries.filter((entry) => {
-        if (!isObj(entry) || !Array.isArray(entry.hooks)) return true // foreign shape — keep
-        const remaining = entry.hooks.filter((h) => !isShimCommand(h))
-        if (remaining.length === entry.hooks.length) return true // untouched
-        changed = true
-        if (remaining.length === 0) return false // emptied matcher group → drop
-        entry.hooks = remaining
-        return true
-      })
-      if (kept.length === 0) delete hooks[eventName] // emptied event array → drop key
-      else hooks[eventName] = kept
-    }
-    if (changed) {
-      if (Object.keys(hooks).length === 0) delete settings.hooks
-      removedParts.push('hook entries')
-    }
-  }
+  if (stripHookGroups(settings)) removedParts.push('hook entries')
 
   // statusLine: ours iff what `init --statusline` installs, by type +
   // command — a customized entry is user config, kept (theirs-wins,
@@ -248,6 +261,57 @@ function stripCursorHooks(rootDir: string, purge: boolean, report: string[]): bo
   }
   writeFileSync(path, stableJSON(rootDir, rel, config), 'utf8')
   report.push(`updated ${rel} (sofar hook entries removed)`)
+  return false
+}
+
+/** Strip sofar's entries from .codex/hooks.json (agents-parity 2.1) — settings.json's shape, stripped the same way. */
+function stripCodexHooks(rootDir: string, purge: boolean, report: string[]): boolean {
+  const rel = '.codex/hooks.json'
+  const path = join(rootDir, rel)
+  if (!existsSync(path)) return false
+  const config = readJSONObject(path, rel)
+  if (!stripHookGroups(config)) return false
+  if (purge && Object.keys(config).length === 0) {
+    unlinkSync(path)
+    report.push(`removed ${rel} (nothing left after sofar hook entries removed)`)
+    return true
+  }
+  writeFileSync(path, stableJSON(rootDir, rel, config), 'utf8')
+  report.push(`updated ${rel} (sofar hook entries removed)`)
+  return false
+}
+
+/**
+ * Remove sofar's server from .codex/config.toml (agents-parity 2.2, D7): the
+ * `[mcp_servers.sofar]` tables, cut out where the structure scanner finds
+ * them so every other byte stays. Unlike unparseable JSON, a file the scanner
+ * cannot follow does not abort the run — TOML here is scanned, never parsed
+ * whole, so a valid file can still defeat the scanner — but it is left alone,
+ * with a warning when it mentions sofar. A sofar server in another form is not
+ * a table init writes; it is named, not edited.
+ */
+function stripCodexMcp(rootDir: string, purge: boolean, report: string[], warnings: string[]): boolean {
+  const path = join(rootDir, CODEX_CONFIG)
+  if (!existsSync(path)) return false
+  const text = readFileSync(path, 'utf8')
+  const stripped = withoutSofarServer(text)
+  if (stripped === null) {
+    if (text.includes('sofar')) {
+      warnings.push(`warning: ${CODEX_CONFIG} could not be read as TOML — any sofar MCP server in it was left; remove it by hand`)
+    }
+    return false
+  }
+  if (codexMcpState(stripped) === 'registered') {
+    warnings.push(`warning: ${CODEX_CONFIG} defines a sofar MCP server outside a [mcp_servers.sofar] table — left; remove it by hand`)
+  }
+  if (stripped === text) return false
+  if (purge && stripped.length === 0) {
+    unlinkSync(path)
+    report.push(`removed ${CODEX_CONFIG} (nothing left after sofar server entry removed)`)
+    return true
+  }
+  writeFileSync(path, stripped, 'utf8')
+  report.push(`updated ${CODEX_CONFIG} (sofar server entry removed)`)
   return false
 }
 
@@ -371,11 +435,14 @@ export function runUninit(
   try {
     const shimsRemoved = removeShims(rootDir, SHIM_HOMES.claude.dir, report)
     const cursorShimsRemoved = removeShims(rootDir, SHIM_HOMES.cursor.dir, report)
+    const codexShimsRemoved = removeShims(rootDir, CODEX_SHIM_DIR, report, CODEX_SHIMS)
     removeGitHook(rootDir, report)
     const settingsDeleted = stripSettings(rootDir, purge, report)
     stripMcp(rootDir, '.mcp.json', purge, report)
     const cursorHooksDeleted = stripCursorHooks(rootDir, purge, report)
     const cursorMcpDeleted = stripMcp(rootDir, '.cursor/mcp.json', purge, report)
+    const codexHooksDeleted = stripCodexHooks(rootDir, purge, report)
+    const codexConfigDeleted = stripCodexMcp(rootDir, purge, report, warnings)
     stripGitattributes(rootDir, purge, report)
     stripProtocolBlock(rootDir, 'CLAUDE.md', purge, report, warnings)
     stripProtocolBlock(rootDir, 'AGENTS.md', purge, report, warnings)
@@ -391,6 +458,11 @@ export function runUninit(
     if (cursorHooksDeleted || cursorMcpDeleted || cursorShimDirRemoved) {
       removeDirIfEmpty(rootDir, '.cursor', report)
     }
+    const codexShimDirRemoved =
+      codexShimsRemoved > 0 &&
+      removeDirIfEmpty(rootDir, CODEX_SHIM_DIR, report) &&
+      removeDirIfEmpty(rootDir, '.codex/hooks', report)
+    if (codexHooksDeleted || codexConfigDeleted || codexShimDirRemoved) removeDirIfEmpty(rootDir, '.codex', report)
 
     const sofarDir = join(rootDir, '.sofar')
     if (existsSync(sofarDir)) {

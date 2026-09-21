@@ -1,0 +1,101 @@
+{
+  "session-start.startup": {
+    "schema": "session-start.command.input",
+    "payload": {
+      "session_id": "01a0aff1-02ff-70c3-8703-e3f764c2181c",
+      "transcript_path": "/home/user/.codex/sessions/2026/09/17/rollout-2026-09-17T20-46-42-01a0aff1-02ff-70c3-8703-e3f764c2181c.jsonl",
+      "cwd": "/tmp/repo",
+      "hook_event_name": "SessionStart",
+      "model": "gpt-reserve",
+      "permission_mode": "default",
+      "source": "startup"
+    }
+  },
+  "user-prompt-submit": {
+    "schema": "user-prompt-submit.command.input",
+    "payload": {
+      "session_id": "01a0aff1-02ff-70c3-8703-e3f764c2181c",
+      "turn_id": "01a0aff1-dd72-7cc2-804b-57bf2f604932",
+      "transcript_path": "/home/user/.codex/sessions/2026/09/17/rollout-2026-09-17T20-46-42-01a0aff1-02ff-70c3-8703-e3f764c2181c.jsonl",
+      "cwd": "/tmp/repo",
+      "hook_event_name": "UserPromptSubmit",
+      "model": "gpt-reserve",
+      "permission_mode": "default",
+      "prompt": "Create notes.txt containing hello, then run cat notes.txt. Do not write to the sofar record in this turn."
+    }
+  },
+  "post-tool-use.bash": {
+    "schema": "post-tool-use.command.input",
+    "payload": {
+      "session_id": "01a0aff1-02ff-70c3-8703-e3f764c2181c",
+      "turn_id": "01a0aff1-dd72-7cc2-804b-57bf2f604932",
+      "transcript_path": "/home/user/.codex/sessions/2026/09/17/rollout-2026-09-17T20-46-42-01a0aff1-02ff-70c3-8703-e3f764c2181c.jsonl",
+      "cwd": "/tmp/repo",
+      "hook_event_name": "PostToolUse",
+      "model": "gpt-reserve",
+      "permission_mode": "default",
+      "tool_name": "Bash",
+      "tool_input": {
+        "command": "cat notes.txt"
+      },
+      "tool_response": "hello\n",
+      "tool_use_id": "exec-8b4b77d5-1a7d-4d2e-8f5e-55b504545e23"
+    }
+  },
+  "post-tool-use.apply-patch": {
+    "schema": "post-tool-use.command.input",
+    "payload": {
+      "session_id": "01a0aff1-02ff-70c3-8703-e3f764c2181c",
+      "turn_id": "01a0aff1-dd72-7cc2-804b-57bf2f604932",
+      "transcript_path": "/home/user/.codex/sessions/2026/09/17/rollout-2026-09-17T20-46-42-01a0aff1-02ff-70c3-8703-e3f764c2181c.jsonl",
+      "cwd": "/tmp/repo",
+      "hook_event_name": "PostToolUse",
+      "model": "gpt-reserve",
+      "permission_mode": "default",
+      "tool_name": "apply_patch",
+      "tool_input": {
+        "command": "*** Begin Patch\n*** Add File: /tmp/repo/notes.txt\n+hello\n*** End Patch"
+      },
+      "tool_response": "Exit code: 0\nWall time: 0.1 seconds\nOutput:\nSuccess. Updated the following files:\nA /tmp/repo/notes.txt\n",
+      "tool_use_id": "exec-5309d084-baaa-422a-96f7-edb4eb84b398"
+    }
+  },
+  "stop.first": {
+    "schema": "stop.command.input",
+    "payload": {
+      "session_id": "01a0aff1-02ff-70c3-8703-e3f764c2181c",
+      "turn_id": "01a0aff1-dd72-7cc2-804b-57bf2f604932",
+      "transcript_path": "/home/user/.codex/sessions/2026/09/17/rollout-2026-09-17T20-46-42-01a0aff1-02ff-70c3-8703-e3f764c2181c.jsonl",
+      "cwd": "/tmp/repo",
+      "hook_event_name": "Stop",
+      "model": "gpt-reserve",
+      "permission_mode": "default",
+      "stop_hook_active": false,
+      "last_assistant_message": "Created `notes.txt` and ran `cat notes.txt`.\n\nOutput:\n\n```text\nhello\n```"
+    }
+  },
+  "stop.held": {
+    "schema": "stop.command.input",
+    "payload": {
+      "session_id": "01a0aff1-02ff-70c3-8703-e3f764c2181c",
+      "turn_id": "01a0aff1-dd72-7cc2-804b-57bf2f604932",
+      "transcript_path": "/home/user/.codex/sessions/2026/09/17/rollout-2026-09-17T20-46-42-01a0aff1-02ff-70c3-8703-e3f764c2181c.jsonl",
+      "cwd": "/tmp/repo",
+      "hook_event_name": "Stop",
+      "model": "gpt-reserve",
+      "permission_mode": "default",
+      "stop_hook_active": true,
+      "last_assistant_message": "Closed the sofar session with the required `session_ended` record."
+    }
+  },
+  "session-end": {
+    "schema": "session-end.command.input",
+    "payload": {
+      "session_id": "01a0aff1-02ff-70c3-8703-e3f764c2181c",
+      "transcript_path": "/home/user/.codex/sessions/2026/09/17/rollout-2026-09-17T20-46-42-01a0aff1-02ff-70c3-8703-e3f764c2181c.jsonl",
+      "cwd": "/tmp/repo",
+      "hook_event_name": "SessionEnd",
+      "reason": "other"
+    }
+  }
+}

@@ -3,8 +3,9 @@
  * DRIVEN codex session does, minus the model.
  *
  * It reads its own session id and task id out of the prompt it was handed —
- * exactly as `codexPinLine` instructs a real one to — and writes the record in
- * the CLI dialect's envelope, because codex carries no sofar MCP server. Plain
+ * exactly as `codexPinLine` instructs a real one whose hooks never ran (no
+ * Session line arrived) — and writes the record in the CLI dialect's
+ * envelope, as a session with no sofar MCP tools does. Plain
  * CommonJS with no imports, so the stub needs no build and no engine code:
  * anything it borrowed from the engine would be the engine grading its own
  * homework.
@@ -17,7 +18,7 @@ const fs = require('node:fs')
 
 const [log, argvFile, blockNote] = process.argv.slice(2)
 const prompt = fs.readFileSync(argvFile, 'utf8')
-const sessionId = /Your session id is (\S+)/.exec(prompt)[1]
+const sessionId = /use the id the driver assigned: (\S+)/.exec(prompt)[1]
 const taskId = /Task (\S+) —/.exec(prompt)[1]
 
 const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'

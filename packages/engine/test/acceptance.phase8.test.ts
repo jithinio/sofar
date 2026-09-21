@@ -166,6 +166,23 @@ describe('acceptance 1 — uninit round-trips (hash-based)', () => {
       join(root, '.cursor', 'mcp.json'),
       stableJSON({ mcpServers: { other: { command: 'other-server', args: [] } } }),
     )
+    // and Codex's (agents-parity 2.1): settings.json's shape, and a hooks dir of its own
+    mkdirSync(join(root, '.codex', 'hooks'), { recursive: true })
+    writeFileSync(
+      join(root, '.codex', 'hooks.json'),
+      stableJSON({
+        hooks: {
+          PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo pre' }] }],
+          SessionStart: [{ hooks: [{ type: 'command', command: 'echo user-start' }] }],
+        },
+      }),
+    )
+    writeFileSync(join(root, '.codex', 'hooks', 'stop.sh'), '#!/bin/sh\necho mine\n')
+    // (agents-parity 2.2) and its config.toml, where sofar's server is one appended table
+    writeFileSync(
+      join(root, '.codex', 'config.toml'),
+      '# mine\nmodel = "o3"\n\n[mcp_servers.other]\ncommand = "other-server"\nargs = []\n',
+    )
     writeFileSync(join(root, '.claude', 'hooks', 'my-hook.sh'), '#!/bin/sh\necho mine\n')
     writeFileSync(join(root, '.gitattributes'), '*.png binary\n')
     const before = hashTree(root)

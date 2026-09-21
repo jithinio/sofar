@@ -29,7 +29,7 @@ export const AGENT_LABELS: Readonly<Record<AgentId, string>> = {
 export const AGENT_FILES: Readonly<Record<AgentId, string>> = {
   'claude-code': '.claude/, .mcp.json, CLAUDE.md',
   cursor: '.cursor/, AGENTS.md',
-  codex: 'AGENTS.md',
+  codex: '.codex/, AGENTS.md',
 }
 
 function isAgentId(value: string): value is AgentId {

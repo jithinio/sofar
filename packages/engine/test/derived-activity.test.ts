@@ -269,14 +269,18 @@ describe('guidance and the switch (D24 (5), (6))', () => {
     // clause diff is pinned between V8 and the V7 before it.
     const d24Claude = SHIPPED_PROTOCOL_BLOCKS[SHIPPED_PROTOCOL_BLOCKS.length - 1]!
     const prevClaude = SHIPPED_PROTOCOL_BLOCKS[SHIPPED_PROTOCOL_BLOCKS.length - 2]!
-    const prevAgents = SHIPPED_AGENTS_PROTOCOL_BLOCKS[SHIPPED_AGENTS_PROTOCOL_BLOCKS.length - 1]!
+    // agents-parity 2.3 (D8) superseded the D24 AGENTS.md block as V8 in the
+    // same way; the clause diff is pinned between V8 and V7.
+    const d24Agents = SHIPPED_AGENTS_PROTOCOL_BLOCKS[SHIPPED_AGENTS_PROTOCOL_BLOCKS.length - 1]!
+    const prevAgents = SHIPPED_AGENTS_PROTOCOL_BLOCKS[SHIPPED_AGENTS_PROTOCOL_BLOCKS.length - 2]!
+    expect(d24Agents).toContain('Payload prose is WHY')
     expect(prevClaude).not.toContain('is WHY')
     expect(prevAgents).not.toContain('is WHY')
     // The only difference is the clause: the ledger entry is the old block byte-exact.
     expect(d24Claude.replace(/ A note or summary is WHY:\n  files, commands, test outcomes and commits are captured by hooks and\n  derived, never restated\./, '')).toBe(prevClaude)
     // 4.1.1 (L07, D27), 4.1.3 (L09, D30) and 6.7 (Cursor's loop choice) edited
     // the same unreleased block in place; undo their lines too.
-    const without67 = AGENTS_PROTOCOL_BLOCK.replace(
+    const without67 = d24Agents.replace(
       'Any\nagent can drive the whole loop with the `sofar` CLI below — no MCP\nsupport is required.',
       'Drive\nthe whole loop with the `sofar` CLI — no MCP support is required.',
     )

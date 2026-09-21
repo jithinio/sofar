@@ -1,0 +1,85 @@
+{
+  "session-start.print": {
+    "mode": "print (-p), S1c",
+    "payload": {
+      "conversation_id": "f30f288e-8228-4f80-bc82-b25b61ad39c3",
+      "generation_id": "f30f288e-8228-4f80-bc82-b25b61ad39c3",
+      "model": "default",
+      "is_background_agent": false,
+      "session_id": "f30f288e-8228-4f80-bc82-b25b61ad39c3",
+      "hook_event_name": "sessionStart",
+      "cursor_version": "2026.09.15-d2fe57e",
+      "workspace_roots": [
+        "/tmp/repo"
+      ],
+      "user_email": "op@example.com",
+      "transcript_path": null
+    }
+  },
+  "post-tool-use.write": {
+    "mode": "interactive, S2",
+    "payload": {
+      "conversation_id": "64091d8e-3546-4886-8335-2124737d4720",
+      "generation_id": "6dfc53ab-0f94-43ce-a7a6-6c5a611ef0a8",
+      "model": "default",
+      "tool_name": "Write",
+      "tool_input": {
+        "file_path": "/tmp/repo/notes.txt",
+        "content": "hello\n"
+      },
+      "tool_output": "{\"file_path\":\"/tmp/repo/notes.txt\",\"success\":true}",
+      "duration": 33886.567,
+      "tool_use_id": "call-ce487cc7-a4b9-47f1-bb9f-cfd62d2b38cf-0\nfc_99c8d8b6-06b1-93c1-85d1-5a1b35da9478_0",
+      "session_id": "64091d8e-3546-4886-8335-2124737d4720",
+      "hook_event_name": "postToolUse",
+      "cursor_version": "2026.09.15-d2fe57e",
+      "workspace_roots": [
+        "/tmp/repo"
+      ],
+      "user_email": "op@example.com",
+      "transcript_path": "/home/op/.cursor/projects/tmp-repo/agent-transcripts/64091d8e-3546-4886-8335-2124737d4720/64091d8e-3546-4886-8335-2124737d4720.jsonl"
+    }
+  },
+  "stop.first": {
+    "mode": "interactive, S2",
+    "payload": {
+      "conversation_id": "64091d8e-3546-4886-8335-2124737d4720",
+      "generation_id": "6dfc53ab-0f94-43ce-a7a6-6c5a611ef0a8",
+      "model": "default",
+      "status": "completed",
+      "loop_count": 0,
+      "input_tokens": 48259,
+      "output_tokens": 172,
+      "cache_read_tokens": 32640,
+      "cache_write_tokens": 0,
+      "session_id": "64091d8e-3546-4886-8335-2124737d4720",
+      "hook_event_name": "stop",
+      "cursor_version": "2026.09.15-d2fe57e",
+      "workspace_roots": [
+        "/tmp/repo"
+      ],
+      "user_email": "op@example.com",
+      "transcript_path": "/home/op/.cursor/projects/tmp-repo/agent-transcripts/64091d8e-3546-4886-8335-2124737d4720/64091d8e-3546-4886-8335-2124737d4720.jsonl"
+    }
+  },
+  "session-end.print": {
+    "mode": "print (-p), S1c",
+    "payload": {
+      "conversation_id": "f30f288e-8228-4f80-bc82-b25b61ad39c3",
+      "generation_id": "f30f288e-8228-4f80-bc82-b25b61ad39c3",
+      "model": "default",
+      "reason": "completed",
+      "duration_ms": 27766,
+      "is_background_agent": false,
+      "final_status": "completed",
+      "session_id": "f30f288e-8228-4f80-bc82-b25b61ad39c3",
+      "hook_event_name": "sessionEnd",
+      "cursor_version": "2026.09.15-d2fe57e",
+      "workspace_roots": [
+        "/tmp/repo"
+      ],
+      "user_email": "op@example.com",
+      "transcript_path": "/home/op/.cursor/projects/tmp-repo/agent-transcripts/f30f288e-8228-4f80-bc82-b25b61ad39c3/f30f288e-8228-4f80-bc82-b25b61ad39c3.jsonl"
+    }
+  }
+}

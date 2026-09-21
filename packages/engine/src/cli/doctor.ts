@@ -16,8 +16,19 @@ import { buildGraph, extractCitations, repoGeneral } from '../core/graph'
 import { clip } from '../projections/templates/shared'
 import { AGENT_LABELS, AGENTS } from './agents'
 import {
+  CODEX_CONFIG,
+  CODEX_MCP_ADD,
+  codexConfigRegistersSofar,
+  type CodexMcpState,
+  codexMcpState,
+  codexUserConfigPath,
+} from './codex-config'
+import {
   AGENTS_PROTOCOL_BLOCK,
   classifyProtocolBlock,
+  CODEX_SHIM_DIR,
+  CODEX_SHIMS,
+  codexHookCommand,
   CURSOR_HOOKS,
   hookCommand,
   PROTOCOL_BLOCK,
@@ -95,6 +106,8 @@ import { byCodeUnit } from '../core/order'
 export interface DoctorOptions {
   /** Apply the safe repairs: the Tailwind `@source not` insertion and the formatter/linter `.sofar` exclusions. */
   fix?: boolean
+  /** Home directory override for the Codex user-config check. Tests only — production reads CODEX_HOME or os.homedir(). */
+  home?: string
 }
 
 /** Progress channel for the tree-scan spinner — injectable for tests. */
@@ -219,7 +232,7 @@ function auditAttribution(rootDir: string, findings: Finding[]): void {
   })
 }
 
-function auditWiring(rootDir: string): Section {
+function auditWiring(rootDir: string, userHome: string | undefined): Section {
   const findings: Finding[] = []
 
   // Per agent (r1-fixes 7.1, D36): a repo is checked only for the agents it is
@@ -298,6 +311,50 @@ function auditWiring(rootDir: string): Section {
         ? { level: 'ok', text: '.cursor/mcp.json sofar server registered' }
         : { level: 'fail', text: '.cursor/mcp.json sofar server not registered', hint: repair },
     )
+  }
+
+  // Codex's own shims and hooks.json (agents-parity 2.1, D5). The command is
+  // matched as it sits in the file, JSON-escaped, since it opens with a quote.
+  if (wired.has('codex')) {
+    const missingCodexShims = CODEX_SHIMS.filter(
+      (shim) => !existsSync(join(rootDir, CODEX_SHIM_DIR, shim.file)),
+    ).map((shim) => shim.file)
+    findings.push(
+      missingCodexShims.length === 0
+        ? { level: 'ok', text: `Codex hook shims installed (${CODEX_SHIMS.length}/${CODEX_SHIMS.length})` }
+        : { level: 'fail', text: `Codex hook shims missing: ${missingCodexShims.join(', ')}`, hint: repair },
+    )
+    const codexHooksPath = join(rootDir, '.codex', 'hooks.json')
+    const missingCodexHooks = CODEX_SHIMS.filter(
+      (shim) => !fileHas(codexHooksPath, JSON.stringify(codexHookCommand(shim.file))),
+    ).map((shim) => shim.event)
+    findings.push(
+      missingCodexHooks.length === 0
+        ? { level: 'ok', text: '.codex/hooks.json hooks wired' }
+        : { level: 'fail', text: `.codex/hooks.json missing hooks: ${missingCodexHooks.join(', ')}`, hint: repair },
+    )
+    // Its MCP server (2.2, D7): the project's .codex/config.toml, or the user's
+    // config.toml, where `codex mcp add` puts it when the project file cannot
+    // take sofar's table. The hint names whichever of the two will work.
+    const configPath = join(rootDir, CODEX_CONFIG)
+    let state: CodexMcpState = 'unreadable'
+    try {
+      state = existsSync(configPath) ? codexMcpState(readFileSync(configPath, 'utf8')) : 'absent'
+    } catch {
+      // an unreadable file stays 'unreadable'
+    }
+    if (state === 'registered') {
+      findings.push({ level: 'ok', text: `${CODEX_CONFIG} sofar server registered` })
+    } else if (codexConfigRegistersSofar(codexUserConfigPath(userHome))) {
+      findings.push({ level: 'ok', text: 'Codex sofar server registered in your user config.toml' })
+    } else {
+      const why = state === 'blocked' ? 'defines mcp_servers outside [mcp_servers.<name>] tables' : 'is not TOML sofar can read'
+      findings.push({
+        level: 'fail',
+        text: `${CODEX_CONFIG} sofar server not registered`,
+        hint: state === 'absent' ? repair : `${CODEX_CONFIG} ${why}, so init leaves it — run \`${CODEX_MCP_ADD}\` once`,
+      })
+    }
   }
 
   // Presence is not enough (speed-2 T6): a block installed by an older sofar
@@ -1122,7 +1179,7 @@ export function runDoctor(
 
   const folded = foldInitiatives(rootDir)
   const sections = [
-    auditWiring(rootDir),
+    auditWiring(rootDir, options.home),
     auditRecords(folded),
     auditLifecycle(rootDir, folded),
     auditSplitSessions(folded),
