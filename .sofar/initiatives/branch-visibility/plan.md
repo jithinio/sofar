@@ -4,7 +4,7 @@
 
 Goal: sofar list and sofar status report each initiative from the union of every copy of its log — each local worktree (uncommitted appends included), each local branch, each remote-tracking ref — and say which branch the progress lives on, so no checkout shows a stale or partial status. Read-only: never writes to another checkout's copy, never a new event type.
 
-Progress: 9/10 tasks done (90%)
+Progress: 10/10 tasks done (100%)
 
 ## Phase 1 — Union read [done] — 2/2 done
 
@@ -17,15 +17,17 @@ Progress: 9/10 tasks done (90%)
 - [x] 2.2 sofar list: union by default, slugs only on other copies listed, provenance per entry (plain + styled), --here / --remotes
 - [x] 2.3 SPEC section + acceptance criteria; tests against real git worktrees
 
-## Phase 3 — Other surfaces [pending] — 3/4 done
+## Phase 3 — Other surfaces [done] — 4/4 done
+
+> 3.1–3.4 done (D2–D5): next, get_state view:initiatives, status --watch, the SessionStart hint, and the write guard.
 
 - [x] 3.1 sofar next and get_state view:initiatives: same union (MCP budget and speed permitting)
 - [x] 3.2 status --watch: rescan copies on change, not per pulse
 - [x] 3.3 SessionStart one-liner: N events of this record live on branch X (stat-based, inside the hook budget)
-- [ ] 3.4 Write guard: warn when this checkout's copy is behind another's (never redirect the write)
+- [x] 3.4 Write guard: warn when this checkout's copy is behind another's (never redirect the write)
 
 ## Phase 4 — Ship [done] — 1/1 done
 
 - [x] 4.1 Port ebc310f to r1-fixes after tag v0.33.0-rc.2 (cut rule bench-refresh 01M2Q79R): cherry-pick, resolve conflicts in docs/SPEC.md, cli/status.ts, core/listing.ts, templates/status.ts, full suite green there
 
-Next action: Start 3.2: status --watch rescans copies on change.
+Next action: Operator: run sofar review branch-visibility, then sofar close.

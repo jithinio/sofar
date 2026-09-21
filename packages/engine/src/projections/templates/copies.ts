@@ -78,3 +78,25 @@ export function worktreeLeadsNotice(leads: readonly WorktreeLead[], home?: strin
     WORKTREE_LEADS_BUDGET,
   )
 }
+
+/** The write guard's budget: one line appended to a write tool's result. */
+export const COPY_LAG_BUDGET = 420
+
+/**
+ * The write guard's line (branch-visibility 3.4), returned when a write
+ * lands on a copy of the record that other worktrees have moved past. It
+ * says what the write did not see and what that costs. It never redirects
+ * the write: D1 keeps every write in this checkout's copy.
+ */
+export function copyLagWarning(slug: string, leads: readonly WorktreeLead[], home?: string): string | null {
+  if (leads.length === 0) return null
+  const total = leads.reduce((sum, lead) => sum + lead.unseen, 0)
+  const named = leads.slice(0, SUMMARY_NAMES).map((lead) => `+${lead.unseen} on ${copyLabel(lead.copy, home)}`)
+  const more = leads.length > SUMMARY_NAMES ? `, +${leads.length - SUMMARY_NAMES} more` : ''
+  return clip(
+    `this checkout's copy of ${slug} is behind another worktree's: ${total} event(s) are not here (${named.join(', ')}${more}). ` +
+      `The write landed in this copy only (branch-visibility D1). If the work belongs to that checkout, make the next write from there. ` +
+      `D/M handles minted here are numbered from this copy and can shift when the copies merge.`,
+    COPY_LAG_BUDGET,
+  )
+}

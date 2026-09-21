@@ -3144,6 +3144,27 @@ copy is read (rust-core, 1.8 MB). The quick lane gets no hint: each
 checkout's lane is its own unplanned work. No worktree adding an event means
 no notice, and the block is byte-identical to before.
 
+**Write guard.** A write into a copy other worktrees have moved past is
+where a stale copy costs most. A task is marked done twice. A decision takes
+a D handle numbered from this copy, which shifts when the copies merge. A
+write-back names a next action the other checkout has already overtaken. So
+after a write, `mcp/copy-lag.ts` runs `worktreeLeads` on the record written
+to, and the result gains one `warnings` line: `` this checkout's copy of
+<slug> is behind another worktree's: N event(s) are not here (+n on <branch>
+(worktree <path>), …). The write landed in this copy only
+(branch-visibility D1). If the work belongs to that checkout, make the next
+write from there. D/M handles minted here are numbered from this copy and
+can shift when the copies merge. `` The line is clipped to 420 characters.
+It only warns: the append has already happened, and D1 forbids moving it to
+another copy. The MCP server resolves the record the same way the tool does
+(`resolveWriteInitiative`, or the started session's record for
+`sofar_start_session`) and warns once per process for each lagging
+worktree. It re-arms when the lag clears, so a later lag is named again.
+`sofar event append` is a new process per call and has no such memory, so
+it speaks only on `session_started`, `decision_logged` and `session_ended`:
+the session's first write, the write that mints a handle, and the
+write-back. A copy no worktree has moved past gets the bare result.
+
 ## Sync client (v2 — api.sofar.sh, the D14 seam; sync-client, Jul 2026)
 The client half of sofar-cloud sync. The server (private repo) is
 authoritative for the wire; the client implements it exactly and stays
@@ -3325,6 +3346,13 @@ only for a decision a concurrent session must see first; review, close and
 find are CLI. SERVER_INSTRUCTIONS is the non-adopted text. The protocol block
 carries the loop itself; instructions ride every initialize, so they stay
 short.
+
+**Write guard (branch-visibility 3.4).** Every write tool's result, bare
+`{ok, event_id}` ones included, may add a `warnings` line when the record it
+wrote to is behind another worktree's copy. The server attaches it after the
+tool returns, once per process per lagging worktree
+(§Record copies across branches). The write has already landed and is
+never redirected.
 
 **Session adoption and always-load (memory-lead 1.1, D3).** `sofar mcp`
 passes CLAUDE_CODE_SESSION_ID (set by Claude Code ≥2.1.154 on its stdio MCP
@@ -5654,7 +5682,7 @@ stay the underlying derivation's, and exit codes are styling-independent.
   the available-initiatives suffix (≤10 named) or the `sofar new` hint on
   an initiative-less repo; the derivation is deterministic (same records
   → deep-equal listing, same warnings).
-- **Record copies (branch-visibility 1.1–3.3):** against real git repos with
+- **Record copies (branch-visibility 1.1–3.4):** against real git repos with
   linked worktrees, the scan returns every other worktree (an uncommitted
   append included) and every unmerged branch that has no checkout, and never
   returns this checkout, a merged branch, or a ref at a taken commit. Seen
@@ -5687,8 +5715,14 @@ stay the underlying derivation's, and exit codes are styling-independent.
   still counted. With no copy here, every event another worktree holds
   counts. Outside git there is no hint. The hook block names the worktree
   and is unchanged without one, and the notice names two worktrees, counts
-  the rest, and holds 360 characters. None of these surfaces changes a byte
-  of another copy or its `git status`.
+  the rest, and holds 360 characters. The write guard (3.4): an MCP write
+  into a copy a worktree has moved past carries the lag line once, not on
+  the next write into the same lag, and again once the lag has cleared and
+  returned. `sofar_start_session` carries it for the record it starts in. A
+  copy no worktree has moved past gets exactly `{ok, event_id}`. `sofar
+  event append` carries it on `session_started`, `decision_logged` and
+  `session_ended` and on no other type. None of these surfaces changes a
+  byte of another copy or its `git status`.
 - **CLI UI (cli-ui):** with stdout and stderr both piped and no explicit
   opt-in, every command emits ZERO ESC (\x1b) bytes — ambient CI included;
   FORCE_COLOR=1 on the same piped invocation carries ANSI-16 SGR on the

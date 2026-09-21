@@ -223,6 +223,13 @@ export interface ToolArgs {
 export interface ToolOkResult {
   ok: true
   event_id: string
+  /**
+   * Advisory lines, absent in the common case. Any write tool's result can
+   * carry the write guard's line (branch-visibility 3.4): the copy written to
+   * lacks events another worktree's copy holds. The append has already
+   * happened either way.
+   */
+  warnings?: string[]
 }
 
 /**
@@ -267,6 +274,8 @@ export interface UpdatePhaseResult {
   /** Task counts for the phase, so the caller can see what it just resolved. */
   tasks_done: number
   tasks_total: number
+  /** The write guard's line, as on every write result (branch-visibility 3.4). */
+  warnings?: string[]
 }
 
 // ---------------------------------------------------------------------------

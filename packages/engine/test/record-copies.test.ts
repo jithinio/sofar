@@ -10,7 +10,8 @@ import { makeEvent, type EventEnvelope } from '../src/core/envelope'
 import { listAcrossCopies, listInitiatives } from '../src/core/listing'
 import { serializeEvent } from '../src/core/log'
 import { copyWatch, lineId, scanRecordCopies, unionFold, worktreeLeads } from '../src/core/record-copies'
-import { handleSessionStart } from '../src/cli/event'
+import { handleSessionStart, runAppend } from '../src/cli/event'
+import { callTool, connectServer } from './helpers/mcp'
 import { WORKTREE_LEADS_BUDGET, worktreeLeadsNotice } from '../src/projections/templates/copies'
 import { watch } from 'chokidar'
 import type { Caps } from '../src/cli/ui/caps'
@@ -543,5 +544,76 @@ describe('SessionStart: events of this record on other worktrees (branch-visibil
     expect(three).toContain('⚠ 8 event(s) of this record live on other worktrees, not on this checkout: +5 on a (worktree /w/a), +2 on b (worktree /w/b), +1 more.')
     const long = worktreeLeadsNotice([lead('x'.repeat(300), 1), lead('y'.repeat(300), 1)])!
     expect(long.length).toBeLessThanOrEqual(WORKTREE_LEADS_BUDGET)
+  })
+})
+
+describe('write guard: a write into a copy another worktree has moved past (branch-visibility 3.4)', () => {
+  const LAG = /^this checkout's copy of demo is behind another worktree's: 1 event\(s\) are not here \(\+1 on feat \(worktree .*feat\)\)\. The write landed in this copy only \(branch-visibility D1\)\./
+
+  it('an MCP write warns once per lagging worktree, and again after the lag clears and returns', async () => {
+    const root = repo('guard-mcp')
+    const feat = worktree(root, 'feat')
+    append(feat, [done('1.1')])
+    const { client } = await connectServer(root)
+
+    const first = await callTool<{ ok: boolean; warnings?: string[] }>(client, 'sofar_add_note', { text: 'one' })
+    expect(first.isError).toBe(false)
+    expect(first.body.warnings).toHaveLength(1)
+    expect(first.body.warnings![0]).toMatch(LAG)
+    const second = await callTool(client, 'sofar_add_note', { text: 'two' })
+    expect(second.body).not.toHaveProperty('warnings') // same lag, already named
+
+    // The copies meet (what a merge does to this log), then feat moves on again.
+    appendFileSync(logPath(root), readFileSync(logPath(feat), 'utf8').split('\n').slice(-2).join('\n'))
+    expect((await callTool(client, 'sofar_add_note', { text: 'three' })).body).not.toHaveProperty('warnings')
+    append(feat, [done('1.2')])
+    const again = await callTool<{ warnings?: string[] }>(client, 'sofar_update_task', { task_id: '1.2', status: 'active' })
+    expect(again.body.warnings?.[0]).toMatch(/copy of demo is behind another worktree's: 1 event\(s\)/)
+  })
+
+  it('start_session warns for the record it starts in; a copy nobody moved past gets the bare result', async () => {
+    const root = repo('guard-start')
+    append(worktree(root, 'feat'), [done('1.1')])
+    const { client } = await connectServer(root)
+    const started = await callTool<{ session_id: string; warnings?: string[] }>(client, 'sofar_start_session', {
+      tool: 'claude-code',
+      initiative: SLUG,
+    })
+    expect(started.body.session_id).toBeTruthy()
+    expect(started.body.warnings?.[0]).toMatch(LAG)
+
+    const lone = repo('guard-lone')
+    worktree(lone, 'idle')
+    const bare = await callTool(( await connectServer(lone)).client, 'sofar_add_note', { text: 'x' })
+    expect(Object.keys(bare.body).sort()).toEqual(['event_id', 'ok'])
+  })
+
+  it('the CLI dialect speaks on a session start, a decision and a write-back, not on every append', () => {
+    const root = repo('guard-cli')
+    append(worktree(root, 'feat'), [done('1.1')])
+    const run = (type: string, payload: Record<string, unknown>) =>
+      JSON.parse(runAppend(root, { type, payload: JSON.stringify(payload), session: 'sess-cli', source: 'codex', actor: 'agent' }).stdout) as {
+        ok: boolean
+        warnings?: string[]
+      }
+    expect(run('session_started', { tool: 'codex' }).warnings?.[0]).toMatch(LAG)
+    expect(run('note_added', { text: 'n' })).not.toHaveProperty('warnings')
+    expect(run('task_status_changed', { id: '1.2', status: 'active' })).not.toHaveProperty('warnings')
+    expect(run('decision_logged', { chose: 'a', over: 'b', because: 'c' }).warnings?.[0]).toMatch(LAG)
+    expect(run('session_ended', { summary: 's', next_action: 'n' }).warnings?.[0]).toMatch(LAG)
+  })
+
+  it('never writes to the copy it warns about', async () => {
+    const root = repo('guard-readonly')
+    const feat = worktree(root, 'feat')
+    append(feat, [done('1.1')])
+    const before = readFileSync(logPath(feat), 'utf8')
+    const status = git(feat, 'status', '--porcelain')
+    const { client } = await connectServer(root)
+    await callTool(client, 'sofar_add_note', { text: 'here only' })
+    runAppend(root, { type: 'session_started', payload: '{"tool":"codex"}', session: 's2', source: 'codex', actor: 'agent' })
+    expect(readFileSync(logPath(feat), 'utf8')).toBe(before)
+    expect(git(feat, 'status', '--porcelain')).toBe(status)
+    expect(readFileSync(logPath(root), 'utf8')).toContain('here only')
   })
 })

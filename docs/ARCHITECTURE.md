@@ -68,7 +68,7 @@ Three consequences run through every design decision in the codebase:
 | `core/warmth.ts` | Has a log grown recently? Read from the log's own newest event, never filesystem mtime — `git checkout` rewrites mtime on every file. |
 | `core/cross-conflicts.ts` | Files under concurrent edit by sessions in *different* initiatives. Gated on the hot path, exhaustive in `doctor`. |
 | `core/listing.ts` | `initiativeSlugs` and the portfolio listing behind `sofar list`. |
-| `core/record-copies.ts` | Every OTHER copy of the record (branch-visibility D1): other worktrees' working files (read as files), unmerged local branches not checked out (one `git cat-file --batch`), remotes opt-in; and `unionFold`, which folds this checkout's log with theirs, dedupes by id, and says which copies hold what this one lacks. Read-side only, never writes a copy. Spawns git, so it stays OUT of `git.ts` and off the hot path. |
+| `core/record-copies.ts` | Every OTHER copy of the record (branch-visibility D1): other worktrees' working files (read as files), unmerged local branches not checked out (one `git cat-file --batch`), remotes opt-in; and `unionFold`, which folds this checkout's log with theirs, dedupes by id, and says which copies hold what this one lacks. Read-side only, never writes a copy. The scan spawns git, so it stays OUT of `git.ts` and off the hot path. Two parts are files only: `copyWatch`, the paths and filter `status --watch` watches to rescan on change (3.2), and `worktreeLeads`, which counts what other worktrees hold for the SessionStart hint and the write guard, proving an older-prefix copy with a stat and a 4 KB tail probe (3.3). |
 | `core/bindings.ts` | `.sofar/bindings.json` — which branch serves which initiative. |
 | `core/git.ts` | Branch, HEAD, upstream — read from `.git` files, no subprocess. |
 | `core/attribution.ts` | Commit → initiative from `Sofar-Initiative:` trailers (D4). Spawns `git log`, so it is kept OUT of `git.ts` to preserve that file's no-subprocess guarantee; every walk is bounded and gated on a ref having moved (D6). Falls back to the INDENTED trailer a squash merge leaves in the body, and only when the real trailer block is empty (2.3). |
@@ -195,6 +195,7 @@ worse than no attribution.
 | `mcp/add-note.ts` | `sofar_add_note`. |
 | `mcp/remember.ts` | `sofar_remember`. |
 | `mcp/get-state.ts` | `sofar_get_state`. |
+| `mcp/copy-lag.ts` | The write guard (branch-visibility 3.4): after any write tool, or a guarded `sofar event append`, one `warnings` line when another worktree's copy of that record holds events this one lacks. Once per server process per lagging worktree. Warns only, never redirects the write. |
 | `mcp/close-initiative.ts` | `applyClose` — the two-step close behind `sofar close` and `sofar new --supersedes` (the MCP tool left in r1-fixes 2.4, D13). |
 
 **Library** — importable entry points, side-effect free.

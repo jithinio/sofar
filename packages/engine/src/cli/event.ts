@@ -63,6 +63,7 @@ import { clipDiagnosticText, DIAGNOSTIC_HEAD_CLIP } from '@sofar/schema/diagnost
 import { newestEvent } from '../core/warmth'
 import { worktreeLeads } from '../core/record-copies'
 import { worktreeLeadsNotice } from '../projections/templates/copies'
+import { copyLagGuard } from '../mcp/copy-lag'
 import {
   createToolContext,
   homeInitiative,
@@ -2248,7 +2249,7 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
       })
       const body =
         appended !== null
-          ? { ok: true, event_id: appended.id, ...named }
+          ? { ok: true, event_id: appended.id, ...named, ...lagWarnings(ctx, slug, args.type, []) }
           : {
               ok: true,
               event_id: registrationIn(ctx.eventsPath(slug), session)?.id ?? null,
@@ -2264,7 +2265,7 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
       source,
       actor: args.actor as Actor,
     })
-    const warnings = fidelity !== null ? { warnings: [fidelity] } : {}
+    const warnings = lagWarnings(ctx, slug, args.type, fidelity !== null ? [fidelity] : [])
     return { exitCode: 0, stdout: `${JSON.stringify({ ok: true, event_id: event.id, ...named, ...warnings })}\n`, stderr: '' }
   } catch (err) {
     const shape =
@@ -2273,6 +2274,28 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
         : { code: 'io_error', message: err instanceof Error ? err.message : String(err) }
     return { exitCode: 1, stdout: '', stderr: `${JSON.stringify(shape)}\n` }
   }
+}
+
+/**
+ * The write guard in the CLI dialect (branch-visibility 3.4). Each append is
+ * its own process, so the MCP server's once-per-process memory does not
+ * exist here, and a line on every append would repeat 400 characters per
+ * call. It speaks where a stale copy costs most: the session's first write,
+ * its write-back, and a decision, whose D handle is numbered from this copy.
+ */
+const LAG_GUARDED_TYPES: ReadonlySet<string> = new Set(['session_started', 'session_ended', 'decision_logged'])
+
+function lagWarnings(ctx: ToolContext, slug: string, type: string, prior: string[]): { warnings?: string[] } {
+  let line: string | null = null
+  if (LAG_GUARDED_TYPES.has(type)) {
+    try {
+      line = copyLagGuard(ctx, slug)
+    } catch {
+      line = null // advisory: never fails an append that landed
+    }
+  }
+  const warnings = line === null ? prior : [...prior, line]
+  return warnings.length > 0 ? { warnings } : {}
 }
 
 /**
