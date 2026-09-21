@@ -4,7 +4,7 @@
 
 Goal: sofar list and sofar status report each initiative from the union of every copy of its log — each local worktree (uncommitted appends included), each local branch, each remote-tracking ref — and say which branch the progress lives on, so no checkout shows a stale or partial status. Read-only: never writes to another checkout's copy, never a new event type.
 
-Progress: 5/10 tasks done (50%)
+Progress: 6/10 tasks done (60%)
 
 ## Phase 1 — Union read [done] — 2/2 done
 
@@ -24,8 +24,8 @@ Progress: 5/10 tasks done (50%)
 - [ ] 3.3 SessionStart one-liner: N events of this record live on branch X (stat-based, inside the hook budget)
 - [ ] 3.4 Write guard: warn when this checkout's copy is behind another's (never redirect the write)
 
-## Phase 4 — Ship [pending] — 0/1 done
+## Phase 4 — Ship [done] — 1/1 done
 
-- [ ] 4.1 Port ebc310f to r1-fixes after tag v0.33.0-rc.2 (cut rule bench-refresh 01M2Q79R): cherry-pick, resolve conflicts in docs/SPEC.md, cli/status.ts, core/listing.ts, templates/status.ts, full suite green there
+- [x] 4.1 Port ebc310f to r1-fixes after tag v0.33.0-rc.2 (cut rule bench-refresh 01M2Q79R): cherry-pick, resolve conflicts in docs/SPEC.md, cli/status.ts, core/listing.ts, templates/status.ts, full suite green there
 
-Next action: After tag v0.33.0-rc.2: do 4.1 (port ebc310f to r1-fixes).
+Next action: Phase 3: start 3.1 (sofar next and get_state view:initiatives union).
