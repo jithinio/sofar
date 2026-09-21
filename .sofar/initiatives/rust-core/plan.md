@@ -34,4 +34,4 @@ Progress: 0/15 tasks done (0%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: Close 1.5 in a quiet window (bench runners idle, swap near empty): team100 interleaved perf rerun, plus i1000-10mb to measure SessionIndex; file numbers, write perf README + HOTPATH section.
+Next action: Mirror r1-fixes 4.5 in the core once it lands in the TS reference; meanwhile start 4.1 (benchmark arm under a frozen addendum).
