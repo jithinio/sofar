@@ -180,6 +180,11 @@ ONLY outcome facts the record carries, everything richer is a private row
 memory_promoted (text, supersedes? — a fact its author declares repo memory,
 addressable as `<slug> M<n>`; `supersedes` names the qualified handle of the
 fact it replaces, r1-fixes D8; repo-memory-capture D1) ·
+judgement_recorded (producer, model — the exact version, never an alias —
+question, subject — an event id or a task id — answer {type: noul|choice|score,
+…the wire shape without `legend`}, state_hash? — a stored Judge answer:
+ENRICHMENT the fold ignores for state and for drift, read by the index;
+typed-judge 2.4, see §Judge) ·
 review_recorded (scope: phase|final, verdict: pass|findings|blocked,
 watermark?, phase?, findings? — a review that was actually performed;
 commit-attribution 4.4, see §Review) ·
@@ -193,7 +198,9 @@ reason: closed|needs_user|stall|cost_cap|max_sessions|interrupted|error,
 note? — REQUIRED for `error`; the three driver events ride on envelope
 session `cli`, since a run is not a session; session-driver 1.2, see
 §Driver) · run_stop_requested (run — an operator asking a driver to end its
-run from outside it; in-session-drive D2, see §Driver) · correction (ref) ·
+run from outside it; in-session-drive D2, see §Driver) · run_adopted (run,
+epoch — an integer ≥2 a `--resume` claims, `run_started` being epoch 1; the
+fencing token of drive-visibility 2.2, see the Driver section) · correction (ref) ·
 suggestion_proposed (candidate, signal, evidence, count, cutoff?, engine,
 detector_version, trust {protocol, verdict, precision, recall, judged} — a
 loss row from a TRUSTED detector, never a cause and never a fix) ·
@@ -1176,7 +1183,12 @@ Records without checks render byte-identically.
 
 **Fold.** `runs[]` in log order; latestRun is the resume point — a run with
 no stop is still going, or its driver died without writing one, which is
-the same fact as far as the record can tell. No stubs: a handoff or stop
+the same fact as far as the record can tell. The run lock tells them apart
+on the machine that ran it, and nowhere else (see One driver per run below).
+Each run carries its adoptions in replay order and its OWNER: the highest
+epoch, the adoption whose id sorts first on a tie; an adoption for a run
+that never started, or naming an epoch below 2, is skipped with a warning.
+No stubs: a handoff or stop
 for a run that never started is skipped with a warning (the session_closed
 rule); a duplicate start or a second stop is skipped and the first kept. A
 handoff attaches to the REGISTERED session it names (the attachActivity
@@ -1188,8 +1200,11 @@ says, so they cannot stale the next action.
 **Render.** The digest carries one budgeted `Driven:` line for the latest
 run — adapter, policy, handoffs by reason in log order, running or stopped
 and why; a record no driver ever ran renders byte-identically to before.
-`sofar status` lists every run and every handoff; sessions/<id>.md names
-the run that handed the session off.
+`sofar status` lists every run and every handoff, and beside the latest
+unstopped run says `running`, `driver gone` or `liveness unknown` from the
+run lock; sessions/<id>.md names the run that handed the session off.
+Liveness is NEVER rendered into a generated file — plan.md, the digest and
+sessions/*.md project the record, and a lock is not in it.
 
 **Adapter (D3, D9).** A process wrapper and nothing more: `launch(request)` →
 a handle with `usage()`, optional `nudge()`, `kill()`, `wait()`;
@@ -1386,7 +1401,10 @@ with the message as the note. Whatever ends it, a `run_stopped` lands behind
 it — a run with no stop is one the next driver has to ask the operator about,
 so `sofar drive` REFUSES to start over an unstopped run and offers
 `--resume`, which adopts that run id and its recorded `max_sessions` rather
-than minting a second run over the same work.
+than minting a second run over the same work. Where the run lock says a
+driver still holds the run, `--resume` is refused too and the refusal names
+`sofar drive --stop` and `sofar status`; where it says the driver is gone, the
+refusal says so; where it cannot say, the refusal keeps today's words.
 
 **Handoff reasons come from the fold (D5).** `needs_user` is the named task
 sitting in `blocked` — the record's existing word for "wants to happen,
@@ -1476,7 +1494,10 @@ has no terminal, so ^C cannot reach it, and whatever replaces ^C must not be
 state the driver holds — no pid in the record (a machine-local number in a
 committed log, and a reused one signals a stranger), no pid file beside it.
 `sofar drive [slug] --stop` appends `run_stop_requested` for the latest run
-with no stop, refusing when there is none, and then watches the fold for up to
+with no stop, refusing when there is none. When the run lock says the run's
+driver is gone, it appends nothing, says so at once and names `--resume`,
+since a request nobody holds the run to read is the 30s wait below for
+nothing. Otherwise it watches the fold for up to
 30s: a `run_stopped` for that run is reported with its reason; none is
 reported as requested-but-unacknowledged, which is what a request to a driver
 that already died looks like (`--resume` adopts such a run; a later request
@@ -1487,9 +1508,12 @@ reads requests from the fold before every launch, and during a session from a
 2s poll that reads only the bytes appended since its last tick and folds only
 when those bytes name a stop request — driven sessions write on every tool
 call, so a fold per tick, or even per growth, would cost more than the session
-it watches. The byte scan decides nothing; the fold counts the requests. A request counts only when its envelope
-`ts` is at or after the moment this driver took the run, so one left behind
-for a dead driver cannot stop the `--resume` that follows it. The stop's
+it watches. The byte scan decides nothing; the fold counts the requests. A
+request counts only when its id sorts after the run's latest adoption
+(`run_started` for a run never resumed), so one left behind for a dead
+driver cannot stop the `--resume` that follows it. It compares two record
+ids rather than a driver's private clock reading (drive-visibility 2.2), so
+every reader of the fold agrees which requests apply. The stop's
 note says a request ended the run rather than a signal.
 
 **Clean launch environment (in-session-drive D3).** A session is launched
@@ -1508,6 +1532,126 @@ adapters therefore delete one named list before spawning: `CLAUDECODE`,
 Vertex switches, `ANTHROPIC_*` and `CODEX_HOME` route the operator's own auth
 (D1) and pass through untouched. Variables the driver itself sets
 (`SOFAR_DRIVE_NUDGE`) are applied after the deletion.
+
+**One driver per run (drive-visibility D2, D3).** A driver holds an
+exclusive flock-semantics lock on `<state base>/runs/<run id>.lock` — the
+state base is `$XDG_STATE_HOME/sofar`, else `~/.local/state/sofar` — from
+the moment it takes the run (`run_started`, or its own `run_adopted`) until
+its process ends. The kernel releases it when the process dies by ANY path,
+kill -9 included, and keeps it through SIGSTOP and sleep. No launched session
+inherits it (the descriptor is close-on-exec; measured: a session still running after
+its driver's kill -9 leaves the lock free), so it answers "is that driver
+alive" — not "is its session" — with no pid, no heartbeat and nothing
+written: the file
+is empty, per user rather than per clone (a run id is a ulid, unique
+without one), NEVER unlinked — unlinking a lock someone may hold splits it
+into two files two holders can each lock — and refused, as the diagnostics
+store is, when the state base would resolve inside the repo. One primitive
+for every reader, because the readers are Node today and Rust and Swift
+next (rust-core D1 moves status, the statusline and the hooks; the Mac app
+folds through the Rust core): Rust takes it with `File::try_lock`, Swift
+with `flock`, Node on macOS by holding a descriptor opened with
+`O_EXLOCK|O_NONBLOCK` (verified to contend with `flock`), Node on Linux by
+holding a `flock(1)` child on a pipe from the driver, so the child exits and
+the lock falls the moment the driver does. fcntl/lockf locks, SQLite locks,
+sockets and pid files are out: they do not contend with flock on Linux, or
+fail inside the agent sandboxes `--detach` is launched from, or carry a pid.
+
+A claim retries for 500ms before reporting the lock held, since a reader's
+probe holds it for an instant. A probe takes a SHARED lock non-blockingly and
+releases it at once, so probes never block one another, and reads three
+answers: HELD (a driver on this machine runs the run), FREE (a driver ran it
+here and is gone — the file outlives it by design) or ABSENT (no driver ran
+it under this state base: another machine, another user, a GUI app with a
+different environment, or a run older than the lock). ABSENT is `liveness
+unknown`, NEVER `driver gone`: every reader that renders liveness renders
+that. Where the lock cannot be taken — Linux without `flock(1)`, Windows
+until sofar-core ships, a state base inside the repo — the opening lines say
+liveness is unavailable for this run (D9), and the run proceeds as before.
+
+**Fencing a takeover (drive-visibility 2.2).** The lock is machine-local; a
+record syncs. A `--resume` therefore appends `run_adopted {run, epoch}` with
+one more than the run's highest epoch before its first launch, and the
+fold's OWNER is the highest epoch, the first-sorting id on a tie. A driver
+reads ownership from the fold before every launch and, during a session,
+from the same 2s byte scan that finds stop requests, folding only when the
+new bytes name a `run_adopted`. A driver that finds it no longer owns its
+run STEPS DOWN: it signals nothing — a live session is real work whose
+write-back the new owner resumes from — waits for that session to exit,
+files no handoff and no `run_stopped` (the run is someone else's now), says
+it was fenced by epoch N on its progress stream and exits 1. One event per
+takeover, never a heartbeat. Across machines it detects only once the
+adoption has synced in; it does not prevent a race that sync has not yet
+shown, and says nothing about whether the old driver is alive.
+
+**Keeping the Mac awake (drive-visibility D5).** On macOS, with keep-awake on,
+the driver spawns `caffeinate -i -w <its own pid>` when it takes the run;
+`-w` ends the assertion by itself when the driver exits, so nothing is
+cleaned up and no pid is stored. The setting is `drive.keep_awake` (boolean)
+in `~/.config/sofar/config.json` beside `auto_upgrade`; `sofar drive
+--keep-awake-setting <on|off>` writes it and starts nothing, as `sofar
+upgrade --auto` does for its own. Per run, `--keep-awake` / `--no-keep-awake`
+win and are not saved. Unset and on a TTY — the foreground driver, or the
+`--detach` caller before it spawns — sofar asks once and saves the answer.
+Unset and with no TTY, it NEVER prompts: the opening lines say keep-awake is
+unset and how to set it, so an agent relaying them asks the operator in chat,
+and a run with no per-run flag re-reads the setting before every launch, so
+the answer takes effect from the next session. The opening lines also say
+that idle sleep is blocked and lid-close sleep is not. Elsewhere than macOS
+the setting is inert, and a run that asked for it says so.
+
+**Watching a run (drive-visibility 3.1–3.6).** Progress already lands in the
+record as it happens; these surfaces carry it to where the operator is,
+and none of them is the only way to learn it — `sofar status` stays the
+answer every host can reach (see the Host tiers section).
+- `sofar drive [slug] --await` blocks at zero cost on the latest unstopped
+  run, polling every 2s by byte scan and lock probe, and exits with ONE
+  line: on `run_stopped` (exit 0; a `needs_user` stop names the blocked task
+  and its note, which is the operator's question), or when the lock goes
+  FREE with no stop recorded (exit 2, naming `--resume`). With the lock
+  ABSENT it waits on the record alone and says so first. No deadline; exit 1
+  when there is nothing to await. Built for an agent's background shell,
+  where it costs no tokens until the one line that needs acting on.
+- `sofar drive [slug] --follow` prints one plain line per handoff, task
+  status change, adoption, stop request and stop, and exits on `run_stopped`
+  or a FREE lock — for a terminal, or for narration the operator asked for.
+  It is not the agent default: every line under an agent's monitor is a
+  model turn, and Claude Code ends a monitor after 30 minutes (2.1.271).
+- The UserPromptSubmit shim adds one drive line —
+  `sofar drive: run <id> <running|driver gone|stopped: reason> · <n>
+  handoffs · now on <task> · <done>/<total>` — for the session's initiative
+  when its latest run is unstopped or stopped since this session began, and
+  ONLY when that run's newest event or task change is newer than the id this
+  session last saw. The last-seen id lives per session under the per-clone
+  state dir; a lost or unreadable one repeats the line, never silences it.
+- The statusline appends `drive <task>`, `drive gone` or `drive <stop
+  reason>` after the initiative's progress, the last only for a stop newer
+  than the session's start, within the statusline laws (words over glyphs).
+  The Claude desktop app does not render statusLine (claude-code#41456).
+- The protocol block tells an agent, after `--detach`, to run `sofar drive
+  <slug> --await` in its background shell and relay the line it prints; a
+  host with no background shell points the operator at the prompt line, the
+  statusline or `sofar status`.
+
+**Sync and presence during a run (drive-visibility D4, D6 — paid).** For a
+LINKED repo (`.sofar/remote.json` plus a credential for its api_url), the
+driver pushes the driven initiative's stream while it runs — at each
+handoff, at the stop, and trailing 15s after the log last grew — through
+`pushStream`, one push at a time, so the doorbell rings mid-run. It also
+sends presence: at start, at each handoff, at the stop, every 30s ±10%
+jitter, and at once when a 5s local tick sees the wall clock jump past two
+ticks (the machine slept); each ping carries `{run, slug, task?, state, seq,
+boot, interval_s}` and nothing else, has a 10s timeout, and is dropped on
+failure, never queued or retried — the next tick replaces it. Presence is
+never an event. Entitlement is the server's: a refusal the server marks as
+one (status and code are its contract, drive-visibility 4.3), and 401/404
+likewise, ends drive-time sync for the rest of the run, stated once on the
+progress stream; the engine carries no plan check of its own
+(drive-visibility D6). No push
+or ping failure ever delays a launch, changes a reason or stops a run, and
+an unlinked repo sends nothing. Concurrent pushes of one stream from the
+driver and an operator are safe by construction: push is idempotent by
+event id, and a cursor moved backwards only re-sends duplicates.
 
 **What the driver is not (D2).** Not a session, not an agent loop, never an
 inference: it launches existing headless agents through the adapter
@@ -1605,6 +1749,11 @@ while lines whose entire content is an address render nothing. Silence rather
 than a name-less variant is deliberate: "another record's work landed and you
 can do nothing about it" is noise, and a line that cannot be acted on trains
 the reader to skim the ones that can.
+
+**A Tier 1 host is not Tier 1 in every surface.** The Claude desktop app runs
+the hooks but does not render `statusLine` (claude-code#41456, open since
+2026-03-31), so a statusline segment is a terminal-only convenience and never
+the carrier of anything a session must learn.
 
 **Tier 3 — no hooks at all** (Grok, OpenCode, anything on the AGENTS.md
 dialect alone, and Codex wherever its hooks do not run). Nothing fires on its
@@ -2544,6 +2693,165 @@ evaluator integrity, permissions and release policy are never in it. No
 candidate kind that changes what is INJECTED may ship before the offline
 replay check (context size, information preservation) exists.
 
+## Judge (typed-judge — advisory judgements, deterministic by default)
+A JUDGEMENT is a typed question answered over a bounded state with a
+probability attached: is this proposal a re-proposal of that rejected
+approach (yes/no), which of these candidates bears on the next task
+(a ranking), how done is this task against its acceptance text (a level).
+The shape is TypeSafe's System One contract (noul / choice / score) and is
+adopted as sofar's own interface so that the same question can be answered
+by a rule today and by a model tomorrow without the caller changing. Two
+laws bound it, both standing decisions:
+
+- **Where it may run (typed-judge D1).** Only inside an MCP tool call, the
+  driver between sessions, a pull command (`find`, `related`, `why`,
+  `review`) or an explicit offline command. NEVER a hook, the statusline, a
+  shim, the fold or a projection: a model answers in 70–500ms against speed
+  T2's 100ms budget, and the fold's determinism law admits no inference. A
+  hook that needs a judgement reads one made earlier at write time (the
+  index, or an enrichment event) — it never asks. Pinned by test: no module
+  under `hooks/`, `projections/`, nor `core/fold.ts`, `core/atomic.ts`,
+  `core/log.ts`, `cli/fast*.ts` or `cli/statusline*.ts` imports
+  `core/judge`.
+- **Who may answer (typed-judge D2).** The engine ships exactly two
+  providers: `deterministic` (rules, free, the default everywhere) and
+  `cloud` (the paid path: the judge endpoint on api.sofar.sh under the
+  sync client's own auth, where sofar-cloud enforces the plan and calls the
+  model with sofar's key). No direct model provider ships in the engine and
+  no key is ever read by it. A default install therefore still makes zero
+  model API calls (§Architectural invariants, which holds for everyone who does
+  not opt in), and the free path is not a crippled one — it is exactly what
+  sofar does today, expressed as answers.
+
+**Advisory only.** A judgement never mutates the record, never blocks a
+tool call, never removes anything a recorded edge or a lexical rule put
+there. It ADDS: a warning line in a tool result, a rank among candidates
+that were already candidates, a hint the operator may ignore. Best-effort
+per BD22: a provider failure of any kind (network, 4xx, 5xx, entitlement,
+malformed answer) leaves the question ABSTAINED and the caller proceeds as
+if no judge existed; nothing waits on a retry loop inside a tool call.
+
+**Questions.** One request = one state + a map of named questions, each
+evaluated INDEPENDENTLY against that state (answers never cascade; a
+dependent question is a second request after the state moved). Ids match
+`[A-Za-z0-9_]+`. Three types, fields as TypeSafe's wire, so the cloud
+provider forwards them unchanged:
+- `noul` — "is this true?" `instructions` (string or JSON), optional
+  `criteria {true?, false?}`. Answer `{noul: p}`, p ∈ [0,1] = P(yes).
+- `choice` — one option from `criteria: {key: description|null}`, 2–255
+  keys; describe options with `what` / `not_for` / `examples` objects when
+  a boundary is subtle. Answer `{choice, probabilities, confidence}`,
+  probabilities summing to 1 over the keys.
+- `score` — a position on `criteria: [level0, level1, …]`, 2–10 ordered
+  levels that each describe a CONCRETE situation (never low/medium/high).
+  Answer `{score, probabilities, legend, confidence}`; score is the
+  probability-weighted position and may fall between levels.
+Instructions cite state fields by backticked path (`` `pairs[3].task` ``);
+one narrow judgement per question; a no-match option is always present in
+a choice. Questions carry an engine-only field the wire never sees:
+`decide?(state) → Answer | null`, the RULE that answers this question
+without a model or returns null to abstain — the deterministic provider is
+nothing but the runner of these.
+
+**State.** A string, a JSON object (preferred: named fields) or an array
+of text; text only. Code selects, the judge judges: the caller narrows to
+candidates first (the index, the reach set, the lexical grammar) and sends
+only what the judgement needs, because accuracy falls with unrelated
+state and the wire caps state plus the longest question at 32k tokens.
+The seam REFUSES a state whose serialization exceeds 100,000 characters
+with a typed error before any provider sees it — a request that would be
+truncated or rejected upstream is a request that was mis-scoped here.
+Redaction (`core/redact.ts`, applied to every string leaf) runs on the
+state before a non-deterministic provider receives it; the deterministic
+provider sees the original because it sends nothing anywhere.
+
+**The seam order.** `judge(request)` runs the deterministic provider FIRST
+over every question. A question its rule DECIDES is answered with
+confidence 1 (noul 0 or 1; choice/score with all mass on one key) and
+`origin: "rule"`, and is never sent on — code decides, the model judges
+only what code cannot. Every question the rules ABSTAIN on is answered
+`origin: "abstain"` (noul 0.5; choice and score uniform over their keys
+with confidence 0, `choice` the first key so the answer is still typed and
+deterministic) and, only when a non-deterministic provider is configured,
+those and only those are forwarded in ONE fan-out request; each answer
+that comes back replaces its abstention with `origin: "model"` and the
+provider's pinned `model` string. Any failure keeps the abstentions and
+names the reason in `response.fell_back`. This ordering is what makes
+"never remove a lexically linked item" structural rather than a rule each
+caller has to remember.
+
+**Confidence.** For a choice or score it is the wire's own statistic —
+`(n·pmax − 1)/(n − 1)` over n keys or levels, 0 for uniform, 1 for a
+point mass — recomputed by the seam from the probabilities so a provider
+cannot report one number and mean another. A noul carries no confidence
+on the wire; the engine's `noulConfidence(p) = |p − 0.5|·2` is a
+convenience for gating, and p ≈ 0.5 means UNDECIDED, never "medium".
+Calibration is a property of groups, not of one answer: a confident answer
+can be wrong, and structural invariants do not hold across questions
+(P(A) + P(not A) from two nouls need not be 1), so a threshold is never
+carried from one question type to another.
+
+**Thresholds (typed-judge 1.2, measured on this record against
+jev-1.13.0; re-measure on every model version).** Relevance nouls carry a
+candidate at p ≥ 0.8 (86% agreement measured) and drop one at p ≤ 0.2;
+between, the deterministic order decides. A constraint hint ("this reads
+as a standing rule — add a rule?") renders only at confidence ≥ 0.95 with
+no rule set. Nothing acts below confidence 0.6 on any question.
+Thresholds live in code beside the question that uses them, named for the
+model version they were measured against.
+
+**Providers.**
+- `deterministic` — pure, synchronous, no I/O, no clock: runs each
+  question's `decide`, abstains where there is none. The default, and the
+  whole judge for an unlinked repo or an operator who has not opted in.
+- `cloud` (typed-judge 2.3, `client/judge.ts`) — the client half of
+  `POST {api_url}/v1/repos/:repo_id/judge` under the base-URL resolution,
+  https rule and bearer credential of §Sync client. The path is repo-scoped
+  (typed-judge D3) so the server can charge the right org's plan with the
+  membership check push and pull already use; only the id travels, never
+  content. Body `{state, questions}` with `decide` stripped and the state
+  redacted (the provider redacts again when called without the seam);
+  response `{model, answers, usage?}` in the wire's answer shapes, `model`
+  the exact version the server ran (never an alias, at most 128 chars) and
+  carried onto every answer. A body without a model string or an answers
+  object is `malformed response`; `usage` keeps only non-negative
+  `input_tokens`/`output_tokens`. Errors are normalized as in §Sync client
+  and named `HTTP <status> <code>: <message>` in `fell_back` (clipped to
+  200 chars); 402/403 (no plan, no entitlement) and every other failure
+  fall back to abstention — the engine carries no entitlement logic
+  (drive-visibility D6), it only hears "no" and proceeds. Enabled only when
+  `judge.provider` is `"cloud"` in `~/.config/sofar/config.json`
+  (`{"judge": {"provider": "cloud"}}`, beside `auto_upgrade`) AND the repo
+  is linked AND the operator is logged in to its api_url; absent,
+  unreadable or anything else means `deterministic`.
+  `resolveJudgeProvider(root)` returns the provider, or, when the operator
+  opted in and one of the other two is missing, an `unavailable` reason
+  naming the fixing command (`sofar link`, `sofar login`) for a caller to
+  show; it never throws. One request per seam call, no retry inside a tool
+  call, and a bounded timeout (default 10s) that ABORTS the request — the
+  seam hands every provider an `AbortSignal` that fires with it, so a
+  hung server cannot hold a socket or keep a CLI process alive.
+
+**Stored judgements (typed-judge 2.4).** A judgement worth keeping —
+relevance scores computed at write-back for the next SessionStart to read,
+a driver's progress verdict — lands as an ENRICHMENT event whose payload
+carries `producer`, `model`, the question id, the answer and the subject
+event id; schema in `packages/schema` only. The fold ignores enrichment
+for state (replay stays a pure function of the recorded facts), the index
+reads it, and a stored judgement is always attributable to the exact model
+version that made it. The type is `judgement_recorded` (§Event types):
+`producer` names who ran the judge (`sofar-cloud`, `deterministic`,
+`agent`), `model` the exact version, `question` the seam's question id,
+`subject` the event id or task id judged, `answer` the wire shape without
+its derivable legend, and `state_hash` (sha256 of the redacted state) lets
+a reader tell whether the material has moved since. It is excluded from
+drift for the reason driver events are (commit-attribution D18): it says
+what a judge thought, never what the plan says, so it cannot stale a next
+action and owes no write-back. Who WRITES one is each consumer's contract
+(3.x guards write none — their answers live in the tool result; 5.1's
+relevance pass and 4.1's progress verdict write theirs); nothing in the
+engine writes a judgement until a consumer that needs one ships.
+
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
 events not already present (dedupe by id — idempotent). Per-initiative
@@ -2558,6 +2866,70 @@ Implemented task 13.1: foldLines sorts envelope-valid events by id (stable
 — a duplicated id keeps file order) before pass-2 replay; pass-1 decode
 warnings keep file order (they describe lines, not events); cursor is
 therefore the MAX event id, identical on every replica.
+
+## Record copies across branches
+The record is committed, so every branch carries its own copy of every
+events.jsonl, and a checkout that folds only its own copy reports whatever
+that branch last saw. Measured 2026-09-21: memory-lead's copies held 11, 143,
+132 and 149 of 158 events. No single copy was right, including the branch
+that did the work. `sofar status` and `sofar list` therefore fold the UNION
+of every copy they can see (branch-visibility D1). This is read-side only: it
+never writes to any copy and adds no event type.
+
+**Why the union is well defined.** The fold replays in ulid order and is
+convergent (§Cursor primitive (sync-ready contract)), and duplicate ids are
+dropped before it runs. The union's state is therefore exactly what merging
+every branch with `merge=union` would produce.
+
+**Which copies** (`core/record-copies.ts`):
+- Every OTHER worktree of the repo, read as its working file, so uncommitted
+  appends count. They are found from the common git dir's own files
+  (`<common>/worktrees/*/gitdir`, plus the main checkout when the common dir
+  is `<root>/.git`), with no subprocess. A worktree whose directory is gone
+  is skipped.
+- Every local branch that is NOT merged into HEAD and NOT checked out in a
+  worktree, read at its tip. This costs one `git for-each-ref --no-merged=HEAD`
+  and at most two `git cat-file --batch` processes (the initiatives tree, then
+  the logs). A merged branch is skipped with no loss: logs are append-only and
+  merge=union, so its whole committed log is already in HEAD's. A checked-out
+  branch is covered by its worktree's file. A ref at the same commit as one
+  already taken adds nothing and is dropped.
+- Remote-tracking refs only with `--remotes` (D1: opt-in). They cover
+  teammates' pushed branches but also bring in abandoned ones. A teammate's
+  unpushed work on another machine is invisible to any local read; that case
+  belongs to §Sync client (v2 — api.sofar.sh, the D14 seam; sync-client, Jul 2026).
+- Never this checkout: its file is "here" and is read as it always was. Any
+  failure (no git, an unborn HEAD, an unreadable checkout) degrades to fewer
+  copies, never to an error.
+
+**The union fold.** This checkout's lines come first and verbatim, so the
+line numbers and warnings for them are exactly those of a single-copy fold.
+Each other copy then adds only lines whose id is new to the union. A line
+with no readable id is left out, since the fold would skip it anyway. A copy
+that is a byte prefix of this checkout's log (a branch that forked and never
+wrote to this record) is skipped without a line walk. Warnings about added
+lines name the copy and that copy's own line number (`r1-fixes line 190:
+unknown event type …`): another branch may run a newer engine.
+
+**What is rendered.** When another copy adds at least one event, the headline
+progress is the union's, and the output says what it is made of: this
+checkout's own figure (or "not on this checkout") and each contributing copy
+with the number of events it holds that this checkout lacks, most first.
+Plain `sofar status` adds an `Across branches:` block under `Progress:`. The
+styled view adds an `⚠ Across branches` block under the goal. `sofar list`
+adds an `across branches: here D/T tasks done, +N event(s) on <copy>, <copy>,
++K more` part to the entry. A task done on a branch has not shipped to this
+one, and an abandoned branch must never read as landed work, so a merged
+number is never shown alone. When no other copy adds an event, both commands
+print byte-identically to a single-copy fold. `--here` restores the
+single-copy view.
+
+**Scope.** Only `sofar status` (one shot) and `sofar list`. `status --watch`,
+`sofar next`, get_state and every hook still read this checkout alone
+(branch-visibility 3.1–3.3). Reading N checkouts is operator-command cost
+(about 95 ms on this repo's 5 worktrees and 62 initiatives), not hot-path
+cost. Writes always land in this checkout's copy: never write to, or
+rewrite, another checkout's copy (D1).
 
 ## Sync client (v2 — api.sofar.sh, the D14 seam; sync-client, Jul 2026)
 The client half of sofar-cloud sync. The server (private repo) is
@@ -4139,8 +4511,13 @@ Shims contain no logic — they invoke the sofar CLI.
   to pass, the most recently active open initiative's status (byte-identical
   to `sofar status <slug>`), a blank line, then the `sofar list` render; with
   no open initiative, the line names `sofar new <slug> --goal` before the
-  list. An explicit unknown slug, a branch bound to a missing directory, and
-  a repo with no `.sofar/` still exit 1. Read-only: nothing is bound.
+  list. An explicit slug that no copy of the record holds, a branch bound to
+  a missing directory, and a slug-less call in a repo with no `.sofar/`
+  still exit 1. Read-only: nothing is bound. The fold is across the other
+  copies of the record, the orientation's status and list included, and an
+  initiative that only another copy holds still resolves
+  (§Record copies across branches); `--here` reads this checkout alone,
+  `--remotes` adds remote-tracking refs, `--watch` reads this checkout only.
 - `sofar list` — every initiative under .sofar/initiatives/, one line each
   (slug, bound branch(es) or "unbound", done/total tasks with %, active
   phase, next action), most recently active first per §State's
@@ -4148,7 +4525,10 @@ Shims contain no logic — they invoke the sofar CLI.
   sofar-status precedent), lines whitespace-collapsed so each initiative
   stays one line; derivation warnings to stderr without failing — an
   uninitialized repo prints the empty listing with a `sofar new` hint
-  (initiative-list 2.1).
+  (initiative-list 2.1). It folds each initiative across the other copies
+  of the record and also lists initiatives only another copy holds
+  (§Record copies across branches); `--here` reads this checkout alone,
+  `--remotes` adds remote-tracking refs.
 - `sofar next` — the portfolio next-actions surface: one line per
   initiative (slug, bound branch(es) or "unbound", the next action the
   last write-back recorded or "(no next action recorded)"), most recently
@@ -5035,6 +5415,22 @@ stay the underlying derivation's, and exit codes are styling-independent.
   the available-initiatives suffix (≤10 named) or the `sofar new` hint on
   an initiative-less repo; the derivation is deterministic (same records
   → deep-equal listing, same warnings).
+- **Record copies (branch-visibility 1.1–2.3):** against real git repos with
+  linked worktrees, the scan returns every other worktree (an uncommitted
+  append included) and every unmerged branch that has no checkout, and never
+  returns this checkout, a merged branch, or a ref at a taken commit. Seen
+  from a worktree, main is the other copy. Remote-tracking refs appear only
+  with `remotes`. Outside git the scan is empty. The union fold applies an
+  event held by two copies once, counts it in each copy's contribution,
+  keeps this checkout's warnings unchanged, and names the copy in warnings
+  about added lines. A forked-but-idle branch yields no provenance.
+  `sofar status` and `sofar list` show the union with this checkout's figure
+  and the contributing copy. `--here` shows the single copy. A repo with no
+  other copy prints byte-identically either way. `sofar status <slug>`
+  resolves an initiative only another branch holds, and `sofar list` lists
+  it as "not on this checkout". `listInitiatives` without copies stays
+  single-copy (the MCP surface). Neither command changes a byte of another
+  copy or its `git status`.
 - **CLI UI (cli-ui):** with stdout and stderr both piped and no explicit
   opt-in, every command emits ZERO ESC (\x1b) bytes — ambient CI included;
   FORCE_COLOR=1 on the same piped invocation carries ANSI-16 SGR on the
@@ -5792,6 +6188,40 @@ stay the underlying derivation's, and exit codes are styling-independent.
   and handed off `task_done` ($0.06); a `--stop` sent while session 2 was
   starting was acknowledged in 11s with the run `interrupted`, that launch
   unresolved (exit 143) and no process left behind.
+- **Drive visibility (drive-visibility):** one run has one driver, and an
+  operator can tell a live run from a dead one without asking an agent.
+  A driver holds `<state base>/runs/<run>.lock` for its whole life: a second
+  `sofar drive` and a `--resume` on the same machine are REFUSED while it is
+  held, including while the holder is SIGSTOPped; after kill -9 the lock is
+  FREE — even while a session that driver launched is still running, since
+  no child inherits the lock — status says `driver gone`, and `--resume`
+  succeeds. The lock file is
+  empty, outside the repo, never unlinked, and refused when the state base
+  would resolve inside the repo; a lock taken by Node is seen as held by
+  `flock` (the Rust and Swift primitive), and a probe never blocks another
+  probe. A run no lock was ever taken for reads `liveness unknown`, never
+  `driver gone`, on every surface. `run_adopted` REJECTS an epoch below 2;
+  the fold skips an adoption for a run that never started (warning, no
+  stub) and names the owner by highest epoch, first id on a tie; a driver
+  whose run was adopted at a higher epoch launches nothing more, files no
+  handoff or stop, and exits 1 once its live session ends; a stop request
+  sorting before the latest adoption is ignored. `--stop` against a FREE
+  lock appends nothing and returns at once. `--await` exits 0 with one line
+  on any `run_stopped` (naming the blocked task and its note for
+  `needs_user`), 2 when the lock goes FREE with no stop, and 1 with nothing
+  to await; `--follow` prints one line per handoff, task change, adoption,
+  request and stop, and exits on either end. The prompt line appears when
+  the run changed since the session last saw it and not otherwise, and a
+  lost last-seen file repeats it; the statusline shows the run's task, gone
+  or stop reason. On macOS, keep-awake on holds a `caffeinate` assertion
+  for exactly the driver's life (`pmset -g assertions`); unset with no TTY
+  never prompts and says so in the opening lines; the setting is re-read
+  before each launch. No liveness appears in any generated file. For a
+  linked repo the driver pushes during the run and sends presence carrying
+  only `{run, slug, task?, state, seq, boot, interval_s}`; an unlinked repo
+  sends nothing; an entitlement refusal ends drive-time sync once, stated,
+  and a failing or refusing API never delays a launch, changes a reason or
+  stops a run (injected fetch).
 - **First session (r1-fixes 1.1):** SessionStart in a repo that carries
   `.sofar/` but no initiative injects `# Sofar: no initiative yet` with the
   hook payload's `Session: <id>` line (byte-identical to the status block's)
@@ -5886,6 +6316,44 @@ stay the underlying derivation's, and exit codes are styling-independent.
   and names the replacement; `reject` and `revert` without `--reason` exit 1;
   `revert` works on a stale approval and leaves proposed/approved/reverted in
   the log in order; the lifecycle leaves `events_since_writeback` unchanged.
+- **Judge seam (typed-judge 2.1, 2.2):** `core/judge.ts` validates ids,
+  choice key counts (2–255), score level counts (2–10) and the 100,000-char
+  state ceiling with typed errors before any provider runs; a question whose
+  `decide` returns an answer is reported `origin: "rule"` with confidence 1
+  and is absent from what a non-deterministic provider is sent; one it
+  abstains on is `origin: "abstain"` with noul 0.5 or uniform probabilities,
+  confidence 0 and the first key as `choice`; the same request judged twice
+  by the deterministic provider is deep-equal; confidence is recomputed from
+  probabilities (`(n·pmax − 1)/(n − 1)`), so a provider's own number is
+  ignored; a provider that throws, times out or returns a malformed answer
+  leaves every forwarded question abstained and names the reason in
+  `fell_back`, never throws to the caller; `redactState` reaches every string
+  leaf of an object or array state; the module is imported by no file under
+  `hooks/` or `projections/` nor by `core/fold.ts`, `core/atomic.ts`,
+  `core/log.ts`, `cli/fast*.ts` or `cli/statusline*.ts` (pinned by test).
+- **Cloud judge provider (typed-judge 2.3):** `resolveJudgeProvider` returns
+  no provider and no reason unless `judge.provider` is exactly `"cloud"`
+  (absent, misspelled, flat-keyed and unreadable configs are all
+  deterministic); opted in, an unlinked repo, a missing credential, a
+  plain-http non-loopback api_url and a corrupt remote.json each give no
+  provider and an `unavailable` reason, never a throw. A judge call through
+  it sends exactly one `POST /v1/repos/<repo_id>/judge` with
+  `Bearer <token>` and a JSON body holding only the questions the rules
+  abstained on, with no secret surviving in the state; a request every rule
+  decides sends nothing. The server's model string is carried onto every
+  model answer, its confidence is recomputed, and `usage` keeps only the
+  two counts. 402, 403, 429 and 500 each leave every forwarded question
+  abstained with `fell_back` naming the status, after exactly one request;
+  a body with no model, an over-long model, an array of answers or non-JSON
+  is `malformed response`; a server that never answers is abstained at the
+  timeout and its connection closed; a refused connection is abstained.
+- **Stored judgements (typed-judge 2.4):** `judgement_recorded` validates
+  producer, model, question and subject as non-empty strings and `answer` by
+  its type (noul in [0,1]; choice naming one of 2+ probability keys with
+  confidence in [0,1]; score non-negative over 2+ levels); folding one appends
+  no warning, changes no state field, leaves `events_since_writeback` and
+  every freshness count unchanged, and advances the cursor; an unknown answer
+  type is rejected with a typed error.
 - **Agent picker (r1-fixes 7.1):** `sofar init --agents claude-code` writes
   no `.cursor/` and no AGENTS.md; `--agents cursor` writes no `.claude/`,
   CLAUDE.md or `.mcp.json`, its shims executable under

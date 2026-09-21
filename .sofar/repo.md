@@ -24,6 +24,10 @@
   scorecard. Do not go looking for them; do not block on them.
 - Push policy: push origin main at each verified wrap-up (user-established
   Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Version label after an RC tag (r1-fixes M7): main's engine version carries
+  semver build metadata (`0.33.0-rc.2+trunk`), so a main build is never
+  mistaken for the tagged RC. Only the tag's commit has the bare RC string,
+  and benches run the ~/.bench copy built from the tag.
 - Committing the record needs a BARE git call (repo-memory-capture M2): the
   D1 exemption (cli/event.ts shellSegments) splits on every shell separator
   INCLUDING newlines and exempts only if EVERY segment leads with git or

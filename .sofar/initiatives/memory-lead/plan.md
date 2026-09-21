@@ -4,7 +4,7 @@
 
 Goal: Make sofar measurably the best work memory for AI coding agents: never below any agent's native memory on any rep, bookkeeping at or below native overhead, and a lead of at least 25-30% (target 2x) on held-out long-horizon, cross-agent, decision-churn work. The lead must survive a native memory that syncs across machines and teammates, so it may never rest on native memory being machine-local.
 
-Progress: 3/17 tasks done (17%)
+Progress: 4/17 tasks done (23%)
 
 ## Phase 1 — Wave A: parity at native overhead (ships in 0.33.0-rc.2) [active] — 3/4 done
 
@@ -31,12 +31,12 @@ Progress: 3/17 tasks done (17%)
 - [ ] 4.1 Moat spec: assume Claude Code (and others) ship shared cloud memory; list the advantages that survive: vendor-neutral cross-agent memory, branch- and PR-aware records that merge with the code, typed decisions with supersession and provenance to commits and tests, executable enforcement, deterministic zero-model capture, team governance of rules. Each maps to a benchmark claim with a falsifier.
 - [ ] 4.2 Retire any public claim or roadmap item whose advantage rests only on native memory being machine-local
 
-## Phase 5 — Proof: held-out Chain L (round 3) [pending] — 0/4 done
+## Phase 5 — Proof: held-out Chain L (round 3) [pending] — 1/4 done
 
-- [ ] 5.1 Chain L design and budget: ~30 sessions, ~24 planted decisions (guarded, superseded once or twice, why-only), segments across Claude, Codex, fresh clone, concurrent worktrees and a forced compaction. Arms MUST include a native-memory-SYNCED arm (memory dir carried across machines, clones and teammates; Codex idle gate 0) standing in for future cloud memory. Scoped to the D17 cap before authoring.
-- [ ] 5.2 Author Chain L, hidden tests and a sealed reference by an author blind to fix-building; mutation-validate every planted decision
+- [x] 5.1 Chain L design and budget: ~30 sessions, ~24 planted decisions (guarded, superseded once or twice, why-only), segments across Claude, Codex, fresh clone, concurrent worktrees and a forced compaction. Arms MUST include a native-memory-SYNCED arm (memory dir carried across machines, clones and teammates; Codex idle gate 0) standing in for future cloud memory. Scoped to the D17 cap before authoring.
+- [ ] 5.2 Author Chain L, hidden tests and a sealed reference by an author blind to fix-building; mutation-validate every planted decision (active)
 - [ ] 5.3 Round-3 pre-registration frozen with lead predictions (≥25–30%, target 2×) against the synced native arm
 - [ ] 5.4 Run round 3, report per claim with per-rep values; publish only what clears the pre-registered margin
 
 Active phase: Phase 1 — Wave A: parity at native overhead (ships in 0.33.0-rc.2)
-Next action: Fast-forward r1-fixes to wave-a (tree owner or user), then track 1.4 rust-core parity.
+Next action: After the rust-core record unions in, mark Phase 1 done; then Phase 2 (B1 read-time surfacing).

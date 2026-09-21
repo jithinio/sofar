@@ -49,6 +49,7 @@ Three consequences run through every design decision in the codebase:
 | `core/atomic.ts` | `writeFileAtomic` — temp + rename, so readers never see a torn file. |
 | `core/lock.ts` | `withFileLock` — exclusive-create mutex for short check-then-append sections (session registration). Degrades to unlocked rather than blocking a hook; lock files live in the self-ignoring `.index/`. |
 | `core/redact.ts` | Secret redaction on captured commands before they reach the log. |
+| `core/judge.ts` | Judge seam (typed-judge 2.1/2.2, SPEC §Judge): typed noul/choice/score questions over a bounded state; rules decide first with confidence 1, only abstentions go to a non-deterministic provider in one request, provider failure leaves abstentions and never throws; confidence recomputed from probabilities; state redacted before any provider; never imported by hooks, projections, the fold or the fast/statusline CLI (pinned by test). |
 | `core/lane.ts` | The quick-work lane's constants (r1-fixes 2.6, D14): the reserved slug `quick` an unbound branch falls back to, its fixed goal, and the block's recent-session cap. A fallback, never a binding and never a home. |
 | `core/snapshot.ts` | The public incremental fold (r1-fixes 5.1, D20–D22): `foldAll`/`foldFile` retain the replay as a versioned, serialisable snapshot with a byte-defined prefix; `fold`/`foldFileSince` apply a tail or refuse with a closed reason; `stateOf` finalizes on a clone; `canonicalJSON` is the golden form. Derived state only — never committed, exported or synced. |
 | `core/identity.ts` | Optional `user` stamp from git config. `identity.browser.ts` is the browser build. |
@@ -64,6 +65,7 @@ Three consequences run through every design decision in the codebase:
 | `core/warmth.ts` | Has a log grown recently? Read from the log's own newest event, never filesystem mtime — `git checkout` rewrites mtime on every file. |
 | `core/cross-conflicts.ts` | Files under concurrent edit by sessions in *different* initiatives. Gated on the hot path, exhaustive in `doctor`. |
 | `core/listing.ts` | `initiativeSlugs` and the portfolio listing behind `sofar list`. |
+| `core/record-copies.ts` | Every OTHER copy of the record (branch-visibility D1): other worktrees' working files (read as files), unmerged local branches not checked out (one `git cat-file --batch`), remotes opt-in; and `unionFold`, which folds this checkout's log with theirs, dedupes by id, and says which copies hold what this one lacks. Read-side only, never writes a copy. Spawns git, so it stays OUT of `git.ts` and off the hot path. |
 | `core/bindings.ts` | `.sofar/bindings.json` — which branch serves which initiative. |
 | `core/git.ts` | Branch, HEAD, upstream — read from `.git` files, no subprocess. |
 | `core/attribution.ts` | Commit → initiative from `Sofar-Initiative:` trailers (D4). Spawns `git log`, so it is kept OUT of `git.ts` to preserve that file's no-subprocess guarantee; every walk is bounded and gated on a ref having moved (D6). Falls back to the INDENTED trailer a squash merge leaves in the body, and only when the real trailer block is empty (2.3). |
@@ -114,6 +116,7 @@ Regenerated on every append. Never hand-edited.
 | `projections/templates/review.ts` | The review evidence packet — diff range, tasks claimed done, standing constraints, rejected approaches. Text only; the judging is the reviewing session's, never sofar's. |
 | `projections/templates/next.ts` | The single next action. |
 | `projections/templates/list.ts` | The portfolio view. |
+| `projections/templates/copies.ts` | Where a record's events live when other branches hold some this checkout lacks — the `sofar status` block and the `sofar list` summary (branch-visibility D1). Rendered only then, so every other record prints byte-identically. |
 | `projections/templates/shared.ts` | Shared rendering helpers. |
 
 ### 5. Surfaces — how agents and humans reach the record
@@ -205,7 +208,7 @@ The engine ships the **client only**. No service code lives here.
 
 | module | role |
 | --- | --- |
-| `client/config.ts` | API URL precedence, credential and cursor stores. |
+| `client/config.ts` | API URL precedence, credential and cursor stores; the user-preference file's path (`~/.config/sofar/config.json`). |
 | `client/device.ts` | RFC-8628 device flow for `sofar login`. |
 | `client/http.ts` | Authed fetch, typed errors, retry honouring `Retry-After`. |
 | `client/repos.ts` | `sofar link` — bind a clone to a remote record. |
@@ -213,6 +216,7 @@ The engine ships the **client only**. No service code lives here.
 | `client/pull.ts` | Since-cursor paging, dedupe-by-id import, projection regen. |
 | `client/doorbell.ts` | SSE doorbell — pull on every ring. |
 | `client/url.ts` | URL normalization. |
+| `client/judge.ts` | The `cloud` judge provider (typed-judge 2.3, SPEC §Judge): one POST to the repo-scoped judge endpoint under the sync credential, no retry, every failure (402/403 included) thrown for the seam to turn into abstentions; `resolveJudgeProvider` picks it only when `judge.provider` is `"cloud"`, the repo is linked and the operator is logged in. |
 
 `core/types.d.ts` holds ambient type declarations.
 

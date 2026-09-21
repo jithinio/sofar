@@ -177,24 +177,38 @@ program
 
 program
   .command('status [slug]')
-  .description('fold and print the initiative: goal, progress, phase tree, next action, blocked, last session')
-  .option('--watch', 'live status (TTY only; piped falls back to one shot): re-render on record changes, active tasks pulse, ^C to exit')
+  .description(
+    'fold and print the initiative: goal, progress, phase tree, next action, blocked, last session — across every copy of the record on other worktrees and unmerged branches',
+  )
+  .option('--watch', 'live status (TTY only; piped falls back to one shot): re-render on record changes, active tasks pulse, ^C to exit — reads this checkout only')
+  .option('--here', "this checkout's copy of the record only, ignoring other worktrees and branches")
+  .option('--remotes', 'also fold remote-tracking branches (origin/*)')
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action((slug: string | undefined, opts: { watch?: boolean; root?: string }) => {
-    if (opts.watch === true) {
-      const result = runStatusWatch(rootOf(opts), slug)
-      if (result !== undefined) emit(result) // non-TTY fallback / resolution failure
-      return // live path: watcher + timer hold the process until ^C
-    }
-    emit(withUpdateNotice(runStatus(rootOf(opts), slug)))
-  })
+  .action(
+    (
+      slug: string | undefined,
+      opts: { watch?: boolean; here?: boolean; remotes?: boolean; root?: string },
+    ) => {
+      if (opts.watch === true) {
+        const result = runStatusWatch(rootOf(opts), slug)
+        if (result !== undefined) emit(result) // non-TTY fallback / resolution failure
+        return // live path: watcher + timer hold the process until ^C
+      }
+      const copies = { here: opts.here, remotes: opts.remotes }
+      emit(withUpdateNotice(runStatus(rootOf(opts), slug, undefined, undefined, copies)))
+    },
+  )
 
 program
   .command('list')
-  .description('one line per initiative: slug, bound branch, progress, active phase, next action — most recently active first')
+  .description(
+    'one line per initiative: slug, bound branch, progress, active phase, next action — most recently active first, folded across other worktrees and unmerged branches',
+  )
+  .option('--here', "this checkout's copy of the record only, ignoring other worktrees and branches")
+  .option('--remotes', 'also fold remote-tracking branches (origin/*)')
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action((opts: { root?: string }) => {
-    emit(runList(rootOf(opts)))
+  .action((opts: { here?: boolean; remotes?: boolean; root?: string }) => {
+    emit(runList(rootOf(opts), undefined, undefined, { here: opts.here, remotes: opts.remotes }))
   })
 
 program

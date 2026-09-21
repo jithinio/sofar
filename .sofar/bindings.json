@@ -1,7 +1,5 @@
 {
-  "main": "session-driver",
-  "peer-messaging": "peer-messaging",
-  "cross-initiative-conflicts": "cross-initiative-conflicts",
+  "main": "drive-visibility",
   "r1-fixes": "r1-fixes",
   "wave-a": "memory-lead",
   "agents-parity": "agents-parity"

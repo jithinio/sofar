@@ -6,7 +6,9 @@ Goal: sofar new <slug> --no-bind states that the current branch must NOT be rout
 
 Progress: 3/3 tasks done (100%)
 
-## Phase 1 — Guard + contract [pending] — 3/3 done
+## Phase 1 — Guard + contract [done] — 3/3 done
+
+> 3/3 tasks done; closed in the 2026-09-21 cleanup.
 
 - [x] 1.1 Fourth guard in rebindBranch (packages/engine/src/mcp/end-session.ts) per D1: read bindings.json once and skip the rebind when the write-back's slug is not among its values, with a comment saying why it is a fact and not an inference. Tests in packages/engine/test/binding-follows-session.test.ts: a branch bound to alpha is NOT moved by a write-back into a beta that no branch has ever been bound to; after a bind exists for beta the write-back moves it as before (the retraction); and the existing cases stay green. Done when npm test passes.
 - [x] 1.2 docs/SPEC.md: state the fourth guard in the SAME passage that already carries the write-back rebind and its three guards, naming the retraction rule (sofar switch puts the slug in the table and the rebind resumes). Contract text only — no code in this task. Done when the passage names all four guards and npm test still passes.
