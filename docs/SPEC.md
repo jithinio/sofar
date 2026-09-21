@@ -2076,6 +2076,70 @@ Implemented task 13.1: foldLines sorts envelope-valid events by id (stable
 warnings keep file order (they describe lines, not events); cursor is
 therefore the MAX event id, identical on every replica.
 
+## Record copies across branches
+The record is committed, so every branch carries its own copy of every
+events.jsonl, and a checkout that folds only its own copy reports whatever
+that branch last saw. Measured 2026-09-21: memory-lead's copies held 11, 143,
+132 and 149 of 158 events. No single copy was right, including the branch
+that did the work. `sofar status` and `sofar list` therefore fold the UNION
+of every copy they can see (branch-visibility D1). This is read-side only: it
+never writes to any copy and adds no event type.
+
+**Why the union is well defined.** The fold replays in ulid order and is
+convergent (§Cursor primitive (sync-ready contract)), and duplicate ids are
+dropped before it runs. The union's state is therefore exactly what merging
+every branch with `merge=union` would produce.
+
+**Which copies** (`core/record-copies.ts`):
+- Every OTHER worktree of the repo, read as its working file, so uncommitted
+  appends count. They are found from the common git dir's own files
+  (`<common>/worktrees/*/gitdir`, plus the main checkout when the common dir
+  is `<root>/.git`), with no subprocess. A worktree whose directory is gone
+  is skipped.
+- Every local branch that is NOT merged into HEAD and NOT checked out in a
+  worktree, read at its tip. This costs one `git for-each-ref --no-merged=HEAD`
+  and at most two `git cat-file --batch` processes (the initiatives tree, then
+  the logs). A merged branch is skipped with no loss: logs are append-only and
+  merge=union, so its whole committed log is already in HEAD's. A checked-out
+  branch is covered by its worktree's file. A ref at the same commit as one
+  already taken adds nothing and is dropped.
+- Remote-tracking refs only with `--remotes` (D1: opt-in). They cover
+  teammates' pushed branches but also bring in abandoned ones. A teammate's
+  unpushed work on another machine is invisible to any local read; that case
+  belongs to §Sync client (v2 — api.sofar.sh, the D14 seam; sync-client, Jul 2026).
+- Never this checkout: its file is "here" and is read as it always was. Any
+  failure (no git, an unborn HEAD, an unreadable checkout) degrades to fewer
+  copies, never to an error.
+
+**The union fold.** This checkout's lines come first and verbatim, so the
+line numbers and warnings for them are exactly those of a single-copy fold.
+Each other copy then adds only lines whose id is new to the union. A line
+with no readable id is left out, since the fold would skip it anyway. A copy
+that is a byte prefix of this checkout's log (a branch that forked and never
+wrote to this record) is skipped without a line walk. Warnings about added
+lines name the copy and that copy's own line number (`r1-fixes line 190:
+unknown event type …`): another branch may run a newer engine.
+
+**What is rendered.** When another copy adds at least one event, the headline
+progress is the union's, and the output says what it is made of: this
+checkout's own figure (or "not on this checkout") and each contributing copy
+with the number of events it holds that this checkout lacks, most first.
+Plain `sofar status` adds an `Across branches:` block under `Progress:`. The
+styled view adds an `⚠ Across branches` block under the goal. `sofar list`
+adds an `across branches: here D/T tasks done, +N event(s) on <copy>, <copy>,
++K more` part to the entry. A task done on a branch has not shipped to this
+one, and an abandoned branch must never read as landed work, so a merged
+number is never shown alone. When no other copy adds an event, both commands
+print byte-identically to a single-copy fold. `--here` restores the
+single-copy view.
+
+**Scope.** Only `sofar status` (one shot) and `sofar list`. `status --watch`,
+`sofar next`, get_state and every hook still read this checkout alone
+(branch-visibility 3.1–3.3). Reading N checkouts is operator-command cost
+(about 95 ms on this repo's 5 worktrees and 62 initiatives), not hot-path
+cost. Writes always land in this checkout's copy: never write to, or
+rewrite, another checkout's copy (D1).
+
 ## Sync client (v2 — api.sofar.sh, the D14 seam; sync-client, Jul 2026)
 The client half of sofar-cloud sync. The server (private repo) is
 authoritative for the wire; the client implements it exactly and stays
@@ -3147,7 +3211,11 @@ Shims contain no logic — they invoke the sofar CLI.
   (staleness-detection 2.3). Un-absorbed notes render UNCAPPED after the
   staleness section (notes-in-digest 2.2): every selected note, full
   timestamp, no count cap or length clip, whitespace collapsed to keep each
-  entry one list line; absent when none.
+  entry one list line; absent when none. The fold is across the other
+  copies of the record, and an initiative that only another copy holds
+  still resolves (§Record copies across branches); `--here` reads this
+  checkout alone, `--remotes` adds remote-tracking refs, `--watch` reads
+  this checkout only.
 - `sofar list` — every initiative under .sofar/initiatives/, one line each
   (slug, bound branch(es) or "unbound", done/total tasks with %, active
   phase, next action), most recently active first per §State's
@@ -3155,7 +3223,10 @@ Shims contain no logic — they invoke the sofar CLI.
   sofar-status precedent), lines whitespace-collapsed so each initiative
   stays one line; derivation warnings to stderr without failing — an
   uninitialized repo prints the empty listing with a `sofar new` hint
-  (initiative-list 2.1).
+  (initiative-list 2.1). It folds each initiative across the other copies
+  of the record and also lists initiatives only another copy holds
+  (§Record copies across branches); `--here` reads this checkout alone,
+  `--remotes` adds remote-tracking refs.
 - `sofar next` — the portfolio next-actions surface: one line per
   initiative (slug, bound branch(es) or "unbound", the next action the
   last write-back recorded or "(no next action recorded)"), most recently
@@ -3762,6 +3833,22 @@ stay the underlying derivation's, and exit codes are styling-independent.
   the available-initiatives suffix (≤10 named) or the `sofar new` hint on
   an initiative-less repo; the derivation is deterministic (same records
   → deep-equal listing, same warnings).
+- **Record copies (branch-visibility 1.1–2.3):** against real git repos with
+  linked worktrees, the scan returns every other worktree (an uncommitted
+  append included) and every unmerged branch that has no checkout, and never
+  returns this checkout, a merged branch, or a ref at a taken commit. Seen
+  from a worktree, main is the other copy. Remote-tracking refs appear only
+  with `remotes`. Outside git the scan is empty. The union fold applies an
+  event held by two copies once, counts it in each copy's contribution,
+  keeps this checkout's warnings unchanged, and names the copy in warnings
+  about added lines. A forked-but-idle branch yields no provenance.
+  `sofar status` and `sofar list` show the union with this checkout's figure
+  and the contributing copy. `--here` shows the single copy. A repo with no
+  other copy prints byte-identically either way. `sofar status <slug>`
+  resolves an initiative only another branch holds, and `sofar list` lists
+  it as "not on this checkout". `listInitiatives` without copies stays
+  single-copy (the MCP surface). Neither command changes a byte of another
+  copy or its `git status`.
 - **CLI UI (cli-ui):** with stdout and stderr both piped and no explicit
   opt-in, every command emits ZERO ESC (\x1b) bytes — ambient CI included;
   FORCE_COLOR=1 on the same piped invocation carries ANSI-16 SGR on the

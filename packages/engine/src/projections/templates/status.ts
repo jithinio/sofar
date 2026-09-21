@@ -10,6 +10,8 @@ import {
 } from '../../core/fold'
 import type { GitState } from '../../core/git'
 import type { NeighbourRecord } from '../../core/index-tier1'
+import type { RecordProvenance } from '../../core/record-copies'
+import { renderProvenanceBlock } from './copies'
 import {
   clip,
   clipBlockDetect,
@@ -171,7 +173,11 @@ function hasRealAlternative(over: string | undefined): boolean {
  * data as renderStatus but UNCAPPED with a per-task phase tree: the 10k cap
  * is a SessionStart context budget (BD3), not a terminal constraint.
  */
-export function renderFullStatus(state: InitiativeState): string {
+export function renderFullStatus(
+  state: InitiativeState,
+  provenance?: RecordProvenance | null,
+  home?: string,
+): string {
   const lines: string[] = []
   lines.push(`# ${state.slug || '(unnamed initiative)'}`, '')
   // A closed record says so before anything else (initiative-lifecycle 4.2):
@@ -206,6 +212,9 @@ export function renderFullStatus(state: InitiativeState): string {
   lines.push(
     `Progress: ${progressText(taskProgress(state.phases))} across ${state.phases.length} phase(s)`,
   )
+  // Other copies of the record hold events this checkout lacks
+  // (branch-visibility D1): say what the figure above is made of.
+  if (provenance != null) lines.push(...renderProvenanceBlock(provenance, home))
   lines.push('')
 
   const stalePhases = staleActivePhases(state)

@@ -1,5 +1,6 @@
 import type { InitiativeListEntry, InitiativeListing } from '../../core/listing'
 import { isClosedInitiativeStatus } from '@sofar/schema'
+import { provenanceSummary } from './copies'
 import { clip, pct } from './shared'
 
 /**
@@ -35,6 +36,9 @@ function entryLine(entry: InitiativeListEntry): string {
     `${entry.slug} [${tag}]`,
     `${entry.tasks_done}/${entry.tasks_total} tasks (${pct(entry.tasks_done, entry.tasks_total)})`,
   ]
+  // Only on a union listing, and only when another copy adds events: the
+  // figure above then folds every branch, and this says what it is made of.
+  if (entry.elsewhere !== undefined) parts.push(provenanceSummary(entry.elsewhere))
   if (entry.active_phase !== null && !closed) parts.push(`active: ${entry.active_phase}`)
   // What this record took over, named on the live side too: the successor is
   // where a reader lands, and the predecessors are where its history is.

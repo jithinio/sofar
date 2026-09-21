@@ -1,9 +1,13 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname } from 'node:path'
 import { watch } from 'chokidar'
 import { createToolContext, ToolError } from '../mcp/context'
 import { emptyState, foldLog, type InitiativeState } from '../core/fold'
+import { currentBranch } from '../core/git'
+import { scanRecordCopies, unionFold, type RecordProvenance } from '../core/record-copies'
 import { renderFullStatus } from '../projections/templates/status'
+import type { CopyOptions } from './list'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 import {
   columnsOf,
@@ -29,28 +33,59 @@ import {
  * renderFullStatus bytes, which the agent-facing surfaces also share.
  */
 
+/** Slug shape, checked before an explicit slug is looked up on another copy. */
+const SLUG = /^[a-z0-9-]+$/
+
 export function runStatus(
   rootDir: string,
   slug?: string,
   caps: Caps = stdoutCaps(),
   columns: number = columnsOf(process.stdout),
+  options: CopyOptions = {},
 ): CmdResult {
   const ctx = createToolContext(rootDir)
+  const scanFor = (target: string) =>
+    options.here === true
+      ? null
+      : scanRecordCopies(rootDir, { slugs: [target], remotes: options.remotes === true })
 
   let resolved: string
+  let scan: ReturnType<typeof scanFor> = null
   try {
     resolved = ctx.resolveInitiative(slug)
   } catch (err) {
-    if (err instanceof ToolError) {
-      return fail(`sofar status: ${err.message} (usage: sofar status [slug])`)
+    // An initiative that exists only on another branch still has a status
+    // (branch-visibility D1): look for it there before giving up.
+    if (err instanceof ToolError && slug !== undefined && SLUG.test(slug)) {
+      scan = scanFor(slug)
     }
-    return fail(`sofar status: ${errMessage(err)}`)
+    if (scan !== null && (scan.logs.get(slug!)?.length ?? 0) > 0) {
+      resolved = slug!
+    } else if (err instanceof ToolError) {
+      return fail(`sofar status: ${err.message} (usage: sofar status [slug])`)
+    } else {
+      return fail(`sofar status: ${errMessage(err)}`)
+    }
   }
 
   const logPath = ctx.eventsPath(resolved)
   let state: InitiativeState
   let warnings: string[] = []
-  if (existsSync(logPath)) {
+  let provenance: RecordProvenance | null = null
+  scan ??= scanFor(resolved)
+  const foreign = scan?.logs.get(resolved) ?? []
+  if (foreign.length > 0) {
+    let localText: string | null = null
+    try {
+      if (existsSync(logPath)) localText = readFileSync(logPath, 'utf8')
+    } catch (err) {
+      return fail(`sofar status: failed to read ${logPath}: ${errMessage(err)}`)
+    }
+    const union = unionFold(resolved, localText, foreign, currentBranch(rootDir))
+    state = union.state
+    warnings = union.warnings
+    provenance = union.provenance
+  } else if (existsSync(logPath)) {
     try {
       const result = foldLog(logPath)
       state = result.state
@@ -63,14 +98,17 @@ export function runStatus(
   }
   if (state.slug === '') state.slug = resolved
 
+  const home = homedir()
   const stdout = caps.color
     ? `${renderInitiative(state, {
         zoom: 'full',
         style: createStyle(true),
         symbols: symbolsFor(caps.unicode),
         columns,
+        provenance,
+        home,
       }).join('\n')}\n`
-    : renderFullStatus(state)
+    : renderFullStatus(state, provenance, home)
 
   return ok(stdout, warnings.map((w) => `warning: ${w}`).join('\n'))
 }

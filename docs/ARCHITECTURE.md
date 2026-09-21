@@ -62,6 +62,7 @@ Three consequences run through every design decision in the codebase:
 | `core/warmth.ts` | Has a log grown recently? Read from the log's own newest event, never filesystem mtime — `git checkout` rewrites mtime on every file. |
 | `core/cross-conflicts.ts` | Files under concurrent edit by sessions in *different* initiatives. Gated on the hot path, exhaustive in `doctor`. |
 | `core/listing.ts` | `initiativeSlugs` and the portfolio listing behind `sofar list`. |
+| `core/record-copies.ts` | Every OTHER copy of the record (branch-visibility D1): other worktrees' working files (read as files), unmerged local branches not checked out (one `git cat-file --batch`), remotes opt-in; and `unionFold`, which folds this checkout's log with theirs, dedupes by id, and says which copies hold what this one lacks. Read-side only, never writes a copy. Spawns git, so it stays OUT of `git.ts` and off the hot path. |
 | `core/bindings.ts` | `.sofar/bindings.json` — which branch serves which initiative. |
 | `core/git.ts` | Branch, HEAD, upstream — read from `.git` files, no subprocess. |
 | `core/attribution.ts` | Commit → initiative from `Sofar-Initiative:` trailers (D4). Spawns `git log`, so it is kept OUT of `git.ts` to preserve that file's no-subprocess guarantee; every walk is bounded and gated on a ref having moved (D6). Falls back to the INDENTED trailer a squash merge leaves in the body, and only when the real trailer block is empty (2.3). |
@@ -105,6 +106,7 @@ Regenerated on every append. Never hand-edited.
 | `projections/templates/review.ts` | The review evidence packet — diff range, tasks claimed done, standing constraints, rejected approaches. Text only; the judging is the reviewing session's, never sofar's. |
 | `projections/templates/next.ts` | The single next action. |
 | `projections/templates/list.ts` | The portfolio view. |
+| `projections/templates/copies.ts` | Where a record's events live when other branches hold some this checkout lacks — the `sofar status` block and the `sofar list` summary (branch-visibility D1). Rendered only then, so every other record prints byte-identically. |
 | `projections/templates/shared.ts` | Shared rendering helpers. |
 
 ### 5. Surfaces — how agents and humans reach the record

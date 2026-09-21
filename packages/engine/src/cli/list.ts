@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { isClosedInitiativeStatus } from '@sofar/schema'
 import { join } from 'node:path'
 import { emptyState, foldLog, type InitiativeState } from '../core/fold'
@@ -7,6 +8,7 @@ import {
   type InitiativeListEntry,
   type InitiativeListing,
 } from '../core/listing'
+import { scanRecordCopies } from '../core/record-copies'
 import { currentBranch } from '../mcp/context'
 import { renderFullInitiativeList } from '../projections/templates/list'
 import { ok, type CmdResult } from './shared'
@@ -43,12 +45,25 @@ import {
 /** Block gutter: pointer + space marks the current-branch initiative. */
 const GUTTER = 2
 
+/** Which copies of the record to fold (branch-visibility D1). */
+export interface CopyOptions {
+  /** This checkout's copy alone — the pre-union view. */
+  here?: boolean
+  /** Also fold remote-tracking refs (opt-in). */
+  remotes?: boolean
+}
+
 export function runList(
   rootDir: string,
   caps: Caps = stdoutCaps(),
   columns: number = columnsOf(process.stdout),
+  options: CopyOptions = {},
 ): CmdResult {
-  const listing = listInitiatives(rootDir)
+  // Every initiative is folded across the other copies of the record, so a
+  // checkout never lists a branch's work as it stood when that branch forked.
+  // With no other copy there is nothing to add and the classic path runs.
+  const scan = options.here === true ? null : scanRecordCopies(rootDir, { remotes: options.remotes === true })
+  const listing = listInitiatives(rootDir, scan !== null && scan.logs.size > 0 ? { copies: scan } : {})
   const stdout = caps.color
     ? renderStyledList(rootDir, listing, caps, columns)
     : renderFullInitiativeList(listing)
@@ -73,12 +88,15 @@ function renderStyledList(
   }
   const branch = currentBranch(rootDir)
   const inner = Math.max(0, columns - GUTTER)
+  const home = homedir()
   for (const entry of listing.entries) {
-    const block = renderInitiative(stateOf(rootDir, entry), {
+    const block = renderInitiative(listing.states?.get(entry.slug) ?? stateOf(rootDir, entry), {
       zoom: 'portfolio',
       style: s,
       symbols: sym,
       columns: inner,
+      provenance: entry.elsewhere,
+      home,
     })
     const current = branch !== null && entry.branches.includes(branch)
     const marker = current ? `${s.accent(sym.pointer)} ` : '  '
