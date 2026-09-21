@@ -36,7 +36,7 @@ const ENDPOINT = 'https://api.typesafe.ai/v1/systemone'
 const KEY = process.env.TYPESAFE_API_KEY
 const PRICE_PER_M_INPUT = 0.042
 const BATCH_CHARS = 20_000 // ≈5k tokens of state per request; cap is 32k tokens
-const CONCURRENCY = 4
+const CONCURRENCY = 2
 
 // ---------- read the record ----------
 const root = join(process.cwd(), '.sofar', 'initiatives')
@@ -190,11 +190,24 @@ function questionFor(stateKey, i) {
 // ---------- API ----------
 async function call(body, attempt = 0) {
   const t0 = performance.now()
-  const res = await fetch(ENDPOINT, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  let res
+  try {
+    res = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60_000),
+    })
+  } catch (err) {
+    // Connect timeouts and resets: the host answers in ~3 s from here, so a
+    // 10 s connect limit trips on a bad moment. Back off and retry.
+    if (attempt < 8) {
+      console.error(`  network error (${err.cause?.code ?? err.name}), retry ${attempt + 1}/8`)
+      await new Promise((r) => setTimeout(r, Math.min(30_000, 1000 * 2 ** attempt)))
+      return call(body, attempt + 1)
+    }
+    throw err
+  }
   const ms = performance.now() - t0
   if ((res.status === 429 || res.status === 529) && attempt < 5) {
     await new Promise((r) => setTimeout(r, 500 * 2 ** attempt))
@@ -261,11 +274,19 @@ if (DRY || !KEY) {
   process.exit(0)
 }
 
-const usage = { input_tokens: 0, output_tokens: 0, requests: 0, ms: [] }
+const usage = { input_tokens: 0, output_tokens: 0, requests: 0, failed_batches: 0, ms: [] }
 async function judge(batchList, mapAnswer) {
   const rows = []
-  const res = await runAll(batchList, async ({ group, body }) => {
-    const { json, ms } = await call(body)
+  const res = await runAll(batchList, async ({ group, body }, idx) => {
+    let out
+    try {
+      out = await call(body)
+    } catch (err) {
+      usage.failed_batches += 1
+      console.error(`  batch ${idx} lost (${group.length} samples): ${err.cause?.code ?? err.message}`)
+      return []
+    }
+    const { json, ms } = out
     usage.requests += 1
     usage.ms.push(ms)
     usage.input_tokens += json.usage?.input_tokens ?? 0

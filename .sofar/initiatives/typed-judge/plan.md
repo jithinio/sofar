@@ -4,12 +4,12 @@
 
 Goal: Adopt the shape of TypeSafe Jev / System One models in sofar: typed judgements (noul, choice, score) over record state with calibrated probabilities and confidence-gated escalation, behind a Judge seam whose default is deterministic and whose Jev path is the paid `cloud` provider (D2). Judging runs only at write time (MCP tools), in the driver, on pull surfaces or offline — never on a hook, statusline, shim, fold or projection path. Outputs are advisory: warnings and rankings, never mutations, never blocks. Catalogue A–E and predictions in the record notes.
 
-Progress: 0/15 tasks done (0%)
+Progress: 2/15 tasks done (13%)
 
-## Phase 1 — Measure on our own record [active] — 0/2 done
+## Phase 1 — Measure on our own record [active] — 2/2 done
 
-- [ ] 1.1 Calibration script (scratch, outside the engine): build ground truth from the record — decisions with a rule vs without (constraint vs one-off), decision→task mentions (relevance), rejected `over` text vs the chosen line (re-proposal) — and judge them with Jev in fan-out batches under the 32k state cap; report agreement, calibration by confidence bucket, cost and latency (active)
-- [ ] 1.2 Set provisional thresholds per question type from 1.1 (act / warn / silent) and record them with the model version jev-1.13.0; note which questions are not worth wiring
+- [x] 1.1 Calibration script (scratch, outside the engine): build ground truth from the record — decisions with a rule vs without (constraint vs one-off), decision→task mentions (relevance), rejected `over` text vs the chosen line (re-proposal) — and judge them with Jev in fan-out batches under the 32k state cap; report agreement, calibration by confidence bucket, cost and latency
+- [x] 1.2 Set provisional thresholds per question type from 1.1 (act / warn / silent) and record them with the model version jev-1.13.0; note which questions are not worth wiring
 
 ## Phase 2 — Seam and providers [pending] — 0/4 done
 
@@ -40,4 +40,4 @@ Progress: 0/15 tasks done (0%)
 - [ ] 6.1 E1: sofar + judge arm in bench-refresh; Jev as calibrated blind reviewer; grade the pre-registered predictions
 
 Active phase: Phase 1 — Measure on our own record
-Next action: User runs `TYPESAFE_API_KEY=<key> node scripts/judge-calibration.mjs --out <scratch>.json` and pastes the summary; then 1.2 sets thresholds and 1.1 closes.
+Next action: Start 2.1: write the Judge seam contract into docs/SPEC.md (question types, state and answer shapes, provider interface, allowed paths, advisory rule, redaction, version pin, cloud endpoint client contract), then 2.2 deterministic provider with tests.
