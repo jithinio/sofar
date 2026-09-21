@@ -30,7 +30,9 @@ import {
   DEFAULT_MAX_VERIFY_ATTEMPTS,
   DEFAULT_VERIFY_TIMEOUT_MS,
   describeVerification,
+  diffStatSince,
   fingerprintTree,
+  headOf,
   resolveVerify,
   runVerification,
   verificationCovers,
@@ -38,6 +40,9 @@ import {
   type VerificationOutcome,
 } from './verify'
 import { version as ENGINE_VERSION } from '../../package.json'
+import { resolveJudgeProvider } from '../client/judge'
+import type { JudgeOptions } from '../core/judge'
+import { judgeProgress } from './progress-judge'
 
 /**
  * `sofar drive <initiative>` (session-driver 2.2, D2): the loop, and nothing
@@ -340,6 +345,12 @@ export interface DriveOptions {
   onStarted?: (run: string) => void
   /** Progress lines in order, as they happen — the CLI prints them to stderr. */
   onProgress?: (line: string) => void
+  /**
+   * Test seam for the progress judge (typed-judge 4.1): the provider to judge
+   * each handoff with. Absent means the repo's own (`resolveJudgeProvider`),
+   * which is none unless the operator opted in.
+   */
+  judge?: JudgeOptions
 }
 
 export interface DriveHandoff {
@@ -778,6 +789,16 @@ export async function drive(
     return { applies: true, passed: false, attempt, line, exhausted: attempt >= maxVerifyAttempts }
   }
 
+  // The progress judge (typed-judge 4.1, D8): only with a configured provider,
+  // since without one the fold already says all the rules could. An operator
+  // who opted in but cannot reach it is told once, here.
+  const judging: JudgeOptions = (() => {
+    if (options.judge !== undefined) return options.judge
+    const resolved = resolveJudgeProvider(rootDir)
+    if (resolved.unavailable !== undefined) progress(`warning: progress judge: ${resolved.unavailable}`)
+    return resolved.provider !== undefined ? { provider: resolved.provider } : {}
+  })()
+
   options.onStarted?.(runId)
 
   const maxStalls = options.maxStalls ?? DEFAULT_MAX_STALLS
@@ -904,6 +925,8 @@ export async function drive(
       // resolution (below), where a millisecond timestamp is only the coarse one.
       const knownSessions = new Set(state.sessions.map((s) => s.id))
       const launchedAt = new Date().toISOString()
+      // The progress judge's diff base; not read at all when nobody will judge.
+      const headBefore = judging.provider !== undefined ? headOf(cwd) : null
       // Where this task runs (3.2): the run's pins first, the task's route for
       // what the run left open. A route the run cannot reach THROWS, and the
       // catch below stops the run with that sentence rather than launching the
@@ -994,8 +1017,10 @@ export async function drive(
       // The gate (D19): a task_done is accepted only on a recorded pass. A
       // dropped task is never verified — it resolved, it was not tested.
       let exhausted: string | undefined
+      let checked: string | undefined
       if (reason === 'task_done' || reason === 'threshold') {
         const g = gate(after, task.id)
+        if (g.applies) checked = g.line.length > 0 ? g.line : 'passed: an earlier check still covers this tree'
         if (g.applies && !g.passed) {
           reason = 'verify_failed'
           detail = g.line
@@ -1025,6 +1050,27 @@ export async function drive(
       progress(
         `  ${reason} — session ${sessionId}${tokens !== undefined ? `, ${tokens} ctx tokens` : ''}${detail !== undefined ? ` (${detail})` : ''}`,
       )
+      if (judging.provider !== undefined && !interrupted) {
+        const ended = after.sessions.find((s) => s.id === sessionId)
+        const diff = headBefore !== null ? diffStatSince(cwd, headBefore) : null
+        const verdict = await judgeProgress(
+          {
+            task: { id: task.id, title: task.title },
+            reason,
+            status_before: beforeStatuses.get(task.id) ?? 'pending',
+            status_after: taskStatuses(after).get(task.id) ?? 'pending',
+            ...(ended?.summary !== undefined ? { writeback: { summary: ended.summary, next_action: ended.next_action ?? '' } } : {}),
+            ...(diff !== null ? { diff } : {}),
+            ...(checked !== undefined ? { test: checked } : {}),
+          },
+          sessionId,
+          judging,
+        )
+        for (const judgement of verdict.judgements) {
+          ctx.appendAndProject(initiative, 'judgement_recorded', judgement, { session: 'cli', source: 'cli', actor: 'human' })
+        }
+        for (const line of verdict.lines) progress(line)
+      }
       stalls = reason === 'stall' ? stalls + 1 : 0
       lastStall = reason === 'stall' ? `session ${sessionId} — ${describeExit(exit)}` : undefined
 

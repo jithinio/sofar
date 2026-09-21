@@ -4,7 +4,7 @@
 
 Goal: Adopt the shape of TypeSafe Jev / System One models in sofar: typed judgements (noul, choice, score) over record state with calibrated probabilities and confidence-gated escalation, behind a Judge seam whose default is deterministic and whose Jev path is the paid `cloud` provider (D2). Judging runs only at write time (MCP tools), in the driver, on pull surfaces or offline — never on a hook, statusline, shim, fold or projection path. Outputs are advisory: warnings and rankings, never mutations, never blocks. Catalogue A–E and predictions in the record notes.
 
-Progress: 9/15 tasks done (60%)
+Progress: 10/15 tasks done (66%)
 
 ## Phase 1 — Measure on our own record [done] — 2/2 done
 
@@ -24,9 +24,9 @@ Progress: 9/15 tasks done (60%)
 - [x] 3.2 A1 in sofar_end_session: next_action Score on described levels, unlogged-decision and repo-memory-fact Nouls over the summary; warning only
 - [x] 3.3 A4/A5: decision-vs-fact-vs-note routing hint; task-done evidence Noul in sofar_update_task
 
-## Phase 4 — Driver [pending] — 0/3 done
+## Phase 4 — Driver [pending] — 1/3 done
 
-- [ ] 4.1 B1 progress judge: handoff reason from a Noul over task text, write-back, diff stat and test output, combined with status; B2 richer reason set
+- [x] 4.1 B1 progress judge: handoff reason from a Noul over task text, write-back, diff stat and test output, combined with status; B2 richer reason set
 - [ ] 4.2 B3 pre-flight: task specified well enough to act; low → needs_user without a launch
 - [ ] 4.3 B4 route hints: complexity Score → effort, Choice → model, filling only what the run left open
 
@@ -39,4 +39,4 @@ Progress: 9/15 tasks done (60%)
 
 - [ ] 6.1 E1: sofar + judge arm in bench-refresh; Jev as calibrated blind reviewer; grade the pre-registered predictions
 
-Next action: Start 4.1: read how src/driver/drive.ts derives the handoff reason (session-driver D5), then add the B1 progress noul beside it.
+Next action: Start 4.2: in src/driver/drive.ts, before routed.launch, add a pre-flight noul on the task text; low → needs_user without a launch.

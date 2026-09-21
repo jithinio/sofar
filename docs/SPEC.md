@@ -1695,9 +1695,25 @@ an unlinked repo sends nothing. Concurrent pushes of one stream from the
 driver and an operator are safe by construction: push is idempotent by
 event id, and a cursor moved backwards only re-sends duplicates.
 
+**Progress judge (typed-judge 4.1, D8).** With a `cloud` judge provider
+configured (§Judge, Providers), the driver judges each resolved handoff
+after appending it, before the next launch: a `task_done` noul and an
+`outcome` choice over the task, its status before → after, the write-back,
+`git diff --shortstat` since the launch outside `.sofar/` (plus untracked
+files), and the acceptance check's line when the gate ran. The handoff and
+its reason stay the fold's (D5). The verdict re-runs nothing and stops
+nothing. The model's answers land as `judgement_recorded` on envelope session
+`cli`, and a line follows the handoff on the progress stream. An operator
+who opted in but cannot reach the provider is told once, at the start.
+Without a provider the driver judges nothing and reads no diff. §Judge
+states the questions, the rules and the warnings.
+
 **What the driver is not (D2).** Not a session, not an agent loop, never an
-inference: it launches existing headless agents through the adapter
-contract (launch, usage, wait) and writes nothing but these events.
+inference of its own: it launches existing headless agents through the
+adapter contract (launch, usage, wait) and writes nothing but these events,
+the verification gate's, and, only when the operator opted into the
+progress judge, the `judgement_recorded` events of an inference sofar-cloud
+ran (typed-judge D1, D8).
 
 ## Review (commit-attribution — phase boundaries, watermark ranges, gates nothing)
 Closing an initiative was an unconditional append: nothing rechecked that the
@@ -2997,6 +3013,29 @@ sofar_remember return `warnings` only when a line renders, so the common
 case stays the bare `{ok, event_id}` (typed-judge D7, qualifying r1-fixes
 D10). No `judgement_recorded` is written, and a provider failure leaves the
 rules' lines.
+
+**Driver progress judge (typed-judge 4.1, `driver/progress-judge.ts`).**
+The first consumer that stores its answers (§Driver, Progress judge). One
+request per resolved handoff, over `{task, status, write_back, diff, test?}`.
+Missing evidence is named, never omitted: `none: the session did not write
+back`, `no change to the tree outside the record`. The fold's handoff reason
+is NOT in the state, so the judgement stays independent of it. Two questions:
+- `task_done` (B1), a noul: did the work the task asks for land, with
+  nothing left open and the check, if any, passed? The rule decides NO for a
+  `verify_failed` handoff.
+- `outcome` (B2), a choice: `task_done`, `partial`, `stalled`,
+  `blocked_on_user`, `wrong_task`, `scope_creep`, or `unclear` (the no-match
+  option). The rule decides `blocked_on_user` for a `needs_user` handoff.
+The rules restate the record, so their answers are never stored. Each MODEL
+answer lands as `judgement_recorded {producer: "sofar-cloud", model,
+question, subject: <task id>, answer, state_hash}`, where `state_hash` is
+the sha256 of the redacted state. The progress stream gets `judged by
+<model>: task_done p <p> · outcome <key> (P <p>)` and, when the verdict
+disagrees with the fold with conviction, a warning: handed off as done
+(`task_done`/`threshold`) but judged p ≤ 0.1; a `stall` judged p ≥ 0.9;
+`wrong_task`, `scope_creep` or an unrecorded `blocked_on_user` at P ≥ 0.9.
+Thresholds are 3.1's provisional 0.9 and its mirror, graded in 6.1. A
+provider failure yields no verdict, and the run proceeds.
 
 **Stored judgements (typed-judge 2.4).** A judgement worth keeping —
 relevance scores computed at write-back for the next SessionStart to read,
@@ -6735,6 +6774,17 @@ stay the underlying derivation's, and exit codes are styling-independent.
   judges its batched memories, notes and done tasks the same way, filing
   lines before evidence lines; three note-less dones in one write-back
   yield one line naming all three.
+- **Driver progress judge (typed-judge 4.1):** in a driven run with a
+  provider judging not done at p 0.05, the handoff is still `task_done`, two
+  `judgement_recorded` events (task_done, outcome) land on session `cli`
+  with subject the task id and producer `sofar-cloud`, the fold reports no
+  warning, and the progress stream carries the disagreement line. The state
+  sent holds `pending → done` and `no change to the tree outside the record`,
+  and never the fold's reason. A `needs_user` handoff sends only `task_done`
+  and stores only it. A `verify_failed` one is not done by rule. A provider
+  that throws yields no verdict. Without a provider the run writes no
+  judgement. `diffStatSince` counts commits, edits and untracked files since
+  the launch head and ignores `.sofar/`.
 - **Stored judgements (typed-judge 2.4):** `judgement_recorded` validates
   producer, model, question and subject as non-empty strings and `answer` by
   its type (noul in [0,1]; choice naming one of 2+ probability keys with

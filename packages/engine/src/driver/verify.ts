@@ -51,6 +51,28 @@ function git(cwd: string, args: string[]): string | null {
 /** The record is not the code under test: every check appends to it, and a fingerprint that moved with it would invalidate its own pass. */
 const RECORD_DIR = '.sofar/'
 
+/** The commit `cwd` is on, or null without a repository (typed-judge 4.1: the progress judge's diff base). */
+export function headOf(cwd: string): string | null {
+  const head = git(cwd, ['rev-parse', 'HEAD'])?.trim()
+  return head === undefined || head.length === 0 ? null : head
+}
+
+/**
+ * What changed since `head`, outside the record: `git diff --shortstat`
+ * against the working tree (so commits and uncommitted edits both count), plus
+ * how many untracked files appeared. Empty when nothing changed, null without
+ * a repository. The record is excluded for the reason the fingerprint excludes
+ * it: every session appends to it, so it says nothing about the work.
+ */
+export function diffStatSince(cwd: string, head: string): string | null {
+  const stat = git(cwd, ['diff', '--shortstat', head, '--', '.', `:(exclude,top)${RECORD_DIR}`])
+  const untracked = git(cwd, ['ls-files', '--others', '--exclude-standard', '-z'])
+  if (stat === null || untracked === null) return null
+  const top = git(cwd, ['rev-parse', '--show-prefix'])?.trim() ?? ''
+  const added = untracked.split('\0').filter((p) => p.length > 0 && !`${top}${p}`.startsWith(RECORD_DIR)).length
+  return [stat.trim(), added > 0 ? `${added} untracked file${added === 1 ? '' : 's'}` : ''].filter((x) => x.length > 0).join(', ')
+}
+
 /**
  * The tree the command runs on. `head` is the commit; `tree` digests the
  * tracked diff against it and every untracked file's blob id, so an edit, a
