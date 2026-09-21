@@ -157,6 +157,11 @@ ONLY outcome facts the record carries, everything richer is a private row
 (self-improve D2, see §Diagnostics store) · note_added ·
 memory_promoted (text — a fact its author declares repo memory, addressable
 as `<slug> M<n>`; repo-memory-capture D1) ·
+judgement_recorded (producer, model — the exact version, never an alias —
+question, subject — an event id or a task id — answer {type: noul|choice|score,
+…the wire shape without `legend`}, state_hash? — a stored Judge answer:
+ENRICHMENT the fold ignores for state and for drift, read by the index;
+typed-judge 2.4, see §Judge) ·
 review_recorded (scope: phase|final, verdict: pass|findings|blocked,
 watermark?, phase?, findings? — a review that was actually performed;
 commit-attribution 4.4, see §Review) ·
@@ -2043,9 +2048,18 @@ carries `producer`, `model`, the question id, the answer and the subject
 event id; schema in `packages/schema` only. The fold ignores enrichment
 for state (replay stays a pure function of the recorded facts), the index
 reads it, and a stored judgement is always attributable to the exact model
-version that made it. Until 2.4 ships, nothing is stored: every judgement
-is computed, used in the tool result or the driver's decision, and
-forgotten.
+version that made it. The type is `judgement_recorded` (§Event types):
+`producer` names who ran the judge (`sofar-cloud`, `deterministic`,
+`agent`), `model` the exact version, `question` the seam's question id,
+`subject` the event id or task id judged, `answer` the wire shape without
+its derivable legend, and `state_hash` (sha256 of the redacted state) lets
+a reader tell whether the material has moved since. It is excluded from
+drift for the reason driver events are (commit-attribution D18): it says
+what a judge thought, never what the plan says, so it cannot stale a next
+action and owes no write-back. Who WRITES one is each consumer's contract
+(3.x guards write none — their answers live in the tool result; 5.1's
+relevance pass and 4.1's progress verdict write theirs); nothing in the
+engine writes a judgement until a consumer that needs one ships.
 
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
@@ -4592,3 +4606,10 @@ stay the underlying derivation's, and exit codes are styling-independent.
   leaf of an object or array state; the module is imported by no file under
   `hooks/` or `projections/` nor by `core/fold.ts`, `core/atomic.ts`,
   `core/log.ts`, `cli/fast*.ts` or `cli/statusline*.ts` (pinned by test).
+- **Stored judgements (typed-judge 2.4):** `judgement_recorded` validates
+  producer, model, question and subject as non-empty strings and `answer` by
+  its type (noul in [0,1]; choice naming one of 2+ probability keys with
+  confidence in [0,1]; score non-negative over 2+ levels); folding one appends
+  no warning, changes no state field, leaves `events_since_writeback` and
+  every freshness count unchanged, and advances the cursor; an unknown answer
+  type is rejected with a typed error.

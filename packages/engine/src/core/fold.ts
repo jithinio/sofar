@@ -906,6 +906,14 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
     case 'review_recorded':
       mutation(() => (counts.reviews += 1))
       break
+    case 'judgement_recorded':
+      // Stored judgements are EXCLUDED from drift, deliberately (commit-
+      // attribution D18 requires the class decided here). A judgement is
+      // ENRICHMENT derived from the record — a score, a verdict, a rank — and
+      // changes nothing the plan says (typed-judge 2.4); it owes no write-back
+      // and cannot stale a next_action. Counting it would make every
+      // write-time relevance pass read as drift the moment it ran.
+      break
   }
 }
 
@@ -1336,6 +1344,11 @@ function applyEvent(
       state.memories.push({ id: event.id, ts: event.ts, text: p.text })
       break
     }
+    case 'judgement_recorded':
+      // Enrichment, never state (typed-judge 2.4): replay stays a pure
+      // function of the recorded FACTS, and a judgement is an opinion about
+      // them. The index reads these from the raw log; the fold does not.
+      break
     case 'review_recorded': {
       const p = event.payload as unknown as ReviewRecordedPayload
       state.reviews.push({

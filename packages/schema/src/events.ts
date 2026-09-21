@@ -199,6 +199,35 @@ export interface NoteAddedPayload { text: string }
  */
 export interface MemoryPromotedPayload { text: string }
 
+/**
+ * A stored judgement (typed-judge 2.4, SPEC §Judge "Stored judgements"): what
+ * a Judge provider answered about one subject of the record, kept so a later
+ * reader — the index, the next SessionStart — can use it without asking again.
+ * ENRICHMENT, not fact: the fold ignores it for state and drift, and it is
+ * always attributable to the exact `model` version that produced it, so a
+ * newer model's answers can be told apart from an older one's. `answer` is the
+ * wire shape without the derivable `legend`; `state_hash` (sha256 of the
+ * redacted state judged) lets a reader tell whether the material changed.
+ */
+export const JUDGEMENT_ANSWER_TYPES = ['noul', 'choice', 'score'] as const
+export type JudgementAnswerType = (typeof JUDGEMENT_ANSWER_TYPES)[number]
+export type JudgementAnswer =
+  | { type: 'noul'; noul: number }
+  | { type: 'choice'; choice: string; probabilities: Record<string, number>; confidence: number }
+  | { type: 'score'; score: number; probabilities: Record<string, number>; confidence: number }
+export interface JudgementRecordedPayload {
+  /** Who ran the judge: `sofar-cloud`, `deterministic`, `agent`, … */
+  producer: string
+  /** Exact model version (never an alias), or `deterministic`. */
+  model: string
+  /** The question id, as the seam names it (`relevance`, `progress`, …). */
+  question: string
+  /** What it is about: an event id, or a task id of this initiative. */
+  subject: string
+  answer: JudgementAnswer
+  state_hash?: string
+}
+
 /** What a review concluded. `blocked` means it could not be performed at all. */
 export const REVIEW_VERDICTS = ['pass', 'findings', 'blocked'] as const
 export type ReviewVerdict = (typeof REVIEW_VERDICTS)[number]
@@ -391,6 +420,7 @@ export interface KnownEventPayloads {
   command_run: CommandRunPayload
   note_added: NoteAddedPayload
   memory_promoted: MemoryPromotedPayload
+  judgement_recorded: JudgementRecordedPayload
   review_recorded: ReviewRecordedPayload
   run_started: RunStartedPayload
   handoff: HandoffPayload
@@ -420,6 +450,7 @@ export const EVENT_TYPES = [
   'command_run',
   'note_added',
   'memory_promoted',
+  'judgement_recorded',
   'review_recorded',
   'run_started',
   'handoff',
@@ -661,6 +692,39 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
   },
   memory_promoted(p, e) {
     if (!str(p.text)) e.push('text: must be a non-empty string')
+  },
+  judgement_recorded(p, e) {
+    if (!str(p.producer)) e.push('producer: must be a non-empty string')
+    if (!str(p.model)) e.push('model: must be a non-empty string')
+    if (!str(p.question)) e.push('question: must be a non-empty string')
+    if (!str(p.subject)) e.push('subject: must be a non-empty string')
+    if (p.state_hash !== undefined && !str(p.state_hash)) e.push('state_hash: must be a non-empty string when present')
+    const a = p.answer as Record<string, unknown> | undefined
+    if (typeof a !== 'object' || a === null) {
+      e.push('answer: must be an object')
+      return
+    }
+    const unit = (v: unknown): boolean => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1
+    const dist = (v: unknown): boolean =>
+      typeof v === 'object' && v !== null && Object.values(v as Record<string, unknown>).length >= 2 && Object.values(v as Record<string, unknown>).every(unit)
+    switch (a.type) {
+      case 'noul':
+        if (!unit(a.noul)) e.push('answer.noul: must be a number in [0, 1]')
+        break
+      case 'choice':
+        if (!str(a.choice)) e.push('answer.choice: must be a non-empty string')
+        if (!dist(a.probabilities)) e.push('answer.probabilities: must map 2+ keys to numbers in [0, 1]')
+        else if (!(a.choice as string in (a.probabilities as Record<string, unknown>))) e.push('answer.choice: must be one of answer.probabilities')
+        if (!unit(a.confidence)) e.push('answer.confidence: must be a number in [0, 1]')
+        break
+      case 'score':
+        if (!(typeof a.score === 'number' && Number.isFinite(a.score) && a.score >= 0)) e.push('answer.score: must be a non-negative number')
+        if (!dist(a.probabilities)) e.push('answer.probabilities: must map 2+ levels to numbers in [0, 1]')
+        if (!unit(a.confidence)) e.push('answer.confidence: must be a number in [0, 1]')
+        break
+      default:
+        e.push(`answer.type: must be one of ${JUDGEMENT_ANSWER_TYPES.join('|')}`)
+    }
   },
   review_recorded(p, e) {
     if (!(REVIEW_SCOPES as readonly unknown[]).includes(p.scope)) {
