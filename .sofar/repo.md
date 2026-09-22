@@ -75,6 +75,11 @@
   symlink to the main checkout's carries npm's workspace links, which point
   at the MAIN tree, so the packaging test reads main's version and fails.
   Link `sofar.sh` and `@sofar/schema` into the worktree itself.
+- Tags: an UNPUSHED tag may be deleted and re-cut (drive-visibility M8) —
+  nobody has seen it, and shipping notes known to be wrong is the real
+  damage. Once PUSHED, a correction is a NEW tag, never a move: no
+  `git tag -f`, no delete-and-repush. The rule is "never rewrite what
+  someone else has seen", not "never move a tag".
 - Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare
   `npm publish` from inside packages/engine) — always run by the USER (OTP
   + permission classifier), agent stages everything up to it. Bare
