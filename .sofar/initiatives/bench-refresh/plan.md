@@ -79,4 +79,4 @@ Progress: 15/26 tasks done (57%)
 - [ ] 6.3 Replace stale public claims: one-pager R04 figures, install name @alignlabs/sofar, "adds nothing to your bill" next to --cost-cap
 
 Active phase: Phase 5 — Round 2
-Next action: 5.0: when rust-core lands, send the packet with three questions, Q3 led by the memory-win finding, and the corrected bias directions.
+Next action: 5.0: when rust-core lands, send the packet — three questions, Q3 led by the memory-win finding, C1 direction stated, C4 undetermined, fresh-path condition.
