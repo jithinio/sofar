@@ -21,6 +21,9 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ulid } from 'ulid'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { runDriveStop } from '../src/cli/drive'
+import { createStatusWatchModel, runStatus } from '../src/cli/status'
+import type { Caps } from '../src/cli/ui'
 import { foldLog, latestRun, type InitiativeState } from '../src/core/fold'
 import { makeEvent } from '../src/core/envelope'
 import { appendEvent } from '../src/core/log'
@@ -28,6 +31,7 @@ import { claimRunLock, probeRunLock, type LockPrimitive, type RunLiveness } from
 import type { StateEnv } from '../src/core/state-dir'
 import type { Adapter, AgentSession, SessionExit } from '../src/driver/adapter'
 import { drive } from '../src/driver/drive'
+import { createToolContext } from '../src/mcp/context'
 import { FakeAdapter } from './helpers/fake-adapter'
 
 /**
@@ -426,6 +430,185 @@ describe.skipIf(!PLATFORM_LOCK)('one driver per run (drive-visibility 2.1)', () 
     expect(warning).toContain('resolves inside this repo')
     expect(warning).toContain('liveness unknown')
     expect(existsSync(join(r.root, 'state'))).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Reading it: status and --stop (drive-visibility 2.3)
+// ---------------------------------------------------------------------------
+
+const PLAIN: Caps = { color: false, unicode: true, animate: false }
+const STYLED: Caps = { color: true, unicode: true, animate: false }
+
+/** The run's line in the plain status, whole. */
+function runLine(r: Repo, run: string, env: StateEnv): string {
+  const res = runStatus(r.root, 'demo', PLAIN, 100, { here: true, lock: { env } })
+  expect(res.exitCode, res.stderr).toBe(0)
+  return res.stdout.split('\n').find((l) => l.startsWith(`- run ${run} `))!
+}
+
+/** A lock a driver took and the kernel released when it died. */
+async function diedHolding(r: Repo, run: string, env: StateEnv): Promise<void> {
+  const died = await claimRunLock(r.root, run, { env })
+  expect(died.kind).toBe('claimed')
+  if (died.kind === 'claimed') died.lock.release()
+  await probeUntil(r.root, run, 'free', { env })
+}
+
+function append(r: Repo, type: string, payload: Record<string, unknown>): void {
+  appendEvent(r.log, makeEvent({ initiative: 'demo', session: 'cli', type, payload, source: 'cli', actor: 'human' }))
+}
+
+describe.skipIf(!PLATFORM_LOCK)('sofar status reads the lock (drive-visibility 2.3)', () => {
+  it('says running while the driver holds it, driver gone once it falls, and liveness unknown where none was taken', async () => {
+    const r = repo()
+    const env = stateEnv()
+    const run = openRun(r)
+    expect(runLine(r, run, env)).toMatch(/; liveness unknown — no stop recorded and no run lock for it on this machine$/)
+
+    const claim = await claimRunLock(r.root, run, { env })
+    expect(claim.kind).toBe('claimed')
+    expect(runLine(r, run, env)).toMatch(/; running$/)
+
+    if (claim.kind === 'claimed') claim.lock.release()
+    await probeUntil(r.root, run, 'free', { env })
+    expect(runLine(r, run, env)).toMatch(/; driver gone — no stop recorded and the run lock on this machine is free; --resume picks it up$/)
+
+    // A request nobody was left to read says so.
+    append(r, 'run_stop_requested', { run })
+    expect(runLine(r, run, env)).toContain('driver gone — no stop recorded and the run lock on this machine is free; stop requested, never acknowledged')
+  })
+
+  it('a stopped run reads the record alone, and an earlier run is never probed', async () => {
+    const r = repo()
+    const env = stateEnv()
+    const first = openRun(r)
+    await diedHolding(r, first, env)
+    append(r, 'run_stopped', { run: first, reason: 'closed' })
+    const second = openRun(r)
+    expect(runLine(r, first, env)).toMatch(/; stopped: closed$/)
+    expect(runLine(r, second, env)).toMatch(/liveness unknown/)
+    append(r, 'run_stopped', { run: second, reason: 'max_sessions' })
+    expect(runLine(r, second, env)).toMatch(/; stopped: max_sessions$/)
+  })
+
+  it('the styled status lists the runs too, with the same words', async () => {
+    const r = repo()
+    const env = stateEnv()
+    const run = openRun(r)
+    await diedHolding(r, run, env)
+    const res = runStatus(r.root, 'demo', STYLED, 200, { here: true, lock: { env } })
+    const plain = res.stdout.replace(/\x1b\[[0-9;]*m/g, '')
+    expect(plain).toContain('Driven (1 run)')
+    expect(plain).toContain(`run ${run} via fake, task policy — 0 handoffs; driver gone`)
+  })
+
+  it('never writes liveness into a generated file', async () => {
+    const r = repo()
+    const env = stateEnv()
+    const run = openRun(r)
+    await diedHolding(r, run, env)
+    const ctx = createToolContext(r.root)
+    ctx.appendAndProject('demo', 'note_added', { text: 'reproject' }, { session: 'cli', source: 'cli', actor: 'human' })
+    expect(runLine(r, run, env)).toContain('driver gone')
+    const dir = join(r.root, '.sofar', 'initiatives', 'demo')
+    for (const f of readdirSync(dir).filter((n) => n.endsWith('.md'))) {
+      const text = readFileSync(join(dir, f), 'utf8')
+      expect(text, f).not.toContain('driver gone')
+      expect(text, f).not.toContain('liveness unknown')
+    }
+  })
+
+  it('--watch notices a driver dying, which touches no file', async () => {
+    const r = repo()
+    const env = stateEnv()
+    const run = openRun(r)
+    const claim = await claimRunLock(r.root, run, { env })
+    expect(claim.kind).toBe('claimed')
+    const model = createStatusWatchModel(createToolContext(r.root), 'demo', { here: true, lock: { env } })
+    expect(model.liveness).toBe('held')
+    expect(model.pollLiveness()).toBe(false)
+    if (claim.kind === 'claimed') claim.lock.release()
+    await until(() => model.pollLiveness())
+    expect(model.liveness).toBe('free')
+    append(r, 'run_stopped', { run, reason: 'interrupted' })
+    model.localChanged()
+    expect(model.liveness).toBeUndefined()
+  })
+})
+
+describe.skipIf(!PLATFORM_LOCK)('sofar drive --stop reads the lock (drive-visibility 2.3)', () => {
+  it('against a gone driver appends nothing and says so at once, naming --resume', async () => {
+    const r = repo()
+    const env = stateEnv()
+    const run = openRun(r)
+    await diedHolding(r, run, env)
+    const started = Date.now()
+    const res = await runDriveStop(r.root, 'demo', { lock: { env } })
+    expect(Date.now() - started).toBeLessThan(5_000)
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toContain(`run ${run} on "demo" has no stop, but its driver is gone`)
+    expect(res.stderr).toContain('none was appended')
+    expect(res.stderr).toContain('`sofar drive demo --resume` picks the run up')
+    expect(latestRun(fold(r))!.stop_requests).toHaveLength(0)
+  })
+
+  it('ends the wait the moment the driver lets go without a stop', async () => {
+    const r = repo()
+    const env = stateEnv()
+    const run = openRun(r)
+    const claim = await claimRunLock(r.root, run, { env })
+    expect(claim.kind).toBe('claimed')
+    // The driver dies after the request lands, before it could stop the run.
+    const dies = setInterval(() => {
+      if (latestRun(fold(r))!.stop_requests.length > 0 && claim.kind === 'claimed') {
+        clearInterval(dies)
+        claim.lock.release()
+      }
+    }, 5)
+    const started = Date.now()
+    const res = await runDriveStop(r.root, 'demo', { waitMs: 30_000, pollMs: 10, lock: { env } })
+    clearInterval(dies)
+    expect(Date.now() - started).toBeLessThan(10_000)
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toContain(`stop requested for run ${run}, but its driver exited without recording a stop`)
+    expect(res.stderr).toContain('--resume')
+    expect(latestRun(fold(r))!.stop_requests).toHaveLength(1)
+  })
+
+  it('a stop the driver recorded before letting go is reported as the stop, never as a vanished driver', async () => {
+    const r = repo()
+    const env = stateEnv()
+    const run = openRun(r)
+    const claim = await claimRunLock(r.root, run, { env })
+    // The driver's order: run_stopped first, the lock after.
+    const stops = setInterval(() => {
+      if (latestRun(fold(r))!.stop_requests.length > 0 && claim.kind === 'claimed') {
+        clearInterval(stops)
+        append(r, 'run_stopped', { run, reason: 'interrupted' })
+        claim.lock.release()
+      }
+    }, 5)
+    const res = await runDriveStop(r.root, 'demo', { waitMs: 10_000, pollMs: 10, lock: { env } })
+    clearInterval(stops)
+    expect(res.exitCode, res.stderr).toBe(0)
+    expect(res.stdout).toContain('stopped: interrupted')
+  })
+
+  it('a live driver that has not stopped yet is named alive when the wait runs out', async () => {
+    const r = repo()
+    const env = stateEnv()
+    openRun(r)
+    const claim = await claimRunLock(r.root, latestRun(fold(r))!.id, { env })
+    try {
+      const res = await runDriveStop(r.root, 'demo', { waitMs: 20, pollMs: 5, lock: { env } })
+      expect(res.exitCode).toBe(1)
+      expect(res.stderr).toContain('no run_stopped within')
+      expect(res.stderr).toContain('Its driver is alive — it still holds the run lock on this machine')
+      expect(res.stderr).not.toContain('If no driver is running this run')
+    } finally {
+      if (claim.kind === 'claimed') claim.lock.release()
+    }
   })
 })
 

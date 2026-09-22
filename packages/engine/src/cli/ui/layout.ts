@@ -1,5 +1,6 @@
 import {
   freshnessTotal,
+  latestRun,
   openSessionFileConflicts,
   staleActivePhases,
   type InitiativeState,
@@ -10,11 +11,14 @@ import {
 import {
   clipDetect,
   describeFreshness,
+  describeRun,
   phaseFraction,
   progressCompact,
+  runDetailLines,
   taskProgress,
 } from '../../projections/templates/shared'
 import type { RecordProvenance } from '../../core/record-copies'
+import type { RunLiveness } from '../../core/run-lock'
 import { copyLabel, hereText, provenanceSummary } from '../../projections/templates/copies'
 import type { Style } from './style'
 import { pieFor, type Symbols } from './symbols'
@@ -58,6 +62,11 @@ export interface LayoutOptions {
   provenance?: RecordProvenance | null
   /** Home directory, so worktree paths print as `~/…`. */
   home?: string
+  /**
+   * What the run lock says about the latest run when it has no stop
+   * (drive-visibility 2.3). Absent renders the record's own words.
+   */
+  liveness?: RunLiveness
 }
 
 /** Render one initiative at the requested zoom. Lines, no trailing newline. */
@@ -148,6 +157,27 @@ function fullZoom(state: InitiativeState, options: LayoutOptions): string[] {
     lines.push(s.dim(oneLine(`Last session (${last.tool}, ended ${last.ended ?? '?'})`)))
     // the summary block keeps its author's line breaks; escapes still degrade
     lines.push(`  ${sanitizeProse(last.summary!)}`)
+  }
+
+  if (state.runs.length > 0) {
+    lines.push('')
+    lines.push(`${s.bold('Driven')} ${s.dim(`(${state.runs.length} run${state.runs.length === 1 ? '' : 's'})`)}`)
+    const latest = latestRun(state)
+    for (const run of state.runs) {
+      const liveness = run === latest && run.stopped === undefined ? options.liveness : undefined
+      // The glyph carries the run's state without color: done, gone, unknown, live.
+      const glyph =
+        run.stopped !== undefined
+          ? s.dim(sym.ok)
+          : liveness === 'free'
+            ? s.error(sym.fail)
+            : liveness === 'absent'
+              ? s.dim(sym.circle)
+              : s.warn(sym.bullet)
+      const line = oneLine(describeRun(run, liveness))
+      lines.push(`${glyph} ${run.stopped !== undefined ? s.dim(line) : line}`)
+      for (const detail of runDetailLines(run)) lines.push(`${/^ */.exec(detail)![0]}${s.dim(oneLine(detail))}`)
+    }
   }
 
   if (state.files_touched.length > 0) {

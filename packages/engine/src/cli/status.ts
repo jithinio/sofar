@@ -7,7 +7,8 @@ import { readBindingsFile } from '../core/bindings'
 import { currentBranch } from '../core/git'
 import { listAcrossCopies } from '../core/listing'
 import { createToolContext, ToolError, type ToolContext } from '../mcp/context'
-import { emptyState, foldLog, type InitiativeState } from '../core/fold'
+import { emptyState, foldLog, latestRun, type InitiativeState } from '../core/fold'
+import { probeRunLock, type RunLiveness, type RunLockOptions } from '../core/run-lock'
 import {
   copyWatch,
   scanRecordCopies,
@@ -28,6 +29,11 @@ import {
   type Caps,
 } from './ui'
 
+export interface StatusCliOptions extends CopyOptions {
+  /** Test seam: where and with which primitive the run lock is probed (drive-visibility 2.3). */
+  lock?: RunLockOptions
+}
+
 /**
  * `sofar status [slug]` (task 4.3, SPEC §CLI) — fold and print goal,
  * progress %, phase tree with per-task statuses, next action, blocked_on,
@@ -47,7 +53,7 @@ export function runStatus(
   slug?: string,
   caps: Caps = stdoutCaps(),
   columns: number = columnsOf(process.stdout),
-  options: CopyOptions = {},
+  options: StatusCliOptions = {},
 ): CmdResult {
   const ctx = createToolContext(rootDir)
 
@@ -131,7 +137,7 @@ function unboundStatus(
   rootDir: string,
   caps: Caps,
   columns: number,
-  options: CopyOptions,
+  options: StatusCliOptions,
 ): CmdResult | null {
   if (!existsSync(join(rootDir, '.sofar'))) return null
   const branch = currentBranch(rootDir)
@@ -162,6 +168,22 @@ function unboundStatus(
 }
 
 /**
+ * What the run lock says about the latest run, when it has no stop
+ * (drive-visibility 2.3, SPEC §Driver, "One driver per run"). Undefined when
+ * there is no such run, so a record no driver is running probes nothing. The
+ * lock is per user, not per clone, so a run driven from another worktree on
+ * this machine reads the same.
+ */
+export function latestRunLiveness(
+  rootDir: string,
+  state: InitiativeState,
+  lock: RunLockOptions = {},
+): RunLiveness | undefined {
+  const run = latestRun(state)
+  return run !== undefined && run.stopped === undefined ? probeRunLock(rootDir, run.id, lock) : undefined
+}
+
+/**
  * One initiative's status, already resolved to a slug this checkout or
  * another copy holds. Folded across the other copies of the record unless
  * `--here` (branch-visibility D1); `scan` is passed when resolution already
@@ -172,7 +194,7 @@ function statusOf(
   resolved: string,
   caps: Caps,
   columns: number,
-  options: CopyOptions = {},
+  options: StatusCliOptions = {},
   scan?: CopyScan,
 ): CmdResult {
   const copies =
@@ -187,6 +209,7 @@ function statusOf(
     return fail(`sofar status: failed to read ${ctx.eventsPath(resolved)}: ${errMessage(err)}`)
   }
   const { state, warnings, provenance } = view
+  const liveness = latestRunLiveness(ctx.rootDir, state, options.lock)
 
   const home = homedir()
   const stdout = caps.color
@@ -197,8 +220,9 @@ function statusOf(
         columns,
         provenance,
         home,
+        liveness,
       }).join('\n')}\n`
-    : renderFullStatus(state, provenance, home)
+    : renderFullStatus(state, provenance, home, liveness)
 
   return ok(stdout, warnings.map((w) => `warning: ${w}`).join('\n'))
 }
@@ -221,6 +245,8 @@ const RESCAN_DEBOUNCE_MS = 150
 export interface StatusWatchModel {
   /** The folded view a render shows. */
   readonly view: StatusView
+  /** What the run lock said at the last look (drive-visibility 2.3). */
+  readonly liveness: RunLiveness | undefined
   /** Scans of the other copies so far — the start's included. */
   readonly scans: number
   /** This checkout's log changed: re-fold against the copies already scanned. */
@@ -232,12 +258,17 @@ export interface StatusWatchModel {
    * stat, and a re-fold only when its size or mtime moved. True when it did.
    */
   pollLocal(): boolean
+  /**
+   * A pulse's look at the run lock: a driver dies without touching the
+   * record, so no watcher event says so. True when the answer changed.
+   */
+  pollLiveness(): boolean
 }
 
 export function createStatusWatchModel(
   ctx: ToolContext,
   resolved: string,
-  options: CopyOptions = {},
+  options: StatusCliOptions = {},
   initial?: CopyScan,
 ): StatusWatchModel {
   const logPath = ctx.eventsPath(resolved)
@@ -259,6 +290,13 @@ export function createStatusWatchModel(
   let seen = stamp()
   let view: StatusView = { state: emptyState(), warnings: [], provenance: null }
   view.state.slug = resolved
+  let liveness: RunLiveness | undefined
+  const probe = (): boolean => {
+    const next = latestRunLiveness(ctx.rootDir, view.state, options.lock)
+    const changed = next !== liveness
+    liveness = next
+    return changed
+  }
   const refold = (): void => {
     seen = stamp()
     try {
@@ -266,11 +304,15 @@ export function createStatusWatchModel(
     } catch {
       // a read error never kills the watch: keep the last view, the next event may heal
     }
+    probe()
   }
   refold()
   return {
     get view() {
       return view
+    },
+    get liveness() {
+      return liveness
     },
     get scans() {
       return scans
@@ -285,6 +327,7 @@ export function createStatusWatchModel(
       refold()
       return true
     },
+    pollLiveness: probe,
   }
 }
 
@@ -312,7 +355,7 @@ export function runStatusWatch(
   rootDir: string,
   slug?: string,
   caps: Caps = stdoutCaps(),
-  options: CopyOptions = {},
+  options: StatusCliOptions = {},
 ): CmdResult | undefined {
   if (!caps.animate) return runStatus(rootDir, slug, caps, undefined, options)
 
@@ -350,6 +393,7 @@ export function runStatusWatch(
       pulse,
       provenance: model.view.provenance,
       home,
+      liveness: model.liveness,
     })
     lines.push('', style.dim('watching — ^C to exit'))
     const rewind = prevRows > 0 ? `\x1b[${prevRows}A\x1b[0J` : ''
@@ -361,7 +405,8 @@ export function runStatusWatch(
   render()
   const timer = setInterval(() => {
     pulse = !pulse
-    model.pollLocal()
+    // A refold re-probes; only an unchanged log needs a look of its own.
+    if (!model.pollLocal()) model.pollLiveness()
     render()
   }, PULSE_MS)
 

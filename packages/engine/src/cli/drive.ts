@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ToolError, createToolContext } from '../mcp/context'
 import { latestRun, stopRequestsInForce } from '../core/fold'
+import { probeRunLock, type RunLiveness, type RunLockOptions } from '../core/run-lock'
 import { describeRun } from '../projections/templates/shared'
 import { ClaudeCodeAdapter } from '../driver/claude-code'
 import { CodexAdapter } from '../driver/codex'
@@ -238,6 +239,8 @@ export interface DriveStopOptions {
   waitMs?: number
   /** Test seam: how often to look (default 500ms). */
   pollMs?: number
+  /** Test seam: where and with which primitive the run lock is probed (drive-visibility 2.3). */
+  lock?: RunLockOptions
 }
 
 /**
@@ -249,6 +252,14 @@ export interface DriveStopOptions {
  * saw: the stop with its reason, or that none came — which is also exactly
  * what a request to a driver that already died looks like, and the command
  * says so rather than guessing which it was.
+ *
+ * Where the run lock CAN tell (drive-visibility 2.3), it does not guess: a
+ * FREE lock means no driver on this machine is left to read a request, so
+ * nothing is appended and the command says so at once; a lock that falls
+ * while it waits, with no stop recorded, ends the wait the same way. The
+ * driver appends `run_stopped` before it lets go of the lock, so the probe
+ * runs first and the fold second — a stop that landed is never mistaken for
+ * a driver that vanished.
  */
 export async function runDriveStop(
   rootDir: string,
@@ -267,6 +278,11 @@ export async function runDriveStop(
       return fail(`sofar drive --stop: nothing to stop — the latest run on "${initiative}" already ended (${describeRun(run)})`)
     }
     runId = run.id
+    if (probeRunLock(rootDir, runId, options.lock) === 'free') {
+      return fail(
+        `sofar drive --stop: run ${runId} on "${initiative}" has no stop, but its driver is gone — the run lock on this machine is free, so no driver is left to read a request and none was appended. ${resumeThenStop(initiative)}`,
+      )
+    }
     // Only requests the run's owner honours count toward escalation (drive-visibility 2.2).
     requests = stopRequestsInForce(run).length + 1
     ctx.appendAndProject(initiative, 'run_stop_requested', { run: runId }, { session: 'cli', source: 'cli', actor: 'human' })
@@ -275,9 +291,16 @@ export async function runDriveStop(
   }
 
   const deadline = Date.now() + (options.waitMs ?? STOP_WAIT_MS)
+  let liveness: RunLiveness
   for (;;) {
+    liveness = probeRunLock(rootDir, runId, options.lock)
     const run = ctx.foldState(initiative).runs.find((r) => r.id === runId)
     if (run?.stopped !== undefined) return ok(`${describeRun(run)}\n`)
+    if (liveness === 'free') {
+      return fail(
+        `sofar drive --stop: stop requested for run ${runId}, but its driver exited without recording a stop — the run lock on this machine is free. ${resumeThenStop(initiative)}`,
+      )
+    }
     if (Date.now() >= deadline) break
     await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? 500))
   }
@@ -291,10 +314,17 @@ export async function runDriveStop(
     stderr: [
       `sofar drive --stop: stop requested for run ${runId}, but no run_stopped within ${Math.round((options.waitMs ?? STOP_WAIT_MS) / 1000)}s.`,
       `A driver waiting on a session signals it and stops once the session exits; ${escalation}.`,
-      `If no driver is running this run, it will never acknowledge — \`sofar drive ${initiative} --resume\` adopts the run, and a --stop after that ends it.`,
+      liveness === 'held'
+        ? 'Its driver is alive — it still holds the run lock on this machine — so the stop lands once its session exits; `sofar status` shows it.'
+        : `If no driver is running this run, it will never acknowledge — \`sofar drive ${initiative} --resume\` adopts the run, and a --stop after that ends it.`,
       '',
     ].join('\n'),
   }
+}
+
+/** The way out for a run whose driver is gone: adopt it, then stop it. */
+function resumeThenStop(initiative: string): string {
+  return `\`sofar drive ${initiative} --resume\` picks the run up; a --stop after that ends it.`
 }
 
 /** The message a detached child sends once its run is certain to start. */

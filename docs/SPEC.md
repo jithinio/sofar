@@ -1367,9 +1367,10 @@ in log order, running or stopped and why, counting only the stop requests
 in force; a record no driver ever ran renders byte-identically to before.
 The full status puts each adoption on the run's handoff timeline and marks
 one that never outranked the adoptions before it.
-`sofar status` lists every run and every handoff, and beside the latest
-unstopped run says `running`, `driver gone` or `liveness unknown` from the
-run lock; sessions/<id>.md names the run that handed the session off.
+`sofar status` — plain, styled and `--watch`, which re-probes on every
+beat because a dying driver touches no file — lists every run and every
+handoff, and beside the latest unstopped run says `running`, `driver gone` or
+`liveness unknown` from the run lock; sessions/<id>.md names the run that handed the session off.
 Liveness is NEVER rendered into a generated file — plan.md, the digest and
 sessions/*.md project the record, and a lock is not in it.
 
@@ -1706,11 +1707,15 @@ committed log, and a reused one signals a stranger), no pid file beside it.
 with no stop, refusing when there is none. When the run lock says the run's
 driver is gone, it appends nothing, says so at once and names `--resume`,
 since a request nobody holds the run to read is the 30s wait below for
-nothing. Otherwise it watches the fold for up to
-30s: a `run_stopped` for that run is reported with its reason; none is
-reported as requested-but-unacknowledged, which is what a request to a driver
-that already died looks like (`--resume` adopts such a run; a later request
-can then stop it). The driver honours a request as it honours ^C, with the
+nothing. Otherwise it watches the fold and the lock for up to
+30s: a `run_stopped` for that run is reported with its reason; a lock that
+goes FREE with none recorded ends the wait at once and says the driver exited
+without a stop (the driver appends its stop before it lets go, and each look
+probes before it folds, so a stop that landed is never read as a vanished
+driver); none is reported as requested-but-unacknowledged — naming the driver
+alive where the lock is still HELD, and otherwise saying this is what a
+request to a driver that already died looks like (`--resume` adopts such a
+run; a later request can then stop it). The driver honours a request as it honours ^C, with the
 same two steps: the FIRST signals the live session and ends the run
 `interrupted` once the handoff is read, the SECOND escalates to SIGKILL. It
 reads requests from the fold before every launch, and during a session from a
@@ -6859,7 +6864,8 @@ stay the underlying derivation's, and exit codes are styling-independent.
   whose run was adopted at a higher epoch launches nothing more, files no
   handoff or stop, and exits 1 once its live session ends; a stop request
   sorting before the owner's adoption is ignored. `--stop` against a FREE
-  lock appends nothing and returns at once. `--await` exits 0 with one line
+  lock appends nothing and returns at once, and one whose lock falls while it
+  waits, with no stop recorded, returns at once too. `--await` exits 0 with one line
   on any `run_stopped` (naming the blocked task and its note for
   `needs_user`), 2 when the lock goes FREE with no stop, and 1 with nothing
   to await; `--follow` prints one line per handoff, task change, adoption,
