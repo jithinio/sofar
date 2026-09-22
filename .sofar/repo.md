@@ -55,6 +55,14 @@
   whatever anyone has staged. Staging by explicit path is not enough.
   Use `git commit -F <msgfile> -- <paths>`. Observed 2026-09-22: typed-judge's
   4.2/4.3 code landed in drive-visibility's record commit d0ebec9.
+- Version bumps touch SIX pins per file (drive-visibility M5): packages/engine/
+  package.json carries `version` plus five sofar-core optional deps
+  (darwin-arm64, darwin-x64, linux-x64, linux-arm64, win32-x64), and
+  package-lock.json repeats all six. Replace the version string GLOBALLY in
+  both, then self-check before committing — parses as JSON, zero occurrences
+  of the old string left, engine version equal to the new one, exactly five
+  sofar-core deps pinned to it. Never `npm install --package-lock-only`: it
+  can reach the network.
 - Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare
   `npm publish` from inside packages/engine) — always run by the USER (OTP
   + permission classifier), agent stages everything up to it. Bare
@@ -180,3 +188,14 @@
   because caffeinate cannot stop clamshell or battery sleep (bench-refresh
   M1). An idle sleep counts against the 120 s spawn timeout, and the cell
   fails with ETIMEDOUT at a random measure. `pmset -g log` shows the sleep.
+- Torn sessions from branch bindings in a shared checkout (roadmap-h2 M1).
+  end_session rehomes the branch binding, so with several sessions on one
+  branch it is last-writer-wins — main moved three times in two hours on
+  2026-09-22. A session's OPENING events land in whatever the binding said at
+  start and stay there when it re-homes, so `sofar doctor` later FAILs with
+  "session spans 2 initiatives (torn, live)". Close it by appending a
+  session_ended for that id to the record holding the strays — an append of a
+  true fact, and the hygiene of the record that HOLDS them, not of the one
+  that owns the session. Avoid it by passing `--initiative` explicitly on
+  every write and doing the write-back with `sofar event append` from a
+  per-initiative worktree.

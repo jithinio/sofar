@@ -2821,6 +2821,7 @@ parse and rewrite:
 | `labels.json` | which standing decision ANYWHERE would a new one reverse | the three decision writers | on a decision append | standing decisions with both clauses ≤600 chars |
 | `graph.json` | who else has touched this path | PostToolUse dedupe, priming line | after a guard MATCHES; once per session | the repo's whole touch history |
 | `reach.json` | what else bears on this | `sofar find` | on a query | prose + terms of every decision and note |
+| `lexicon.json` + `lexicon-p00..31.json` + `lexicon-h.json` | which decision, note or stall anywhere a prompt's words reach (memory-lead 3.1, D15) | UserPromptSubmit shim | every prompt; rewritten only when a decision, note or stall handoff arrived | doc table: one line per doc; postings: 32 term-hash shards, a query reads its own; heads: read only to render |
 
 Read frequency, not taste, draws these lines — and they coincide with D2's
 authority split, which is usually what a real boundary looks like. Measured
@@ -4579,6 +4580,47 @@ fires, and a Codex session is Tier 3 (§Host tiers).
   environment variable `SOFAR_LESSONS=off` (also `0`, `false`) disables the
   line: the ablation switch round 2 uses to price the line's tokens on their
   own, never the default.
+  REPO-WIDE FROM THE LEXICON TIER (memory-lead 3.1, D15) — the default since
+  3.1; everything above is now the FOLD PATH, used only when
+  `SOFAR_LESSONS=fold` (the ablation arm pricing the index apart from the
+  line, r1-fixes D5) or when the tier cannot be read. The tier
+  (core/index-lexicon.ts, `.sofar/.index/lexicon*.json`) holds every
+  decision (chose + over + because, clipped to 1,200 chars), every note (1,200)
+  and every stall handoff's detail in the repo, as BM25 postings computed once,
+  when the event is indexed. It has THREE PARTS sharing one `gen`:
+  - `lexicon.json`, the per-initiative doc table the incremental pass
+    maintains. Each doc is one line: `k\tid\tts\tlen\tn\tuntil`.
+  - `lexicon-p<nn>.json`, the postings in 32 shards picked by FNV-1a over the
+    term's UTF-8 bytes, masked to 5 bits. Each initiative's postings are one
+    string of `\n<term>\t<doc>:<tf>[!],…` lines, base 36, where `!` marks a
+    term in the decision's `over`.
+  - `lexicon-h.json`, the render heads, 200 chars.
+  The shards and heads are written first and the table last. A shard whose
+  `gen` differs from the table's is stale: the reader falls back to the fold
+  path and drops the table, so the next refresh rebuilds all three. Postings
+  are append-only. IDF and average length run over the whole corpus, retired
+  docs included. Out-of-force docs are dropped after scoring:
+  - this record's retired decisions, by retiredOrdinals;
+  - another record's superseded decisions, by the tier's own marks (stamped id
+    first, memory-lead D12);
+  - another record's `until`-scoped decisions, outright;
+  - another record's stall handoffs.
+  A decision renders as `sofar: ruled out before — [<h>] <over>` when at
+  least half its score came from words in its `over` (LESSON_OVER_SHARE);
+  otherwise as `sofar: decided before — [<h>] chose <chose>`. A note renders as
+  `sofar: noted before — [note <date>] <text>` (`[<slug> note <date>]` from another record). <h> is `D<n>` in this
+  record and `<slug> D<n>` in another, whose line points at
+  `<slug>/decisions.md`. The line cap, the ≥2-term rule, the young-record
+  rule and the runner-up ratio are unchanged. The score floor scales with the
+  corpus: 2 × ln(1 + (N − 0.5)/1.5), the score of two terms as rare as a term
+  can be, and never below 1.5 (13.0 at this repo's 1,017 docs, 2026-09-22,
+  where re-proposals scored 13.1–18.2 and prompts naming nothing topped out
+  at 11.3). A lesson is TOLD ONCE per session (core/told, subject `prompt`,
+  keyed by event id; a lost set re-tells and compact or clear empties it). A
+  command_run or file_touched never rewrites the tier; only its cursors move.
+  Measured in-process on this repo: a warm refresh takes 0.4 ms, and a refresh
+  plus ranking takes 1.2 ms, against the fold path's ~1.5 ms at 17 decisions.
+  The end-to-end D18 check belongs to rust-core's 3.4, after the smokes.
   The same shim also emits the PARALLEL-WRAP line (record-integrity 4.2),
   independently of the drift nudge — both may appear, newest first. It fires
   when another session in this initiative ENDED with a real write-back

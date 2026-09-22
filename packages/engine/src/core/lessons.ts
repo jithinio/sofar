@@ -1,4 +1,5 @@
 import type { InitiativeState } from './fold'
+import { lexiconHeads, lexiconSuperseded, rankLexicon, type LexiconDoc, type LexiconIndex } from './index-lexicon'
 import { lexicalCounts, rankLexical, type LexicalDoc } from './lexicon'
 import { retiredOrdinals } from './retire'
 
@@ -19,18 +20,32 @@ import { retiredOrdinals } from './retire'
  * reader can argue with it. The claim stays weak and the surface says so:
  * "ruled out before", never "you are wrong".
  *
- * Bounded on the hot path (D6): the docs are THIS initiative's decisions and
- * handoffs, tokenized in-process from the fold the prompt hook already has —
- * no file beyond the log is read, and a record of 100 decisions costs a few
- * milliseconds. Two lines at most, and none unless a lesson shares at least
+ * Two corpora (memory-lead 3.1, D15). By default the lexicon tier
+ * (core/index-lexicon.ts): every decision, note and stall handoff in the
+ * repo, terms precomputed, ~1 ms per prompt at 1,000 docs. With
+ * `SOFAR_LESSONS=fold`, or when the tier is unreadable, THIS initiative's
+ * last 60 decisions and its handoffs, tokenized in-process from the fold the
+ * prompt hook already has (D6) — a few milliseconds at 100 decisions. Two lines at most, and none unless a lesson shares at least
  * two of the prompt's terms with a score past the floor, so one common word
  * is never a match and 'continue' matches nothing.
  */
 
+/**
+ * What a lesson says about the record (memory-lead 3.1, D15): a decision the
+ * prompt's words reach through its `over` was RULED OUT; one reached through
+ * its subject was DECIDED; a note was NOTED; a stall handoff FAILED.
+ */
+export type LessonKind = 'rejected' | 'decided' | 'noted' | 'failure'
+
 export interface Lesson {
-  /** `D<n>` for a decision, `session <id>` for a failure. */
+  kind: LessonKind
+  /** `D<n>` / `<slug> D<n>` for a decision, `note <date>` for a note, `session <id> (stall)` for a failure. */
   handle: string
-  /** What to render: the decision's `over`, or the handoff's detail. */
+  /** The initiative it lives in, when another record's (memory-lead 3.1). */
+  initiative?: string
+  /** Event id of what it came from — the told key (D15). Absent on the fold path. */
+  key?: string
+  /** What to render: the decision's `over` or `chose`, the note, or the handoff's detail. */
   text: string
   /** The prompt's own words that carried the match, strongest first. */
   terms: string[]
@@ -71,7 +86,12 @@ export const LESSON_PROMPT_CHARS = 2_000
 export const LESSON_DOC_CAP = 60
 /** Prose per lesson tokenized — the subject and the rejection are in the first lines. */
 export const LESSON_DOC_CHARS = 1_200
-/** Env switch: `SOFAR_LESSONS=off` disables the line — round 2's ablation arm (D18). */
+/**
+ * Env switch: `SOFAR_LESSONS=off` disables the line — round 2's ablation arm
+ * (D18). `SOFAR_LESSONS=fold` keeps the line but ranks the fold's last 60
+ * decisions instead of the lexicon tier (memory-lead 3.1, D15): the arm that
+ * prices the index apart from the line it extends (r1-fixes D5).
+ */
 export const LESSONS_ENV = 'SOFAR_LESSONS'
 
 /** Whether the lessons line is enabled in this environment. */
@@ -80,7 +100,40 @@ export function lessonsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return !(v === 'off' || v === '0' || v === 'false')
 }
 
+/** Which corpus the line ranks: the repo-wide lexicon tier, or the fold alone. */
+export function lessonsSource(env: NodeJS.ProcessEnv = process.env): 'index' | 'fold' {
+  return env[LESSONS_ENV]?.trim().toLowerCase() === 'fold' ? 'fold' : 'index'
+}
+
+/**
+ * A decision renders as RULED OUT when at least this share of its match came
+ * from words in its `over` (D15). At the share the old line's behaviour holds —
+ * it always rendered `over` — and a prompt that only names the subject gets
+ * the choice that stands instead.
+ */
+export const LESSON_OVER_SHARE = 0.5
+
+/**
+ * The indexed path's score floor, in RAREST TERMS: a lesson must score at
+ * least what this many terms each as rare as a term can be would score
+ * (D15). BM25 weights a word by ln(N), so LESSON_MIN_SCORE — calibrated on
+ * r1-fixes 3.3's 60-decision corpus — admits two common words once the
+ * corpus is the whole repo. Measured on this repo's 1,017 docs (2026-09-22):
+ * re-proposals of standing rejections scored 13.1–18.2, and prompts that
+ * re-proposed nothing ("fix the failing test in fold.ts", "update the
+ * README", "let's look at the statusline code") topped out at 8.2–11.3; the
+ * floor at 2 is 13.0.
+ */
+export const LESSON_INDEX_RARE_TERMS = 2
+
+/** The indexed path's floor for a corpus of `docs` (LESSON_INDEX_RARE_TERMS). */
+export function indexFloor(docs: number): number {
+  const rarest = Math.log(1 + (docs - 0.5) / 1.5)
+  return Math.max(LESSON_MIN_SCORE, LESSON_INDEX_RARE_TERMS * rarest)
+}
+
 interface LessonDoc extends LexicalDoc {
+  kind: LessonKind
   handle: string
   text: string
 }
@@ -109,6 +162,7 @@ function lessonDocs(state: InitiativeState, retire: boolean): LessonDoc[] {
       ts: d.ts,
       terms,
       tokens: Object.values(terms).reduce((a, b) => a + b, 0),
+      kind: 'rejected',
       handle: `D${ordinal}`,
       text: d.over,
     })
@@ -122,6 +176,7 @@ function lessonDocs(state: InitiativeState, retire: boolean): LessonDoc[] {
       ts: h.ts,
       terms,
       tokens: Object.values(terms).reduce((a, b) => a + b, 0),
+      kind: 'failure',
       handle: `session ${s.id} (${h.reason})`,
       text: h.detail,
     })
@@ -146,7 +201,78 @@ export function relevantLessons(state: InitiativeState, prompt: string, retire =
     if (out.length > 0 && m.score < out[0]!.score * LESSON_RUNNER_UP_RATIO) break
     const doc = byId.get(m.id)
     if (doc === undefined) continue
-    out.push({ handle: doc.handle, text: doc.text, terms: m.terms, score: m.score })
+    out.push({ kind: doc.kind, handle: doc.handle, text: doc.text, terms: m.terms, score: m.score })
+    if (out.length >= LESSON_MAX) break
+  }
+  return out
+}
+
+/** The date part of an envelope ts — how a note is named, having no ordinal. */
+function day(ts: string): string {
+  return ts.slice(0, 10)
+}
+
+function lessonOf(index: LexiconIndex, slug: string, home: string, doc: LexiconDoc, overShare: number): Omit<Lesson, 'terms' | 'score'> {
+  const heads = lexiconHeads(index, slug, doc)
+  const foreign = slug !== home
+  const scope = foreign ? { initiative: slug } : {}
+  const prefix = foreign ? `${slug} ` : ''
+  if (doc.k === 'd') {
+    const rejected = overShare >= LESSON_OVER_SHARE
+    return {
+      kind: rejected ? 'rejected' : 'decided',
+      handle: `${prefix}D${doc.n}`,
+      key: doc.id,
+      text: (rejected ? heads.over : heads.chose) ?? '',
+      ...scope,
+    }
+  }
+  if (doc.k === 'n') return { kind: 'noted', handle: `${prefix}note ${day(doc.ts)}`, key: doc.id, text: heads.text ?? '', ...scope }
+  return { kind: 'failure', handle: `session ${heads.session ?? '?'} (stall)`, key: doc.id, text: heads.text ?? '' }
+}
+
+/**
+ * The lessons a prompt reaches across the WHOLE record (memory-lead 3.1, D15):
+ * every decision, note and stall handoff in the lexicon tier, with the same
+ * floors, runner-up ratio and cap as the fold path, so the index widens what
+ * can match without loosening what counts as one.
+ *
+ * Out of force is dropped after scoring, never before: this record's retired
+ * decisions by the fold (which also knows which `until` tasks resolved);
+ * another record's by the tier's supersession marks, and its until-scoped
+ * decisions outright, since the tier does not know whether their task
+ * resolved. Another record's stall handoffs are its own business. `told`
+ * holds the event ids this session was already shown (core/told), so a
+ * lesson is said once and the runner-up gets the slot.
+ */
+export function indexedLessons(
+  index: LexiconIndex,
+  state: InitiativeState,
+  home: string,
+  prompt: string,
+  told: ReadonlySet<string> = new Set(),
+  retire = true,
+): Lesson[] {
+  const query = prompt.slice(0, LESSON_PROMPT_CHARS)
+  if (query.trim().length === 0) return []
+  const retiredHere = retire ? retiredOrdinals(state) : new Set<number>()
+  const keep = (slug: string, doc: LexiconDoc): boolean => {
+    if (told.has(doc.id)) return false
+    if (doc.k === 'f') return slug === home
+    if (doc.k !== 'd' || !retire) return true
+    if (slug === home) return !retiredHere.has(doc.n!)
+    return doc.until === undefined && !lexiconSuperseded(index, slug, doc.n!)
+  }
+  const { matches, docs } = rankLexicon(index, query, Number.MAX_SAFE_INTEGER, keep)
+  if (docs === 0) return []
+  const small = docs < LESSON_SMALL_RECORD
+  const minTerms = small ? LESSON_MIN_TERMS_SMALL : LESSON_MIN_TERMS
+  const minScore = small ? 0 : indexFloor(docs)
+  const out: Lesson[] = []
+  for (const m of matches) {
+    if (m.terms.length < minTerms || m.score < minScore) continue
+    if (out.length > 0 && m.score < out[0]!.score * LESSON_RUNNER_UP_RATIO) break
+    out.push({ ...lessonOf(index, m.slug, home, m.doc, m.overShare), terms: m.terms, score: m.score })
     if (out.length >= LESSON_MAX) break
   }
   return out

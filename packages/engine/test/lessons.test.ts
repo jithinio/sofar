@@ -181,6 +181,9 @@ describe('bounded and switchable (r1-fixes D18)', () => {
   it('SOFAR_LESSONS=off renders no lessons line; the default and any other value keep it', () => {
     const f = fx()
     register(f)
+    // A lesson is told once per session (memory-lead 3.1, D15), so each
+    // setting that should render one asks from a session not yet told.
+    register(f, 'claude-sess-2')
     decided(f)
     const text = 'let us rewrite the committed log to scrub that credential'
     const was = process.env.SOFAR_LESSONS
@@ -190,7 +193,7 @@ describe('bounded and switchable (r1-fixes D18)', () => {
       process.env.SOFAR_LESSONS = 'on'
       expect(handleUserPrompt(f.root, prompt(text)).stdout).toContain('ruled out before')
       delete process.env.SOFAR_LESSONS
-      expect(handleUserPrompt(f.root, prompt(text)).stdout).toContain('ruled out before')
+      expect(handleUserPrompt(f.root, prompt(text, 'claude-sess-2')).stdout).toContain('ruled out before')
     } finally {
       if (was === undefined) delete process.env.SOFAR_LESSONS
       else process.env.SOFAR_LESSONS = was
