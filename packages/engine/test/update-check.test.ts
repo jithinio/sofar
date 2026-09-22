@@ -122,7 +122,14 @@ describe('update cache', () => {
   })
 
   it('survives a state dir it cannot write, rather than failing the command', () => {
-    const env: Env = { XDG_STATE_HOME: '/proc/definitely-not-writable' }
+    // A state dir UNDER a regular file: ENOTDIR at once, on every platform and
+    // as root. Never a path under /proc — on Linux, mkdirSync({ recursive })
+    // there gets ENOENT for the child and EEXIST for /proc and retries forever,
+    // a sync loop no test timeout can interrupt (CI's `test` job hung 6 hours).
+    const { state } = sandbox()
+    const file = join(state, 'a-file')
+    writeFileSync(file, '', 'utf8')
+    const env: Env = { XDG_STATE_HOME: join(file, 'state') }
     expect(() => writeUpdateCache(cacheAt('0.17.3', '2026-08-05T00:00:00.000Z'), env)).not.toThrow()
   })
 })

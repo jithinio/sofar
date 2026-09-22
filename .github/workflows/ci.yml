@@ -15,9 +15,18 @@ on:
         required: true
         default: '0.32.0'
 
+# Many sessions push record-only commits to main; a newer push supersedes the
+# run of an older one instead of queueing behind it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    # The suite runs in minutes. A sync loop no vitest timeout can interrupt
+    # (the /proc mkdir hang, 2026-09-21) otherwise holds the job to GitHub's 6 h cap.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,6 +44,7 @@ jobs:
   read-paths:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
