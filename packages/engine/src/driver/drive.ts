@@ -11,6 +11,7 @@ import {
 } from '@sofar/schema'
 import type { InitiativeState, PhaseState } from '../core/fold'
 import { latestRun } from '../core/fold'
+import { claimRunLock, probeRunLock, type RunLock, type RunLockOptions } from '../core/run-lock'
 import { createToolContext, ToolError } from '../mcp/context'
 import type { NudgeDetail } from './nudge'
 import { describeSurface, sameSurface, type PermissionSurface } from './permissions'
@@ -337,6 +338,8 @@ export interface DriveOptions {
   resume?: boolean
   /** Test seam: how often a waiting driver looks for a stop request (default STOP_POLL_MS). */
   stopPollMs?: number
+  /** Test seam: where and with which primitive the run lock is taken (drive-visibility 2.1). */
+  lock?: RunLockOptions
   /**
    * Called once the run is CERTAIN to start — after run_started (or the
    * adoption of a resumed run) and after every opening line has been
@@ -537,11 +540,35 @@ export function renderPrompt(
  * to be unwound); once `run_started` is in the log every ending — including an
  * unexpected one — leaves a `run_stopped` behind it, because a run with no
  * stop is a run the next driver has to ask the operator about.
+ *
+ * The run lock (drive-visibility D2) is released HERE, after the loop has
+ * returned or thrown: the loop appends `run_stopped` before it returns, so no
+ * reader ever sees the lock free on a run that is still open. A driver that
+ * dies instead lets the kernel release it.
  */
 export async function drive(
   rootDir: string,
   slug: string | undefined,
   options: DriveOptions,
+): Promise<DriveOutcome> {
+  const held: RunLock[] = []
+  try {
+    return await driveHolding(rootDir, slug, options, held)
+  } finally {
+    for (const lock of held) lock.release()
+  }
+}
+
+/** The refusal while another driver on this machine holds the run — it names the two moves that act on it. */
+function heldRefusal(initiative: string, runId: string): string {
+  return `sofar drive: run ${runId} on "${initiative}" is being driven right now — a driver on this machine holds its run lock. \`sofar status ${initiative}\` shows how far it has got; \`sofar drive ${initiative} --stop\` ends it.`
+}
+
+async function driveHolding(
+  rootDir: string,
+  slug: string | undefined,
+  options: DriveOptions,
+  held: RunLock[],
 ): Promise<DriveOutcome> {
   const ctx = createToolContext(rootDir)
   const initiative = ctx.resolveInitiative(slug)
@@ -596,10 +623,18 @@ export async function drive(
   // then declined to start would have been told about a run that never was.
   const opening: string[] = []
   if (resuming) {
+    // What the record cannot tell, the run lock can — on the machine that ran
+    // it (drive-visibility D2). Held refuses even --resume: a second driver
+    // on one run is the thing the lock exists to prevent. Absent keeps the
+    // record's own words, since it means liveness is unknown, never gone.
+    const liveness = probeRunLock(rootDir, last.id, options.lock)
+    if (liveness === 'held') throw new ToolError('invalid_input', heldRefusal(initiative, last.id))
     if (options.resume !== true) {
       throw new ToolError(
         'invalid_input',
-        `sofar drive: run ${last.id} on "${initiative}" has no stop — either a driver is still running it or one died mid-run, and the record cannot tell which. Re-run with --resume to pick it up.`,
+        liveness === 'free'
+          ? `sofar drive: run ${last.id} on "${initiative}" has no stop and its driver is gone — the run lock on this machine is free. Re-run with --resume to pick it up.`
+          : `sofar drive: run ${last.id} on "${initiative}" has no stop — either a driver is still running it or one died mid-run, and the record cannot tell which. Re-run with --resume to pick it up.`,
       )
     }
     priorSessions = last.handoffs.length
@@ -699,6 +734,20 @@ export async function drive(
     // it is a preflight error like a bad --permission-mode.
     if (err instanceof RouteError) throw new ToolError('invalid_input', `sofar drive: ${err.message}`)
     throw err
+  }
+
+  // The run lock (drive-visibility D2), after every other refusal and before
+  // run_started, so no reader sees this run without it. On a resume the claim
+  // is also the fence: two `--resume`s that both probed a free lock race here,
+  // and the loser is refused before it records anything.
+  const claim = await claimRunLock(rootDir, runId, options.lock)
+  if (claim.kind === 'held') throw new ToolError('invalid_input', heldRefusal(initiative, runId))
+  if (claim.kind === 'claimed') {
+    held.push(claim.lock)
+  } else {
+    opening.push(
+      `warning: liveness unavailable for this run — ${claim.why}. \`sofar status\` will say liveness unknown, and nothing on this machine refuses a second driver on it`,
+    )
   }
 
   if (!resuming) {
