@@ -61,6 +61,7 @@ Standing constraints — obey verbatim (10):
 - [D3] An adapter never reports record state: wrote_back and the launched session's identity are derived from the fold, and when several candidate sessions exist the driver records a stall rather than guessing.
 - [D13] PERMISSION_MODES must carry every mode the target agent's own `--permission-mode` advertises (check `claude --help`), and every mode in it must map in codex's SANDBOX_BY_MODE — a mode sofar refuses is a mode no operator can reach.
 - …and 3 more (see decisions.md)
+- …and 84 more from other records (their decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
@@ -240,6 +241,13 @@ Adjacency, not aboutness — offered as worth reading, never as a rule.
 
 Session: aefa6315-3725-4e4d-9f9a-224ff6f86ddb — adopted on Claude Code; else pass to sofar_start_session.
 Git: main @ c0ffee0 — in sync with origin/main
+
+Repo-wide rules from other records (4 of 94, most relevant first):
+- [bench-refresh D10] Every sofar fallback or failure seen in a run (driver stall, hook block, tool error, truncation, workaround) is a loss-study row with evidence and a ranked fix; a fix's predicted gain is written before it is built and checked in the next round.
+- [session-driver D5] Driver handoff reasons are derived from the fold — needs_user is the named task in status `blocked`, task_done needs a write-back AND a terminal task status; never infer a reason from write-back prose or an exit code.
+- [in-session-drive D1] A driven run started from inside an agent session must be detached from that agent's process, must state its preflight refusals and D9 warnings to the caller before returning, and must refuse while the calling session is registered on the driven initiative with no write-back.
+- [session-driver D14] `--cost-cap` and `--max-sessions` bound ONE driver, not one run: a resumed run restarts the cap at zero and counts its session budget from recorded handoffs alone. Never describe either as a run-wide guarantee, and keep the resume warnings that say so.
+- …and 90 more in other records (their decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 

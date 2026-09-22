@@ -1,5 +1,17 @@
 # Render-parity manifest (rust-core D11)
 
+Re-recorded at **main 72146d9** (rust-core merge 9614860). One golden was
+added and one renamed; the other 95 are byte-identical:
+- `fold-parity.cases.FP-11-run-adoption-fencing` (new, drive-visibility 2.2):
+  `resumed (epoch 3)` in both run lines, only the stop request after the
+  owner's adoption in force, and adoptions interleaved with handoffs in the
+  full status (runDetailLines).
+- `fold-parity.cases.FP-12-session-lifecycle-out-of-order` (was FP-11,
+  renamed by rust-core D30): the option variants
+  hash the case id, so the renamed case renders under different git,
+  neighbour and notice variants. Its fold is unchanged.
+The previous set is kept as `golden-2baf63e-rc.2/`.
+
 Re-recorded from the TypeScript templates at **rust-core 17817db** (the
 wave-a merge): every one of the 94 goldens changed, all in `renderStatus` —
 memory-lead D4's composition (the next task's spec first; memory, repo memory,

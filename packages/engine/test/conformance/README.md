@@ -82,6 +82,9 @@ rewritten fails the case regardless of the golden.
 `golden/` is THE set the suite compares against, recorded from the pinned
 TypeScript commit named in `golden/MANIFEST.md`, which also gives a one-line
 reason for every golden that changed at the last re-record (rust-core D11).
+Since rust-core tracks trunk (2026-09-22), the named commit is a main
+commit, and each re-record keeps the set before it as
+`golden-<previous sha>-<label>/`, e.g. `golden-2baf63e-rc.2/`.
 `golden-0.33.0-rc.1/` (r1-fixes 179b8fd, the RC as shipped) and
 `golden-0.32.0-as-shipped/` (this repository at 7535e75) are history: the
 same cases recorded from those engines, kept so each re-pin's intentional

@@ -1,0 +1,643 @@
+== options (37464 bytes) ==
+{
+  "plain": {},
+  "hook": {
+    "sessionId": "r1-fixes-session",
+    "git": {
+      "branch": "feature/r1-fixes",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 3,
+        "decisions": 7
+      },
+      {
+        "initiative": "beta",
+        "paths": 1,
+        "decisions": 1
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare."
+    ]
+  },
+  "lane": {
+    "lane": true,
+    "sessionId": "lane-session",
+    "git": {
+      "branch": "feature/r1-fixes",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    }
+  },
+  "quiet": {
+    "activity": false,
+    "sessionId": " quiet-session\t"
+  },
+  "cap": {
+    "sessionId": "r1-fixes-session",
+    "git": {
+      "branch": "feature/r1-fixes",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 3,
+        "decisions": 7
+      },
+      {
+        "initiative": "beta",
+        "paths": 1,
+        "decisions": 1
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare.",
+      "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    ]
+  }
+}
+== status (26266 bytes) ==
+# r1-fixes
+
+Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
+Progress: 0/18 tasks done (0%) across 4 phase(s)
+
+Phases:
+- Phase 1 — Wave 1: correctness and quick wins [active] 0/6
+  - [ ] 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split sessions.
+  - [ ] 1.2 Session registration race: make hook registration idempotent under parallel hooks (event.ts:713-715; Cursor fires hooks in parallel). PREDICT: 0 duplicate session_started in round-2 cursor cells.
+  - [ ] 1.3 CLI agents: `sofar event types` payload reference; plan, phase and goal lines plus 'one initiative per project/roadmap' in the AGENTS block (init.ts:572-631); accept any --source (envelope.ts:17). PREDICT: Codex S1 −13 tool calls; Codex and Cursor make a project initiative WITH a plan in ≥2/3 reps.
+  - [ ] 1.4 Formatter defence: doctor check and fix for Biome (plus Prettier and markdownlint hazards); write .mcp.json in a formatter-friendly shape (init.ts:1118). PREDICT: agent edits to biome.json or .mcp.json reformatting 3/7 → 0.
+  - [ ] 1.5 stdin/file input for `sofar remember` and `sofar event --payload`, quoted-heredoc examples, `remember --supersedes`. PREDICT: shell-mangling corrections → 0.
+  - [ ] 1.6 Drive diagnostics: carry the adapter's stderr tail, failure or spawn error into the stall note (drive.ts:776, adapter exit record). PREDICT: every launch failure names its cause.
+- Phase 2 — Wave 2: less bookkeeping, leaner context [pending] 0/6
+  - [ ] 2.1 Next D/M ids in the digest; drop the standing-constraint echo from update_task responses; batch task updates into end_session; MCP server instructions to load core tools in one ToolSearch. PREDICT: sofar share of tool calls 32–38% → ≤20%, −3 to −5 turns per session.
+  - [ ] 2.2 Deduplicate the digest (rejected approaches vs decision `over` text; constraints vs rules), index-first ≤6k chars with details on demand. PREDICT: S2+ digest −25% chars, no C2/C3 loss.
+  - [ ] 2.3 Cache-stable layout: static prefix first, no volatile values at the top, changing reminders late via UserPromptSubmit. PREDICT: cache-creation tokens per session −15%.
+  - [ ] 2.4 Tool surface: trim descriptions (repeated `initiative` text in ~10 tools); review, close and find CLI-first. PREDICT: MCP schemas 14.8k → ≤8k chars.
+  - [ ] 2.5 Automatic capture through hooks: commits (task-id prefix), test pass/fail, files, errors recorded deterministically from PostToolUse/Stop; the model logs only why. PREDICT: sofar MCP/CLI calls per session −40%.
+  - [ ] 2.6 Quick-work lane: ad-hoc fixes land in a standing per-repo maintenance record with no `sofar new`/plan ceremony, auto-captured by hooks, plus one line of why only when a decision was made; promote to an initiative when it grows. PREDICT: overhead ratio on 1–3 minute fixes ≤ 15% of task tokens with the fix recalled later.
+- Phase 3 — Wave 3: new capabilities [pending] 0/3
+  - [ ] 3.1 Verification-gated drive: run the task's acceptance command before accepting task_done; failures go into the next handoff. PREDICT: drive final pass rate +5 pts over round-1 drive.
+  - [ ] 3.2 Decision counters plus supersession/valid_until so stale decisions leave the digest without a model. PREDICT: C3 no worse at −10% digest.
+  - [ ] 3.3 Relevant-lessons injection: keyword/BM25 match of rejected approaches and past failures at UserPromptSubmit, no model. PREDICT: C3 +5 pts.
+- Phase 4 — Release [pending] 0/3
+  - [ ] 4.1 Fold in round 1's own loss-study rows (bench-refresh 4.1) as added tasks, each with a predicted gain
+  - [ ] 4.2 Release candidate: full test suite, SPEC acceptance criteria, then the run owner publishes to npm
+  - [ ] 4.3 Hand the release to bench-refresh round 2, with the quick-work addendum chain frozen before it runs
+
+Next action: Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
+
+⚠ Staleness:
+- last write-back summary exceeds the SessionStart budget (450 chars) and is clipped there — full text in sessions/codex-r1-audit-20260915-01.md
+
+Last session (codex, ended 2026-09-15T15:48:08.237Z):
+  # r1-fixes: technical direction and competitive audit
+Date: 2026-09-15. Audit only. Recommendations below are not adopted decisions or implementation changes.
+
+## Verdict
+Keep the initiative. It targets real friction and follows established context/harness engineering practice, but its present plan does not establish industry leadership. The strongest opportunity is to combine low bookkeeping, precise decision history, cross-agent continuity, and completion backed by independent, replayable evidence. Leadership must be measured against direct memory/harness competitors as well as native agent memory.
+
+Scope: all 18 r1-fixes tasks; bench-refresh goal, decisions and frozen round-1 pre-registration; self-improve dependencies; targeted engine/schema/SPEC reads; primary-source research. Main baseline was 8b4c33c. The separate implementation worktree had task 1.1 committed as 7f097a9 and task 1.2 active. Main's 0/18 projection was behind that worktree. I independently ran first-session-notice.test.ts in the implementation worktree: 8/8 passed. That validates the targeted behavior, not the predicted token savings. No implementation, plan, task status, benchmark, install or release changes made by this audit. The unfinished 1.2 patch was not certified.
+
+## Highest-priority findings
+
+### A1 — Verification needs a persisted acceptance contract (task 3.1)
+Today driver/drive.ts computes handoffReason after folding the record, with no independent acceptance check. queuedTasks only includes active/pending tasks; handoffReason can observe any newly resolved task, including dropped tasks, rather than exclusively the assigned task. A newly added check that merely prints failure would leave an agent-marked done task outside the next queue and could skip it on restart.
+
+Specify task acceptance independently from the agent's completion claim. Evidence should identify task, attempt, command/arguments, working directory, checked code state (including relevant uncommitted changes), validator definition/version, result, timeout and diagnostics. A pass must become invalid when the checked inputs change. Persist the verification result through packages/schema and derive queue eligibility from it. Define task-policy versus threshold-policy multi-task behavior, failed-check retries, crash during verification, interrupted runs, missing checks and deliberately dropped tasks. Never equate dropped with acceptance-tested success.
+
+Use operator-approved commands; do not accidentally execute them under broader permissions than the launched agent. A local acceptance check is not the hidden benchmark evaluator. Protected evaluation belongs outside the agent's writable checkout; a checksum detects a changed evaluator but does not by itself prevent the agent reading it.
+
+Proof: false completion, a failing check followed by restart, successful check followed by code changes, sibling task completion, missing binary, timeout, killed validator, and multiple tasks under threshold policy.
+
+### A2 — Automatic capture overlaps another initiative and contradicts commit policy (2.5, 2.6, self-improve 1.2)
+docs/SPEC.md, Commit attribution, explicitly derives commit evidence from Git and never records commit events. Its Hooks contract exempts git/sofar commands to keep the tree settleable. Task 2.5's literal proposal to record commits can reintroduce the cycle where committing the record immediately dirties it again. Keep Git attribution derived unless an explicit Decision replaces that contract. A task-id prefix alone is ambiguous across initiatives; retain initiative identity and existing trailers.
+
+Files and shell commands already have mechanical capture. What is missing is normalized outcome evidence, not a new parallel capture system. self-improve 1.2 separately owns exit codes, is_error and failure hooks. Assign one schema/implementation owner and make the other initiative consume it.
+
+Capture observed outcomes, not guessed success. A successful shell invocation is not necessarily a passing test suite; shell composition, background processes and command wrappers complicate attribution. Use structured runner output where available, and represent unavailable outcomes as unknown. Redact and bound errors BEFORE the append-only record. Keep optional unsynced local statistics separate from durable record truth; gitignored is not equivalent to excluded from sofar sync.
+
+Publish a per-host capability matrix and truthful fallbacks. Claude and Cursor hooks differ; the existing CLI-only protocol explicitly says some hosts lack write-back enforcement. Do not market universal automatic capture until each claimed host passes conformance fixtures.
+
+### A3 — Decision expiry can silently erase rules or break replay (3.2)
+The SPEC requires stable injection for unchanged records and standing rules that do not age out. If renderStatus evaluates valid_until against wall-clock time, identical events render differently tomorrow. If counters decay standing rules, an important rarely-used rule can disappear.
+
+Use immutable event identities for references, explicit supersession links, retained history, and separate statuses for active, superseded, expired and conflicted material. An authorized explicit transition can change a standing rule; low retrieval frequency cannot. If time-based validity is desired, define a recorded evaluation boundary or a new expiry event so replay remains explainable. A different live-clock contract requires an explicit SPEC decision first. Concurrent incompatible replacements should surface conflict rather than silently choose a winner.
+
+ACE and temporal graphs are useful prior art, but neither establishes that raw frequency counters measure a decision's correctness.
+
+### A4 — Publication currently precedes the evidence gate (4.2–4.3)
+The plan puts owner npm publication in 4.2 before handing the release to round 2 in 4.3, while the goal requires D19 evidence before shipping. Distinguish an immutable release candidate used in the benchmark from a stable release promoted after the gate. Proposed sequence: acceptance suite -> frozen candidate -> chain-A validation/ablations -> sealed chain-B and addendum evaluation -> verdict -> owner publication.
+
+D19 needs an executable comparison rule. Orient lower-is-better metrics correctly; track both absolute performance and margins, because holding a negative margin still means losing. Report win, loss, parity and inconclusive, with uncertainty. Three repeated chains are an initial signal, not assurance that a five-point gain is real; tests within a chain are correlated. Any reinterpretation of D19's exact no-shrinking rule requires a new owner decision, not an audit silently weakening it.
+
+The current round-1 pre-registration already correctly reports all three repetitions, avoids p-values, separates costs by agent and forbids public tuning-set claims. Preserve it unchanged. C6/C7/C8 are deferred addenda, so an all-eight-claims gate needs those evaluations or must explicitly report them unmeasured.
+
+### A5 — The comparison set misses direct competitors
+The frozen round-1 matrix is useful for native-memory comparisons, but cannot support an industry-wide lead claim. Add appropriately scoped round-2 or subsequent pre-registered comparisons against Beads and PROJECTMEM; consider OpenMemory as a memory-layer arm and Letta Code as a separate full-harness comparison. Use standard recommended setups and disclose extra inference/infrastructure. Keep model and effort fixed within a memory comparison; compare full harnesses separately when equivalence is impossible.
+
+Native memories, git history and shared profiles need fresh isolation per independent chain. Re-pin competitors at round boundaries, never mid-round. Also re-run the previous sofar release against the same new competitor snapshot: otherwise a changed model or competitor version is confounded with the effect of r1-fixes.
+
+### A6 — Smaller context is a constrained optimization (2.1–2.4, 3.3)
+A 6k-character target is a hypothesis, not a universally correct context budget. Protect exact relevant standing constraints, current task, blockers, unresolved verification failures, decision identity and next action. Deduplicate using IDs/fields, not approximate semantic similarity that can erase different scope or negation. Overflow should point to exact retrievable evidence. Assess total episode cost, including extra fetches, tool discovery and rework.
+
+The current update_task constraint echo deliberately resurfaces rules at the moment work begins. Removing it needs an alternative point-of-use signal and an ablation; it is not necessarily pure duplication. Similarly, CLI-first review/close/find can trade schema bytes for shell/discovery calls.
+
+Stable prefixes are sound practice, but sofar does not control the whole host prompt, provider cache key, TTL or model routing. Measure actual cached/uncached input, output, latency and total cost within the same host. Moving reminders later can help stability, but must still work when drive has no new user prompts. Char count is a transport constraint, not a token/cost metric.
+
+## Audit of every task
+
+| Task | Assessment | Required completion evidence or adjustment |
+|---|---|---|
+| 1.1 Empty-repo orientation | Keep; concrete observed problem. Committed 7f097a9; targeted 8/8 tests passed. | Round-2 first-session turns and split-session counts still needed. The project/roadmap wording should not force a permanent single giant initiative; allow independently completable goals and the quick-work lane. |
+| 1.2 Registration race | Correctness prerequisite; more than a Cursor issue. Fold already skips duplicate starts, so reader dedupe alone does not meet the zero-duplicate-log prediction. | Concurrent real processes, same and different session IDs, crash between registration and first event, bounded lock wait/recovery if locking is chosen, no lost activity, projections equivalent to fresh replay. O_APPEND makes writes atomic; it does not make read-check-append atomic. |
+| 1.3 CLI reference/protocol/source | High-value usability work, but it bundles separate changes. | Derive payload reference from canonical schemas, execute its examples in conformance tests, cover CLI-only sessions. Arbitrary source strings are rejected by current/old envelope readers, which then skip whole events: define mixed-version compatibility and source validation before rollout. |
+| 1.4 Formatter defense | Useful adoption work; keep changes narrow. | Formatter check/fix/check is idempotent, event log bytes unchanged, existing user configuration preserved, JSON/JSONC and quoted paths covered. Generated-file exclusions must not disable linting of product code. Confirm compatibility by invoking formatters, not a claimed universal JSON shape. |
+| 1.5 Safe structured input / memory supersession | Split input transport from memory semantics. | stdin and file inputs round-trip quotes, newlines, dollar signs, backticks, Unicode and large text; invalid JSON appends nothing. Reject ambiguous simultaneous inputs. Implement remember supersession using the same lifecycle contract as 3.2 rather than two incompatible systems. |
+| 1.6 Drive diagnostics | Keep; adapter exit evidence is available but omitted in the unresolved stall message. | Bounded redacted stderr plus exit/signal/failure category, preserved in record and progress output. Empty stderr must still yield a useful diagnosis. Unknown cause must remain unknown. |
+| 2.1 Less bookkeeping | Promising, but includes consistency and discovery issues. | Next D/M IDs are advisory only; return actual immutable ID and display handle after append. Never depend on a prefetched ordinal under concurrency/merge/correction. Batch API must prevalidate, define retry identity and partial-append recovery; one API call is not automatically one transaction. Preserve immediate active/blocked signals used by peers/driver. |
+| 2.2 Digest deduplication | Keep, gated on recall and safety. | Pin essential state, precise detail pointers, worst-case overflow tests, actual model-token measurement and C2/C3/C5 checks. Avoid substituting a table of contents for rules an agent must obey before editing. |
+| 2.3 Cache stability | Worth a measured experiment; not a guaranteed 15% saving. | Byte-stability for same recorded inputs; cache-aware traces by host; cold and warm starts; compact/resume and unattended-drive coverage. |
+| 2.4 Tool surface | Secondary priority behind avoidable turns. | Short schema descriptions must retain routing/validation semantics. Keep compatibility for existing MCP clients unless deliberately versioned. Compare actual loaded schemas and total calls; server instructions cannot force every host's tool-discovery behavior. |
+| 2.5 Automatic capture | High upside, contract/dependency changes required. | Resolve A2; show capture precision/recall and reduction in total bookkeeping, not just fewer explicit memory calls. Do not record full noisy tool outputs by default. |
+| 2.6 Quick-work lane | Potentially strongest everyday adoption improvement. | Create the maintenance record lazily and safely; pin each work episode so parallel fixes do not share one ambiguous next action. Define promotion by explicit escalation criteria, retain source references without rewriting history. Audit-only work must not accidentally create implementation tasks. Test small fixes, later why-recall, crash, concurrency and promotion. |
+| 3.1 Verification-gated drive | Highest strategic priority; move its contract earlier. | Resolve A1. Measure accepted-but-incorrect rate, completed tasks without intervention, and verification cost. Predict +5 percentage points as a hypothesis, not an extrapolated guarantee. |
+| 3.2 Lifecycle/counters | Needed foundation before supersession and ranking. | Resolve A3. Explicit supersession, cycles/conflicts, reference stability, expiry/replay, compatibility and preservation of protected rules. |
+| 3.3 Relevant lessons | Good zero-inference baseline; BM25 alone is not leading retrieval. | Filter by active scope, validity and provenance; rank using exact file/task/error links plus lexical retrieval and existing record graph. Support abstention and bounded injection. Measure relevance, required-rule recall, false reminders and C3. Add paraphrase, renamed-file, negation and conflicting-rule probes. Never let UserPromptSubmit be the sole reminder path for a long autonomous run. |
+| 4.1 Incorporate loss study | Necessary; begin triage before architecture-heavy wave 2. | Each fix links to observed trace/event evidence, a defined metric, prediction, falsifier and independent test. Distinguish smoke/calibration evidence from completed round-1 evidence. |
+| 4.2 Candidate/release | Change ordering as proposed in A4. | Full required suite/SPEC criteria, reproducible candidate identity, tested migrations and fallback, then benchmark gate before stable owner publication. |
+| 4.3 Round-2 handoff | Essential proof step. | Freeze addenda and evaluator before running; compare identical candidates and publish per-claim evidence plus losses. If chain B guides later tuning, retire it from future held-out claims and obtain fresh unseen tasks. |
+
+## Research: established practice and where sofar can differentiate
+Sources checked 2026-09-15. These are primary descriptions of capabilities/research, not independent proof that any tool beats sofar.
+
+- Claude Code already uses a compact auto-memory index with topic files. This supports index-first context but makes it baseline practice. [Memory documentation](https://code.claude.com/docs/en/memory).
+- Anthropic's long-running harness work emphasizes incremental tasks, clear handoff artifacts and end-to-end verification. This supports 3.1; it does not establish sofar's predicted gain. [Harness research](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents).
+- LangChain reports 52.8% -> 66.5% on Terminal-Bench 2.0 with a fixed model after a collection of harness changes. The 13.7-point gain is real as their reported result; it is not an isolated causal estimate for adding a verification command. [Harness engineering](https://www.langchain.com/blog/improving-deep-agents-with-harness-engineering).
+- Manus recommends stable prompt prefixes and preserving retrievable detail. Useful principles, dependent on actual cache behavior of the host. [Context engineering](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus).
+- ACE uses structured evolving playbooks to avoid loss from repeated summarization. Borrow stable items and incremental changes; its model-based adaptation results do not establish performance for a deterministic counter-only system. [ACE paper](https://arxiv.org/abs/2510.04618).
+- Graphiti combines temporal validity, semantic retrieval, keyword search and graph traversal. BM25 is one component, not sufficient evidence of state-of-the-art retrieval. Sofar can test scoped lexical plus existing graph signals without adding model calls. [Graphiti](https://github.com/getzep/graphiti).
+- Beads documents structured persistent memory, dependency-aware task readiness and atomic claiming. It is a close workflow comparator. [Beads](https://github.com/gastownhall/beads).
+- PROJECTMEM describes append-only typed events, deterministic projections, offline operation and pre-action warnings against failed approaches. That directly defeats a broad uniqueness claim for local event-sourced memory with deterministic guards. Its paper reports a small self-study, not controlled superiority; benchmark it instead of accepting its marketing claims. [Paper](https://arxiv.org/abs/2606.12329), [repository](https://github.com/riponcm/projectmem).
+- Letta's context repositories already combine Git-versioned memory and progressive disclosure. Git-backed portable memory alone is not unique. [Context repositories](https://www.letta.com/blog/context-repositories/).
+- OpenMemory targets persistent context across MCP-compatible coding agents. Cross-tool memory is already a competitive category. [OpenMemory](https://mem0.ai/openmemory).
+- Current Claude hooks documentation includes parallel hook execution, failure hooks and PostToolBatch. A capability-probed batch hook could coalesce context injection while retaining per-tool evidence; do not assume the pinned benchmark host implements every current documented hook. [Claude hooks](https://code.claude.com/docs/en/hooks). Cursor has its own input/lifecycle contracts requiring separate tests. [Cursor hooks](https://cursor.com/docs/hooks).
+- Agent evaluations need repeated trials and isolated environments; apparent successes and consistent reliability answer different questions. [Anthropic evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents).
+
+## Measurement and competitive proof
+Keep the existing numerical predictions but label them unvalidated. Do not add the -40% capture savings, -3 to -5 turns and schema/digest savings: they overlap. Use staged ablations on the tuning workload to attribute effects, and test the final combined candidate once on sealed held-out work.
+
+For bookkeeping, freeze the numerator and denominator before testing. Report absolute memory-related calls/tokens, total task cost, and overhead fraction. A ratio can improve simply because useful work became more expensive. The pre-registration's M6 marks turns touching memory; mixed-purpose turns need a documented attribution convention. Preserve cached/uncached/output categories and quality-normalized completed work. Do not convert a raw token saving into an exact subscription-capacity guarantee.
+
+One travel-app chain supports claims on that workload. Before claiming broad industry lead, include independent workload families and short maintenance episodes, plus cross-agent handoffs and conflicting concurrent work. Preserve the round-1 freeze. Sequential paired runs, environment isolation, per-chain variance, declared failure handling and future unseen holdouts matter more than increasing the count of correlated assertions.
+
+Suggested prioritization:
+1. Finish wave-1 correctness/usability fixes and specify compatibility.
+2. Define the shared outcome schema, decision lifecycle and durable acceptance contract.
+3. Implement verified completion and quick-work capture using those foundations.
+4. Tune digest/routing/retrieval with measured ablations; trim tool schemas when total episode cost supports it.
+5. Freeze the candidate, run current direct competitors and required held-out addenda, then promote a stable release only after the recorded verdict.
+
+Do not add a language rewrite to this initiative without profiling evidence. The present loss study points first to avoidable model turns and protocol friction. Native performance work can be separately justified by measured hook/fold latency.
+
+## Recommended leadership target
+Make sofar the most dependable way to continue verified work across coding agents, with low overhead even for tiny fixes and an inspectable explanation of why each decision or reminder exists. That is a testable product advantage. Novelty and competitor superiority remain unproven until the stronger comparisons run.
+
+## Handoff
+Audit findings are in the main checkout's r1-fixes record, while active implementation is in a separate worktree with a divergent record copy. Preserve both histories through the normal append-only merge/reconciliation process. No implementation approvals or changes to D19 were made here.
+
+== digest:plain (2718 bytes) ==
+# Sofar status: r1-fixes
+
+Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0…
+
+Next task: 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split sessions.
+  in Phase 1 — Wave 1: correctness and quick wins [active] 0/6
+  - 1.2 Session registration race: make hook registration idempotent under parallel…
+  - 1.3 CLI agents: `sofar event types` payload reference; plan, phase and goal lin…
+  - 1.4 Formatter defence: doctor check and fix for Biome (plus Prettier and markdo…
+  - 1.5 stdin/file input for `sofar remember` and `sofar event --payload`, quoted-h…
+  - 1.6 Drive diagnostics: carry the adapter's stderr tail, failure or spawn error …
+
+Next action: Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
+
+Last session (codex, ended 2026-09-15T15:48:08.237Z):
+  # r1-fixes: technical direction and competitive audit Date: 2026-09-15. Audit only. Recommendations below are not adopted decisions or implementation changes. ## Verdict Keep the initiative. It targets real friction and follows established context/harness engineering practice, but its present plan does not establish industry l… (clipped — full text in sessions/codex-r1-audit-20260915-01.md)
+
+Phases:
+- Phase 1 — Wave 1: correctness and quick wins [active] 0/6
+- Phase 2 — Wave 2: less bookkeeping, leaner context [pending] 0/6
+- Phase 3 — Wave 3: new capabilities [pending] 0/3
+- Phase 4 — Release [pending] 0/3
+Progress: 0/18 tasks done (0%) across 4 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] Audit 2026-09-15: main at 8b4c33c and the r1-fixes worktree have separate record copies. Implementation is in /Users/jins/IO/sofar-r1-fixes; task 1.1 is committed there at 7f097a9 and 1.2 is active. The main copy still reports 0/18. Inspect the worktree record for implementation…
+
+Next ids: D1 (decision), M2 (memory)
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:hook (3898 bytes) ==
+# Sofar status: r1-fixes
+
+Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0…
+
+Next task: 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split sessions.
+  in Phase 1 — Wave 1: correctness and quick wins [active] 0/6
+  - 1.2 Session registration race: make hook registration idempotent under parallel…
+  - 1.3 CLI agents: `sofar event types` payload reference; plan, phase and goal lin…
+  - 1.4 Formatter defence: doctor check and fix for Biome (plus Prettier and markdo…
+  - 1.5 stdin/file input for `sofar remember` and `sofar event --payload`, quoted-h…
+  - 1.6 Drive diagnostics: carry the adapter's stderr tail, failure or spawn error …
+
+Next action: Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
+
+Last session (codex, ended 2026-09-15T15:48:08.237Z):
+  # r1-fixes: technical direction and competitive audit Date: 2026-09-15. Audit only. Recommendations below are not adopted decisions or implementation changes. ## Verdict Keep the initiative. It targets real friction and follows established context/harness engineering practice, but its present plan does not establish industry l… (clipped — full text in sessions/codex-r1-audit-20260915-01.md)
+
+Phases:
+- Phase 1 — Wave 1: correctness and quick wins [active] 0/6
+- Phase 2 — Wave 2: less bookkeeping, leaner context [pending] 0/6
+- Phase 3 — Wave 3: new capabilities [pending] 0/3
+- Phase 4 — Release [pending] 0/3
+Progress: 0/18 tasks done (0%) across 4 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] Audit 2026-09-15: main at 8b4c33c and the r1-fixes worktree have separate record copies. Implementation is in /Users/jins/IO/sofar-r1-fixes; task 1.1 is committed there at 7f097a9 and 1.2 is active. The main copy still reports 0/18. Inspect the worktree record for implementation…
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+…truncated — read .sofar/repo.md for the rest
+
+Next ids: D1 (decision), M2 (memory)
+
+Adjacent records — 8 decisions across 2 other initiatives that have worked this one's files, densest first:
+- alpha — 3 shared files, 7 decisions
+- beta — 1 shared file, 1 decision
+Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: r1-fixes-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: feature/r1-fixes @ a1b2c3d — in sync with origin/feature/r1-fixes
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:lane (1795 bytes) ==
+# Sofar: quick-work lane (r1-fixes)
+
+Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0…
+
+This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
+- Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
+- Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
+
+Last session (codex, ended 2026-09-15T15:48:08.237Z):
+  # r1-fixes: technical direction and competitive audit Date: 2026-09-15. Audit only. Recommendations below are not adopted decisions or implementation changes. ## Verdict Keep the initiative. It targets real friction and follows established context/harness engineering practice, but its present plan does not establish industry l… (clipped — full text in sessions/codex-r1-audit-20260915-01.md)
+
+Recent quick work (2 sessions, 0 decisions since 2026-09-15):
+- 2026-09-15 claude-code — 3 commands
+
+Memory (1; full text in memory.md):
+- [M1] Audit 2026-09-15: main at 8b4c33c and the r1-fixes worktree have separate recor…
+
+Next ids: D1 (decision), M2 (memory)
+
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: feature/r1-fixes @ a1b2c3d — in sync with origin/feature/r1-fixes
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:quiet (2804 bytes) ==
+# Sofar status: r1-fixes
+
+Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0…
+
+Next task: 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split sessions.
+  in Phase 1 — Wave 1: correctness and quick wins [active] 0/6
+  - 1.2 Session registration race: make hook registration idempotent under parallel…
+  - 1.3 CLI agents: `sofar event types` payload reference; plan, phase and goal lin…
+  - 1.4 Formatter defence: doctor check and fix for Biome (plus Prettier and markdo…
+  - 1.5 stdin/file input for `sofar remember` and `sofar event --payload`, quoted-h…
+  - 1.6 Drive diagnostics: carry the adapter's stderr tail, failure or spawn error …
+
+Next action: Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
+
+Last session (codex, ended 2026-09-15T15:48:08.237Z):
+  # r1-fixes: technical direction and competitive audit Date: 2026-09-15. Audit only. Recommendations below are not adopted decisions or implementation changes. ## Verdict Keep the initiative. It targets real friction and follows established context/harness engineering practice, but its present plan does not establish industry l… (clipped — full text in sessions/codex-r1-audit-20260915-01.md)
+
+Phases:
+- Phase 1 — Wave 1: correctness and quick wins [active] 0/6
+- Phase 2 — Wave 2: less bookkeeping, leaner context [pending] 0/6
+- Phase 3 — Wave 3: new capabilities [pending] 0/3
+- Phase 4 — Release [pending] 0/3
+Progress: 0/18 tasks done (0%) across 4 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] Audit 2026-09-15: main at 8b4c33c and the r1-fixes worktree have separate record copies. Implementation is in /Users/jins/IO/sofar-r1-fixes; task 1.1 is committed there at 7f097a9 and 1.2 is active. The main copy still reports 0/18. Inspect the worktree record for implementation…
+
+Next ids: D1 (decision), M2 (memory)
+
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:cap (6052 bytes) ==
+# Sofar status: r1-fixes
+
+Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0…
+
+Next task: 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split sessions.
+  in Phase 1 — Wave 1: correctness and quick wins [active] 0/6
+  - 1.2 Session registration race: make hook registration idempotent under parallel…
+  - 1.3 CLI agents: `sofar event types` payload reference; plan, phase and goal lin…
+  - 1.4 Formatter defence: doctor check and fix for Biome (plus Prettier and markdo…
+  - 1.5 stdin/file input for `sofar remember` and `sofar event --payload`, quoted-h…
+  - 1.6 Drive diagnostics: carry the adapter's stderr tail, failure or spawn error …
+
+Next action: Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
+
+Phases:
+- Phase 1 — Wave 1: correctness and quick wins [active] 0/6
+- Phase 2 — Wave 2: less bookkeeping, leaner context [pending] 0/6
+- Phase 3 — Wave 3: new capabilities [pending] 0/3
+- Phase 4 — Release [pending] 0/3
+Progress: 0/18 tasks done (0%) across 4 phase(s)
+
+Next ids: D1 (decision), M2 (memory)
+
+Adjacent records — 8 decisions across 2 other initiatives that have worked this one's files, densest first:
+- alpha — 3 shared files, 7 decisions
+- beta — 1 shared file, 1 decision
+Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: r1-fixes-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: feature/r1-fixes @ a1b2c3d — in sync with origin/feature/r1-fixes
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+…truncated — run sofar status for full detail
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== plan (4626 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Plan: r1-fixes
+
+Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
+
+Progress: 0/18 tasks done (0%)
+
+## Phase 1 — Wave 1: correctness and quick wins [active] — 0/6 done
+
+- [ ] 1.1 Empty-repo SessionStart prints the Session id and a 'no initiative yet: sofar new <slug> --goal, then plan' hint (event.ts:375-398). PREDICT: Claude S1 −3 to −4 turns (~250k cache-read), no split sessions.
+- [ ] 1.2 Session registration race: make hook registration idempotent under parallel hooks (event.ts:713-715; Cursor fires hooks in parallel). PREDICT: 0 duplicate session_started in round-2 cursor cells.
+- [ ] 1.3 CLI agents: `sofar event types` payload reference; plan, phase and goal lines plus 'one initiative per project/roadmap' in the AGENTS block (init.ts:572-631); accept any --source (envelope.ts:17). PREDICT: Codex S1 −13 tool calls; Codex and Cursor make a project initiative WITH a plan in ≥2/3 reps.
+- [ ] 1.4 Formatter defence: doctor check and fix for Biome (plus Prettier and markdownlint hazards); write .mcp.json in a formatter-friendly shape (init.ts:1118). PREDICT: agent edits to biome.json or .mcp.json reformatting 3/7 → 0.
+- [ ] 1.5 stdin/file input for `sofar remember` and `sofar event --payload`, quoted-heredoc examples, `remember --supersedes`. PREDICT: shell-mangling corrections → 0.
+- [ ] 1.6 Drive diagnostics: carry the adapter's stderr tail, failure or spawn error into the stall note (drive.ts:776, adapter exit record). PREDICT: every launch failure names its cause.
+
+## Phase 2 — Wave 2: less bookkeeping, leaner context [pending] — 0/6 done
+
+- [ ] 2.1 Next D/M ids in the digest; drop the standing-constraint echo from update_task responses; batch task updates into end_session; MCP server instructions to load core tools in one ToolSearch. PREDICT: sofar share of tool calls 32–38% → ≤20%, −3 to −5 turns per session.
+- [ ] 2.2 Deduplicate the digest (rejected approaches vs decision `over` text; constraints vs rules), index-first ≤6k chars with details on demand. PREDICT: S2+ digest −25% chars, no C2/C3 loss.
+- [ ] 2.3 Cache-stable layout: static prefix first, no volatile values at the top, changing reminders late via UserPromptSubmit. PREDICT: cache-creation tokens per session −15%.
+- [ ] 2.4 Tool surface: trim descriptions (repeated `initiative` text in ~10 tools); review, close and find CLI-first. PREDICT: MCP schemas 14.8k → ≤8k chars.
+- [ ] 2.5 Automatic capture through hooks: commits (task-id prefix), test pass/fail, files, errors recorded deterministically from PostToolUse/Stop; the model logs only why. PREDICT: sofar MCP/CLI calls per session −40%.
+- [ ] 2.6 Quick-work lane: ad-hoc fixes land in a standing per-repo maintenance record with no `sofar new`/plan ceremony, auto-captured by hooks, plus one line of why only when a decision was made; promote to an initiative when it grows. PREDICT: overhead ratio on 1–3 minute fixes ≤ 15% of task tokens with the fix recalled later.
+
+## Phase 3 — Wave 3: new capabilities [pending] — 0/3 done
+
+- [ ] 3.1 Verification-gated drive: run the task's acceptance command before accepting task_done; failures go into the next handoff. PREDICT: drive final pass rate +5 pts over round-1 drive.
+- [ ] 3.2 Decision counters plus supersession/valid_until so stale decisions leave the digest without a model. PREDICT: C3 no worse at −10% digest.
+- [ ] 3.3 Relevant-lessons injection: keyword/BM25 match of rejected approaches and past failures at UserPromptSubmit, no model. PREDICT: C3 +5 pts.
+
+## Phase 4 — Release [pending] — 0/3 done
+
+- [ ] 4.1 Fold in round 1's own loss-study rows (bench-refresh 4.1) as added tasks, each with a predicted gain
+- [ ] 4.2 Release candidate: full test suite, SPEC acceptance criteria, then the run owner publishes to npm
+- [ ] 4.3 Hand the release to bench-refresh round 2, with the quick-work addendum chain frozen before it runs
+
+Active phase: Phase 1 — Wave 1: correctness and quick wins
+Next action: Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
+
+== decisions (128 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Decisions: r1-fixes
+
+(no decisions logged yet)
+
+== memory (709 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Promoted to repo memory: r1-fixes
+
+Cite these in .sofar/repo.md by qualified handle — `r1-fixes M<n>` —
+which is how `sofar doctor` sees that a promoted fact reached repo memory.
+
+- **M1** (2026-09-15T15:44:01.909Z) — Audit 2026-09-15: main at 8b4c33c and the r1-fixes worktree have separate record copies. Implementation is in /Users/jins/IO/sofar-r1-fixes; task 1.1 is committed there at 7f097a9 and 1.2 is active. The main copy still reports 0/18. Inspect the worktree record for implementation progress; audit findings in the main r1-fixes record must be reconciled by append-only merge before implementation handoff.
+
+== session aac148fe-0a14-46d5-b42c-64fb65cd8ad2.md (609 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session aac148fe-0a14-46d5-b42c-64fb65cd8ad2
+
+- Initiative: r1-fixes
+- Tool: claude-code
+- Model: claude-opus-5
+- Started: 2026-09-15T15:31:37.730Z
+- Ended: 2026-09-15T15:31:39.791Z
+
+## Summary
+
+r1-fixes opened with plan; worktree ~/IO/sofar-r1-fixes on branch r1-fixes bound to it. Round 1 running under launchd. Main commit 8b4c33c not pushed.
+
+## Next action
+
+In ~/IO/sofar-r1-fixes: build 1.1 empty-repo SessionStart hint, then 1.2 race
+
+## Activity (derived from mechanical events)
+
+- Derived: 3 commands
+- Commands run: 3
+
+== session codex-r1-audit-20260915-01.md (21996 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session codex-r1-audit-20260915-01
+
+- Initiative: r1-fixes
+- Tool: codex
+- Started: 2026-09-15T15:42:36.284Z
+- Ended: 2026-09-15T15:48:08.237Z
+
+## Summary
+
+# r1-fixes: technical direction and competitive audit
+Date: 2026-09-15. Audit only. Recommendations below are not adopted decisions or implementation changes.
+
+## Verdict
+Keep the initiative. It targets real friction and follows established context/harness engineering practice, but its present plan does not establish industry leadership. The strongest opportunity is to combine low bookkeeping, precise decision history, cross-agent continuity, and completion backed by independent, replayable evidence. Leadership must be measured against direct memory/harness competitors as well as native agent memory.
+
+Scope: all 18 r1-fixes tasks; bench-refresh goal, decisions and frozen round-1 pre-registration; self-improve dependencies; targeted engine/schema/SPEC reads; primary-source research. Main baseline was 8b4c33c. The separate implementation worktree had task 1.1 committed as 7f097a9 and task 1.2 active. Main's 0/18 projection was behind that worktree. I independently ran first-session-notice.test.ts in the implementation worktree: 8/8 passed. That validates the targeted behavior, not the predicted token savings. No implementation, plan, task status, benchmark, install or release changes made by this audit. The unfinished 1.2 patch was not certified.
+
+## Highest-priority findings
+
+### A1 — Verification needs a persisted acceptance contract (task 3.1)
+Today driver/drive.ts computes handoffReason after folding the record, with no independent acceptance check. queuedTasks only includes active/pending tasks; handoffReason can observe any newly resolved task, including dropped tasks, rather than exclusively the assigned task. A newly added check that merely prints failure would leave an agent-marked done task outside the next queue and could skip it on restart.
+
+Specify task acceptance independently from the agent's completion claim. Evidence should identify task, attempt, command/arguments, working directory, checked code state (including relevant uncommitted changes), validator definition/version, result, timeout and diagnostics. A pass must become invalid when the checked inputs change. Persist the verification result through packages/schema and derive queue eligibility from it. Define task-policy versus threshold-policy multi-task behavior, failed-check retries, crash during verification, interrupted runs, missing checks and deliberately dropped tasks. Never equate dropped with acceptance-tested success.
+
+Use operator-approved commands; do not accidentally execute them under broader permissions than the launched agent. A local acceptance check is not the hidden benchmark evaluator. Protected evaluation belongs outside the agent's writable checkout; a checksum detects a changed evaluator but does not by itself prevent the agent reading it.
+
+Proof: false completion, a failing check followed by restart, successful check followed by code changes, sibling task completion, missing binary, timeout, killed validator, and multiple tasks under threshold policy.
+
+### A2 — Automatic capture overlaps another initiative and contradicts commit policy (2.5, 2.6, self-improve 1.2)
+docs/SPEC.md, Commit attribution, explicitly derives commit evidence from Git and never records commit events. Its Hooks contract exempts git/sofar commands to keep the tree settleable. Task 2.5's literal proposal to record commits can reintroduce the cycle where committing the record immediately dirties it again. Keep Git attribution derived unless an explicit Decision replaces that contract. A task-id prefix alone is ambiguous across initiatives; retain initiative identity and existing trailers.
+
+Files and shell commands already have mechanical capture. What is missing is normalized outcome evidence, not a new parallel capture system. self-improve 1.2 separately owns exit codes, is_error and failure hooks. Assign one schema/implementation owner and make the other initiative consume it.
+
+Capture observed outcomes, not guessed success. A successful shell invocation is not necessarily a passing test suite; shell composition, background processes and command wrappers complicate attribution. Use structured runner output where available, and represent unavailable outcomes as unknown. Redact and bound errors BEFORE the append-only record. Keep optional unsynced local statistics separate from durable record truth; gitignored is not equivalent to excluded from sofar sync.
+
+Publish a per-host capability matrix and truthful fallbacks. Claude and Cursor hooks differ; the existing CLI-only protocol explicitly says some hosts lack write-back enforcement. Do not market universal automatic capture until each claimed host passes conformance fixtures.
+
+### A3 — Decision expiry can silently erase rules or break replay (3.2)
+The SPEC requires stable injection for unchanged records and standing rules that do not age out. If renderStatus evaluates valid_until against wall-clock time, identical events render differently tomorrow. If counters decay standing rules, an important rarely-used rule can disappear.
+
+Use immutable event identities for references, explicit supersession links, retained history, and separate statuses for active, superseded, expired and conflicted material. An authorized explicit transition can change a standing rule; low retrieval frequency cannot. If time-based validity is desired, define a recorded evaluation boundary or a new expiry event so replay remains explainable. A different live-clock contract requires an explicit SPEC decision first. Concurrent incompatible replacements should surface conflict rather than silently choose a winner.
+
+ACE and temporal graphs are useful prior art, but neither establishes that raw frequency counters measure a decision's correctness.
+
+### A4 — Publication currently precedes the evidence gate (4.2–4.3)
+The plan puts owner npm publication in 4.2 before handing the release to round 2 in 4.3, while the goal requires D19 evidence before shipping. Distinguish an immutable release candidate used in the benchmark from a stable release promoted after the gate. Proposed sequence: acceptance suite -> frozen candidate -> chain-A validation/ablations -> sealed chain-B and addendum evaluation -> verdict -> owner publication.
+
+D19 needs an executable comparison rule. Orient lower-is-better metrics correctly; track both absolute performance and margins, because holding a negative margin still means losing. Report win, loss, parity and inconclusive, with uncertainty. Three repeated chains are an initial signal, not assurance that a five-point gain is real; tests within a chain are correlated. Any reinterpretation of D19's exact no-shrinking rule requires a new owner decision, not an audit silently weakening it.
+
+The current round-1 pre-registration already correctly reports all three repetitions, avoids p-values, separates costs by agent and forbids public tuning-set claims. Preserve it unchanged. C6/C7/C8 are deferred addenda, so an all-eight-claims gate needs those evaluations or must explicitly report them unmeasured.
+
+### A5 — The comparison set misses direct competitors
+The frozen round-1 matrix is useful for native-memory comparisons, but cannot support an industry-wide lead claim. Add appropriately scoped round-2 or subsequent pre-registered comparisons against Beads and PROJECTMEM; consider OpenMemory as a memory-layer arm and Letta Code as a separate full-harness comparison. Use standard recommended setups and disclose extra inference/infrastructure. Keep model and effort fixed within a memory comparison; compare full harnesses separately when equivalence is impossible.
+
+Native memories, git history and shared profiles need fresh isolation per independent chain. Re-pin competitors at round boundaries, never mid-round. Also re-run the previous sofar release against the same new competitor snapshot: otherwise a changed model or competitor version is confounded with the effect of r1-fixes.
+
+### A6 — Smaller context is a constrained optimization (2.1–2.4, 3.3)
+A 6k-character target is a hypothesis, not a universally correct context budget. Protect exact relevant standing constraints, current task, blockers, unresolved verification failures, decision identity and next action. Deduplicate using IDs/fields, not approximate semantic similarity that can erase different scope or negation. Overflow should point to exact retrievable evidence. Assess total episode cost, including extra fetches, tool discovery and rework.
+
+The current update_task constraint echo deliberately resurfaces rules at the moment work begins. Removing it needs an alternative point-of-use signal and an ablation; it is not necessarily pure duplication. Similarly, CLI-first review/close/find can trade schema bytes for shell/discovery calls.
+
+Stable prefixes are sound practice, but sofar does not control the whole host prompt, provider cache key, TTL or model routing. Measure actual cached/uncached input, output, latency and total cost within the same host. Moving reminders later can help stability, but must still work when drive has no new user prompts. Char count is a transport constraint, not a token/cost metric.
+
+## Audit of every task
+
+| Task | Assessment | Required completion evidence or adjustment |
+|---|---|---|
+| 1.1 Empty-repo orientation | Keep; concrete observed problem. Committed 7f097a9; targeted 8/8 tests passed. | Round-2 first-session turns and split-session counts still needed. The project/roadmap wording should not force a permanent single giant initiative; allow independently completable goals and the quick-work lane. |
+| 1.2 Registration race | Correctness prerequisite; more than a Cursor issue. Fold already skips duplicate starts, so reader dedupe alone does not meet the zero-duplicate-log prediction. | Concurrent real processes, same and different session IDs, crash between registration and first event, bounded lock wait/recovery if locking is chosen, no lost activity, projections equivalent to fresh replay. O_APPEND makes writes atomic; it does not make read-check-append atomic. |
+| 1.3 CLI reference/protocol/source | High-value usability work, but it bundles separate changes. | Derive payload reference from canonical schemas, execute its examples in conformance tests, cover CLI-only sessions. Arbitrary source strings are rejected by current/old envelope readers, which then skip whole events: define mixed-version compatibility and source validation before rollout. |
+| 1.4 Formatter defense | Useful adoption work; keep changes narrow. | Formatter check/fix/check is idempotent, event log bytes unchanged, existing user configuration preserved, JSON/JSONC and quoted paths covered. Generated-file exclusions must not disable linting of product code. Confirm compatibility by invoking formatters, not a claimed universal JSON shape. |
+| 1.5 Safe structured input / memory supersession | Split input transport from memory semantics. | stdin and file inputs round-trip quotes, newlines, dollar signs, backticks, Unicode and large text; invalid JSON appends nothing. Reject ambiguous simultaneous inputs. Implement remember supersession using the same lifecycle contract as 3.2 rather than two incompatible systems. |
+| 1.6 Drive diagnostics | Keep; adapter exit evidence is available but omitted in the unresolved stall message. | Bounded redacted stderr plus exit/signal/failure category, preserved in record and progress output. Empty stderr must still yield a useful diagnosis. Unknown cause must remain unknown. |
+| 2.1 Less bookkeeping | Promising, but includes consistency and discovery issues. | Next D/M IDs are advisory only; return actual immutable ID and display handle after append. Never depend on a prefetched ordinal under concurrency/merge/correction. Batch API must prevalidate, define retry identity and partial-append recovery; one API call is not automatically one transaction. Preserve immediate active/blocked signals used by peers/driver. |
+| 2.2 Digest deduplication | Keep, gated on recall and safety. | Pin essential state, precise detail pointers, worst-case overflow tests, actual model-token measurement and C2/C3/C5 checks. Avoid substituting a table of contents for rules an agent must obey before editing. |
+| 2.3 Cache stability | Worth a measured experiment; not a guaranteed 15% saving. | Byte-stability for same recorded inputs; cache-aware traces by host; cold and warm starts; compact/resume and unattended-drive coverage. |
+| 2.4 Tool surface | Secondary priority behind avoidable turns. | Short schema descriptions must retain routing/validation semantics. Keep compatibility for existing MCP clients unless deliberately versioned. Compare actual loaded schemas and total calls; server instructions cannot force every host's tool-discovery behavior. |
+| 2.5 Automatic capture | High upside, contract/dependency changes required. | Resolve A2; show capture precision/recall and reduction in total bookkeeping, not just fewer explicit memory calls. Do not record full noisy tool outputs by default. |
+| 2.6 Quick-work lane | Potentially strongest everyday adoption improvement. | Create the maintenance record lazily and safely; pin each work episode so parallel fixes do not share one ambiguous next action. Define promotion by explicit escalation criteria, retain source references without rewriting history. Audit-only work must not accidentally create implementation tasks. Test small fixes, later why-recall, crash, concurrency and promotion. |
+| 3.1 Verification-gated drive | Highest strategic priority; move its contract earlier. | Resolve A1. Measure accepted-but-incorrect rate, completed tasks without intervention, and verification cost. Predict +5 percentage points as a hypothesis, not an extrapolated guarantee. |
+| 3.2 Lifecycle/counters | Needed foundation before supersession and ranking. | Resolve A3. Explicit supersession, cycles/conflicts, reference stability, expiry/replay, compatibility and preservation of protected rules. |
+| 3.3 Relevant lessons | Good zero-inference baseline; BM25 alone is not leading retrieval. | Filter by active scope, validity and provenance; rank using exact file/task/error links plus lexical retrieval and existing record graph. Support abstention and bounded injection. Measure relevance, required-rule recall, false reminders and C3. Add paraphrase, renamed-file, negation and conflicting-rule probes. Never let UserPromptSubmit be the sole reminder path for a long autonomous run. |
+| 4.1 Incorporate loss study | Necessary; begin triage before architecture-heavy wave 2. | Each fix links to observed trace/event evidence, a defined metric, prediction, falsifier and independent test. Distinguish smoke/calibration evidence from completed round-1 evidence. |
+| 4.2 Candidate/release | Change ordering as proposed in A4. | Full required suite/SPEC criteria, reproducible candidate identity, tested migrations and fallback, then benchmark gate before stable owner publication. |
+| 4.3 Round-2 handoff | Essential proof step. | Freeze addenda and evaluator before running; compare identical candidates and publish per-claim evidence plus losses. If chain B guides later tuning, retire it from future held-out claims and obtain fresh unseen tasks. |
+
+## Research: established practice and where sofar can differentiate
+Sources checked 2026-09-15. These are primary descriptions of capabilities/research, not independent proof that any tool beats sofar.
+
+- Claude Code already uses a compact auto-memory index with topic files. This supports index-first context but makes it baseline practice. [Memory documentation](https://code.claude.com/docs/en/memory).
+- Anthropic's long-running harness work emphasizes incremental tasks, clear handoff artifacts and end-to-end verification. This supports 3.1; it does not establish sofar's predicted gain. [Harness research](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents).
+- LangChain reports 52.8% -> 66.5% on Terminal-Bench 2.0 with a fixed model after a collection of harness changes. The 13.7-point gain is real as their reported result; it is not an isolated causal estimate for adding a verification command. [Harness engineering](https://www.langchain.com/blog/improving-deep-agents-with-harness-engineering).
+- Manus recommends stable prompt prefixes and preserving retrievable detail. Useful principles, dependent on actual cache behavior of the host. [Context engineering](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus).
+- ACE uses structured evolving playbooks to avoid loss from repeated summarization. Borrow stable items and incremental changes; its model-based adaptation results do not establish performance for a deterministic counter-only system. [ACE paper](https://arxiv.org/abs/2510.04618).
+- Graphiti combines temporal validity, semantic retrieval, keyword search and graph traversal. BM25 is one component, not sufficient evidence of state-of-the-art retrieval. Sofar can test scoped lexical plus existing graph signals without adding model calls. [Graphiti](https://github.com/getzep/graphiti).
+- Beads documents structured persistent memory, dependency-aware task readiness and atomic claiming. It is a close workflow comparator. [Beads](https://github.com/gastownhall/beads).
+- PROJECTMEM describes append-only typed events, deterministic projections, offline operation and pre-action warnings against failed approaches. That directly defeats a broad uniqueness claim for local event-sourced memory with deterministic guards. Its paper reports a small self-study, not controlled superiority; benchmark it instead of accepting its marketing claims. [Paper](https://arxiv.org/abs/2606.12329), [repository](https://github.com/riponcm/projectmem).
+- Letta's context repositories already combine Git-versioned memory and progressive disclosure. Git-backed portable memory alone is not unique. [Context repositories](https://www.letta.com/blog/context-repositories/).
+- OpenMemory targets persistent context across MCP-compatible coding agents. Cross-tool memory is already a competitive category. [OpenMemory](https://mem0.ai/openmemory).
+- Current Claude hooks documentation includes parallel hook execution, failure hooks and PostToolBatch. A capability-probed batch hook could coalesce context injection while retaining per-tool evidence; do not assume the pinned benchmark host implements every current documented hook. [Claude hooks](https://code.claude.com/docs/en/hooks). Cursor has its own input/lifecycle contracts requiring separate tests. [Cursor hooks](https://cursor.com/docs/hooks).
+- Agent evaluations need repeated trials and isolated environments; apparent successes and consistent reliability answer different questions. [Anthropic evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents).
+
+## Measurement and competitive proof
+Keep the existing numerical predictions but label them unvalidated. Do not add the -40% capture savings, -3 to -5 turns and schema/digest savings: they overlap. Use staged ablations on the tuning workload to attribute effects, and test the final combined candidate once on sealed held-out work.
+
+For bookkeeping, freeze the numerator and denominator before testing. Report absolute memory-related calls/tokens, total task cost, and overhead fraction. A ratio can improve simply because useful work became more expensive. The pre-registration's M6 marks turns touching memory; mixed-purpose turns need a documented attribution convention. Preserve cached/uncached/output categories and quality-normalized completed work. Do not convert a raw token saving into an exact subscription-capacity guarantee.
+
+One travel-app chain supports claims on that workload. Before claiming broad industry lead, include independent workload families and short maintenance episodes, plus cross-agent handoffs and conflicting concurrent work. Preserve the round-1 freeze. Sequential paired runs, environment isolation, per-chain variance, declared failure handling and future unseen holdouts matter more than increasing the count of correlated assertions.
+
+Suggested prioritization:
+1. Finish wave-1 correctness/usability fixes and specify compatibility.
+2. Define the shared outcome schema, decision lifecycle and durable acceptance contract.
+3. Implement verified completion and quick-work capture using those foundations.
+4. Tune digest/routing/retrieval with measured ablations; trim tool schemas when total episode cost supports it.
+5. Freeze the candidate, run current direct competitors and required held-out addenda, then promote a stable release only after the recorded verdict.
+
+Do not add a language rewrite to this initiative without profiling evidence. The present loss study points first to avoidable model turns and protocol friction. Native performance work can be separately justified by measured hook/fold latency.
+
+## Recommended leadership target
+Make sofar the most dependable way to continue verified work across coding agents, with low overhead even for tiny fixes and an inspectable explanation of why each decision or reminder exists. That is a testable product advantage. Novelty and competitor superiority remain unproven until the stronger comparisons run.
+
+## Handoff
+Audit findings are in the main checkout's r1-fixes record, while active implementation is in a separate worktree with a divergent record copy. Preserve both histories through the normal append-only merge/reconciliation process. No implementation approvals or changes to D19 were made here.
+
+## Next action
+
+Review audit A1–A6 and reconcile their contract, dependency and release-order recommendations with the implementation worktree before proceeding with the affected wave-2 and wave-3 tasks.
+

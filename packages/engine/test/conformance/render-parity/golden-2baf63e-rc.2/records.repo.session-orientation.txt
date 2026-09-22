@@ -1,0 +1,453 @@
+== options (36955 bytes) ==
+{
+  "plain": {},
+  "hook": {
+    "sessionId": "session-orientation-session",
+    "git": {
+      "branch": "session-orientation",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": null,
+      "upstreamFull": null,
+      "synced": false
+    },
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare."
+    ]
+  },
+  "lane": {
+    "lane": true,
+    "sessionId": "lane-session",
+    "git": {
+      "branch": "session-orientation",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": null,
+      "upstreamFull": null,
+      "synced": false
+    }
+  },
+  "quiet": {
+    "activity": false,
+    "sessionId": " quiet-session\t"
+  },
+  "cap": {
+    "sessionId": "session-orientation-session",
+    "git": {
+      "branch": "session-orientation",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": null,
+      "upstreamFull": null,
+      "synced": false
+    },
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare.",
+      "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    ]
+  }
+}
+== status (8988 bytes) ==
+# session-orientation
+
+Status: done 2026-08-13T10:41:03.222Z — Goal met. Both telling gaps are closed and proven: the shipped protocol block teaches re-homing in both dialects (ledger-versioned as PROTOCOL_BLOCK_V4 and AGENTS_PROTOCOL_BLOCK_V3), a fresh session on a bound branch is told when another record was written more recently, and test/rehome.test.ts pins the dogfooded case across the statusline, the hooks and the MCP tools. Two standing constraints outlive this record: end_session never gains an `initiative` (D1), and a fresh session's record is never silently redirected to the most recently active initiative (D2). The mechanism itself was correct throughout and was not rebuilt. One obligation is NOT discharged by closing: repo memory M7 rules that the protocol-block change ships in the same release as commit-attribution, so sofar.sh must not be published until that initiative finishes.
+Goal: A session should serve the initiative it is actually working on, and should be able to tell when it is not. The mechanism already exists and is correct — resolveSessionFirst treats the branch as a candidate and lets the session's home win, homeInitiative resolves by the latest session_started across every log, and every surface (statusline, SessionStart digest, hooks) follows it. What is missing is that nothing TELLS an agent to use it, and nothing tells a fresh session that the user's recent work was somewhere other than this branch. Both gaps were found by the user on 2026-08-13 after a session spent its entire life mis-homed: routing individual writes correctly with explicit initiative args while every write-back landed in the wrong record, because sofar_end_session is the one write tool that cannot be targeted.
+
+Standing constraints — obey verbatim (2):
+- [D1] Never give sofar_end_session an `initiative` argument — a write-back belongs where the session lives; move the SESSION with sofar_start_session instead.
+- [D2] A fresh session's record is resolved by the branch — never silently redirect resolution to the most recently active initiative. Name the candidate and let the session re-home.
+Progress: 8/8 tasks done (100%) across 3 phase(s)
+
+Phases:
+- Phase 1 — Teach re-homing (the shipped trap) [done] 3/3
+  - [x] 1.1 The protocol block ships the trap to EVERY sofar user. It says only "Do still call `sofar_start_session`, passing the `session_id` from the injected context line" and never mentions passing `initiative` when the work moves to another record — so an agent adopts the branch's initiative and stays mis-homed for its whole life. Add the re-homing instruction with the rule of thumb that makes it stick: an `initiative` arg routes ONE write, re-homing moves the SESSION. Both dialects (CLAUDE.md and AGENTS.md), since the CLI dialect has the same trap via `sofar event append`.
+  - [x] 1.2 Protocol-block edits are VERSIONED — doctor compares the installed block against SHIPPED_PROTOCOL_BLOCKS and reports a stale one (speed-2 T6), because `sofar upgrade` replaces the binary and not repo wiring. So 1.1 means appending a new shipped version, never editing the current one in place. Verify an already-inited repo is told its block is stale rather than silently keeping the old text.
+  - [x] 1.3 DECIDE whether sofar_end_session should take an `initiative` at all. It is the ONLY write tool that cannot be targeted, which is what turns a mis-homed session into ~10 misrouted write-backs. But adding it would legitimise the session SPLIT that record-integrity spent a whole initiative eliminating (D13, and the 21 splits accepted as history). Weigh teaching re-homing (1.1) as the complete fix against widening the tool surface; cite record-integrity D13 either way.
+- Phase 2 — Orient a FRESH session [done] 3/3
+  - [x] 2.1 DECIDE what a brand-new session on a BOUND branch is told. Today it silently gets the branch's initiative, which in a repo like this one is wrong most of the time — main is bound to drift-certification while five initiatives are live. The user's ask is that a new session load the LAST worked initiative. The tension to resolve honestly: 'last worked' is global, so it can be a PEER's work, and silently loading it recreates exactly the misrouting class record-integrity fixed. Weigh (a) resolve to most-recently-active, (b) keep branch resolution but ADD a visible line naming the more recent work and how to re-home, (c) track last-worked per machine. Option (b) is the one consistent with the standing rule that a wrong answer is worse than a missing one.
+  - [x] 2.2 Implement 2.1's choice inside the ≤10,000-char SessionStart guarantee, and WITHOUT adding an unconditional line — it must stay quiet when the branch and the recent work agree, which is the common case in a single-initiative repo. A nudge that fires every session is one people learn to skip (record-integrity D3).
+  - [x] 2.3 Cost check before it ships: 'most recently active initiative' means reading N logs, and the SessionStart budget is 100ms with roughly 65ms already spent. core/warmth.ts already answers recency from a log's own newest event rather than filesystem mtime — reuse it rather than adding a scan, and measure before and after like D6 did.
+- Phase 3 — Prove it [done] 2/2
+  - [x] 3.1 Dogfood the exact case that prompted this: from a session on a branch bound elsewhere, confirm the fresh-session surface names the right record, that re-homing moves the statusline and the write-back target together, and that peer sessions on the old initiative are UNAFFECTED — the property that makes per-session pinning safe. Verified once already by hand on 2026-08-13; make it a test.
+  - [x] 3.2 docs/SPEC.md: the re-homing contract and the fresh-session resolution order, alongside the session-before-branch precedence initiative-lifecycle already recorded there.
+
+Next action: Await the user's go-ahead, then run sofar new for a fresh initiative since session-orientation is closed, log a Decision citing session-orientation D2 and the property test/rehome.test.ts pins that bindings.json stays untouched, and implement the rebind inside sofar_end_session with a closed or dropped guard.
+
+⚠ Staleness:
+- last write-back summary exceeds the SessionStart budget (450 chars) and is clipped there — full text in sessions/74cc7f44-37ce-4e2e-9b66-9ade0f689bef.md
+
+Last session (claude-code, ended 2026-08-13T16:19:59.524Z):
+  Diagnostic session on a user report that "the new session inherits the last opened initiative" was broken. It is not broken: the fix fired in the exact session the user screenshotted. Proof is brillo transcript f15e6b7e at 2026-08-13T16:02:03Z, which carries the notice naming project-tax-architecture (6m) over baseui-toast-migration (48m) and the re-home call. Confirmed recentWorkElsewhereNotice ships in 0.28.0 by grepping the installed bundles under ~/.local/lib/node_modules/sofar.sh/dist: absent from cli.js because that is a 545-byte boot shim, present in both fast.js and full.js. The gap is expectation versus D2. The notice never moves resolution, the statusline reads bindings.json, and Claude Code does not render injected SessionStart context, so the only surface the user can see stays wrong. Root cause underneath: brillo main is bound to baseui-toast-migration while 59 initiatives share that branch and 8 tax commits sit on it, and re-homing never writes bindings.json, so every fresh session starts wrong. Recommended to the user: bind the branch to the session home at write-back time inside sofar_end_session, skipping closed or dropped homes. It does not touch D2 since resolution stays branch-first for fresh sessions, and it cannot tear a live peer because homeInitiative treats the branch slug only as a seed candidate that any strictly later session_started displaces (mcp/context.ts:194). Write-back time rather than re-home time because this very session is the counter-example: it re-homed to a CLOSED record purely to diagnose. Awaiting go-ahead; nothing was built and no code changed.
+
+Files touched (14):
+- /Users/jins/IO/sofar/packages/engine/src/cli/init.ts
+- /Users/jins/IO/sofar/packages/engine/test/init.test.ts
+- /Users/jins/IO/sofar/CLAUDE.md
+- /private/tmp/claude-501/-Users-jins-IO-sofar/88c4bd4c-25ab-4cc2-88bc-de2a505103d9/scratchpad/msg.txt
+- /Users/jins/IO/sofar/.sofar/repo.md
+- /Users/jins/IO/sofar/packages/engine/src/core/warmth.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+- /Users/jins/IO/sofar/packages/engine/test/recent-elsewhere.test.ts
+- /Users/jins/IO/sofar/packages/engine/test/zz-bench-tmp.test.ts
+- /Users/jins/IO/sofar/docs/SPEC.md
+- /private/tmp/claude-501/-Users-jins-IO-sofar/88c4bd4c-25ab-4cc2-88bc-de2a505103d9/scratchpad/msg2.txt
+- /Users/jins/IO/sofar/packages/engine/test/rehome.test.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/88c4bd4c-25ab-4cc2-88bc-de2a505103d9/scratchpad/msg3.txt
+- /private/tmp/claude-501/-Users-jins-IO-sofar/88c4bd4c-25ab-4cc2-88bc-de2a505103d9/scratchpad/msg4.txt
+
+== digest:plain (2717 bytes) ==
+# Sofar status: session-orientation
+
+Goal: A session should serve the initiative it is actually working on, and should be able to tell when it is not. The mechanism already exists and is correct — resolveSessionFirst treats the branch as a candidate and lets the session's home win, homeInitiative resolves by the latest session_started across every log, and every surface (statusline, SessionStart digest, hooks) follows it. What is missing …
+
+Next action: Await the user's go-ahead, then run sofar new for a fresh initiative since session-orientation is closed, log a Decision citing session-orientation D2 and the property test/rehome.test.ts pins that bindings.json stays untouched, and implement the rebind inside sofar_end_session with a closed or dropped guard.
+
+Last session (claude-code, ended 2026-08-13T16:19:59.524Z):
+  Diagnostic session on a user report that "the new session inherits the last opened initiative" was broken. It is not broken: the fix fired in the exact session the user screenshotted. Proof is brillo transcript f15e6b7e at 2026-08-13T16:02:03Z, which carries the notice naming project-tax-architecture (6m) over … (clipped — full text in sessions/74cc7f44-37ce-4e2e-9b66-9ade0f689bef.md)
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3 (8/8 tasks)
+Progress: 8/8 tasks done (100%) across 3 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] Cross-initiative recency on a hook path goes through core/warmth.ts — newestEvent/lastAppendAt read only the log's TAIL, so they are O(1) in log size and cost about 0.03 ms per initiative (1.7 ms across 38 initiatives, 5.3 MB, measured 2026-08-13). Never reach for core/listing.t…
+
+Recent decisions (2; full text in decisions.md):
+- [D1] 2026-08-13 (rule below) sofar_end_session keeps its three-argument signature — over Adding an optional `initiative` to sofar_end_session
+- [D2] 2026-08-13 (rule below) Option (b), with two gates. A fresh session on a bound bran… — over (a) resolving a fresh session to the most-recently-active initiative,…
+
+Next ids: D3 (decision), M2 (memory)
+
+Standing constraints — obey verbatim (2):
+- [D1] Never give sofar_end_session an `initiative` argument — a write-back belongs where the session lives; move the SESSION with sofar_start_session instead.
+- [D2] A fresh session's record is resolved by the branch — never silently redirect resolution to the most recently active initiative. Name the candidate and let the session re-home.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:hook (3645 bytes) ==
+# Sofar status: session-orientation
+
+Goal: A session should serve the initiative it is actually working on, and should be able to tell when it is not. The mechanism already exists and is correct — resolveSessionFirst treats the branch as a candidate and lets the session's home win, homeInitiative resolves by the latest session_started across every log, and every surface (statusline, SessionStart digest, hooks) follows it. What is missing …
+
+Next action: Await the user's go-ahead, then run sofar new for a fresh initiative since session-orientation is closed, log a Decision citing session-orientation D2 and the property test/rehome.test.ts pins that bindings.json stays untouched, and implement the rebind inside sofar_end_session with a closed or dropped guard.
+
+Last session (claude-code, ended 2026-08-13T16:19:59.524Z):
+  Diagnostic session on a user report that "the new session inherits the last opened initiative" was broken. It is not broken: the fix fired in the exact session the user screenshotted. Proof is brillo transcript f15e6b7e at 2026-08-13T16:02:03Z, which carries the notice naming project-tax-architecture (6m) over … (clipped — full text in sessions/74cc7f44-37ce-4e2e-9b66-9ade0f689bef.md)
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3 (8/8 tasks)
+Progress: 8/8 tasks done (100%) across 3 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] Cross-initiative recency on a hook path goes through core/warmth.ts — newestEvent/lastAppendAt read only the log's TAIL, so they are O(1) in log size and cost about 0.03 ms per initiative (1.7 ms across 38 initiatives, 5.3 MB, measured 2026-08-13). Never reach for core/listing.t…
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+…truncated — read .sofar/repo.md for the rest
+
+Recent decisions (2; full text in decisions.md):
+- [D1] 2026-08-13 (rule below) sofar_end_session keeps its three-argument signature — over Adding an optional `initiative` to sofar_end_session
+- [D2] 2026-08-13 (rule below) Option (b), with two gates. A fresh session on a bound bran… — over (a) resolving a fresh session to the most-recently-active initiative,…
+
+Next ids: D3 (decision), M2 (memory)
+
+Session: session-orientation-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: session-orientation @ a1b2c3d — no origin ref — never pushed
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+Standing constraints — obey verbatim (2):
+- [D1] Never give sofar_end_session an `initiative` argument — a write-back belongs where the session lives; move the SESSION with sofar_start_session instead.
+- [D2] A fresh session's record is resolved by the branch — never silently redirect resolution to the most recently active initiative. Name the candidate and let the session re-home.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:lane (3263 bytes) ==
+# Sofar: quick-work lane (session-orientation)
+
+Goal: A session should serve the initiative it is actually working on, and should be able to tell when it is not. The mechanism already exists and is correct — resolveSessionFirst treats the branch as a candidate and lets the session's home win, homeInitiative resolves by the latest session_started across every log, and every surface (statusline, SessionStart digest, hooks) follows it. What is missing …
+
+This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
+- Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
+- Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
+
+Last session (claude-code, ended 2026-08-13T16:19:59.524Z):
+  Diagnostic session on a user report that "the new session inherits the last opened initiative" was broken. It is not broken: the fix fired in the exact session the user screenshotted. Proof is brillo transcript f15e6b7e at 2026-08-13T16:02:03Z, which carries the notice naming project-tax-architecture (6m) over … (clipped — full text in sessions/74cc7f44-37ce-4e2e-9b66-9ade0f689bef.md)
+
+Recent quick work (3 sessions, 2 decisions since 2026-08-13):
+- 2026-08-13 claude-code — 15 commands
+- 2026-08-13 claude-code — 1 file (/Users/jins/IO/sofar/.sofar/repo.md), 6 commands
+- 2026-08-13 claude-code — 13 files (/Users/jins/IO/sofar/packages/engine/src/cli/init.ts, /Users/jins/IO/sofar/packages/engine/test/init.test.ts, /Users/jins/IO/sofar/CLAUDE.md, /private/tmp/claude-501/-Users-jins-IO-sofar/88c4bd4c-25ab-4cc2-88bc-de2a505103d9/scratchpad/msg.txt, /Users/jins/IO/sofar/packages/engine/src/core/warmth.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/test/recent-elsewhere.test.ts, /Users/jins/IO/sofar/packages/engine/test/zz-bench-tmp.test.ts, /Users/jins/IO/sofar/docs/SPEC.md, /private/tmp/claude-501/-Users-jins-IO-so…
+
+Memory (1; full text in memory.md):
+- [M1] Cross-initiative recency on a hook path goes through core/warmth.ts — newestEve…
+
+Recent decisions (2; full text in decisions.md):
+- [D1] 2026-08-13 (rule below) sofar_end_session keeps its three-argument signature — over Adding an optional `initiative` to sofar_end_session
+- [D2] 2026-08-13 (rule below) Option (b), with two gates. A fresh session on a bound bran… — over (a) resolving a fresh session to the most-recently-active initiative,…
+
+Next ids: D3 (decision), M2 (memory)
+
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: session-orientation @ a1b2c3d — no origin ref — never pushed
+
+Standing constraints — obey verbatim (2):
+- [D2] A fresh session's record is resolved by the branch — never silently redirect resolution to the most recently active initiative. Name the candidate and let the session re-home.
+- [D1] Never give sofar_end_session an `initiative` argument — a write-back belongs where the session lives; move the SESSION with sofar_start_session instead.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:quiet (2803 bytes) ==
+# Sofar status: session-orientation
+
+Goal: A session should serve the initiative it is actually working on, and should be able to tell when it is not. The mechanism already exists and is correct — resolveSessionFirst treats the branch as a candidate and lets the session's home win, homeInitiative resolves by the latest session_started across every log, and every surface (statusline, SessionStart digest, hooks) follows it. What is missing …
+
+Next action: Await the user's go-ahead, then run sofar new for a fresh initiative since session-orientation is closed, log a Decision citing session-orientation D2 and the property test/rehome.test.ts pins that bindings.json stays untouched, and implement the rebind inside sofar_end_session with a closed or dropped guard.
+
+Last session (claude-code, ended 2026-08-13T16:19:59.524Z):
+  Diagnostic session on a user report that "the new session inherits the last opened initiative" was broken. It is not broken: the fix fired in the exact session the user screenshotted. Proof is brillo transcript f15e6b7e at 2026-08-13T16:02:03Z, which carries the notice naming project-tax-architecture (6m) over … (clipped — full text in sessions/74cc7f44-37ce-4e2e-9b66-9ade0f689bef.md)
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3 (8/8 tasks)
+Progress: 8/8 tasks done (100%) across 3 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] Cross-initiative recency on a hook path goes through core/warmth.ts — newestEvent/lastAppendAt read only the log's TAIL, so they are O(1) in log size and cost about 0.03 ms per initiative (1.7 ms across 38 initiatives, 5.3 MB, measured 2026-08-13). Never reach for core/listing.t…
+
+Recent decisions (2; full text in decisions.md):
+- [D1] 2026-08-13 (rule below) sofar_end_session keeps its three-argument signature — over Adding an optional `initiative` to sofar_end_session
+- [D2] 2026-08-13 (rule below) Option (b), with two gates. A fresh session on a bound bran… — over (a) resolving a fresh session to the most-recently-active initiative,…
+
+Next ids: D3 (decision), M2 (memory)
+
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (2):
+- [D1] Never give sofar_end_session an `initiative` argument — a write-back belongs where the session lives; move the SESSION with sofar_start_session instead.
+- [D2] A fresh session's record is resolved by the branch — never silently redirect resolution to the most recently active initiative. Name the candidate and let the session re-home.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:cap (6026 bytes) ==
+# Sofar status: session-orientation
+
+Goal: A session should serve the initiative it is actually working on, and should be able to tell when it is not. The mechanism already exists and is correct — resolveSessionFirst treats the branch as a candidate and lets the session's home win, homeInitiative resolves by the latest session_started across every log, and every surface (statusline, SessionStart digest, hooks) follows it. What is missing …
+
+Next action: Await the user's go-ahead, then run sofar new for a fresh initiative since session-orientation is closed, log a Decision citing session-orientation D2 and the property test/rehome.test.ts pins that bindings.json stays untouched, and implement the rebind inside sofar_end_session with a closed or dropped guard.
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3 (8/8 tasks)
+Progress: 8/8 tasks done (100%) across 3 phase(s)
+
+
+Next ids: D3 (decision), M2 (memory)
+
+Session: session-orientation-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: session-orientation @ a1b2c3d — no origin ref — never pushed
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+…truncated — run sofar status for full detail
+
+Standing constraints — obey verbatim (2):
+- [D1] Never give sofar_end_session an `initiative` argument — a write-back belongs where the session lives; move the SESSION with sofar_start_session instead.
+- [D2] A fresh session's record is resolved by the branch — never silently redirect resolution to the most recently active initiative. Name the candidate and let the session re-home.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== plan (4975 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Plan: session-orientation
+
+Goal: A session should serve the initiative it is actually working on, and should be able to tell when it is not. The mechanism already exists and is correct — resolveSessionFirst treats the branch as a candidate and lets the session's home win, homeInitiative resolves by the latest session_started across every log, and every surface (statusline, SessionStart digest, hooks) follows it. What is missing is that nothing TELLS an agent to use it, and nothing tells a fresh session that the user's recent work was somewhere other than this branch. Both gaps were found by the user on 2026-08-13 after a session spent its entire life mis-homed: routing individual writes correctly with explicit initiative args while every write-back landed in the wrong record, because sofar_end_session is the one write tool that cannot be targeted.
+
+Progress: 8/8 tasks done (100%)
+
+## Phase 1 — Teach re-homing (the shipped trap) [done] — 3/3 done
+
+- [x] 1.1 The protocol block ships the trap to EVERY sofar user. It says only "Do still call `sofar_start_session`, passing the `session_id` from the injected context line" and never mentions passing `initiative` when the work moves to another record — so an agent adopts the branch's initiative and stays mis-homed for its whole life. Add the re-homing instruction with the rule of thumb that makes it stick: an `initiative` arg routes ONE write, re-homing moves the SESSION. Both dialects (CLAUDE.md and AGENTS.md), since the CLI dialect has the same trap via `sofar event append`.
+- [x] 1.2 Protocol-block edits are VERSIONED — doctor compares the installed block against SHIPPED_PROTOCOL_BLOCKS and reports a stale one (speed-2 T6), because `sofar upgrade` replaces the binary and not repo wiring. So 1.1 means appending a new shipped version, never editing the current one in place. Verify an already-inited repo is told its block is stale rather than silently keeping the old text.
+- [x] 1.3 DECIDE whether sofar_end_session should take an `initiative` at all. It is the ONLY write tool that cannot be targeted, which is what turns a mis-homed session into ~10 misrouted write-backs. But adding it would legitimise the session SPLIT that record-integrity spent a whole initiative eliminating (D13, and the 21 splits accepted as history). Weigh teaching re-homing (1.1) as the complete fix against widening the tool surface; cite record-integrity D13 either way.
+
+## Phase 2 — Orient a FRESH session [done] — 3/3 done
+
+- [x] 2.1 DECIDE what a brand-new session on a BOUND branch is told. Today it silently gets the branch's initiative, which in a repo like this one is wrong most of the time — main is bound to drift-certification while five initiatives are live. The user's ask is that a new session load the LAST worked initiative. The tension to resolve honestly: 'last worked' is global, so it can be a PEER's work, and silently loading it recreates exactly the misrouting class record-integrity fixed. Weigh (a) resolve to most-recently-active, (b) keep branch resolution but ADD a visible line naming the more recent work and how to re-home, (c) track last-worked per machine. Option (b) is the one consistent with the standing rule that a wrong answer is worse than a missing one.
+- [x] 2.2 Implement 2.1's choice inside the ≤10,000-char SessionStart guarantee, and WITHOUT adding an unconditional line — it must stay quiet when the branch and the recent work agree, which is the common case in a single-initiative repo. A nudge that fires every session is one people learn to skip (record-integrity D3).
+- [x] 2.3 Cost check before it ships: 'most recently active initiative' means reading N logs, and the SessionStart budget is 100ms with roughly 65ms already spent. core/warmth.ts already answers recency from a log's own newest event rather than filesystem mtime — reuse it rather than adding a scan, and measure before and after like D6 did.
+
+## Phase 3 — Prove it [done] — 2/2 done
+
+- [x] 3.1 Dogfood the exact case that prompted this: from a session on a branch bound elsewhere, confirm the fresh-session surface names the right record, that re-homing moves the statusline and the write-back target together, and that peer sessions on the old initiative are UNAFFECTED — the property that makes per-session pinning safe. Verified once already by hand on 2026-08-13; make it a test.
+- [x] 3.2 docs/SPEC.md: the re-homing contract and the fresh-session resolution order, alongside the session-before-branch precedence initiative-lifecycle already recorded there.
+
+Next action: Await the user's go-ahead, then run sofar new for a fresh initiative since session-orientation is closed, log a Decision citing session-orientation D2 and the property test/rehome.test.ts pins that bindings.json stays untouched, and implement the rebind inside sofar_end_session with a closed or dropped guard.
+
+== decisions (6706 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Decisions: session-orientation
+
+- 2026-08-13T10:16:29.172Z — rule: **Never give sofar_end_session an `initiative` argument — a write-back belongs where the session lives; move the SESSION with sofar_start_session instead.** — chose **sofar_end_session keeps its three-argument signature: no `initiative` arg, ever. The write-back stays untargetable BY DESIGN, and teaching re-homing (task 1.1) is the complete fix rather than a partial one.** over Adding an optional `initiative` to sofar_end_session — a SPEC §MCP tools signature change — so a mis-homed session could redirect its write-back per call without moving itself. because The capability already exists; only the instruction was missing. endSession routes the ACTIVE session's write-back through the context pin (mcp/end-session.ts:100), and startSession sets that pin to an explicitly named initiative (mcp/start-session.ts:24-36, 56, 69) — so ONE re-home call moves the write-back target, and record-integrity D8 already routes a non-active session home then branch. Verified by hand 2026-08-13: a re-home moved the statusline and left three peer sessions untouched.
+
+An `initiative` arg would do something the record has no semantics for: append a session_ended into a log holding no session_started for that id — a session that ends where it never began. That is precisely the split shape record-integrity D1 and D2 exist to eliminate and D3 accepted 21 of as unrepairable history, in its worst variant: the record holding the work carries no wrap-up, and the record holding the wrap-up carries no work. Every read surface keys on registration (sessions/<id>.md, overlappingWritebacks, homeInitiative's latest-wins under D9).
+
+It would also leave the Stop gate armed. The gate resolves through the session's home (resolveSessionFirst), so a write-back deliberately filed elsewhere blocks the session on debt in a log its own write-back can never reach — the exact failure D9 names, reintroduced through a new door.
+
+And re-homing is strictly better than per-call targeting on the merits: it moves EVERY surface together — statusline, the SessionStart digest on resume, hook events, the Stop gate — where an arg fixes one event and leaves the rest torn. The rule of thumb now in the protocol block ("an initiative arg routes ONE write, re-homing moves the SESSION") is that difference stated in the one place an agent reads it.
+
+Citation correction: task 1.3's text cites record-integrity D13, which does not exist — that initiative logged D1 through D9. The load-bearing ones are D1, D2, D3, D8, D9.
+
+Residual gap, closed in the other dialect rather than here: the CLI path has no re-homing AT ALL, because `sofar event append` resolves its slug through ctx.resolveInitiative (cli/event.ts:1377) and never consults homeInitiative. So AGENTS.md's new RECORD clause tells those tools to pass the leading slug on every append, the session_ended one above all.
+- 2026-08-13T10:22:39.443Z — rule: **A fresh session's record is resolved by the branch — never silently redirect resolution to the most recently active initiative. Name the candidate and let the session re-home.** — chose **Option (b), with two gates. A fresh session on a bound branch keeps BRANCH resolution exactly as it is, and the SessionStart digest gains ONE conditional preface line naming the more recently written record and how to re-home into it. Gate 1: resolution came from the branch rather than the session's own home (resolveSessionFirst's `via`). Gate 2: some other initiative's log carries a strictly newer last append than the bound one's. No side store, no change to routing, no unconditional line.** over (a) resolving a fresh session to the most-recently-active initiative, and (c) tracking last-worked per machine in a side store. because (a) is not a display change, which is what settles it. resolveBound feeds handlePostTool and every other hook (cli/event.ts:445, 519), so "most recently active" would redirect where hook events LAND, not merely what the agent reads. Implemented display-only it is worse: a digest describing a record the session is not writing to is the torn-session shape record-integrity D9 names. And "last worked" is GLOBAL — in this worktree alone five initiatives are live under peer sessions, so the newest append is routinely a peer's, and silently adopting it recreates the misrouting class D1 and D2 closed.
+
+(c) buys nothing against that. The concurrency that makes "last worked" ambiguous here is not across machines, it is inside ONE worktree, and per-machine state cannot separate two peer sessions sharing a checkout. It also reintroduces exactly the side index record-integrity D1 rejected: duplicated state that can desync from the log it summarises, needs pruning, and forces a SPEC record-layout change plus a gitignore ruling.
+
+(b) keeps the property that makes the whole mechanism safe: the record answers what it knows, and where it cannot know, it names the candidate rather than guessing. What has changed since that was merely a nice idea is that task 1.1 shipped re-homing in the protocol block, so an agent reading the line now has the vocabulary and the one call to act on it. Naming without a remedy would have been noise.
+
+Gate 1 is `via === 'branch'` because a session whose own home answered has already CHOSEN, and telling it about newer work elsewhere is second-guessing a deliberate act. For a brand-new session, lazy registration (record-integrity D2) means no home exists yet, so via is always 'branch' — the gate reads as "fresh, or settled on the branch's record", both of which are cases where the branch is the only thing that spoke.
+
+Gate 2 keeps it silent whenever the bound record IS the most recent — every session in a single-initiative repo, which is most users. A line that fires every session is one people learn to skip, the failure record-integrity D3 named about a permanently red doctor.
+
+Deliberately stateless: no "already told you" marker, following record-integrity D5 — repeating a true fact costs less than storing one, and a marker is the same side store (c) was rejected for.
+
+Three honesty requirements on the wording, since a line that overclaims is worse than none: state BOTH last-touched ages so the reader can judge the gap; never assert the newer work is the user's, because it may be a peer's; and make re-homing conditional on it being the work they were asked to continue. The line is also distinct from the existing "Adjacent records" line and must not read as a variant of it — adjacency is shared FILES, this is recency, and neither is a rule.
+
+== memory (1021 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Promoted to repo memory: session-orientation
+
+Cite these in .sofar/repo.md by qualified handle — `session-orientation M<n>` —
+which is how `sofar doctor` sees that a promoted fact reached repo memory.
+
+- **M1** (2026-08-13T10:30:12.056Z) — Cross-initiative recency on a hook path goes through core/warmth.ts — newestEvent/lastAppendAt read only the log's TAIL, so they are O(1) in log size and cost about 0.03 ms per initiative (1.7 ms across 38 initiatives, 5.3 MB, measured 2026-08-13). Never reach for core/listing.ts listInitiatives there: it folds every log, which is what `sofar list` can afford and a 100 ms shim cannot. Two traps that look equivalent and are not: filesystem mtime is dishonest because `git checkout` rewrites every events.jsonl in the tree, and cli/event.ts's local lastEventMs reads the WHOLE file (it predates warmth and is only affordable because the cold-resume path calls it once, for one initiative).
+
+== session 88c4bd4c-25ab-4cc2-88bc-de2a505103d9.md (3314 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 88c4bd4c-25ab-4cc2-88bc-de2a505103d9
+
+- Initiative: session-orientation
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-13T10:09:39.966Z
+- Ended: 2026-08-13T10:41:16.058Z
+
+## Summary
+
+Closed session-orientation as done, 8/8 tasks and all three phases complete. No branch was bound to it (it was created unbound so a peer's branch resolution would not move), so the close unbound nothing and no other session's record changed. The two standing constraints outlive the record and keep rendering wherever they are cited: end_session never gains an initiative arg, and a fresh session's record is never silently redirected to the most recently active initiative.
+
+## Next action
+
+Nothing here: the record is closed and reopening happens by working on it again with sofar switch. The one live obligation is elsewhere — do not publish sofar.sh until commit-attribution finishes, since this initiative's protocol-block change ships in that same release (repo memory M7).
+
+## Activity (derived from mechanical events)
+
+- Derived: 13 files (/Users/jins/IO/sofar/packages/engine/src/cli/init.ts, /Users/jins/IO/sofar/packages/engine/test/init.test.ts, /Users/jins/IO/sofar/CLAUDE.md, /private/tmp/claude-501/-Users-jins-IO-sofar/88c4bd4c-25ab-4cc2-88bc-de2a505103d9/scratchpad/msg.txt, /Users/jins/IO/sofar/packages/engine/src/core/warmth.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/test/recent-elsewhere.test.ts, /Users/jins/IO/sofar/packages/engine/test/zz-bench-tmp.test.ts, /Users/jins/IO/sofar/docs/SPEC.md, /private/tmp/claude-501/-Users-jins-IO-sofar/88c4bd4c-25ab-4cc2-88bc-de2a505103d9/scratchpad/msg2.txt, /Users/jins/IO/sofar/packages/engine/test/rehome.test.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/88c4bd4c-25ab-4cc2-88bc-de2a505103d9/scratchpad/msg3.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/88c4bd4c-25ab-4cc2-88bc-de2a505103d9/scratchpad/msg4.txt), 93 commands, task changes: 1.1 → active, 1.1 → done, 1.2 → done, 1.3 → done, 2.1 → done, 2.2 → done, 2.3 → done, 3.2 → done, 3.1 → done
+- Files:
+  - /Users/jins/IO/sofar/packages/engine/src/cli/init.ts
+  - /Users/jins/IO/sofar/packages/engine/test/init.test.ts
+  - /Users/jins/IO/sofar/CLAUDE.md
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/88c4bd4c-25ab-4cc2-88bc-de2a505103d9/scratchpad/msg.txt
+  - /Users/jins/IO/sofar/packages/engine/src/core/warmth.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+  - /Users/jins/IO/sofar/packages/engine/test/recent-elsewhere.test.ts
+  - /Users/jins/IO/sofar/packages/engine/test/zz-bench-tmp.test.ts
+  - /Users/jins/IO/sofar/docs/SPEC.md
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/88c4bd4c-25ab-4cc2-88bc-de2a505103d9/scratchpad/msg2.txt
+  - /Users/jins/IO/sofar/packages/engine/test/rehome.test.ts
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/88c4bd4c-25ab-4cc2-88bc-de2a505103d9/scratchpad/msg3.txt
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/88c4bd4c-25ab-4cc2-88bc-de2a505103d9/scratchpad/msg4.txt
+- Commands run: 93
+- Task changes:
+  - 1.1 → active
+  - 1.1 → done
+  - 1.2 → done
+  - 1.3 → done
+  - 2.1 → done
+  - 2.2 → done
+  - 2.3 → done
+  - 3.2 → done
+  - 3.1 → done
+
+== session ecd42534-7cd3-4c29-999b-2846c8e8e6c1.md (2365 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session ecd42534-7cd3-4c29-999b-2846c8e8e6c1
+
+- Initiative: session-orientation
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-13T10:14:54.170Z
+- Ended: 2026-08-13T10:22:51.979Z
+
+## Summary
+
+Recorded a user release ruling that binds both live initiatives: do not publish a new sofar.sh until commit-attribution is finished — let the whole thing land, then publish once. Filed as an operational fact rather than a decision, per this repo's own classification of release commands, as commit-attribution M7, and named in the hand-written .sofar/repo.md so it renders in EVERY session's digest rather than only in one record's — which matters because any session could stage a release. The reasoning kept with it: attribution is a chain (hook writes the trailer, core/attribution.ts reads it, doctor reports whether it works, the shipping notice and review packet consume it), so a partial release puts users in the worst available state — a hook writing trailers nothing consumes, or a doctor reporting attribution off in a version with no way to switch it on. Two consequences recorded with it: the prepare-commit-msg hook stays uninstalled in this repo until the release, since an accurate "attribution off" beats a misleading "installed but nothing attributed"; and this initiative's own protocol-block change rides the same release, because protocol blocks are a versioned ledger and a half-shipped one leaves repos matching no known version. Peers moved both initiatives while this ran: commit-attribution is 16 done with 6 remaining, session-orientation 3/8 with Phase 1 complete.
+
+## Next action
+
+Task 2.1: decide what a fresh session on a bound branch is told about more recent work elsewhere. The record leans to option (b) — a line naming the more recent record and how to re-home, staying silent when branch and recent work agree. Note the constraint measured earlier: creation is unattributed (all 38 initiative_created events carry session `cli`), so "last opened" is not answerable and this must rest on most-recently-ACTIVE, which core/warmth.ts already answers.
+
+## Activity (derived from mechanical events)
+
+- Derived: 1 file (/Users/jins/IO/sofar/.sofar/repo.md), 6 commands
+- Files:
+  - /Users/jins/IO/sofar/.sofar/repo.md
+- Commands run: 6
+
+== session 74cc7f44-37ce-4e2e-9b66-9ade0f689bef.md (2324 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 74cc7f44-37ce-4e2e-9b66-9ade0f689bef
+
+- Initiative: session-orientation
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-13T16:07:21.498Z
+- Ended: 2026-08-13T16:19:59.524Z
+
+## Summary
+
+Diagnostic session on a user report that "the new session inherits the last opened initiative" was broken. It is not broken: the fix fired in the exact session the user screenshotted. Proof is brillo transcript f15e6b7e at 2026-08-13T16:02:03Z, which carries the notice naming project-tax-architecture (6m) over baseui-toast-migration (48m) and the re-home call. Confirmed recentWorkElsewhereNotice ships in 0.28.0 by grepping the installed bundles under ~/.local/lib/node_modules/sofar.sh/dist: absent from cli.js because that is a 545-byte boot shim, present in both fast.js and full.js. The gap is expectation versus D2. The notice never moves resolution, the statusline reads bindings.json, and Claude Code does not render injected SessionStart context, so the only surface the user can see stays wrong. Root cause underneath: brillo main is bound to baseui-toast-migration while 59 initiatives share that branch and 8 tax commits sit on it, and re-homing never writes bindings.json, so every fresh session starts wrong. Recommended to the user: bind the branch to the session home at write-back time inside sofar_end_session, skipping closed or dropped homes. It does not touch D2 since resolution stays branch-first for fresh sessions, and it cannot tear a live peer because homeInitiative treats the branch slug only as a seed candidate that any strictly later session_started displaces (mcp/context.ts:194). Write-back time rather than re-home time because this very session is the counter-example: it re-homed to a CLOSED record purely to diagnose. Awaiting go-ahead; nothing was built and no code changed.
+
+## Next action
+
+Await the user's go-ahead, then run sofar new for a fresh initiative since session-orientation is closed, log a Decision citing session-orientation D2 and the property test/rehome.test.ts pins that bindings.json stays untouched, and implement the rebind inside sofar_end_session with a closed or dropped guard.
+
+## Activity (derived from mechanical events)
+
+- Derived: 15 commands
+- Commands run: 15
+

@@ -53,6 +53,12 @@ Git: rust-core @ 7535e75 — no origin ref — never pushed
 Standing constraints — obey verbatim (2):
 - [D2] Hot-path Rust code reproduces the JavaScript text semantics pinned in docs/HOTPATH.md §Text-semantics pins, never Rust defaults; a parity difference is fixed in Rust or ruled by a Decision, never absorbed by loosening the conformance suite.
 - [D1] Hot-path event and projection behaviour is defined by docs/SPEC.md plus the conformance suite and must pass against both the TypeScript and Rust implementations; Rust schema types are generated from packages/schema/src, never hand-written.
+Repo-wide rules from other records (4 of 92, most relevant first):
+- [drift-certification D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
+- [architecture-map D1] Every module added under packages/*/src must get a line in docs/ARCHITECTURE.md in the same change — the suite fails until it does, and that failure is the cheapest moment to write it.
+- [drift-certification D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
+- [record-citations D1] § cites a section of a HAND-WRITTEN document only (docs/SPEC.md, docs/FORMAT.md, CLAUDE.md), named verbatim and whole, kept on one line, and closed by comma or parens whenever the next word could read as part of the heading. Tasks, phases and decisions are cited by id, never with §.
+- …and 88 more in other records (their decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
@@ -113,6 +119,12 @@ Git: rust-core @ 7535e75 — no origin ref — never pushed
 Standing constraints — obey verbatim (2):
 - [D2] Hot-path Rust code reproduces the JavaScript text semantics pinned in docs/HOTPATH.md §Text-semantics pins, never Rust defaults; a parity difference is fixed in Rust or ruled by a Decision, never absorbed by loosening the conformance suite.
 - [D1] Hot-path event and projection behaviour is defined by docs/SPEC.md plus the conformance suite and must pass against both the TypeScript and Rust implementations; Rust schema types are generated from packages/schema/src, never hand-written.
+Repo-wide rules from other records (4 of 92, most relevant first):
+- [drift-certification D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
+- [architecture-map D1] Every module added under packages/*/src must get a line in docs/ARCHITECTURE.md in the same change — the suite fails until it does, and that failure is the cheapest moment to write it.
+- [drift-certification D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
+- [record-citations D1] § cites a section of a HAND-WRITTEN document only (docs/SPEC.md, docs/FORMAT.md, CLAUDE.md), named verbatim and whole, kept on one line, and closed by comma or parens whenever the next word could read as part of the heading. Tasks, phases and decisions are cited by id, never with §.
+- …and 88 more in other records (their decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
@@ -175,6 +187,12 @@ Git: rust-core @ 7535e75 — no origin ref — never pushed
 Standing constraints — obey verbatim (2):
 - [D2] Hot-path Rust code reproduces the JavaScript text semantics pinned in docs/HOTPATH.md §Text-semantics pins, never Rust defaults; a parity difference is fixed in Rust or ruled by a Decision, never absorbed by loosening the conformance suite.
 - [D1] Hot-path event and projection behaviour is defined by docs/SPEC.md plus the conformance suite and must pass against both the TypeScript and Rust implementations; Rust schema types are generated from packages/schema/src, never hand-written.
+Repo-wide rules from other records (4 of 92, most relevant first):
+- [drift-certification D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
+- [architecture-map D1] Every module added under packages/*/src must get a line in docs/ARCHITECTURE.md in the same change — the suite fails until it does, and that failure is the cheapest moment to write it.
+- [drift-certification D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
+- [record-citations D1] § cites a section of a HAND-WRITTEN document only (docs/SPEC.md, docs/FORMAT.md, CLAUDE.md), named verbatim and whole, kept on one line, and closed by comma or parens whenever the next word could read as part of the heading. Tasks, phases and decisions are cited by id, never with §.
+- …and 88 more in other records (their decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
@@ -235,6 +253,12 @@ Git: rust-core @ 7535e75 — no origin ref — never pushed
 Standing constraints — obey verbatim (2):
 - [D2] Hot-path Rust code reproduces the JavaScript text semantics pinned in docs/HOTPATH.md §Text-semantics pins, never Rust defaults; a parity difference is fixed in Rust or ruled by a Decision, never absorbed by loosening the conformance suite.
 - [D1] Hot-path event and projection behaviour is defined by docs/SPEC.md plus the conformance suite and must pass against both the TypeScript and Rust implementations; Rust schema types are generated from packages/schema/src, never hand-written.
+Repo-wide rules from other records (4 of 92, most relevant first):
+- [drift-certification D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
+- [architecture-map D1] Every module added under packages/*/src must get a line in docs/ARCHITECTURE.md in the same change — the suite fails until it does, and that failure is the cheapest moment to write it.
+- [drift-certification D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
+- [record-citations D1] § cites a section of a HAND-WRITTEN document only (docs/SPEC.md, docs/FORMAT.md, CLAUDE.md), named verbatim and whole, kept on one line, and closed by comma or parens whenever the next word could read as part of the heading. Tasks, phases and decisions are cited by id, never with §.
+- …and 88 more in other records (their decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
@@ -295,6 +319,12 @@ Git: rust-core @ 7535e75 — no origin ref — never pushed
 Standing constraints — obey verbatim (2):
 - [D2] Hot-path Rust code reproduces the JavaScript text semantics pinned in docs/HOTPATH.md §Text-semantics pins, never Rust defaults; a parity difference is fixed in Rust or ruled by a Decision, never absorbed by loosening the conformance suite.
 - [D1] Hot-path event and projection behaviour is defined by docs/SPEC.md plus the conformance suite and must pass against both the TypeScript and Rust implementations; Rust schema types are generated from packages/schema/src, never hand-written.
+Repo-wide rules from other records (4 of 92, most relevant first):
+- [drift-certification D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
+- [architecture-map D1] Every module added under packages/*/src must get a line in docs/ARCHITECTURE.md in the same change — the suite fails until it does, and that failure is the cheapest moment to write it.
+- [drift-certification D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
+- [record-citations D1] § cites a section of a HAND-WRITTEN document only (docs/SPEC.md, docs/FORMAT.md, CLAUDE.md), named verbatim and whole, kept on one line, and closed by comma or parens whenever the next word could read as part of the heading. Tasks, phases and decisions are cited by id, never with §.
+- …and 88 more in other records (their decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
@@ -358,6 +388,13 @@ Adjacency, not aboutness — offered as worth reading, never as a rule.
 Session: aefa6315-3725-4e4d-9f9a-224ff6f86ddb — adopted on Claude Code; else pass to sofar_start_session.
 Git: rust-core @ 7535e75 — no origin ref — never pushed
 
+Repo-wide rules from other records (4 of 94, most relevant first):
+- [bench-refresh D10] Every sofar fallback or failure seen in a run (driver stall, hook block, tool error, truncation, workaround) is a loss-study row with evidence and a ranked fix; a fix's predicted gain is written before it is built and checked in the next round.
+- [session-driver D5] Driver handoff reasons are derived from the fold — needs_user is the named task in status `blocked`, task_done needs a write-back AND a terminal task status; never infer a reason from write-back prose or an exit code.
+- [in-session-drive D1] A driven run started from inside an agent session must be detached from that agent's process, must state its preflight refusals and D9 warnings to the caller before returning, and must refuse while the calling session is registered on the driven initiative with no write-back.
+- [session-driver D14] `--cost-cap` and `--max-sessions` bound ONE driver, not one run: a resumed run restarts the cap at zero and counts its session budget from recorded handoffs alone. Never describe either as a run-wide guarantee, and keep the resume warnings that say so.
+- …and 90 more in other records (their decisions.md)
+
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
@@ -416,6 +453,12 @@ Git: rust-core @ 7535e75 — no origin ref — never pushed
 Standing constraints — obey verbatim (2):
 - [D2] Hot-path Rust code reproduces the JavaScript text semantics pinned in docs/HOTPATH.md §Text-semantics pins, never Rust defaults; a parity difference is fixed in Rust or ruled by a Decision, never absorbed by loosening the conformance suite.
 - [D1] Hot-path event and projection behaviour is defined by docs/SPEC.md plus the conformance suite and must pass against both the TypeScript and Rust implementations; Rust schema types are generated from packages/schema/src, never hand-written.
+Repo-wide rules from other records (4 of 92, most relevant first):
+- [drift-certification D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
+- [architecture-map D1] Every module added under packages/*/src must get a line in docs/ARCHITECTURE.md in the same change — the suite fails until it does, and that failure is the cheapest moment to write it.
+- [drift-certification D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
+- [record-citations D1] § cites a section of a HAND-WRITTEN document only (docs/SPEC.md, docs/FORMAT.md, CLAUDE.md), named verbatim and whole, kept on one line, and closed by comma or parens whenever the next word could read as part of the heading. Tasks, phases and decisions are cited by id, never with §.
+- …and 88 more in other records (their decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
@@ -475,6 +518,12 @@ Git: rust-core @ 7535e75 — no origin ref — never pushed
 Standing constraints — obey verbatim (2):
 - [D2] Hot-path Rust code reproduces the JavaScript text semantics pinned in docs/HOTPATH.md §Text-semantics pins, never Rust defaults; a parity difference is fixed in Rust or ruled by a Decision, never absorbed by loosening the conformance suite.
 - [D1] Hot-path event and projection behaviour is defined by docs/SPEC.md plus the conformance suite and must pass against both the TypeScript and Rust implementations; Rust schema types are generated from packages/schema/src, never hand-written.
+Repo-wide rules from other records (4 of 92, most relevant first):
+- [drift-certification D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
+- [architecture-map D1] Every module added under packages/*/src must get a line in docs/ARCHITECTURE.md in the same change — the suite fails until it does, and that failure is the cheapest moment to write it.
+- [drift-certification D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
+- [record-citations D1] § cites a section of a HAND-WRITTEN document only (docs/SPEC.md, docs/FORMAT.md, CLAUDE.md), named verbatim and whole, kept on one line, and closed by comma or parens whenever the next word could read as part of the heading. Tasks, phases and decisions are cited by id, never with §.
+- …and 88 more in other records (their decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
@@ -534,6 +583,12 @@ Git: rust-core @ 7535e75 — no origin ref — never pushed
 Standing constraints — obey verbatim (2):
 - [D2] Hot-path Rust code reproduces the JavaScript text semantics pinned in docs/HOTPATH.md §Text-semantics pins, never Rust defaults; a parity difference is fixed in Rust or ruled by a Decision, never absorbed by loosening the conformance suite.
 - [D1] Hot-path event and projection behaviour is defined by docs/SPEC.md plus the conformance suite and must pass against both the TypeScript and Rust implementations; Rust schema types are generated from packages/schema/src, never hand-written.
+Repo-wide rules from other records (4 of 92, most relevant first):
+- [drift-certification D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
+- [architecture-map D1] Every module added under packages/*/src must get a line in docs/ARCHITECTURE.md in the same change — the suite fails until it does, and that failure is the cheapest moment to write it.
+- [drift-certification D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
+- [record-citations D1] § cites a section of a HAND-WRITTEN document only (docs/SPEC.md, docs/FORMAT.md, CLAUDE.md), named verbatim and whole, kept on one line, and closed by comma or parens whenever the next word could read as part of the heading. Tasks, phases and decisions are cited by id, never with §.
+- …and 88 more in other records (their decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
@@ -593,6 +648,12 @@ Git: rust-core @ 7535e75 — no origin ref — never pushed
 Standing constraints — obey verbatim (2):
 - [D2] Hot-path Rust code reproduces the JavaScript text semantics pinned in docs/HOTPATH.md §Text-semantics pins, never Rust defaults; a parity difference is fixed in Rust or ruled by a Decision, never absorbed by loosening the conformance suite.
 - [D1] Hot-path event and projection behaviour is defined by docs/SPEC.md plus the conformance suite and must pass against both the TypeScript and Rust implementations; Rust schema types are generated from packages/schema/src, never hand-written.
+Repo-wide rules from other records (4 of 92, most relevant first):
+- [drift-certification D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
+- [architecture-map D1] Every module added under packages/*/src must get a line in docs/ARCHITECTURE.md in the same change — the suite fails until it does, and that failure is the cheapest moment to write it.
+- [drift-certification D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
+- [record-citations D1] § cites a section of a HAND-WRITTEN document only (docs/SPEC.md, docs/FORMAT.md, CLAUDE.md), named verbatim and whole, kept on one line, and closed by comma or parens whenever the next word could read as part of the heading. Tasks, phases and decisions are cited by id, never with §.
+- …and 88 more in other records (their decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
@@ -651,6 +712,12 @@ Git: rust-core @ 7535e75 — no origin ref — never pushed
 Standing constraints — obey verbatim (2):
 - [D2] Hot-path Rust code reproduces the JavaScript text semantics pinned in docs/HOTPATH.md §Text-semantics pins, never Rust defaults; a parity difference is fixed in Rust or ruled by a Decision, never absorbed by loosening the conformance suite.
 - [D1] Hot-path event and projection behaviour is defined by docs/SPEC.md plus the conformance suite and must pass against both the TypeScript and Rust implementations; Rust schema types are generated from packages/schema/src, never hand-written.
+Repo-wide rules from other records (4 of 92, most relevant first):
+- [drift-certification D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
+- [architecture-map D1] Every module added under packages/*/src must get a line in docs/ARCHITECTURE.md in the same change — the suite fails until it does, and that failure is the cheapest moment to write it.
+- [drift-certification D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
+- [record-citations D1] § cites a section of a HAND-WRITTEN document only (docs/SPEC.md, docs/FORMAT.md, CLAUDE.md), named verbatim and whole, kept on one line, and closed by comma or parens whenever the next word could read as part of the heading. Tasks, phases and decisions are cited by id, never with §.
+- …and 88 more in other records (their decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
@@ -711,6 +778,12 @@ Git: rust-core @ 7535e75 — no origin ref — never pushed
 Standing constraints — obey verbatim (2):
 - [D2] Hot-path Rust code reproduces the JavaScript text semantics pinned in docs/HOTPATH.md §Text-semantics pins, never Rust defaults; a parity difference is fixed in Rust or ruled by a Decision, never absorbed by loosening the conformance suite.
 - [D1] Hot-path event and projection behaviour is defined by docs/SPEC.md plus the conformance suite and must pass against both the TypeScript and Rust implementations; Rust schema types are generated from packages/schema/src, never hand-written.
+Repo-wide rules from other records (4 of 92, most relevant first):
+- [drift-certification D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
+- [architecture-map D1] Every module added under packages/*/src must get a line in docs/ARCHITECTURE.md in the same change — the suite fails until it does, and that failure is the cheapest moment to write it.
+- [drift-certification D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
+- [record-citations D1] § cites a section of a HAND-WRITTEN document only (docs/SPEC.md, docs/FORMAT.md, CLAUDE.md), named verbatim and whole, kept on one line, and closed by comma or parens whenever the next word could read as part of the heading. Tasks, phases and decisions are cited by id, never with §.
+- …and 88 more in other records (their decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
@@ -771,6 +844,12 @@ Git: rust-core @ 7535e75 — no origin ref — never pushed
 Standing constraints — obey verbatim (2):
 - [D2] Hot-path Rust code reproduces the JavaScript text semantics pinned in docs/HOTPATH.md §Text-semantics pins, never Rust defaults; a parity difference is fixed in Rust or ruled by a Decision, never absorbed by loosening the conformance suite.
 - [D1] Hot-path event and projection behaviour is defined by docs/SPEC.md plus the conformance suite and must pass against both the TypeScript and Rust implementations; Rust schema types are generated from packages/schema/src, never hand-written.
+Repo-wide rules from other records (4 of 92, most relevant first):
+- [drift-certification D12] Every built cell must be recovery-proof: verify `git status` is clean and that the governed decision is absent from every commit reachable from the cell branch (git log -S<event_id> over the record path returns nothing) before a session runs in it — never leave cell doctoring as an uncommitted working-tree change.
+- [architecture-map D1] Every module added under packages/*/src must get a line in docs/ARCHITECTURE.md in the same change — the suite fails until it does, and that failure is the cheapest moment to write it.
+- [drift-certification D4] A trap must pose NEW work in the governed scope — never work the record already completed — and every built cell must be verified (rule present/absent, decision present/stripped) before a session runs in it.
+- [record-citations D1] § cites a section of a HAND-WRITTEN document only (docs/SPEC.md, docs/FORMAT.md, CLAUDE.md), named verbatim and whole, kept on one line, and closed by comma or parens whenever the next word could read as part of the heading. Tasks, phases and decisions are cited by id, never with §.
+- …and 88 more in other records (their decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 

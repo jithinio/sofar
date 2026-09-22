@@ -46,7 +46,7 @@ argv: ["event","post-tool"]
 stdin: {"session_id":"sess-clean","transcript_path":"<ROOT>/transcript.jsonl","cwd":"<ROOT>","hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"<ROOT>/src/legacy/old.ts","old_string":"a","new_string":"b"},"tool_response":{}}
 exit: 0
 --- stdout
-{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"sofar: [D1] standing rule guards src/legacy/old.ts — \"Never edit files under src/legacy/.\" (guard: path:src/legacy/**,!src/legacy/README.md) — obey it verbatim, or log a decision that supersedes it."}}
+{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"sofar: src/legacy/old.ts is governed by [D1], a standing rule: \"Never edit files under src/legacy/.\" (guard: path:src/legacy/**,!src/legacy/README.md). Work against it needs a decision that supersedes D1."}}
 --- stderr
 (empty)
 
@@ -64,7 +64,7 @@ argv: ["event","post-tool"]
 stdin: {"session_id":"sess-clean","transcript_path":"<ROOT>/transcript.jsonl","cwd":"<ROOT>","hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"src/legacy/deep/x.ts","old_string":"a","new_string":"b"},"tool_response":{}}
 exit: 0
 --- stdout
-{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"sofar: [D1] standing rule guards src/legacy/deep/x.ts — \"Never edit files under src/legacy/.\" (guard: path:src/legacy/**,!src/legacy/README.md) — obey it verbatim, or log a decision that supersedes it."}}
+{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"sofar: src/legacy/deep/x.ts is governed by [D1], a standing rule: \"Never edit files under src/legacy/.\" (guard: path:src/legacy/**,!src/legacy/README.md). Work against it needs a decision that supersedes D1."}}
 --- stderr
 (empty)
 
@@ -82,7 +82,7 @@ argv: ["event","post-tool"]
 stdin: {"session_id":"sess-clean","transcript_path":"<ROOT>/transcript.jsonl","cwd":"<ROOT>","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"npm publish --access public","description":"x"},"tool_response":{}}
 exit: 0
 --- stdout
-{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"sofar: [D2] standing rule guards npm publish --access public — \"Never run npm publish from a workstation.\" (guard: cmd:*npm publish*,*npm run release*) — obey it verbatim, or log a decision that supersedes it."}}
+{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"sofar: npm publish --access public is governed by [D2], a standing rule: \"Never run npm publish from a workstation.\" (guard: cmd:*npm publish*,*npm run release*). Work against it needs a decision that supersedes D2."}}
 --- stderr
 (empty)
 
@@ -91,7 +91,7 @@ argv: ["event","post-tool"]
 stdin: {"session_id":"sess-clean","transcript_path":"<ROOT>/transcript.jsonl","cwd":"<ROOT>","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"npm run release","description":"x"},"tool_response":{}}
 exit: 0
 --- stdout
-{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"sofar: [D2] standing rule guards npm run release — \"Never run npm publish from a workstation.\" (guard: cmd:*npm publish*,*npm run release*) — obey it verbatim, or log a decision that supersedes it."}}
+{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"sofar: npm run release is governed by [D2], a standing rule: \"Never run npm publish from a workstation.\" (guard: cmd:*npm publish*,*npm run release*). Work against it needs a decision that supersedes D2."}}
 --- stderr
 (empty)
 

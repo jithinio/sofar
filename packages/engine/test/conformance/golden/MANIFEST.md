@@ -1,5 +1,24 @@
 # Golden manifest (rust-core D11)
 
+Re-pinned to **main 72146d9** (rust-core merge 9614860), the first trunk
+target: rust-core tracks trunk continuously now, instead of RC tags
+(rust-core D29). Re-recorded from the TypeScript reference
+on Node 24. Six goldens changed:
+- argv.fast-path: `--version` is `0.33.0-rc.2+trunk` (r1-fixes M7), and the
+  post-tool help names apply_patch and read-time surfacing (agents-parity
+  2.1, memory-lead 2.1).
+- open.O2-update-segment: `you have 0.33.0-rc.2+trunk`.
+- repo.hook-lifecycle, syn.guards: PostToolUse notices are fact-form ("<path>
+  is governed by [<handle>], a standing rule: … Work against it needs a
+  decision that supersedes <handle>."), and a decision that names a file
+  surfaces on its edit (memory-lead 2.1, 7cfde43).
+- repo.session-start, repo.branch-elsewhere: every digest carries
+  "Repo-wide rules from other records (…)" after its own standing
+  constraints, or the one-line pointer when its own rules fill the budget
+  (memory-lead 2.2, d63f815).
+Every other golden came back byte-identical. The previous set is kept as
+`../golden-2baf63e-rc.2/`.
+
 Re-pinned to **r1-fixes v0.33.0-rc.2 (cf8c117)**, merged into rust-core and
 re-recorded from the TypeScript reference on Node 24. Only the version moved:
 argv.fast-path (`--version`) and open.O2-update-segment (`you have
