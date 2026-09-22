@@ -1967,12 +1967,21 @@ answer every host can reach (see the Host tiers section).
   It is not the agent default: every line under an agent's monitor is a
   model turn, and Claude Code ends a monitor after 30 minutes (2.1.271).
 - The UserPromptSubmit shim adds one drive line —
-  `sofar drive: run <id> <running|driver gone|stopped: reason> · <n>
-  handoffs · now on <task> · <done>/<total>` — for the session's initiative
-  when its latest run is unstopped or stopped since this session began, and
-  ONLY when that run's newest event or task change is newer than the id this
-  session last saw. The last-seen id lives per session under the per-clone
-  state dir; a lost or unreadable one repeats the line, never silences it.
+  `sofar drive: run <id> <running|driver gone|liveness unknown|stopped:
+  reason> · <n> handoffs · now on <task> · <done>/<total>` — for the
+  session's initiative when its latest run is unstopped or stopped since this
+  session began, and ONLY when the run moved since this session last saw it:
+  the line minus its liveness word differs from the one the session last saw
+  (a handoff, a task finished, the task in flight, the stop). `now on` is the
+  driver's own next task (`core/drive-queue.ts`), absent once stopped. What
+  the session last saw lives per session under the per-clone state dir
+  (`drive-seen/<clone key>.json`); a lost, unreadable or unwritable mark
+  repeats the line, never silences it. The lock is probed only when the line
+  prints, so a quiet prompt spawns nothing (on Linux a probe is a `flock(1)`
+  spawn); a driver dying moves nothing in the record, so it shows here only
+  beside news. A session the driver launched (its agent carries
+  `SOFAR_DRIVE_NUDGE`) gets no line. Codex gets the line through the same
+  handler, as its prompt context.
 - The statusline appends `drive <task>`, `drive gone` or `drive <stop
   reason>` after the initiative's progress, the last only for a stop newer
   than the session's start, within the statusline laws (words over glyphs).
@@ -7085,8 +7094,9 @@ stay the underlying derivation's, and exit codes are styling-independent.
   `needs_user`), 2 when the lock goes FREE with no stop, and 1 with nothing
   to await; `--follow` prints one line per handoff, task change, adoption,
   request and stop, and exits on either end. The prompt line appears when
-  the run changed since the session last saw it and not otherwise, and a
-  lost last-seen file repeats it; the statusline shows the run's task, gone
+  the run changed since the session last saw it and not otherwise, a quiet
+  prompt probes no lock, a driven session gets none, and a lost or
+  unwritable last-seen file repeats it; the statusline shows the run's task, gone
   or stop reason. On macOS, keep-awake on holds a `caffeinate` assertion
   for exactly the driver's life (`pmset -g assertions`); unset with no TTY
   never prompts and says so in the opening lines; the setting is re-read

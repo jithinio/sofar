@@ -23,6 +23,7 @@ import {
 import { ACTORS, SOURCES, type Actor, type Source } from '../core/envelope'
 import { crossConflictsFromOpenSessions, type CrossFileConflict } from '../core/cross-conflicts'
 import {
+  latestRun,
   openSessionFileConflicts,
   openSessionFiles,
   sessionDebt,
@@ -64,7 +65,11 @@ import {
 import { rankByRelevance, refreshRelevance, relevance, type RelevanceRow } from '../core/index-relevance'
 import { addTold, clearTold, readTold, toldKey } from '../core/told'
 import { resolvePeers, type Peer } from '../core/peers'
-import { nudgeLine, readNudge } from '../driver/nudge'
+import { NUDGE_ENV, nudgeLine, readNudge } from '../driver/nudge'
+import { nextTask } from '../core/drive-queue'
+import { noteDriveSeen } from '../core/drive-seen'
+import { probeRunLock, type RunLockOptions } from '../core/run-lock'
+import { taskProgress } from '../projections/templates/shared'
 import { resolvePhaseOrThrow } from '../mcp/update-phase'
 import { redactCommand } from '../core/redact'
 import { recordDiagnostic } from '../core/diagnostics'
@@ -2288,6 +2293,49 @@ function reachablePeerLine(others: string[]): string | null {
   return clipTo(`${head}${named.join(', ')}${more}${tail}`, PEER_LINE_BUDGET)
 }
 
+/** Character budget for the drive line (drive-visibility 3.2). */
+export const DRIVE_LINE_BUDGET = 200
+
+/**
+ * The drive line (drive-visibility 3.2): how the session's initiative's run
+ * stands — `sofar drive: run <id> <running|driver gone|liveness unknown|stopped:
+ * reason> · <n> handoffs · now on <task> · <done>/<total>` — for a run still
+ * open or stopped since this session began, and ONLY when it moved since this
+ * session last saw it. What counts as moving is the line itself minus the
+ * liveness word: a handoff, a task finished, the task in flight, the stop. A
+ * driver dying moves nothing in the record, so it shows here only beside
+ * news; `--await`, the statusline and `sofar status` are where death is seen.
+ *
+ * The lock is probed only once the line will print — on Linux a probe is a
+ * flock(1) spawn, and the per-prompt path spawns nothing unconditionally (D6).
+ * A driven session (its agent launched with the driver's nudge path) gets no
+ * line: it is the run, and every line there is paid by every session.
+ */
+export function driveLine(
+  rootDir: string,
+  state: InitiativeState,
+  me: SessionState,
+  env: NodeJS.ProcessEnv = process.env,
+  lock?: RunLockOptions,
+): string | null {
+  if ((env[NUDGE_ENV] ?? '').length > 0) return null
+  const run = latestRun(state)
+  if (run === undefined) return null
+  if (run.stopped !== undefined && run.stopped < me.started) return null
+  const n = run.handoffs.length
+  const p = taskProgress(state.phases)
+  const now = run.stopped === undefined ? nextTask(state)?.id : undefined
+  const tail = [`${n} handoff${n === 1 ? '' : 's'}`, ...(now !== undefined ? [`now on ${now}`] : []), `${p.done}/${p.total}`].join(' · ')
+  const stopped = run.stopped !== undefined ? `stopped: ${run.stop_reason ?? 'unknown'}` : undefined
+  if (!noteDriveSeen(rootDir, me.id, `${run.id} ${stopped ?? 'open'} · ${tail}`, env)) return null
+  let fate = stopped
+  if (fate === undefined) {
+    const liveness = probeRunLock(rootDir, run.id, { env, ...lock })
+    fate = liveness === 'held' ? 'running' : liveness === 'free' ? 'driver gone' : 'liveness unknown'
+  }
+  return clipTo(`sofar drive: run ${run.id} ${fate} · ${tail}`, DRIVE_LINE_BUDGET)
+}
+
 export function handleUserPrompt(rootDir: string, input: string): HookResult {
   try {
     const hook = parseHook(input)
@@ -2350,6 +2398,10 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
 
     const wrap = parallelWrapLine(state, sessionId)
     if (wrap !== null) lines.push(wrap)
+
+    // News too, of the run driving this initiative (drive-visibility 3.2).
+    const drive = driveLine(rootDir, state, me)
+    if (drive !== null) lines.push(drive)
 
     // One refs read (files, no subprocess) feeding both lines: the per-record
     // news first, then the repo-wide state. Order matters — "your commits
