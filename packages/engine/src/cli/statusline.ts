@@ -1,8 +1,11 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import type { Command } from 'commander'
-import { isClosedInitiativeStatus, type InitiativeStatus } from '@sofar/schema'
+import { isClosedInitiativeStatus, type InitiativeStatus, type RunStopReason } from '@sofar/schema'
+import { nextTask } from '../core/drive-queue'
+import { latestRun, type InitiativeState } from '../core/fold'
 import { QUICK_LANE } from '../core/lane'
+import { probeRunLock, type RunLiveness } from '../core/run-lock'
 import { createToolContext, initiativeSlugs, resolveSessionFirst } from '../mcp/context'
 import {
   installStatusline,
@@ -179,10 +182,69 @@ function dirSegment(hook: Obj): { name: string; branch: string | null } | null {
  * repos: they render exactly as they always have, with no segment.
  */
 type RecordSegment =
-  | { kind: 'record'; slug: string; progress: TaskProgress; status: InitiativeStatus }
+  | { kind: 'record'; slug: string; progress: TaskProgress; status: InitiativeStatus; drive: DriveSegment | null }
   | { kind: 'lane' }
   | { kind: 'unbound' }
   | null
+
+/**
+ * The drive segment (drive-visibility 3.3): how the record's latest run
+ * stands, after its progress — which already carries done/total.
+ *
+ *  - `live`: no stop recorded and the lock held here (`drive <task>`), or no
+ *    lock for it on this machine (`drive <task> liveness unknown` — never
+ *    gone, SPEC §Driver, one driver per run). The task is the driver's own
+ *    next one, `running` when nothing is queued.
+ *  - `gone`: no stop recorded and the lock free — the driver died, and the
+ *    run blocks a fresh start until `--resume` or `--stop`, so it shows until
+ *    then.
+ *  - `stopped`: `drive <reason>`, only for a stop since this session began,
+ *    so a run that ended before the session is not news on its bar.
+ *
+ * The lock is probed only while a run is open. That is a file open on macOS
+ * and a flock(1) spawn on Linux until sofar-core's statusline takes over
+ * with a native lock (rust-core 2.6).
+ */
+export type DriveSegment =
+  | { kind: 'live'; task: string | null; liveness: 'held' | 'absent' }
+  | { kind: 'gone' }
+  | { kind: 'stopped'; reason: RunStopReason }
+
+export function driveSegmentOf(
+  state: InitiativeState,
+  sessionStarted: string | null,
+  probe: (run: string) => RunLiveness,
+): DriveSegment | null {
+  const run = latestRun(state)
+  if (run === undefined) return null
+  if (run.stopped !== undefined) {
+    if (sessionStarted === null || run.stopped < sessionStarted || run.stop_reason === undefined) return null
+    return { kind: 'stopped', reason: run.stop_reason }
+  }
+  const liveness = probe(run.id)
+  if (liveness === 'free') return { kind: 'gone' }
+  return { kind: 'live', task: nextTask(state)?.id ?? null, liveness }
+}
+
+/**
+ * Words over glyphs; the constant `drive` label dim and the value toned (D13).
+ * A stop is toned by what it asks of the operator: needs_user is theirs to
+ * answer (warn), error and stall went wrong (error), closed finished the
+ * queue (success), and a limit or an interrupt is what was asked for (dim).
+ */
+function driveText(drive: DriveSegment, style: Style): string {
+  const label = style.dim('drive')
+  if (drive.kind === 'gone') return `${label} ${style.error('gone')}`
+  if (drive.kind === 'stopped') {
+    const r = drive.reason
+    const tone = r === 'needs_user' ? style.warn : r === 'error' || r === 'stall' ? style.error : r === 'closed' ? style.success : style.dim
+    return `${label} ${tone(r)}`
+  }
+  if (drive.liveness === 'absent') {
+    return `${label} ${drive.task === null ? '' : `${style.info(drive.task)} `}${style.dim('liveness unknown')}`
+  }
+  return `${label} ${style.info(drive.task ?? 'running')}`
+}
 
 /**
  * Session-first record resolution (3.1/3.2): the session's registered home
@@ -209,11 +271,13 @@ function recordSegment(rootDir: string, hook: Obj): RecordSegment {
         // the slug alone, dim — recorded, but not a project's record.
         if (resolved.via === 'lane') return { kind: 'lane' }
         const state = ctx.foldState(resolved.slug)
+        const me = sessionId === null ? undefined : state.sessions.find((s) => s.id === sessionId)
         return {
           kind: 'record',
           slug: resolved.slug,
           progress: taskProgress(state.phases),
           status: state.status,
+          drive: driveSegmentOf(state, me?.started ?? null, (run) => probeRunLock(root, run)),
         }
       }
       // Nothing resolved HERE — but if the repo carries initiatives, this is
@@ -347,6 +411,7 @@ export function runStatusline(
     // common statusline stays exactly as wide as it always was.
     const body = total > 0 ? `${pieCell}${slug} ${phaseFraction(record.progress)}` : slug
     segments.push(closed ? `${body} ${style.dim(record.status)}` : body)
+    if (record.drive !== null) segments.push(driveText(record.drive, style))
   }
 
   const ctxPct = isObj(hook.context_window) ? numField(hook.context_window.used_percentage) : null

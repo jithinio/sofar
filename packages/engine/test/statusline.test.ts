@@ -15,6 +15,8 @@ import {
   userStatuslineWired,
   STATUSLINE_SETTINGS_ENTRY,
 } from '../src/cli/init'
+import { ulid } from 'ulid'
+import { claimRunLock } from '../src/core/run-lock'
 import { makeRepoFixture, type Fixture, type FixtureOptions } from './helpers/mcp'
 
 /**
@@ -386,6 +388,85 @@ describe('sofar statusline — rent-meter (felt-cost 3.2, D4)', () => {
       }),
     )
     expect(line).toContain('cache 75% ✓')
+  })
+})
+
+describe('sofar statusline — drive segment (drive-visibility 3.3)', () => {
+  function event(fixture: Fixture, type: string, payload: Record<string, unknown>, session = 'cli'): void {
+    appendEvents(fixture.eventsPath, [makeEvent({ initiative: fixture.slug, session, source: 'cli', actor: 'agent', type, payload })])
+  }
+  /** A planned record whose status-bar session (sess-1) began, and a run on it. */
+  function driven(): { fixture: Fixture; run: string } {
+    const fixture = planned()
+    event(fixture, 'session_started', { tool: 'claude-code' }, 'sess-1')
+    // A fresh id each time: the lock files share vitest's one state base.
+    const run = ulid()
+    event(fixture, 'run_started', { run, adapter: 'fake', policy: 'task' })
+    return { fixture, run }
+  }
+  const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 5))
+
+  it('names the task in flight while the driver holds the run, after the progress it already shows', async () => {
+    const { fixture, run } = driven()
+    const claim = await claimRunLock(fixture.root, run)
+    expect(claim.kind).toBe('claimed')
+    try {
+      expect(runStatusline(fixture.root, statusJson())).toBe(`${fixture.slug} 1/3 · drive 1.2 · ctx 41% · cache 72% ✓`)
+      event(fixture, 'task_status_changed', { id: '1.2', status: 'done' })
+      event(fixture, 'task_status_changed', { id: '1.3', status: 'done' })
+      expect(runStatusline(fixture.root, statusJson())).toContain(`${fixture.slug} 3/3 · drive running · ctx`)
+    } finally {
+      if (claim.kind === 'claimed') claim.lock.release()
+    }
+  })
+
+  it('says gone once the lock is free with no stop, and never reads a run with no lock here as gone', async () => {
+    const { fixture, run } = driven()
+    expect(runStatusline(fixture.root, statusJson())).toContain('· drive 1.2 liveness unknown ·')
+    const died = await claimRunLock(fixture.root, run)
+    if (died.kind === 'claimed') died.lock.release()
+    for (let i = 0; i < 100 && !runStatusline(fixture.root, statusJson()).includes('drive gone'); i++) await tick()
+    expect(runStatusline(fixture.root, statusJson())).toBe(`${fixture.slug} 1/3 · drive gone · ctx 41% · cache 72% ✓`)
+  })
+
+  it('shows a stop since this session began by its reason, and nothing for an older stop or an unknown session', async () => {
+    const { fixture, run } = driven()
+    event(fixture, 'run_stopped', { run, reason: 'needs_user', note: '1.2 is blocked — read its note' })
+    expect(runStatusline(fixture.root, statusJson())).toContain(`${fixture.slug} 1/3 · drive needs_user · ctx`)
+    expect(runStatusline(fixture.root, statusJson({ session_id: 'sess-unknown' }))).not.toContain('drive')
+
+    const older = planned()
+    const oldRun = ulid()
+    event(older, 'run_started', { run: oldRun, adapter: 'fake', policy: 'task' })
+    event(older, 'run_stopped', { run: oldRun, reason: 'closed' })
+    await tick()
+    event(older, 'session_started', { tool: 'claude-code' }, 'sess-1')
+    expect(runStatusline(older.root, statusJson())).toBe(`${older.slug} 1/3 · ctx 41% · cache 72% ✓`)
+  })
+
+  it('styled: dim label, toned value — gone red, needs_user yellow, closed green, the task cyan', async () => {
+    const dim = (t: string): string => `\x1b[2m${t}\x1b[22m`
+    const tone = (code: number, t: string): string => `\x1b[${code}m${t}\x1b[39m`
+    const styled = (f: Fixture): string => runStatusline(f.root, statusJson(), STATUSLINE_FORCED_CAPS)
+
+    const live = driven()
+    const claim = await claimRunLock(live.fixture.root, live.run)
+    try {
+      expect(styled(live.fixture)).toContain(`${dim('drive')} ${tone(36, '1.2')}`)
+    } finally {
+      if (claim.kind === 'claimed') claim.lock.release()
+    }
+    for (let i = 0; i < 100 && !styled(live.fixture).includes('gone'); i++) await tick()
+    expect(styled(live.fixture)).toContain(`${dim('drive')} ${tone(31, 'gone')}`)
+
+    for (const [reason, code] of [['needs_user', 33], ['closed', 32], ['stall', 31]] as const) {
+      const { fixture, run } = driven()
+      event(fixture, 'run_stopped', { run, reason })
+      expect(styled(fixture)).toContain(`${dim('drive')} ${tone(code, reason)}`)
+    }
+    const { fixture, run } = driven()
+    event(fixture, 'run_stopped', { run, reason: 'max_sessions' })
+    expect(styled(fixture)).toContain(`${dim('drive')} ${dim('max_sessions')}`)
   })
 })
 
