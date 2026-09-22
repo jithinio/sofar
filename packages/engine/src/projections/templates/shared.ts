@@ -7,7 +7,9 @@ import {
   type SessionActivity,
 } from '../../core/fold'
 import type { TestOutcome } from '../../core/adjacency'
+import type { RepoRule } from '../../core/index-tier1'
 import { lexicalCounts } from '../../core/lexicon'
+import { byCodeUnit } from '../../core/order'
 import { renderRule } from '../../core/rule-fidelity'
 import type { RunLiveness } from '../../core/run-lock'
 
@@ -209,6 +211,62 @@ export function standingConstraintLines(
     lines.push(`- …and ${standing.length - shown} more (see decisions.md)`)
   }
   return lines
+}
+
+/**
+ * Other records' standing rules (memory-lead 2.2, D8), rendered after this
+ * record's own inside the constraints block. A rule is the operator's choice
+ * for the whole project, and round 1 lost one to the record boundary: filed
+ * in bucket-list, it never reached the session homed on trips that reversed
+ * it. Own rules keep their budget first; these take `budget` — what own rules
+ * left, capped by the caller — most relevant to the focus first, then newest
+ * (by ts: ordinals of different records do not compare), whole entries only.
+ * With no room for one entry the block is a single pointer line, so a record
+ * whose own rules fill the budget still learns the others exist.
+ *
+ * The same words are one rule: records that restated a rule (the same
+ * operator ruling filed twice) render it once under every handle, newest
+ * handle last, and a rule this record already renders (`own`, its in-force
+ * rules) is not repeated. Counts are of distinct rules.
+ */
+export function repoRuleLines(
+  rules: readonly RepoRule[],
+  budget: number,
+  focus: ReadonlySet<string>,
+  own: readonly DecisionState[] = [],
+): string[] {
+  const key = (rule: string, quote: string | undefined): string => `${rule.replace(/\s+/g, ' ').trim()}\u0000${(quote ?? '').replace(/\s+/g, ' ').trim()}`
+  const mine = new Set(own.filter((d) => d.rule !== undefined).map((d) => key(d.rule!, d.quote)))
+  const merged = new Map<string, { r: RepoRule; handles: string[] }>()
+  for (const r of [...rules].sort((a, b) => (a.ts === b.ts ? byCodeUnit(`${a.initiative} D${a.ordinal}`, `${b.initiative} D${b.ordinal}`) : a.ts < b.ts ? -1 : 1))) {
+    const k = key(r.rule, r.quote)
+    if (mine.has(k)) continue
+    const seen = merged.get(k)
+    if (seen === undefined) merged.set(k, { r, handles: [`${r.initiative} D${r.ordinal}`] })
+    else {
+      seen.handles.push(`${r.initiative} D${r.ordinal}`)
+      seen.r = r // the newest restatement dates the rule
+    }
+  }
+  if (merged.size === 0) return []
+  const ranked = [...merged.values()]
+    .map((m) => ({ ...m, handle: m.handles.join(', '), score: relevanceScore(`${m.r.rule} ${m.r.quote ?? ''}`, focus) }))
+    .sort((a, b) => b.score - a.score || (a.r.ts === b.r.ts ? byCodeUnit(a.handle, b.handle) : a.r.ts < b.r.ts ? 1 : -1))
+  const entries: string[] = []
+  let used = 0
+  for (const { r, handle } of ranked) {
+    const line = `- [${handle}] ${renderRule(r.rule, r.quote)}`
+    if (used + line.length + 1 > budget) break
+    entries.push(line)
+    used += line.length + 1
+  }
+  const rest = ranked.length - entries.length
+  if (entries.length === 0) return [`- …and ${rest} more from other records (their decisions.md)`]
+  return [
+    `Repo-wide rules from other records (${entries.length} of ${ranked.length}, most relevant first):`,
+    ...entries,
+    ...(rest > 0 ? [`- …and ${rest} more in other records (their decisions.md)`] : []),
+  ]
 }
 
 /**

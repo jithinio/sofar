@@ -8,7 +8,17 @@
  *
  *   npm run bench:read-paths -- --baseline ~/.bench/sofar-0.32.0/node_modules/sofar.sh/dist/cli.js \
  *       --candidate packages/engine/dist/cli.js [--fixture repo|i1000-10mb] [--root <repo>] [--session <id>] \
- *       [--n 25] [--budget 0.10] [--record <file.json>]
+ *       [--n 25] [--budget 0.10] [--record <file.json>] [--isolate on|off]
+ *
+ * ISOLATED by default (memory-lead 2.2): baseline and candidate each run on
+ * their OWN copy of the fixture — a `git clone --local` of the repo, or a
+ * second seeded build of i1000-10mb (the same bytes). Both keep derived
+ * indexes under .sofar/.index stamped with INDEX_SCHEMA_VERSION, and when the
+ * two differ (0.33.0-rc.2 writes 5, 2.1 wrote 6, 2.2 writes 7) a shared root
+ * makes every spawn find the other side's files and rebuild them cold: the
+ * gate would time two rebuilds, not two reads. A clone also keeps the bench's
+ * own session out of the real record. It measures the COMMITTED record at
+ * HEAD; `--isolate off` restores the shared root.
  *
  * Measurement under load is valid BECAUSE it is interleaved: baseline and
  * candidate alternate spawn by spawn, so whatever the machine is doing hits
@@ -32,7 +42,7 @@
  * and paste the table into the RC's task note.
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, openSync, closeSync, writeSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, openSync, closeSync, rmSync, writeSync, statSync, writeFileSync } from 'node:fs'
 import { cpus, loadavg, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -62,6 +72,7 @@ for (const [label, bin] of [['baseline', baseline], ['candidate', candidate]]) {
 const n = Number(args.n ?? 25)
 const budget = Number(args.budget ?? 0.1)
 const fixture = args.fixture ?? 'repo'
+const isolate = (args.isolate ?? 'on') !== 'off'
 
 // ---------------------------------------------------------------------------
 // The `i1000-10mb` fixture (D18; the shape of rust-core's perf cell of the
@@ -168,28 +179,45 @@ function buildI1000() {
   return { root: dir, session: `${BOUND}-sess-${boundSessions - 1}`, size: bytes, events: bound.length, sessions: boundSessions, initiatives: SIBLINGS + 1 }
 }
 
+/** A private `git clone --local` of the repo at HEAD, for one side of an isolated run. */
+function cloneRepo(src, side) {
+  const dir = mkdtempSync(join(tmpdir(), `sofar-read-paths-${side}-`))
+  const r = spawnSync('git', ['clone', '--quiet', '--local', src, dir], { encoding: 'utf8' })
+  if (r.status !== 0) {
+    console.error(`git clone ${src}: ${r.stderr.trim()}`)
+    process.exit(2)
+  }
+  return dir
+}
+
 let root
 let session
+const roots = {}
 if (fixture === 'i1000-10mb' || fixture === 'synthetic') {
   const built = buildI1000()
   root = built.root
   session = built.session
+  roots.baseline = root
+  roots.candidate = isolate ? buildI1000().root : root
   console.log(`fixture i1000-10mb: ${built.initiatives} initiatives, bound log ${(built.size / 1e6).toFixed(1)} MB / ${built.events} events / ${built.sessions} sessions, at ${root}`)
 } else if (fixture === 'repo' || fixture === 'real') {
   root = at(args.root) ?? from
   session = args.session ?? 'bench-read-paths'
+  roots.baseline = isolate ? cloneRepo(root, 'baseline') : root
+  roots.candidate = isolate ? cloneRepo(root, 'candidate') : root
   console.log(`fixture repo: ${root}`)
 } else {
   console.error(`unknown --fixture ${fixture} (repo | i1000-10mb)`)
   process.exit(2)
 }
+if (isolate) console.log(`isolated: baseline at ${roots.baseline}, candidate at ${roots.candidate}`)
 const prompt = 'let us widen the source enum for cursor and rewrite the committed log'
 
 const cases = {
-  'session-start': ['event', 'session-start', { session_id: session, cwd: root, source: 'resume' }],
-  'user-prompt': ['event', 'user-prompt', { session_id: session, cwd: root, prompt }],
-  stop: ['event', 'stop', { session_id: session, cwd: root, stop_hook_active: false }],
-  statusline: ['statusline', null, { session_id: session, cwd: root, workspace: { current_dir: root }, model: { display_name: 'Opus 5' } }],
+  'session-start': ['event', 'session-start', (cwd) => ({ session_id: session, cwd, source: 'resume' })],
+  'user-prompt': ['event', 'user-prompt', (cwd) => ({ session_id: session, cwd, prompt })],
+  stop: ['event', 'stop', (cwd) => ({ session_id: session, cwd, stop_hook_active: false })],
+  statusline: ['statusline', null, (cwd) => ({ session_id: session, cwd, workspace: { current_dir: cwd }, model: { display_name: 'Opus 5' } })],
 }
 const p50 = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)]
 
@@ -203,8 +231,9 @@ for (const [name, [cmd, sub, input]] of Object.entries(cases)) {
   for (let i = 0; i < n + 2; i++) {
     for (const which of i % 2 ? ['candidate', 'baseline'] : ['baseline', 'candidate']) {
       const bin = which === 'baseline' ? baseline : candidate
+      const cwd = roots[which]
       const t0 = performance.now()
-      const r = spawnSync('node', sub ? [bin, cmd, sub] : [bin, cmd], { cwd: root, input: JSON.stringify(input), encoding: 'utf8' })
+      const r = spawnSync('node', sub ? [bin, cmd, sub] : [bin, cmd], { cwd, input: JSON.stringify(input(cwd)), encoding: 'utf8' })
       const ms = performance.now() - t0
       // A hook exits 0, or 2 for a Stop block; anything else is a broken
       // binary timing its own crash, which would read as a win.
@@ -232,6 +261,7 @@ if (args.record !== undefined) {
   const out = {
     fixture,
     root,
+    isolated: isolate,
     session,
     n,
     budget,
@@ -245,4 +275,5 @@ if (args.record !== undefined) {
   writeFileSync(at(args.record), JSON.stringify(out, null, 2) + '\n')
   console.log(`recorded ${at(args.record)}`)
 }
+if (isolate) for (const dir of new Set([roots.baseline, roots.candidate])) rmSync(dir, { recursive: true, force: true })
 process.exit(drift > 0.5 ? 3 : over > 0 ? 1 : 0)

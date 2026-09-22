@@ -718,8 +718,10 @@ decision-scope tier. Per initiative it holds:
 - the decision count, a ruled bitmap, and the superseded and until ordinals
   of EVERY decision, which is what supersession and the relevance reader's
   `retired` set need;
-- one entry per decision that guards or names a file: id, ordinal, ts, chose,
-  over, rule?, quote?, guard?, until?, superseded_by? and mentions. `chose` and
+- one entry per decision that guards or names a file, or carries a rule
+  (memory-lead 2.2, D8 — the digest's repo-wide rules read them; an entry
+  with neither guard nor mention is never a read-time hit): id, ordinal, ts,
+  chose, over, rule?, quote?, guard?, until?, superseded_by? and mentions. `chose` and
   `over` are kept as their first 120 whitespace-collapsed characters: a head of
   at most 90 depends only on its first 90 and on whether the text runs past
   them, so it renders the same bytes. On this repo the tier falls from 246 KB
@@ -727,7 +729,19 @@ decision-scope tier. Per initiative it holds:
 
 `guards` is the view of entries that carry both a rule and a guard. Superseded
 entries stay in it, marked, to stay faithful to the fold; the filter runs at
-render time. INDEX_SCHEMA_VERSION is 6.
+render time. INDEX_SCHEMA_VERSION is 7 (6 at 2.1; 2.2 added every rule and
+the labels tier).
+
+**Labels tier (memory-lead 2.2, D8).** labels.json on its own cursor
+(meta-labels.json), read only by sofar_log_decision, sofar_end_session and
+`sofar event append --type decision_logged`. Per initiative: the decision
+count, and one entry per STANDING decision whose chose and over are each at
+most 600 chars (LABEL_CLAUSE_MAX; a lexicon-free cut well past the longest
+label-sized clause on record, 345 of 7,494 — core/reversal's term count still
+decides at query time): ordinal, ts, chose, over, ruled. A later
+`supersedes: "D<n>"` removes the entry as the fold retires it (backward only;
+a ruled target only for a ruled superseder); an until-scoped decision never
+enters, since task resolution is not indexed.
 
 No schema change, no new event type, no model call. Warn-only
 (drift-hardening D3).
@@ -830,7 +844,25 @@ one blank line):
    hook notices — as before.
 10. STANDING CONSTRAINTS (PROTECTED): standingConstraintLines with a focus —
     ranked by RELEVANCE, ties newest (highest ordinal) first — under the
-    2,000-char whole-entry budget, the first entry always whole.
+    2,000-char whole-entry budget, the first entry always whole. Then, in
+    the same block, REPO-WIDE RULES (memory-lead 2.2, D8): every OTHER
+    record's in-force rule from the decision-scope tier (§Derived index),
+    under `Repo-wide rules from other records (<shown> of <N>, most relevant
+    first):` as `- [<slug> D<n>] <rule>` with the operator's quote clause
+    (§Rule fidelity); ranked by relevance, ties newest by ts, then handle;
+    whole entries within min(1,200, 2,000 − the own lines' length); then
+    `- …and K more in other records (their decisions.md)`. With no room for
+    one entry the block is the single line `- …and N more from other records
+    (their decisions.md)`. The same words (rule and quote,
+    whitespace-collapsed) are one rule: restatements render once as
+    `[<slug> D<n>, <slug> D<n>]`, dated by the newest, and a rule this record
+    itself holds in force is not repeated; counts are of distinct rules. A
+    rule falls only to a ruled superseder of its own record, closing a
+    record retires nothing, and `SOFAR_RETIRE=off` shows superseded ones. The caller passes them (SessionStart, from the
+    same scope-tier refresh as the adjacency line; sofar_get_state);
+    omitted when the index is unreadable or no other record holds a rule, so
+    a one-record repo renders byte-identically. Read-back renders when
+    either list does.
 11. `Read-back: …` (PROTECTED; unchanged condition), then the footer
     (PROTECTED).
 
@@ -2559,7 +2591,11 @@ rests on.
   meta.json           # Tier 0 cursors
   open.json           # TIER 0 — open sessions per initiative + files held
   meta-guards.json    # Tier 1 declared cursors
-  guards.json         # TIER 1 DECLARED — every guarded decision in the repo
+  guards.json         # TIER 1 DECLARED — every decision that guards or names
+                      #   a file or carries a rule (memory-lead 2.1, 2.2)
+  meta-labels.json    # labels cursors
+  labels.json         # LABELS — every standing label-sized decision, for the
+                      #   writers' reversal check (memory-lead 2.2, D8)
   meta-graph.json     # Tier 1 derived cursors
   graph.json          # TIER 1 DERIVED — path → session → (ts, touches)
   meta-reach.json     # Tier 1 reach cursors
@@ -2645,7 +2681,8 @@ parse and rewrite:
 | file | answers | read by | refreshed | sized by |
 | --- | --- | --- | --- | --- |
 | `open.json` | which sessions are open, holding what | UserPromptSubmit shim | on that shim | live sessions |
-| `guards.json` | does any decision ANYWHERE guard this subject | PostToolUse | every edit | guarded decisions (6 of 208 here) |
+| `guards.json` | does any decision ANYWHERE guard or name this subject; which rules does every other record hold | PostToolUse, SessionStart, get_state | every read and edit; once per session | decisions that guard, name a file or carry a rule |
+| `labels.json` | which standing decision ANYWHERE would a new one reverse | the three decision writers | on a decision append | standing decisions with both clauses ≤600 chars |
 | `graph.json` | who else has touched this path | PostToolUse dedupe, priming line | after a guard MATCHES; once per session | the repo's whole touch history |
 | `reach.json` | what else bears on this | `sofar find` | on a query | prose + terms of every decision and note |
 
@@ -3765,7 +3802,10 @@ sofar_start_session.`
   resolved and idempotent exactly as sofar_update_phase. `decisions` —
   sofar_log_decision's arguments minus `initiative`, checked by its input
   validator, the decision_logged payload validator and the D31 reversal
-  check against the record PLUS the batch's earlier decisions. `memories`
+  check against the record PLUS the batch's earlier decisions, and against
+  every other record (D8) — a refusal naming another record's decision adds
+  `a replacement for <slug> D<n> is filed with sofar_log_decision, not a
+  write-back`, since a batch entry takes no `initiative`. `memories`
   and `notes` — non-empty strings, appended as memory_promoted {text} and
   note_added {text}. Appended in order — tasks, phases, decisions, memories,
   notes — under the session BEFORE session_ended, with projections
@@ -3871,10 +3911,18 @@ sofar_start_session.`
   # REVERSAL CHECK (r1-fixes D31), here and on `sofar event append --type
   # decision_logged`, before any append: a decision whose distinguishing terms
   # (chose minus over, over minus chose; core/lexicon's tokenizer) land on a
-  # STANDING decision's over and chose in the same record — overlap ≥ 1/3 of
-  # the smaller set, both directions, label-sized clauses (≤24 terms) only —
-  # is refused as invalid_input naming each reversed D<n>, unless `supersedes`
-  # names it or `because` cites it as a word (a narrower exception).
+  # STANDING decision's over and chose — overlap ≥ 1/3 of the smaller set,
+  # both directions; or ≥ 1/4 both directions when the two share a SUBJECT
+  # term, one in both clauses of each (memory-lead 2.2, D8); label-sized
+  # clauses (≤24 terms) only — is refused as invalid_input naming each
+  # reversed D<n>, unless `supersedes` names it or `because` cites it as a
+  # word (a narrower exception). The check covers EVERY record (D8): this
+  # record from its fold, the others from the labels tier (§Derived index).
+  # Another record's decision is named `<slug> D<n>`; only that qualified
+  # handle in `because` excuses it, and the message routes a replacement to
+  # its own record (`initiative` "<slug>", `supersedes` "D<n>", plus a rule
+  # when it is ruled), whose fold then retires it. An unreadable index skips
+  # the other records, never the write.
   # WRITE-TIME JUDGE (typed-judge 3.1, §Judge), AFTER the append: `warnings`
   # gains a line per earlier decision this one may re-propose or contradict,
   # then a filing line when it reads as a fact or a note (typed-judge 3.3).
@@ -7320,3 +7368,34 @@ stay the underlying derivation's, and exit codes are styling-independent.
   `Shell|Write|Read`), widens our pre-2.1 matcher in place, and keeps a
   user's. Tests: test/read-surfacing.test.ts, test/guard-point-of-use.test.ts,
   test/init.test.ts.
+- **Repo-wide rules and cross-record reversal (memory-lead 2.2):** with a
+  rule in bucket-list, SessionStart and sofar_get_state for trips render
+  `Repo-wide rules from other records (1 of 1, most relevant first):` and
+  `- [bucket-list D1] <rule>` after trips' own rules and before Read-back; a
+  one-record repo renders no such block, and an empty list renders the same
+  bytes as none. Own rules keep their budget first: other records' entries
+  total ≤1,200 chars with `- …and K more in other records (their
+  decisions.md)`, and when own rules fill 2,000 the block is `- …and N more
+  from other records (their decisions.md)`; with no focus overlap the newest
+  leads; a quote renders as §Rule fidelity renders it; two records' identical
+  rule renders once under both handles and one equal to an own rule not at
+  all. The scope tier holds a
+  rule that guards and names nothing, and repoRules drops a rule a later rule
+  of its own record replaced, keeps one a rule-less decision named, and
+  shows both under `SOFAR_RETIRE=off`. The labels tier keeps standing
+  label-sized decisions only (a 601-char clause and an until-scoped decision
+  never enter; a superseded one leaves on the next refresh). Round 1's
+  cursor-sofar/r1 pair — trips "Hard delete trips (trip_days cascade)
+  without undo" over "Soft delete like bucket items" against bucket-list
+  "soft delete via deleted_at column plus deletion_log table for undo" over
+  "hard delete or tombstone-only without audit" — is a reversal in either
+  scope, while r3's chat-undo pair (a quarter each way, no shared subject)
+  is not and "MySQL over Postgres" still reverses "Postgres over MySQL".
+  sofar_log_decision on trips is refused naming `bucket-list D1` and
+  appends nothing; `because` citing `bucket-list D1` passes and a bare `D1`
+  or `my-bucket-list D1` does not; the replacement logged with `initiative:
+  "bucket-list", supersedes: "D1"` retires D1 there, after which trips
+  logs the same choice. `sofar event append` refuses and accepts alike, and
+  a write-back batch is refused whole naming `decisions[0]` and
+  sofar_log_decision as the route. Tests: test/repo-scope.test.ts,
+  test/reversal.test.ts.

@@ -1,6 +1,8 @@
 import type { GetStateArgs } from '@sofar/schema/tool-inputs'
 import type { InitiativeState } from '../core/fold'
+import { refreshGuards, repoRules, type RepoRule } from '../core/index-tier1'
 import { listAcrossCopies } from '../core/listing'
+import { retireEnabled } from '../core/retire'
 import { renderInitiativeList } from '../projections/templates/list'
 import { renderStatus } from '../projections/templates/status'
 import type { ToolContext } from './context'
@@ -19,12 +21,23 @@ import type { ToolContext } from './context'
  * the record, like `sofar list` (branch-visibility 3.1): remote-tracking
  * refs stay out (D1's conservative default) and there is no single-copy
  * switch — the one-copy view is the misreport the union exists to replace.
- * No view appends.
+ * No view appends. The digest carries every other record's standing rules
+ * (memory-lead 2.2, D8), as SessionStart's does.
  */
 export function getState(ctx: ToolContext, args: GetStateArgs): InitiativeState | string {
   if (args.view === 'initiatives') return renderInitiativeList(listAcrossCopies(ctx.rootDir))
   const slug = ctx.resolveInitiative(args.initiative)
   const state = ctx.foldState(slug)
   if (args.view === 'full') return state
-  return renderStatus(state)
+  const rules = otherRecordsRules(ctx.sofarDir, slug)
+  return renderStatus(state, rules.length > 0 ? { repoRules: rules } : undefined)
+}
+
+/** From the scope tier; none when the index cannot be read — the digest still renders. */
+function otherRecordsRules(sofarDir: string, slug: string): RepoRule[] {
+  try {
+    return repoRules(refreshGuards(sofarDir), slug, retireEnabled())
+  } catch {
+    return []
+  }
 }

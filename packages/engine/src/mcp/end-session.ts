@@ -8,6 +8,7 @@ import type { JudgeOptions } from '../core/judge'
 import { writebackJudgeWarnings } from '../core/writeback-judge'
 import { evidenceWarnings, filingWarnings, type DoneTask, type FiledEntry } from '../core/filing-judge'
 import { readSince } from '../core/index-tail'
+import { foreignDecisions } from '../core/index-tier1'
 import { relevanceJudgements, type NoteCandidate } from '../core/relevance-judge'
 import { resolvePeers } from '../core/peers'
 import { silentReversal } from '../core/reversal'
@@ -133,6 +134,7 @@ function planBatch(ctx: ToolContext, slug: string, args: EndSessionArgs): Planne
   const warnings: string[] = []
   const drafts: DecisionDraft[] = []
   const seen: DecisionState[] = [...state.decisions]
+  const foreign = (args.decisions ?? []).length > 0 ? foreignDecisions(ctx.sofarDir, slug) : undefined
   ;(args.decisions ?? []).forEach((d, i) => {
     const where = `decisions[${i}]`
     const input = validateToolInput('sofar_log_decision', d)
@@ -142,8 +144,13 @@ function planBatch(ctx: ToolContext, slug: string, args: EndSessionArgs): Planne
     for (const key of ['rule', 'quote', 'guard', 'supersedes', 'until'] as const) {
       if (d[key] !== undefined) payload[key] = d[key]
     }
-    const reversal = silentReversal({ ...state, decisions: seen } as InitiativeState, d)
-    if (reversal !== null) refuse(where, [reversal.message, ...reversal.errors])
+    const reversal = silentReversal({ ...state, decisions: seen } as InitiativeState, d, foreign)
+    if (reversal !== null) {
+      // A replacement for another record's decision lands in THAT record,
+      // which a write-back cannot address (D8): name the call that can.
+      const route = reversal.elsewhere.length > 0 ? [`a replacement for ${reversal.elsewhere[0]} is filed with sofar_log_decision, not a write-back`] : []
+      refuse(where, [reversal.message, ...reversal.errors, ...route])
+    }
     check(where, 'decision_logged', payload)
     const ordinal = seen.length + 1
     seen.push({ id: `batch-${i}`, ts: new Date().toISOString(), chose: d.chose, over: d.over, because: d.because, ...(d.rule !== undefined ? { rule: d.rule } : {}) })

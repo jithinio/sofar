@@ -10,7 +10,7 @@ import {
   type TaskState,
 } from '../../core/fold'
 import type { GitState } from '../../core/git'
-import type { NeighbourRecord } from '../../core/index-tier1'
+import type { NeighbourRecord, RepoRule } from '../../core/index-tier1'
 import { LANE_RECENT_SESSIONS, QUICK_LANE } from '../../core/lane'
 import type { RecordProvenance } from '../../core/record-copies'
 import type { RunLiveness } from '../../core/run-lock'
@@ -27,6 +27,7 @@ import {
   progressText,
   rankByRelevance,
   relevanceScore,
+  repoRuleLines,
   runDetailLines,
   standingConstraintLines,
   taskProgress, testOutcomeLine } from './shared'
@@ -111,6 +112,11 @@ const PROTOCOL_TAIL_RESERVE = 400
 // rule. Section renders near the top, so the enforceStatusLimit tail cut can
 // never take it before the clippable sections below.
 const STANDING_LEDGER_BUDGET = 2_000
+// Other records' rules (memory-lead 2.2, D8) take what this record's own rules
+// leave of STANDING_LEDGER_BUDGET, and never more than this: a repo holds far
+// more rules than one block can carry (139 on this one), and the cap bounds
+// what a record with few rules of its own pays for everyone else's.
+const REPO_RULES_BUDGET = 1_200
 // Concurrent-edit surfacing (task 11.4, D-P11) — rendered only when open
 // sessions share files, so it costs nothing in the common single-session case.
 const CONFLICT_LINE_BUDGET = 200
@@ -420,6 +426,13 @@ export interface StatusOptions {
    * to before this existed.
    */
   neighbours?: readonly NeighbourRecord[]
+  /**
+   * Every OTHER record's standing rules (memory-lead 2.2, D8), from the scope
+   * tier, retirement already applied — like `neighbours`, a fact no single
+   * log holds, so the caller derives it. Omitted when the index is unreadable
+   * or no other record holds a rule: a one-record repo renders as before.
+   */
+  repoRules?: readonly RepoRule[]
   /**
    * Per-session notices the SessionStart hook used to compose as a preface
    * (r1-fixes 2.3, D12): recent work elsewhere, the closed banner, the
@@ -818,14 +831,22 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   // Hook notices (r1-fixes D12) — each already budgeted by its builder.
   for (const notice of (options?.notices ?? []).filter((n) => n.trim().length > 0)) fixed([notice, ''])
 
-  // (10) Standing constraints LAST (D4), most relevant to the focus first.
+  // (10) Standing constraints LAST (D4), most relevant to the focus first,
+  // then the other records' rules in what this record's own left (D8).
   const protect = (lines: string[]): void => {
     if (lines.length > 0) blocks.push({ lines, protected: true })
   }
-  if (rules.length > 0) protect([...rules, ''])
+  const ownUsed = rules.reduce((n, line) => n + line.length + 1, 0)
+  const elsewhere = repoRuleLines(
+    options?.repoRules ?? [],
+    Math.min(REPO_RULES_BUDGET, STANDING_LEDGER_BUDGET - ownUsed),
+    focusTerms,
+    state.decisions.filter((_, i) => !retired.has(i + 1)),
+  )
+  if (rules.length > 0 || elsewhere.length > 0) protect([...rules, ...elsewhere, ''])
 
   // (11) Read-back (drift-hardening 3.1) — the last content line.
-  if (!lane && (state.current.next_action !== null || rules.length > 0)) {
+  if (!lane && (state.current.next_action !== null || rules.length > 0 || elsewhere.length > 0)) {
     protect([
       'Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.',
       '',

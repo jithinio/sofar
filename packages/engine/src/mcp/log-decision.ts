@@ -3,6 +3,7 @@ import { resolveJudgeProvider } from '../client/judge'
 import { decisionJudgeWarnings, type DecisionDraft } from '../core/decision-judge'
 import { filingWarnings } from '../core/filing-judge'
 import type { InitiativeState } from '../core/fold'
+import { foreignDecisions } from '../core/index-tier1'
 import type { JudgeOptions } from '../core/judge'
 import { silentReversal } from '../core/reversal'
 import { ruleFidelityWarning } from '../core/rule-fidelity'
@@ -56,8 +57,9 @@ function logDecisionLogged(
 ): { result: LogDecisionResult; before: InitiativeState; draft: DecisionDraft } {
   const slug = ctx.resolveWriteInitiative(args.initiative)
   const state = ctx.foldState(slug)
-  // A silent reversal of a standing decision is refused before the append (r1-fixes 4.1.2, D31).
-  const refusal = silentReversal(state, args)
+  // A silent reversal of a standing decision — in any record (memory-lead
+  // 2.2, D8) — is refused before the append (r1-fixes 4.1.2, D31).
+  const refusal = silentReversal(state, args, foreignDecisions(ctx.sofarDir, slug))
   if (refusal !== null) throw new ToolError('invalid_input', refusal.message, refusal.errors)
   const ordinal = state.decisions.length + 1
   const event = ctx.appendAndProject(slug, 'decision_logged', {

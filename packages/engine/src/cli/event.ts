@@ -46,14 +46,17 @@ const SHIPPING_WINDOW = 30
 const COMMIT_SUBJECT_BUDGET = 72
 import { refreshTier0, refreshTier0Known } from '../core/index-tier0'
 import {
+  foreignDecisions,
   lastTouch,
   refreshFiles,
   refreshGuards,
   refreshNeighbours,
+  repoRules,
   scopeHitsForSubject,
   type FileIndex,
   type GuardIndex,
   type NeighbourRecord,
+  type RepoRule,
   type ScopedDecision,
 } from '../core/index-tier1'
 import { rankByRelevance, refreshRelevance, relevance, type RelevanceRow } from '../core/index-relevance'
@@ -722,11 +725,20 @@ export const CLOSED_BANNER_MAX_FINDINGS = 3
  * line is the least load-bearing thing in the block and must never be what
  * takes SessionStart down.
  */
-function adjacentRecords(sofarDir: string, slug: string): NeighbourRecord[] {
+function adjacentRecords(sofarDir: string, slug: string, declared: GuardIndex | null): NeighbourRecord[] {
   try {
-    return refreshNeighbours(sofarDir, slug)
+    return refreshNeighbours(sofarDir, slug, declared ?? undefined)
   } catch {
     return []
+  }
+}
+
+/** The scope tier, refreshed once per SessionStart for neighbours and rules; null when unreadable. */
+function declaredIndex(sofarDir: string): GuardIndex | null {
+  try {
+    return refreshGuards(sofarDir)
+  } catch {
+    return null
   }
 }
 
@@ -772,7 +784,11 @@ export function handleSessionStart(rootDir: string, input: string, declared?: Ho
     // The one fact in the block that no single log holds (record-index 3.3):
     // which OTHER records have worked these files. Derived here rather than in
     // renderStatus, which is handed a folded state and cannot reach the index.
-    const neighbours = adjacentRecords(ctx.sofarDir, slug)
+    const scope = declaredIndex(ctx.sofarDir)
+    const neighbours = adjacentRecords(ctx.sofarDir, slug, scope)
+    // Every other record's standing rules (memory-lead 2.2, D8): the other
+    // fact no single log holds, from the same refresh.
+    const rules: RepoRule[] = scope === null ? [] : repoRules(scope, slug, retireEnabled())
     // The per-session notices — recent work elsewhere, the closed banner, the
     // cold-resume advisory, shipping — once led the output as a preface. Since
     // r1-fixes 2.3 (D12) they ride INTO renderStatus as `notices` and land in
@@ -802,6 +818,7 @@ export function handleSessionStart(rootDir: string, input: string, declared?: Ho
       ...(sessionId !== null ? { sessionId } : {}),
       ...(git !== null ? { git } : {}),
       ...(neighbours.length > 0 ? { neighbours } : {}),
+      ...(rules.length > 0 ? { repoRules: rules } : {}),
       ...(notices.length > 0 ? { notices } : {}),
       ...(slug === QUICK_LANE ? { lane: true } : {}),
       ...(activity ? {} : { activity: false }),
@@ -2408,7 +2425,7 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
       const { chose, over, because, supersedes } = payload
       if (typeof chose === 'string' && typeof over === 'string' && typeof because === 'string') {
         const draft = { chose, over, because, ...(typeof supersedes === 'string' ? { supersedes } : {}) }
-        const refusal = silentReversal(ctx.foldState(slug), draft)
+        const refusal = silentReversal(ctx.foldState(slug), draft, foreignDecisions(ctx.sofarDir, slug))
         if (refusal !== null) throw new ToolError('invalid_input', refusal.message, refusal.errors)
       }
       // What the rule adds to the operator's words (memory-lead 1.2, D2), the
