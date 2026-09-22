@@ -41,5 +41,5 @@ Progress: 11/17 tasks done (64%)
 - [ ] 5.2 README + release staged for the user to publish.
 
 Active phase: Phase 3 — Progress in the session
-Next action: Read probe C (3h timeout, ends ~19:56Z), then rule on keeping the hook.
+Next action: Read probe C (~19:56Z), rule on the hook, then run 5.1 on sofar-07's go.
 Blocked on: phase Phase 4 — Sync, presence and app contract (paid)
