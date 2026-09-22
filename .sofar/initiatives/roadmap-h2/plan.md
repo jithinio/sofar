@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: User: consent for memory-lead's live Cursor check; round-2 freeze items once round 1 lands.
+Next action: Keep monitoring; tell bench-refresh (sofar-a7) when round 1 completes.
