@@ -10,14 +10,14 @@ use crate::fold::{
     DecisionState, InitiativeState, PhaseState, RunState, SessionState, TaskState, freshness_total,
 };
 use crate::git::GitState;
-use crate::json::{Json, js_to_string};
 use std::cell::RefCell;
 
 use crate::lexicon::lexical_counts;
 use crate::projections::{
-    clip, clip_block_detect, clip_detect, describe_activity, describe_freshness, describe_run,
-    phase_fraction, plural, progress_text, rank_by_relevance, relevance_score, retired_ordinals,
-    standing_constraint_lines, task_progress, test_outcome_line,
+    RunLiveness, clip, clip_block_detect, clip_detect, describe_activity, describe_freshness,
+    describe_run, phase_fraction, plural, progress_text, rank_by_relevance, relevance_score,
+    retired_ordinals, run_detail_lines, standing_constraint_lines, task_progress,
+    test_outcome_line,
 };
 use crate::text::{
     cmp_utf16, date_part, is_js_whitespace, js_trim, one_line, utf16_len, utf16_prefix,
@@ -1036,7 +1036,7 @@ pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String
             &mut blocks,
             vec![
                 clip(
-                    &format!("Driven: {}", describe_run(run)),
+                    &format!("Driven: {}", describe_run(run, None)),
                     DRIVEN_LINE_BUDGET,
                 ),
                 String::new(),
@@ -1525,24 +1525,15 @@ pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String
 }
 
 /// A string field of the run surface, as `${s.x}` prints it (`undefined` when absent).
-fn surface_field(surface: &Json, key: &str) -> Option<String> {
-    surface.as_obj()?.get(key).map(js_to_string)
-}
-
-fn surface_list(surface: &Json, key: &str) -> Vec<String> {
-    surface
-        .as_obj()
-        .and_then(|o| o.get(key))
-        .and_then(Json::as_arr)
-        .map(|items| items.iter().map(js_to_string).collect())
-        .unwrap_or_default()
-}
-
 /// `renderFullStatus`: plain `sofar status`, uncapped, with the per-task tree.
 /// `retire` is `retireEnabled()` (D25), read by the caller.
 #[must_use]
 #[allow(clippy::too_many_lines, reason = "a verbatim port of one template")]
-pub fn render_full_status(state: &InitiativeState, retire: bool) -> String {
+pub fn render_full_status(
+    state: &InitiativeState,
+    retire: bool,
+    liveness: Option<RunLiveness>,
+) -> String {
     let mut lines: Vec<String> = Vec::new();
     lines.push(format!(
         "# {}",
@@ -1728,52 +1719,11 @@ pub fn render_full_status(state: &InitiativeState, retire: bool) -> String {
             "Driven ({}):",
             plural(state.runs.len() as u64, "run")
         ));
-        for run in &state.runs {
-            lines.push(format!("- {}", describe_run(run)));
-            if let Some(s) = &run.surface {
-                let mut pinned: Vec<String> = Vec::new();
-                if let Some(model) = surface_field(s, "model") {
-                    pinned.push(format!("model {model}"));
-                }
-                if let Some(effort) = surface_field(s, "effort") {
-                    pinned.push(format!("effort {effort}"));
-                }
-                lines.push(format!(
-                    "  permissions: {}{}",
-                    surface_field(s, "permission_mode").unwrap_or_else(|| "undefined".to_owned()),
-                    if pinned.is_empty() {
-                        String::new()
-                    } else {
-                        format!(", {}", pinned.join(", "))
-                    }
-                ));
-                for rule in surface_list(s, "allow") {
-                    lines.push(format!("    allow {rule}"));
-                }
-                for rule in surface_list(s, "deny") {
-                    lines.push(format!("    deny {rule}"));
-                }
-            }
-            for h in &run.handoffs {
-                let task = h
-                    .task
-                    .as_ref()
-                    .map(|t| format!(", task {t}"))
-                    .unwrap_or_default();
-                let tokens = h
-                    .tokens
-                    .map(|t| format!(", {} tokens", crate::json::number_to_string(t)))
-                    .unwrap_or_default();
-                let detail = h
-                    .detail
-                    .as_ref()
-                    .map(|d| format!(" ({d})"))
-                    .unwrap_or_default();
-                lines.push(format!(
-                    "  - {} session {} — {}{task}{tokens}{detail}",
-                    h.ts, h.session_id, h.reason
-                ));
-            }
+        let latest = state.runs.len() - 1;
+        for (i, run) in state.runs.iter().enumerate() {
+            let liveness = if i == latest { liveness } else { None };
+            lines.push(format!("- {}", describe_run(run, liveness)));
+            lines.extend(run_detail_lines(run));
         }
     }
 
@@ -1827,7 +1777,7 @@ mod tests {
             out,
             "# Sofar status: demo\n\nGoal: (none recorded)\n\n(generated by sofar — full detail in plan.md, decisions.md, sessions/)\n"
         );
-        let full = render_full_status(&state, true);
+        let full = render_full_status(&state, true, None);
         assert_eq!(
             full,
             "# demo\n\nGoal: (none recorded)\nProgress: 0/0 tasks done (0%) across 0 phase(s)\n\nNext action: (none recorded)\n"

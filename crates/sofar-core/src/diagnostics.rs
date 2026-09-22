@@ -86,16 +86,19 @@ pub fn diagnostics_dir(root: &Path) -> Option<PathBuf> {
 
 fn diagnostics_dir_under(state_base: &Path, root: &Path) -> Option<PathBuf> {
     let dir = state_base.join("diagnostics").join(clone_key(root));
-    let roots = [root.to_path_buf(), clone_real_path(root)];
-    let dirs = [dir.clone(), realpath_of_nearest_ancestor(&dir)];
-    for r in &roots {
-        for d in &dirs {
-            if is_inside(d, r) {
-                return None;
-            }
-        }
+    if resolves_inside(&dir, root) {
+        return None;
     }
     Some(dir)
+}
+
+/// `resolvesInside` (core/state-dir.ts): whether `dir` would sit INSIDE the
+/// clone at `root`, both sides compared as typed AND with symlinks resolved.
+#[must_use]
+pub fn resolves_inside(dir: &Path, root: &Path) -> bool {
+    let roots = [root.to_path_buf(), clone_real_path(root)];
+    let dirs = [dir.to_path_buf(), realpath_of_nearest_ancestor(dir)];
+    roots.iter().any(|r| dirs.iter().any(|d| is_inside(d, r)))
 }
 
 fn safe_name(name: &str) -> String {

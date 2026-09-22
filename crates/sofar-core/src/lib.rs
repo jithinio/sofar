@@ -18,7 +18,9 @@
 //! [`index_tier0`]/[`index_tier1`], [`shipwatch`], [`attribution`],
 //! [`diagnostics`], [`redact`], [`shell`], [`nudge`], [`peers`], [`lexicon`],
 //! [`lessons`], [`cross_conflicts`]); the statusline (2.6: [`statusline`],
-//! [`ui`], [`update_cache`]); rule fidelity (memory-lead 1.4: [`rule_fidelity`]).
+//! [`ui`], [`update_cache`]); rule fidelity (memory-lead 1.4: [`rule_fidelity`]);
+//! trunk mirrors since main 72146d9: the run lock's probe (drive-visibility
+//! 2.3: [`run_lock`]).
 
 pub mod append;
 pub mod atomic;
@@ -58,6 +60,7 @@ pub mod projections;
 pub mod redact;
 pub mod resolve;
 pub mod rule_fidelity;
+pub mod run_lock;
 pub mod session_pointer;
 pub mod session_start;
 pub mod sha256;

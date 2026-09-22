@@ -16,6 +16,7 @@ use crate::fold_cli::CmdResult;
 use crate::layout::Layout;
 use crate::projections::retire_enabled;
 use crate::resolve::{ResolveError, resolve_initiative, unbound_status_applies};
+use crate::run_lock::probe_run_lock;
 use crate::snapshot::{fold_file, state_of};
 use crate::status::render_full_status;
 use crate::ui::Style;
@@ -75,9 +76,16 @@ pub fn run_status(root: &Path, slug: Option<&str>) -> CmdResult {
     if state.slug.is_empty() {
         state.slug = resolved;
     }
+    // The run lock on the latest run with no stop (drive-visibility 2.3): a
+    // record no driver is running probes nothing.
+    let liveness = state
+        .runs
+        .last()
+        .filter(|run| run.stopped.is_none())
+        .map(|run| probe_run_lock(root, &run.id));
     CmdResult {
         exit_code: 0,
-        stdout: render_full_status(&state, retire_enabled()),
+        stdout: render_full_status(&state, retire_enabled(), liveness),
         stderr: warnings
             .iter()
             .map(|w| format!("warning: {w}"))

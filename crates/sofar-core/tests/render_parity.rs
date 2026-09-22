@@ -237,7 +237,7 @@ fn every_surface_matches_the_typescript_golden_byte_for_byte() {
             &id,
             "status",
             by_name["status"],
-            &render_full_status(&state, true),
+            &render_full_status(&state, true, None),
         );
         for (variant, value) in options.js_ordered() {
             let name = format!("digest:{variant}");

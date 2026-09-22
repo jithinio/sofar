@@ -49,6 +49,19 @@ pub struct TaskState {
     /// The acceptance command (r1-fixes 3.1, D19), verbatim from the plan.
     pub verify: Option<Json>,
     pub verification: Option<TaskVerification>,
+    /// The latest check run per decision (memory-lead 2.3, D9), oldest
+    /// decision first: `verification_recorded` carrying `decision`. Kept
+    /// apart from `verification` so a decision's check never displaces the
+    /// task's own pass. Absent until the first check.
+    pub checks: Option<Vec<CheckVerification>>,
+}
+
+/// A decision's check as the driver ran it for one task (D9).
+#[derive(Debug, Clone, PartialEq)]
+pub struct CheckVerification {
+    pub verification: TaskVerification,
+    /// `<slug> D<n>` whose check this was.
+    pub decision: String,
 }
 
 /// One `verification_recorded`, as the task keeps it (D19).
@@ -94,6 +107,9 @@ pub struct DecisionState {
     pub supersedes: Option<String>,
     /// Task id this decision is in force until, as recorded (D25); never with `rule`.
     pub until: Option<String>,
+    /// The executable half of `rule` (memory-lead 2.3, D9), as recorded, known
+    /// keys only (`decisionCheck`); only alongside `rule`.
+    pub check: Option<Json>,
     /// 1-based ordinal of the decision that replaced this one (D25), set by the
     /// fold when a later `supersedes` resolves here and is permitted (a rule
     /// is replaced only by a rule). Retirement by `until` is derived at render.
@@ -188,6 +204,23 @@ pub struct RunVerification {
     pub task: String,
     pub attempt: f64,
     pub result: String,
+    /// `<slug> D<n>` when this was a decision's check (memory-lead 2.3, D9).
+    pub decision: Option<String>,
+}
+
+/// A `--resume` taking the run over (drive-visibility 2.2).
+#[derive(Debug, Clone, PartialEq)]
+pub struct RunAdoption {
+    pub id: String,
+    pub ts: String,
+    pub epoch: f64,
+}
+
+/// The driver in force: the highest epoch, the first-sorting id on a tie.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RunOwner {
+    pub id: String,
+    pub epoch: f64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -205,6 +238,13 @@ pub struct RunState {
     pub handoffs: Vec<RunHandoff>,
     pub verifications: Vec<RunVerification>,
     pub done_tasks: Vec<String>,
+    /// Takeovers by `--resume` (drive-visibility 2.2), replay order;
+    /// `run_started` is epoch 1 and is not listed.
+    pub adoptions: Vec<RunAdoption>,
+    /// `run_started`'s own id at epoch 1 until an adoption outranks it.
+    pub owner: RunOwner,
+    /// Event ids of every `sofar drive --stop` for this run, log order
+    /// (drive-visibility 2.2: ids, not timestamps).
     pub stop_requests: Vec<String>,
     pub stopped: Option<String>,
     pub stop_reason: Option<String>,
@@ -717,6 +757,17 @@ fn req_str(p: &Object, key: &str) -> String {
 fn opt_str(p: &Object, key: &str) -> Option<String> {
     p.get(key).and_then(Json::as_str).map(str::to_owned)
 }
+/// `decisionCheck`: a decision's check as recorded, known keys only — absent
+/// stays absent (memory-lead D9).
+fn decision_check(check: &Object) -> Json {
+    let mut o = Object::with_capacity(3);
+    for key in ["cmd", "hint", "timeout_ms"] {
+        if let Some(v) = check.get(key) {
+            o.insert(key, v.clone());
+        }
+    }
+    Json::Obj(o)
+}
 fn req_num(p: &Object, key: &str) -> f64 {
     p.get(key).and_then(Json::as_f64).unwrap_or(0.0)
 }
@@ -796,6 +847,7 @@ fn apply_event(
                             route: task.get("route").cloned(),
                             verify: task.get("verify").cloned(),
                             verification: None,
+                            checks: None,
                         })
                         .collect(),
                     note: None,
@@ -824,6 +876,7 @@ fn apply_event(
                 route: None,
                 verify: p.get("verify").cloned(),
                 verification: None,
+                checks: None,
             };
             let name = req_str(p, "phase");
             find_or_create_phase(state, &name, warnings, line_no)
@@ -875,6 +928,7 @@ fn apply_event(
                 guard: opt_str(p, "guard"),
                 supersedes: supersedes.clone(),
                 until: opt_str(p, "until"),
+                check: p.get("check").and_then(Json::as_obj).map(decision_check),
                 superseded_by: None,
             });
             // Supersession (r1-fixes 3.2, D25): resolve `D<n>` against the
@@ -943,6 +997,11 @@ fn apply_event(
                 handoffs: Vec::new(),
                 verifications: Vec::new(),
                 done_tasks: Vec::new(),
+                adoptions: Vec::new(),
+                owner: RunOwner {
+                    id: event.id.clone(),
+                    epoch: 1.0,
+                },
                 stop_requests: Vec::new(),
                 stopped: None,
                 stop_reason: None,
@@ -958,11 +1017,13 @@ fn apply_event(
                 ));
                 return;
             };
+            let decision = opt_str(p, "decision");
             run.verifications.push(RunVerification {
                 ts: event.ts.clone(),
                 task: task_id.clone(),
                 attempt: req_num(p, "attempt"),
                 result: req_str(p, "result"),
+                decision: decision.clone(),
             });
             let Some(task) = find_task_mut(state, &task_id) else {
                 warnings.push(format!(
@@ -971,7 +1032,7 @@ fn apply_event(
                 return;
             };
             let checked = p.get("checked").and_then(Json::as_obj);
-            task.verification = Some(TaskVerification {
+            let verification = TaskVerification {
                 run: run_id,
                 attempt: req_num(p, "attempt"),
                 ts: event.ts.clone(),
@@ -986,7 +1047,24 @@ fn apply_event(
                 duration_ms: req_num(p, "duration_ms"),
                 timeout_ms: req_num(p, "timeout_ms"),
                 diagnostics: opt_str(p, "diagnostics"),
-            });
+            };
+            // A decision's check (memory-lead 2.3, D9) keeps its own latest, in
+            // the order decisions were first checked; the task's own verify
+            // stays put.
+            match decision {
+                Some(decision) => {
+                    let checks = task.checks.get_or_insert_with(Vec::new);
+                    let entry = CheckVerification {
+                        verification,
+                        decision,
+                    };
+                    match checks.iter_mut().find(|c| c.decision == entry.decision) {
+                        Some(slot) => *slot = entry,
+                        None => checks.push(entry),
+                    }
+                }
+                None => task.verification = Some(verification),
+            }
         }
         "handoff" => {
             let run_id = req_str(p, "run");
@@ -1042,8 +1120,37 @@ fn apply_event(
                 ));
                 return;
             };
-            run.stop_requests.push(event.ts.clone());
+            run.stop_requests.push(event.id.clone());
         }
+        "run_adopted" => {
+            // No stub, as for a handoff: `--resume` adopts a run it found in
+            // this fold. The validator has already refused an epoch below 2.
+            let run_id = req_str(p, "run");
+            let Some(run) = state.runs.iter_mut().find(|r| r.id == run_id) else {
+                warnings.push(format!(
+                    "line {line_no}: adoption of run \"{run_id}\" that never started — skipped"
+                ));
+                return;
+            };
+            let epoch = req_num(p, "epoch");
+            run.adoptions.push(RunAdoption {
+                id: event.id.clone(),
+                ts: event.ts.clone(),
+                epoch,
+            });
+            // Replay is in id order, so on a tie the adoption already in force
+            // sorts first and keeps the run: only a HIGHER epoch takes it.
+            if epoch > run.owner.epoch {
+                run.owner = RunOwner {
+                    id: event.id.clone(),
+                    epoch,
+                };
+            }
+        }
+        // `judgement_recorded` is enrichment, never state (typed-judge 2.4):
+        // replay stays a pure function of the recorded FACTS, and a judgement
+        // is an opinion about them. It falls to the no-op arm below; the
+        // index reads these from the raw log, the fold does not.
         "session_started" => {
             if session_index
                 .position(&state.sessions, &event.session)
@@ -1520,7 +1627,11 @@ fn record_freshness(
         | "handoff"
         | "run_stopped"
         | "run_stop_requested"
+        | "run_adopted"
         | "verification_recorded"
+        // Stored judgements too (typed-judge 2.4): enrichment derived from
+        // the record, owing no write-back.
+        | "judgement_recorded"
         | "suggestion_proposed"
         | "suggestion_approved"
         | "suggestion_rejected"
@@ -1685,6 +1796,23 @@ impl TaskState {
         if let Some(v) = &self.verification {
             o.insert("verification", v.to_json());
         }
+        if let Some(checks) = &self.checks {
+            o.insert(
+                "checks",
+                Json::Arr(checks.iter().map(CheckVerification::to_json).collect()),
+            );
+        }
+        Json::Obj(o)
+    }
+}
+
+impl CheckVerification {
+    #[must_use]
+    pub fn to_json(&self) -> Json {
+        let Json::Obj(mut o) = self.verification.to_json() else {
+            unreachable!("TaskVerification::to_json is an object")
+        };
+        put(&mut o, "decision", &self.decision);
         Json::Obj(o)
     }
 }
@@ -1742,6 +1870,9 @@ impl DecisionState {
         put_opt(&mut o, "guard", self.guard.as_deref());
         put_opt(&mut o, "supersedes", self.supersedes.as_deref());
         put_opt(&mut o, "until", self.until.as_deref());
+        if let Some(check) = &self.check {
+            o.insert("check", check.clone());
+        }
         if let Some(by) = self.superseded_by {
             put_count(&mut o, "superseded_by", by);
         }
@@ -1884,17 +2015,37 @@ impl RunState {
                 self.verifications
                     .iter()
                     .map(|v| {
-                        let mut vo = Object::with_capacity(4);
+                        let mut vo = Object::with_capacity(5);
                         put(&mut vo, "ts", &v.ts);
                         put(&mut vo, "task", &v.task);
                         put_num(&mut vo, "attempt", v.attempt);
                         put(&mut vo, "result", &v.result);
+                        put_opt(&mut vo, "decision", v.decision.as_deref());
                         Json::Obj(vo)
                     })
                     .collect(),
             ),
         );
         o.insert("done_tasks", str_arr(&self.done_tasks));
+        o.insert(
+            "adoptions",
+            Json::Arr(
+                self.adoptions
+                    .iter()
+                    .map(|a| {
+                        let mut ao = Object::with_capacity(3);
+                        put(&mut ao, "id", &a.id);
+                        put(&mut ao, "ts", &a.ts);
+                        put_num(&mut ao, "epoch", a.epoch);
+                        Json::Obj(ao)
+                    })
+                    .collect(),
+            ),
+        );
+        let mut owner = Object::with_capacity(2);
+        put(&mut owner, "id", &self.owner.id);
+        put_num(&mut owner, "epoch", self.owner.epoch);
+        o.insert("owner", Json::Obj(owner));
         o.insert("stop_requests", str_arr(&self.stop_requests));
         put_opt(&mut o, "stopped", self.stopped.as_deref());
         put_opt(&mut o, "stop_reason", self.stop_reason.as_deref());
@@ -2156,6 +2307,20 @@ impl TaskState {
                 None => None,
                 Some(v) => Some(TaskVerification::from_json(v.as_obj()?)?),
             },
+            checks: match o.get("checks") {
+                None => None,
+                Some(_) => Some(
+                    objs(o, "checks")?
+                        .into_iter()
+                        .map(|c| {
+                            Some(CheckVerification {
+                                verification: TaskVerification::from_json(c)?,
+                                decision: rs(c, "decision")?,
+                            })
+                        })
+                        .collect::<Option<_>>()?,
+                ),
+            },
         })
     }
 }
@@ -2212,6 +2377,7 @@ impl DecisionState {
             guard: os(o, "guard")?,
             supersedes: os(o, "supersedes")?,
             until: os(o, "until")?,
+            check: o.get("check").cloned(),
             superseded_by: match o.get("superseded_by") {
                 None => None,
                 Some(_) => Some(count(o, "superseded_by")?),
@@ -2330,10 +2496,28 @@ impl RunState {
                         task: rs(v, "task")?,
                         attempt: rn(v, "attempt")?,
                         result: rs(v, "result")?,
+                        decision: os(v, "decision")?,
                     })
                 })
                 .collect::<Option<_>>()?,
             done_tasks: strs(o, "done_tasks")?,
+            adoptions: objs(o, "adoptions")?
+                .into_iter()
+                .map(|a| {
+                    Some(RunAdoption {
+                        id: rs(a, "id")?,
+                        ts: rs(a, "ts")?,
+                        epoch: rn(a, "epoch")?,
+                    })
+                })
+                .collect::<Option<_>>()?,
+            owner: {
+                let owner = o.get("owner")?.as_obj()?;
+                RunOwner {
+                    id: rs(owner, "id")?,
+                    epoch: rn(owner, "epoch")?,
+                }
+            },
             stop_requests: strs(o, "stop_requests")?,
             stopped: os(o, "stopped")?,
             stop_reason: os(o, "stop_reason")?,

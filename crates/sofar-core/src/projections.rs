@@ -93,10 +93,35 @@ pub fn describe_activity(activity: &SessionActivity) -> String {
     }
 }
 
+/// What the run lock says about an UNSTOPPED run (drive-visibility 2.3,
+/// core/run-lock.ts `RunLiveness`). Only `sofar status` has one: a lock is not
+/// in the record, so no generated file may render it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunLiveness {
+    Held,
+    Free,
+    Absent,
+}
+
+/// `stopRequestsInForce` (drive-visibility 2.2): the stop requests whose id
+/// sorts after the owner's adoption. One left behind for a driver that died
+/// cannot stop the `--resume` that followed it.
+#[must_use]
+pub fn stop_requests_in_force(run: &RunState) -> Vec<&str> {
+    run.stop_requests
+        .iter()
+        .filter(|id| id.as_str() > run.owner.id.as_str())
+        .map(String::as_str)
+        .collect()
+}
+
 /// `describeRun`: what launched the sessions, under which policy, the
 /// handoffs by reason (first seen first), the verifications, and the fate.
+/// `liveness` rewrites the fate of an unstopped run (drive-visibility 2.3):
+/// held keeps "running"; free and absent replace it.
 #[must_use]
-pub fn describe_run(run: &RunState) -> String {
+#[allow(clippy::too_many_lines, reason = "a verbatim port of one template")]
+pub fn describe_run(run: &RunState, liveness: Option<RunLiveness>) -> String {
     let policy = if run.policy == "threshold" {
         format!(
             "threshold {}%{}",
@@ -149,6 +174,17 @@ pub fn describe_run(run: &RunState) -> String {
             format!(" ({breakdown})")
         }
     );
+    // Only the requests the owner must honour (drive-visibility 2.2): one
+    // left for a driver that died is not a stop the resumed run is ignoring.
+    let requests = stop_requests_in_force(run).len();
+    let asked = format!(
+        "stop requested{}",
+        if requests > 1 {
+            format!(" {requests} times")
+        } else {
+            String::new()
+        }
+    );
     let fate = if let Some(reason) = &run.stop_reason {
         format!(
             "stopped: {reason}{}",
@@ -157,22 +193,134 @@ pub fn describe_run(run: &RunState) -> String {
                 .map(|n| format!(" — {n}"))
                 .unwrap_or_default()
         )
-    } else if !run.stop_requests.is_empty() {
+    } else if liveness == Some(RunLiveness::Free) {
         format!(
-            "running — stop requested{}, not yet stopped",
-            if run.stop_requests.len() > 1 {
-                format!(" {} times", run.stop_requests.len())
+            "driver gone — no stop recorded and the run lock on this machine is free{}; --resume picks it up",
+            if requests > 0 {
+                format!("; {asked}, never acknowledged")
             } else {
                 String::new()
             }
         )
+    } else if liveness == Some(RunLiveness::Absent) {
+        format!(
+            "liveness unknown — no stop recorded and no run lock for it on this machine{}",
+            if requests > 0 {
+                format!("; {asked}, not yet stopped")
+            } else {
+                String::new()
+            }
+        )
+    } else if requests > 0 {
+        format!("running — {asked}, not yet stopped")
     } else {
         "running".to_owned()
     };
+    // A resumed run says so, and at which epoch; one never resumed renders as before.
+    let resumed = if run.owner.epoch > 1.0 {
+        format!(", resumed (epoch {})", number_to_string(run.owner.epoch))
+    } else {
+        String::new()
+    };
     format!(
-        "run {} via {}, {policy} — {handoffs}; {fate}",
+        "run {} via {}, {policy}{resumed} — {handoffs}; {fate}",
         run.id, run.adapter
     )
+}
+
+/// `runDetailLines` (drive-visibility 2.3): what `sofar status` lists under a
+/// run's line — its permission surface in full, then its handoffs and
+/// adoptions on one timeline, by time (stable, so a record with no adoption
+/// lists its handoffs exactly as before).
+#[must_use]
+pub fn run_detail_lines(run: &RunState) -> Vec<String> {
+    let mut lines = Vec::new();
+    if let Some(s) = &run.surface {
+        let mut pinned: Vec<String> = Vec::new();
+        if let Some(model) = surface_field(s, "model") {
+            pinned.push(format!("model {model}"));
+        }
+        if let Some(effort) = surface_field(s, "effort") {
+            pinned.push(format!("effort {effort}"));
+        }
+        lines.push(format!(
+            "  permissions: {}{}",
+            surface_field(s, "permission_mode").unwrap_or_else(|| "undefined".to_owned()),
+            if pinned.is_empty() {
+                String::new()
+            } else {
+                format!(", {}", pinned.join(", "))
+            }
+        ));
+        for rule in surface_list(s, "allow") {
+            lines.push(format!("    allow {rule}"));
+        }
+        for rule in surface_list(s, "deny") {
+            lines.push(format!("    deny {rule}"));
+        }
+    }
+    let mut timeline: Vec<(&str, String)> = Vec::new();
+    for h in &run.handoffs {
+        let task = h
+            .task
+            .as_ref()
+            .map(|t| format!(", task {t}"))
+            .unwrap_or_default();
+        let tokens = h
+            .tokens
+            .map(|t| format!(", {} tokens", number_to_string(t)))
+            .unwrap_or_default();
+        let detail = h
+            .detail
+            .as_ref()
+            .map(|d| format!(" ({d})"))
+            .unwrap_or_default();
+        timeline.push((
+            &h.ts,
+            format!(
+                "  - {} session {} — {}{task}{tokens}{detail}",
+                h.ts, h.session_id, h.reason
+            ),
+        ));
+    }
+    // An adoption that did not outrank every one before it never held the
+    // run — a race another driver won — and says so.
+    let mut highest = 1.0_f64;
+    for a in &run.adoptions {
+        let lost = if a.epoch <= highest {
+            ", outranked — never in force"
+        } else {
+            ""
+        };
+        highest = highest.max(a.epoch);
+        timeline.push((
+            &a.ts,
+            format!(
+                "  - {} resumed — epoch {}{lost}",
+                a.ts,
+                number_to_string(a.epoch)
+            ),
+        ));
+    }
+    timeline.sort_by(|a, b| a.0.cmp(b.0));
+    lines.extend(timeline.into_iter().map(|(_, line)| line));
+    lines
+}
+
+/// A string field of the run's permission surface, as a template literal prints it.
+fn surface_field(surface: &Json, key: &str) -> Option<String> {
+    let value = surface.as_obj()?.get(key)?;
+    Some(crate::json::js_to_string(value))
+}
+
+/// A list field of the run's permission surface (`allow`, `deny`), each entry as a template literal prints it.
+fn surface_list(surface: &Json, key: &str) -> Vec<String> {
+    surface
+        .as_obj()
+        .and_then(|o| o.get(key))
+        .and_then(Json::as_arr)
+        .map(|a| a.iter().map(crate::json::js_to_string).collect())
+        .unwrap_or_default()
 }
 
 /// `describeFreshness`: "3 files, 1 task change" — zero kinds omitted, commands never.

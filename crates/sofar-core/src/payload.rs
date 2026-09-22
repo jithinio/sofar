@@ -14,6 +14,14 @@
 
 /// Longest operator quote a rule may carry (memory-lead D2).
 pub const RULE_QUOTE_MAX: usize = 300;
+/// Longest check command a decision may carry (memory-lead D9).
+pub const CHECK_CMD_MAX: usize = 500;
+/// Longest fix hint a check may carry (memory-lead D9).
+pub const CHECK_HINT_MAX: usize = 300;
+/// Longest a check may run, in ms (memory-lead D9) — the driver's verify ceiling.
+pub const CHECK_TIMEOUT_MAX_MS: f64 = 600_000.0;
+/// `JUDGEMENT_ANSWER_TYPES` (typed-judge 2.4).
+pub const JUDGEMENT_ANSWER_TYPES: [&str; 3] = ["noul", "choice", "score"];
 
 use crate::json::{Json, Object, js_to_string};
 use crate::text::{js_trim, utf16_len};
@@ -43,7 +51,7 @@ pub const RUN_STOP_REASONS: [&str; 7] = [
 pub const VERIFICATION_RESULTS: [&str; 5] = ["pass", "fail", "timeout", "error", "refused"];
 
 /// `EVENT_TYPES`, in the schema's order.
-pub const EVENT_TYPES: [&str; 25] = [
+pub const EVENT_TYPES: [&str; 27] = [
     "initiative_created",
     "initiative_status_changed",
     "plan_updated",
@@ -58,11 +66,13 @@ pub const EVENT_TYPES: [&str; 25] = [
     "command_run",
     "note_added",
     "memory_promoted",
+    "judgement_recorded",
     "review_recorded",
     "run_started",
     "handoff",
     "run_stopped",
     "run_stop_requested",
+    "run_adopted",
     "verification_recorded",
     "correction",
     "suggestion_proposed",
@@ -176,6 +186,33 @@ pub fn is_memory_handle(s: &str) -> bool {
         && !n.starts_with('0')
 }
 
+/// `QUALIFIED_DECISION_HANDLE_RE = /^([a-z0-9-]+) D([1-9][0-9]*)$/` (memory-lead 2.2, D8).
+#[must_use]
+pub fn is_qualified_decision_handle(s: &str) -> bool {
+    s.split_once(' ')
+        .is_some_and(|(slug, handle)| is_initiative_slug(slug) && is_decision_handle(handle))
+}
+
+/// `JUDGEMENT_ABOUT_RE = /^(task:\S+|file:[^/\s].*)$/` (typed-judge D10): JS
+/// `\S`/`\s` are the JS whitespace class, `.` any code unit but a line
+/// terminator, and `$` the end of input (no `m` flag).
+#[must_use]
+pub fn is_judgement_about(s: &str) -> bool {
+    if let Some(id) = s.strip_prefix("task:") {
+        return !id.is_empty() && !id.chars().any(crate::text::is_js_whitespace);
+    }
+    let Some(path) = s.strip_prefix("file:") else {
+        return false;
+    };
+    let mut chars = path.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    first != '/'
+        && !crate::text::is_js_whitespace(first)
+        && !chars.any(|c| matches!(c, '\n' | '\r' | '\u{2028}' | '\u{2029}'))
+}
+
 /// Validate `payload` against its type's rules. Unknown types are rejected
 /// here (the fold turns that into its own warning).
 pub fn validate_payload(event_type: &str, payload: &Json) -> Result<(), Vec<String>> {
@@ -223,6 +260,201 @@ fn eq_str(v: Option<&Json>, s: &str) -> bool {
 /// `v === undefined || typeof v === 'boolean'`.
 fn opt_bool(v: Option<&Json>) -> bool {
     v.is_none_or(|v| matches!(v, Json::Bool(_)))
+}
+
+/// `checkSpecErrors` (memory-lead D9): shape errors of a decision's `check`.
+#[must_use]
+pub fn check_spec_errors(v: &Json) -> Vec<String> {
+    let Some(v) = v.as_obj() else {
+        return vec!["check: must be {cmd, hint?, timeout_ms?}".to_owned()];
+    };
+    let mut e = Vec::new();
+    match v.get("cmd").and_then(Json::as_nonempty_str) {
+        Some(cmd) if !js_trim(cmd).is_empty() => {
+            if utf16_len(cmd) > CHECK_CMD_MAX {
+                e.push(format!(
+                    "check.cmd: at most {CHECK_CMD_MAX} chars — point it at a script if it is longer"
+                ));
+            }
+        }
+        _ => e.push("check.cmd: must be a non-empty shell command".to_owned()),
+    }
+    if let Some(hint) = v.get("hint")
+        && hint
+            .as_nonempty_str()
+            .is_none_or(|h| utf16_len(h) > CHECK_HINT_MAX)
+    {
+        e.push(format!(
+            "check.hint: must be a non-empty string of at most {CHECK_HINT_MAX} chars when present"
+        ));
+    }
+    if v.contains_key("timeout_ms")
+        && !integer(v.get("timeout_ms")).is_some_and(|n| (1.0..=CHECK_TIMEOUT_MAX_MS).contains(&n))
+    {
+        e.push("check.timeout_ms: must be an integer from 1 to 600000 when present".to_owned());
+    }
+    // `Object.keys` order: integer-like keys first (P5).
+    for (key, _) in v.js_ordered() {
+        if key != "cmd" && key != "hint" && key != "timeout_ms" {
+            e.push(format!("check.{key}: unknown field"));
+        }
+    }
+    e
+}
+
+/// `unit`: a finite number in [0, 1].
+fn unit(v: Option<&Json>) -> bool {
+    v.and_then(Json::as_f64)
+        .is_some_and(|n| n.is_finite() && (0.0..=1.0).contains(&n))
+}
+
+/// `dist`: an object (an array counts, as `Object.values` reads one) of two
+/// or more values, every one a unit.
+fn dist(v: Option<&Json>) -> bool {
+    match v {
+        Some(Json::Obj(o)) => o.len() >= 2 && o.iter().all(|(_, x)| unit(Some(x))),
+        Some(Json::Arr(a)) => a.len() >= 2 && a.iter().all(|x| unit(Some(x))),
+        _ => false,
+    }
+}
+
+/// JavaScript's `key in value` for a plain object or an array: an own key,
+/// or a name the prototype chain supplies.
+fn js_in(key: &str, value: &Json) -> bool {
+    const OBJECT_PROTO: [&str; 12] = [
+        "constructor",
+        "hasOwnProperty",
+        "isPrototypeOf",
+        "propertyIsEnumerable",
+        "toLocaleString",
+        "toString",
+        "valueOf",
+        "__proto__",
+        "__defineGetter__",
+        "__defineSetter__",
+        "__lookupGetter__",
+        "__lookupSetter__",
+    ];
+    const ARRAY_PROTO: [&str; 39] = [
+        "length",
+        "at",
+        "concat",
+        "copyWithin",
+        "entries",
+        "every",
+        "fill",
+        "filter",
+        "find",
+        "findIndex",
+        "findLast",
+        "findLastIndex",
+        "flat",
+        "flatMap",
+        "forEach",
+        "includes",
+        "indexOf",
+        "join",
+        "keys",
+        "lastIndexOf",
+        "map",
+        "pop",
+        "push",
+        "reduce",
+        "reduceRight",
+        "reverse",
+        "shift",
+        "slice",
+        "some",
+        "sort",
+        "splice",
+        "toLocaleString",
+        "toReversed",
+        "toSorted",
+        "toSpliced",
+        "toString",
+        "unshift",
+        "values",
+        "with",
+    ];
+    match value {
+        Json::Obj(o) => o.contains_key(key) || OBJECT_PROTO.contains(&key),
+        Json::Arr(a) => {
+            let index = key
+                .parse::<usize>()
+                .ok()
+                .filter(|n| n.to_string() == key)
+                .is_some_and(|n| n < a.len());
+            index || ARRAY_PROTO.contains(&key) || OBJECT_PROTO.contains(&key)
+        }
+        _ => false,
+    }
+}
+
+/// A stored judgement (typed-judge 2.4): enrichment the fold ignores, still
+/// validated so a malformed one is skipped with the same warning.
+fn validate_judgement_recorded(p: &Object, e: &mut Vec<String>) {
+    for key in ["producer", "model", "question", "subject"] {
+        if !str(p.get(key)) {
+            e.push(format!("{key}: must be a non-empty string"));
+        }
+    }
+    if p.contains_key("state_hash") && !str(p.get("state_hash")) {
+        e.push("state_hash: must be a non-empty string when present".to_owned());
+    }
+    if p.contains_key("about")
+        && !p
+            .get("about")
+            .and_then(Json::as_nonempty_str)
+            .is_some_and(is_judgement_about)
+    {
+        e.push("about: must be `task:<id>` or `file:<repo-relative path>` when present".to_owned());
+    }
+    let Some(answer @ (Json::Obj(_) | Json::Arr(_))) = p.get("answer") else {
+        e.push("answer: must be an object".to_owned());
+        return;
+    };
+    let field = |key: &str| answer.as_obj().and_then(|o| o.get(key));
+    match field("type").and_then(Json::as_str) {
+        Some("noul") => {
+            if !unit(field("noul")) {
+                e.push("answer.noul: must be a number in [0, 1]".to_owned());
+            }
+        }
+        Some("choice") => {
+            if !str(field("choice")) {
+                e.push("answer.choice: must be a non-empty string".to_owned());
+            }
+            if !dist(field("probabilities")) {
+                e.push("answer.probabilities: must map 2+ keys to numbers in [0, 1]".to_owned());
+            } else if !js_in(
+                &field("choice").map_or_else(|| "undefined".to_owned(), js_to_string),
+                field("probabilities").expect("dist passed"),
+            ) {
+                e.push("answer.choice: must be one of answer.probabilities".to_owned());
+            }
+            if !unit(field("confidence")) {
+                e.push("answer.confidence: must be a number in [0, 1]".to_owned());
+            }
+        }
+        Some("score") => {
+            if !field("score")
+                .and_then(Json::as_f64)
+                .is_some_and(|n| n.is_finite() && n >= 0.0)
+            {
+                e.push("answer.score: must be a non-negative number".to_owned());
+            }
+            if !dist(field("probabilities")) {
+                e.push("answer.probabilities: must map 2+ levels to numbers in [0, 1]".to_owned());
+            }
+            if !unit(field("confidence")) {
+                e.push("answer.confidence: must be a number in [0, 1]".to_owned());
+            }
+        }
+        _ => e.push(format!(
+            "answer.type: must be one of {}",
+            JUDGEMENT_ANSWER_TYPES.join("|")
+        )),
+    }
 }
 
 /// A LOSS ROW proposed from a trusted detector (self-improve 2.3): the
@@ -531,6 +763,16 @@ fn validate_known(event_type: &str, p: &Object, e: &mut Vec<String>) {
                     "until: not allowed with `rule` — a standing constraint never ages out; supersede it with a new rule instead",
                 );
             }
+            // The executable half of a rule (memory-lead D9), as `guard` is
+            // the matchable half: a failure has to name the clause it enforces.
+            if let Some(check) = p.get("check") {
+                must(
+                    e,
+                    str(p.get("rule")),
+                    "check: requires `rule` — a failing check has to cite the clause it enforces",
+                );
+                e.extend(check_spec_errors(check));
+            }
         }
         "session_started" => {
             must(e, str(p.get("tool")), "tool: must be a non-empty string");
@@ -765,6 +1007,16 @@ fn validate_known(event_type: &str, p: &Object, e: &mut Vec<String>) {
                         .to_owned(),
                 );
             }
+            if p.contains_key("decision")
+                && !p
+                    .get("decision")
+                    .and_then(Json::as_nonempty_str)
+                    .is_some_and(is_qualified_decision_handle)
+            {
+                e.push(
+                    "decision: must be a qualified handle `<slug> D<n>` when present".to_owned(),
+                );
+            }
         }
         "run_stopped" => {
             must(e, str(p.get("run")), "run: must be a non-empty string");
@@ -780,6 +1032,17 @@ fn validate_known(event_type: &str, p: &Object, e: &mut Vec<String>) {
             }
         }
         "run_stop_requested" => must(e, str(p.get("run")), "run: must be a non-empty string"),
+        "run_adopted" => {
+            must(e, str(p.get("run")), "run: must be a non-empty string");
+            // Epoch 1 is run_started's: an adoption at or below it could
+            // never outrank the driver that started the run.
+            must(
+                e,
+                integer(p.get("epoch")).is_some_and(|n| n >= 2.0),
+                "epoch: must be an integer of at least 2 — run_started is epoch 1",
+            );
+        }
+        "judgement_recorded" => validate_judgement_recorded(p, e),
         "correction" => {
             must(
                 e,
@@ -1042,6 +1305,58 @@ mod tests {
             ),
             ["diagnostics: must be a non-empty string of at most 1,024 chars when present"]
         );
+    }
+
+    #[test]
+    fn trunk_rules_match_the_typescript_strings() {
+        // Strings from the TypeScript reference at main 72146d9 (a fold of
+        // the same payloads through `sofar fold`, rust-core D29).
+        assert_eq!(
+            check(
+                "decision_logged",
+                "{\"chose\":\"c\",\"over\":\"o\",\"because\":\"b\",\"rule\":\"R\",\"check\":{\"cmd\":\"ok\",\"zz\":1,\"1\":2,\"a\":3}}"
+            ),
+            [
+                "check.1: unknown field",
+                "check.zz: unknown field",
+                "check.a: unknown field"
+            ]
+        );
+        assert_eq!(
+            check(
+                "decision_logged",
+                "{\"chose\":\"c\",\"over\":\"o\",\"because\":\"b\",\"check\":{\"cmd\":\"x\"}}"
+            ),
+            ["check: requires `rule` — a failing check has to cite the clause it enforces"]
+        );
+        assert_eq!(
+            check(
+                "decision_logged",
+                "{\"chose\":\"c\",\"over\":\"o\",\"because\":\"b\",\"rule\":\"R\",\"check\":{\"cmd\":\"ok\",\"timeout_ms\":600001}}"
+            ),
+            ["check.timeout_ms: must be an integer from 1 to 600000 when present"]
+        );
+        assert_eq!(
+            check("run_adopted", "{\"run\":\"R1\",\"epoch\":1}"),
+            ["epoch: must be an integer of at least 2 — run_started is epoch 1"]
+        );
+        assert!(check("run_adopted", "{\"run\":\"R1\",\"epoch\":2}").is_empty());
+        assert_eq!(
+            check(
+                "judgement_recorded",
+                "{\"producer\":\"p\",\"model\":\"m\",\"question\":\"q\",\"subject\":\"s\",\"answer\":{\"type\":\"choice\",\"choice\":\"z\",\"probabilities\":{\"a\":0.5,\"b\":0.5},\"confidence\":1}}"
+            ),
+            ["answer.choice: must be one of answer.probabilities"]
+        );
+        // `in` walks the prototype chain: an inherited name is "in" any object.
+        assert!(check("judgement_recorded", "{\"producer\":\"p\",\"model\":\"m\",\"question\":\"q\",\"subject\":\"s\",\"answer\":{\"type\":\"choice\",\"choice\":\"toString\",\"probabilities\":{\"a\":0.5,\"b\":0.5},\"confidence\":1}}").is_empty());
+        assert!(is_judgement_about("task:1.1"));
+        assert!(is_judgement_about("file:x/y"));
+        assert!(!is_judgement_about("file:/abs"));
+        assert!(!is_judgement_about("file:a\u{2028}b"));
+        assert!(is_qualified_decision_handle("demo D12"));
+        assert!(!is_qualified_decision_handle("demo  D1"));
+        assert!(!is_qualified_decision_handle("Demo D1"));
     }
 
     #[test]
