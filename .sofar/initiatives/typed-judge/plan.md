@@ -24,13 +24,15 @@ Progress: 10/15 tasks done (66%)
 - [x] 3.2 A1 in sofar_end_session: next_action Score on described levels, unlogged-decision and repo-memory-fact Nouls over the summary; warning only
 - [x] 3.3 A4/A5: decision-vs-fact-vs-note routing hint; task-done evidence Noul in sofar_update_task
 
-## Phase 4 — Driver [pending] — 1/3 done
+## Phase 4 — Driver [blocked] — 1/3 done
+
+> 4.1 done. 4.2 and 4.3 wait for drive-visibility 2.1–2.2 in src/driver/drive.ts (session sofar-1b).
 
 - [x] 4.1 B1 progress judge: handoff reason from a Noul over task text, write-back, diff stat and test output, combined with status; B2 richer reason set
-- [ ] 4.2 B3 pre-flight: task specified well enough to act; low → needs_user without a launch
-- [ ] 4.3 B4 route hints: complexity Score → effort, Choice → model, filling only what the run left open
+- [ ] 4.2 B3 pre-flight: task specified well enough to act; low → needs_user without a launch (blocked)
+- [ ] 4.3 B4 route hints: complexity Score → effort, Choice → model, filling only what the run left open (blocked)
 
-## Phase 5 — Context and pull [pending] — 0/2 done
+## Phase 5 — Context and pull [active] — 0/2 done
 
 - [ ] 5.1 C1/C2: relevance scores for decisions, notes, rejected approaches, repo memory and adjacent initiatives against the next task, judged at write-back (or server-side over synced events), stored in the index, read by the SessionStart hook
 - [ ] 5.2 D1/D2: judge-ranked find and answer packets (depends on linked-context Phase 5)
@@ -39,4 +41,6 @@ Progress: 10/15 tasks done (66%)
 
 - [ ] 6.1 E1: sofar + judge arm in bench-refresh; Jev as calibrated blind reviewer; grade the pre-registered predictions
 
-Next action: Start 4.2: in src/driver/drive.ts, before routed.launch, add a pre-flight noul on the task text; low → needs_user without a launch.
+Active phase: Phase 5 — Context and pull
+Next action: Record sofar-6e's reply on the 5.1/B1 relevance shape (about field vs question), then build 5.1 to it.
+Blocked on: phase Phase 4 — Driver; task 4.2: Waits for drive-visibility 2.1–2.2 to land in src/driver/drive.ts (live in session sofar-1b); coordinate with sofar-1b before starting (sofar-c3 coordination note, 2026-09-22).; task 4.3: Same as 4.2: edits src/driver/drive.ts, where drive-visibility 2.1–2.2 is live in session sofar-1b; start after they land and after coordinating with sofar-1b.
