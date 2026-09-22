@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: On wake: check the codex-drive/r1 ledger; if timed out, repair per ruling 01M340M7 and re-run; then bench-refresh 4.1 report.
+Next action: Kickstart com.sofar.bench.round1.codex (AC, lid open), then resubmit the evaluator resume job.
