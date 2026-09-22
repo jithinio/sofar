@@ -4,7 +4,7 @@
 
 Goal: A small, trustworthy improvement process whose every change has inspectable benefit, cost, evidence and reversal path (self-improve D1). Developer-side first: benchmark → loss study → bounded fix → held-out proof, beating an equal-budget direct-fix baseline net of full cost. In-product local adaptation only after repeated wins; private diagnostics never enter events.jsonl, git, export or sync.
 
-Progress: 10/14 tasks done (71%)
+Progress: 10/15 tasks done (66%)
 
 ## Phase 1 — Evidence contracts and capture [done] — 3/3 done
 
@@ -22,12 +22,13 @@ Progress: 10/14 tasks done (71%)
 - [x] 2.2 Precision and recall against the manual smoke and round-1 loss-study rows before any suggestion is trusted
 - [x] 2.3 Suggestions only: approval bound to an exact candidate hash, stale applications rejected, rejection and reversal history kept; offline replay limited to context-size and information-preservation checks
 
-## Phase 3 — Bounded fix loop (developer-side) [pending] — 4/4 done
+## Phase 3 — Bounded fix loop (developer-side) [pending] — 4/5 done
 
 - [x] 3.1 Frozen evaluator outside the candidate's control: runner, hidden tests, fixtures, scoring and result capture live in a separate repo and process the candidate cannot write
 - [x] 3.2 Durable spend ledger across restarts counting every attempt, retry and evaluation, aligned with bench-refresh D14 and D17
 - [x] 3.3 Equal-budget baseline: the same agent directly fixing the same loss with the same feedback and spend; a loop change is kept only if it beats this baseline
 - [x] 3.4 First manual cycle on one round-1 loss row: loop result vs direct-fix baseline vs the human-built r1-fixes change
+- [ ] 3.5 Evaluator sweeps a cell's listening strays after every session and at run end, the way round 2's runner does (lib/strays.ts killListeningStrays, from round-1 loss row L23): processes whose cwd is inside the cell and hold a listening socket, killed by exact PID and recorded in the result, never by pattern — cycle-L11b left 18 orphans holding 8 ports across all three eval cells
 
 ## Phase 4 — Release proof [pending] — 0/4 done
 
@@ -36,4 +37,4 @@ Progress: 10/14 tasks done (71%)
 - [ ] 4.3 Public standing snapshot (downloads, stars, listings) reported separately and never used as a technical gate
 - [ ] 4.4 Expand autonomy, including any in-product local adaptation, only after 3 consecutive cycles beat the direct-fix baseline on unseen work
 
-Next action: Operator: decide whether L11 gets a new fix attempt, and whether to close Phase 3.
+Next action: Operator: rule on L11 and Phase 3; do not start a cycle while the lid is closed.

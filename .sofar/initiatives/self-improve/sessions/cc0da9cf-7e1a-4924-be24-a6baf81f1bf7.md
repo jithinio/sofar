@@ -6,23 +6,23 @@
 - Tool: claude-code
 - Model: claude-opus-5
 - Started: 2026-09-22T14:51:15.416Z
-- Ended: 2026-09-22T22:19:23.902Z
+- Ended: 2026-09-22T22:37:34.873Z
 
 ## Summary
 
-3.4 done: cycle-L11b verdict DISCARD (all arms replay 0/3); evidence committed in the evaluator README and ledger.ts.
+Swept 18 orphaned cell servers from cycle-L11b by exact PID; logged the teardown gap as task 3.5; D19 ports confirmed in the field.
 
 ## Next action
 
-Operator: decide whether L11 gets a new fix attempt, and whether to close Phase 3.
+Operator: rule on L11 and Phase 3; do not start a cycle while the lid is closed.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 128 commands, task changes: 3.4 → done
+- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 138 commands, task changes: 3.4 → done
 - Files:
   - /Users/jins/IO/sofar-evaluator/lib/commit.ts
   - /Users/jins/IO/sofar-evaluator/test/commit.test.ts
   - /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh
-- Commands run: 128
+- Commands run: 138
 - Task changes:
   - 3.4 → done
