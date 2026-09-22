@@ -22,6 +22,7 @@ import {
   runDrive,
   runDriveAwait,
   runDriveDetached,
+  runDriveFollow,
   runDriveStop,
   runKeepAwakeSetting,
   terminalPrompt,
@@ -580,6 +581,10 @@ program
     '--await',
     "block until the latest unstopped run needs someone, then print one line: its stop (exit 0), its driver gone (exit 2), or nothing to await (exit 1) — for an agent's background shell",
   )
+  .option(
+    '--follow',
+    'print one line per handoff, task change, adoption and stop request of the latest unstopped run as it lands, ending like --await — for a terminal, not an agent (every line there is a turn)',
+  )
   .option('--keep-awake', 'macOS: block idle sleep for this run (caffeinate), whatever the saved setting says; not saved')
   .option('--no-keep-awake', 'macOS: do not block idle sleep for this run, whatever the saved setting says; not saved')
   .option(
@@ -615,6 +620,7 @@ program
         detach?: boolean
         stop?: boolean
         await?: boolean
+        follow?: boolean
         keepAwake?: boolean
         keepAwakeSetting?: string
         root?: string
@@ -631,16 +637,22 @@ program
         emit(runKeepAwakeSetting(opts.keepAwakeSetting))
         return
       }
-      // --stop and --await name a run, not a way to run one: a flag beside
-      // either would read as honoured and be ignored.
-      const only = opts.stop === true ? 'stop' : opts.await === true ? 'await' : undefined
+      // --stop, --await and --follow name a run, not a way to run one: a flag
+      // beside any of them would read as honoured and be ignored.
+      const only = opts.stop === true ? 'stop' : opts.await === true ? 'await' : opts.follow === true ? 'follow' : undefined
       if (only !== undefined) {
         const extra = Object.keys(opts).filter((k) => k !== only && k !== 'root')
         if (extra.length > 0) {
           emit(fail(`sofar drive --${only} takes no other flag but --root (got ${extra.map((k) => `--${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`).join(', ')})`))
           return
         }
-        emit(only === 'stop' ? await runDriveStop(rootOf(opts), slug) : await runDriveAwait(rootOf(opts), slug))
+        emit(
+          only === 'stop'
+            ? await runDriveStop(rootOf(opts), slug)
+            : only === 'await'
+              ? await runDriveAwait(rootOf(opts), slug)
+              : await runDriveFollow(rootOf(opts), slug),
+        )
         return
       }
       if (opts.detach === true) {
