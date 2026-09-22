@@ -99,7 +99,11 @@ jobs:
   core-conformance:
     runs-on: ubuntu-24.04
     steps:
+      # Every branch as origin/*: the real-log gate (rust-core 5.1) folds
+      # every branch tip's logs, not just this commit's.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -116,6 +120,10 @@ jobs:
       - run: SOFAR_CORE=$PWD/target/release/sofar-core npx vitest run --project unit packages/engine/test/conformance/conformance.test.ts
       - run: SOFAR_CONFORMANCE_BIN=$PWD/target/release/sofar-core npx vitest run --project unit packages/engine/test/conformance/fold-parity
       - run: cargo test -p sofar-core --test render_parity
+      # rust-core 5.1: the core's fold deep-equals TypeScript's on every real
+      # events.jsonl of this repository, every branch tip included. sofar-cloud's
+      # logs are private, so they are proved in its own CI, never here.
+      - run: SOFAR_CONFORMANCE_BIN=$PWD/target/release/sofar-core npx vitest run --project unit packages/engine/test/conformance/real-logs
 
   # Loose read-path tripwire (r1-fixes D18): a gross regression cannot reach
   # an RC unnoticed. Wide budget on purpose — hosted noise cannot hide a 2×
