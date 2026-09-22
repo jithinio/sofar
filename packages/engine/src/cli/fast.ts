@@ -78,7 +78,7 @@ export async function runFast(argv: readonly string[]): Promise<boolean> {
     if (sub === undefined) return false // `append`, an unknown hook, or bare `event`
     const parsed = parseHookFlags(flags)
     if (parsed === null) return false
-    mirror(sub.handler(parsed.root, await readStdin(), parsed.host))
+    mirror(await sub.handler(parsed.root, await readStdin(), parsed.host))
     return true
   }
 

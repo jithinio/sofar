@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ulid } from 'ulid'
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
-import { driveLine, handleUserPrompt, SUBCOMMANDS } from '../src/cli/event'
+import { driveLine, handleUserPrompt, SUBCOMMANDS, type HookResult } from '../src/cli/event'
 import { driveSeenPath } from '../src/core/drive-seen'
 import { makeEvent } from '../src/core/envelope'
 import { foldLog, type InitiativeState, type SessionState } from '../src/core/fold'
@@ -206,7 +206,8 @@ describe('the drive line (drive-visibility 3.2)', () => {
 
     append(r, 'task_status_changed', { id: '1.1', status: 'done' })
     const codex = SUBCOMMANDS.find((c) => c.name === 'user-prompt')!.handler(r.root, JSON.stringify({ session_id: SESSION, prompt: 'hi' }), 'codex')
-    const context = (JSON.parse(codex.stdout) as { hookSpecificOutput: { additionalContext: string } }).hookSpecificOutput.additionalContext
+    expect(codex).not.toBeInstanceOf(Promise) // the prompt hook is sync; only the rewake hook waits
+    const context = (JSON.parse((codex as HookResult).stdout) as { hookSpecificOutput: { additionalContext: string } }).hookSpecificOutput.additionalContext
     expect(context).toContain(`sofar drive: run ${run} liveness unknown · 0 handoffs · now on 1.2 · 1/3`)
   })
 })

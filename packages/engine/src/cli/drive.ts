@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { ToolError, createToolContext } from '../mcp/context'
-import { decodeLines, latestRun, stopRequestsInForce, type RunState } from '../core/fold'
+import { latestRun, stopRequestsInForce, type RunState } from '../core/fold'
+import { awaitRun, awaitLiveness, blockedQuestion, stillRunning } from '../core/run-await'
 import { probeRunLock, type RunLiveness, type RunLockOptions } from '../core/run-lock'
 import { describeRun } from '../projections/templates/shared'
 import { ClaudeCodeAdapter } from '../driver/claude-code'
@@ -443,40 +444,31 @@ export async function runDriveAwait(
   const ctx = createToolContext(rootDir)
   const notice = options.onNotice ?? ((line: string) => process.stderr.write(`${line}\n`))
   let initiative: string
-  let runId: string
-  let scan: () => boolean
+  let outcome
   try {
     initiative = ctx.resolveInitiative(slug)
     const eventsPath = ctx.eventsPath(initiative)
-    // Taken BEFORE the fold, so a stop landing between the two is still scanned.
-    scan = appendedBytesScan(eventsPath, existsSync(eventsPath) ? statSync(eventsPath).size : 0, ['"run_stopped"'])
-    const state = ctx.foldState(initiative)
-    const run = latestRun(state)
-    if (run === undefined) return fail(`sofar drive --await: "${initiative}" has never been driven — nothing to await`)
-    if (run.stopped !== undefined) {
-      return fail(`sofar drive --await: nothing to await — the latest run on "${initiative}" already ended: ${stoppedLine(ctx, initiative, run)}`)
+    const run = latestRun(ctx.foldState(initiative))
+    // Said BEFORE the wait: with no lock here, only a recorded stop ends it.
+    if (run !== undefined && run.stopped === undefined && awaitLiveness(rootDir, run.id, options) === 'absent') {
+      notice(
+        `sofar drive --await: run ${run.id} has no run lock on this machine (liveness unknown) — waiting on the record alone, so only a recorded stop ends this wait; a driver that dies without one is not seen here`,
+      )
     }
-    runId = run.id
+    outcome = await awaitRun(rootDir, { eventsPath, fold: () => ctx.foldState(initiative) }, options)
   } catch (err) {
     return fail(errMessage(err))
   }
-
-  let liveness = probeRunLock(rootDir, runId, options.lock)
-  if (liveness === 'absent') {
-    notice(
-      `sofar drive --await: run ${runId} has no run lock on this machine (liveness unknown) — waiting on the record alone, so only a recorded stop ends this wait; a driver that dies without one is not seen here`,
+  if (outcome.kind === 'idle') {
+    return fail(
+      outcome.reason === 'never-driven'
+        ? `sofar drive --await: "${initiative}" has never been driven — nothing to await`
+        : `sofar drive --await: nothing to await — the latest run on "${initiative}" already ended: ${stoppedLine(ctx, initiative, outcome.run!)}`,
     )
   }
-  for (let first = true; ; first = false) {
-    if (!first) {
-      await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? STOP_POLL_MS))
-      liveness = probeRunLock(rootDir, runId, options.lock)
-    }
-    if (!first && !scan() && liveness !== 'free') continue
-    const run = ctx.foldState(initiative).runs.find((r) => r.id === runId)
-    if (run?.stopped !== undefined) return ok(`${stoppedLine(ctx, initiative, run)}\n`)
-    if (liveness === 'free') return driverGone(runId, initiative)
-  }
+  if (outcome.kind === 'gone') return driverGone(outcome.run, initiative)
+  if (outcome.kind === 'deadline') return ok(`${stillRunning(outcome.run, initiative, outcome.waitedMs)}\n`)
+  return ok(`${stoppedLine(ctx, initiative, outcome.run)}\n`)
 }
 
 /** Exit 2, the one line both watchers end on when the lock falls with no stop recorded. */
@@ -644,29 +636,8 @@ function followLine(raw: string, runId: string, statuses: Map<string, string>): 
  */
 function stoppedLine(ctx: ReturnType<typeof createToolContext>, initiative: string, run: RunState): string {
   const line = describeRun(run)
-  if (run.stop_reason !== 'needs_user') return line
-  const task = [...run.handoffs].reverse().find((h) => h.reason === 'needs_user' && h.task !== undefined)?.task
-  if (task === undefined) return line
-  const note = blockingNote(ctx.eventsPath(initiative), task)
-  return note === undefined ? line : `${line}. ${task}'s note: ${note.replace(/\s+/g, ' ').trim()}`
-}
-
-/**
- * The note on the event that left `task` blocked, as the fold keeps it:
- * replay order, corrections voided, cleared by any later status. Read here
- * rather than added to the fold's state, whose shape rust-core mirrors.
- */
-function blockingNote(eventsPath: string, task: string): string | undefined {
-  let note: string | undefined
-  const decoded = decodeLines(readFileSync(eventsPath, 'utf8').split('\n'))
-  for (const { event } of decoded.parsed) {
-    if (event.type !== 'task_status_changed' || decoded.voided.has(event.id)) continue
-    const p = event.payload as { id?: unknown; status?: unknown; note?: unknown }
-    if (p.id !== task) continue
-    if (p.status === 'blocked' && typeof p.note === 'string' && p.note.length > 0) note = p.note
-    else if (p.status !== 'blocked') note = undefined
-  }
-  return note
+  const question = blockedQuestion(ctx.eventsPath(initiative), run)
+  return question === undefined ? line : `${line}. ${question.task}'s note: ${question.note}`
 }
 
 /** The message a detached child sends once its run is certain to start. */

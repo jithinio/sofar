@@ -33,6 +33,7 @@ import {
   SHIPPED_AGENTS_PROTOCOL_BLOCKS,
   SHIPPED_PROTOCOL_BLOCKS,
   SHIMS,
+  shimsFor,
   STATUSLINE_HINT,
   STATUSLINE_SETTINGS_ENTRY,
 } from '../src/cli/init'
@@ -136,6 +137,19 @@ describe('sofar init on a fresh repo', () => {
         {
           matcher: 'Edit|Write|MultiEdit|Bash|Read|Grep',
           hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use.sh' }],
+        },
+        // The rewake watch (drive-visibility 3.7): Claude Code only, and the
+        // timeout is explicit because the default 600 s kills it silently.
+        {
+          matcher: 'Bash',
+          hooks: [
+            {
+              type: 'command',
+              command: '$CLAUDE_PROJECT_DIR/.claude/hooks/drive-await.sh',
+              asyncRewake: true,
+              timeout: 21_600,
+            },
+          ],
         },
       ],
       PostToolUseFailure: [
@@ -515,7 +529,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
     expect(result.exitCode).toBe(0)
     // The report block ends at the blank line before the (unstyled) hint.
     const lines = (result.stdout.split('\n\n')[0] ?? '').split('\n')
-    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (24 changes)')
+    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (25 changes)')
     expect(lines[0]).toBe('\x1b[2m  └ created .sofar/repo.md\x1b[22m')
     for (const line of lines.slice(0, -1)) {
       expect(line.startsWith('\x1b[2m  └ ')).toBe(true)
@@ -533,6 +547,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
         'created .claude/hooks/session-start.sh',
         'created .claude/hooks/user-prompt-submit.sh',
         'created .claude/hooks/post-tool-use.sh',
+        'created .claude/hooks/drive-await.sh',
         'created .claude/hooks/post-tool-use-failure.sh',
         'created .claude/hooks/stop.sh',
         'created .claude/hooks/session-end.sh',
@@ -551,7 +566,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
         'created .codex/config.toml',
         'created CLAUDE.md (sofar protocol block)',
         'created AGENTS.md (sofar protocol block)',
-        'sofar init: done (24 changes)',
+        'sofar init: done (25 changes)',
         '',
         STATUSLINE_HINT,
         '',
@@ -747,7 +762,10 @@ describe('Cursor wiring (r1-fixes 6.2/6.6, D34)', () => {
       hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>
     }
     expect(cursor.version).toBe(1)
-    for (const shim of SHIMS) {
+    // Cursor gets every shim EXCEPT the Claude-only rewake watch (3.7), whose
+    // asyncRewake has no Cursor equivalent.
+    expect(shimsFor('cursor').some((shim) => shim.file === 'drive-await.sh')).toBe(false)
+    for (const shim of shimsFor('cursor')) {
       const spec = CURSOR_HOOKS[shim.event]
       const [entry] = cursor.hooks[spec.event] ?? []
       expect(entry?.command, spec.event).toBe(hookCommand(shim.file))
@@ -821,7 +839,8 @@ describe('re-init widens a matcher sofar shipped earlier (memory-lead 2.1, D6)',
     const settings = readJSON(join(root, '.claude', 'settings.json')) as {
       hooks: { PostToolUse: Array<{ matcher?: string }> }
     }
-    return settings.hooks.PostToolUse.map((e) => e.matcher)
+    // The rewake entry is a second PostToolUse entry (3.7); this reads the widened one.
+    return settings.hooks.PostToolUse.filter((e) => e.matcher !== 'Bash').map((e) => e.matcher)
   }
 
   it('an entry of ours with the pre-2.1 matcher gains Read and Grep, in place', () => {

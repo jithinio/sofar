@@ -36,6 +36,7 @@ import {
   runInit,
   SHIM_HOMES,
   SHIMS,
+  shimsFor,
   wiredAgents,
 } from '../src/cli/init'
 import { runUninit } from '../src/cli/uninit'
@@ -255,6 +256,7 @@ describe('sofar init for a subset of agents', () => {
     expect(result.exitCode).toBe(0)
     const written = files(root).filter((rel) => !rel.startsWith('.git/') && !rel.startsWith('.sofar/'))
     expect(written).toEqual([
+      '.claude/hooks/drive-await.sh',
       '.claude/hooks/post-tool-use-failure.sh',
       '.claude/hooks/post-tool-use.sh',
       '.claude/hooks/session-end.sh',
@@ -276,12 +278,13 @@ describe('sofar init for a subset of agents', () => {
     const written = files(root).filter((rel) => !rel.startsWith('.git/') && !rel.startsWith('.sofar/'))
     expect(written).toEqual([
       '.cursor/hooks.json',
-      ...SHIMS.map((shim) => `.cursor/hooks/sofar/${shim.file}`).sort(),
+      // Cursor's own set: never the Claude-only rewake shim (drive-visibility 3.7).
+      ...shimsFor('cursor').map((shim) => `.cursor/hooks/sofar/${shim.file}`).sort(),
       '.cursor/mcp.json',
       '.gitattributes',
       'AGENTS.md',
     ])
-    for (const shim of SHIMS) {
+    for (const shim of shimsFor('cursor')) {
       expect(statSync(join(root, SHIM_HOMES.cursor.dir, shim.file)).mode & 0o777).toBe(0o755)
     }
     const hooks = readJSON(join(root, '.cursor', 'hooks.json')) as {

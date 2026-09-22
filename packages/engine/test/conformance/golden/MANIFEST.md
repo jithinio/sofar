@@ -1,5 +1,10 @@
 # Golden manifest (rust-core D11)
 
+Re-recorded for **drive-visibility 3.7** (the rewake hook): `argv.fast-path`
+gains four lines, the `sofar event drive-await` entry in the hook help. No
+other golden changed — the hook is wired by `sofar init`, which the goldens
+do not run.
+
 Re-pinned to **main ce2f9f2** (rust-core merge 47d5a44: drive-visibility
 3.3). `syn.driven` gained five statusline steps, re-recorded from the
 TypeScript reference: the drive segment with no lock (`drive 1.2 liveness
