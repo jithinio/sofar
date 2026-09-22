@@ -45,9 +45,10 @@ Progress: 16/23 tasks done (69%)
 
 ## Phase 5 — Bindings (carried over from engine-core) [pending] — 0/4 done
 
-- [ ] 5.1 Real-log parity gate: the Rust fold deep-equals the TypeScript fold on EVERY real events.jsonl in this repo and in sofar-cloud, run in CI. No surface in 5.2–5.4 switches until it is green, and the TypeScript fold retires last (engine-core 1.1, 4.1)
+- [ ] 5.1 Real-log parity gate: the Rust fold deep-equals the TypeScript fold on EVERY real events.jsonl in this repo and in sofar-cloud, run in CI. No surface in 5.2–5.4 switches until it is green, and the TypeScript fold retires last (engine-core 1.1, 4.1) (blocked)
 - [ ] 5.2 UniFFI bindings to a Swift package consumed by sofar-cloud desktop-v2 (engine-core 3.1; engine-core D1: the Swift app folds through the Rust core from its first record window, with the sofar CLI bridge only as a fallback behind desktop-v2's RecordSource protocol while 5.1 is not green). A separate crate, so the hook binary's crate set (D9) is unchanged
 - [ ] 5.3 wasm build of the fold for the sofar-cloud webapp and the Bun API, replacing the browser-aliased TypeScript fold (engine-core 3.2). A separate crate, so the hook binary's crate set (D9) is unchanged
 - [ ] 5.4 The TypeScript CLI wraps the core with foldLines keeping its signature (engine-core 3.3): confirm that 3.1's dispatch with TypeScript fallback covers it, then close
 
-Next action: Profile post-tool at team100 (union_files scan). 4.1 awaits the operator, the re-pin awaits rc.3.
+Next action: Merge main past ce2f9f2 and mirror any hot-path change (D29); then profile post-tool at team100 once the perf preconditions pass.
+Blocked on: task 5.1: Gate built and green: the sofar leg is in CI (core-conformance, run 35748230717, every branch), and sofar-cloud is green locally (20 logs, private mode). Blocked on the operator for the sofar-cloud CI leg. sofar-cloud (usesofar/sofar-app) is private and this repo's Actions logs are public, so the job belongs in sofar-cloud's own CI. See the 5.1 note for the steps. It needs no token, since sofar is public.
