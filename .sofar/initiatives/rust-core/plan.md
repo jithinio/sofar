@@ -28,7 +28,7 @@ Progress: 17/25 tasks done (68%)
 - [x] 2.4 Digest/status render byte-identical to the projection templates (golden tests), including the 10k char cap behaviour
 - [x] 2.5 Hook handlers (session-start, user-prompt-submit, post-tool-use, stop, session-end) with conformance parity, including r1-fixes wave 1–2 behaviour
 - [x] 2.6 Statusline command parity
-- [ ] 2.11 Mirror memory-lead 3.1 (memory-lead 3.4): the BM25 lexicon tier (lexicon.json, lexicon-p00..31.json FNV-1a/5-bit shards, lexicon-h.json, one gen) and its prompt line, plus index-pass SlugReducer.relevant / PassResult.stateChanged, with conformance parity incl. a score-at-threshold case (memory-lead D15; notes 01M352R1, 01M352S1). TS reference 3ee5e98 is unverified until its D18 read-path bench passes — plan against it, do not build on it as settled
+- [ ] 2.11 Mirror memory-lead 3.1 (memory-lead 3.4): the BM25 lexicon tier (lexicon.json, lexicon-p00..31.json FNV-1a/5-bit shards, lexicon-h.json, one gen) and its prompt line, plus index-pass SlugReducer.relevant / PassResult.stateChanged, with conformance parity incl. a score-at-threshold case (memory-lead D15; notes 01M352R1, 01M352S1). TS reference 3ee5e98 is unverified until its D18 read-path bench passes — plan against it, do not build on it as settled (active)
 
 ## Phase 3 — Integration and distribution [done] — 3/3 done
 
@@ -52,5 +52,5 @@ Progress: 17/25 tasks done (68%)
 - [ ] 5.3 wasm build of the fold for the sofar-cloud webapp and the Bun API, replacing the browser-aliased TypeScript fold (engine-core 3.2). A separate crate, so the hook binary's crate set (D9) is unchanged
 - [x] 5.4 The TypeScript CLI wraps the core with foldLines keeping its signature (engine-core 3.3): confirm that 3.1's dispatch with TypeScript fallback covers it, then close
 
-Next action: After sofar-c3 confirms 3ee5e98 D18, merge main past it and start 2.11; profile 4.4 on a quiet host.
+Next action: After push: check ci.yml js_log crosscheck on 5 targets; D18 + union_files profile on quiet host, lid open.
 Blocked on: task 5.1: Gate built and green: the sofar leg is in CI (core-conformance, run 35748230717, every branch), and sofar-cloud is green locally (20 logs, private mode). Blocked on the operator for the sofar-cloud CI leg. sofar-cloud (usesofar/sofar-app) is private and this repo's Actions logs are public, so the job belongs in sofar-cloud's own CI. See the 5.1 note for the steps. It needs no token, since sofar is public.
