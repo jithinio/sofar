@@ -143,7 +143,7 @@ and the result still reads correctly.
 | `sofar why <path>` | Every task, session and decision behind a file, across all initiatives |
 | `sofar related <task-id>` | Tasks that worked on the same files, ranked by shared paths |
 | `sofar review [name]` | The evidence a reviewer needs before a phase closes: what changed, what was claimed, and the rules the work had to keep (`--final` for the close-time pass) |
-| `sofar drive [name]` | Work the plan unattended: a fresh agent session per task, each handoff recorded, until a task needs you or the work runs out |
+| `sofar drive [name]` | Work the plan unattended: a fresh agent session per task, each handoff recorded, until a task needs you or the work runs out. `--detach` starts it from inside an agent, `--await` waits for it to need you, `--follow` narrates it, `--stop` ends it |
 | `sofar remember <text>` | Keep an operational fact — a release command, a failure mode — where later sessions will find it. `-` reads stdin (a quoted heredoc keeps every quote), `@<file>` a file; `--supersedes <slug> M<n>` replaces an outdated one |
 | `sofar statusline --install` | Put the status line in Claude Code's status bar — this repo, or `--user` for every project (`--uninstall` takes it back off) |
 | `sofar doctor` | Check the setup and the record for problems |
@@ -216,14 +216,30 @@ run id, any warnings, and where to follow it. The run keeps going when
 that session ends. `sofar drive --stop`, from any shell or session, ends
 it.
 
+**Watching it run.** A run has exactly one driver: a second `sofar drive`
+on the same run is refused while the first is alive, and if the driver dies
+(a crash, a `kill -9`), `sofar status` says *driver gone* rather than
+*running*, and `--resume` picks the run up. `sofar drive --await` waits
+without printing anything and exits with one line when the run stops,
+quoting the question when a task needs you, or when its driver dies. It is
+what an agent runs in its background shell after `--detach`, so it costs
+nothing until there is something to act on. `sofar drive --follow`
+prints a line per handoff and task change, for a terminal. In Claude Code,
+your next prompt carries a `sofar drive:` line whenever the run has moved,
+and the status line shows the task in flight, `gone` or why it stopped. On
+a Mac, a run can keep the machine from idle-sleeping for as long as it
+lasts: the first run in a terminal asks once, and `sofar drive
+--keep-awake-setting on|off` changes the answer (closing the lid still
+sleeps it).
+
 Two things to know before you leave it running. It launches *your* agent
 under *your* login, so what a session may do is your own configuration plus
 the rules you pass — `--allow` widens, and sofar cannot narrow. And
 `--cost-cap` and `--max-sessions` bound one run of the command; if you
 resume an interrupted run, they start counting again, and it tells you so.
 
-**Status line.** `sofar statusline --install` puts task progress, context
-fill and cache health in Claude Code's status bar, in one command and in
+**Status line.** `sofar statusline --install` puts task progress, the
+drive run's state, context fill and cache health in Claude Code's status bar, in one command and in
 any repo — the line alone, no hooks and no `.sofar/`. Add `--user` to wire
 it in `~/.claude/settings.json` for every project at once. (`sofar init
 --statusline` wires the same thing as part of a full init.) It restores
