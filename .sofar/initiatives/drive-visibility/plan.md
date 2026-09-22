@@ -38,7 +38,7 @@ Progress: 12/17 tasks done (70%)
 ## Phase 5 — Proof [pending] — 1/2 done
 
 - [x] 5.1 Proof from a live Claude Code session on a throwaway initiative: --detach from inside the sandbox; --await wakes the session on needs_user and on stop; prompt line and statusline update; a second --resume is refused while the driver lives; kill -9 the driver and status shows driver gone, --await exits, --resume succeeds and fences via run_adopted; keep-awake holds an assertion (pmset -g assertions) for the run's life; check whether ending the calling session kills the detached driver. Record the numbers.
-- [ ] 5.2 README + release staged for the user to publish.
+- [ ] 5.2 README + release staged for the user to publish. (active)
 
 Active phase: Phase 3 — Progress in the session
 Next action: Read probe C (~19:56Z), log the 3.5 decision, then 5.1 or stand down.
