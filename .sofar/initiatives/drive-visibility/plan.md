@@ -42,5 +42,5 @@ Progress: 13/18 tasks done (72%)
 - [ ] 5.2 README + release staged for the user to publish. (active)
 
 Active phase: Phase 3 — Progress in the session
-Next action: Build 3.7, and run 5.2's heavy half once L11b and 3ee5e98 clear.
+Next action: Build 3.7; run 5.2's heavy half once L11b and 3ee5e98 clear.
 Blocked on: phase Phase 4 — Sync, presence and app contract (paid)
