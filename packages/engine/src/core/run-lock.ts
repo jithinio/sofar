@@ -67,7 +67,11 @@ export interface RunLockOptions {
 
 export interface RunLock {
   path: string
-  /** Idempotent. Never unlinks the file. */
+  /**
+   * Idempotent. Never unlinks the file. On Linux the lock falls when the
+   * flock(1) child reads EOF, a moment AFTER this returns — a reader that
+   * needs it free waits for it rather than probing once.
+   */
   release(): void
 }
 

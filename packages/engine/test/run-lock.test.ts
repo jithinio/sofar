@@ -390,7 +390,7 @@ describe.skipIf(!PLATFORM_LOCK)('one driver per run (drive-visibility 2.1)', () 
     const outcome = await first
     expect(outcome.stop.reason).toBe('max_sessions')
     expect(latestRun(fold(r))!.stopped).toBeDefined()
-    expect(probeRunLock(r.root, run, { env })).toBe('free')
+    await probeUntil(r.root, run, 'free', { env })
   })
 
   it("a run whose driver is gone: a fresh start says so and names --resume, and --resume takes it", async () => {
@@ -400,14 +400,14 @@ describe.skipIf(!PLATFORM_LOCK)('one driver per run (drive-visibility 2.1)', () 
     // The lock a driver took and the kernel released when it died.
     const died = await claimRunLock(r.root, run, { env })
     if (died.kind === 'claimed') died.lock.release()
-    expect(probeRunLock(r.root, run, { env })).toBe('free')
+    await probeUntil(r.root, run, 'free', { env })
 
     await expect(drive(r.root, 'demo', { adapter: new FakeAdapter([worker(r, 'S1')]), lock: { env } })).rejects.toThrow(
       new RegExp(`run ${run} on "demo" has no stop and its driver is gone .* --resume`),
     )
     const outcome = await drive(r.root, 'demo', { adapter: new FakeAdapter([worker(r, 'S1')]), resume: true, lock: { env } })
     expect(outcome.run).toBe(run)
-    expect(probeRunLock(r.root, run, { env })).toBe('free')
+    await probeUntil(r.root, run, 'free', { env })
   })
 
   it("a run no lock was ever taken for keeps the record's own words — liveness unknown, never gone", async () => {
@@ -669,7 +669,7 @@ describe.skipIf(!PLATFORM_LOCK)('kill -9 the driver (drive-visibility 2.1)', () 
     const ended = latestRun(fold(r))!
     expect(ended.id).toBe(run)
     expect(ended.stop_reason).toBe('closed')
-    expect(probeRunLock(r.root, run, { env })).toBe('free')
+    await probeUntil(r.root, run, 'free', { env })
   })
 })
 
