@@ -140,37 +140,29 @@ export const STOP_POLL_MS = 2_000
  * session appends can change what the driver does next while it waits.
  */
 const RUN_EVENT_MARKERS = ['"run_stop_requested"', '"run_adopted"'] as const
-const MARKER_CARRY = Math.max(...RUN_EVENT_MARKERS.map((m) => m.length))
 
 /**
- * Watch the log for a stop request or an adoption while a session runs
- * (in-session-drive D2, drive-visibility 2.2).
- *
- * Cheap by construction: a tick stats the log, reads only the bytes appended
- * since the last one, and calls `onMatch` only when those bytes name one of
- * the two. Driven sessions write on every tool call, so a fold per tick would
- * cost more than the session being watched. The scan decides nothing — the
- * caller folds and counts — it only says when the fold is worth asking.
+ * A scan of the bytes appended to a log since the last call: true when they
+ * name one of `markers`. It stats the log and reads only what is new, so a
+ * caller that ticks every few seconds for hours costs a stat per tick, and
+ * folds only when the new bytes are worth it. It decides nothing — the caller
+ * folds and reads — it only says when the fold is worth asking.
  */
-export function watchRunEvents(
-  path: string,
-  from: number,
-  onMatch: () => void,
-  intervalMs: number = STOP_POLL_MS,
-): () => void {
+export function appendedBytesScan(path: string, from: number, markers: readonly string[]): () => boolean {
   let offset = from
   // A marker can straddle two reads; carrying the longest one's length back covers that.
+  const carryLength = Math.max(...markers.map((m) => m.length))
   let carry = ''
-  const tick = (): void => {
+  return () => {
     let size: number
     try {
       size = statSync(path).size
     } catch {
-      return
+      return false
     }
     if (size <= offset) {
       offset = size
-      return
+      return false
     }
     const fd = openSync(path, 'r')
     let text: string
@@ -182,10 +174,27 @@ export function watchRunEvents(
       closeSync(fd)
     }
     offset = size
-    carry = text.slice(-MARKER_CARRY)
-    if (RUN_EVENT_MARKERS.some((marker) => text.includes(marker))) onMatch()
+    carry = text.slice(-carryLength)
+    return markers.some((marker) => text.includes(marker))
   }
-  const timer = setInterval(tick, intervalMs)
+}
+
+/**
+ * Watch the log for a stop request or an adoption while a session runs
+ * (in-session-drive D2, drive-visibility 2.2). Driven sessions write on every
+ * tool call, so a fold per tick would cost more than the session being
+ * watched; the byte scan says when one is worth it.
+ */
+export function watchRunEvents(
+  path: string,
+  from: number,
+  onMatch: () => void,
+  intervalMs: number = STOP_POLL_MS,
+): () => void {
+  const scan = appendedBytesScan(path, from, RUN_EVENT_MARKERS)
+  const timer = setInterval(() => {
+    if (scan()) onMatch()
+  }, intervalMs)
   timer.unref()
   return () => clearInterval(timer)
 }

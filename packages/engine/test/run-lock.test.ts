@@ -1,6 +1,7 @@
 import { buildSync } from 'esbuild'
 import { spawn, spawnSync, type ChildProcess, type SpawnSyncReturns } from 'node:child_process'
 import {
+  appendFileSync,
   chmodSync,
   closeSync,
   constants,
@@ -21,7 +22,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ulid } from 'ulid'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { runDriveStop } from '../src/cli/drive'
+import { runDriveAwait, runDriveStop } from '../src/cli/drive'
 import { createStatusWatchModel, runStatus } from '../src/cli/status'
 import type { Caps } from '../src/cli/ui'
 import { foldLog, latestRun, type InitiativeState } from '../src/core/fold'
@@ -30,7 +31,7 @@ import { appendEvent } from '../src/core/log'
 import { claimRunLock, probeRunLock, type LockPrimitive, type RunLiveness } from '../src/core/run-lock'
 import type { StateEnv } from '../src/core/state-dir'
 import type { Adapter, AgentSession, SessionExit } from '../src/driver/adapter'
-import { drive } from '../src/driver/drive'
+import { appendedBytesScan, drive } from '../src/driver/drive'
 import { createToolContext } from '../src/mcp/context'
 import { FakeAdapter } from './helpers/fake-adapter'
 
@@ -613,6 +614,119 @@ describe.skipIf(!PLATFORM_LOCK)('sofar drive --stop reads the lock (drive-visibi
 })
 
 // ---------------------------------------------------------------------------
+// Waiting on it: --await (drive-visibility 3.1)
+// ---------------------------------------------------------------------------
+
+describe('the byte scan --await ticks on', () => {
+  it('is true only for new bytes naming a marker, including one split across two appends', () => {
+    const r = repo()
+    const scan = appendedBytesScan(r.log, statSync(r.log).size, ['"run_stopped"'])
+    expect(scan()).toBe(false)
+    append(r, 'note_added', { text: 'a stop is mentioned: run_stopped, but not as a type' })
+    expect(scan()).toBe(false)
+    appendFileSync(r.log, '{"type":"run_st')
+    expect(scan()).toBe(false)
+    appendFileSync(r.log, 'opped"}\n')
+    expect(scan()).toBe(true)
+    // Bytes already read are never read again.
+    expect(scan()).toBe(false)
+  })
+})
+
+describe.skipIf(!PLATFORM_LOCK)('sofar drive --await (drive-visibility 3.1)', () => {
+  it('has nothing to await on a record never driven, or whose latest run already ended — exit 1, saying how it ended', async () => {
+    const r = repo()
+    const never = await runDriveAwait(r.root, 'demo', { lock: { env: stateEnv() } })
+    expect(never.exitCode).toBe(1)
+    expect(never.stderr).toContain('"demo" has never been driven — nothing to await')
+
+    const run = openRun(r)
+    append(r, 'run_stopped', { run, reason: 'max_sessions' })
+    const ended = await runDriveAwait(r.root, 'demo', { lock: { env: stateEnv() } })
+    expect(ended.exitCode).toBe(1)
+    expect(ended.stderr).toContain('nothing to await — the latest run on "demo" already ended: ')
+    expect(ended.stderr).toContain('stopped: max_sessions')
+  })
+
+  it('blocks while the driver holds the run, then exits 0 with one line on its stop', async () => {
+    const r = repo()
+    const env = stateEnv()
+    const run = openRun(r)
+    const claim = await claimRunLock(r.root, run, { env })
+    expect(claim.kind).toBe('claimed')
+    let settled = false
+    const awaiting = runDriveAwait(r.root, 'demo', { pollMs: 10, lock: { env } }).finally(() => (settled = true))
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(settled).toBe(false)
+    // The driver's order: run_stopped first, the lock after.
+    append(r, 'run_stopped', { run, reason: 'max_sessions' })
+    if (claim.kind === 'claimed') claim.lock.release()
+    const res = await awaiting
+    expect(res.exitCode, res.stderr).toBe(0)
+    expect(res.stdout.trimEnd().split('\n')).toHaveLength(1)
+    expect(res.stdout).toContain(`run ${run} via fake`)
+    expect(res.stdout).toContain('stopped: max_sessions')
+    expect(res.stderr).toBe('')
+  })
+
+  it("a needs_user stop names the blocked task and its note — the operator's question", async () => {
+    const r = repo()
+    const env = stateEnv()
+    const run = openRun(r)
+    const claim = await claimRunLock(r.root, run, { env })
+    const awaiting = runDriveAwait(r.root, 'demo', { pollMs: 10, lock: { env } })
+    append(r, 'task_status_changed', { id: '1.1', status: 'blocked', note: 'which region:\nus-east or eu-west?' })
+    append(r, 'handoff', { run, session_id: 'S1', reason: 'needs_user', task: '1.1' })
+    append(r, 'run_stopped', { run, reason: 'needs_user', note: '1.1 is blocked — read its note' })
+    if (claim.kind === 'claimed') claim.lock.release()
+    const res = await awaiting
+    expect(res.exitCode, res.stderr).toBe(0)
+    expect(res.stdout.trimEnd().split('\n')).toHaveLength(1)
+    expect(res.stdout).toContain('stopped: needs_user — 1.1 is blocked — read its note')
+    expect(res.stdout).toContain("1.1's note: which region: us-east or eu-west?")
+  })
+
+  it('exits 2 when the lock falls with no stop recorded, naming --resume — and at once when it is already free', async () => {
+    const r = repo()
+    const env = stateEnv()
+    const run = openRun(r)
+    const claim = await claimRunLock(r.root, run, { env })
+    const awaiting = runDriveAwait(r.root, 'demo', { pollMs: 10, lock: { env } })
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    if (claim.kind === 'claimed') claim.lock.release()
+    const res = await awaiting
+    expect(res.exitCode).toBe(2)
+    expect(res.stdout).toBe(
+      `run ${run} on "demo" has no stop and its driver is gone — the run lock on this machine is free, so it will never stop by itself; \`sofar drive demo --resume\` picks it up\n`,
+    )
+
+    const started = Date.now()
+    const again = await runDriveAwait(r.root, 'demo', { lock: { env } })
+    expect(Date.now() - started).toBeLessThan(1_000)
+    expect(again.exitCode).toBe(2)
+    expect(latestRun(fold(r))!.stopped).toBeUndefined()
+  })
+
+  it('with no lock on this machine, says first that it waits on the record alone, and a stop still ends it', async () => {
+    const r = repo()
+    const run = openRun(r)
+    const notices: string[] = []
+    let settled = false
+    const awaiting = runDriveAwait(r.root, 'demo', { pollMs: 10, lock: { env: stateEnv() }, onNotice: (l) => notices.push(l) }).finally(
+      () => (settled = true),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(settled).toBe(false)
+    expect(notices).toHaveLength(1)
+    expect(notices[0]).toContain(`run ${run} has no run lock on this machine (liveness unknown) — waiting on the record alone`)
+    append(r, 'run_stopped', { run, reason: 'interrupted' })
+    const res = await awaiting
+    expect(res.exitCode, res.stderr).toBe(0)
+    expect(res.stdout).toContain('stopped: interrupted')
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Real processes, through the built CLI
 // ---------------------------------------------------------------------------
 
@@ -670,6 +784,49 @@ describe.skipIf(!PLATFORM_LOCK)('kill -9 the driver (drive-visibility 2.1)', () 
     expect(ended.id).toBe(run)
     expect(ended.stop_reason).toBe('closed')
     await probeUntil(r.root, run, 'free', { env })
+  })
+})
+
+describe.skipIf(!PLATFORM_LOCK)('--await on a real driver (drive-visibility 3.1)', () => {
+  it('a background --await exits 2 with one line the moment the driver is killed -9', async () => {
+    const r = repo(['1.1', '1.2'])
+    const env = stateEnv()
+    const res = cli(r, ['drive', 'demo', '--detach', '--bin', stub], { ...env, STUB_LINGER: '1' })
+    expect(res.status, res.stderr).toBe(0)
+    const driverPid = Number(/driver pid (\d+)/.exec(res.stdout)?.[1])
+    const run = latestRun(fold(r))!.id
+    await until(() => fold(r).sessions.some((s) => s.summary !== undefined), 30_000)
+
+    const awaiting = spawn(process.execPath, [cliBundle, 'drive', 'demo', '--await'], {
+      cwd: r.root,
+      env: { ...process.env, ...env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let stdout = ''
+    let stderr = ''
+    awaiting.stdout!.on('data', (d: Buffer) => (stdout += d.toString()))
+    awaiting.stderr!.on('data', (d: Buffer) => (stderr += d.toString()))
+    const exited = new Promise<number | null>((resolve) => awaiting.on('exit', resolve))
+    // It blocks — silently, since this machine holds the run's lock.
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    expect(awaiting.exitCode).toBeNull()
+    expect(stdout + stderr).toBe('')
+
+    process.kill(driverPid, 'SIGKILL')
+    const code = await exited
+    const sessionPid = Number(readFileSync(join(r.out, readdirSync(r.out).find((f) => f.startsWith('pid-'))!), 'utf8'))
+    if (alive(sessionPid)) process.kill(sessionPid, 'SIGKILL')
+    expect(code, stderr).toBe(2)
+    expect(stdout.trimEnd().split('\n')).toEqual([
+      `run ${run} on "demo" has no stop and its driver is gone — the run lock on this machine is free, so it will never stop by itself; \`sofar drive demo --resume\` picks it up`,
+    ])
+  })
+
+  it('refuses any flag beside it but --root', () => {
+    const r = repo()
+    const res = cli(r, ['drive', 'demo', '--await', '--resume'], stateEnv())
+    expect(res.status).toBe(1)
+    expect(res.stderr).toContain('sofar drive --await takes no other flag but --root (got --resume)')
   })
 })
 

@@ -20,6 +20,7 @@ import { runNext } from './next'
 import {
   detachedStartNotifier,
   runDrive,
+  runDriveAwait,
   runDriveDetached,
   runDriveStop,
   runKeepAwakeSetting,
@@ -575,6 +576,10 @@ program
     '--stop',
     "ask the latest unstopped run's driver to end it (a second --stop kills its session outright) — how a detached run is stopped",
   )
+  .option(
+    '--await',
+    "block until the latest unstopped run needs someone, then print one line: its stop (exit 0), its driver gone (exit 2), or nothing to await (exit 1) — for an agent's background shell",
+  )
   .option('--keep-awake', 'macOS: block idle sleep for this run (caffeinate), whatever the saved setting says; not saved')
   .option('--no-keep-awake', 'macOS: do not block idle sleep for this run, whatever the saved setting says; not saved')
   .option(
@@ -609,6 +614,7 @@ program
         bareTools?: boolean
         detach?: boolean
         stop?: boolean
+        await?: boolean
         keepAwake?: boolean
         keepAwakeSetting?: string
         root?: string
@@ -625,15 +631,16 @@ program
         emit(runKeepAwakeSetting(opts.keepAwakeSetting))
         return
       }
-      if (opts.stop === true) {
-        // A stop names a run, not a way to run one: a flag beside it would read
-        // as honoured and be ignored.
-        const extra = Object.keys(opts).filter((k) => k !== 'stop' && k !== 'root')
+      // --stop and --await name a run, not a way to run one: a flag beside
+      // either would read as honoured and be ignored.
+      const only = opts.stop === true ? 'stop' : opts.await === true ? 'await' : undefined
+      if (only !== undefined) {
+        const extra = Object.keys(opts).filter((k) => k !== only && k !== 'root')
         if (extra.length > 0) {
-          emit(fail(`sofar drive --stop takes no other flag but --root (got ${extra.map((k) => `--${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`).join(', ')})`))
+          emit(fail(`sofar drive --${only} takes no other flag but --root (got ${extra.map((k) => `--${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`).join(', ')})`))
           return
         }
-        emit(await runDriveStop(rootOf(opts), slug))
+        emit(only === 'stop' ? await runDriveStop(rootOf(opts), slug) : await runDriveAwait(rootOf(opts), slug))
         return
       }
       if (opts.detach === true) {

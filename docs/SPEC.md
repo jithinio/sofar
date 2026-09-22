@@ -1949,8 +1949,11 @@ answer every host can reach (see the Host tiers section).
   and its note, which is the operator's question), or when the lock goes
   FREE with no stop recorded (exit 2, naming `--resume`). With the lock
   ABSENT it waits on the record alone and says so first. No deadline; exit 1
-  when there is nothing to await. Built for an agent's background shell,
-  where it costs no tokens until the one line that needs acting on.
+  when there is nothing to await. The line goes to stdout; the ABSENT notice
+  and a nothing-to-await refusal go to stderr. A tick is a lock probe and a
+  stat, folding only when the new bytes name a `run_stopped` or the lock
+  falls. Built for an agent's background shell, where it costs no tokens
+  until the one line that needs acting on.
 - `sofar drive [slug] --follow` prints one plain line per handoff, task
   status change, adoption, stop request and stop, and exits on `run_stopped`
   or a FREE lock — for a terminal, or for narration the operator asked for.
@@ -5324,7 +5327,8 @@ Shims contain no logic — they invoke the sofar CLI.
   [--effort <e>] [--resume]
   [--agent claude-code|codex|cursor] [--bin <path>] [--agent-arg <arg>]
   [--permission-mode <mode>]
-  [--allow <rule...>] [--deny <rule...>] [--bare-tools] [--detach] [--stop]` — run an initiative task-by-task through
+  [--allow <rule...>] [--deny <rule...>] [--bare-tools] [--detach] [--stop]
+  [--await] [--keep-awake|--no-keep-awake] [--keep-awake-setting <on|off>]` — run an initiative task-by-task through
   fresh headless sessions (§Driver, the loop). `--agent codex` launches
   `codex exec`. In a repo `sofar init --agents codex` wired and Codex trusts,
   its sessions are hooked; elsewhere they run on the id the pin line assigns
@@ -5333,8 +5337,10 @@ Shims contain no logic — they invoke the sofar CLI.
   assigned id elsewhere (§Driver, the cursor adapter). `--detach` starts the run as a
   process that outlives the shell that asked for it, returning once the run is
   certain to start; `--stop` asks the latest unstopped run's driver to end it
-  and takes no other flag but `--root` (§Driver, starting a run from inside a
-  session). The permission flags state the
+  and `--await` blocks until that run stops or its driver is gone, and each
+  takes no other flag but `--root`
+  (§Driver, starting a run from inside a session; watching a run). The
+  permission flags state the
   run's surface (§Driver, the permission surface): `--allow` ADDS to sofar's
   floor and `--bare-tools` drops the floor so `--allow` states the whole of
   it. An unknown mode is refused before a run is minted; the modes sofar

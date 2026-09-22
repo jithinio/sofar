@@ -1,16 +1,16 @@
 import { spawn } from 'node:child_process'
-import { closeSync, mkdirSync, openSync, readFileSync } from 'node:fs'
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { ToolError, createToolContext } from '../mcp/context'
-import { latestRun, stopRequestsInForce } from '../core/fold'
+import { decodeLines, latestRun, stopRequestsInForce, type RunState } from '../core/fold'
 import { probeRunLock, type RunLiveness, type RunLockOptions } from '../core/run-lock'
 import { describeRun } from '../projections/templates/shared'
 import { ClaudeCodeAdapter } from '../driver/claude-code'
 import { CodexAdapter } from '../driver/codex'
 import { CursorAdapter } from '../driver/cursor'
-import { drive, type DriveOptions } from '../driver/drive'
+import { appendedBytesScan, drive, STOP_POLL_MS, type DriveOptions } from '../driver/drive'
 import { buildSurface, SurfaceError } from '../driver/permissions'
 import { launchEnv, type Adapter } from '../driver/adapter'
 import { errMessage, fail, ok, type CmdResult } from './shared'
@@ -408,6 +408,113 @@ export async function runDriveStop(
 /** The way out for a run whose driver is gone: adopt it, then stop it. */
 function resumeThenStop(initiative: string): string {
   return `\`sofar drive ${initiative} --resume\` picks the run up; a --stop after that ends it.`
+}
+
+export interface DriveAwaitOptions {
+  /** Test seam: how often to look (default STOP_POLL_MS, the driver's own tick). */
+  pollMs?: number
+  /** Test seam: where and with which primitive the run lock is probed. */
+  lock?: RunLockOptions
+  /** Where the one line said before the wait goes — the ABSENT notice (default stderr). */
+  onNotice?: (line: string) => void
+}
+
+/**
+ * `sofar drive [slug] --await` (drive-visibility 3.1): block on the latest
+ * unstopped run until it needs someone, and say so in ONE line — built for an
+ * agent's background shell, where every line printed is a model turn and
+ * silence is free.
+ *
+ * A tick is a lock probe and a stat of the log; it folds only when the bytes
+ * appended since the last tick name a `run_stopped`, or when the lock falls.
+ * The probe runs before the fold, as `--stop`'s does: the driver appends its
+ * stop before it lets go of the lock, so a stop that landed is never mistaken
+ * for a driver that vanished. Exit 0 on a stop, 2 when the lock goes FREE with
+ * no stop (the driver died), 1 when there is nothing to await. A run with no
+ * lock on this machine is waited on through the record alone, which is said
+ * first, since only a stop can end that wait. No deadline: the run's own stop
+ * rules bound it.
+ */
+export async function runDriveAwait(
+  rootDir: string,
+  slug: string | undefined,
+  options: DriveAwaitOptions = {},
+): Promise<CmdResult> {
+  const ctx = createToolContext(rootDir)
+  const notice = options.onNotice ?? ((line: string) => process.stderr.write(`${line}\n`))
+  let initiative: string
+  let runId: string
+  let scan: () => boolean
+  try {
+    initiative = ctx.resolveInitiative(slug)
+    const eventsPath = ctx.eventsPath(initiative)
+    // Taken BEFORE the fold, so a stop landing between the two is still scanned.
+    scan = appendedBytesScan(eventsPath, existsSync(eventsPath) ? statSync(eventsPath).size : 0, ['"run_stopped"'])
+    const state = ctx.foldState(initiative)
+    const run = latestRun(state)
+    if (run === undefined) return fail(`sofar drive --await: "${initiative}" has never been driven — nothing to await`)
+    if (run.stopped !== undefined) {
+      return fail(`sofar drive --await: nothing to await — the latest run on "${initiative}" already ended: ${stoppedLine(ctx, initiative, run)}`)
+    }
+    runId = run.id
+  } catch (err) {
+    return fail(errMessage(err))
+  }
+
+  let liveness = probeRunLock(rootDir, runId, options.lock)
+  if (liveness === 'absent') {
+    notice(
+      `sofar drive --await: run ${runId} has no run lock on this machine (liveness unknown) — waiting on the record alone, so only a recorded stop ends this wait; a driver that dies without one is not seen here`,
+    )
+  }
+  for (let first = true; ; first = false) {
+    if (!first) {
+      await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? STOP_POLL_MS))
+      liveness = probeRunLock(rootDir, runId, options.lock)
+    }
+    if (!first && !scan() && liveness !== 'free') continue
+    const run = ctx.foldState(initiative).runs.find((r) => r.id === runId)
+    if (run?.stopped !== undefined) return ok(`${stoppedLine(ctx, initiative, run)}\n`)
+    if (liveness === 'free') {
+      return {
+        exitCode: 2,
+        stdout: `run ${runId} on "${initiative}" has no stop and its driver is gone — the run lock on this machine is free, so it will never stop by itself; \`sofar drive ${initiative} --resume\` picks it up\n`,
+        stderr: '',
+      }
+    }
+  }
+}
+
+/**
+ * A stopped run's line: the run as `describeRun` says it, and for a
+ * `needs_user` stop the blocked task's own note — the operator's question,
+ * which the stop note only points at.
+ */
+function stoppedLine(ctx: ReturnType<typeof createToolContext>, initiative: string, run: RunState): string {
+  const line = describeRun(run)
+  if (run.stop_reason !== 'needs_user') return line
+  const task = [...run.handoffs].reverse().find((h) => h.reason === 'needs_user' && h.task !== undefined)?.task
+  if (task === undefined) return line
+  const note = blockingNote(ctx.eventsPath(initiative), task)
+  return note === undefined ? line : `${line}. ${task}'s note: ${note.replace(/\s+/g, ' ').trim()}`
+}
+
+/**
+ * The note on the event that left `task` blocked, as the fold keeps it:
+ * replay order, corrections voided, cleared by any later status. Read here
+ * rather than added to the fold's state, whose shape rust-core mirrors.
+ */
+function blockingNote(eventsPath: string, task: string): string | undefined {
+  let note: string | undefined
+  const decoded = decodeLines(readFileSync(eventsPath, 'utf8').split('\n'))
+  for (const { event } of decoded.parsed) {
+    if (event.type !== 'task_status_changed' || decoded.voided.has(event.id)) continue
+    const p = event.payload as { id?: unknown; status?: unknown; note?: unknown }
+    if (p.id !== task) continue
+    if (p.status === 'blocked' && typeof p.note === 'string' && p.note.length > 0) note = p.note
+    else if (p.status !== 'blocked') note = undefined
+  }
+  return note
 }
 
 /** The message a detached child sends once its run is certain to start. */
