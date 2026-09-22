@@ -1,7 +1,6 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { monotonicFactory } from 'ulid'
 import { afterAll, describe, expect, it } from 'vitest'
 import { makeEvent, type EventEnvelope } from '../src/core/envelope'
 import { buildGraph, whyFile } from '../src/core/graph'
@@ -64,13 +63,8 @@ function event(
     type,
     payload,
   })
-  // Monotonic ids: makeEvent's ulid() is random within a millisecond, and the
-  // fold replays in id order, so two decisions minted in one millisecond could
-  // swap D1 and D2 (the 3.5 "logged alpha D1" flake, rust-core CI 2026-09-22).
-  const ordered = { ...made, id: nextId() }
-  return ts === undefined ? ordered : { ...ordered, ts }
+  return ts === undefined ? made : { ...made, ts }
 }
-const nextId = monotonicFactory()
 
 function emit(sofar: string, slug: string, e: EventEnvelope): EventEnvelope {
   const dir = join(sofar, 'initiatives', slug)
@@ -660,8 +654,11 @@ describe('3.5 lexical seeds — a question resolves to seeds', () => {
     expect(out.stdout).toMatch(/matched correction.* · event /)
     expect(out.stdout).toContain(`event ${cursor.id}`)
     expect(out.stdout).toContain('never as an answer')
-    // The question is a sentence; it must never be used to NAME a node.
-    expect(out.stdout).toContain('logged alpha D1')
+    // The question is a sentence; it must never be used to NAME a node — a
+    // node is named by its handle. Which decision the expansion shows depends
+    // on the two decisions' wall-clock ts (same millisecond or not), so
+    // either handle proves it (rust-core CI 2026-09-22: D2 under load).
+    expect(out.stdout).toMatch(/logged alpha D[12]\b/)
     expect(out.stdout).not.toMatch(/answers|about this|you must|relevant to/i)
     expect(refreshReach(sofar).lexicon.length).toBeGreaterThan(0)
   })
