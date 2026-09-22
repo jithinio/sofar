@@ -4,7 +4,7 @@
 
 Goal: Make sofar measurably the best work memory for AI coding agents: never below any agent's native memory on any rep, bookkeeping at or below native overhead, and a lead of at least 25-30% (target 2x) on held-out long-horizon, cross-agent, decision-churn work. The lead must survive a native memory that syncs across machines and teammates, so it may never rest on native memory being machine-local.
 
-Progress: 4/18 tasks done (22%)
+Progress: 5/18 tasks done (27%)
 
 ## Phase 1 — Wave A: parity at native overhead (ships in 0.33.0-rc.2) [active] — 3/4 done
 
@@ -13,9 +13,9 @@ Progress: 4/18 tasks done (22%)
 - [x] 1.3 A3 digest composition: next task's spec first; remember entries surfaced; implementation minutiae dropped from rejected approaches and recent decisions; rules ranked by relevance and rendered last; ≤6k chars. PREDICT: ≤1 raw .sofar read per session; M3 unchanged or better.
 - [ ] 1.4 rust-core mirrors 1.1–1.3 (hooks, digest render) with conformance parity before rc.2 is pinned
 
-## Phase 2 — Wave B: structural lead [pending] — 0/5 done
+## Phase 2 — Wave B: structural lead [pending] — 1/5 done
 
-- [ ] 2.1 B1 read-time surfacing: when a file is read or edited, the decisions whose guard or derived scope matches it are shown, worded as facts (Claude PostToolUse on Read/Grep, Codex Bash/apply_patch, Cursor postToolUse). PREDICT: C3 re-violation −50%, tokens +<1%. (active)
+- [x] 2.1 B1 read-time surfacing: when a file is read or edited, the decisions whose guard or derived scope matches it are shown, worded as facts (Claude PostToolUse on Read/Grep, Codex Bash/apply_patch, Cursor postToolUse). PREDICT: C3 re-violation −50%, tokens +<1%.
 - [ ] 2.2 B2 repo-wide scope and supersession across initiatives: a rule can be app-wide; a reversal of a standing rule in ANY initiative is refused without supersedes (extends L08, which is same-record only). Fixes cursor-sofar's cross-record A2 loss.
 - [ ] 2.3 B3 executable decision checks with fix hints in the failure, run at Stop, pre-commit and in drive. Blocking needs a Decision revisiting drift-hardening D3 (warn, never block) first.
 - [ ] 2.4 B4 optional bridge into native memory (repo-local autoMemoryDirectory import, Codex summary), user/feedback types kept local. Needs a privacy Decision first.
@@ -40,4 +40,4 @@ Progress: 4/18 tasks done (22%)
 - [ ] 5.4 Run round 3, report per claim with per-rep values; publish only what clears the pre-registered margin
 
 Active phase: Phase 1 — Wave A: parity at native overhead (ships in 0.33.0-rc.2)
-Next action: 2.1: check Cursor's live Read payload field (operator consent), then merge wave-b into main.
+Next action: Start 2.2 (B2 repo-wide scope): contract Decision first.
