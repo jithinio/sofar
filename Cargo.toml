@@ -1,0 +1,46 @@
+# sofar's native hot-path core (rust-core D1). Layout:
+#   crates/sofar-schema  payload types GENERATED from packages/schema/src (never hand-written)
+#   crates/sofar-core    the engine core + the `sofar-core` hook binary
+#   xtask                developer commands: `cargo xtask schema [--check]`
+# Runtime crates are exactly serde, serde_json, ulid, lexopt (D9); adding one needs a Decision.
+[workspace]
+resolver = "3"
+members = ["crates/sofar-schema", "crates/sofar-core", "xtask"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.98"
+license = "MIT"
+repository = "https://github.com/jithinio/sofar"
+publish = false
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.151"
+ulid = "3.0"
+lexopt = "0.3.2"
+sofar-schema = { path = "crates/sofar-schema" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# The hot path formats bytes for parity with JavaScript, not for idiom.
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+# D9: a one-shot binary that lives for milliseconds — every byte of startup
+# counts, and a panic has nowhere to unwind to. Debuginfo stays in a split
+# file for crash triage; the shipped binary is stripped.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+opt-level = 3
+strip = "symbols"
+debug = "line-tables-only"
+split-debuginfo = "packed"

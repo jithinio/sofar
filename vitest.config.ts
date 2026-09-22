@@ -48,7 +48,11 @@ export default defineConfig({
           name: 'unit',
           env: testState,
           sequence: { groupOrder: 0 },
-          exclude: ['**/node_modules/**', 'packages/engine/test/shim-latency.test.ts'],
+          exclude: [
+            '**/node_modules/**',
+            'packages/engine/test/shim-latency.test.ts',
+            'packages/engine/test/conformance/perf/**',
+          ],
         },
       },
       {
@@ -59,6 +63,23 @@ export default defineConfig({
           sequence: { groupOrder: 1 },
           include: ['packages/engine/test/shim-latency.test.ts'],
           fileParallelism: false,
+        },
+      },
+      // The perf baseline (rust-core 1.3) spawns ~1,200 processes and
+      // generates 30 MB of records; it is skipped unless SOFAR_PERF=1
+      // (`npm run perf`), and runs alone so no other worker competes for
+      // the cores it is timing.
+      {
+        plugins: [shAsText()],
+        test: {
+          name: 'perf',
+          sequence: { groupOrder: 2 },
+          include: ['packages/engine/test/conformance/perf/perf.test.ts'],
+          fileParallelism: false,
+          // The full team100 cell interleaved at n = 25 (rust-core 1.5) runs
+          // ~35 min on its own: ~4.6 s per TypeScript spawn on a 95.6 MB log.
+          testTimeout: 3_600_000,
+          hookTimeout: 600_000,
         },
       },
     ],

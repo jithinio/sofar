@@ -1,0 +1,181 @@
+{
+  "node": "v24.15.0",
+  "rows": [
+    {
+      "input": "export FOO_TOKEN=abc123 && npm publish",
+      "output": "export FOO_TOKEN=[redacted] && npm publish"
+    },
+    {
+      "input": "AWS_SECRET_ACCESS_KEY=AKIAIOSFODNN7EXAMPLE aws s3 ls",
+      "output": "AWS_SECRET_ACCESS_KEY=[redacted] aws s3 ls"
+    },
+    {
+      "input": "MY-API-KEY=x y",
+      "output": "MY-API-KEY=[redacted] y"
+    },
+    {
+      "input": "x-TOKEN=1",
+      "output": "x-TOKEN=[redacted]"
+    },
+    {
+      "input": "-TOKEN=v",
+      "output": "-TOKEN=[redacted]"
+    },
+    {
+      "input": "a=b TOKEN= c",
+      "output": "a=b TOKEN= c"
+    },
+    {
+      "input": "GH_TOKEN=\"quoted value\" gh auth",
+      "output": "GH_TOKEN=[redacted] gh auth"
+    },
+    {
+      "input": "npm_config_otp='123 456' npm publish",
+      "output": "npm_config_otp=[redacted] npm publish"
+    },
+    {
+      "input": "curl -H \"Authorization: Bearer sk-abcdefghijklmnopqrstuvwxyz\" https://x",
+      "output": "curl -H \"Authorization: Bearer [redacted] https://x"
+    },
+    {
+      "input": "curl -H 'authorization: token ghp_abcdefghijklmnop1234' u",
+      "output": "curl -H 'authorization: token [redacted] u"
+    },
+    {
+      "input": "curl -H Authorization:Basic dXNlcjpwYXNz http://h",
+      "output": "curl -H Authorization:Basic [redacted] http://h"
+    },
+    {
+      "input": "curl --header proxy-authorization: Digest abc",
+      "output": "curl --header proxy-authorization: Digest [redacted]"
+    },
+    {
+      "input": "curl -H \"Authorization: Bearer \" x",
+      "output": "curl -H \"Authorization: Bearer [redacted] x"
+    },
+    {
+      "input": "curl -H \"Authorization: Bearer\"",
+      "output": "curl -H \"Authorization:  [redacted]"
+    },
+    {
+      "input": "wget https://user:pa55@host/path",
+      "output": "wget https://user:[redacted]@host/path"
+    },
+    {
+      "input": "git clone http://alice:s3cret@github.com/x/y.git",
+      "output": "git clone http://alice:[redacted]@github.com/x/y.git"
+    },
+    {
+      "input": "ftp://u:p@h",
+      "output": "ftp://u:[redacted]@h"
+    },
+    {
+      "input": "x://a:b@c://d:e@f",
+      "output": "x://a:[redacted]@c://d:[redacted]@f"
+    },
+    {
+      "input": "node -e \"sk-1234567890abcdef1234\"",
+      "output": "node -e \"[redacted]\""
+    },
+    {
+      "input": "sfr_abcdefgh xox b-1234567890 xoxb-1234567890abc AKIAABCDEFGHIJKLMNOP AKIAABCDEFGHIJKLMNOPQ",
+      "output": "[redacted] xox b-1234567890 [redacted] [redacted] [redacted]Q"
+    },
+    {
+      "input": "AIzaSyA1234567890abcdefghijklm eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abc",
+      "output": "[redacted] [redacted]"
+    },
+    {
+      "input": "github_pat_11ABCDEFGHIJKLMNOPQRSTUV_xyz ghu_1234567890123456",
+      "output": "[redacted] [redacted]"
+    },
+    {
+      "input": "--password=hunter2 -p hunter3 --api-key hunter4 --otp 123456 --Secret-Value x",
+      "output": "--password=[redacted] -p hunter3 --api-key [redacted] --otp [redacted] --Secret-Value [redacted]"
+    },
+    {
+      "input": "--token= x",
+      "output": "--token= x"
+    },
+    {
+      "input": "--token",
+      "output": "--token"
+    },
+    {
+      "input": "---token=1",
+      "output": "---token=[redacted]"
+    },
+    {
+      "input": "docker login -u me --password-stdin",
+      "output": "docker login -u me --password-stdin"
+    },
+    {
+      "input": "echo password",
+      "output": "echo password"
+    },
+    {
+      "input": "PASSWORD_FILE=/etc/x cat",
+      "output": "PASSWORD_FILE=[redacted] cat"
+    },
+    {
+      "input": "foo_session_id=abc",
+      "output": "foo_session_id=[redacted]"
+    },
+    {
+      "input": "COOKIE=a; BEARER=b|AUTH=c&&CREDENTIAL=d",
+      "output": "COOKIE=[redacted] BEARER=[redacted]"
+    },
+    {
+      "input": "X=1 TOKENS=2 Tokenizer=3 mytoken=4",
+      "output": "X=1 TOKENS=[redacted] Tokenizer=[redacted] mytoken=[redacted]"
+    },
+    {
+      "input": "export TOKEN=éé 😀",
+      "output": "export TOKEN=[redacted] 😀"
+    },
+    {
+      "input": "TOKEN= nbsp",
+      "output": "TOKEN= nbsp"
+    },
+    {
+      "input": "A_TOKEN= x",
+      "output": "A_TOKEN= x"
+    },
+    {
+      "input": "sk-éééééééééééééééé",
+      "output": "sk-éééééééééééééééé"
+    },
+    {
+      "input": "ｓk-1234567890abcdef1234",
+      "output": "ｓk-1234567890abcdef1234"
+    },
+    {
+      "input": "eyJ.a.b eyJ1234567890.a.b eyJ1234567890..b",
+      "output": "eyJ.a.b [redacted] eyJ1234567890..b"
+    },
+    {
+      "input": "Authorization : Bearer x",
+      "output": "Authorization : Bearer [redacted]"
+    },
+    {
+      "input": "authorization:\tBearer\tx",
+      "output": "authorization:\tBearer [redacted]"
+    },
+    {
+      "input": "proxy-authorization:x",
+      "output": "proxy-authorization: [redacted]"
+    },
+    {
+      "input": "PROXY-AUTHORIZATION: BASIC abc def",
+      "output": "PROXY-AUTHORIZATION: BASIC [redacted] def"
+    },
+    {
+      "input": "git status && echo 'oops",
+      "output": "git status && echo 'oops"
+    },
+    {
+      "input": "",
+      "output": ""
+    }
+  ]
+}

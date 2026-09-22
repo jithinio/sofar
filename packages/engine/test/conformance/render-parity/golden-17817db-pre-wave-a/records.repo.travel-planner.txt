@@ -1,0 +1,565 @@
+== options (38048 bytes) ==
+{
+  "plain": {},
+  "hook": {
+    "sessionId": "travel-planner-session",
+    "git": {
+      "branch": "feature/travel-planner",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 12,
+        "decisions": 0
+      },
+      {
+        "initiative": "beta",
+        "paths": 4,
+        "decisions": 19
+      },
+      {
+        "initiative": "gamma",
+        "paths": 4,
+        "decisions": 2
+      },
+      {
+        "initiative": "delta",
+        "paths": 1,
+        "decisions": 1
+      },
+      {
+        "initiative": "epsilon",
+        "paths": 1,
+        "decisions": 0
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare."
+    ]
+  },
+  "lane": {
+    "lane": true,
+    "sessionId": "lane-session",
+    "git": {
+      "branch": "feature/travel-planner",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    }
+  },
+  "quiet": {
+    "activity": false,
+    "sessionId": " quiet-session\t"
+  },
+  "cap": {
+    "sessionId": "travel-planner-session",
+    "git": {
+      "branch": "feature/travel-planner",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 12,
+        "decisions": 0
+      },
+      {
+        "initiative": "beta",
+        "paths": 4,
+        "decisions": 19
+      },
+      {
+        "initiative": "gamma",
+        "paths": 4,
+        "decisions": 2
+      },
+      {
+        "initiative": "delta",
+        "paths": 1,
+        "decisions": 1
+      },
+      {
+        "initiative": "epsilon",
+        "paths": 1,
+        "decisions": 0
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare.",
+      "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    ]
+  }
+}
+== status (7333 bytes) ==
+# travel-planner
+
+Goal: Author the public benchmark workload for bench-refresh, a travel itinerary planner specified and scaffolded so ~12 agent×memory arms can build it from one skeleton. Hidden tests score it; agent-added features are scored separately (bench-refresh D8). The best-scoring final repo is a future product candidate: live providers and an LLM Advisor swap in behind the skeleton's interfaces (D1).
+Progress: 5/9 tasks done (55%) across 4 phase(s)
+
+Phases:
+- Phase 1 — Spec [active — all tasks done; mark phase done?] 2/2
+  - [x] 1.1 Draft PRODUCT-SPEC.md: feature inventory from the user's idea, domain model, the determinism boundary (provider interfaces, rules advisor), the chain split, candidate planted decisions. User reviews.
+  - [x] 1.2 User review of the spec: working name, stack, fixture destinations, anything cut or added
+- Phase 2 — Skeleton + fixtures [pending — all tasks done; mark phase done?] 2/2
+  - [x] 2.1 Create the MIT skeleton repo: app shell, lint, test runner, NO memory tooling of any kind (arms add their own)
+  - [x] 2.2 Provider interfaces plus deterministic fixture data: flights, hotels, climate/weather, FX, advisories, places/cafes/specialties, transport prices, language; a simulated clock for arrival-triggered features. The interfaces must be shaped so live providers can replace the fixtures later (D1).
+- Phase 3 — Chained tasks + hidden tests [pending] 1/3
+  - [x] 3.1 Chain A (tuning): task prompts in session order, with operator-stated decisions planted in early sessions and exercised later; the shared initiative clause from bench-refresh D8
+  - [ ] 3.2 Chain B (held-out): a disjoint task chain from the same skeleton, sealed from anyone tuning the engine
+  - [~] 3.3 Hidden acceptance tests per task (unit plus Playwright on stable test ids), kept OUTSIDE the skeleton; validate each against a sealed private reference solution: they pass on it and fail on the skeleton
+- Phase 4 — Product candidate (after bench rounds) [pending] 0/2
+  - [ ] 4.1 Pick the best final repo by score (hidden-test quality plus blind review of added work), never by arm
+  - [ ] 4.2 Product track: swap in live providers (licensed flight, hotel, FX, weather and advisory APIs) and an LLM Advisor behind the same interfaces; user decides on release
+
+Next action: travel-planner 3.3: add Playwright UI checks, then 3.2 chain B
+
+⚠ Staleness:
+- next action may be stale: 7 events since the last write-back (2026-09-14T17:40:03.771Z) — 4 files, 3 notes
+- phase "Phase 1 — Spec": all 2 tasks done but still active — emit phase_status_changed to mark it done
+- phase "Phase 2 — Skeleton + fixtures": all 2 tasks done but still pending — emit phase_status_changed to mark it done
+
+Notes since write-back (3):
+- 2026-09-14T18:09:15.716Z 3.3, chain A complete (2026-09-14): - Added 6 Playwright UI suites (s1, s2, s3, s5, s6, s8 .ui.test.ts) on Chromium headless shell 153 via the playwright npm package inside bun test. - Total 52 tests: reference 52/52, skeleton 0/6 UI and 0 HTTP. - 3.3 stays active only for chain B's tests, which come after 3.2. - Ordering note: round 1 needs only chain A, and chain B is needed only for round 2 (the public numbers). So the bench-refresh harness, the arms and calibration (2.2, 2.4, 1.5) go before chain B authoring.
+- 2026-09-15T09:09:11.032Z HIDDEN-TEST CORRECTION before freeze (2026-09-15, stated reason). calib-1's S2 failed only on `expect(typeof id).toBe("string")`: the agent used integer ids, which the S2 prompt allows ("returns the item with an id"). - s2.test.ts now accepts a string or number id. - harness isSuggestion accepts a string or number id, since the A5 prompt doesn't type the id either. Revalidation: - Reference 52/52. - BENCH_MUTATE=A5 still fails 10 tests. - Calibration cell rescored 15/15. Rule going forward: hidden tests may assert only what a prompt or planted decision states. Id and field TYPES the prompts leave open are never asserted.
+- 2026-09-15T09:47:11.150Z HIDDEN-TEST CORRECTION #2 before freeze (2026-09-15, stated reason): codex-sofar S1 returned 422 for an unknown currency, and s1 demanded exactly 400. The S1 prompt only says "Validate", and the footer says "Errors return 4xx". The same audit found unstated exact codes in s1 (currency, airport, cabin), s4 (wrong-city activity, cross-city move) and s3 (404 for a deleted trip). All now accept any 4xx with an error.code. Exact codes are kept ONLY where a prompt states one: S2 "Unknown city_id is a 400", and undo's "409 with code nothing_to_undo". Revalidated: reference 52/52; codex cell s1 8/8; mutations still caught (A1 fails 10, A2 7, A3 6, A4 3, A5 10, A6 2). CHAIN-A.md §4 updated. The rule from correction #1 extends to status codes: assert only what a prompt or planted decision states.
+
+Last session (claude-code, ended 2026-09-14T17:40:03.771Z):
+  D14 no-paid-billing rule logged. Built sealed reference (65a98ca) and 46 chain A hidden tests: skeleton 0 pass, reference 46/46, every planted decision caught.
+
+Files touched (34):
+- /Users/jins/IO/handoff-bench/scenario5-launch-bench/PRODUCT-SPEC.md
+- /Users/jins/IO/boopada-planner/package.json
+- /Users/jins/IO/boopada-planner/apps/web/package.json
+- /Users/jins/IO/boopada-planner/.gitignore
+- /Users/jins/IO/boopada-planner/apps/web/app/page.tsx
+- /Users/jins/IO/boopada-planner/README.md
+- /Users/jins/IO/boopada-planner/biome.json
+- /Users/jins/IO/boopada-planner/packages/providers/package.json
+- /Users/jins/IO/boopada-planner/packages/providers/tsconfig.json
+- /Users/jins/IO/boopada-planner/packages/providers/src/types.ts
+- /Users/jins/IO/boopada-planner/packages/providers/src/interfaces.ts
+- /Users/jins/IO/boopada-planner/packages/providers/src/clock.ts
+- /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/support.ts
+- /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/data/geo.ts
+- /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/data/climate.ts
+- /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/data/hotels.ts
+- /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/data/places.ts
+- /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/data/markets.ts
+- /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/index.ts
+- /Users/jins/IO/boopada-planner/packages/providers/src/index.ts
+- /Users/jins/IO/boopada-planner/packages/providers/test/providers.test.ts
+- /Users/jins/IO/boopada-planner/apps/web/next.config.mjs
+- /Users/jins/IO/handoff-bench/scenario5-launch-bench/CHAIN-A.md
+- /Users/jins/IO/boopada-reference/apps/web/lib/server/core.ts
+- /Users/jins/IO/boopada-reference/apps/web/lib/server/money.ts
+- /Users/jins/IO/boopada-reference/apps/web/lib/server/profile.ts
+- /Users/jins/IO/boopada-reference/apps/web/lib/server/bucket.ts
+- /Users/jins/IO/boopada-reference/apps/web/lib/server/trips.ts
+- /Users/jins/IO/boopada-reference/apps/web/lib/server/suggestions.ts
+- /Users/jins/IO/boopada-reference/apps/web/lib/server/chat.ts
+- /Users/jins/IO/handoff-bench/scenario5-launch-bench/hidden-tests/harness.ts
+- /Users/jins/IO/handoff-bench/scenario5-launch-bench/runner/lib/agents.ts
+- /Users/jins/IO/handoff-bench/scenario5-launch-bench/PRE-REGISTRATION.md
+- /private/tmp/claude-501/-Users-jins-IO-sofar/aac148fe-0a14-46d5-b42c-64fb65cd8ad2/scratchpad/commit-msg.txt
+
+== digest:plain (3361 bytes) ==
+# Sofar status: travel-planner
+
+Goal: Author the public benchmark workload for bench-refresh, a travel itinerary planner specified and scaffolded so ~12 agent×memory arms can build it from one skeleton. Hidden tests score it; agent-added features are scored separately (bench-refresh D8). The best-scoring final repo is a future product candidate: live providers and an LLM Advisor swap in behind the skeleton's interfaces (D1).
+
+Phases:
+- Phase 1 — Spec [active — all tasks done; mark phase done?] 2/2
+- Phase 2 — Skeleton + fixtures [pending — all tasks done; mark phase done?] 2/2
+- Phase 3 — Chained tasks + hidden tests [pending] 1/3
+- Phase 4 — Product candidate (after bench rounds) [pending] 0/2
+
+Progress: 5/9 tasks done (55%) across 4 phase(s)
+Active phase: Phase 1 — Spec — 2/2 tasks done
+Next action: travel-planner 3.3: add Playwright UI checks, then 3.2 chain B
+⚠ next action may be stale: 7 events since write-back (4 files, 3 notes)
+Notes since write-back:
+- 2026-09-14 3.3, chain A complete (2026-09-14): - Added 6 Playwright UI suites (s1, s2, s3, s5, s6, s8 .ui.test.ts) on Chromium headless shell 153 via the playwright npm package inside bun test. - Tot…
+- 2026-09-15 HIDDEN-TEST CORRECTION before freeze (2026-09-15, stated reason). calib-1's S2 failed only on `expect(typeof id).toBe("string")`: the agent used integer ids, which the S2 prompt allows ("r…
+- 2026-09-15 HIDDEN-TEST CORRECTION #2 before freeze (2026-09-15, stated reason): codex-sofar S1 returned 422 for an unknown currency, and s1 demanded exactly 400. The S1 prompt only says "Validate", a…
+
+Last session (claude-code, ended 2026-09-14T17:40:03.771Z):
+  D14 no-paid-billing rule logged. Built sealed reference (65a98ca) and 46 chain A hidden tests: skeleton 0 pass, reference 46/46, every planted decision caught.
+
+Recent decisions (5; full text in decisions.md):
+- [D1] 2026-09-14 The app is a FUTURE PRODUCT CANDIDATE as well as the workload. After the rounds, the final repo that scores best on hid… — over A throwaway workload with no product future, and publishing every arm's finished repo as …
+- [D2] 2026-09-14 The app is named Boopada; the user offered "boopada" or "bhupata", 2026-09-14. The benchmark skeleton is a NEW, separat… — over "bhupata". Building the benchmark inside the existing boopada repo.
+- [D3] 2026-09-14 Skeleton stack matches the existing boopada scaffold, with bun in place of pnpm: - Turborepo, Biome 2.4 - Next.js 16.1 … — over The spec's first proposal (pnpm, vitest, plain Next.js with no monorepo). Pre-adding a `.…
+- [D4] 2026-09-14 Five fixture destinations: Vietnam, Japan, Portugal, Jordan, New Zealand. The user asked for any 5; each was picked to … — over A truly random draw, and the spec's placeholder set (Vietnam, Japan, Portugal, Mexico, Mo…
+- [D5] 2026-09-14 Fixture providers mirror REAL provider API shapes. They never hand the app a solution to a planted decision: - Amounts … — over App-friendly fixtures: prices as integer minor units already in home currency, fare searc…
+
+Next ids: D6 (decision), M1 (memory)
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:hook (5558 bytes) ==
+# Sofar status: travel-planner
+
+Goal: Author the public benchmark workload for bench-refresh, a travel itinerary planner specified and scaffolded so ~12 agent×memory arms can build it from one skeleton. Hidden tests score it; agent-added features are scored separately (bench-refresh D8). The best-scoring final repo is a future product candidate: live providers and an LLM Advisor swap in behind the skeleton's interfaces (D1).
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+  if SPEC must change.
+- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
+  Both run at the workspace root; typecheck: `npm run typecheck`.
+- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
+  (source-shipped, no build); packages/engine → sofar bin
+  (packages/engine/dist/cli.js after build).
+- Definition of done per task: acceptance criteria in docs/SPEC.md
+  §Acceptance.
+- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
+  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
+  live OUTSIDE this repo in the user's strategy vault. Engine sessions
+  never need them; 5.3 scoring is performed by the user against that
+  scorecard. Do not go looking for them; do not block on them.
+- Push policy: push origin main at each verified wrap-up (user-established
+  Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Committing the record needs a BARE
+…truncated — read .sofar/repo.md for the rest
+
+Phases:
+- Phase 1 — Spec [active — all tasks done; mark phase done?] 2/2
+- Phase 2 — Skeleton + fixtures [pending — all tasks done; mark phase done?] 2/2
+- Phase 3 — Chained tasks + hidden tests [pending] 1/3
+- Phase 4 — Product candidate (after bench rounds) [pending] 0/2
+
+Progress: 5/9 tasks done (55%) across 4 phase(s)
+Active phase: Phase 1 — Spec — 2/2 tasks done
+Next action: travel-planner 3.3: add Playwright UI checks, then 3.2 chain B
+⚠ next action may be stale: 7 events since write-back (4 files, 3 notes)
+Notes since write-back:
+- 2026-09-14 3.3, chain A complete (2026-09-14): - Added 6 Playwright UI suites (s1, s2, s3, s5, s6, s8 .ui.test.ts) on Chromium headless shell 153 via the playwright npm package inside bun test. - Tot…
+- 2026-09-15 HIDDEN-TEST CORRECTION before freeze (2026-09-15, stated reason). calib-1's S2 failed only on `expect(typeof id).toBe("string")`: the agent used integer ids, which the S2 prompt allows ("r…
+- 2026-09-15 HIDDEN-TEST CORRECTION #2 before freeze (2026-09-15, stated reason): codex-sofar S1 returned 422 for an unknown currency, and s1 demanded exactly 400. The S1 prompt only says "Validate", a…
+
+Last session (claude-code, ended 2026-09-14T17:40:03.771Z):
+  D14 no-paid-billing rule logged. Built sealed reference (65a98ca) and 46 chain A hidden tests: skeleton 0 pass, reference 46/46, every planted decision caught.
+
+Recent decisions (5; full text in decisions.md):
+- [D1] 2026-09-14 The app is a FUTURE PRODUCT CANDIDATE as well as the workload. After the rounds, the final repo that scores best on hid… — over A throwaway workload with no product future, and publishing every arm's finished repo as …
+- [D2] 2026-09-14 The app is named Boopada; the user offered "boopada" or "bhupata", 2026-09-14. The benchmark skeleton is a NEW, separat… — over "bhupata". Building the benchmark inside the existing boopada repo.
+- [D3] 2026-09-14 Skeleton stack matches the existing boopada scaffold, with bun in place of pnpm: - Turborepo, Biome 2.4 - Next.js 16.1 … — over The spec's first proposal (pnpm, vitest, plain Next.js with no monorepo). Pre-adding a `.…
+- [D4] 2026-09-14 Five fixture destinations: Vietnam, Japan, Portugal, Jordan, New Zealand. The user asked for any 5; each was picked to … — over A truly random draw, and the spec's placeholder set (Vietnam, Japan, Portugal, Mexico, Mo…
+- [D5] 2026-09-14 Fixture providers mirror REAL provider API shapes. They never hand the app a solution to a planted decision: - Amounts … — over App-friendly fixtures: prices as integer minor units already in home currency, fare searc…
+
+Next ids: D6 (decision), M1 (memory)
+
+Adjacent records — 22 decisions across 5 other initiatives that have worked this one's files, densest first:
+- alpha — 12 shared files, 0 decisions
+- beta — 4 shared files, 19 decisions
+- gamma — 4 shared files, 2 decisions
+…and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: travel-planner-session — when calling sofar_start_session, pass this as session_id.
+Git: feature/travel-planner @ a1b2c3d — in sync with origin/feature/travel-planner
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:lane (3887 bytes) ==
+# Sofar: quick-work lane (travel-planner)
+
+Goal: Author the public benchmark workload for bench-refresh, a travel itinerary planner specified and scaffolded so ~12 agent×memory arms can build it from one skeleton. Hidden tests score it; agent-added features are scored separately (bench-refresh D8). The best-scoring final repo is a future product candidate: live providers and an LLM Advisor swap in behind the skeleton's interfaces (D1).
+
+This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
+- Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
+- Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
+
+Notes since write-back:
+- 2026-09-14 3.3, chain A complete (2026-09-14): - Added 6 Playwright UI suites (s1, s2, s3, s5, s6, s8 .ui.test.ts) on Chromium headless shell 153 via the playwright npm package inside bun test. - Tot…
+- 2026-09-15 HIDDEN-TEST CORRECTION before freeze (2026-09-15, stated reason). calib-1's S2 failed only on `expect(typeof id).toBe("string")`: the agent used integer ids, which the S2 prompt allows ("r…
+- 2026-09-15 HIDDEN-TEST CORRECTION #2 before freeze (2026-09-15, stated reason): codex-sofar S1 returned 422 for an unknown currency, and s1 demanded exactly 400. The S1 prompt only says "Validate", a…
+Last session (claude-code, ended 2026-09-14T17:40:03.771Z):
+  D14 no-paid-billing rule logged. Built sealed reference (65a98ca) and 46 chain A hidden tests: skeleton 0 pass, reference 46/46, every planted decision caught.
+
+Recent quick work (1 session, 5 decisions since 2026-09-14):
+- 2026-09-14 claude-code — 34 files (/Users/jins/IO/handoff-bench/scenario5-launch-bench/PRODUCT-SPEC.md, /Users/jins/IO/boopada-planner/package.json, /Users/jins/IO/boopada-planner/apps/web/package.json, /Users/jins/IO/boopada-planner/.gitignore, /Users/jins/IO/boopada-planner/apps/web/app/page.tsx, /Users/jins/IO/boopada-planner/README.md, /Users/jins/IO/boopada-planner/biome.json, /Users/jins/IO/boopada-planner/packages/providers/package.json, /Users/jins/IO/boopada-planner/packages/providers/tsconfig.json, /Users/jins/IO/boopada-planner/packages/providers/src/types.ts, /Users/jins/IO/boopad…
+
+Recent decisions (5; full text in decisions.md):
+- [D1] 2026-09-14 The app is a FUTURE PRODUCT CANDIDATE as well as the workload. After the rounds, the final repo that scores best on hid… — over A throwaway workload with no product future, and publishing every arm's finished repo as …
+- [D2] 2026-09-14 The app is named Boopada; the user offered "boopada" or "bhupata", 2026-09-14. The benchmark skeleton is a NEW, separat… — over "bhupata". Building the benchmark inside the existing boopada repo.
+- [D3] 2026-09-14 Skeleton stack matches the existing boopada scaffold, with bun in place of pnpm: - Turborepo, Biome 2.4 - Next.js 16.1 … — over The spec's first proposal (pnpm, vitest, plain Next.js with no monorepo). Pre-adding a `.…
+- [D4] 2026-09-14 Five fixture destinations: Vietnam, Japan, Portugal, Jordan, New Zealand. The user asked for any 5; each was picked to … — over A truly random draw, and the spec's placeholder set (Vietnam, Japan, Portugal, Mexico, Mo…
+- [D5] 2026-09-14 Fixture providers mirror REAL provider API shapes. They never hand the app a solution to a planted decision: - Amounts … — over App-friendly fixtures: prices as integer minor units already in home currency, fare searc…
+
+Next ids: D6 (decision), M1 (memory)
+
+Session: lane-session — when calling sofar_start_session, pass this as session_id.
+Git: feature/travel-planner @ a1b2c3d — in sync with origin/feature/travel-planner
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:quiet (3448 bytes) ==
+# Sofar status: travel-planner
+
+Goal: Author the public benchmark workload for bench-refresh, a travel itinerary planner specified and scaffolded so ~12 agent×memory arms can build it from one skeleton. Hidden tests score it; agent-added features are scored separately (bench-refresh D8). The best-scoring final repo is a future product candidate: live providers and an LLM Advisor swap in behind the skeleton's interfaces (D1).
+
+Phases:
+- Phase 1 — Spec [active — all tasks done; mark phase done?] 2/2
+- Phase 2 — Skeleton + fixtures [pending — all tasks done; mark phase done?] 2/2
+- Phase 3 — Chained tasks + hidden tests [pending] 1/3
+- Phase 4 — Product candidate (after bench rounds) [pending] 0/2
+
+Progress: 5/9 tasks done (55%) across 4 phase(s)
+Active phase: Phase 1 — Spec — 2/2 tasks done
+Next action: travel-planner 3.3: add Playwright UI checks, then 3.2 chain B
+⚠ next action may be stale: 7 events since write-back (4 files, 3 notes)
+Notes since write-back:
+- 2026-09-14 3.3, chain A complete (2026-09-14): - Added 6 Playwright UI suites (s1, s2, s3, s5, s6, s8 .ui.test.ts) on Chromium headless shell 153 via the playwright npm package inside bun test. - Tot…
+- 2026-09-15 HIDDEN-TEST CORRECTION before freeze (2026-09-15, stated reason). calib-1's S2 failed only on `expect(typeof id).toBe("string")`: the agent used integer ids, which the S2 prompt allows ("r…
+- 2026-09-15 HIDDEN-TEST CORRECTION #2 before freeze (2026-09-15, stated reason): codex-sofar S1 returned 422 for an unknown currency, and s1 demanded exactly 400. The S1 prompt only says "Validate", a…
+
+Last session (claude-code, ended 2026-09-14T17:40:03.771Z):
+  D14 no-paid-billing rule logged. Built sealed reference (65a98ca) and 46 chain A hidden tests: skeleton 0 pass, reference 46/46, every planted decision caught.
+
+Recent decisions (5; full text in decisions.md):
+- [D1] 2026-09-14 The app is a FUTURE PRODUCT CANDIDATE as well as the workload. After the rounds, the final repo that scores best on hid… — over A throwaway workload with no product future, and publishing every arm's finished repo as …
+- [D2] 2026-09-14 The app is named Boopada; the user offered "boopada" or "bhupata", 2026-09-14. The benchmark skeleton is a NEW, separat… — over "bhupata". Building the benchmark inside the existing boopada repo.
+- [D3] 2026-09-14 Skeleton stack matches the existing boopada scaffold, with bun in place of pnpm: - Turborepo, Biome 2.4 - Next.js 16.1 … — over The spec's first proposal (pnpm, vitest, plain Next.js with no monorepo). Pre-adding a `.…
+- [D4] 2026-09-14 Five fixture destinations: Vietnam, Japan, Portugal, Jordan, New Zealand. The user asked for any 5; each was picked to … — over A truly random draw, and the spec's placeholder set (Vietnam, Japan, Portugal, Mexico, Mo…
+- [D5] 2026-09-14 Fixture providers mirror REAL provider API shapes. They never hand the app a solution to a planted decision: - Amounts … — over App-friendly fixtures: prices as integer minor units already in home currency, fare searc…
+
+Next ids: D6 (decision), M1 (memory)
+
+Session: quiet-session — when calling sofar_start_session, pass this as session_id.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:cap (10092 bytes) ==
+# Sofar status: travel-planner
+
+Goal: Author the public benchmark workload for bench-refresh, a travel itinerary planner specified and scaffolded so ~12 agent×memory arms can build it from one skeleton. Hidden tests score it; agent-added features are scored separately (bench-refresh D8). The best-scoring final repo is a future product candidate: live providers and an LLM Advisor swap in behind the skeleton's interfaces (D1).
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+  if SPEC must change.
+- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).
+  Both run at the workspace root; typecheck: `npm run typecheck`.
+- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
+  (source-shipped, no build); packages/engine → sofar bin
+  (packages/engine/dist/cli.js after build).
+- Definition of done per task: acceptance criteria in docs/SPEC.md
+  §Acceptance.
+- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,
+  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard
+  live OUTSIDE this repo in the user's strategy vault. Engine sessions
+  never need them; 5.3 scoring is performed by the user against that
+  scorecard. Do not go looking for them; do not block on them.
+- Push policy: push origin main at each verified wrap-up (user-established
+  Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Committing the record needs a BARE
+…truncated — read .sofar/repo.md for the rest
+
+Phases:
+- Phase 1 — Spec [active — all tasks done; mark phase done?] 2/2
+- Phase 2 — Skeleton + fixtures [pending — all tasks done; mark phase done?] 2/2
+- Phase 3 — Chained tasks + hidden tests [pending] 1/3
+- Phase 4 — Product candidate (after bench rounds) [pending] 0/2
+
+Progress: 5/9 tasks done (55%) across 4 phase(s)
+Active phase: Phase 1 — Spec — 2/2 tasks done
+Next action: travel-planner 3.3: add Playwright UI checks, then 3.2 chain B
+⚠ next action may be stale: 7 events since write-back (4 files, 3 notes)
+Notes since write-back:
+- 2026-09-14 3.3, chain A complete (2026-09-14): - Added 6 Playwright UI suites (s1, s2, s3, s5, s6, s8 .ui.test.ts) on Chromium headless shell 153 via the playwright npm package inside bun test. - Tot…
+- 2026-09-15 HIDDEN-TEST CORRECTION before freeze (2026-09-15, stated reason). calib-1's S2 failed only on `expect(typeof id).toBe("string")`: the agent used integer ids, which the S2 prompt allows ("r…
+- 2026-09-15 HIDDEN-TEST CORRECTION #2 before freeze (2026-09-15, stated reason): codex-sofar S1 returned 422 for an unknown currency, and s1 demanded exactly 400. The S1 prompt only says "Validate", a…
+
+Last session (claude-code, ended 2026-09-14T17:40:03.771Z):
+  D14 no-paid-billing rule logged. Built sealed reference (65a98ca) and 46 chain A hidden tests: skeleton 0 pass, reference 46/46, every planted decision caught.
+
+Recent decisions (5; full text in decisions.md):
+- [D1] 2026-09-14 The app is a FUTURE PRODUCT CANDIDATE as well as the workload. After the rounds, the final repo that scores best on hid… — over A throwaway workload with no product future, and publishing every arm's finished repo as …
+- [D2] 2026-09-14 The app is named Boopada; the user offered "boopada" or "bhupata", 2026-09-14. The benchmark skeleton is a NEW, separat… — over "bhupata". Building the benchmark inside the existing boopada repo.
+- [D3] 2026-09-14 Skeleton stack matches the existing boopada scaffold, with bun in place of pnpm: - Turborepo, Biome 2.4 - Next.js 16.1 … — over The spec's first proposal (pnpm, vitest, plain Next.js with no monorepo). Pre-adding a `.…
+- [D4] 2026-09-14 Five fixture destinations: Vietnam, Japan, Portugal, Jordan, New Zealand. The user asked for any 5; each was picked to … — over A truly random draw, and the spec's placeholder set (Vietnam, Japan, Portugal, Mexico, Mo…
+- [D5] 2026-09-14 Fixture providers mirror REAL provider API shapes. They never hand the app a solution to a planted decision: - Amounts … — over App-friendly fixtures: prices as integer minor units already in home currency, fare searc…
+
+Next ids: D6 (decision), M1 (memory)
+
+Adjacent records — 22 decisions across 5 other initiatives that have worked this one's files, densest first:
+- alpha — 12 shared files, 0 decisions
+- beta — 4 shared files, 19 decisions
+- gamma — 4 shared files, 2 decisions
+…and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: travel-planner-session — when calling sofar_start_session, pass this as session_id.
+Git: feature/travel-planner @ a1b2c3d — in sync with origin/feature/travel-planner
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+…truncated — run sofar status for full detail
+
+== plan (2436 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Plan: travel-planner
+
+Goal: Author the public benchmark workload for bench-refresh, a travel itinerary planner specified and scaffolded so ~12 agent×memory arms can build it from one skeleton. Hidden tests score it; agent-added features are scored separately (bench-refresh D8). The best-scoring final repo is a future product candidate: live providers and an LLM Advisor swap in behind the skeleton's interfaces (D1).
+
+Progress: 5/9 tasks done (55%)
+
+## Phase 1 — Spec [active] — 2/2 done
+
+- [x] 1.1 Draft PRODUCT-SPEC.md: feature inventory from the user's idea, domain model, the determinism boundary (provider interfaces, rules advisor), the chain split, candidate planted decisions. User reviews.
+- [x] 1.2 User review of the spec: working name, stack, fixture destinations, anything cut or added
+
+## Phase 2 — Skeleton + fixtures [pending] — 2/2 done
+
+- [x] 2.1 Create the MIT skeleton repo: app shell, lint, test runner, NO memory tooling of any kind (arms add their own)
+- [x] 2.2 Provider interfaces plus deterministic fixture data: flights, hotels, climate/weather, FX, advisories, places/cafes/specialties, transport prices, language; a simulated clock for arrival-triggered features. The interfaces must be shaped so live providers can replace the fixtures later (D1).
+
+## Phase 3 — Chained tasks + hidden tests [pending] — 1/3 done
+
+- [x] 3.1 Chain A (tuning): task prompts in session order, with operator-stated decisions planted in early sessions and exercised later; the shared initiative clause from bench-refresh D8
+- [ ] 3.2 Chain B (held-out): a disjoint task chain from the same skeleton, sealed from anyone tuning the engine
+- [ ] 3.3 Hidden acceptance tests per task (unit plus Playwright on stable test ids), kept OUTSIDE the skeleton; validate each against a sealed private reference solution: they pass on it and fail on the skeleton (active)
+
+## Phase 4 — Product candidate (after bench rounds) [pending] — 0/2 done
+
+- [ ] 4.1 Pick the best final repo by score (hidden-test quality plus blind review of added work), never by arm
+- [ ] 4.2 Product track: swap in live providers (licensed flight, hotel, FX, weather and advisory APIs) and an LLM Advisor behind the same interfaces; user decides on release
+
+Active phase: Phase 1 — Spec
+Next action: travel-planner 3.3: add Playwright UI checks, then 3.2 chain B
+
+== decisions (5959 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Decisions: travel-planner
+
+- 2026-09-14T16:25:59.150Z — chose **The app is a FUTURE PRODUCT CANDIDATE as well as the workload. After the rounds, the final repo that scores best on hidden-test quality plus the blind review of added work (chosen by score, never by arm) may be promoted into the product. Productisation swaps the fixture providers for live ones and the rules Advisor for an LLM-backed one, through the SAME interfaces the skeleton defines. Arm output repos are not published by default; the public artefacts stay the skeleton, fixtures, chains, harness and results. Ruled by the user 2026-09-14.** over A throwaway workload with no product future, and publishing every arm's finished repo as benchmark evidence. because The user will release the app if its quality is good. The D7 determinism boundary already puts every live source and every intelligent feature behind an interface, so going live is an adapter swap, not a rewrite. The MIT skeleton permits a proprietary derivative. Keeping arm repos private protects the product without hurting reproducibility, since others re-run the harness rather than inspecting our outputs. Choosing by score keeps the promotion from biasing the arm comparison.
+- 2026-09-14T16:30:22.730Z — chose **The app is named Boopada; the user offered "boopada" or "bhupata", 2026-09-14. The benchmark skeleton is a NEW, separate public repo (proposed name: boopada-planner). The existing github.com/jithinio/boopada stays untouched: private, 2 commits (Apr 2026), a Turborepo "AI-Powered Travel Operating System" scaffold with agent, customer, admin and supplier portals plus a .claude/settings.local.json. Whether the winning planner merges into that repo, e.g. as its customer portal, is decided at 4.2.** over "bhupata". Building the benchmark inside the existing boopada repo. because "boopada" matches the repo and product the user already started. That repo can't be the workload: it is private, it carries agent config that would leak into the non-memory arms, and its B2B four-portal scope is not the consumer itinerary planner in the spec. A clean MIT skeleton is required for public reproduction (bench-refresh D7). The spec's consumer planner is closest to the scaffold's customer portal, which leaves a merge path open.
+- 2026-09-14T16:33:25.979Z — chose **Skeleton stack matches the existing boopada scaffold, with bun in place of pnpm:
+- Turborepo, Biome 2.4
+- Next.js 16.1 (App Router), React 19.2, Tailwind v4
+- shadcn/Radix in packages/ui, @hugeicons FREE icon packages, zod, TypeScript 5.9
+- bun 1.3 workspaces and lockfile
+- SQLite via bun:sqlite + Drizzle
+- `bun test` for unit tests, Playwright for end-to-end
+Layout: apps/web, packages/ui, packages/typescript-config, packages/providers (interfaces + fixtures).
+The skeleton carries NO memory tooling and no `.sofar` exclusion. A sofar arm's setup runs `sofar init` and `sofar doctor --fix`, which handles the known Tailwind v4 `.sofar` scanning hazard. Chat (F14) is kept, limited to a fixed command grammar; it defaulted to kept because the user didn't ask to cut it. Ruled by the user 2026-09-14 (stack and bun).** over The spec's first proposal (pnpm, vitest, plain Next.js with no monorepo). Pre-adding a `.sofar` Tailwind exclusion to the skeleton. because Matching boopada makes promoting the winning repo (D1, 4.2) a merge rather than a port. The user prefers bun, and `bun test` avoids a second test runner. Only free icon packages keep the skeleton publicly installable, unlike Peak's Hugeicons Pro. A `.sofar` exclusion in the skeleton would name sofar to the non-sofar arms and pre-solve a setup step for the sofar arm; both skew the comparison.
+- 2026-09-14T16:33:31.220Z — chose **Five fixture destinations: Vietnam, Japan, Portugal, Jordan, New Zealand. The user asked for any 5; each was picked to exercise a planted decision.
+- Vietnam (VND): huge amounts, and the user's own 10-day example.
+- Japan (JPY): ZERO minor units, UTC+9.
+- Portugal (EUR): a two-decimal baseline, Europe.
+- Jordan (JOD): THREE minor units, and the advisory/disruption scenario.
+- New Zealand (NZD): southern-hemisphere seasons for best-time-to-visit, UTC+12/+13 next to the date line.** over A truly random draw, and the spec's placeholder set (Vietnam, Japan, Portugal, Mexico, Morocco). because A random five could leave the money, time-zone, season and advisory decisions untested. With 0-, 2- and 3-decimal currencies, a date-line zone, both hemispheres and one advisory region, every planted decision in spec §5 has fixture data a hidden test can fail on. That still honours the user's "any 5 world destinations".
+- 2026-09-14T16:37:03.026Z — chose **Fixture providers mirror REAL provider API shapes. They never hand the app a solution to a planted decision:
+- Amounts are decimal strings in the point-of-sale currency. International fares are priced in the origin market's currency; domestic fares and hotels in local currency (JPY "18000", JOD "85.500", VND "1250000").
+- Fare search with no cabin returns ALL cabins.
+- Hotels mix taxes-included and taxes-extra rates.
+- No minor-unit metadata anywhere.
+- Cities carry IANA time zones, as real geo APIs do.
+- FX rates are decimal strings.
+Data is generated deterministically: seeded by route, date and city, never random.** over App-friendly fixtures: prices as integer minor units already in home currency, fare search pre-filtered to one cabin, tax-normalised nightly rates, a minorUnits field per currency. because Spec §5's planted decisions test whether an arm REMEMBERS a choice the operator made: money in minor units, one FX path, cabin as a standing preference, per-night budget including taxes. Fixtures that pre-normalise these would make every arm pass by construction, and C3/C5 would measure nothing. Real-API shapes also keep the D1 product path to live providers an adapter swap.
+
+== session aac148fe-0a14-46d5-b42c-64fb65cd8ad2.md (3640 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session aac148fe-0a14-46d5-b42c-64fb65cd8ad2
+
+- Initiative: travel-planner
+- Tool: claude-code
+- Model: claude-opus-5
+- Started: 2026-09-14T16:21:00.815Z
+- Ended: 2026-09-14T17:40:03.771Z
+
+## Summary
+
+D14 no-paid-billing rule logged. Built sealed reference (65a98ca) and 46 chain A hidden tests: skeleton 0 pass, reference 46/46, every planted decision caught.
+
+## Next action
+
+travel-planner 3.3: add Playwright UI checks, then 3.2 chain B
+
+## Activity (derived from mechanical events)
+
+- Derived: 34 files (/Users/jins/IO/handoff-bench/scenario5-launch-bench/PRODUCT-SPEC.md, /Users/jins/IO/boopada-planner/package.json, /Users/jins/IO/boopada-planner/apps/web/package.json, /Users/jins/IO/boopada-planner/.gitignore, /Users/jins/IO/boopada-planner/apps/web/app/page.tsx, /Users/jins/IO/boopada-planner/README.md, /Users/jins/IO/boopada-planner/biome.json, /Users/jins/IO/boopada-planner/packages/providers/package.json, /Users/jins/IO/boopada-planner/packages/providers/tsconfig.json, /Users/jins/IO/boopada-planner/packages/providers/src/types.ts, /Users/jins/IO/boopada-planner/packages/providers/src/interfaces.ts, /Users/jins/IO/boopada-planner/packages/providers/src/clock.ts, /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/support.ts, /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/data/geo.ts, /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/data/climate.ts, /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/data/hotels.ts, /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/data/places.ts, /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/data/markets.ts, /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/index.ts, /Users/jins/IO/boopada-planner/packages/providers/src/index.ts, +14 more), 189 commands, task changes: 1.1 → done, 1.2 → active, 1.2 → done, 2.1 → active, 2.1 → done, 2.2 → active, 2.2 → done, 3.1 → active, 3.1 → done, 3.3 → active
+- Files:
+  - /Users/jins/IO/handoff-bench/scenario5-launch-bench/PRODUCT-SPEC.md
+  - /Users/jins/IO/boopada-planner/package.json
+  - /Users/jins/IO/boopada-planner/apps/web/package.json
+  - /Users/jins/IO/boopada-planner/.gitignore
+  - /Users/jins/IO/boopada-planner/apps/web/app/page.tsx
+  - /Users/jins/IO/boopada-planner/README.md
+  - /Users/jins/IO/boopada-planner/biome.json
+  - /Users/jins/IO/boopada-planner/packages/providers/package.json
+  - /Users/jins/IO/boopada-planner/packages/providers/tsconfig.json
+  - /Users/jins/IO/boopada-planner/packages/providers/src/types.ts
+  - /Users/jins/IO/boopada-planner/packages/providers/src/interfaces.ts
+  - /Users/jins/IO/boopada-planner/packages/providers/src/clock.ts
+  - /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/support.ts
+  - /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/data/geo.ts
+  - /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/data/climate.ts
+  - /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/data/hotels.ts
+  - /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/data/places.ts
+  - /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/data/markets.ts
+  - /Users/jins/IO/boopada-planner/packages/providers/src/fixtures/index.ts
+  - /Users/jins/IO/boopada-planner/packages/providers/src/index.ts
+  - +14 more
+- Commands run: 189
+- Task changes:
+  - 1.1 → done
+  - 1.2 → active
+  - 1.2 → done
+  - 2.1 → active
+  - 2.1 → done
+  - 2.2 → active
+  - 2.2 → done
+  - 3.1 → active
+  - 3.1 → done
+  - 3.3 → active
+

@@ -1,0 +1,723 @@
+== options (28505 bytes) ==
+{
+  "plain": {},
+  "hook": {
+    "sessionId": "boopada-session",
+    "git": {
+      "branch": "boopada",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "fedcba9",
+      "upstreamFull": "fedcba9111111111111111111111111111111111",
+      "synced": false
+    },
+    "repoRules": [
+      {
+        "initiative": "alpha",
+        "ordinal": 3,
+        "ts": "2026-09-01T10:00:00.000Z",
+        "rule": "Always run the full suite before pushing."
+      },
+      {
+        "initiative": "beta",
+        "ordinal": 1,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Always  run the full suite\nbefore pushing."
+      },
+      {
+        "initiative": "gamma",
+        "ordinal": 7,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Never edit generated files by hand.",
+        "quote": "no hand edits to generated files"
+      },
+      {
+        "initiative": "delta",
+        "ordinal": 2,
+        "ts": "2026-08-01T00:00:00.000Z",
+        "rule": "Keep the digest under its cap."
+      },
+      {
+        "initiative": "epsilon",
+        "ordinal": 4,
+        "ts": "2026-09-03T00:00:00.000Z",
+        "rule": "Every money value in the API, in and out, is { amount_minor: integer, currency }; convert provider QuotedPrice via lib/money.ts, never via parseFloat."
+      },
+      {
+        "initiative": "zeta",
+        "ordinal": 9,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Name the boopada record's goal before its tasks."
+      }
+    ],
+    "repoMemory": "# Repo memory\n\nHand-written, repo-scoped notes for agents working here: conventions,\ncommands, gotchas — anything true of the repo across all initiatives.\nSofar never generates or overwrites this file; initiative state lives in\n.sofar/initiatives/<slug>/ instead.\n",
+    "notices": [
+      "Recent work elsewhere: smoke-4-drive touched 2 files 3h ago (see sofar status smoke-4-drive).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare."
+    ]
+  },
+  "lane": {
+    "lane": true,
+    "sessionId": "lane-session",
+    "git": {
+      "branch": "boopada",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "fedcba9",
+      "upstreamFull": "fedcba9111111111111111111111111111111111",
+      "synced": false
+    }
+  },
+  "quiet": {
+    "activity": false,
+    "sessionId": " quiet-session\t"
+  },
+  "cap": {
+    "sessionId": "boopada-session",
+    "git": {
+      "branch": "boopada",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "fedcba9",
+      "upstreamFull": "fedcba9111111111111111111111111111111111",
+      "synced": false
+    },
+    "repoRules": [
+      {
+        "initiative": "alpha",
+        "ordinal": 3,
+        "ts": "2026-09-01T10:00:00.000Z",
+        "rule": "Always run the full suite before pushing."
+      },
+      {
+        "initiative": "beta",
+        "ordinal": 1,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Always  run the full suite\nbefore pushing."
+      },
+      {
+        "initiative": "gamma",
+        "ordinal": 7,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Never edit generated files by hand.",
+        "quote": "no hand edits to generated files"
+      },
+      {
+        "initiative": "delta",
+        "ordinal": 2,
+        "ts": "2026-08-01T00:00:00.000Z",
+        "rule": "Keep the digest under its cap."
+      },
+      {
+        "initiative": "epsilon",
+        "ordinal": 4,
+        "ts": "2026-09-03T00:00:00.000Z",
+        "rule": "Every money value in the API, in and out, is { amount_minor: integer, currency }; convert provider QuotedPrice via lib/money.ts, never via parseFloat."
+      },
+      {
+        "initiative": "zeta",
+        "ordinal": 9,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Name the boopada record's goal before its tasks."
+      }
+    ],
+    "repoMemory": "# Repo memory\n\nHand-written, repo-scoped notes for agents working here: conventions,\ncommands, gotchas — anything true of the repo across all initiatives.\nSofar never generates or overwrites this file; initiative state lives in\n.sofar/initiatives/<slug>/ instead.\n",
+    "notices": [
+      "Recent work elsewhere: smoke-4-drive touched 2 files 3h ago (see sofar status smoke-4-drive).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare.",
+      "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    ]
+  }
+}
+== status (8991 bytes) ==
+# boopada
+
+Goal: Build Boopada, a trip planner, one task per session.
+
+Standing constraints — obey verbatim (4):
+- [D1] Every money value in the API, in and out, is { amount_minor: integer, currency }; convert provider QuotedPrice via lib/money.ts, never via parseFloat.
+- [D2] Interests are only provider activity categories (lib/categories.ts ACTIVITY_CATEGORIES); reject anything else with 400.
+- [D3] Add schema changes only as a new entry appended to MIGRATIONS in lib/server/db.ts; never edit an applied migration.
+- [D6] Never hard-delete traveller-made data: delete through softDelete() in lib/server/deletions.ts, and filter `deleted_at IS NULL` in every list, total and suggestion query.
+Progress: 2/2 tasks done (100%) across 1 phase(s)
+
+Phases:
+- Roadmap [active — all tasks done; mark phase done?] 2/2
+  - [x] S1 Traveller profile, and the roadmap
+
+We're building Boopada, a trip planner. Here's the roadmap so you have the
+whole picture. We'll go roughly in this order, one piece per session:
+
+1. Traveller profile (today).
+2. Bucket list: places and experiences to save for later.
+3. Trips: create a trip from legs of cities and nights, with a draft day-by-day
+   plan.
+4. Itinerary editing: add, move and remove activities and days.
+5. Itinerary view: the trip laid out day by day, with daily and trip totals.
+6. Location to-dos: to-dos per day, surfaced when you arrive somewhere.
+7. Activity suggestions and local transport costs.
+8. Curation advisor: tells you what could be better and can fix it for you.
+9. Chat: a command box on the trip page. It understands exactly these commands:
+   - "add <activity name> to day <n>"
+   - "remove <activity name> from day <n>"
+   - "undo"
+   - "make day <n> lighter": apply the advisor's lighten suggestion for that
+     day, or remove that day's longest activity if there isn't one
+   - "interest add <category>" / "interest remove <category>"
+   - "what can be better": list the advisor's suggestions
+   POST /api/chat { trip_id, message } returns
+   { reply, changed, suggestions? }. Anything else gets a reply listing the
+   commands, with changed: false.
+
+Today: the traveller profile.
+
+- GET /api/profile and PUT /api/profile with: home_currency, home_airport,
+  cabin_class (economy | premium_economy | business | first),
+  daily_activity_budget (optional), interests.
+- Before anything is saved, GET returns home_currency USD, home_airport SFO,
+  cabin_class economy, no budget, no interests.
+- Validate: currency and airport must be ones the providers know.
+- A /profile page to view and edit it (data-testid: profile-form,
+  profile-save).
+
+Two decisions to keep for the whole project:
+- Money, everywhere in the API, going in and coming out, is
+  { "amount_minor": integer, "currency": "ISO code" } in the currency's minor
+  units: JPY and VND have none, JOD has three. No decimal strings, no floats.
+  Our prototype used decimal strings and totals drifted.
+- Interests are not free text. They're the providers' activity categories:
+  culture, food, nature, adventure, nightlife, wellness, tour. Reject anything
+  else.
+
+Conventions for this project:
+- Monorepo, bun. The app is apps/web (Next.js). Data providers come from
+  @workspace/providers; use its fixture bundle.
+- Storage: SQLite at the path in BOOPADA_DB_PATH (default ./data/boopada.sqlite).
+  Create or upgrade the schema automatically on startup.
+- Time: the current time is BOOPADA_NOW (ISO timestamp) when set, otherwise the
+  system clock.
+- API: JSON under /api. Errors return 4xx with { "error": { "code", "message" } }.
+- One traveller, no login.
+- The app must run with `bun run build`, then `bun run start` in apps/web
+  (port from PORT).
+- Before you finish, `bun run lint`, `bun run typecheck` and `bun run test` pass.
+- You may add features or improvements you judge valuable beyond the task.
+  Record what you added and why.
+  - [x] S2 Bucket list
+
+Next: the bucket list.
+
+- POST /api/bucket { title, city_id?, notes?, estimated_daily_spend? } returns
+  the item with an id and created_at. GET /api/bucket returns { items }.
+  PATCH /api/bucket/{id} edits. DELETE /api/bucket/{id} deletes.
+- Unknown city_id is a 400.
+- A /bucket page listing items, with add and delete (data-testid: bucket-item-{id},
+  bucket-add, bucket-delete-{id}).
+
+A decision for the whole app, not just this feature: we never hard-delete
+anything the traveller made, and we don't ask "are you sure?". Deleting is a
+soft delete, and POST /api/undo restores the most recent deletion (409 with
+code "nothing_to_undo" when there's nothing). Deleted things never show up in
+any list, total or suggestion.
+
+Conventions for this project:
+- Monorepo, bun. The app is apps/web (Next.js). Data providers come from
+  @workspace/providers; use its fixture bundle.
+- Storage: SQLite at the path in BOOPADA_DB_PATH (default ./data/boopada.sqlite).
+  Create or upgrade the schema automatically on startup.
+- Time: the current time is BOOPADA_NOW (ISO timestamp) when set, otherwise the
+  system clock.
+- API: JSON under /api. Errors return 4xx with { "error": { "code", "message" } }.
+- One traveller, no login.
+- The app must run with `bun run build`, then `bun run start` in apps/web
+  (port from PORT).
+- Before you finish, `bun run lint`, `bun run typecheck` and `bun run test` pass.
+- You may add features or improvements you judge valuable beyond the task.
+  Record what you added and why.
+
+Next action: All planned roadmap tasks are done (2/2). The operator should add the next task to the plan; any new traveller-made entity must register in SOFT_DELETE_TABLES and filter deleted_at IS NULL.
+
+⚠ Staleness:
+- phase "Roadmap": all 2 tasks done but still active — emit phase_status_changed to mark it done
+- last write-back summary exceeds the SessionStart budget (450 chars) and is clipped there — full text in sessions/4a4bcd44-f25f-4941-bb17-82c01b2389b2.md
+
+Last session (claude-code, ended 2026-09-15T13:27:42.152Z):
+  S2 done. Migration 2 (appended) adds bucket_items (soft delete via deleted_at, Money as spend_amount_minor+spend_currency) and an app-wide deletions log. lib/server/deletions.ts: softDelete() + undoLastDeletion() (a stack of unrestored deletions; 409 nothing_to_undo). lib/server/bucket.ts: list/get/create/update(merge)/delete with validation (unknown_city, unknown_currency, validation_error, 404 not_found for missing/deleted ids). Routes: /api/bucket (GET, POST 201), /api/bucket/[id] (PATCH, DELETE 204), /api/undo (POST → { restored: { type, item } }). /bucket page with add form, delete buttons (testids bucket-item-{id}, bucket-add, bucket-delete-{id}) and an inline Undo bar; home links to it. .gitignore covers sqlite WAL/SHM. 33 web + 17 provider tests pass; lint, typecheck, build, and a next start (Node) curl smoke test pass.
+
+Driven (1 run):
+- run 01M2JKESFKMY3KTFA520MZDFX3 via claude-code, task policy — 2 handoffs (2 task_done); stopped: closed — no task left to run — every task is done, dropped or blocked
+  permissions: bypassPermissions, model opus, effort high
+    allow mcp__sofar
+    allow Bash(sofar:*)
+    allow Bash(git status:*)
+    allow Bash(git diff:*)
+    allow Bash(git log:*)
+    allow Bash(git show:*)
+    allow Bash(git add:*)
+    allow Bash(git commit:*)
+  - 2026-09-15T13:23:59.852Z session 0d4606a2-24b5-468b-afba-65933d3abbdd — task_done, task S1, 1731071 tokens
+  - 2026-09-15T13:27:56.331Z session 4a4bcd44-f25f-4941-bb17-82c01b2389b2 — task_done, task S2, 950116 tokens
+
+Files touched (15):
+- /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/categories.ts
+- /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/money.ts
+- /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/sqlite.ts
+- /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/db.ts
+- /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/context.ts
+- /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/http.ts
+- /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/profile.ts
+- /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/app/api/profile/route.ts
+- /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/instrumentation.ts
+- /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/app/profile/page.tsx
+- /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/app/profile/profile-form.tsx
+- /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/test/money.test.ts
+- /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/test/profile-api.test.ts
+- /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/deletions.ts
+- /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/bucket.ts
+
+== digest:plain (3403 bytes) ==
+# Sofar status: boopada
+
+Goal: Build Boopada, a trip planner, one task per session.
+
+Next action: All planned roadmap tasks are done (2/2). The operator should add the next task to the plan; any new traveller-made entity must register in SOFT_DELETE_TABLES and filter deleted_at IS NULL.
+
+Last session (claude-code, ended 2026-09-15T13:27:42.152Z):
+  S2 done. Migration 2 (appended) adds bucket_items (soft delete via deleted_at, Money as spend_amount_minor+spend_currency) and an app-wide deletions log. lib/server/deletions.ts: softDelete() + undoLastDeletion() (a stack of unrestored deletions; 409 nothing_to_undo). lib/server/bucket.ts: list/get/create/updat… (clipped — full text in sessions/4a4bcd44-f25f-4941-bb17-82c01b2389b2.md)
+
+Driven: run 01M2JKESFKMY3KTFA520MZDFX3 via claude-code, task policy — 2 handoffs (2 task_done); stopped: closed — no task left to run — every task is done, dropped or blocked
+
+Phases:
+- Roadmap [active — all tasks done; mark phase done?] 2/2
+Progress: 2/2 tasks done (100%) across 1 phase(s)
+
+Memory (2; full text in memory.md):
+- [M1] apps/web server code: getContext() (lib/server/context.ts) gives { db, providers }; route handlers wrap in handle() and throw ApiError(status, code, message, field?) from lib/server/http.ts. Tests (bun test in apps/web/test) call route handlers directly after setContext(createCo…
+- [M2] Do not run `bun run lint:fix` blindly at the repo root: it rewrites harness fil…
+
+Recent decisions (last 5 of 8; full text in decisions.md):
+- [D4] 2026-09-15 PUT /api/profile merges: omitted fields keep their current value, daily_activity_budget — over strict full replacement requiring every field
+- [D5] 2026-09-15 Beyond spec: profile responses carry updated_at — over bare spec fields and a generic error code
+- [D6] 2026-09-15 (rule below) App-wide soft delete: traveller-made rows get a nullable de… — over hard DELETE, confirmation dialogs, per-table undo, or an undo that on…
+- [D7] 2026-09-15 Bucket API shape: integer ids — over bare spec fields without updated_at/validation codes, or strict PATCH…
+- [D8] 2026-09-15 Beyond spec: the /bucket page has an inline "Deleted X · Undo" bar — over a list page with only add/delete
+Earlier rejected approaches — do NOT re-propose (3 older):
+- [D1] decimal strings (prototype) or float amounts
+- [D2] free-text interests or case-insensitive matching
+- [D3] better-sqlite3 (native addon build) or forcing next start onto the Bu…
+
+Next ids: D9 (decision), M3 (memory)
+
+Standing constraints — obey verbatim (4):
+- [D6] Never hard-delete traveller-made data: delete through softDelete() in lib/server/deletions.ts, and filter `deleted_at IS NULL` in every list, total and suggestion query.
+- [D3] Add schema changes only as a new entry appended to MIGRATIONS in lib/server/db.ts; never edit an applied migration.
+- [D2] Interests are only provider activity categories (lib/categories.ts ACTIVITY_CATEGORIES); reject anything else with 400.
+- [D1] Every money value in the API, in and out, is { amount_minor: integer, currency }; convert provider QuotedPrice via lib/money.ts, never via parseFloat.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:hook (4370 bytes) ==
+# Sofar status: boopada
+
+Goal: Build Boopada, a trip planner, one task per session.
+
+Next action: All planned roadmap tasks are done (2/2). The operator should add the next task to the plan; any new traveller-made entity must register in SOFT_DELETE_TABLES and filter deleted_at IS NULL.
+
+Last session (claude-code, ended 2026-09-15T13:27:42.152Z):
+  S2 done. Migration 2 (appended) adds bucket_items (soft delete via deleted_at, Money as spend_amount_minor+spend_currency) and an app-wide deletions log. lib/server/deletions.ts: softDelete() + undoLastDeletion() (a stack of unrestored deletions; 409 nothing_to_undo). lib/server/bucket.ts: list/get/create/updat… (clipped — full text in sessions/4a4bcd44-f25f-4941-bb17-82c01b2389b2.md)
+
+Driven: run 01M2JKESFKMY3KTFA520MZDFX3 via claude-code, task policy — 2 handoffs (2 task_done); stopped: closed — no task left to run — every task is done, dropped or blocked
+
+Phases:
+- Roadmap [active — all tasks done; mark phase done?] 2/2
+Progress: 2/2 tasks done (100%) across 1 phase(s)
+
+Memory (2; full text in memory.md):
+- [M1] apps/web server code: getContext() (lib/server/context.ts) gives { db, providers }; route handlers wrap in handle() and throw ApiError(status, code, message, field?) from lib/server/http.ts. Tests (bun test in apps/web/test) call route handlers directly after setContext(createCo…
+- [M2] Do not run `bun run lint:fix` blindly at the repo root: it rewrites harness fil…
+
+Repo memory (.sofar/repo.md):
+# Repo memory
+
+Hand-written, repo-scoped notes for agents working here: conventions,
+commands, gotchas — anything true of the repo across all initiatives.
+Sofar never generates or overwrites this file; initiative state lives in
+.sofar/initiatives/<slug>/ instead.
+
+Recent decisions (last 5 of 8; full text in decisions.md):
+- [D4] 2026-09-15 PUT /api/profile merges: omitted fields keep their current value, daily_activity_budget — over strict full replacement requiring every field
+- [D5] 2026-09-15 Beyond spec: profile responses carry updated_at — over bare spec fields and a generic error code
+- [D6] 2026-09-15 (rule below) App-wide soft delete: traveller-made rows get a nullable de… — over hard DELETE, confirmation dialogs, per-table undo, or an undo that on…
+- [D7] 2026-09-15 Bucket API shape: integer ids — over bare spec fields without updated_at/validation codes, or strict PATCH…
+- [D8] 2026-09-15 Beyond spec: the /bucket page has an inline "Deleted X · Undo" bar — over a list page with only add/delete
+Earlier rejected approaches — do NOT re-propose (3 older):
+- [D1] decimal strings (prototype) or float amounts
+- [D2] free-text interests or case-insensitive matching
+- [D3] better-sqlite3 (native addon build) or forcing next start onto the Bu…
+
+Next ids: D9 (decision), M3 (memory)
+
+Session: boopada-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: boopada @ a1b2c3d — differs from origin/boopada (fedcba9) — unpushed work
+
+Recent work elsewhere: smoke-4-drive touched 2 files 3h ago (see sofar status smoke-4-drive).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+Standing constraints — obey verbatim (4):
+- [D6] Never hard-delete traveller-made data: delete through softDelete() in lib/server/deletions.ts, and filter `deleted_at IS NULL` in every list, total and suggestion query.
+- [D3] Add schema changes only as a new entry appended to MIGRATIONS in lib/server/db.ts; never edit an applied migration.
+- [D2] Interests are only provider activity categories (lib/categories.ts ACTIVITY_CATEGORIES); reject anything else with 400.
+- [D1] Every money value in the API, in and out, is { amount_minor: integer, currency }; convert provider QuotedPrice via lib/money.ts, never via parseFloat.
+Repo-wide rules from other records (4 of 4, most relevant first):
+- [zeta D9] Name the boopada record's goal before its tasks.
+- [alpha D3, beta D1] Always run the full suite before pushing.
+- [gamma D7] Never edit generated files by hand. — operator: "no hand edits to generated files"
+- [delta D2] Keep the digest under its cap.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:lane (4315 bytes) ==
+# Sofar: quick-work lane (boopada)
+
+Goal: Build Boopada, a trip planner, one task per session.
+
+This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
+- Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
+- Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
+
+Last session (claude-code, ended 2026-09-15T13:27:42.152Z):
+  S2 done. Migration 2 (appended) adds bucket_items (soft delete via deleted_at, Money as spend_amount_minor+spend_currency) and an app-wide deletions log. lib/server/deletions.ts: softDelete() + undoLastDeletion() (a stack of unrestored deletions; 409 nothing_to_undo). lib/server/bucket.ts: list/get/create/updat… (clipped — full text in sessions/4a4bcd44-f25f-4941-bb17-82c01b2389b2.md)
+
+Driven: run 01M2JKESFKMY3KTFA520MZDFX3 via claude-code, task policy — 2 handoffs (2 task_done); stopped: closed — no task left to run — every task is done, dropped or blocked
+
+Recent quick work (2 sessions, 8 decisions since 2026-09-15):
+- 2026-09-15 claude-code — 3 files (/Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/db.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/deletions.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/bucket.ts), 5 commands, task changes: S2 → done
+- 2026-09-15 claude-code — 13 files (/Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/categories.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/money.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/sqlite.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/db.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/context.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/se…
+
+Memory (2; full text in memory.md):
+- [M2] Do not run `bun run lint:fix` blindly at the repo root: it rewrites harness fil…
+- [M1] apps/web server code: getContext() (lib/server/context.ts) gives { db, provider…
+
+Recent decisions (last 5 of 8; full text in decisions.md):
+- [D4] 2026-09-15 PUT /api/profile merges: omitted fields keep their current value, daily_activity_budget — over strict full replacement requiring every field
+- [D5] 2026-09-15 Beyond spec: profile responses carry updated_at — over bare spec fields and a generic error code
+- [D6] 2026-09-15 (rule below) App-wide soft delete: traveller-made rows get a nullable de… — over hard DELETE, confirmation dialogs, per-table undo, or an undo that on…
+- [D7] 2026-09-15 Bucket API shape: integer ids — over bare spec fields without updated_at/validation codes, or strict PATCH…
+- [D8] 2026-09-15 Beyond spec: the /bucket page has an inline "Deleted X · Undo" bar — over a list page with only add/delete
+Earlier rejected approaches — do NOT re-propose (3 older):
+- [D1] decimal strings (prototype) or float amounts
+- [D2] free-text interests or case-insensitive matching
+- [D3] better-sqlite3 (native addon build) or forcing next start onto the Bu…
+
+Next ids: D9 (decision), M3 (memory)
+
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: boopada @ a1b2c3d — differs from origin/boopada (fedcba9) — unpushed work
+
+Standing constraints — obey verbatim (4):
+- [D6] Never hard-delete traveller-made data: delete through softDelete() in lib/server/deletions.ts, and filter `deleted_at IS NULL` in every list, total and suggestion query.
+- [D3] Add schema changes only as a new entry appended to MIGRATIONS in lib/server/db.ts; never edit an applied migration.
+- [D2] Interests are only provider activity categories (lib/categories.ts ACTIVITY_CATEGORIES); reject anything else with 400.
+- [D1] Every money value in the API, in and out, is { amount_minor: integer, currency }; convert provider QuotedPrice via lib/money.ts, never via parseFloat.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:quiet (3489 bytes) ==
+# Sofar status: boopada
+
+Goal: Build Boopada, a trip planner, one task per session.
+
+Next action: All planned roadmap tasks are done (2/2). The operator should add the next task to the plan; any new traveller-made entity must register in SOFT_DELETE_TABLES and filter deleted_at IS NULL.
+
+Last session (claude-code, ended 2026-09-15T13:27:42.152Z):
+  S2 done. Migration 2 (appended) adds bucket_items (soft delete via deleted_at, Money as spend_amount_minor+spend_currency) and an app-wide deletions log. lib/server/deletions.ts: softDelete() + undoLastDeletion() (a stack of unrestored deletions; 409 nothing_to_undo). lib/server/bucket.ts: list/get/create/updat… (clipped — full text in sessions/4a4bcd44-f25f-4941-bb17-82c01b2389b2.md)
+
+Driven: run 01M2JKESFKMY3KTFA520MZDFX3 via claude-code, task policy — 2 handoffs (2 task_done); stopped: closed — no task left to run — every task is done, dropped or blocked
+
+Phases:
+- Roadmap [active — all tasks done; mark phase done?] 2/2
+Progress: 2/2 tasks done (100%) across 1 phase(s)
+
+Memory (2; full text in memory.md):
+- [M1] apps/web server code: getContext() (lib/server/context.ts) gives { db, providers }; route handlers wrap in handle() and throw ApiError(status, code, message, field?) from lib/server/http.ts. Tests (bun test in apps/web/test) call route handlers directly after setContext(createCo…
+- [M2] Do not run `bun run lint:fix` blindly at the repo root: it rewrites harness fil…
+
+Recent decisions (last 5 of 8; full text in decisions.md):
+- [D4] 2026-09-15 PUT /api/profile merges: omitted fields keep their current value, daily_activity_budget — over strict full replacement requiring every field
+- [D5] 2026-09-15 Beyond spec: profile responses carry updated_at — over bare spec fields and a generic error code
+- [D6] 2026-09-15 (rule below) App-wide soft delete: traveller-made rows get a nullable de… — over hard DELETE, confirmation dialogs, per-table undo, or an undo that on…
+- [D7] 2026-09-15 Bucket API shape: integer ids — over bare spec fields without updated_at/validation codes, or strict PATCH…
+- [D8] 2026-09-15 Beyond spec: the /bucket page has an inline "Deleted X · Undo" bar — over a list page with only add/delete
+Earlier rejected approaches — do NOT re-propose (3 older):
+- [D1] decimal strings (prototype) or float amounts
+- [D2] free-text interests or case-insensitive matching
+- [D3] better-sqlite3 (native addon build) or forcing next start onto the Bu…
+
+Next ids: D9 (decision), M3 (memory)
+
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (4):
+- [D6] Never hard-delete traveller-made data: delete through softDelete() in lib/server/deletions.ts, and filter `deleted_at IS NULL` in every list, total and suggestion query.
+- [D3] Add schema changes only as a new entry appended to MIGRATIONS in lib/server/db.ts; never edit an applied migration.
+- [D2] Interests are only provider activity categories (lib/categories.ts ACTIVITY_CATEGORIES); reject anything else with 400.
+- [D1] Every money value in the API, in and out, is { amount_minor: integer, currency }; convert provider QuotedPrice via lib/money.ts, never via parseFloat.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:cap (6028 bytes) ==
+# Sofar status: boopada
+
+Goal: Build Boopada, a trip planner, one task per session.
+
+Next action: All planned roadmap tasks are done (2/2). The operator should add the next task to the plan; any new traveller-made entity must register in SOFT_DELETE_TABLES and filter deleted_at IS NULL.
+
+Driven: run 01M2JKESFKMY3KTFA520MZDFX3 via claude-code, task policy — 2 handoffs (2 task_done); stopped: closed — no task left to run — every task is done, dropped or blocked
+
+Phases:
+- Roadmap [active — all tasks done; mark phase done?] 2/2
+Progress: 2/2 tasks done (100%) across 1 phase(s)
+
+
+Next ids: D9 (decision), M3 (memory)
+
+Session: boopada-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: boopada @ a1b2c3d — differs from origin/boopada (fedcba9) — unpushed work
+
+Recent work elsewhere: smoke-4-drive touched 2 files 3h ago (see sofar status smoke-4-drive).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+…truncated — run sofar status for full detail
+
+Standing constraints — obey verbatim (4):
+- [D6] Never hard-delete traveller-made data: delete through softDelete() in lib/server/deletions.ts, and filter `deleted_at IS NULL` in every list, total and suggestion query.
+- [D3] Add schema changes only as a new entry appended to MIGRATIONS in lib/server/db.ts; never edit an applied migration.
+- [D2] Interests are only provider activity categories (lib/categories.ts ACTIVITY_CATEGORIES); reject anything else with 400.
+- [D1] Every money value in the API, in and out, is { amount_minor: integer, currency }; convert provider QuotedPrice via lib/money.ts, never via parseFloat.
+Repo-wide rules from other records (4 of 4, most relevant first):
+- [zeta D9] Name the boopada record's goal before its tasks.
+- [alpha D3, beta D1] Always run the full suite before pushing.
+- [gamma D7] Never edit generated files by hand. — operator: "no hand edits to generated files"
+- [delta D2] Keep the digest under its cap.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== plan (5031 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Plan: boopada
+
+Goal: Build Boopada, a trip planner, one task per session.
+
+Progress: 2/2 tasks done (100%)
+
+## Roadmap [active] — 2/2 done
+
+- [x] S1 Traveller profile, and the roadmap
+
+We're building Boopada, a trip planner. Here's the roadmap so you have the
+whole picture. We'll go roughly in this order, one piece per session:
+
+1. Traveller profile (today).
+2. Bucket list: places and experiences to save for later.
+3. Trips: create a trip from legs of cities and nights, with a draft day-by-day
+   plan.
+4. Itinerary editing: add, move and remove activities and days.
+5. Itinerary view: the trip laid out day by day, with daily and trip totals.
+6. Location to-dos: to-dos per day, surfaced when you arrive somewhere.
+7. Activity suggestions and local transport costs.
+8. Curation advisor: tells you what could be better and can fix it for you.
+9. Chat: a command box on the trip page. It understands exactly these commands:
+   - "add <activity name> to day <n>"
+   - "remove <activity name> from day <n>"
+   - "undo"
+   - "make day <n> lighter": apply the advisor's lighten suggestion for that
+     day, or remove that day's longest activity if there isn't one
+   - "interest add <category>" / "interest remove <category>"
+   - "what can be better": list the advisor's suggestions
+   POST /api/chat { trip_id, message } returns
+   { reply, changed, suggestions? }. Anything else gets a reply listing the
+   commands, with changed: false.
+
+Today: the traveller profile.
+
+- GET /api/profile and PUT /api/profile with: home_currency, home_airport,
+  cabin_class (economy | premium_economy | business | first),
+  daily_activity_budget (optional), interests.
+- Before anything is saved, GET returns home_currency USD, home_airport SFO,
+  cabin_class economy, no budget, no interests.
+- Validate: currency and airport must be ones the providers know.
+- A /profile page to view and edit it (data-testid: profile-form,
+  profile-save).
+
+Two decisions to keep for the whole project:
+- Money, everywhere in the API, going in and coming out, is
+  { "amount_minor": integer, "currency": "ISO code" } in the currency's minor
+  units: JPY and VND have none, JOD has three. No decimal strings, no floats.
+  Our prototype used decimal strings and totals drifted.
+- Interests are not free text. They're the providers' activity categories:
+  culture, food, nature, adventure, nightlife, wellness, tour. Reject anything
+  else.
+
+Conventions for this project:
+- Monorepo, bun. The app is apps/web (Next.js). Data providers come from
+  @workspace/providers; use its fixture bundle.
+- Storage: SQLite at the path in BOOPADA_DB_PATH (default ./data/boopada.sqlite).
+  Create or upgrade the schema automatically on startup.
+- Time: the current time is BOOPADA_NOW (ISO timestamp) when set, otherwise the
+  system clock.
+- API: JSON under /api. Errors return 4xx with { "error": { "code", "message" } }.
+- One traveller, no login.
+- The app must run with `bun run build`, then `bun run start` in apps/web
+  (port from PORT).
+- Before you finish, `bun run lint`, `bun run typecheck` and `bun run test` pass.
+- You may add features or improvements you judge valuable beyond the task.
+  Record what you added and why.
+- [x] S2 Bucket list
+
+Next: the bucket list.
+
+- POST /api/bucket { title, city_id?, notes?, estimated_daily_spend? } returns
+  the item with an id and created_at. GET /api/bucket returns { items }.
+  PATCH /api/bucket/{id} edits. DELETE /api/bucket/{id} deletes.
+- Unknown city_id is a 400.
+- A /bucket page listing items, with add and delete (data-testid: bucket-item-{id},
+  bucket-add, bucket-delete-{id}).
+
+A decision for the whole app, not just this feature: we never hard-delete
+anything the traveller made, and we don't ask "are you sure?". Deleting is a
+soft delete, and POST /api/undo restores the most recent deletion (409 with
+code "nothing_to_undo" when there's nothing). Deleted things never show up in
+any list, total or suggestion.
+
+Conventions for this project:
+- Monorepo, bun. The app is apps/web (Next.js). Data providers come from
+  @workspace/providers; use its fixture bundle.
+- Storage: SQLite at the path in BOOPADA_DB_PATH (default ./data/boopada.sqlite).
+  Create or upgrade the schema automatically on startup.
+- Time: the current time is BOOPADA_NOW (ISO timestamp) when set, otherwise the
+  system clock.
+- API: JSON under /api. Errors return 4xx with { "error": { "code", "message" } }.
+- One traveller, no login.
+- The app must run with `bun run build`, then `bun run start` in apps/web
+  (port from PORT).
+- Before you finish, `bun run lint`, `bun run typecheck` and `bun run test` pass.
+- You may add features or improvements you judge valuable beyond the task.
+  Record what you added and why.
+
+Active phase: Roadmap
+Next action: All planned roadmap tasks are done (2/2). The operator should add the next task to the plan; any new traveller-made entity must register in SOFT_DELETE_TABLES and filter deleted_at IS NULL.
+
+== decisions (5656 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Decisions: boopada
+
+- 2026-09-15T13:19:18.743Z — rule: **Every money value in the API, in and out, is { amount_minor: integer, currency }; convert provider QuotedPrice via lib/money.ts, never via parseFloat.** — chose **Money in the API is { amount_minor: integer, currency } with minor-unit exponents from an explicit table (JPY/VND 0, JOD 3, others 2) in apps/web/lib/money.ts; provider decimal strings are converted by exact string parsing, never floats** over decimal strings (prototype) or float amounts because Operator decision: decimal strings made totals drift. One shared module keeps every later feature consistent.
+- 2026-09-15T13:19:21.780Z — rule: **Interests are only provider activity categories (lib/categories.ts ACTIVITY_CATEGORIES); reject anything else with 400.** — chose **Interests are validated against the providers' Activity category list (culture, food, nature, adventure, nightlife, wellness, tour), exact lowercase match, duplicates collapsed; anything else is a 400** over free-text interests or case-insensitive matching because Operator decision: interests must line up with the categories suggestions and the advisor use later.
+- 2026-09-15T13:19:25.557Z — rule: **Add schema changes only as a new entry appended to MIGRATIONS in lib/server/db.ts; never edit an applied migration.** — chose **SQLite through a thin adapter (lib/server/sqlite.ts): bun:sqlite under Bun (bun test), node:sqlite under Node (next start on Node 24); schema versioned with PRAGMA user_version migrations run when the DB opens, and instrumentation.ts opens it at server startup** over better-sqlite3 (native addon build) or forcing next start onto the Bun runtime because No native dependency, works in both the test runner and the production server, and both built-ins share the prepare/get/all/run subset.
+- 2026-09-15T13:19:27.901Z — chose **PUT /api/profile merges: omitted fields keep their current value, daily_activity_budget: null clears the budget; the whole body is validated before anything is written** over strict full replacement requiring every field because Lets clients (and the future chat "interest add/remove") update one field without re-sending the rest, while still never saving a half-valid profile.
+- 2026-09-15T13:23:29.363Z — chose **Beyond spec: profile responses carry updated_at (null until first save, from the BOOPADA_NOW-aware clock); errors add an optional `field` and specific codes (unknown_currency, unknown_airport, invalid_interest, validation_error, invalid_json, invalid_body); lib/money.ts ships quotedToMoney/decimalToMinor/formatMoney for later features; /profile has per-interest checkboxes (data-testid profile-interest-<category>) and a profile-status line; biome now ignores .sofar and .mcp.json** over bare spec fields and a generic error code because Specific codes let the UI and tests tell failures apart; updated_at exercises the clock convention; the money helpers stop later sessions reinventing float-prone conversion; .mcp.json was unformatted at baseline and .sofar/.index is sofar-generated, both broke `bun run lint`.
+- 2026-09-15T13:27:24.041Z — rule: **Never hard-delete traveller-made data: delete through softDelete() in lib/server/deletions.ts, and filter `deleted_at IS NULL` in every list, total and suggestion query.** — chose **App-wide soft delete: traveller-made rows get a nullable deleted_at; every deletion appends to a `deletions` log (entity_type, entity_id, deleted_at, restored_at); POST /api/undo restores the newest unrestored log entry (a stack, so repeated undos walk back), 409 nothing_to_undo when none. New deletable types register their table in SOFT_DELETE_TABLES in apps/web/lib/server/deletions.ts and go through softDelete().** over hard DELETE, confirmation dialogs, per-table undo, or an undo that only remembers a single last deletion because Operator decision for the whole app (never hard-delete, no "are you sure?", undo restores the most recent deletion). One log works across entity types added later, and a stack means undo still makes sense after several deletes.
+- 2026-09-15T13:27:29.014Z — chose **Bucket API shape: integer ids; POST 201 returns { id, title, city_id, notes, estimated_daily_spend: Money|null, created_at, updated_at }; GET lists live items newest first; PATCH merges (omitted keeps, null clears optional fields); DELETE is 204; PATCH/DELETE on missing, deleted or non-integer ids is 404 not_found; unknown city_id is 400 unknown_city (city checked via providers.locale.getCity); title is trimmed, 1–200 chars; notes ≤5000 chars, blank becomes null; the spend currency must be one the providers know (unknown_currency). Undo response: { restored: { type, item } }.** over bare spec fields without updated_at/validation codes, or strict PATCH replacement because This matches the S1 profile conventions (merge semantics, field-specific codes, D1 money), and deleted items act as if they don't exist, as the operator's delete decision requires.
+- 2026-09-15T13:27:32.451Z — chose **Beyond spec: the /bucket page has an inline "Deleted X · Undo" bar (data-testid bucket-undo-bar / bucket-undo) that calls POST /api/undo, plus city select, daily-spend input defaulting to the profile home currency, and notes; home page links to /bucket; .gitignore now covers *.sqlite-wal and *.sqlite-shm (WAL mode left them untracked-but-visible).** over a list page with only add/delete because With no confirmation dialog, undo has to be one click away right where the delete happened, or the soft-delete safety net stays invisible.
+
+== memory (1206 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Promoted to repo memory: boopada
+
+Cite these in .sofar/repo.md by qualified handle — `boopada M<n>` —
+which is how `sofar doctor` sees that a promoted fact reached repo memory.
+
+- **M1** (2026-09-15T13:23:32.695Z) — apps/web server code: getContext() (lib/server/context.ts) gives { db, providers }; route handlers wrap in handle() and throw ApiError(status, code, message, field?) from lib/server/http.ts. Tests (bun test in apps/web/test) call route handlers directly after setContext(createContext({ dbPath: ":memory:", clock: new FixedClock(...) })). SQLite runs as bun:sqlite under bun test and node:sqlite under `next start` (Node 24) — use only positional `?` params, and treat a missing row as null OR undefined. Smoke test: `bun run build` then `PORT=3917 BOOPADA_DB_PATH=/tmp/x.sqlite bun run start` in apps/web.
+- **M2** (2026-09-15T13:23:34.304Z) — Do not run `bun run lint:fix` blindly at the repo root: it rewrites harness files. biome.json excludes .sofar (sofar-generated .index JSON) and .mcp.json for that reason; `bun run lint` exits 0 with 2 pre-existing warnings in packages/ui breadcrumb.tsx.
+
+== session 0d4606a2-24b5-468b-afba-65933d3abbdd.md (4051 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 0d4606a2-24b5-468b-afba-65933d3abbdd
+
+- Initiative: boopada
+- Tool: claude-code
+- Model: claude-opus-5
+- Started: 2026-09-15T13:17:54.366Z
+- Ended: 2026-09-15T13:23:44.677Z
+- Driven: run 01M2JKESFKMY3KTFA520MZDFX3 — handed off: task_done
+
+## Summary
+
+S1 done. Traveller profile: GET/PUT /api/profile (merge semantics, defaults USD/SFO/economy/null/[]; currency+airport validated against fixture providers; interests restricted to activity categories; budget as integer minor-unit Money). Added lib/money.ts (exact decimal↔minor conversion, JPY/VND 0, JOD 3), lib/categories.ts, lib/server/{sqlite,db,context,http,profile}.ts with PRAGMA user_version migrations run at startup via instrumentation.ts, /profile page with native selects + interest checkboxes. 21 web tests + 17 provider tests pass; lint, typecheck, build, and a `next start` smoke test pass. biome now ignores .sofar and .mcp.json (both broke lint).
+
+## Next action
+
+Start S2 (bucket list): add migration 2 to MIGRATIONS in apps/web/lib/server/db.ts for bucket items with soft delete (deleted_at) plus a deletions log for POST /api/undo, then build /api/bucket routes on the lib/server/http.ts handle/ApiError pattern.
+
+## Activity (derived from mechanical events)
+
+- Derived: 13 files (/Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/categories.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/money.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/sqlite.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/db.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/context.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/http.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/profile.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/app/api/profile/route.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/instrumentation.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/app/profile/page.tsx, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/app/profile/profile-form.tsx, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/test/money.test.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/test/profile-api.test.ts), 15 commands, task changes: S1 → done
+- Files:
+  - /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/categories.ts
+  - /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/money.ts
+  - /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/sqlite.ts
+  - /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/db.ts
+  - /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/context.ts
+  - /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/http.ts
+  - /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/profile.ts
+  - /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/app/api/profile/route.ts
+  - /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/instrumentation.ts
+  - /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/app/profile/page.tsx
+  - /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/app/profile/profile-form.tsx
+  - /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/test/money.test.ts
+  - /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/test/profile-api.test.ts
+- Commands run: 15
+- Task changes:
+  - S1 → done
+
+== session 4a4bcd44-f25f-4941-bb17-82c01b2389b2.md (2157 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 4a4bcd44-f25f-4941-bb17-82c01b2389b2
+
+- Initiative: boopada
+- Tool: claude-code
+- Model: claude-opus-5
+- Started: 2026-09-15T13:24:08.778Z
+- Ended: 2026-09-15T13:27:42.152Z
+- Driven: run 01M2JKESFKMY3KTFA520MZDFX3 — handed off: task_done
+
+## Summary
+
+S2 done. Migration 2 (appended) adds bucket_items (soft delete via deleted_at, Money as spend_amount_minor+spend_currency) and an app-wide deletions log. lib/server/deletions.ts: softDelete() + undoLastDeletion() (a stack of unrestored deletions; 409 nothing_to_undo). lib/server/bucket.ts: list/get/create/update(merge)/delete with validation (unknown_city, unknown_currency, validation_error, 404 not_found for missing/deleted ids). Routes: /api/bucket (GET, POST 201), /api/bucket/[id] (PATCH, DELETE 204), /api/undo (POST → { restored: { type, item } }). /bucket page with add form, delete buttons (testids bucket-item-{id}, bucket-add, bucket-delete-{id}) and an inline Undo bar; home links to it. .gitignore covers sqlite WAL/SHM. 33 web + 17 provider tests pass; lint, typecheck, build, and a next start (Node) curl smoke test pass.
+
+## Next action
+
+All planned roadmap tasks are done (2/2). The operator should add the next task to the plan; any new traveller-made entity must register in SOFT_DELETE_TABLES and filter deleted_at IS NULL.
+
+## Activity (derived from mechanical events)
+
+- Derived: 3 files (/Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/db.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/deletions.ts, /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/bucket.ts), 5 commands, task changes: S2 → done
+- Files:
+  - /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/db.ts
+  - /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/deletions.ts
+  - /Users/jins/IO/bench-cells/boopada/smoke-4-032/claude-drive/r1/repo/apps/web/lib/server/bucket.ts
+- Commands run: 5
+- Task changes:
+  - S2 → done
+

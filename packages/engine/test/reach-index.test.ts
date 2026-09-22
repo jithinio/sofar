@@ -654,8 +654,11 @@ describe('3.5 lexical seeds — a question resolves to seeds', () => {
     expect(out.stdout).toMatch(/matched correction.* · event /)
     expect(out.stdout).toContain(`event ${cursor.id}`)
     expect(out.stdout).toContain('never as an answer')
-    // The question is a sentence; it must never be used to NAME a node.
-    expect(out.stdout).toContain('logged alpha D1')
+    // The question is a sentence; it must never be used to NAME a node — a
+    // node is named by its handle. Which decision the expansion shows depends
+    // on the two decisions' wall-clock ts (same millisecond or not), so
+    // either handle proves it (rust-core CI 2026-09-22: D2 under load).
+    expect(out.stdout).toMatch(/logged alpha D[12]\b/)
     expect(out.stdout).not.toMatch(/answers|about this|you must|relevant to/i)
     expect(refreshReach(sofar).lexicon.length).toBeGreaterThan(0)
   })

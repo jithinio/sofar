@@ -1,0 +1,500 @@
+== options (37080 bytes) ==
+{
+  "plain": {},
+  "hook": {
+    "sessionId": "peer-messaging-session",
+    "git": {
+      "branch": "feature/peer-messaging",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    },
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare."
+    ]
+  },
+  "lane": {
+    "lane": true,
+    "sessionId": "lane-session",
+    "git": {
+      "branch": "feature/peer-messaging",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    }
+  },
+  "quiet": {
+    "activity": false,
+    "sessionId": " quiet-session\t"
+  },
+  "cap": {
+    "sessionId": "peer-messaging-session",
+    "git": {
+      "branch": "feature/peer-messaging",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    },
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare.",
+      "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    ]
+  }
+}
+== status (4833 bytes) ==
+# peer-messaging
+
+Goal: Make sofar the addressing layer for Claude Code cross-session messaging: where a collision surface already names a colliding session, also name it as a reachable peer so Claude can warn it with its OWN SendMessage — sofar never posts, never opens a socket, never calls a model (felt-cost D3 intact). Plus close the jurisdiction leak: a finding arriving by message is not recorded until it is recorded. Strictly best-effort per BD22 — the ~/.claude/sessions/<pid>.json registry is UNDOCUMENTED, so any absence, parse failure, or shape change omits the address and degrades to exactly today's behavior.
+
+Standing constraints — obey verbatim (1):
+- [D1] Peer resolution is an optional last inch: sofar must never bind an inbox socket or send a message itself, and no surface may become correct only when a peer resolves — the record-side line has to stand alone.
+Progress: 5/5 tasks done (100%) across 4 phase(s)
+
+Phases:
+- Phase 1 — Peer resolution [done] 1/1
+  - [x] 1.1 core/peers.ts: resolve a Claude Code session id to the name SendMessage addresses, from ~/.claude/sessions/<pid>.json (CLAUDE_CONFIG_DIR honored). No subprocess, liveness via kill(pid,0), name-collision flagged, every failure mode returns no-peer. Tests pin each degradation path.
+- Phase 2 — Annotate the collision surfaces [done] 2/2
+  - [x] 2.1 UserPromptSubmit: after the 2.1 conflict line, name the colliding session as a reachable peer and say to record what comes back
+  - [x] 2.2 end_session: optional `peer` on each parallel_writebacks entry, added at the mcp layer so core/fold's ParallelWriteback stays a pure derivation
+- Phase 3 — Jurisdiction [done] 1/1
+  - [x] 3.1 Protocol block V3 + AGENTS V2: clause 1 covers a finding that arrives from another session. Old blocks move to the ledger byte-exact.
+- Phase 4 — Contract [done] 1/1
+  - [x] 4.1 docs/SPEC.md: peer resolution contract, the two surface shapes, acceptance criteria
+
+Next action: record-index 2.1: Tier 0 (open.json) then 2.2 wire the cross-initiative hook and re-measure. Still open behind it: review/merge the peer-messaging branch stack, then drift-certification 3.1 (~20 traps, then the P-cell floor under the isolation rule).
+
+Last session (claude-code, ended 2026-08-13T14:57:20.632Z):
+  Phase-close repair from phase-lifecycle 4.3 (D5). No work on peer-messaging itself: read plan.md, judged all 4 phases genuinely finished (5/5 tasks), appended phase_status_changed done for each. Next action carried forward verbatim.
+
+Files touched (33):
+- /Users/jins/IO/sofar/packages/engine/src/core/peers.ts
+- /Users/jins/IO/sofar/packages/engine/test/peers.test.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+- /Users/jins/IO/sofar/packages/engine/test/peer-line.test.ts
+- /Users/jins/IO/sofar/packages/engine/src/mcp/end-session.ts
+- /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/init.ts
+- /Users/jins/IO/sofar/docs/SPEC.md
+- /Users/jins/IO/sofar/packages/engine/test/livefire.peers.test.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/9e94756b-eca8-4731-9012-6e2819f2ce4d/scratchpad/msg2.txt
+- /Users/jins/IO/sofar/packages/engine/test/tmp-foldbench.test.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/9e94756b-eca8-4731-9012-6e2819f2ce4d/scratchpad/msg3.txt
+- /Users/jins/IO/sofar/packages/engine/src/core/warmth.ts
+- /Users/jins/IO/sofar/packages/engine/test/warmth.test.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/fold.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/listing.ts
+- /Users/jins/IO/sofar/packages/engine/src/mcp/context.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/cross-conflicts.ts
+- /Users/jins/IO/sofar/packages/engine/test/tmp-scale.test.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts
+- /Users/jins/IO/sofar/packages/engine/test/cross-conflicts.test.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/9e94756b-eca8-4731-9012-6e2819f2ce4d/scratchpad/msg4.txt
+- /Users/jins/IO/sofar/packages/engine/src/core/index-store.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/index-tail.ts
+- /Users/jins/IO/sofar/packages/engine/test/index-incremental.test.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/9e94756b-eca8-4731-9012-6e2819f2ce4d/scratchpad/msg5.txt
+- /Users/jins/IO/sofar/packages/engine/src/core/index-tier0.ts
+- /Users/jins/IO/sofar/packages/engine/test/index-tier0.test.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/9e94756b-eca8-4731-9012-6e2819f2ce4d/scratchpad/msg6.txt
+- /private/tmp/claude-501/-Users-jins-IO-sofar/9e94756b-eca8-4731-9012-6e2819f2ce4d/scratchpad/msg7.txt
+- /Users/jins/IO/sofar/docs/ARCHITECTURE.md
+- /Users/jins/IO/sofar/packages/engine/test/architecture-doc.test.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/9e94756b-eca8-4731-9012-6e2819f2ce4d/scratchpad/sofar-architecture.html
+
+== digest:plain (2244 bytes) ==
+# Sofar status: peer-messaging
+
+Goal: Make sofar the addressing layer for Claude Code cross-session messaging: where a collision surface already names a colliding session, also name it as a reachable peer so Claude can warn it with its OWN SendMessage — sofar never posts, never opens a socket, never calls a model (felt-cost D3 intact). Plus close the jurisdiction leak: a finding arriving by message is not recorded until it is recorde…
+
+Next action: record-index 2.1: Tier 0 (open.json) then 2.2 wire the cross-initiative hook and re-measure. Still open behind it: review/merge the peer-messaging branch stack, then drift-certification 3.1 (~20 traps, then the P-cell floor under the isolation rule).
+
+Last session (claude-code, ended 2026-08-13T14:57:20.632Z):
+  Phase-close repair from phase-lifecycle 4.3 (D5). No work on peer-messaging itself: read plan.md, judged all 4 phases genuinely finished (5/5 tasks), appended phase_status_changed done for each. Next action carried forward verbatim.
+
+Last session (claude-code) open, no write-back yet — derived: 12 commands
+  (details in sessions/7f2e5c1e-ee9d-4534-bfb8-5c10c7d75849.md)
+
+⚠ 1 other session(s) did work without writing back: a12107f9-c4aa-4538-a56d-d5463773c2fa
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (5/5 tasks)
+Progress: 5/5 tasks done (100%) across 4 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] grep SILENTLY MISSES packages/engine/src/core/fold.ts — the most-searched file …
+
+Recent decisions (1; full text in decisions.md):
+- [D1] 2026-08-08 (rule below) sofar resolves the ADDRESS, Claude's own SendMessage delive… — over sofar posting directly into CLAUDE_CODE_MESSAGING_SOCKET
+
+Next ids: D2 (decision), M2 (memory)
+
+Standing constraints — obey verbatim (1):
+- [D1] Peer resolution is an optional last inch: sofar must never bind an inbox socket or send a message itself, and no surface may become correct only when a peer resolves — the record-side line has to stand alone.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:hook (3182 bytes) ==
+# Sofar status: peer-messaging
+
+Goal: Make sofar the addressing layer for Claude Code cross-session messaging: where a collision surface already names a colliding session, also name it as a reachable peer so Claude can warn it with its OWN SendMessage — sofar never posts, never opens a socket, never calls a model (felt-cost D3 intact). Plus close the jurisdiction leak: a finding arriving by message is not recorded until it is recorde…
+
+Next action: record-index 2.1: Tier 0 (open.json) then 2.2 wire the cross-initiative hook and re-measure. Still open behind it: review/merge the peer-messaging branch stack, then drift-certification 3.1 (~20 traps, then the P-cell floor under the isolation rule).
+
+Last session (claude-code, ended 2026-08-13T14:57:20.632Z):
+  Phase-close repair from phase-lifecycle 4.3 (D5). No work on peer-messaging itself: read plan.md, judged all 4 phases genuinely finished (5/5 tasks), appended phase_status_changed done for each. Next action carried forward verbatim.
+
+Last session (claude-code) open, no write-back yet — derived: 12 commands
+  (details in sessions/7f2e5c1e-ee9d-4534-bfb8-5c10c7d75849.md)
+
+⚠ 1 other session(s) did work without writing back: a12107f9-c4aa-4538-a56d-d5463773c2fa
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (5/5 tasks)
+Progress: 5/5 tasks done (100%) across 4 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] grep SILENTLY MISSES packages/engine/src/core/fold.ts — the most-searched file …
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+…truncated — read .sofar/repo.md for the rest
+
+Recent decisions (1; full text in decisions.md):
+- [D1] 2026-08-08 (rule below) sofar resolves the ADDRESS, Claude's own SendMessage delive… — over sofar posting directly into CLAUDE_CODE_MESSAGING_SOCKET
+
+Next ids: D2 (decision), M2 (memory)
+
+Session: peer-messaging-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: feature/peer-messaging @ a1b2c3d — in sync with origin/feature/peer-messaging
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+Standing constraints — obey verbatim (1):
+- [D1] Peer resolution is an optional last inch: sofar must never bind an inbox socket or send a message itself, and no surface may become correct only when a peer resolves — the record-side line has to stand alone.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:lane (2776 bytes) ==
+# Sofar: quick-work lane (peer-messaging)
+
+Goal: Make sofar the addressing layer for Claude Code cross-session messaging: where a collision surface already names a colliding session, also name it as a reachable peer so Claude can warn it with its OWN SendMessage — sofar never posts, never opens a socket, never calls a model (felt-cost D3 intact). Plus close the jurisdiction leak: a finding arriving by message is not recorded until it is recorde…
+
+This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
+- Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
+- Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
+
+Last session (claude-code, ended 2026-08-13T14:57:20.632Z):
+  Phase-close repair from phase-lifecycle 4.3 (D5). No work on peer-messaging itself: read plan.md, judged all 4 phases genuinely finished (5/5 tasks), appended phase_status_changed done for each. Next action carried forward verbatim.
+
+Recent quick work (5 sessions, 1 decision since 2026-08-08):
+- 2026-09-14 claude-code — 12 commands
+- 2026-08-08 claude-code — 8 commands
+- 2026-08-08 claude-code — 33 files (/Users/jins/IO/sofar/packages/engine/src/core/peers.ts, /Users/jins/IO/sofar/packages/engine/test/peers.test.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/test/peer-line.test.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/end-session.ts, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/engine/src/cli/init.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/engine/test/livefire.peers.test.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/9e94756b-eca8-473…
+
+Memory (1; full text in memory.md):
+- [M1] grep SILENTLY MISSES packages/engine/src/core/fold.ts — the most-searched file …
+
+Recent decisions (1; full text in decisions.md):
+- [D1] 2026-08-08 (rule below) sofar resolves the ADDRESS, Claude's own SendMessage delive… — over sofar posting directly into CLAUDE_CODE_MESSAGING_SOCKET
+
+Next ids: D2 (decision), M2 (memory)
+
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: feature/peer-messaging @ a1b2c3d — in sync with origin/feature/peer-messaging
+
+Standing constraints — obey verbatim (1):
+- [D1] Peer resolution is an optional last inch: sofar must never bind an inbox socket or send a message itself, and no surface may become correct only when a peer resolves — the record-side line has to stand alone.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:quiet (2330 bytes) ==
+# Sofar status: peer-messaging
+
+Goal: Make sofar the addressing layer for Claude Code cross-session messaging: where a collision surface already names a colliding session, also name it as a reachable peer so Claude can warn it with its OWN SendMessage — sofar never posts, never opens a socket, never calls a model (felt-cost D3 intact). Plus close the jurisdiction leak: a finding arriving by message is not recorded until it is recorde…
+
+Next action: record-index 2.1: Tier 0 (open.json) then 2.2 wire the cross-initiative hook and re-measure. Still open behind it: review/merge the peer-messaging branch stack, then drift-certification 3.1 (~20 traps, then the P-cell floor under the isolation rule).
+
+Last session (claude-code, ended 2026-08-13T14:57:20.632Z):
+  Phase-close repair from phase-lifecycle 4.3 (D5). No work on peer-messaging itself: read plan.md, judged all 4 phases genuinely finished (5/5 tasks), appended phase_status_changed done for each. Next action carried forward verbatim.
+
+Last session (claude-code) open, no write-back yet — derived: 12 commands
+  (details in sessions/7f2e5c1e-ee9d-4534-bfb8-5c10c7d75849.md)
+
+⚠ 1 other session(s) did work without writing back: a12107f9-c4aa-4538-a56d-d5463773c2fa
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (5/5 tasks)
+Progress: 5/5 tasks done (100%) across 4 phase(s)
+
+Memory (1; full text in memory.md):
+- [M1] grep SILENTLY MISSES packages/engine/src/core/fold.ts — the most-searched file …
+
+Recent decisions (1; full text in decisions.md):
+- [D1] 2026-08-08 (rule below) sofar resolves the ADDRESS, Claude's own SendMessage delive… — over sofar posting directly into CLAUDE_CODE_MESSAGING_SOCKET
+
+Next ids: D2 (decision), M2 (memory)
+
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (1):
+- [D1] Peer resolution is an optional last inch: sofar must never bind an inbox socket or send a message itself, and no surface may become correct only when a peer resolves — the record-side line has to stand alone.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:cap (6026 bytes) ==
+# Sofar status: peer-messaging
+
+Goal: Make sofar the addressing layer for Claude Code cross-session messaging: where a collision surface already names a colliding session, also name it as a reachable peer so Claude can warn it with its OWN SendMessage — sofar never posts, never opens a socket, never calls a model (felt-cost D3 intact). Plus close the jurisdiction leak: a finding arriving by message is not recorded until it is recorde…
+
+Next action: record-index 2.1: Tier 0 (open.json) then 2.2 wire the cross-initiative hook and re-measure. Still open behind it: review/merge the peer-messaging branch stack, then drift-certification 3.1 (~20 traps, then the P-cell floor under the isolation rule).
+
+Last session (claude-code) open, no write-back yet — derived: 12 commands
+  (details in sessions/7f2e5c1e-ee9d-4534-bfb8-5c10c7d75849.md)
+
+⚠ 1 other session(s) did work without writing back: a12107f9-c4aa-4538-a56d-d5463773c2fa
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (5/5 tasks)
+Progress: 5/5 tasks done (100%) across 4 phase(s)
+
+
+Next ids: D2 (decision), M2 (memory)
+
+Session: peer-messaging-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: feature/peer-messaging @ a1b2c3d — in sync with origin/feature/peer-messaging
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+…truncated — run sofar status for full detail
+
+Standing constraints — obey verbatim (1):
+- [D1] Peer resolution is an optional last inch: sofar must never bind an inbox socket or send a message itself, and no surface may become correct only when a peer resolves — the record-side line has to stand alone.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== plan (2723 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Plan: peer-messaging
+
+Goal: Make sofar the addressing layer for Claude Code cross-session messaging: where a collision surface already names a colliding session, also name it as a reachable peer so Claude can warn it with its OWN SendMessage — sofar never posts, never opens a socket, never calls a model (felt-cost D3 intact). Plus close the jurisdiction leak: a finding arriving by message is not recorded until it is recorded. Strictly best-effort per BD22 — the ~/.claude/sessions/<pid>.json registry is UNDOCUMENTED, so any absence, parse failure, or shape change omits the address and degrades to exactly today's behavior.
+
+Progress: 5/5 tasks done (100%)
+
+## Phase 1 — Peer resolution [done] — 1/1 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
+
+- [x] 1.1 core/peers.ts: resolve a Claude Code session id to the name SendMessage addresses, from ~/.claude/sessions/<pid>.json (CLAUDE_CONFIG_DIR honored). No subprocess, liveness via kill(pid,0), name-collision flagged, every failure mode returns no-peer. Tests pin each degradation path.
+
+## Phase 2 — Annotate the collision surfaces [done] — 2/2 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
+
+- [x] 2.1 UserPromptSubmit: after the 2.1 conflict line, name the colliding session as a reachable peer and say to record what comes back
+- [x] 2.2 end_session: optional `peer` on each parallel_writebacks entry, added at the mcp layer so core/fold's ParallelWriteback stays a pure derivation
+
+## Phase 3 — Jurisdiction [done] — 1/1 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
+
+- [x] 3.1 Protocol block V3 + AGENTS V2: clause 1 covers a finding that arrives from another session. Old blocks move to the ledger byte-exact.
+
+## Phase 4 — Contract [done] — 1/1 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
+
+- [x] 4.1 docs/SPEC.md: peer resolution contract, the two surface shapes, acceptance criteria
+
+Next action: record-index 2.1: Tier 0 (open.json) then 2.2 wire the cross-initiative hook and re-measure. Still open behind it: review/merge the peer-messaging branch stack, then drift-certification 3.1 (~20 traps, then the P-cell floor under the isolation rule).
+
+== decisions (2268 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Decisions: peer-messaging
+
+- 2026-08-08T12:50:38.249Z — rule: **Peer resolution is an optional last inch: sofar must never bind an inbox socket or send a message itself, and no surface may become correct only when a peer resolves — the record-side line has to stand alone.** — chose **sofar resolves the ADDRESS, Claude's own SendMessage delivers: read the host's undocumented ~/.claude/sessions/&lt;pid&gt;.json registry to map a Claude Code session id to the name SendMessage addresses, and annotate the two collision surfaces that already name that id (2.1's UserPromptSubmit line, 1.2's parallel_writebacks).** over sofar posting directly into CLAUDE_CODE_MESSAGING_SOCKET (the first sketch), and building on Claude Code channels — the surface the messaging docs actually route external-event push to because Posting ourselves buys an undocumented wire format, an own-child verification rule that macOS can only satisfy while the poster is still running, inbound controls that HOLD non-child posts for user approval in any bypassPermissions session, and a delivered message billed to the user like a typed prompt. Worse, the exemption and the value are in tension: the socket's unique benefit is waking an IDLE session, and an idle session runs no hooks, so nothing of ours is alive to be its child. Channels are the doc-sanctioned path for external push but are closed to us — research preview, Anthropic auth, Bun, a restart with --channels, and only Anthropic-allowlisted plugins may register. Addressing has none of these failure modes: the agent doing the sending is already inside the host that owns the channel, so it sends under its own permissions, on its own turn, with its own tool. The mapping was the one open question and it is now verified live (2026-08-08, claude 2.1.226): the registry's sessionId is byte-identical to the session id sofar already stores from the hook JSON, and `name` is the address. Degradation is structural rather than disciplined — no registry, no address, and every surface renders exactly what it rendered before, which is asserted byte-for-byte in the tests. felt-cost D3 holds untouched: we hand over a string and call nothing.
+
+== memory (1193 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Promoted to repo memory: peer-messaging
+
+Cite these in .sofar/repo.md by qualified handle — `peer-messaging M<n>` —
+which is how `sofar doctor` sees that a promoted fact reached repo memory.
+
+- **M1** (2026-08-08T12:42:33.878Z) — grep SILENTLY MISSES packages/engine/src/core/fold.ts — the most-searched file in the repo. `file` reports it as "data" rather than text, so plain grep returns no output and exit 1 for symbols that demonstrably exist there (FileConflict:763, openSessionFileConflicts:823 as of 2026-08-08). It is NOT corrupt: valid UTF-8, no NUL bytes, no C0/C1 control characters, longest line 119 chars — cause undetermined, likely a `file`(1) heuristic on its non-ASCII density. Symptom: you grep for a type, get nothing, and conclude it lives elsewhere or was renamed; every importer shows up and the definition never does. Always search this repo with `grep -a` (Grep tool users: fall back to `grep -a` via Bash when a symbol's importers appear but its definition does not). Only fold.ts is affected; schema/src/tool-inputs.ts and cli/adopt.ts read as unusual-but-text and grep fine.
+
+== session 9e94756b-eca8-4731-9012-6e2819f2ce4d.md (3774 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 9e94756b-eca8-4731-9012-6e2819f2ce4d
+
+- Initiative: peer-messaging
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-08T12:35:25.818Z
+- Ended: 2026-08-08T15:35:05.940Z
+
+## Summary
+
+Reconciling the parallel write-back from 01KZGT0QHH. Its next action ("decide whether to build gated cross-initiative detection") is SUPERSEDED — the ruling was made, warmth + derivation + ungated doctor landed at 333d04c, and the gate's own limit then led to record-index. Its two surviving items are folded into the next action below so nothing is dropped.
+
+## Next action
+
+record-index 2.1: Tier 0 (open.json) then 2.2 wire the cross-initiative hook and re-measure. Still open behind it: review/merge the peer-messaging branch stack, then drift-certification 3.1 (~20 traps, then the P-cell floor under the isolation rule).
+
+## Activity (derived from mechanical events)
+
+- Derived: 33 files (/Users/jins/IO/sofar/packages/engine/src/core/peers.ts, /Users/jins/IO/sofar/packages/engine/test/peers.test.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/test/peer-line.test.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/end-session.ts, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/engine/src/cli/init.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/engine/test/livefire.peers.test.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/9e94756b-eca8-4731-9012-6e2819f2ce4d/scratchpad/msg2.txt, /Users/jins/IO/sofar/packages/engine/test/tmp-foldbench.test.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/9e94756b-eca8-4731-9012-6e2819f2ce4d/scratchpad/msg3.txt, /Users/jins/IO/sofar/packages/engine/src/core/warmth.ts, /Users/jins/IO/sofar/packages/engine/test/warmth.test.ts, /Users/jins/IO/sofar/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar/packages/engine/src/core/listing.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/context.ts, /Users/jins/IO/sofar/packages/engine/src/core/cross-conflicts.ts, /Users/jins/IO/sofar/packages/engine/test/tmp-scale.test.ts, /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts, +13 more), 93 commands, task changes: 1.1 → done, 2.1 → done, 2.2 → done, 3.1 → done, 4.1 → done
+- Files:
+  - /Users/jins/IO/sofar/packages/engine/src/core/peers.ts
+  - /Users/jins/IO/sofar/packages/engine/test/peers.test.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+  - /Users/jins/IO/sofar/packages/engine/test/peer-line.test.ts
+  - /Users/jins/IO/sofar/packages/engine/src/mcp/end-session.ts
+  - /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/init.ts
+  - /Users/jins/IO/sofar/docs/SPEC.md
+  - /Users/jins/IO/sofar/packages/engine/test/livefire.peers.test.ts
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/9e94756b-eca8-4731-9012-6e2819f2ce4d/scratchpad/msg2.txt
+  - /Users/jins/IO/sofar/packages/engine/test/tmp-foldbench.test.ts
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/9e94756b-eca8-4731-9012-6e2819f2ce4d/scratchpad/msg3.txt
+  - /Users/jins/IO/sofar/packages/engine/src/core/warmth.ts
+  - /Users/jins/IO/sofar/packages/engine/test/warmth.test.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/fold.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/listing.ts
+  - /Users/jins/IO/sofar/packages/engine/src/mcp/context.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/cross-conflicts.ts
+  - /Users/jins/IO/sofar/packages/engine/test/tmp-scale.test.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts
+  - +13 more
+- Commands run: 93
+- Task changes:
+  - 1.1 → done
+  - 2.1 → done
+  - 2.2 → done
+  - 3.1 → done
+  - 4.1 → done
+
+== session a12107f9-c4aa-4538-a56d-d5463773c2fa.md (480 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session a12107f9-c4aa-4538-a56d-d5463773c2fa
+
+- Initiative: peer-messaging
+- Tool: claude-code
+- Started: 2026-08-08T13:45:32.079Z
+- Ended: 2026-08-14T08:25:55.569Z (closed: prompt_input_exit)
+
+## Summary
+
+(none recorded — ended without write-back; derived resume point below)
+
+## Next action
+
+(none recorded)
+
+## Activity (derived from mechanical events)
+
+- Derived: 8 commands
+- Commands run: 8
+
+== session 01KZGT0QHH1XA0CSYPDA2BNYYT.md (906 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KZGT0QHH1XA0CSYPDA2BNYYT
+
+- Initiative: peer-messaging
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-08T13:46:51.313Z
+- Ended: 2026-08-08T13:50:15.511Z
+
+## Summary
+
+Measured cross-initiative conflict detection against the speed T2 100ms budget. Real shim 63-67ms end-to-end; fold-all-30 costs +15.8ms (passes now, O(total history), rots), while stat-gating on 12h mtime costs +1.7ms and scales with concurrent activity instead. Gate is principled: concurrent editing appends events continuously, so a cold log cannot hold a live editor. Numbers recorded as a note. Nothing built — awaiting a ruling.
+
+## Next action
+
+Decide whether to build gated cross-initiative conflict detection (hook + doctor + SPEC + tests); separately, review/merge branch peer-messaging, then drift-certification 3.1.
+
+== session 01KZXT0TC334TZJTZB60D25AZ0.md (777 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KZXT0TC334TZJTZB60D25AZ0
+
+- Initiative: peer-messaging
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-13T14:57:01.828Z
+- Ended: 2026-08-13T14:57:20.632Z
+
+## Summary
+
+Phase-close repair from phase-lifecycle 4.3 (D5). No work on peer-messaging itself: read plan.md, judged all 4 phases genuinely finished (5/5 tasks), appended phase_status_changed done for each. Next action carried forward verbatim.
+
+## Next action
+
+record-index 2.1: Tier 0 (open.json) then 2.2 wire the cross-initiative hook and re-measure. Still open behind it: review/merge the peer-messaging branch stack, then drift-certification 3.1 (~20 traps, then the P-cell floor under the isolation rule).
+
+== session 7f2e5c1e-ee9d-4534-bfb8-5c10c7d75849.md (459 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 7f2e5c1e-ee9d-4534-bfb8-5c10c7d75849
+
+- Initiative: peer-messaging
+- Tool: claude-code
+- Model: claude-opus-5
+- Started: 2026-09-14T17:29:34.580Z
+- Ended: (in progress)
+
+## Summary
+
+(none recorded — no write-back yet; derived resume point below)
+
+## Next action
+
+(none recorded)
+
+## Activity (derived from mechanical events)
+
+- Derived: 12 commands
+- Commands run: 12
+

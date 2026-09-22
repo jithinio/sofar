@@ -1,7 +1,7 @@
 {
   "name": "sofar-monorepo",
   "version": "0.10.0",
-  "description": "Sofar v1 — event-log initiative memory for coding agents (npm workspaces monorepo)",
+  "description": "Sofar v1 \u2014 event-log initiative memory for coding agents (npm workspaces monorepo)",
   "private": true,
   "type": "module",
   "engines": {
@@ -13,13 +13,16 @@
   "scripts": {
     "build": "npm run build -w sofar.sh",
     "test": "vitest run",
+    "perf": "SOFAR_PERF=1 vitest run --project perf",
     "typecheck": "npm run typecheck -w @sofar/schema && npm run typecheck -w sofar.sh",
-    "bench:read-paths": "npm run bench:read-paths -w sofar.sh --",
-    "schema:emit": "node packages/schema/scripts/emit-fingerprint.mjs"
+    "schema:emit": "node packages/schema/scripts/emit-fingerprint.mjs && node tools/schema-codegen/emit.mjs",
+    "schema:check": "node tools/schema-codegen/emit.mjs --check && cargo xtask schema --check",
+    "bench:read-paths": "npm run bench:read-paths -w sofar.sh --"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
     "esbuild": "^0.28.1",
+    "ts-json-schema-generator": "2.9.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.9"
   }

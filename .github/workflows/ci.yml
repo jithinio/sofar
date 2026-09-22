@@ -6,7 +6,11 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    # rust-core (rust-core 3.2): the native core's build matrix and the
+    # mixed-install conformance job must run on the branch that carries them —
+    # dispatch needs the workflow on the default branch, which main lacks
+    # until the merge.
+    branches: [main, rust-core]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -22,7 +26,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The engine suite on the supported floor AND the current runtime (rust-core
+  # D37): package.json declares node >=18, and the conformance goldens are
+  # runtime-neutral (the harness masks V8's JSON.parse position suffix), so
+  # both must stay green.
   test:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 24]
     runs-on: ubuntu-latest
     # The suite runs in minutes. A sync loop no vitest timeout can interrupt
     # (the /proc mkdir hang, 2026-09-21) otherwise holds the job to GitHub's 6 h cap.
@@ -31,16 +43,87 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
       - run: npm run build
       # The unit project only: the shim-latency pin (speed T2) is wall-clock on
       # the machine it runs on, and the push path runs nothing timing-sensitive
       # (the header's ruling) — a hosted runner's SessionStart floor sits above
-      # the 100 ms budget. `npm test` locally still runs it (rust-core's ci.yml).
+      # the 100 ms budget. `npm test` locally still runs it; perf needs SOFAR_PERF.
       - run: npx vitest run --project unit
       - run: npm run typecheck
+
+  # The native core (rust-core 3.2): one build per platform sofar.sh ships a
+  # core for, tested where the runner can run it, and uploaded as the
+  # artifact `packaging/npm/emit.mjs --binaries` stages into the platform
+  # packages. Publishing stays a human step (repo memory M1): download the
+  # `sofar-core-*` artifacts, run the emit script, `npm publish` each
+  # platform package, then sofar.sh — the optionalDependencies pin them at
+  # the release version, so the order matters.
+  core:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-14, target: aarch64-apple-darwin }
+          - { os: macos-15-intel, target: x86_64-apple-darwin }
+          - { os: ubuntu-24.04, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
+          - { os: windows-2022, target: x86_64-pc-windows-msvc }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # rust-toolchain.toml pins the exact channel; this only installs it.
+          toolchain: 1.98.1
+          components: clippy, rustfmt
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --target ${{ matrix.target }} -- -D warnings
+      - run: cargo test -p sofar-core --target ${{ matrix.target }}
+      - run: cargo build --release -p sofar-core --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sofar-core-${{ matrix.target }}
+          path: |
+            target/${{ matrix.target }}/release/sofar-core
+            target/${{ matrix.target }}/release/sofar-core.exe
+          if-no-files-found: error
+
+  # The mixed install (rust-core 3.1, D31): the shipped boot stub dispatching
+  # to the core it just built, every conformance case, no tag skipped; plus
+  # the schema and packaging generators kept in lockstep with their sources.
+  core-conformance:
+    runs-on: ubuntu-24.04
+    steps:
+      # Every branch as origin/*: the real-log gate (rust-core 5.1) folds
+      # every branch tip's logs, not just this commit's.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - run: npm run build
+      - run: cargo xtask schema --check
+      - run: node packaging/npm/emit.mjs --check
+      - run: cargo build --release -p sofar-core
+      - run: SOFAR_CORE=$PWD/target/release/sofar-core npx vitest run --project unit packages/engine/test/conformance/conformance.test.ts
+      - run: SOFAR_CONFORMANCE_BIN=$PWD/target/release/sofar-core npx vitest run --project unit packages/engine/test/conformance/fold-parity
+      - run: cargo test -p sofar-core --test render_parity
+      # rust-core 5.1: the core's fold deep-equals TypeScript's on every real
+      # events.jsonl of this repository, every branch tip included. sofar-cloud's
+      # logs are private, so they are proved in its own CI, never here.
+      - run: SOFAR_CONFORMANCE_BIN=$PWD/target/release/sofar-core npx vitest run --project unit packages/engine/test/conformance/real-logs
 
   # Loose read-path tripwire (r1-fixes D18): a gross regression cannot reach
   # an RC unnoticed. Wide budget on purpose — hosted noise cannot hide a 2×

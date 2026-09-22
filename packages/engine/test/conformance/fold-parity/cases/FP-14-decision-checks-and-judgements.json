@@ -1,0 +1,10 @@
+{
+  "tail_at": 11,
+  "seeds": [
+    40,
+    41,
+    42
+  ],
+  "order_independence": true,
+  "note": "memory-lead 2.3 (D9): task.checks keeps the latest run per decision in first-checked order, apart from task.verification; a check needs a rule; verification decision must be qualified. typed-judge 2.4: judgement_recorded validated, then ignored by state and drift. The tail starts at the invalid judgement"
+}

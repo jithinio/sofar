@@ -10,3 +10,6 @@ dist/
 # outside the engine repo by design; never committed (public repo + npm)
 /product doc/
 .gstack/
+
+# Rust workspace build output
+target/

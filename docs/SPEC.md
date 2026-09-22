@@ -3766,7 +3766,7 @@ implementations, driven black-box through the hidden `sofar fold` command
 point recursively, arrays in order, JSON.stringify(v, null, 2) verbatim —
 {ok, cursor, version, state, warnings} or the refusal) with
 `SOFAR_CONFORMANCE_BIN` selecting the candidate and the built CLI as the
-reference. Cases `FP-01-plan-tasks-decisions` … `FP-10-decision-supersession`
+reference. Cases `FP-01-plan-tasks-decisions` … `FP-12-session-lifecycle-out-of-order`
 are RAW lines (corrupt and unknown lines included) with a sidecar
 {tail_at, seeds, refusal?, order_independence, note} and a golden {state,
 warnings} recorded through the reference (`FOLD_PARITY_RECORD=1`).
@@ -3778,7 +3778,18 @@ golden's state (warnings are file-order line-numbered and compared only on
 the arrival-order run); `fold-parity/version-mismatch-refolds` — a snapshot
 with a bumped engine or schema version is refused with found and expected;
 `fold-parity/pure-of-clock-and-env` — two runs under different TZ, LANG and
-HOME equal the golden. FP-08's duplicates are byte-identical lines (an
+HOME equal the golden; `fold-parity/union-merge` (rust-core 1.6) — a case's
+head committed to a git repository carrying `sofar init`'s
+`.sofar/**/events.jsonl merge=union` attribute, its tail dealt round-robin
+to three branches that each append and are merged back in turn, merges
+without a conflict, the merged file is the union of every branch's lines
+(none lost, none invented), and its fold equals the golden's state whatever
+order the union driver chose; the across-initiatives form merges branches
+that touched different records (and one that touched both, duplicating a
+byte-identical line the stable sort skips) and folds each to its golden.
+FP-11 is run adoption fencing (drive-visibility 2.2). FP-12 is the session lifecycle arriving out of order: a write-back filed
+before its registration in file order, a mechanical event with an id below
+its session_started, a close with an id below its registration. FP-08's duplicates are byte-identical lines (an
 idempotent re-import), so it takes part in order-independence; its tail
 re-imports an EARLIER line, which the fast path refuses as
 `out_of_order_id` — the full fold is the reference there, as for FP-04
@@ -7222,6 +7233,99 @@ stay the underlying derivation's, and exit codes are styling-independent.
   block end to end — new with a goal, start twice, plan, task and phase
   status, write-back, as `--source cursor` — folds to the goal, both phases
   with their statuses and one written-back session, with no warnings.
+- **Rust core, contract (rust-core, Phase 1):** the hot-path surface is
+  pinned from OUTSIDE the process. docs/HOTPATH.md inventories every hook,
+  `event append`, `statusline` and `status` by argv, stdin, env, files,
+  subprocesses, stdout, stderr and exit code, names the JavaScript text
+  semantics the bytes depend on, and lists every gap between this document
+  and the code. A black-box conformance suite
+  (packages/engine/test/conformance) drives an implementation BINARY
+  through that surface and compares stdout, stderr, exit codes and the
+  bytes left under `.sofar/` against goldens recorded from the TypeScript
+  CLI built exactly as shipped: this repository's own 55-initiative record
+  frozen at a commit, four benchmark-cell records, and synthetic records
+  covering corrupt, torn, unknown and out-of-order lines, UTF-16 clip
+  edges, budget overflow, guarded decisions, closed, superseded, unbound
+  and absent records, and the argv grammar the fast path owns. Only
+  run-minted ulids and timestamps, the relative-age labels and scratch
+  paths are masked, each by shape; fixture bytes never are. Every
+  `events.jsonl` a case touches must still start with its fixture bytes
+  (append-only, never rewritten), and N processes appending through the
+  CLI at once leave every line intact and none lost. The suite is green on
+  the TypeScript engine, runs against any other implementation via
+  `SOFAR_CONFORMANCE_BIN`, and goldens are re-recorded only from the
+  TypeScript reference, never from a candidate. The perf baseline
+  (packages/engine/test/conformance/perf) times the same binary the same
+  way — one process per hook, spawn to exit — on every hook, the
+  statusline and plain `status` at 10, 100 and 1,000 initiatives with a
+  1 MB and a 10 MB bound log, on this repository's record and on a root
+  with no record, reporting p50 and p95 by nearest rank; the TypeScript
+  numbers are checked in as the target, a candidate run prints its ratio
+  to that target per cell, and the gate fails a candidate whose p50 or
+  p95 exceeds the target anywhere.
+- **Rust core, workspace (rust-core 2.1):** a Cargo workspace (`crates/`,
+  toolchain pinned by rust-toolchain.toml) whose payload types are
+  generated from packages/schema/src — TypeScript to a committed JSON
+  Schema, JSON Schema to a committed Rust module — with checks under
+  `npm test` and `cargo xtask schema --check` that fail when either
+  committed artefact is stale; no payload type is hand-written, every
+  payload in the conformance fixtures deserialises into its generated
+  type, and the hook binary owns exactly the argv shapes the fast path
+  owns (the five hooks and the statusline with `--root`), handing every
+  other shape back.
+- **Rust core, dispatch (rust-core 3.1):** the `sofar` bin is a stub that
+  hands every `event`, `statusline` and `status` argv to a present
+  `sofar-core` with stdio inherited and runs the TypeScript CLI itself for
+  the core's exit 64 (a shape the core does not own, or a styled `status`)
+  with stdin intact and no byte leaked to either stream; `SOFAR_CORE=<path>`
+  names the core, `SOFAR_CORE=0` forbids it, and no platform package means
+  TypeScript, silently; a named core that cannot run warns once and falls
+  back. The whole conformance suite — every case, no tag skipped — passes
+  with the reference stub dispatching to `target/release/sofar-core`, and a
+  core that exits non-zero on every shape fails it; the stub's routing is
+  pinned with a fake core under `npm test`. Plain `status` on the core
+  renders the stderr update notice from the cache byte-for-byte with the
+  TypeScript surface, and the refresh claim is made by the stub after the
+  core has rendered a `statusline` or `status`.
+- **Rust core, distribution (rust-core 3.2):** the native core ships as one
+  npm package per platform (`sofar-core-<platform>-<arch>` for darwin
+  arm64/x64, linux x64/arm64 and win32 x64), each holding the binary and
+  nothing else, generated by `packaging/npm/emit.mjs` and declared as
+  optionalDependencies of sofar.sh at sofar.sh's exact version; `--check`
+  fails when either side drifts. A global install with the platform package
+  present replaces sofar.sh's `bin/sofar-core` with the binary in
+  postinstall, so `sofar-core` on PATH is native code and the hook shims exec
+  it first, falling back to `sofar` when it is absent; with no platform
+  package (unpublished, unsupported platform, `--ignore-scripts`, Windows)
+  the install succeeds, `bin/sofar-core` stays a JavaScript shim equal to
+  `sofar`, and every command still answers. CI builds, tests and uploads the
+  five binaries per push and runs the unfiltered mixed-install conformance
+  suite on the one it built; publishing the platform packages before
+  sofar.sh remains the human release step.
+- **Rust core, gate (rust-core 3.3):** the native core passes the whole
+  conformance suite as a mixed install (the shipped stub dispatching to it,
+  every case, no tag skipped) and every owned shape driven directly (the
+  cases whose bytes are commander's — `event append`, styled `status`,
+  `commit-trailer`, the argv grammar's error text — run on the TypeScript
+  reference, and nothing else does); the perf gate (`SOFAR_PERF_GATE=1`)
+  passes with every cell's p50 and p95 at or under a TypeScript reference
+  recorded in the same sitting, both reports committed beside the baseline;
+  and an appending hook folds its log once per process, advancing the
+  retained checkpoint by the line it wrote, exactly as the TypeScript engine
+  does (r1-fixes D17).
+- **Rust core, Wave A mirror (memory-lead 1.4):** the native core reproduces
+  every hot-path byte the wave-a merge moved: the rule quote (fold, payload
+  validation, standing constraints and decisions.md; §Rule fidelity, ported
+  as `rule_fidelity.rs` with the 1.2 fixtures), the host-neutral Session
+  line, the D4 digest composition under the 6,000-unit cap
+  (§Digest composition), the repo.md stub stripping, the per-worktree session pointer
+  every hook maintains, the Cursor hook dialect on both ends of the pipe,
+  and the host's tool on registrations and diagnostics rows; the unbound
+  `sofar status` orientation stays the TypeScript CLI's, reached through the
+  core's exit 64. Proof: 94/94 render-parity goldens in-process, 27/27
+  conformance cases through the stub, fold-parity 39/39 on the binary, and
+  the D29 direct run green on every owned shape but the unbound-status
+  steps.
 - **Diagnostics store (self-improve 1.2):** a diagnostics row fails
   `validateEnvelope` and an import stream carrying one appends nothing; the
   store resolves under the XDG state dir keyed by the same clone hash as the

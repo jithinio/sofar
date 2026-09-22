@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
+import { PACKAGE_PREFIX, binaryName, optionalDependencies, packageName } from '../../../packaging/npm/emit.mjs'
 
 /**
  * Task 6.2 (BD41) — the distribution channel is npm (BD1), so the tarball
@@ -92,9 +93,22 @@ const tarball = join(packDest, tarballBase)
     expect(existsSync(join(engineDir, 'README.md'))).toBe(false)
 
     // manifest law: a consumer installs ZERO dependencies (BD7 set is devDeps,
-    // bundled into dist/cli.js) — the tarball must not declare any.
+    // bundled into dist/cli.js) — the tarball must not declare any. The
+    // native core (rust-core 3.2) is the one exception, and it is OPTIONAL:
+    // one platform package per target, each pinned at this exact version
+    // (packaging/npm/emit.mjs is the source; --check keeps it so).
     const spec = JSON.parse(readFileSync(join(engineDir, 'package.json'), 'utf8')) as Record<string, unknown>
     expect(spec.dependencies).toBeUndefined()
+    expect(spec.optionalDependencies).toEqual(optionalDependencies(manifest.version))
+    for (const name of Object.keys(spec.optionalDependencies as Record<string, string>)) {
+      expect(name.startsWith(PACKAGE_PREFIX)).toBe(true)
+      const platformSpec = JSON.parse(readFileSync(join(engineDir, '..', '..', 'packaging', 'npm', name, 'package.json'), 'utf8')) as Record<string, unknown>
+      expect(platformSpec.version).toBe(manifest.version)
+      expect(platformSpec.os).toHaveLength(1)
+      expect(platformSpec.cpu).toHaveLength(1)
+      expect(platformSpec.bin).toBeUndefined() // sofar.sh's own bin/sofar-core is what lands on PATH
+      expect(platformSpec.scripts).toBeUndefined()
+    }
   }, 120_000)
 
   it('the tarball installs into a temp prefix and the installed bin answers --version', () => {
@@ -112,11 +126,24 @@ const tarball = join(packDest, tarballBase)
       readFileSync(join(engineDir, '..', '..', 'README.md'), 'utf8'),
     )
 
-    // zero runtime deps landed — the bundled-CLI contract
+    // zero runtime deps landed — the bundled-CLI contract. The platform
+    // packages are optional and unpublished at this version in a test run, so
+    // npm installs none of them and sofar.sh must not mind.
     const depDirs = existsSync(join(pkgDir, 'node_modules'))
       ? readdirSync(join(pkgDir, 'node_modules')).filter((d) => !d.startsWith('.'))
       : []
     expect(depDirs).toEqual([])
+    // With no core, bin/sofar-core is still the JavaScript shim, which IS
+    // `sofar`: the boot stub then runs the TypeScript hot path (rust-core 3.2).
+    expect(existsSync(join(prefix, 'bin', 'sofar-core'))).toBe(true)
+    expect(readFileSync(join(pkgDir, 'bin', 'sofar-core'), 'utf8').startsWith('#!/usr/bin/env node')).toBe(true)
+    const viaShim = spawnSync(process.execPath, [join(prefix, 'bin', 'sofar-core'), 'statusline', '--no-color'], {
+      cwd: scratch,
+      input: '{}',
+      encoding: 'utf8',
+      env: { ...cleanEnv(), SOFAR_NO_UPDATE_CHECK: '1' },
+    })
+    expect(viaShim.status).toBe(0)
 
     const version = sofar(['--version'])
     expect(version.status).toBe(0)
@@ -212,7 +239,7 @@ describe('library surface E2E (library-surface 1.3) — subpath exports from the
       exports: Record<string, unknown>
       dependencies?: unknown
     }
-    expect(spec.bin).toEqual({ sofar: 'dist/cli.js' }) // bin unchanged
+    expect(spec.bin).toEqual({ sofar: 'dist/cli.js', 'sofar-core': 'bin/sofar-core' }) // the CLI and the core's PATH entry (rust-core 3.2)
     expect(Object.keys(spec.exports)).toEqual(['./schema', './engine', './client', './package.json'])
     expect(spec.dependencies).toBeUndefined() // still zero runtime deps
   })
@@ -333,3 +360,65 @@ describe('library surface E2E (library-surface 1.3) — subpath exports from the
 function tarballName(): string {
   return `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
 }
+
+// ---------------------------------------------------------------------------
+// The native core through the channel (rust-core 3.2): the platform package
+// staged from THIS machine's release build, installed next to sofar.sh in a
+// fresh prefix, must land the binary on PATH via postinstall and answer as
+// `sofar-core`; the shim then execs it without node. Skipped when the core
+// is not built (a TypeScript-only checkout); CI builds it first.
+// ---------------------------------------------------------------------------
+
+const repoRoot = join(here, '..', '..', '..')
+const localCore = join(repoRoot, 'target', 'release', 'sofar-core')
+const thisPlatform = { platform: process.platform, arch: process.arch }
+const platformPkgDir = join(repoRoot, 'packaging', 'npm', packageName(thisPlatform))
+
+describe.skipIf(!existsSync(localCore) || process.platform === 'win32')('native core E2E (rust-core 3.2) — platform package → postinstall → sofar-core on PATH', () => {
+  const corePrefix = join(scratch, 'core-prefix')
+
+  it('the platform package installs alongside sofar.sh and postinstall puts the binary on PATH', () => {
+    const staged = spawnSync(process.execPath, [join(repoRoot, 'packaging', 'npm', 'emit.mjs'), '--local'], { encoding: 'utf8', cwd: repoRoot })
+    expect(staged.status, staged.stderr).toBe(0)
+    const packedCore = npm(['pack', '--pack-destination', packDest], platformPkgDir)
+    expect(packedCore.status, packedCore.stderr).toBe(0)
+    const coreTarball = join(packDest, `${packageName(thisPlatform)}-${manifest.version}.tgz`)
+    expect(existsSync(coreTarball)).toBe(true)
+
+    mkdirSync(corePrefix, { recursive: true })
+    const installed = npm(['install', '-g', '--prefix', corePrefix, join(packDest, tarballName()), coreTarball], scratch)
+    expect(installed.status, installed.stderr).toBe(0)
+
+    // postinstall replaced the JavaScript shim with the binary itself
+    const onPath = join(corePrefix, 'lib', 'node_modules', 'sofar.sh', 'bin', 'sofar-core')
+    expect(readFileSync(onPath).equals(readFileSync(localCore))).toBe(true)
+    expect(statSync(onPath).mode & 0o111).not.toBe(0)
+    expect(existsSync(join(corePrefix, 'lib', 'node_modules', packageName(thisPlatform), binaryName(thisPlatform)))).toBe(true)
+  }, 120_000)
+
+  it('sofar-core on PATH answers status, the shim execs it, and sofar dispatches to it', () => {
+    const root = freshRepo()
+    const bin = join(corePrefix, 'bin')
+    const env = { ...cleanEnv(), PATH: `${bin}:${process.env.PATH ?? ''}`, SOFAR_NO_UPDATE_CHECK: '1', TERM: 'dumb' }
+    expect(spawnSync(process.execPath, [join(bin, 'sofar'), 'init', '--root', root], { encoding: 'utf8', env }).status).toBe(0)
+    expect(spawnSync(process.execPath, [join(bin, 'sofar'), 'new', 'core-demo', '--goal', 'prove the core', '--root', root], { encoding: 'utf8', env }).status).toBe(0)
+
+    // the binary itself, by its PATH name — no node in front
+    const direct = spawnSync('sofar-core', ['status', '--no-color', '--root', root], { encoding: 'utf8', env })
+    expect(direct.status).toBe(0)
+    expect(direct.stdout).toContain('# core-demo')
+    expect(direct.stdout).toContain('Goal: prove the core')
+
+    // the shim init installed routes to it (exit 0 on a quiet stop)
+    const shim = spawnSync('sh', [join(root, '.claude', 'hooks', 'stop.sh')], { cwd: root, encoding: 'utf8', env, input: '{"session_id":"e2e","stop_hook_active":false}' })
+    expect(shim.status, shim.stderr).toBe(0)
+
+    // and `sofar status` through the stub renders the same bytes as the core
+    const viaStub = spawnSync(process.execPath, [join(bin, 'sofar'), 'status', '--no-color', '--root', root], { encoding: 'utf8', env })
+    expect(viaStub.status).toBe(0)
+    expect(viaStub.stdout).toBe(direct.stdout)
+    // while a forbidden core takes the TypeScript path to the same bytes
+    const viaTs = spawnSync(process.execPath, [join(bin, 'sofar'), 'status', '--no-color', '--root', root], { encoding: 'utf8', env: { ...env, SOFAR_CORE: '0' } })
+    expect(viaTs.stdout).toBe(direct.stdout)
+  }, 60_000)
+})

@@ -1,0 +1,911 @@
+== options (43248 bytes) ==
+{
+  "plain": {},
+  "hook": {
+    "sessionId": "record-index-session",
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 12,
+        "decisions": 0
+      },
+      {
+        "initiative": "beta",
+        "paths": 4,
+        "decisions": 19
+      },
+      {
+        "initiative": "gamma",
+        "paths": 4,
+        "decisions": 2
+      },
+      {
+        "initiative": "delta",
+        "paths": 1,
+        "decisions": 1
+      },
+      {
+        "initiative": "epsilon",
+        "paths": 1,
+        "decisions": 0
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare."
+    ]
+  },
+  "lane": {
+    "lane": true,
+    "sessionId": "lane-session"
+  },
+  "quiet": {
+    "activity": false,
+    "sessionId": " quiet-session\t"
+  },
+  "cap": {
+    "sessionId": "record-index-session",
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 12,
+        "decisions": 0
+      },
+      {
+        "initiative": "beta",
+        "paths": 4,
+        "decisions": 19
+      },
+      {
+        "initiative": "gamma",
+        "paths": 4,
+        "decisions": 2
+      },
+      {
+        "initiative": "delta",
+        "paths": 1,
+        "decisions": 1
+      },
+      {
+        "initiative": "epsilon",
+        "paths": 1,
+        "decisions": 0
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare.",
+      "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    ]
+  }
+}
+== status (9666 bytes) ==
+# record-index
+
+Status: done 2026-08-09T07:38:28.921Z — All 11 tasks across 4 phases done and shipped in sofar.sh 0.25.0/0.25.1. Tier 0 answers the cross-initiative conflict question on the shim path; Tier 1 carries the un-scoped point-of-use guard, the SessionStart priming line, and `sofar find` / `sofar_find` with lexical seeds. SPEC §Derived index holds the contract (layout, cursor semantics, the D1/D2/D6/D12/D14 ladder) and §Acceptance the proof: 150 equivalence and damage cases, which found and fixed the split-index D1 violation. One divergence documented rather than closed (D17, Tier 0 and a touch sorting before its own registration).
+Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first consumer is CROSS-INITIATIVE GUARDS (pushed by the harness, needing no agent cooperation), then a priming line, then agent-initiated search. Maintained by per-initiative cursors so cost is O(new events). LOCAL and gitignored: derived state never merges, never syncs, rebuilds from truth. Zero model calls — the edges are recorded facts, so retrieval traverses them and cites the event id behind every result.
+
+Standing constraints — obey verbatim (6):
+- [D1] The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.
+- [D2] Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.
+- [D6] A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.
+- [D12] Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.
+- [D14] A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.
+- [D16] Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
+Phases:
+- Phase 1 — Incremental core [done] 2/2
+  - [x] 1.1 core/index-store.ts: gitignored self-ignoring .sofar/.index/, version-stamped, atomic, every failure collapsing to cold start
+  - [x] 1.2 core/index-tail.ts: read only what a log grew by, via a self-corroborating cursor (offset points at its event's line START)
+- Phase 2 — Tier 0 (hot) [done] 2/2
+  - [x] 2.1 open.json: open sessions per initiative + the files they hold, maintained incrementally through the cursor core. Bytes, not megabytes — O(1) read on the shim path.
+  - [x] 2.2 Wire cross-initiative conflicts through Tier 0, unblocking cross-initiative-conflicts 2.2; re-measure the shim against speed T2's 100ms at 30/300/1000 initiatives
+- Phase 3 — Tier 1: guards first, then reach [done] 5/5
+  - [x] 3.1 Materialize the graph incrementally into the index (nodes/edges from core/adjacency), KEYED for lookup — path -> guarding decisions, path -> touching sessions/initiatives — rather than rebuilt per query
+  - [x] 3.2 LAYER 1, cross-initiative guards: PostToolUse resolves 'does any decision ANYWHERE guard this path' in O(1) and surfaces the rule verbatim. Un-scopes the existing guard, which today can never fire because the guard lives in one log and the work is appended to another. The layer that prevents damage — build before search.
+  - [x] 3.3 LAYER 2, priming: SessionStart states a concrete fact (N decisions from M named initiatives touch this initiative's files), never a capability blurb — a count creates the intent to ask where an offer is ignored
+  - [x] 3.4 LAYER 3, `sofar find` + MCP tool: traverse from a seed (file, session, decision, initiative) with a hop budget; every result cites the event id that produced the edge. OFFERED as worth reading, never asserted — D2's declared-vs-derived rule.
+  - [x] 3.5 Lexical seeds over decision/note prose (IDF-ranked, no model) so a text question resolves to seeds the traversal can expand
+- Phase 4 — Contract + proof [done] 2/2
+  - [x] 4.1 SPEC: index layout, cursor semantics, derived-never-truth, the guard un-scoping contract, retrieval authority split
+  - [x] 4.2 Equivalence proof: indexed answers byte-match from-logs answers on every fixture, and a corrupt/stale/absent index still returns the right answer via fallback
+
+Next action: Pick the next initiative — this branch is unbound, so start or switch on a fresh session.
+
+⚠ Staleness:
+- next action may be stale: 2 events since the last write-back (2026-08-09T07:49:50.138Z) — 1 file, 1 promoted memory
+
+Last session (claude-code, ended 2026-08-09T07:49:50.138Z):
+  record-index closed and merged: main fast-forwarded to add2ca1 and pushed to origin (21 commits). Branch never diverged, so no merge commit.
+
+Files touched (58):
+- /Users/jins/IO/sofar/packages/engine/src/core/cross-conflicts.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+- /Users/jins/IO/sofar/packages/engine/test/cross-conflict-line.test.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/derivations.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/bench.mjs
+- /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/bench.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/run-bench.mjs
+- /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/phases.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/run-phases.mjs
+- /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/seeder.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/index-store.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/index-tail.ts
+- /Users/jins/IO/sofar/packages/engine/test/index-incremental.test.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/bench-shims.ts
+- /Users/jins/IO/sofar/docs/SPEC.md
+- /Users/jins/IO/sofar/.sofar/repo.md
+- /Users/jins/IO/sofar/packages/engine/src/core/index-pass.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/index-tier0.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/index-tier1.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/adjacency.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/graph.ts
+- /Users/jins/IO/sofar/packages/engine/test/index-tier1.test.ts
+- /Users/jins/IO/sofar/packages/engine/test/index-tier0.test.ts
+- /Users/jins/IO/sofar/packages/engine/test/guard-point-of-use.test.ts
+- /Users/jins/IO/sofar/packages/engine/src/hooks/post-tool-use.sh
+- /Users/jins/IO/sofar/packages/engine/src/projections/templates/status.ts
+- /Users/jins/IO/sofar/packages/engine/test/priming-line.test.ts
+- /Users/jins/IO/sofar/CLAUDE.md
+- /Users/jins/.claude/CLAUDE.md
+- /Users/jins/IO/sofar/packages/engine/src/core/citations.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/index-reach.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/find.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/index.ts
+- /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts
+- /Users/jins/IO/sofar/packages/engine/src/mcp/find.ts
+- /Users/jins/IO/sofar/packages/engine/src/mcp/server.ts
+- /Users/jins/IO/sofar/packages/schema/test/tool-inputs.test.ts
+- /Users/jins/IO/sofar/packages/engine/test/reach-index.test.ts
+- /Users/jins/IO/sofar/docs/ARCHITECTURE.md
+- /Users/jins/IO/sofar/packages/engine/test/serve-mcp.test.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/be9e41f0-bd35-439b-9913-c936eaeebe7c/scratchpad/bench.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/4eef5d6c-2535-481b-a1b2-b5df1b16aa67/scratchpad/measure.js
+- /private/tmp/claude-501/-Users-jins-IO-sofar/4eef5d6c-2535-481b-a1b2-b5df1b16aa67/scratchpad/measure2.js
+- /Users/jins/IO/sofar/packages/engine/src/core/lexicon.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/4eef5d6c-2535-481b-a1b2-b5df1b16aa67/scratchpad/tf-experiment.js
+- /Users/jins/IO/sofar/packages/engine/src/mcp/context.ts
+- /Users/jins/IO/sofar/packages/engine/test/record-integrity.test.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/4eef5d6c-2535-481b-a1b2-b5df1b16aa67/scratchpad/msg.txt
+- /Users/jins/.claude/projects/-Users-jins-IO-sofar/memory/concurrent-sessions-share-worktree.md
+- /Users/jins/.claude/projects/-Users-jins-IO-sofar/memory/MEMORY.md
+- /Users/jins/IO/sofar/packages/engine/test/graph-hotpath.test.ts
+- /Users/jins/IO/sofar/packages/engine/package.json
+- /Users/jins/IO/sofar/packages/engine/test/scratch-partial.test.ts
+- /Users/jins/IO/sofar/packages/engine/test/index-equivalence.test.ts
+- /private/tmp/claude-501/-Users-jins-IO-sofar/5c0728c5-04ec-41f2-9408-ee316b298fbb/scratchpad/msg2.txt
+- /private/tmp/claude-501/-Users-jins-IO-sofar/5c0728c5-04ec-41f2-9408-ee316b298fbb/scratchpad/msg3.txt
+- /private/tmp/claude-501/-Users-jins-IO-sofar/5c0728c5-04ec-41f2-9408-ee316b298fbb/scratchpad/msg4.txt
+- /private/tmp/claude-501/-Users-jins-IO-sofar/5c0728c5-04ec-41f2-9408-ee316b298fbb/scratchpad/msg5.txt
+
+== digest:plain (4406 bytes) ==
+# Sofar status: record-index
+
+Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first…
+
+Next action: Pick the next initiative — this branch is unbound, so start or switch on a fresh session.
+⚠ next action may be stale: 2 events since write-back (1 file, 1 promoted memory)
+
+Last session (claude-code, ended 2026-08-09T07:49:50.138Z):
+  record-index closed and merged: main fast-forwarded to add2ca1 and pushed to origin (21 commits). Branch never diverged, so no merge commit.
+
+⚠ 1 other session(s) did work without writing back: 58a146b7-2fee-4c20-a4ac-0155dd2b4ea7
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
+Memory (4; full text in memory.md):
+- [M4] Stale open-session holders, and the layer the fix must NOT go in. Tier 0 (.sofar/.index/open.json) drops a session only when session_ended arrives, so a session whose process dies stays "open" forever. Measured 2026-08-09 in this repo: 5 sessions listed open, 3 of them dead — re…
+- [M1] packages/engine/src/core/fold.ts contains literal NUL bytes (line ~742, `${index}\0${session}\0${subject}` used as a map key), so grep and ripgrep classify it as binary and return NOTHING — silently, with exit 0. A search for a symbol that lives in fold.ts looks like the symbol …
+- [M3] A literal NUL byte in a source file makes grep and `file` treat the whole file …
+- [M2] Claude Code hook output contract, verified against the installed binary (2.1.22…
+
+Recent decisions (last 5 of 17; full text in decisions.md):
+- [D13] 2026-08-08 Citation handles are SCANNED when an event is indexed and BOUND to an initiative at query… — over Resolving a citation to its target when the decision is indexed
+- [D14] 2026-08-08 (rule below) Lexical seeding is a FALLBACK inside the seed ladder, not a… — over A --text flag or a mode argument
+- [D15] 2026-08-08 Store per-row TERM COUNTS — over Binary presence with a term SET
+- [D16] 2026-08-09 (rule below) A cursor is only meaningful beside the state it produced — over Trusting meta.json independently of the payload it describes
+- [D17] 2026-08-09 Leave Tier 0 order-sensitive and DOCUMENT the boundary — over Making Tier 0 order-independent like the fold
+Earlier rejected approaches — do NOT re-propose (12 older):
+- [D1] one monolithic index file, a committed/union-merged index, embeddings…
+- [D2] a pure pull design where SessionStart advertises the graph and the ag…
+- [D3] A read-only shim (depends on some other process maintaining the index…
+- [D4] Keeping the v1 cursor and tailing every log every refresh, and skippi…
+- …and 8 more (see decisions.md)
+
+Next ids: D18 (decision), M5 (memory)
+
+Standing constraints — obey verbatim (6):
+- [D12] Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.
+- [D16] Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.
+- [D14] A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.
+- [D6] A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.
+- [D2] Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.
+- [D1] The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:hook (5577 bytes) ==
+# Sofar status: record-index
+
+Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first…
+
+Next action: Pick the next initiative — this branch is unbound, so start or switch on a fresh session.
+⚠ next action may be stale: 2 events since write-back (1 file, 1 promoted memory)
+
+Last session (claude-code, ended 2026-08-09T07:49:50.138Z):
+  record-index closed and merged: main fast-forwarded to add2ca1 and pushed to origin (21 commits). Branch never diverged, so no merge commit.
+
+⚠ 1 other session(s) did work without writing back: 58a146b7-2fee-4c20-a4ac-0155dd2b4ea7
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
+Memory (4; full text in memory.md):
+- [M4] Stale open-session holders, and the layer the fix must NOT go in. Tier 0 (.sofar/.index/open.json) drops a session only when session_ended arrives, so a session whose process dies stays "open" forever. Measured 2026-08-09 in this repo: 5 sessions listed open, 3 of them dead — re…
+- [M1] packages/engine/src/core/fold.ts contains literal NUL bytes (line ~742, `${index}\0${session}\0${subject}` used as a map key), so grep and ripgrep classify it as binary and return NOTHING — silently, with exit 0. A search for a symbol that lives in fold.ts looks like the symbol …
+- [M3] A literal NUL byte in a source file makes grep and `file` treat the whole file …
+- [M2] Claude Code hook output contract, verified against the installed binary (2.1.22…
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+…truncated — read .sofar/repo.md for the rest
+
+Recent decisions (last 5 of 17; full text in decisions.md):
+- [D13] 2026-08-08 Citation handles are SCANNED when an event is indexed and BOUND to an initiative at query… — over Resolving a citation to its target when the decision is indexed
+- [D14] 2026-08-08 (rule below) Lexical seeding is a FALLBACK inside the seed ladder, not a… — over A --text flag or a mode argument
+- [D15] 2026-08-08 Store per-row TERM COUNTS — over Binary presence with a term SET
+- [D16] 2026-08-09 (rule below) A cursor is only meaningful beside the state it produced — over Trusting meta.json independently of the payload it describes
+- [D17] 2026-08-09 Leave Tier 0 order-sensitive and DOCUMENT the boundary — over Making Tier 0 order-independent like the fold
+Earlier rejected approaches — do NOT re-propose (12 older):
+- [D1] one monolithic index file, a committed/union-merged index, embeddings…
+- [D2] a pure pull design where SessionStart advertises the graph and the ag…
+- [D3] A read-only shim (depends on some other process maintaining the index…
+- [D4] Keeping the v1 cursor and tailing every log every refresh, and skippi…
+- …and 8 more (see decisions.md)
+
+Next ids: D18 (decision), M5 (memory)
+
+Adjacent records — 22 decisions across 5 other initiatives that have worked this one's files, densest first:
+- alpha — 12 shared files, 0 decisions
+- beta — 4 shared files, 19 decisions
+- gamma — 4 shared files, 2 decisions
+…and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: record-index-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+Standing constraints — obey verbatim (6):
+- [D12] Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.
+- [D16] Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.
+- [D14] A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.
+- [D6] A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.
+- [D2] Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.
+- [D1] The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:lane (5527 bytes) ==
+# Sofar: quick-work lane (record-index)
+
+Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first…
+
+This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
+- Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
+- Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
+
+Last session (claude-code, ended 2026-08-09T07:49:50.138Z):
+  record-index closed and merged: main fast-forwarded to add2ca1 and pushed to origin (21 commits). Branch never diverged, so no merge commit.
+
+Recent quick work (12 sessions, 17 decisions since 2026-08-08; last 5):
+- 2026-08-08 claude-code — 14 files (/Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/engine/test/graph-hotpath.test.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-tier1.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/package.json, /Users/jins/IO/sofar/packages/engine/test/scratch-partial.test.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-pass.ts, /Users/jins/IO/sofar/packages/engine/test/index-equivalence.test.ts, /Users/jins/IO/sofar/packages/engine/test/priming-line.test.ts, /private/tmp/claude-501/-Users-jins…
+- 2026-08-08 claude-code — 2 files (/Users/jins/IO/sofar/packages/engine/src/mcp/context.ts, /Users/jins/IO/sofar/packages/engine/test/record-integrity.test.ts), 28 commands
+- 2026-08-08 claude-code — 8 commands
+- 2026-08-08 claude-code — 15 files (/private/tmp/claude-501/-Users-jins-IO-sofar/4eef5d6c-2535-481b-a1b2-b5df1b16aa67/scratchpad/measure.js, /private/tmp/claude-501/-Users-jins-IO-sofar/4eef5d6c-2535-481b-a1b2-b5df1b16aa67/scratchpad/measure2.js, /Users/jins/IO/sofar/packages/engine/src/core/lexicon.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-reach.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-store.ts, /Users/jins/IO/sofar/packages/engine/src/cli/find.ts, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/find.ts, /Users…
+- 2026-08-08 claude-code — 2 files (/Users/jins/IO/sofar/CLAUDE.md, /Users/jins/.claude/CLAUDE.md), 2 commands
+
+Memory (4; full text in memory.md):
+- [M4] Stale open-session holders, and the layer the fix must NOT go in. Tier 0 (.sofa…
+- [M3] A literal NUL byte in a source file makes grep and `file` treat the whole file …
+- [M2] Claude Code hook output contract, verified against the installed binary (2.1.22…
+- [M1] packages/engine/src/core/fold.ts contains literal NUL bytes (line ~742, `${inde…
+
+Recent decisions (last 5 of 17; full text in decisions.md):
+- [D13] 2026-08-08 Citation handles are SCANNED when an event is indexed and BOUND to an initiative at query… — over Resolving a citation to its target when the decision is indexed
+- [D14] 2026-08-08 (rule below) Lexical seeding is a FALLBACK inside the seed ladder, not a… — over A --text flag or a mode argument
+- [D15] 2026-08-08 Store per-row TERM COUNTS — over Binary presence with a term SET
+- [D16] 2026-08-09 (rule below) A cursor is only meaningful beside the state it produced — over Trusting meta.json independently of the payload it describes
+- [D17] 2026-08-09 Leave Tier 0 order-sensitive and DOCUMENT the boundary — over Making Tier 0 order-independent like the fold
+Earlier rejected approaches — do NOT re-propose (12 older):
+- [D1] one monolithic index file, a committed/union-merged index, embeddings…
+- [D2] a pure pull design where SessionStart advertises the graph and the ag…
+- [D3] A read-only shim (depends on some other process maintaining the index…
+- [D4] Keeping the v1 cursor and tailing every log every refresh, and skippi…
+- …and 8 more (see decisions.md)
+
+Next ids: D18 (decision), M5 (memory)
+
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (6):
+- [D16] Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.
+- [D14] A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.
+- [D12] Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.
+- [D6] A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.
+- [D2] Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.
+- [D1] The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:quiet (4492 bytes) ==
+# Sofar status: record-index
+
+Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first…
+
+Next action: Pick the next initiative — this branch is unbound, so start or switch on a fresh session.
+⚠ next action may be stale: 2 events since write-back (1 file, 1 promoted memory)
+
+Last session (claude-code, ended 2026-08-09T07:49:50.138Z):
+  record-index closed and merged: main fast-forwarded to add2ca1 and pushed to origin (21 commits). Branch never diverged, so no merge commit.
+
+⚠ 1 other session(s) did work without writing back: 58a146b7-2fee-4c20-a4ac-0155dd2b4ea7
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
+Memory (4; full text in memory.md):
+- [M4] Stale open-session holders, and the layer the fix must NOT go in. Tier 0 (.sofar/.index/open.json) drops a session only when session_ended arrives, so a session whose process dies stays "open" forever. Measured 2026-08-09 in this repo: 5 sessions listed open, 3 of them dead — re…
+- [M1] packages/engine/src/core/fold.ts contains literal NUL bytes (line ~742, `${index}\0${session}\0${subject}` used as a map key), so grep and ripgrep classify it as binary and return NOTHING — silently, with exit 0. A search for a symbol that lives in fold.ts looks like the symbol …
+- [M3] A literal NUL byte in a source file makes grep and `file` treat the whole file …
+- [M2] Claude Code hook output contract, verified against the installed binary (2.1.22…
+
+Recent decisions (last 5 of 17; full text in decisions.md):
+- [D13] 2026-08-08 Citation handles are SCANNED when an event is indexed and BOUND to an initiative at query… — over Resolving a citation to its target when the decision is indexed
+- [D14] 2026-08-08 (rule below) Lexical seeding is a FALLBACK inside the seed ladder, not a… — over A --text flag or a mode argument
+- [D15] 2026-08-08 Store per-row TERM COUNTS — over Binary presence with a term SET
+- [D16] 2026-08-09 (rule below) A cursor is only meaningful beside the state it produced — over Trusting meta.json independently of the payload it describes
+- [D17] 2026-08-09 Leave Tier 0 order-sensitive and DOCUMENT the boundary — over Making Tier 0 order-independent like the fold
+Earlier rejected approaches — do NOT re-propose (12 older):
+- [D1] one monolithic index file, a committed/union-merged index, embeddings…
+- [D2] a pure pull design where SessionStart advertises the graph and the ag…
+- [D3] A read-only shim (depends on some other process maintaining the index…
+- [D4] Keeping the v1 cursor and tailing every log every refresh, and skippi…
+- …and 8 more (see decisions.md)
+
+Next ids: D18 (decision), M5 (memory)
+
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (6):
+- [D12] Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.
+- [D16] Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.
+- [D14] A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.
+- [D6] A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.
+- [D2] Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.
+- [D1] The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:cap (6038 bytes) ==
+# Sofar status: record-index
+
+Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first…
+
+Next action: Pick the next initiative — this branch is unbound, so start or switch on a fresh session.
+⚠ next action may be stale: 2 events since write-back (1 file, 1 promoted memory)
+
+⚠ 1 other session(s) did work without writing back: 58a146b7-2fee-4c20-a4ac-0155dd2b4ea7
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
+
+Next ids: D18 (decision), M5 (memory)
+
+Adjacent records — 22 decisions across 5 other initiatives that have worked this one's files, densest first:
+- alpha — 12 shared files, 0 decisions
+- beta — 4 shared files, 19 decisions
+- gamma — 4 shared files, 2 decisions
+…and 2 more. Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: record-index-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+…truncated — run sofar status for full detail
+
+Standing constraints — obey verbatim (6):
+- [D12] Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.
+- [D16] Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.
+- [D14] A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.
+- [D6] A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.
+- [D2] Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.
+- [D1] The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== plan (3366 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Plan: record-index
+
+Goal: An incremental, local, derived index over the WHOLE repo so cross-record questions stop costing O(history) or O(initiative count) — and so point-of-use recall, the drift mechanism already measured to work, stops being confined to one initiative's log. Tier 0 is a byte-sized hot file making cross-initiative conflict detection O(1) on the shim path. Tier 1 materializes the record graph, whose first consumer is CROSS-INITIATIVE GUARDS (pushed by the harness, needing no agent cooperation), then a priming line, then agent-initiated search. Maintained by per-initiative cursors so cost is O(new events). LOCAL and gitignored: derived state never merges, never syncs, rebuilds from truth. Zero model calls — the edges are recorded facts, so retrieval traverses them and cites the event id behind every result.
+
+Progress: 11/11 tasks done (100%)
+
+## Phase 1 — Incremental core [done] — 2/2 done
+
+- [x] 1.1 core/index-store.ts: gitignored self-ignoring .sofar/.index/, version-stamped, atomic, every failure collapsing to cold start
+- [x] 1.2 core/index-tail.ts: read only what a log grew by, via a self-corroborating cursor (offset points at its event's line START)
+
+## Phase 2 — Tier 0 (hot) [done] — 2/2 done
+
+- [x] 2.1 open.json: open sessions per initiative + the files they hold, maintained incrementally through the cursor core. Bytes, not megabytes — O(1) read on the shim path.
+- [x] 2.2 Wire cross-initiative conflicts through Tier 0, unblocking cross-initiative-conflicts 2.2; re-measure the shim against speed T2's 100ms at 30/300/1000 initiatives
+
+## Phase 3 — Tier 1: guards first, then reach [done] — 5/5 done
+
+- [x] 3.1 Materialize the graph incrementally into the index (nodes/edges from core/adjacency), KEYED for lookup — path -> guarding decisions, path -> touching sessions/initiatives — rather than rebuilt per query
+- [x] 3.2 LAYER 1, cross-initiative guards: PostToolUse resolves 'does any decision ANYWHERE guard this path' in O(1) and surfaces the rule verbatim. Un-scopes the existing guard, which today can never fire because the guard lives in one log and the work is appended to another. The layer that prevents damage — build before search.
+- [x] 3.3 LAYER 2, priming: SessionStart states a concrete fact (N decisions from M named initiatives touch this initiative's files), never a capability blurb — a count creates the intent to ask where an offer is ignored
+- [x] 3.4 LAYER 3, `sofar find` + MCP tool: traverse from a seed (file, session, decision, initiative) with a hop budget; every result cites the event id that produced the edge. OFFERED as worth reading, never asserted — D2's declared-vs-derived rule.
+- [x] 3.5 Lexical seeds over decision/note prose (IDF-ranked, no model) so a text question resolves to seeds the traversal can expand
+
+## Phase 4 — Contract + proof [done] — 2/2 done
+
+- [x] 4.1 SPEC: index layout, cursor semantics, derived-never-truth, the guard un-scoping contract, retrieval authority split
+- [x] 4.2 Equivalence proof: indexed answers byte-match from-logs answers on every fixture, and a corrupt/stale/absent index still returns the right answer via fallback
+
+Next action: Pick the next initiative — this branch is unbound, so start or switch on a fresh session.
+
+== decisions (25306 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Decisions: record-index
+
+- 2026-08-08T14:43:06.342Z — rule: **The index is derived, never truth: it lives gitignored under .sofar/.index/, is never committed or synced, and any absence, staleness, or corruption must fall back to reading the logs rather than returning a wrong answer.** — chose **A TIERED, INCREMENTAL, LOCAL index. Tier 0 is a byte-sized hot file (open sessions and the files they hold) read on the shim path; Tier 1 materializes the record graph for structural retrieval and is read only when asked. Both are maintained by per-initiative cursors (last consumed event id), live under a gitignored .sofar/.index/, and are rebuilt from the logs whenever absent, stale, or unparseable.** over one monolithic index file, a committed/union-merged index, embeddings-based semantic retrieval, and node:sqlite because The log is append-only and ulid-ordered, so any derivation over a PREFIX is permanently valid — an index never needs invalidation, only extension. That makes cost O(new events) instead of O(history), which is the only way a cross-record answer can ever ride a 100ms shim: at 300 initiatives the measured warm sweep alone was 18.9ms and at 1000 it was 64.1ms, both O(initiative count). A MONOLITHIC index was rejected because parsing megabytes to answer a byte-sized question just moves the cost; the hot tier must stay small enough that reading it is free, and richer structure belongs behind an explicit ask. COMMITTING the index was rejected because derived state that merges is a permanent conflict source and a staleness vector across machines — local-only removes both problems at zero cost, since anything derived can be rebuilt. EMBEDDINGS were rejected as the foundation: they need a model (breaking felt-cost D3's zero-API-calls invariant, its cost and privacy guarantees with it) AND they discard the thing that makes this record special — the edges are already recorded facts, so traversal returns exact results that can cite the event id that produced them, where similarity returns guesses that cannot. Auditable retrieval is also what the drift work needs; approximate retrieval would be a new hallucination surface, not a fix for one. node:sqlite was rejected for now because it needs Node >=22.5 against a stated floor of 18; revisit if Tier 1 outgrows flat files.
+- 2026-08-08T16:07:36.868Z — rule: **Declared relevance (a decision's own guard matching the path) may be ASSERTED to the agent; derived relevance (graph adjacency) may only be OFFERED as worth reading. Never let inferred relevance speak with the authority of a declared rule.** — chose **Three layers, split by WHO declared the relevance, and guards built before search. (1) GUARD — PostToolUse asks "does any decision anywhere guard this path" via an O(1) index lookup and surfaces the rule verbatim; pushed by the harness, needing no agent cooperation. (2) PRIME — SessionStart states a concrete fact ("files this initiative touches carry N decisions from M other initiatives, named"), not a capability blurb. (3) QUERY — `sofar find`, agent-initiated, full history for a seed, every result citing the event id behind it.** over a pure pull design where SessionStart advertises the graph and the agent asks when it judges it needs to, and the original Phase 3 order of building search before guards because Pure pull puts the strongest protection on the weakest tier, by this project's OWN measurement: the four-cell ladder ranks ruled below ruled+guarded, and "you may query the graph" is a rule. Drift certification exists precisely because instructions get skipped under load, so a cross-initiative safety net that depends on the agent remembering to ask is built on the thing being measured as unreliable. Pull also only ever retrieves KNOWN unknowns — the agent asks about the file it is already thinking about, while the decision that bites is the one it never suspected — and it can fire after the code is written, making it documentation rather than prevention. The push half fixes all three because PostToolUse is mechanical, fires on every edit, and fires at the first moment the path is known. Pull is still necessary and still built: at 300 initiatives nothing can be pushed wholesale, so depth must be on demand. What changes is that the two halves speak with different authority. A guard is relevance the AUTHOR declared ("this applies to these paths") and can be asserted like a standing constraint; adjacency is relevance WE inferred and can only be offered. Collapsing them would manufacture hallucinated relevance — exactly the drift this work exists to remove.
+- 2026-08-08T16:48:34.965Z — chose **The shim REFRESHES Tier 0 on the prompt path and pays a full cold build when the index is absent — 147ms once at 1000 initiatives, over the 100ms budget for that single prompt — rather than bounding the build per invocation.** over A read-only shim (depends on some other process maintaining the index), a warmth-gated cold build (isWarm costs 46ms at 1000 — more than the read it saves), and a per-prompt build budget that converges over several prompts. because A partial index answers "no conflict" for everything it has not built yet, and empty is indistinguishable from safe — exactly the wrong answer D1 forbids. Unlike the warm gate, a build cutoff has no semantic justification: a quiet log provably cannot hold an actively-editing session, but an unbuilt one can. So the cost is paid whole, once per index lifetime, and it buys a steady state that is inside budget at every scale measured: shim end-to-end 60.5ms at 30, 62.1ms at 300, 72.0ms at 1000 initiatives; the derivation itself 1.2/2.0/4.7ms against the fold-every-log path's 4.8/39.9/132.4ms. Context for the one over-budget number: at 1000 initiatives SessionStart already costs 89ms, so that scale is at the edge of the shim budget independent of this work. A background or lazy build is the open door if that ever bites.
+- 2026-08-08T16:48:43.277Z — chose **Cursors carry mtimeMs (index schema v2): a log whose size AND mtime both match the cursor is skipped without opening it, so a quiet initiative costs one stat.** over Keeping the v1 cursor and tailing every log every refresh, and skipping on size equality alone. because Measured at 1000 initiatives, tail reads were 13.1ms of a 15.9ms refresh while stats were 1.8ms — the read was the whole cost, and the reads returned nothing. Neither half of the test stands alone: an append always grows the file, so size catches every append; a rewrite can preserve size, so mtime catches the import/restore/checkout size cannot see. Requiring both means the only undetectable case is a rewrite that forges size AND mtime, which nothing in normal operation does — and the next append to that log restores full corroboration. mtime is a difference detector here, never a warmth signal (warmth.ts rejects it for the opposite reason: git checkout makes cold logs look fresh, which here only ever costs an extra read). Result: refresh went 15.9ms to 4.7ms at 1000, and the version bump makes every v1 cursor cold-start instead of being misread.
+- 2026-08-08T17:19:41.234Z — chose **One shared incremental pass (core/index-pass.ts) that every tier reduces over, with four rebuild triggers: an uncorroborated cursor, a tail out of ulid order, a correction reaching back past the batch, and a void remembered on the cursor for a target that arrives later. The tail reader now applies the fold's own skip rules (envelope validation, payload validation), and each tier keeps its OWN cursor file.** over Copying Tier 0's loop into Tier 1, trusting file order, ignoring corrections, decoding leniently, and sharing one cursor map across tiers. because Tier 0 as shipped in 2.1 was wrong in three ways this record can demonstrate on itself. It ignored corrections, and .sofar carries 24 of them voiding session_started, session_ended, decision_logged and command_run — an index that ignores a void reports work the record has withdrawn. It trusted file order, but the fold replays in ULID order and `merge=union` (this project's own merge strategy for events.jsonl) interleaves branches — a merged session_closed sorting before its start closes a session the fold leaves open. And it decoded leniently, so an envelope- or payload-invalid line the fold skips would have become an open session or a toucher. Sharing one cursor map would have been a fourth: whichever tier refreshed first would advance the cursor past events the others never saw. Each fallback costs one re-read of one log; being wrong costs a silent, permanent disagreement with every other surface. Price paid: validation makes a cold build cost about what folding costs (203ms at 1000 initiatives, 111ms at 300), while the steady state — the path every prompt takes — is unchanged at 0.9/1.9/5.5ms derivation and 67/70/84ms end-to-end. A type pre-filter to cut the cold build was built and measured at 130.3ms vs 131.2ms — no gain, so it was reverted rather than kept.
+- 2026-08-08T17:43:52.594Z — rule: **A guard may inform, never gate: no sofar surface may turn a guard match into a non-zero exit, a block decision, or a refusal to proceed.** — chose **PostToolUse speaks through exit-0 hookSpecificOutput.additionalContext, and a guard NEVER changes an exit code — the un-scoped rule is asserted verbatim at the edit, but it can only inform, never stop.** over exit 2 with stderr, or `decision: "block"` with a reason — both of which Claude Code feeds back to the model and both of which read as the tool having gone wrong; also plain stdout, which on this hook is transcript-only and never reaches the model at all. because drift-hardening D3 already settled this for the retrospective surfaces: guard crossings RIDE a block, they never cause one, because one false positive that stops real work costs more than every true positive it catches. Moving the check to the point of use does not change that arithmetic — it makes it sharper, since PostToolUse fires on every edit and a glob is a blunt predicate. additionalContext is the one PostToolUse channel that reaches the model without touching control flow, so the rule arrives while the edit is the current thought and the agent keeps its own judgment about it. D2 governs the wording rather than the force: declared relevance is asserted ("obey it verbatim, or log a decision that supersedes it"), not offered.
+- 2026-08-08T17:44:00.646Z — chose **Tier 1 is TWO files on TWO cursors — guards.json (declared) and graph.json (derived) — and the hot path refreshes the declared half on every edit, the derived half only after a rule has already matched.** over Keeping 3.1's single graph.json and refreshing all of it per edit; or dropping the repeat-suppression so only the small half is ever needed. because Measured: one shared file made PostToolUse pay the whole repo's touch history per edit — parse + rewrite of 88KB here, 1.5ms at 30 initiatives, 9.3ms at 300, 31.8ms at 1000 — which is O(repo) per edit on an initiative whose claim is O(new events). Split, the declared half costs what Tier 0 costs (0.5/1.5/4.4ms vs Tier 0's 0.6/1.9/5.7ms) and the whole handler drops from 32.5ms to 6.3ms at 1000. The derived half is still needed, but only to answer "have I already said this", which by construction only arises once a rule has fired. The boundary is the one D2 already draws: declared and derived differ in authority, and they turn out to differ in size and read frequency too.
+- 2026-08-08T17:44:16.777Z — chose **Suppress a repeat by reconstructing the fold's own (rule, session, subject) dedupe from the index: a path rule fires only when it was logged STRICTLY AFTER that session's last recorded touch of the path. Commands are never suppressed, and self-recording commands are still READ though never appended.** over Firing statelessly on every crossing edit like the drift nudge and conflict lines do; or storing an "already told you" set, which is state the logs do not derive. because The stateless re-fire precedent (D5) is about facts that stay news while they stay true — a live sibling in your file. A guard is not that: the fold explicitly rejected repetition here ("a file edited thirty times is one violation of one rule, not thirty warnings"), and a rule that repeats on every edit under a broad glob is exactly the noise that gets this class of line ignored. The ts comparison gives the same answer without new state, and stays correct when a rule is declared after the file was already touched — the case a bare "have I touched this before" test would silently lose. Commands have no touch history to compare against and each run is its own act with its own consequences. Reading the guard for a git/sofar command costs nothing the record-hygiene D1 exemption protects (that exemption is about the APPEND making the tree un-settleable) and is the only way a `cmd:*git push*` rule can ever be enforced, since no event about a push is ever written.
+- 2026-08-08T18:04:39.905Z — chose **The priming line ranks neighbours by SHARED PATHS (the direct edge) and leads its header with the decision total across all of them — "N decisions across M other initiatives that have worked this one's files".** over The two-hop decision join whyFile already exposes (decision &lt;- session -&gt; file); and ranking by that join's per-initiative decision counts. because Measured on this record, the two-hop join reports 41 decisions from 14 initiatives for record-index, and its ranking is dominated by hub files — cli/event.ts alone makes the whole repo adjacent to everything, so it surfaced drift-hardening and security-hardening ahead of records that actually share ground. Counting shared PATHS keeps the weight on ground genuinely held in common (peer-messaging 8, record-graph 4, record-integrity 4) and keeps the decision count an honest property of the record rather than a claim about its contents. The header carries the decision total because the densest neighbour can hold almost nothing (peer-messaging: 8 shared files, 1 decision) — leading with the readable payload means the intent to look is created before the reader reaches a thin first row.
+- 2026-08-08T18:04:50.267Z — chose **A quiet initiative is carried forward BY REFERENCE in the shared pass, and the priming answer is computed by intersecting per-slug path sets instead of materializing the repo-wide union.** over Cloning every slug's prior state on every refresh (the original SlugReducer contract), and answering from the unioned FileIndex that refreshFiles already builds. because The first version put SessionStart at 131.5ms at 1000 initiatives — over speed T2's 100ms budget on the most latency-critical shim, and this is the WARM steady state, not the one-off cold build 2.2 accepted going over. Decomposition showed the cost was not the question but the machinery around it: one appended event was deep-copying 50,272 path entries into a state nothing would mutate, and the union allocated two objects per path (100,000 allocations) to answer one question about one initiative. `clone` exists so a resume never mutates prior state in place; with no events to apply there is nothing to mutate, and `prior` is a fresh parse this call owns. Together: 131.5ms to 84.6ms at 1000, 68.1 to 48.7 at 300 — inside budget at every measured scale. The unioned implementation stays as the reference, with a test holding the two against each other, because the cheap path must skip the join for cost and never for meaning.
+- 2026-08-08T18:43:03.123Z — chose **A THIRD Tier 1 half on its OWN cursor — reach.json + meta-reach.json — carrying decision/note prose (clipped to 300 chars), scanned citation handles, and a touch map with the event id of every edge. Refreshed only when someone asks a question.** over Extending graph.json with event ids and prose (the derived half SessionStart's priming already parses), and building `sofar find` on buildGraph the way `sofar why` and `sofar related` do. because Read frequency is the boundary, exactly as it was in D7. guards.json is read on every edit and holds 3 decisions; graph.json is read once a rule fires and holds the repo's touch history; this is read only on an explicit ask, so it can afford what neither of the others can. Measured on this record: find 1.8ms against `sofar why`'s 35.4ms for a broader answer. At 30/300/1000 initiatives: warm find 2.3/21.4/70.1ms, cold build 17.9/165.2/536.0ms, reach.json 252KB/2.5MB/8.4MB — and the hot halves are untouched at 1000 (Tier 0 3.6ms, guards 3.1ms, priming 14.6ms), because nothing on a shim path imports the module. Growing graph.json instead would have put the whole reach payload on the SessionStart path D10 spent a decision getting to 84.6ms. Prose is CLIPPED because the index exists to say what is worth reading, not to become the thing that is read: a full copy of the record is a copy that invites being read as truth (D1), and every result names the event id, so the record is one command away.
+- 2026-08-08T18:43:13.444Z — rule: **Never make an initiative node traversable in reach: a traversal may REPORT a record, never continue a path through one.** — chose **An initiative is a DESTINATION, never a corridor: initiative nodes carry no adjacency, a traversal that reaches one stops there, and initiative hits are synthesized from the nearest member reached — citing that member's own event. Only an initiative SEED expands, to what the record holds.** over Minting initiative↔member edges into the adjacency like every other relationship, or leaving initiatives out of the results entirely. because An initiative is adjacent to everything inside it, so a corridor through one puts every record two hops from every other and the answer to any question becomes "the repo". That is D9's hub problem — cli/event.ts making the whole repo look adjacent — one level up and structural rather than statistical, so it is fixed structurally rather than by ranking. Dropping initiatives entirely was worse: "which other records are in reach" is the question an agent actually has. Synthesizing the hit from the nearest member answers it with nothing inferred that the member had not already established, and citing the MEMBER's own event keeps the citation inside the log that holds it — carrying the member's reaching edge instead would cite an event in another record, which is no evidence at all that this one holds anything. A test pins it: two records sharing no files stay unconnected at max hops.
+- 2026-08-08T18:43:22.147Z — chose **Citation handles are SCANNED when an event is indexed and BOUND to an initiative at query time, with the grammar split into core/citations.ts BELOW core/graph.ts and re-exported from it unchanged.** over Resolving a citation to its target when the decision is indexed (the obvious thing — it is a per-event fact), and leaving citation edges out of the index so `find` would call buildGraph for them. because Scanning is lexical and permanent; BINDING depends on which initiatives exist, and `sofar new` changes that answer — a word that qualified nothing yesterday qualifies today, so a handle reading as home-scoped re-binds to another record later. Resolving at index time would freeze the old reading and make the index disagree with the graph permanently, which is the one failure D1 forbids; a test demonstrates the re-binding on a late-arriving slug. The MOVE is what makes it possible at all: the hot-path lock keeps every mcp/ module away from core/graph.ts, and the grammar lived there. Splitting it down is the core/adjacency.ts precedent (record-graph D11) — the shared primitive goes below both readers rather than being copied. Verified against the comparator: the index derives exactly the decision→decision `cites` edges buildGraph derives, 64 for 64 on this record, none missing and none extra.
+- 2026-08-08T19:14:13.295Z — rule: **A text match may be OFFERED as prose containing the asker's words, never as an answer, and never as a traversal hit with a via edge.** — chose **Lexical seeding is a FALLBACK inside the seed ladder, not a mode: resolveSeed stays literal and unchanged, and resolveQuery consults lexicalSeed only when the literal reading found nothing. A text seed comes back as kind 'text' with its matches on seed.matches, never in groups.** over A --text flag or a mode argument (the caller must then already know which kind of question they are asking); ranking text alongside literal candidates and picking the best score (a mistyped path silently becomes a search, and the caller cannot tell which happened); putting matches in groups with a synthesised via edge. because A path, slug, session id or handle DENOTES something; words only resemble. Order is the whole safety argument — literal always wins, so `sofar find src/core/graf.ts` can never quietly answer about something else. And a match has no edge: giving it a `via` would dress word overlap up as adjacency the record can prove, which is exactly the authority blur D2 exists to stop. Matches cite the event whose OWN prose holds the words, which is checkable; what they must never claim is that it answers the question.
+- 2026-08-08T19:14:22.611Z — chose **Store per-row TERM COUNTS (stem → occurrences) plus a token total, derived from the WHOLE prose, and rank with textbook BM25 (k1=1.2, b=0.75) over the whole record. Light stemming folds plurals, -ing and -ed on both sides.** over Binary presence with a term SET (57KB cheaper here); indexing only the 300-char stored label (free, but blind to two thirds of the vocabulary); a per-slug inverted index (measured BIGGER — 295KB vs 267KB, because the average postings list is 1.76 docs long); embeddings or any model call (D1, and SPEC's zero-model invariant). because Measured on this record: 68% of decision terms (16,688 of 24,410) appear only past the clip, because `because` is where the reasoning lives — so the label alone could not see the question's vocabulary. And presence alone ranks badly: "is the derived index ever committed or synced" put record-index D1 — the decision that IS the index — third behind two passing mentions, and first once occurrences count. Restating the subject is what aboutness looks like in prose; BM25 saturation keeps that from becoming keyword stuffing. Cost is 57KB against 245KB of terms, on a file only `sofar find` opens: 3.0ms end to end, 0.2ms of it ranking, against `sofar why`'s 35.4ms.
+- 2026-08-09T07:26:07.480Z — rule: **Never resume from a cursor whose derived state is absent — state and cursor are two halves of one fact, and either one missing invalidates the other.** — chose **A cursor is only meaningful beside the state it produced: when a tier has no prior state for a slug, its cursor is IGNORED and the log is read in full. passOverRecord keys this per slug, so a payload file that is missing, unreadable, or simply lacking a slug the meta still has a cursor for rebuilds that slug from its whole log.** over Trusting meta.json independently of the payload it describes (what the code did): the pass read only the TAIL into an EMPTY state, wrote that back, and every tier then reported an empty record — stably, until something appended. because Cursors and derived state live in different files and come apart in ordinary ways: writeIndexMeta lands before the payload write and both fail silently, a cleanup removes one, a partial payload is missing a slug. Every per-tier test wrote both halves together, so nothing caught it — 4.2's damage matrix did, and 28 of its cases fail without the fix. D1 says an absent or corrupt index must fall back to the logs rather than answer wrongly, and answering "this record is empty" is the worst available wrong answer: it reads as "no conflict", "no guard", "nothing adjacent".
+- 2026-08-09T07:26:15.552Z — chose **Leave Tier 0 order-sensitive and DOCUMENT the boundary: a file_touched that sorts before its own session_started is not attributed, where the fold attributes it. Stated in SPEC and pinned by a named test rather than left to be discovered.** over Making Tier 0 order-independent like the fold — holding touches for not-yet-registered sessions and adopting them when the session appears. because Reaching the divergence needs a session's registration and its touch to invert in ulid order. Ulids are monotonic within a process; a session's events come from several short-lived ones (the MCP server, each hook shim), so it takes two landing in the SAME MILLISECOND with the random halves falling the wrong way. Measured over this record: 0 of 172 registered sessions. Closing it costs the tier its claim — attributing an unregistered session's touches means STORING them, and the hot file, read on every prompt and bounded today by how many agents are working right now, would carry every touch of every session that never registered (here: 11 sessions, 318 touches). The error also runs toward silence: a held file is missed, never invented, so the advisory conflict line under-reports rather than crying wolf. Only Tier 0 is affected — the derived and reach halves attribute a touch by its own event.
+
+== memory (3522 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Promoted to repo memory: record-index
+
+Cite these in .sofar/repo.md by qualified handle — `record-index M<n>` —
+which is how `sofar doctor` sees that a promoted fact reached repo memory.
+
+- **M1** (2026-08-08T16:49:00.954Z) — packages/engine/src/core/fold.ts contains literal NUL bytes (line ~742, `${index}\0${session}\0${subject}` used as a map key), so grep and ripgrep classify it as binary and return NOTHING — silently, with exit 0. A search for a symbol that lives in fold.ts looks like the symbol does not exist. Use `rg -a` / `grep -a` for that file, or search by importing module.
+- **M2** (2026-08-08T17:45:09.534Z) — Claude Code hook output contract, verified against the installed binary (2.1.226): the ONLY way a PostToolUse hook reaches the model is exit-0 stdout carrying {"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"..."}}. Plain stdout on that hook is transcript-only. Diagnose a hook that "says nothing" by checking for this JSON wrapper first. The contract is documented inside the claude binary itself — `strings $(readlink -f $(which claude)) | grep -n additionalContext` finds it, which is how to confirm the shape for a new hook event rather than guessing.
+- **M3** (2026-08-09T07:29:34.321Z) — A literal NUL byte in a source file makes grep and `file` treat the whole file as binary, and grep then reports NO matches without saying why — the pattern is found and suppressed, with no "binary file matches" notice. core/fold.ts carried two, as separators in a composite map key, so every plain `grep -n "export function" fold.ts` came back empty while the symbols were plainly there. Diagnose with `file <path>` (it says "data") and confirm with `grep -a`; fix by writing the separator as a backslash-u-0000 escape inside the template literal, which yields an identical string from an ASCII source. Same trap applies to anything written INTO the record: a NUL in event prose makes events.jsonl binary to grep. Fixed 2026-08-09.
+- **M4** (2026-08-09T14:02:57.223Z) — Stale open-session holders, and the layer the fix must NOT go in. Tier 0 (.sofar/.index/open.json) drops a session only when session_ended arrives, so a session whose process dies stays "open" forever. Measured 2026-08-09 in this repo: 5 sessions listed open, 3 of them dead — record-index 58a146b7, sync-client 01KXBJCF, writeback-collisions 066e23e9 (that one still holding 5 files). Diagnose by cross-checking each open id in Tier 0 against sessionId in ~/.claude/sessions/*.json. DO NOT fix this in Tier 0 or in the fold: index-tier0.ts is FAITHFUL-NOT-BETTER by its own contract and record-index 4.2 proves indexed answers byte-match from-logs answers, while the fold must stay a pure derivation of events (kill(pid,0) inside it would make the same log fold differently per machine and per minute). The liveness data is already in hand one layer up — cli/event.ts builds `siblings` and calls reachablePeerLine/resolvePeers on the same shim pass, so dead holders are ALREADY filtered out of the reachable-peer line while still being named in the conflict line directly above it. That asymmetry is the bug. Applying liveness to the conflict line costs no new I/O but needs a Decision first: SPEC states the conflict line must stay byte-identical whether or not a peer resolves, and BD22 requires an absent/unreadable registry to fall back to SHOWING the holder — never to hiding a real conflict.
+
+== session 01KZGX7BK7W8041KQ3HGBJ0G6M.md (1393 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KZGX7BK7W8041KQ3HGBJ0G6M
+
+- Initiative: record-index
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-08T14:42:54.184Z
+- Ended: 2026-08-08T14:46:08.109Z
+
+## Summary
+
+Opened record-index and landed Phase 1, the incremental core. index-store.ts: gitignored self-ignoring .sofar/.index/, version-stamped, every failure collapsing to cold start. index-tail.ts: reads only what a log grew by, with a self-corroborating cursor (offset points at its event's line START, so the first line read back must carry that id or it falls back to a full read). 14 new tests including the equivalence that carries the design — 25 chunked appends land exactly where one full read lands — plus rewritten/shrunk/corrupt-log fallbacks and byte-accurate offsets through non-ASCII prose. 1155 green. Architecture decision recorded with the rejections: monolithic index, committed index, embeddings, node:sqlite.
+
+## Next action
+
+Phase 2.1: build Tier 0 (open.json — open sessions and the files they hold, maintained incrementally), then 2.2 wire cross-initiative conflicts through it and re-measure the shim at 30/300/1000 initiatives.
+
+## Activity (derived from mechanical events)
+
+- Derived: task changes: 1.1 → done, 1.2 → done
+- Commands run: 0
+- Task changes:
+  - 1.1 → done
+  - 1.2 → done
+
+== session 01KZH224GK021Z8JFAK0GXHYW0.md (1089 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KZH224GK021Z8JFAK0GXHYW0
+
+- Initiative: record-index
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-08T16:07:25.971Z
+- Ended: 2026-08-08T16:10:21.071Z
+
+## Summary
+
+Caught the plan lagging the design and fixed it, then built Tier 0. Logged D2 (three layers split by declared vs derived relevance, guards before search) with a standing rule, and rewrote Phase 3 so cross-initiative guards come before find. core/index-tier0.ts: open sessions + held files, maintained incrementally, faithful to the fold's caps and registration rule rather than better than them. 11 tests led by indexed == from-logs after every incremental step. 1166 green.
+
+## Next action
+
+record-index 2.2: wire cross-initiative conflicts through Tier 0, unblocking cross-initiative-conflicts 2.2, then re-measure the shim at 30/300/1000 initiatives against the 100ms budget.
+
+## Activity (derived from mechanical events)
+
+- Derived: task changes: 2.1 → done
+- Commands run: 0
+- Task changes:
+  - 2.1 → done
+
+== session 01KZH2K9TBMNSFAEG68CYJE03G.md (973 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KZH2K9TBMNSFAEG68CYJE03G
+
+- Initiative: record-index
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-08T16:16:48.459Z
+- Ended: 2026-08-08T16:17:13.198Z
+
+## Summary
+
+Verified the record is resumable and closed the one gap a digest structurally cannot cover: bindings map a branch to an initiative but say nothing about how branches RELATE. Recorded the linear stack (main → peer-messaging → cross-initiative-conflicts → record-index, 5 commits, none with an upstream), the checkout-first rule, and the cross-initiative dependency that record-index 2.2 is what unblocks cross-initiative-conflicts 2.2 — go close that task, do not re-litigate the choice.
+
+## Next action
+
+record-index 2.2: wire cross-initiative conflicts through Tier 0, unblocking cross-initiative-conflicts 2.2, then re-measure the shim at 30/300/1000 initiatives against the 100ms budget.
+
+== session 58a146b7-2fee-4c20-a4ac-0155dd2b4ea7.md (434 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 58a146b7-2fee-4c20-a4ac-0155dd2b4ea7
+
+- Initiative: record-index
+- Tool: claude-code
+- Started: 2026-08-08T16:16:59.386Z
+- Ended: (in progress)
+
+## Summary
+
+(none recorded — no write-back yet; derived resume point below)
+
+## Next action
+
+(none recorded)
+
+## Activity (derived from mechanical events)
+
+- Derived: 24 commands
+- Commands run: 24
+
+== session fbdb38ef-deaf-4fca-85f2-dbd64bcb482f.md (4223 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session fbdb38ef-deaf-4fca-85f2-dbd64bcb482f
+
+- Initiative: record-index
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-08T16:25:34.170Z
+- Ended: 2026-08-08T17:19:53.349Z
+
+## Summary
+
+3.1 done: Tier 1 materializes the graph keyed for lookup (guards by subject, touchers by path, neighbouring initiatives), equal to whyFile and the fold's guard ordinals. Shared pass core/index-pass.ts hardened Tier 0 too: corrections, ulid order, envelope+payload validation, per-tier cursors. Cold build now costs what folding costs; steady state unchanged.
+
+## Next action
+
+record-index 3.2: PostToolUse asks guardsForSubject whether any decision ANYWHERE guards the edited path, and surfaces the rule verbatim (D2: declared relevance may be asserted).
+
+## Activity (derived from mechanical events)
+
+- Derived: 23 files (/Users/jins/IO/sofar/packages/engine/src/core/cross-conflicts.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/test/cross-conflict-line.test.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/derivations.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/bench.mjs, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/bench.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/run-bench.mjs, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/phases.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/run-phases.mjs, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/seeder.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-store.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-tail.ts, /Users/jins/IO/sofar/packages/engine/test/index-incremental.test.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/bench-shims.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/.sofar/repo.md, /Users/jins/IO/sofar/packages/engine/src/core/index-pass.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-tier0.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-tier1.ts, /Users/jins/IO/sofar/packages/engine/src/core/adjacency.ts, +3 more), 85 commands, task changes: 2.2 → done, 3.1 → done
+- Files:
+  - /Users/jins/IO/sofar/packages/engine/src/core/cross-conflicts.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+  - /Users/jins/IO/sofar/packages/engine/test/cross-conflict-line.test.ts
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/derivations.ts
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/bench.mjs
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/bench.ts
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/run-bench.mjs
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/phases.ts
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/run-phases.mjs
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/seeder.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/index-store.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/index-tail.ts
+  - /Users/jins/IO/sofar/packages/engine/test/index-incremental.test.ts
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/fbdb38ef-deaf-4fca-85f2-dbd64bcb482f/scratchpad/bench-shims.ts
+  - /Users/jins/IO/sofar/docs/SPEC.md
+  - /Users/jins/IO/sofar/.sofar/repo.md
+  - /Users/jins/IO/sofar/packages/engine/src/core/index-pass.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/index-tier0.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/index-tier1.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/adjacency.ts
+  - +3 more
+- Commands run: 85
+- Task changes:
+  - 2.2 → done
+  - 3.1 → done
+
+== session 57aec3ae-3d04-41cf-beb6-9d88a1b32d56.md (1952 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 57aec3ae-3d04-41cf-beb6-9d88a1b32d56
+
+- Initiative: record-index
+- Tool: claude-code
+- Started: 2026-08-08T17:23:14.859Z
+- Ended: 2026-08-08T18:05:00.324Z
+
+## Summary
+
+3.2 and 3.3 done. Guards un-scoped to the point of use (PostToolUse additionalContext, never a gate). Priming line at SessionStart names adjacent records by shared-path density. Two cost fixes: Tier 1 split into declared/derived cursors, and the pass no longer clones quiet initiatives. All shims inside 100ms to 1000 initiatives.
+
+## Next action
+
+record-index 3.4: `sofar find` + MCP tool traversing from a seed with a hop budget, every result citing its event id.
+
+## Activity (derived from mechanical events)
+
+- Derived: 8 files (/Users/jins/IO/sofar/packages/engine/src/core/index-tier1.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/test/guard-point-of-use.test.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/engine/src/hooks/post-tool-use.sh, /Users/jins/IO/sofar/packages/engine/src/projections/templates/status.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-pass.ts, /Users/jins/IO/sofar/packages/engine/test/priming-line.test.ts), 103 commands, task changes: 3.2 → done, 2.2 → done, 3.3 → done
+- Files:
+  - /Users/jins/IO/sofar/packages/engine/src/core/index-tier1.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+  - /Users/jins/IO/sofar/packages/engine/test/guard-point-of-use.test.ts
+  - /Users/jins/IO/sofar/docs/SPEC.md
+  - /Users/jins/IO/sofar/packages/engine/src/hooks/post-tool-use.sh
+  - /Users/jins/IO/sofar/packages/engine/src/projections/templates/status.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/index-pass.ts
+  - /Users/jins/IO/sofar/packages/engine/test/priming-line.test.ts
+- Commands run: 103
+- Task changes:
+  - 3.2 → done
+  - 2.2 → done
+  - 3.3 → done
+
+== session be9e41f0-bd35-439b-9913-c936eaeebe7c.md (2847 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session be9e41f0-bd35-439b-9913-c936eaeebe7c
+
+- Initiative: record-index
+- Tool: claude-code
+- Started: 2026-08-08T18:10:21.082Z
+- Ended: 2026-08-08T18:43:53.094Z
+
+## Summary
+
+3.4 done: `sofar find` + sofar_find traverse a third index half (reach.json, own cursor) from a file/session/decision/initiative seed; every hit cites the event id behind its edge. Citation grammar split into core/citations.ts (scan at index time, bind at query time). 1.8ms vs `sofar why` 35.4ms here; hot paths untouched.
+
+## Next action
+
+record-index 3.5: lexical seeds (IDF-ranked, no model) over decision/note prose so a text question resolves to seeds the traversal can expand.
+
+## Activity (derived from mechanical events)
+
+- Derived: 16 files (/Users/jins/IO/sofar/packages/engine/src/core/citations.ts, /Users/jins/IO/sofar/packages/engine/src/core/graph.ts, /Users/jins/IO/sofar/packages/engine/src/core/adjacency.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-tier1.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-reach.ts, /Users/jins/IO/sofar/packages/engine/src/cli/find.ts, /Users/jins/IO/sofar/packages/engine/src/cli/index.ts, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/find.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/server.ts, /Users/jins/IO/sofar/packages/schema/test/tool-inputs.test.ts, /Users/jins/IO/sofar/packages/engine/test/reach-index.test.ts, /Users/jins/IO/sofar/docs/ARCHITECTURE.md, /Users/jins/IO/sofar/packages/engine/test/serve-mcp.test.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/be9e41f0-bd35-439b-9913-c936eaeebe7c/scratchpad/bench.ts, /Users/jins/IO/sofar/docs/SPEC.md), 62 commands, task changes: 3.4 → done
+- Files:
+  - /Users/jins/IO/sofar/packages/engine/src/core/citations.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/graph.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/adjacency.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/index-tier1.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/index-reach.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/find.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/index.ts
+  - /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts
+  - /Users/jins/IO/sofar/packages/engine/src/mcp/find.ts
+  - /Users/jins/IO/sofar/packages/engine/src/mcp/server.ts
+  - /Users/jins/IO/sofar/packages/schema/test/tool-inputs.test.ts
+  - /Users/jins/IO/sofar/packages/engine/test/reach-index.test.ts
+  - /Users/jins/IO/sofar/docs/ARCHITECTURE.md
+  - /Users/jins/IO/sofar/packages/engine/test/serve-mcp.test.ts
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/be9e41f0-bd35-439b-9913-c936eaeebe7c/scratchpad/bench.ts
+  - /Users/jins/IO/sofar/docs/SPEC.md
+- Commands run: 62
+- Task changes:
+  - 3.4 → done
+
+== session af6334bc-4693-4d2d-815f-73a72078c9e3.md (898 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session af6334bc-4693-4d2d-815f-73a72078c9e3
+
+- Initiative: record-index
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-08T18:16:42.260Z
+- Ended: 2026-08-08T18:22:12.937Z
+
+## Summary
+
+Wrap-up reporting convention (receipt not report; flags before prose) written to the global ~/.claude/CLAUDE.md so it applies to every project, not just sofar. Repo CLAUDE.md net-zero — the section was added then removed. No code touched.
+
+## Next action
+
+record-index 3.4: `sofar find` + MCP tool traversing from a seed with a hop budget, every result citing its event id.
+
+## Activity (derived from mechanical events)
+
+- Derived: 2 files (/Users/jins/IO/sofar/CLAUDE.md, /Users/jins/.claude/CLAUDE.md), 2 commands
+- Files:
+  - /Users/jins/IO/sofar/CLAUDE.md
+  - /Users/jins/.claude/CLAUDE.md
+- Commands run: 2
+
+== session 4eef5d6c-2535-481b-a1b2-b5df1b16aa67.md (2940 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 4eef5d6c-2535-481b-a1b2-b5df1b16aa67
+
+- Initiative: record-index
+- Tool: claude-code
+- Started: 2026-08-08T18:49:42.842Z
+- Ended: 2026-08-08T19:14:49.700Z
+
+## Summary
+
+3.5 done: core/lexicon.ts (BM25, no model) + counted terms on reach rows; resolveQuery falls back to lexicalSeed; CLI Matched block, MCP seed.matches. SPEC + ARCHITECTURE updated, 33 tests pass. Phase 3 complete.
+
+## Next action
+
+record-index Phase 4.1: the SPEC contract pass over the reach index and its surfaces.
+
+## Activity (derived from mechanical events)
+
+- Derived: 15 files (/private/tmp/claude-501/-Users-jins-IO-sofar/4eef5d6c-2535-481b-a1b2-b5df1b16aa67/scratchpad/measure.js, /private/tmp/claude-501/-Users-jins-IO-sofar/4eef5d6c-2535-481b-a1b2-b5df1b16aa67/scratchpad/measure2.js, /Users/jins/IO/sofar/packages/engine/src/core/lexicon.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-reach.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-store.ts, /Users/jins/IO/sofar/packages/engine/src/cli/find.ts, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/find.ts, /Users/jins/IO/sofar/packages/engine/test/reach-index.test.ts, /Users/jins/IO/sofar/docs/ARCHITECTURE.md, /private/tmp/claude-501/-Users-jins-IO-sofar/4eef5d6c-2535-481b-a1b2-b5df1b16aa67/scratchpad/tf-experiment.js, /Users/jins/IO/sofar/docs/SPEC.md, /private/tmp/claude-501/-Users-jins-IO-sofar/4eef5d6c-2535-481b-a1b2-b5df1b16aa67/scratchpad/msg.txt, /Users/jins/.claude/projects/-Users-jins-IO-sofar/memory/concurrent-sessions-share-worktree.md, /Users/jins/.claude/projects/-Users-jins-IO-sofar/memory/MEMORY.md), 66 commands, task changes: 3.5 → done
+- Files:
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/4eef5d6c-2535-481b-a1b2-b5df1b16aa67/scratchpad/measure.js
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/4eef5d6c-2535-481b-a1b2-b5df1b16aa67/scratchpad/measure2.js
+  - /Users/jins/IO/sofar/packages/engine/src/core/lexicon.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/index-reach.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/index-store.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/find.ts
+  - /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts
+  - /Users/jins/IO/sofar/packages/engine/src/mcp/find.ts
+  - /Users/jins/IO/sofar/packages/engine/test/reach-index.test.ts
+  - /Users/jins/IO/sofar/docs/ARCHITECTURE.md
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/4eef5d6c-2535-481b-a1b2-b5df1b16aa67/scratchpad/tf-experiment.js
+  - /Users/jins/IO/sofar/docs/SPEC.md
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/4eef5d6c-2535-481b-a1b2-b5df1b16aa67/scratchpad/msg.txt
+  - /Users/jins/.claude/projects/-Users-jins-IO-sofar/memory/concurrent-sessions-share-worktree.md
+  - /Users/jins/.claude/projects/-Users-jins-IO-sofar/memory/MEMORY.md
+- Commands run: 66
+- Task changes:
+  - 3.5 → done
+
+== session e67e3c3e-ec4d-4d46-874d-589cafc336c1.md (688 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session e67e3c3e-ec4d-4d46-874d-589cafc336c1
+
+- Initiative: record-index
+- Tool: claude-code
+- Started: 2026-08-08T18:56:36.687Z
+- Ended: 2026-08-08T18:57:27.350Z
+
+## Summary
+
+Read-only audit: no formal compliance program exists (zero SOC 2 / ISO 27001 / GDPR artifacts). Only security-hardening (6/6 audit findings closed) + SPEC invariants. No code touched.
+
+## Next action
+
+record-index 3.5: lexical seeds (IDF-ranked, no model) over decision/note prose so a text question resolves to seeds the traversal can expand.
+
+## Activity (derived from mechanical events)
+
+- Derived: 8 commands
+- Commands run: 8
+
+== session 5f83cecd-7dae-4456-8168-e97ecb9887d4.md (1184 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 5f83cecd-7dae-4456-8168-e97ecb9887d4
+
+- Initiative: record-index
+- Tool: claude-code
+- Started: 2026-08-08T19:06:30.154Z
+- Ended: 2026-08-08T19:15:56.270Z
+
+## Summary
+
+Fixed a session-home misroute (logged as record-integrity D9, not record-index): homeInitiative let the branch-bound log short-circuit the scan, so an explicit sofar_start_session re-home landing AFTER the hook's lazy registration lost to it. Now latest-wins across every log, mtime-pruned (8.95ms to 0.50ms). 1291 tests pass. Reconciled with 4eef5d6c's write-back, whose next action stands.
+
+## Next action
+
+record-index 4.1: the SPEC contract pass over the reach index and its surfaces. Separately: ship record-integrity D9 — bump sofar.sh, then npm publish.
+
+## Activity (derived from mechanical events)
+
+- Derived: 2 files (/Users/jins/IO/sofar/packages/engine/src/mcp/context.ts, /Users/jins/IO/sofar/packages/engine/test/record-integrity.test.ts), 28 commands
+- Files:
+  - /Users/jins/IO/sofar/packages/engine/src/mcp/context.ts
+  - /Users/jins/IO/sofar/packages/engine/test/record-integrity.test.ts
+- Commands run: 28
+
+== session 5c0728c5-04ec-41f2-9408-ee316b298fbb.md (2733 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 5c0728c5-04ec-41f2-9408-ee316b298fbb
+
+- Initiative: record-index
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-08T19:18:58.825Z
+- Ended: 2026-08-09T07:49:50.138Z
+
+## Summary
+
+record-index closed and merged: main fast-forwarded to add2ca1 and pushed to origin (21 commits). Branch never diverged, so no merge commit.
+
+## Next action
+
+Pick the next initiative — this branch is unbound, so start or switch on a fresh session.
+
+## Activity (derived from mechanical events)
+
+- Derived: 14 files (/Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/engine/test/graph-hotpath.test.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-tier1.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/package.json, /Users/jins/IO/sofar/packages/engine/test/scratch-partial.test.ts, /Users/jins/IO/sofar/packages/engine/src/core/index-pass.ts, /Users/jins/IO/sofar/packages/engine/test/index-equivalence.test.ts, /Users/jins/IO/sofar/packages/engine/test/priming-line.test.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/5c0728c5-04ec-41f2-9408-ee316b298fbb/scratchpad/msg2.txt, /Users/jins/IO/sofar/.sofar/repo.md, /private/tmp/claude-501/-Users-jins-IO-sofar/5c0728c5-04ec-41f2-9408-ee316b298fbb/scratchpad/msg3.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/5c0728c5-04ec-41f2-9408-ee316b298fbb/scratchpad/msg4.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/5c0728c5-04ec-41f2-9408-ee316b298fbb/scratchpad/msg5.txt), 95 commands, task changes: 4.1 → done, 4.2 → done
+- Files:
+  - /Users/jins/IO/sofar/docs/SPEC.md
+  - /Users/jins/IO/sofar/packages/engine/test/graph-hotpath.test.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/index-tier1.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+  - /Users/jins/IO/sofar/packages/engine/package.json
+  - /Users/jins/IO/sofar/packages/engine/test/scratch-partial.test.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/index-pass.ts
+  - /Users/jins/IO/sofar/packages/engine/test/index-equivalence.test.ts
+  - /Users/jins/IO/sofar/packages/engine/test/priming-line.test.ts
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/5c0728c5-04ec-41f2-9408-ee316b298fbb/scratchpad/msg2.txt
+  - /Users/jins/IO/sofar/.sofar/repo.md
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/5c0728c5-04ec-41f2-9408-ee316b298fbb/scratchpad/msg3.txt
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/5c0728c5-04ec-41f2-9408-ee316b298fbb/scratchpad/msg4.txt
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/5c0728c5-04ec-41f2-9408-ee316b298fbb/scratchpad/msg5.txt
+- Commands run: 95
+- Task changes:
+  - 4.1 → done
+  - 4.2 → done
+

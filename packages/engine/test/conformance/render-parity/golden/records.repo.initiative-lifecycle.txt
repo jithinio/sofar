@@ -1,0 +1,595 @@
+== options (41410 bytes) ==
+{
+  "plain": {},
+  "hook": {
+    "sessionId": "initiative-lifecycle-session",
+    "git": {
+      "branch": "feature/initiative-lifecycle",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    },
+    "repoRules": [
+      {
+        "initiative": "alpha",
+        "ordinal": 3,
+        "ts": "2026-09-01T10:00:00.000Z",
+        "rule": "Always run the full suite before pushing."
+      },
+      {
+        "initiative": "beta",
+        "ordinal": 1,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Always  run the full suite\nbefore pushing."
+      },
+      {
+        "initiative": "gamma",
+        "ordinal": 7,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Never edit generated files by hand.",
+        "quote": "no hand edits to generated files"
+      },
+      {
+        "initiative": "delta",
+        "ordinal": 2,
+        "ts": "2026-08-01T00:00:00.000Z",
+        "rule": "Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap."
+      },
+      {
+        "initiative": "zeta",
+        "ordinal": 9,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Name the initiative-lifecycle record's goal before its tasks."
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare."
+    ]
+  },
+  "lane": {
+    "lane": true,
+    "sessionId": "lane-session",
+    "git": {
+      "branch": "feature/initiative-lifecycle",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    }
+  },
+  "quiet": {
+    "activity": false,
+    "sessionId": " quiet-session\t"
+  },
+  "cap": {
+    "sessionId": "initiative-lifecycle-session",
+    "git": {
+      "branch": "feature/initiative-lifecycle",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    },
+    "repoRules": [
+      {
+        "initiative": "alpha",
+        "ordinal": 3,
+        "ts": "2026-09-01T10:00:00.000Z",
+        "rule": "Always run the full suite before pushing."
+      },
+      {
+        "initiative": "beta",
+        "ordinal": 1,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Always  run the full suite\nbefore pushing."
+      },
+      {
+        "initiative": "gamma",
+        "ordinal": 7,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Never edit generated files by hand.",
+        "quote": "no hand edits to generated files"
+      },
+      {
+        "initiative": "delta",
+        "ordinal": 2,
+        "ts": "2026-08-01T00:00:00.000Z",
+        "rule": "Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap. Keep the digest under its cap."
+      },
+      {
+        "initiative": "zeta",
+        "ordinal": 9,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Name the initiative-lifecycle record's goal before its tasks."
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare.",
+      "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    ]
+  }
+}
+== status (9627 bytes) ==
+# initiative-lifecycle
+
+Goal: Let an initiative be closed. Closing records a terminal status (done or dropped, with a reason) and unbinds every branch pointing at it — and session-first resolution across the statusline and hooks is what makes that safe: the session that closed it keeps its record until it ends, while a new session on the unbound branch is told to start or switch instead of landing on finished work.
+Progress: 15/15 tasks done (100%) across 5 phase(s)
+
+Phases:
+- Phase 1 — Settle the resolution mechanism (blocks everything else) [done] 3/3
+  - [x] 1.1 Back-compat probe, the task-drop-state 1.1 discipline: verify EMPIRICALLY against published 0.18.x what an older engine does with (a) an `initiative_status_changed` event it does not know, and (b) a bindings.json whose entry was removed. Expected: unknown event type skipped with a warning, and an unbound branch read as unbound — both degrading safe. Confirm or refute before designing on top of it.
+  - [x] 1.2 DECIDE the cross-process session→initiative mechanism, the crux of the whole initiative. The pin is in-memory per MCP server process (context.ts:51), so a statusline or hook process cannot read it. Options: scan each initiative log with the existing registeredAt(), or persist the pin (e.g. .sofar/sessions/) for a single cheap read. Weigh statusline cost — it re-renders constantly and `speed` is a standing concern — against stale-pin cleanup. Log a Decision.
+  - [x] 1.3 Decide what a hook does when NEITHER a session pin nor a branch binding resolves. Today it exits 0 and silently drops the event (verified). Silence respects BD22 (never break the session) but loses telemetry invisibly; lazily binding would recreate misrouting. Pick, and make the choice observable.
+- Phase 2 — Initiative terminal state [done] 4/4
+  - [x] 2.1 INITIATIVE_STATUSES = active|done|dropped and an `initiative_status_changed` event (payload {status, note?}) — schema lives ONLY in packages/schema/src/. Two terminal states, mirroring tasks and phases: `done` = finished, `dropped` = abandoned. No near-synonyms (task-drop-state D1's lesson). `dropped` requires a reason, per task-drop-state D3.
+  - [x] 2.2 Fold: InitiativeState gains status (default `active` — a log with no such event is unchanged), plus when it closed and the reason. Terminal statuses are resolved; reopening is just another status event, so history stays append-only.
+  - [x] 2.3 `sofar close [slug]` CLI + MCP tool: append the status event, then remove EVERY bindings.json entry pointing at that slug (not just the current branch — a closed record should have no branch aimed at it). Atomic and idempotent; bindings.json is committed and shared, so a torn write is not acceptable.
+  - [x] 2.4 Define reopening: what `sofar switch <closed-slug>` does — silently reopen, refuse, or require `--reopen`. The user's rule is that working on it again is what revives it, so the default must not be a dead end; decide and log it.
+- Phase 3 — Session-first resolution (what makes unbinding safe) [done] 3/3
+  - [x] 3.1 Implement 1.2's mechanism so ANY process can answer "which initiative is session X registered in", and make session-before-branch the shared precedence — the read path currently has no pin at all (resolveInitiative), while the write path already does (resolveWriteInitiative, context.ts:285).
+  - [x] 3.2 Statusline: resolve session-first, branch second; render a closed record distinctly from a live one; render nothing when neither resolves. A drop-free, close-free line must stay byte-identical — the statusline re-renders constantly and its width is the felt surface.
+  - [x] 3.3 Hooks (PostToolUse, UserPromptSubmit, Stop, SessionEnd) resolve session-first, so closing mid-session stops silently dropping the rest of the session's telemetry. This is a bug fix independent of closing: an unbound branch loses events today with no signal at all.
+- Phase 4 — Orienting surfaces [done] 3/3
+  - [x] 4.1 SessionStart injection: an unbound branch must say so and name the next move (`sofar new` / `sofar switch`) instead of erroring or injecting nothing; a session pinned to a closed record gets it WITH a closed banner, so the agent knows not to queue new work there. Stays inside the ≤10,000-char guarantee.
+  - [x] 4.2 `sofar next` omits closed initiatives — a closed record has no next action, and today it would still be listed. `sofar list` marks them and sorts them below open ones. `sofar status <slug>` shows the closed status with when and why.
+  - [x] 4.3 doctor: a closed initiative that still has a branch bound (hand-edits and merges happen), and the mirror of the stale-phase axis — every phase resolved but the initiative never closed. The second is the initiative-level version of the exact false signal task-drop-state fixed one level down.
+- Phase 5 — Contracts + dogfood [done] 2/2
+  - [x] 5.1 docs/SPEC.md is authoritative: the new event type, the status set, the InitiativeState fields, the session-before-branch resolution precedence, unbind-on-close semantics, and §Acceptance criteria. No task is done until its criteria pass.
+  - [x] 5.2 Dogfood the exact case that prompted this: close repo-memory-capture and task-drop-state, then confirm THIS session's statusline still shows its record while a genuinely fresh session on the unbound branch is told to start or switch. Also confirm closing does not silence the closing session's own hooks.
+
+Next action: User decides whether to open a security-hardening initiative; fix order is traversal, then serve origin checks.
+
+⚠ Staleness:
+- next action may be stale: 1 event since the last write-back (2026-08-13T14:56:58.172Z) — 1 note
+
+Notes since write-back (1):
+- 2026-09-10T12:57:13.012Z GAP (user report 2026-09-10, from a Splen/Brillo repo session): sofar has no way to MERGE two initiatives, and no way to close one AS SUPERSEDED BY another. The session did the equivalent by hand: `sofar new` a third record, retype 34 tasks, close the two old ones with a prose note naming the successor. What the record does and does not carry after that: (1) close status is `done|dropped` only (SPEC §Initiative statuses; D1 here) — no `superseded` status, no successor field on initiative_status_changed, so the pointer is prose. (2) A bare slug in a note is NOT a citation — citations.ts binds a slug only as the QUALIFIER before a handle (`slug D3`, `slug 2.2`), so `sofar find` sees old→new only through shared files/sessions, never through the supersession itself. (3) `sofar export a | sofar import c` WOULD land A's events in C's log (import dedupes by id, fold takes the slug from the directory and ignores envelope.initiative) but is not an honest merge: two initiative_created, plan_updated replaces the whole plan so the ulid-newest wins, task ids collide (1.1 in both), and every envelope inside says `initiative: a` — the exact 'misrouted envelope' fold.ts comments warn about. Renumbering to fix that is a rewrite, which the log forbids. Assessment: the missing piece is an EDGE, not a copy. Shape that fits the append-only law: `sofar new <slug> --supersedes <a>,<b>` (and/or `sofar close <a> --superseded-by <c>`) → initiative_status_changed{status:'superseded', successor:'c'} on each old record; fold/projections render 'superseded by c', `sofar status a` points at c, graph gets a supersedes edge so find/why traverse it, and decisions carried over cite `a D3` so the rejected list stays an edge too. Schema touch only (packages/schema events + templates). Not started — user to decide whether to open an initiative for it.
+
+Last session (claude-code, ended 2026-08-13T14:56:58.172Z):
+  Phase-close repair from phase-lifecycle 4.3 (D5). No work on initiative-lifecycle itself: read plan.md, judged all 5 phases genuinely finished (15/15 tasks, including 5.2's dogfood), appended phase_status_changed done for each. Next action carried forward verbatim — its question was since answered, since security-hardening exists and is finished.
+
+Files touched (25):
+- /private/tmp/claude-501/-Users-jins-IO-sofar/6cbbd5e0-2127-401f-914e-9acaead00414/scratchpad/msg.txt
+- /Users/jins/IO/sofar/packages/schema/src/events.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/fold.ts
+- /Users/jins/IO/sofar/packages/engine/test/initiative-lifecycle.test.ts
+- /Users/jins/IO/sofar/packages/schema/test/schema.test.ts
+- /Users/jins/IO/sofar/packages/engine/src/projections/generator.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/new.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/close.ts
+- /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts
+- /Users/jins/IO/sofar/packages/engine/src/mcp/close-initiative.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/atomic.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/bindings.ts
+- /Users/jins/IO/sofar/packages/schema/test/tool-inputs.test.ts
+- /Users/jins/IO/sofar/packages/engine/src/mcp/server.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/index.ts
+- /Users/jins/IO/sofar/packages/engine/src/mcp/context.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/statusline.ts
+- /Users/jins/IO/sofar/packages/engine/src/core/listing.ts
+- /Users/jins/IO/sofar/packages/engine/src/projections/templates/list.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/list.ts
+- /Users/jins/IO/sofar/packages/engine/src/projections/templates/status.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts
+- /Users/jins/IO/sofar/README.md
+- /private/tmp/claude-501/-Users-jins-IO-sofar/a701ede2-e63c-4247-8ae0-59a8959d2613/scratchpad/poc/poc.mjs
+
+== digest:plain (2951 bytes) ==
+# Sofar status: initiative-lifecycle
+
+Goal: Let an initiative be closed. Closing records a terminal status (done or dropped, with a reason) and unbinds every branch pointing at it — and session-first resolution across the statusline and hooks is what makes that safe: the session that closed it keeps its record until it ends, while a new session on the unbound branch is told to start or switch instead of landing on finished work.
+
+Next action: User decides whether to open a security-hardening initiative; fix order is traversal, then serve origin checks.
+⚠ next action may be stale: 1 event since write-back (1 note)
+Notes since write-back:
+- 2026-09-10 GAP (user report 2026-09-10, from a Splen/Brillo repo session): sofar has no way to MERGE two initiatives, and no way to close one AS SUPERSEDED BY another. The session did the equivalent …
+
+Last session (claude-code, ended 2026-08-13T14:56:58.172Z):
+  Phase-close repair from phase-lifecycle 4.3 (D5). No work on initiative-lifecycle itself: read plan.md, judged all 5 phases genuinely finished (15/15 tasks, including 5.2's dogfood), appended phase_status_changed done for each. Next action carried forward verbatim — its question was since answered, since security-hardening exists and is finished.
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (15/15 tasks)
+Progress: 15/15 tasks done (100%) across 5 phase(s)
+
+Memory (2; full text in memory.md):
+- [M2] Upgrading this repo's global sofar after a publish: `sofar upgrade` is the command — not the raw `npm install -g --prefix ~/.local sofar.sh@latest` recorded earlier. planUpgrade (cli/upgrade.ts) derives the prefix from the running binary's OWN realpath (`<prefix>/lib/node_module…
+- [M1] Back-compat probes run against a PUBLISHED build, not the working tree: `npm init -y && npm install sofar.sh@<version>` in a scratch dir, then `sofar init && sofar new` a throwaway git repo and drive `./node_modules/.bin/sofar` against it. The MCP surface is drivable the same wa…
+
+Recent decisions (4; full text in decisions.md):
+- [D1] 2026-08-05 Closing an initiative UNBINDS every branch pointing at it — over (a) Warn but never touch the binding
+- [D2] 2026-08-05 Reuse the existing log-derived homeInitiative() scan as the cross-process session→initiat… — over Persisting the pin to a second store
+- [D3] 2026-08-05 When neither a session pin nor a branch binding resolves, hooks keep dropping the event s… — over (i) lazily binding the branch at hook time
+- [D4] 2026-08-05 `sofar switch <closed-slug>` reopens the initiative — over Refusing a closed slug outright, or requiring an explicit --reopen fl…
+
+Next ids: D5 (decision), M3 (memory)
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:hook (4264 bytes) ==
+# Sofar status: initiative-lifecycle
+
+Goal: Let an initiative be closed. Closing records a terminal status (done or dropped, with a reason) and unbinds every branch pointing at it — and session-first resolution across the statusline and hooks is what makes that safe: the session that closed it keeps its record until it ends, while a new session on the unbound branch is told to start or switch instead of landing on finished work.
+
+Next action: User decides whether to open a security-hardening initiative; fix order is traversal, then serve origin checks.
+⚠ next action may be stale: 1 event since write-back (1 note)
+Notes since write-back:
+- 2026-09-10 GAP (user report 2026-09-10, from a Splen/Brillo repo session): sofar has no way to MERGE two initiatives, and no way to close one AS SUPERSEDED BY another. The session did the equivalent …
+
+Last session (claude-code, ended 2026-08-13T14:56:58.172Z):
+  Phase-close repair from phase-lifecycle 4.3 (D5). No work on initiative-lifecycle itself: read plan.md, judged all 5 phases genuinely finished (15/15 tasks, including 5.2's dogfood), appended phase_status_changed done for each. Next action carried forward verbatim — its question was since answered, since security-hardening exists and is finished.
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (15/15 tasks)
+Progress: 15/15 tasks done (100%) across 5 phase(s)
+
+Memory (2; full text in memory.md):
+- [M2] Upgrading this repo's global sofar after a publish: `sofar upgrade` is the command — not the raw `npm install -g --prefix ~/.local sofar.sh@latest` recorded earlier. planUpgrade (cli/upgrade.ts) derives the prefix from the running binary's OWN realpath (`<prefix>/lib/node_module…
+- [M1] Back-compat probes run against a PUBLISHED build, not the working tree: `npm init -y && npm install sofar.sh@<version>` in a scratch dir, then `sofar init && sofar new` a throwaway git repo and drive `./node_modules/.bin/sofar` against it. The MCP surface is drivable the same wa…
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+…truncated — read .sofar/repo.md for the rest
+
+Recent decisions (4; full text in decisions.md):
+- [D1] 2026-08-05 Closing an initiative UNBINDS every branch pointing at it — over (a) Warn but never touch the binding
+- [D2] 2026-08-05 Reuse the existing log-derived homeInitiative() scan as the cross-process session→initiat… — over Persisting the pin to a second store
+- [D3] 2026-08-05 When neither a session pin nor a branch binding resolves, hooks keep dropping the event s… — over (i) lazily binding the branch at hook time
+- [D4] 2026-08-05 `sofar switch <closed-slug>` reopens the initiative — over Refusing a closed slug outright, or requiring an explicit --reopen fl…
+
+Next ids: D5 (decision), M3 (memory)
+
+Session: initiative-lifecycle-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: feature/initiative-lifecycle @ a1b2c3d — in sync with origin/feature/initiative-lifecycle
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+Repo-wide rules from other records (3 of 4, most relevant first):
+- [zeta D9] Name the initiative-lifecycle record's goal before its tasks.
+- [alpha D3, beta D1] Always run the full suite before pushing.
+- [gamma D7] Never edit generated files by hand. — operator: "no hand edits to generated files"
+- …and 1 more in other records (their decisions.md)
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:lane (3615 bytes) ==
+# Sofar: quick-work lane (initiative-lifecycle)
+
+Goal: Let an initiative be closed. Closing records a terminal status (done or dropped, with a reason) and unbinds every branch pointing at it — and session-first resolution across the statusline and hooks is what makes that safe: the session that closed it keeps its record until it ends, while a new session on the unbound branch is told to start or switch instead of landing on finished work.
+
+This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
+- Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
+- Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
+
+Notes since write-back:
+- 2026-09-10 GAP (user report 2026-09-10, from a Splen/Brillo repo session): sofar has no way to MERGE two initiatives, and no way to close one AS SUPERSEDED BY another. The session did the equivalent …
+
+Last session (claude-code, ended 2026-08-13T14:56:58.172Z):
+  Phase-close repair from phase-lifecycle 4.3 (D5). No work on initiative-lifecycle itself: read plan.md, judged all 5 phases genuinely finished (15/15 tasks, including 5.2's dogfood), appended phase_status_changed done for each. Next action carried forward verbatim — its question was since answered, since security-hardening exists and is finished.
+
+Recent quick work (4 sessions, 4 decisions since 2026-08-05):
+- 2026-08-06 claude-code — 1 file (/private/tmp/claude-501/-Users-jins-IO-sofar/a701ede2-e63c-4247-8ae0-59a8959d2613/scratchpad/poc/poc.mjs), 27 commands
+- 2026-08-05 claude-code — 23 files (/Users/jins/IO/sofar/packages/schema/src/events.ts, /Users/jins/IO/sofar/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar/packages/engine/test/initiative-lifecycle.test.ts, /Users/jins/IO/sofar/packages/schema/test/schema.test.ts, /Users/jins/IO/sofar/packages/engine/src/projections/generator.ts, /Users/jins/IO/sofar/packages/engine/src/cli/new.ts, /Users/jins/IO/sofar/packages/engine/src/cli/close.ts, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/close-initiative.ts, /Users/jins/IO/sofar/packages…
+- 2026-08-05 claude-code — 1 file (/private/tmp/claude-501/-Users-jins-IO-sofar/6cbbd5e0-2127-401f-914e-9acaead00414/scratchpad/msg.txt), 1 command
+
+Memory (2; full text in memory.md):
+- [M2] Upgrading this repo's global sofar after a publish: `sofar upgrade` is the comm…
+- [M1] Back-compat probes run against a PUBLISHED build, not the working tree: `npm in…
+
+Recent decisions (4; full text in decisions.md):
+- [D1] 2026-08-05 Closing an initiative UNBINDS every branch pointing at it — over (a) Warn but never touch the binding
+- [D2] 2026-08-05 Reuse the existing log-derived homeInitiative() scan as the cross-process session→initiat… — over Persisting the pin to a second store
+- [D3] 2026-08-05 When neither a session pin nor a branch binding resolves, hooks keep dropping the event s… — over (i) lazily binding the branch at hook time
+- [D4] 2026-08-05 `sofar switch <closed-slug>` reopens the initiative — over Refusing a closed slug outright, or requiring an explicit --reopen fl…
+
+Next ids: D5 (decision), M3 (memory)
+
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: feature/initiative-lifecycle @ a1b2c3d — in sync with origin/feature/initiative-lifecycle
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:quiet (3037 bytes) ==
+# Sofar status: initiative-lifecycle
+
+Goal: Let an initiative be closed. Closing records a terminal status (done or dropped, with a reason) and unbinds every branch pointing at it — and session-first resolution across the statusline and hooks is what makes that safe: the session that closed it keeps its record until it ends, while a new session on the unbound branch is told to start or switch instead of landing on finished work.
+
+Next action: User decides whether to open a security-hardening initiative; fix order is traversal, then serve origin checks.
+⚠ next action may be stale: 1 event since write-back (1 note)
+Notes since write-back:
+- 2026-09-10 GAP (user report 2026-09-10, from a Splen/Brillo repo session): sofar has no way to MERGE two initiatives, and no way to close one AS SUPERSEDED BY another. The session did the equivalent …
+
+Last session (claude-code, ended 2026-08-13T14:56:58.172Z):
+  Phase-close repair from phase-lifecycle 4.3 (D5). No work on initiative-lifecycle itself: read plan.md, judged all 5 phases genuinely finished (15/15 tasks, including 5.2's dogfood), appended phase_status_changed done for each. Next action carried forward verbatim — its question was since answered, since security-hardening exists and is finished.
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (15/15 tasks)
+Progress: 15/15 tasks done (100%) across 5 phase(s)
+
+Memory (2; full text in memory.md):
+- [M2] Upgrading this repo's global sofar after a publish: `sofar upgrade` is the command — not the raw `npm install -g --prefix ~/.local sofar.sh@latest` recorded earlier. planUpgrade (cli/upgrade.ts) derives the prefix from the running binary's OWN realpath (`<prefix>/lib/node_module…
+- [M1] Back-compat probes run against a PUBLISHED build, not the working tree: `npm init -y && npm install sofar.sh@<version>` in a scratch dir, then `sofar init && sofar new` a throwaway git repo and drive `./node_modules/.bin/sofar` against it. The MCP surface is drivable the same wa…
+
+Recent decisions (4; full text in decisions.md):
+- [D1] 2026-08-05 Closing an initiative UNBINDS every branch pointing at it — over (a) Warn but never touch the binding
+- [D2] 2026-08-05 Reuse the existing log-derived homeInitiative() scan as the cross-process session→initiat… — over Persisting the pin to a second store
+- [D3] 2026-08-05 When neither a session pin nor a branch binding resolves, hooks keep dropping the event s… — over (i) lazily binding the branch at hook time
+- [D4] 2026-08-05 `sofar switch <closed-slug>` reopens the initiative — over Refusing a closed slug outright, or requiring an explicit --reopen fl…
+
+Next ids: D5 (decision), M3 (memory)
+
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:cap (6024 bytes) ==
+# Sofar status: initiative-lifecycle
+
+Goal: Let an initiative be closed. Closing records a terminal status (done or dropped, with a reason) and unbinds every branch pointing at it — and session-first resolution across the statusline and hooks is what makes that safe: the session that closed it keeps its record until it ends, while a new session on the unbound branch is told to start or switch instead of landing on finished work.
+
+Next action: User decides whether to open a security-hardening initiative; fix order is traversal, then serve origin checks.
+⚠ next action may be stale: 1 event since write-back (1 note)
+Notes since write-back:
+- 2026-09-10 GAP (user report 2026-09-10, from a Splen/Brillo repo session): sofar has no way to MERGE two initiatives, and no way to close one AS SUPERSEDED BY another. The session did the equivalent …
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (15/15 tasks)
+Progress: 15/15 tasks done (100%) across 5 phase(s)
+
+
+Next ids: D5 (decision), M3 (memory)
+
+Session: initiative-lifecycle-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: feature/initiative-lifecycle @ a1b2c3d — in sync with origin/feature/initiative-lifecycle
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+…truncated — run sofar status for full detail
+
+Repo-wide rules from other records (3 of 4, most relevant first):
+- [zeta D9] Name the initiative-lifecycle record's goal before its tasks.
+- [alpha D3, beta D1] Always run the full suite before pushing.
+- [gamma D7] Never edit generated files by hand. — operator: "no hand edits to generated files"
+- …and 1 more in other records (their decisions.md)
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== plan (6514 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Plan: initiative-lifecycle
+
+Goal: Let an initiative be closed. Closing records a terminal status (done or dropped, with a reason) and unbinds every branch pointing at it — and session-first resolution across the statusline and hooks is what makes that safe: the session that closed it keeps its record until it ends, while a new session on the unbound branch is told to start or switch instead of landing on finished work.
+
+Progress: 15/15 tasks done (100%)
+
+## Phase 1 — Settle the resolution mechanism (blocks everything else) [done] — 3/3 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
+
+- [x] 1.1 Back-compat probe, the task-drop-state 1.1 discipline: verify EMPIRICALLY against published 0.18.x what an older engine does with (a) an `initiative_status_changed` event it does not know, and (b) a bindings.json whose entry was removed. Expected: unknown event type skipped with a warning, and an unbound branch read as unbound — both degrading safe. Confirm or refute before designing on top of it.
+- [x] 1.2 DECIDE the cross-process session→initiative mechanism, the crux of the whole initiative. The pin is in-memory per MCP server process (context.ts:51), so a statusline or hook process cannot read it. Options: scan each initiative log with the existing registeredAt(), or persist the pin (e.g. .sofar/sessions/) for a single cheap read. Weigh statusline cost — it re-renders constantly and `speed` is a standing concern — against stale-pin cleanup. Log a Decision.
+- [x] 1.3 Decide what a hook does when NEITHER a session pin nor a branch binding resolves. Today it exits 0 and silently drops the event (verified). Silence respects BD22 (never break the session) but loses telemetry invisibly; lazily binding would recreate misrouting. Pick, and make the choice observable.
+
+## Phase 2 — Initiative terminal state [done] — 4/4 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
+
+- [x] 2.1 INITIATIVE_STATUSES = active|done|dropped and an `initiative_status_changed` event (payload {status, note?}) — schema lives ONLY in packages/schema/src/. Two terminal states, mirroring tasks and phases: `done` = finished, `dropped` = abandoned. No near-synonyms (task-drop-state D1's lesson). `dropped` requires a reason, per task-drop-state D3.
+- [x] 2.2 Fold: InitiativeState gains status (default `active` — a log with no such event is unchanged), plus when it closed and the reason. Terminal statuses are resolved; reopening is just another status event, so history stays append-only.
+- [x] 2.3 `sofar close [slug]` CLI + MCP tool: append the status event, then remove EVERY bindings.json entry pointing at that slug (not just the current branch — a closed record should have no branch aimed at it). Atomic and idempotent; bindings.json is committed and shared, so a torn write is not acceptable.
+- [x] 2.4 Define reopening: what `sofar switch <closed-slug>` does — silently reopen, refuse, or require `--reopen`. The user's rule is that working on it again is what revives it, so the default must not be a dead end; decide and log it.
+
+## Phase 3 — Session-first resolution (what makes unbinding safe) [done] — 3/3 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
+
+- [x] 3.1 Implement 1.2's mechanism so ANY process can answer "which initiative is session X registered in", and make session-before-branch the shared precedence — the read path currently has no pin at all (resolveInitiative), while the write path already does (resolveWriteInitiative, context.ts:285).
+- [x] 3.2 Statusline: resolve session-first, branch second; render a closed record distinctly from a live one; render nothing when neither resolves. A drop-free, close-free line must stay byte-identical — the statusline re-renders constantly and its width is the felt surface.
+- [x] 3.3 Hooks (PostToolUse, UserPromptSubmit, Stop, SessionEnd) resolve session-first, so closing mid-session stops silently dropping the rest of the session's telemetry. This is a bug fix independent of closing: an unbound branch loses events today with no signal at all.
+
+## Phase 4 — Orienting surfaces [done] — 3/3 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
+
+- [x] 4.1 SessionStart injection: an unbound branch must say so and name the next move (`sofar new` / `sofar switch`) instead of erroring or injecting nothing; a session pinned to a closed record gets it WITH a closed banner, so the agent knows not to queue new work there. Stays inside the ≤10,000-char guarantee.
+- [x] 4.2 `sofar next` omits closed initiatives — a closed record has no next action, and today it would still be listed. `sofar list` marks them and sorts them below open ones. `sofar status <slug>` shows the closed status with when and why.
+- [x] 4.3 doctor: a closed initiative that still has a branch bound (hand-edits and merges happen), and the mirror of the stale-phase axis — every phase resolved but the initiative never closed. The second is the initiative-level version of the exact false signal task-drop-state fixed one level down.
+
+## Phase 5 — Contracts + dogfood [done] — 2/2 done
+
+> Closed retroactively 2026-08-13 (phase-lifecycle 4.3, D5) — finished when its tasks landed; there was no phase writer before sofar_update_phase shipped in 0.27.0.
+
+- [x] 5.1 docs/SPEC.md is authoritative: the new event type, the status set, the InitiativeState fields, the session-before-branch resolution precedence, unbind-on-close semantics, and §Acceptance criteria. No task is done until its criteria pass.
+- [x] 5.2 Dogfood the exact case that prompted this: close repo-memory-capture and task-drop-state, then confirm THIS session's statusline still shows its record while a genuinely fresh session on the unbound branch is told to start or switch. Also confirm closing does not silence the closing session's own hooks.
+
+Next action: User decides whether to open a security-hardening initiative; fix order is traversal, then serve origin checks.
+
+== decisions (5573 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Decisions: initiative-lifecycle
+
+- 2026-08-05T14:14:41.278Z — chose **Closing an initiative UNBINDS every branch pointing at it (user ruling, 2026-08-05). Reopening happens by binding again, which is a new-session act. The current session is not disrupted: its statusline keeps showing the closed record and its hooks keep routing, because every surface resolves SESSION FIRST and branch binding second.** over (a) Warn but never touch the binding — closing stays a record fact and the branch keeps pointing at finished work, so a fresh session still lands on it and must switch by hand. (b) Infer closure from all-phases-resolved and add no state — cannot tell "finished" from "abandoned at 3/10", cannot express "closed, but 4.1 was never built", and records no when or why. because A binding that outlives the work it points at is how a fresh session ends up oriented on something already finished — the concrete symptom the user hit: a new session's statusline reading `auto-update 11/11`. Unbinding makes the branch honestly say "nothing here" instead. Session-first resolution is what makes unbinding safe rather than destructive: verified that with the branch unbound today, the statusline's record segment vanishes entirely and the PostToolUse hook exits 0 while silently dropping the event, so the rest of the session would go dark. The write path already resolves session-before-branch (context.ts:285) — extending that precedence to the read surfaces makes closing a clean boundary at the SESSION edge rather than a mid-session cliff, and is strictly better behavior even for records that are never closed.
+- 2026-08-05T15:07:30.756Z — chose **Reuse the existing log-derived homeInitiative() scan as the cross-process session→initiative mechanism, and share event.ts's resolveBound precedence (branch computed as the PREFERRED candidate, session home wins, branch as fallback) across statusline and hooks** over Persisting the pin to a second store (e.g. .sofar/sessions/<id>) for a single cheap read because Measured on the real 22-initiative, 2.8 MB record: the statusline costs ~55 ms end-to-end today (node startup + fold dominate), and homeInitiative adds 0.07 ms on the hit path (+0.1%, invisible) and 2.9 ms on a full-scan miss (+5%) — and the miss only occurs on the unbound/re-homed path that closing creates. The cost that worried this task is not there. A persisted pin would be a second store that can desync from the truth log, which record-integrity D1 already ruled against, and would need stale-pin cleanup the scan does not. Decisive: the mechanism is already proven in production — hooks route correctly on a fully unbound branch today (measured against published 0.18.0), so this reuses a shipped, tested path instead of introducing a parallel one.
+- 2026-08-05T15:08:23.893Z — chose **When neither a session pin nor a branch binding resolves, hooks keep dropping the event silently (exit 0, never lazily bind) — but the CONDITION becomes observable once per session at the two orienting surfaces that already run: SessionStart injects an unbound notice naming `sofar new` / `sofar switch` (4.1), and the statusline renders an explicit unbound marker instead of merely omitting the record segment (3.2)** over (i) lazily binding the branch at hook time; (ii) warning on stderr per dropped event; (iii) recording drops to a sidecar file outside the event log because The drop is per-event but the condition is per-session — "this session is registered nowhere and the branch is unbound" is ONE fact, so it belongs once where the agent reads, not N times where nothing does. (i) is disqualified twice over: it recreates the misrouting record-integrity 1.2/D1 fixed, and it would let a hook silently undo a close — 1.1 measured that no engine path re-creates a binding today (only new/switch write bindings.json), and that property is what makes close-unbinds safe. (ii) fires on every tool use, so the noise scales with work, and BD22 says never break the session. (iii) is a second store outside the truth log, which record-integrity D1 rules against — the same reason 1.2 rejected a persisted pin. Measured today: on an unbound branch with an unregistered session, SessionStart injects 0 bytes and the statusline renders `repo · main` — both silently indistinguishable from a healthy repo, which is the actual defect.
+- 2026-08-05T15:12:39.810Z — chose **`sofar switch <closed-slug>` reopens the initiative — it appends initiative_status_changed{status:'active'} and binds the branch, with no flag required — but never silently: the reopen is announced in the confirmation and recorded as an event, exactly as the close was** over Refusing a closed slug outright, or requiring an explicit --reopen flag because The user's rule is that working on it again is what revives it, and `switch` IS that act — it means "this branch works on this now", which a closed record cannot honour while staying closed. Refusing makes closing a dead end, which the rule forbids. A --reopen flag only adds a step to a decision the user already expressed by typing switch; the flag would be discoverable solely by hitting the refusal it exists to bypass. Reading a closed record needs no binding (`sofar status <slug>` already does that), so switch is never the accidental path. The event keeps the revival auditable — the log shows closed-then-reopened rather than an unexplained return to active, which is what append-only history is for.
+
+== memory (1935 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Promoted to repo memory: initiative-lifecycle
+
+Cite these in .sofar/repo.md by qualified handle — `initiative-lifecycle M<n>` —
+which is how `sofar doctor` sees that a promoted fact reached repo memory.
+
+- **M1** (2026-08-05T15:07:49.280Z) — Back-compat probes run against a PUBLISHED build, not the working tree: `npm init -y && npm install sofar.sh@<version>` in a scratch dir, then `sofar init && sofar new` a throwaway git repo and drive `./node_modules/.bin/sofar` against it. The MCP surface is drivable the same way — pipe initialize + notifications/initialized + tools/call JSON-RPC lines into `sofar mcp` on stdin. Hooks are drivable by piping their JSON payload into `.claude/hooks/<name>.sh`. This is how task-drop-state 1.1 and initiative-lifecycle 1.1 were verified; a working-tree test cannot answer what an OLDER engine does with a NEWER log.
+- **M2** (2026-08-05T15:44:02.415Z) — Upgrading this repo's global sofar after a publish: `sofar upgrade` is the command — not the raw `npm install -g --prefix ~/.local sofar.sh@latest` recorded earlier. planUpgrade (cli/upgrade.ts) derives the prefix from the running binary's OWN realpath (`<prefix>/lib/node_modules/sofar.sh/…`) and deliberately ignores `npm config get prefix`, which is exactly the ~/.local-vs-/usr/local mismatch that made a naive global install miss the live copy. Verified 2026-08-05: the live binary resolves to /Users/jins/.local/lib/node_modules/sofar.sh/dist/cli.js and upgrade computes `--prefix /Users/jins/.local`, identical to the hand-written command. Ordering matters: upgrade reads `npm view sofar.sh version` for its target, so run it AFTER the publish completes or it correctly reports you are already on the latest. A non-global layout (local dep, npx cache, source checkout) is reported not-global with a reason rather than guessing a prefix.
+
+== session 6cbbd5e0-2127-401f-914e-9acaead00414.md (932 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 6cbbd5e0-2127-401f-914e-9acaead00414
+
+- Initiative: initiative-lifecycle
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-05T14:14:34.326Z
+- Ended: 2026-08-05T14:16:01.949Z
+
+## Summary
+
+Opened initiative-lifecycle: 15 tasks / 5 phases, D1 records the close-unbinds ruling, plus the measured evidence that an unbound branch blanks the statusline and silently drops hook events. No code yet.
+
+## Next action
+
+Start 1.1: probe published 0.18.x against an unknown initiative_status_changed event and a removed binding.
+
+## Activity (derived from mechanical events)
+
+- Derived: 1 file (/private/tmp/claude-501/-Users-jins-IO-sofar/6cbbd5e0-2127-401f-914e-9acaead00414/scratchpad/msg.txt), 1 command
+- Files:
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/6cbbd5e0-2127-401f-914e-9acaead00414/scratchpad/msg.txt
+- Commands run: 1
+
+== session ebe6a64b-bc91-4077-9242-5507c9bf7759.md (3735 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session ebe6a64b-bc91-4077-9242-5507c9bf7759
+
+- Initiative: initiative-lifecycle
+- Tool: claude-code
+- Started: 2026-08-05T15:01:48.543Z
+- Ended: 2026-08-05T15:44:11.595Z
+
+## Summary
+
+0.19.0 staged and pushed (505b2b6): version bumped, 991 tests green, tarball verified clean. Publish is the user's to run. Recorded that `sofar upgrade` derives the ~/.local prefix itself, superseding the manual npm line.
+
+## Next action
+
+User runs `npm publish -w sofar.sh`, then `sofar upgrade`; then decide on the 12 finished-but-open initiatives.
+
+## Activity (derived from mechanical events)
+
+- Derived: 23 files (/Users/jins/IO/sofar/packages/schema/src/events.ts, /Users/jins/IO/sofar/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar/packages/engine/test/initiative-lifecycle.test.ts, /Users/jins/IO/sofar/packages/schema/test/schema.test.ts, /Users/jins/IO/sofar/packages/engine/src/projections/generator.ts, /Users/jins/IO/sofar/packages/engine/src/cli/new.ts, /Users/jins/IO/sofar/packages/engine/src/cli/close.ts, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/close-initiative.ts, /Users/jins/IO/sofar/packages/engine/src/core/atomic.ts, /Users/jins/IO/sofar/packages/engine/src/core/bindings.ts, /Users/jins/IO/sofar/packages/schema/test/tool-inputs.test.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/server.ts, /Users/jins/IO/sofar/packages/engine/src/cli/index.ts, /Users/jins/IO/sofar/packages/engine/src/mcp/context.ts, /Users/jins/IO/sofar/packages/engine/src/cli/event.ts, /Users/jins/IO/sofar/packages/engine/src/cli/statusline.ts, /Users/jins/IO/sofar/packages/engine/src/core/listing.ts, /Users/jins/IO/sofar/packages/engine/src/projections/templates/list.ts, /Users/jins/IO/sofar/packages/engine/src/cli/list.ts, +3 more), 164 commands, task changes: 1.1 → active, 1.1 → done, 1.2 → done, 1.3 → done, 2.1 → active, 2.1 → done, 2.2 → done, 2.3 → done, 2.4 → done, 3.1 → done, 3.2 → done, 3.3 → done, 4.1 → done, 4.2 → done, 4.3 → done, 5.1 → done, 5.2 → done
+- Files:
+  - /Users/jins/IO/sofar/packages/schema/src/events.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/fold.ts
+  - /Users/jins/IO/sofar/packages/engine/test/initiative-lifecycle.test.ts
+  - /Users/jins/IO/sofar/packages/schema/test/schema.test.ts
+  - /Users/jins/IO/sofar/packages/engine/src/projections/generator.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/new.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/close.ts
+  - /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts
+  - /Users/jins/IO/sofar/packages/engine/src/mcp/close-initiative.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/atomic.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/bindings.ts
+  - /Users/jins/IO/sofar/packages/schema/test/tool-inputs.test.ts
+  - /Users/jins/IO/sofar/packages/engine/src/mcp/server.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/index.ts
+  - /Users/jins/IO/sofar/packages/engine/src/mcp/context.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/event.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/statusline.ts
+  - /Users/jins/IO/sofar/packages/engine/src/core/listing.ts
+  - /Users/jins/IO/sofar/packages/engine/src/projections/templates/list.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/list.ts
+  - +3 more
+- Commands run: 164
+- Task changes:
+  - 1.1 → active
+  - 1.1 → done
+  - 1.2 → done
+  - 1.3 → done
+  - 2.1 → active
+  - 2.1 → done
+  - 2.2 → done
+  - 2.3 → done
+  - 2.4 → done
+  - 3.1 → done
+  - 3.2 → done
+  - 3.3 → done
+  - 4.1 → done
+  - 4.2 → done
+  - 4.3 → done
+  - 5.1 → done
+  - 5.2 → done
+
+== session a701ede2-e63c-4247-8ae0-59a8959d2613.md (1208 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session a701ede2-e63c-4247-8ae0-59a8959d2613
+
+- Initiative: initiative-lifecycle
+- Tool: claude-code
+- Started: 2026-08-06T08:28:49.964Z
+- Ended: 2026-08-06T08:35:27.392Z
+
+## Summary
+
+Security audit of sofar.sh 0.19.0. Six findings, two confirmed by PoC: slug path traversal via the MCP `initiative` arg (optSlug accepts any string), and no DNS-rebinding/Origin protection on `sofar serve` /state + /mcp. Also: unvalidated auth-server URL into the OS browser opener, raw shell commands (incl. secrets) captured into the committed log, no TLS enforcement on api_url, unbounded response buffering. Clean: 0 advisories, no runtime deps, tarball clean, creds 0600, no shell exec.
+
+## Next action
+
+User decides whether to open a security-hardening initiative; fix order is traversal, then serve origin checks.
+
+## Activity (derived from mechanical events)
+
+- Derived: 1 file (/private/tmp/claude-501/-Users-jins-IO-sofar/a701ede2-e63c-4247-8ae0-59a8959d2613/scratchpad/poc/poc.mjs), 27 commands
+- Files:
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/a701ede2-e63c-4247-8ae0-59a8959d2613/scratchpad/poc/poc.mjs
+- Commands run: 27
+
+== session 01KZXT03Y73B6RJW5NDYN0137J.md (762 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 01KZXT03Y73B6RJW5NDYN0137J
+
+- Initiative: initiative-lifecycle
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-13T14:56:38.855Z
+- Ended: 2026-08-13T14:56:58.172Z
+
+## Summary
+
+Phase-close repair from phase-lifecycle 4.3 (D5). No work on initiative-lifecycle itself: read plan.md, judged all 5 phases genuinely finished (15/15 tasks, including 5.2's dogfood), appended phase_status_changed done for each. Next action carried forward verbatim — its question was since answered, since security-hardening exists and is finished.
+
+## Next action
+
+User decides whether to open a security-hardening initiative; fix order is traversal, then serve origin checks.
+

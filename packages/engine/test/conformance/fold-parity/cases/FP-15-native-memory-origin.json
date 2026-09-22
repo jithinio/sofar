@@ -1,0 +1,10 @@
+{
+  "tail_at": 5,
+  "seeds": [
+    43,
+    44,
+    45
+  ],
+  "order_independence": true,
+  "note": "memory-lead 2.4 (D13/D14): memory_promoted origin claude-memory:<file>@<16 lowercase hex> is kept in state (a superseding import too); a short digest, a path, another scheme, a second @ or upper-case hex fail validation. The tail starts at the replacement"
+}

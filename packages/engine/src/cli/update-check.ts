@@ -1,13 +1,36 @@
-import { execFileSync, spawn } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { version as CURRENT_VERSION } from '../../package.json'
 import { ok, type CmdResult } from './shared'
 import { createStyle, stderrCaps, symbolsFor } from './ui'
-import { fetchLatestVersion, npmInstallArgs, planUpgrade, type UpgradePlan } from './upgrade'
+import {
+  claimRefresh,
+  planUpgrade,
+  readUpdateCache,
+  updateCachePath,
+  writeUpdateCache,
+  type Env,
+  type UpdateCache,
+} from './update-cache'
+import { fetchLatestVersion, npmInstallArgs } from './upgrade'
 import { readAutoUpgrade } from './user-config'
+
+// The cache, the refresh gate and the claim live in update-cache.ts (the boot
+// stub imports them, rust-core 3.1); re-exported here so every existing
+// importer and test keeps its path.
+export {
+  CHECK_TTL_MS,
+  OPT_OUT_ENV,
+  claimRefresh,
+  readUpdateCache,
+  refreshEntry,
+  shouldRefresh,
+  updateCachePath,
+  writeUpdateCache,
+  type Env,
+  type RefreshContext,
+  type UpdateCache,
+} from './update-cache'
 
 /**
  * Background update check (auto-update D1) — the half of "auto update" that
@@ -20,77 +43,6 @@ import { readAutoUpgrade } from './user-config'
  * chose, because an upgrade replaces the binary AND leaves repo wiring stale
  * (see runUpgrade's success message).
  */
-
-/** How long a completed check stays fresh. */
-export const CHECK_TTL_MS = 24 * 60 * 60 * 1000
-
-/** Set to any non-empty value to silence the check entirely. */
-export const OPT_OUT_ENV = 'SOFAR_NO_UPDATE_CHECK'
-
-export type Env = Record<string, string | undefined>
-
-export interface UpdateCache {
-  version: 1
-  /** Last successfully resolved `latest` dist-tag; null when never resolved. */
-  latest: string | null
-  /** ISO timestamp of the last check ATTEMPT (claimed before the network call). */
-  checked_at: string
-  /** Set by an auto-install so a later surface can say wiring needs refreshing. */
-  installed?: { version: string; at: string }
-}
-
-export function updateCachePath(env: Env = process.env): string {
-  const base = nonEmpty(env.XDG_STATE_HOME) ?? join(homedir(), '.local', 'state')
-  return join(base, 'sofar', 'update.json')
-}
-
-function nonEmpty(value: string | undefined): string | undefined {
-  return value !== undefined && value.trim().length > 0 ? value : undefined
-}
-
-/**
- * The cache, or null when absent/unreadable/corrupt. NEVER throws: this is
- * read from the statusline and from init's tail, where a malformed cache file
- * must degrade to "no notice", never to a failed command.
- */
-export function readUpdateCache(env: Env = process.env): UpdateCache | null {
-  const path = updateCachePath(env)
-  if (!existsSync(path)) return null
-  try {
-    const decoded = JSON.parse(readFileSync(path, 'utf8')) as Partial<UpdateCache> | null
-    if (typeof decoded !== 'object' || decoded === null) return null
-    if (typeof decoded.checked_at !== 'string' || decoded.checked_at.length === 0) return null
-    const latest = typeof decoded.latest === 'string' && decoded.latest.length > 0 ? decoded.latest : null
-    const installed =
-      typeof decoded.installed === 'object' &&
-      decoded.installed !== null &&
-      typeof decoded.installed.version === 'string' &&
-      typeof decoded.installed.at === 'string'
-        ? decoded.installed
-        : undefined
-    return {
-      version: 1,
-      latest,
-      checked_at: decoded.checked_at,
-      ...(installed !== undefined ? { installed } : {}),
-    }
-  } catch {
-    return null
-  }
-}
-
-/** Write via temp + rename so a reader never sees a half-written file. */
-export function writeUpdateCache(cache: UpdateCache, env: Env = process.env): void {
-  const path = updateCachePath(env)
-  try {
-    mkdirSync(dirname(path), { recursive: true })
-    const tmp = `${path}.${process.pid}.tmp`
-    writeFileSync(tmp, `${JSON.stringify(cache, null, 2)}\n`, 'utf8')
-    renameSync(tmp, path)
-  } catch {
-    // A cache we cannot persist costs a redundant check, never a broken command.
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Version comparison — dependency-free (CLAUDE.md: no new deps without a Decision).
@@ -149,39 +101,6 @@ function comparePrerelease(a: string[], b: string[]): number {
 // Gating + the notice.
 // ---------------------------------------------------------------------------
 
-export interface RefreshContext {
-  plan: UpgradePlan
-  cache: UpdateCache | null
-  now: number
-  env: Env
-}
-
-/**
- * Should a refresh be spawned right now?
- *
- * Gated on global-npm because nothing else can act on the answer: a source
- * checkout (this repo, during development) has nothing to upgrade, a local
- * dependency is pinned by its own package.json, and an npx run already
- * resolves latest. Nagging any of them is noise with no button attached.
- */
-export function shouldRefresh(ctx: RefreshContext): boolean {
-  if (nonEmpty(ctx.env[OPT_OUT_ENV]) !== undefined) return false
-  // Nobody is present to read a notice in CI or under a test runner, and both
-  // spend a real network call plus a write to the USER's home state dir to
-  // learn it. This is not hypothetical: sofar's own packaging test installs
-  // the tarball into a temp prefix — a true global-npm layout — and drove a
-  // live `npm view` out of a unit-test run before this line existed.
-  if (nonEmpty(ctx.env.CI) !== undefined) return false
-  if (nonEmpty(ctx.env.VITEST) !== undefined || ctx.env.NODE_ENV === 'test') return false
-  if (ctx.plan.kind !== 'global-npm') return false
-  if (ctx.cache === null) return true
-  const checkedAt = Date.parse(ctx.cache.checked_at)
-  if (Number.isNaN(checkedAt)) return true
-  // A clock that moved backwards (or a cache from the future) reads as stale
-  // rather than pinning the check off forever.
-  return ctx.now - checkedAt >= CHECK_TTL_MS || checkedAt > ctx.now
-}
-
 export interface UpdateNotice {
   latest: string
   current: string
@@ -220,33 +139,6 @@ export interface UpdateCheckDeps {
 }
 
 /**
- * The bundle to re-launch for the refresh — always the sibling `cli.js`.
- *
- * NOT selfPath. The build splits the CLI into three bundles (boot → cli.js,
- * hot path → fast.js, everything else → full.js, speed-2 T1), and the surface
- * that most needs this check — the statusline — runs inside fast.js. Spawning
- * selfPath there would run fast.js as a script: it has no top-level entry, so
- * it would exit silently and the check would never once happen. cli.js is the
- * only file that routes a command.
- */
-export function refreshEntry(selfPath: string): string {
-  return join(dirname(selfPath), 'cli.js')
-}
-
-/** Detached, unref'd, output discarded — the parent exits without waiting. */
-function defaultSpawnRefresh(selfPath: string): void {
-  try {
-    const child = spawn(process.execPath, [refreshEntry(selfPath), 'update-check', '--refresh'], {
-      detached: true,
-      stdio: 'ignore',
-    })
-    child.unref()
-  } catch {
-    // No child, no check. Never fatal to the foreground command.
-  }
-}
-
-/**
  * The one call every surface makes: return the notice to render, and — when
  * the cache has gone stale — kick off a background refresh for NEXT time.
  *
@@ -255,18 +147,12 @@ function defaultSpawnRefresh(selfPath: string): void {
  * spawn one `npm view` per keystroke-round until the first child finished.
  */
 export function updateNotice(deps: UpdateCheckDeps = {}): UpdateNotice | null {
-  const env = deps.env ?? process.env
-  const cache = readUpdateCache(env)
-  const selfPath = deps.selfPath ?? currentSelfPath()
-  const now = deps.now ?? Date.now()
-  if (shouldRefresh({ plan: planUpgrade(selfPath), cache, now, env })) {
-    writeUpdateCache(
-      { version: 1, latest: cache?.latest ?? null, checked_at: new Date(now).toISOString(),
-        ...(cache?.installed !== undefined ? { installed: cache.installed } : {}) },
-      env,
-    )
-    ;(deps.spawnRefresh ?? defaultSpawnRefresh)(selfPath)
-  }
+  const cache = claimRefresh({
+    selfPath: deps.selfPath ?? currentSelfPath(),
+    ...(deps.spawnRefresh !== undefined ? { spawnRefresh: deps.spawnRefresh } : {}),
+    ...(deps.now !== undefined ? { now: deps.now } : {}),
+    ...(deps.env !== undefined ? { env: deps.env } : {}),
+  })
   return noticeFrom(cache)
 }
 

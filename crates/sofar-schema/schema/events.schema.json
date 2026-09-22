@@ -1,0 +1,1069 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/KnownEventPayloads",
+  "definitions": {
+    "KnownEventPayloads": {
+      "type": "object",
+      "properties": {
+        "initiative_created": {
+          "$ref": "#/definitions/InitiativeCreatedPayload"
+        },
+        "initiative_status_changed": {
+          "$ref": "#/definitions/InitiativeStatusChangedPayload"
+        },
+        "plan_updated": {
+          "$ref": "#/definitions/PlanUpdatedPayload"
+        },
+        "phase_status_changed": {
+          "$ref": "#/definitions/PhaseStatusChangedPayload"
+        },
+        "task_added": {
+          "$ref": "#/definitions/TaskAddedPayload"
+        },
+        "task_status_changed": {
+          "$ref": "#/definitions/TaskStatusChangedPayload"
+        },
+        "decision_logged": {
+          "$ref": "#/definitions/DecisionLoggedPayload"
+        },
+        "session_started": {
+          "$ref": "#/definitions/SessionStartedPayload"
+        },
+        "session_ended": {
+          "$ref": "#/definitions/SessionEndedPayload"
+        },
+        "session_closed": {
+          "$ref": "#/definitions/SessionClosedPayload"
+        },
+        "file_touched": {
+          "$ref": "#/definitions/FileTouchedPayload"
+        },
+        "command_run": {
+          "$ref": "#/definitions/CommandRunPayload"
+        },
+        "note_added": {
+          "$ref": "#/definitions/NoteAddedPayload"
+        },
+        "memory_promoted": {
+          "$ref": "#/definitions/MemoryPromotedPayload"
+        },
+        "judgement_recorded": {
+          "$ref": "#/definitions/JudgementRecordedPayload"
+        },
+        "review_recorded": {
+          "$ref": "#/definitions/ReviewRecordedPayload"
+        },
+        "run_started": {
+          "$ref": "#/definitions/RunStartedPayload"
+        },
+        "handoff": {
+          "$ref": "#/definitions/HandoffPayload"
+        },
+        "run_stopped": {
+          "$ref": "#/definitions/RunStoppedPayload"
+        },
+        "run_stop_requested": {
+          "$ref": "#/definitions/RunStopRequestedPayload"
+        },
+        "run_adopted": {
+          "$ref": "#/definitions/RunAdoptedPayload"
+        },
+        "verification_recorded": {
+          "$ref": "#/definitions/VerificationRecordedPayload"
+        },
+        "correction": {
+          "$ref": "#/definitions/CorrectionPayload"
+        },
+        "suggestion_proposed": {
+          "$ref": "#/definitions/SuggestionProposedPayload"
+        },
+        "suggestion_approved": {
+          "$ref": "#/definitions/SuggestionTransitionPayload"
+        },
+        "suggestion_rejected": {
+          "$ref": "#/definitions/SuggestionTransitionPayload"
+        },
+        "suggestion_reverted": {
+          "$ref": "#/definitions/SuggestionTransitionPayload"
+        }
+      },
+      "required": [
+        "initiative_created",
+        "initiative_status_changed",
+        "plan_updated",
+        "phase_status_changed",
+        "task_added",
+        "task_status_changed",
+        "decision_logged",
+        "session_started",
+        "session_ended",
+        "session_closed",
+        "file_touched",
+        "command_run",
+        "note_added",
+        "memory_promoted",
+        "judgement_recorded",
+        "review_recorded",
+        "run_started",
+        "handoff",
+        "run_stopped",
+        "run_stop_requested",
+        "run_adopted",
+        "verification_recorded",
+        "correction",
+        "suggestion_proposed",
+        "suggestion_approved",
+        "suggestion_rejected",
+        "suggestion_reverted"
+      ]
+    },
+    "InitiativeCreatedPayload": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "goal": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "slug",
+        "goal"
+      ]
+    },
+    "InitiativeStatusChangedPayload": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/InitiativeStatus"
+        },
+        "note": {
+          "type": "string"
+        },
+        "overrides": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "successor": {
+          "type": "string",
+          "description": "The slug this record continues in. REQUIRED for `superseded` and rejected on every other status — a successor on a `done` record is a contradiction the validator refuses rather than one the fold has to interpret. Recorded ONLY here, on the predecessor (initiative-supersession D1): the successor's side is derived at read time, never written on the successor."
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "description": "The initiative's own status changed. `note` is the reason, and it is REQUIRED for `dropped` (task-drop-state D3): a whole initiative abandoned with nothing said reads as forgotten rather than decided, and unlike a dropped task there is no surviving sibling work to infer the reason from.\n\nReopening is just another event with status `active` — history stays append-only, so a closed initiative is never a dead end in the log.\n\n`overrides` (commit-attribution 5.2) is what the close-time audit found still outstanding, recorded because the close went ahead anyway. It is the whole mechanism: a hard refusal on a solo tool grows a `--force` and the flag becomes the habit, while \"closed with 3 tasks outstanding, overridden\" rendered in the digest forever is a sentence its author has to live beside. Absent means the audit found nothing — never that it was skipped."
+    },
+    "InitiativeStatus": {
+      "type": "string",
+      "enum": [
+        "active",
+        "done",
+        "dropped",
+        "superseded"
+      ]
+    },
+    "PlanUpdatedPayload": {
+      "type": "object",
+      "properties": {
+        "plan": {
+          "$ref": "#/definitions/PlanStructure"
+        }
+      },
+      "required": [
+        "plan"
+      ]
+    },
+    "PlanStructure": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "type": "string"
+        },
+        "phases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PlanPhaseInput"
+          }
+        }
+      },
+      "required": [
+        "phases"
+      ],
+      "description": "Full plan structure carried by plan_updated (full replace, SPEC §MCP tools)."
+    },
+    "PlanPhaseInput": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/PhaseStatus"
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PlanTaskInput"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "tasks"
+      ]
+    },
+    "PhaseStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "active",
+        "done",
+        "blocked",
+        "dropped"
+      ]
+    },
+    "PlanTaskInput": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/TaskStatus"
+        },
+        "route": {
+          "$ref": "#/definitions/TaskRoute"
+        },
+        "verify": {
+          "$ref": "#/definitions/TaskVerify"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ]
+    },
+    "TaskStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "active",
+        "done",
+        "blocked",
+        "dropped"
+      ]
+    },
+    "TaskRoute": {
+      "type": "object",
+      "properties": {
+        "agent": {
+          "type": "string",
+          "description": "Adapter name the driver must launch this task with."
+        },
+        "model": {
+          "type": "string"
+        },
+        "effort": {
+          "type": "string"
+        }
+      },
+      "description": "Where a task wants to be run (session-driver 3.2, D10). Hints, not orders: anything the RUN states — the model/effort `run_started.surface` recorded, or the driver's own flags — wins over them, because a run whose second half ran a different model than its record names is two runs wearing one id. What the run leaves open, the task fills.\n\n`agent` names an ADAPTER (`claude-code`, `codex`), and it is the one field the driver cannot honour halfway: a run that cannot reach the named agent, or whose policy that agent cannot run, refuses to start rather than falling back to the default one.\n\nNothing else records the route: the plan carries the hint and the launched session's own `session_started` carries the tool and model it actually ran, so a third copy on the handoff would be the one that goes stale (D3)."
+    },
+    "TaskVerify": {
+      "type": "object",
+      "properties": {
+        "cmd": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "timeout_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cmd"
+      ],
+      "description": "The task's acceptance command (r1-fixes 3.1, D19): what `sofar drive` runs before it accepts the task as done. A shell command line, run in `cwd` relative to the launch directory (default the launch directory itself), killed after `timeout_ms`. The plan carries it like a route, and like a route it survives only as long as a full-replace plan restates it. An agent can write a plan, so the driver runs a plan-level command ONLY when it falls inside the run's recorded permission surface (D19) — the operator's `--verify` is the other, always-approved source."
+    },
+    "PhaseStatusChangedPayload": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/PhaseStatus"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "phase",
+        "status"
+      ],
+      "description": "`note` (phase-lifecycle 2.1) is the same field task_status_changed carries, one level up, and required for `dropped` for the same reason: a phase abandoned without a stated reason is indistinguishable from one quietly forgotten, and nothing else in the record explains it."
+    },
+    "TaskAddedPayload": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/TaskStatus"
+        },
+        "verify": {
+          "$ref": "#/definitions/TaskVerify"
+        }
+      },
+      "required": [
+        "phase",
+        "id",
+        "title"
+      ]
+    },
+    "TaskStatusChangedPayload": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/TaskStatus"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status"
+      ]
+    },
+    "DecisionLoggedPayload": {
+      "type": "object",
+      "properties": {
+        "chose": {
+          "type": "string"
+        },
+        "over": {
+          "type": "string"
+        },
+        "because": {
+          "type": "string"
+        },
+        "rule": {
+          "type": "string"
+        },
+        "guard": {
+          "type": "string",
+          "description": "`guard` (drift-hardening D3): the mechanical half of the SAME clause — a `path:`/`cmd:` glob list (src/guards.ts) the fold matches against file_touched / command_run events logged after this decision. Valid only alongside `rule`: a guard with no clause has nothing to cite when it fires, and what it produces is a WARNING that never changes an exit code."
+        },
+        "quote": {
+          "type": "string",
+          "description": "`quote` (memory-lead 1.2, D2): the operator's own words the rule came from, copied exactly — ≤ RULE_QUOTE_MAX chars, valid only alongside `rule`. The rule is the agent's restatement; the quote is its source, and every surface that renders the rule renders the quote beside it, flagging the status codes, paths and values the rule adds (engine core/rule-fidelity.ts). Round 1 lost a test to a rule that added \"with 4xx\" to an operator's \"Reject anything else\"."
+        },
+        "supersedes": {
+          "type": "string",
+          "description": "`supersedes` (r1-fixes 3.2, D25): the bare handle `D<n>` of an EARLIER decision in the SAME record this one replaces. The fold resolves it from the log alone and marks the target `superseded_by` this decision's ordinal; the digest then stops rendering the target. Per-record like the ordinals themselves. A rule-carrying target is retired ONLY by a rule-carrying superseder — standing rules never age out, they are only ever replaced by a new rule that names them; any other reference is recorded but inert (forward, self, rule mismatch)."
+        },
+        "supersedes_id": {
+          "type": "string",
+          "description": "`supersedes_id` (memory-lead 2.8, D12): the event id of the decision `supersedes` named when it was written, stamped by the writer from its own fold — agents never pass it. `D<n>` is a position in id order, so a union merge of branches that both logged decisions moves it; the id does not. When present the fold resolves by it alone. Only alongside `supersedes`."
+        },
+        "until": {
+          "type": "string",
+          "description": "`until` (r1-fixes 3.2, D25): the id of a task in this record. The decision is in force until that task RESOLVES (done or dropped, as replayed) and then leaves the digest — validity derives from recorded events, never from a clock. REJECTED alongside `rule`: a standing constraint never ages out. An id the plan never names never retires."
+        },
+        "check": {
+          "$ref": "#/definitions/DecisionCheck",
+          "description": "`check` (memory-lead 2.3, D9): the executable half of the SAME clause — a shell command whose exit 0 means the decision holds. Valid only alongside `rule`, like `guard`: a failure has to cite the clause it enforces. It is text an agent wrote into a shared record, so nothing runs it until the operator approved that exact command on their clone, or, under `sofar drive`, the run's permission surface covers it. It WARNS everywhere, and blocks only at drive's task acceptance and, opted in, at pre-commit."
+        }
+      },
+      "required": [
+        "chose",
+        "over",
+        "because"
+      ],
+      "description": "`rule` (drift-hardening D1): optional standing-constraint clause — one short imperative every future session must obey. Its presence is what makes a decision a standing constraint; there is no separate flag. Render contract: verbatim on every surface, never clipped, never aged out — the C-abl ablation showed decisions are the load-bearing resume field, and clipped normative text is how dead ends recur."
+    },
+    "DecisionCheck": {
+      "type": "object",
+      "properties": {
+        "cmd": {
+          "type": "string",
+          "description": "≤ CHECK_CMD_MAX chars; run from the repo root; exit 0 = the decision holds."
+        },
+        "hint": {
+          "type": "string",
+          "description": "The remediation a failure shows, ≤ CHECK_HINT_MAX chars; absent, the rule and its quote stand in."
+        },
+        "timeout_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cmd"
+      ],
+      "description": "The command that checks a decision still holds, and the fix to show when it does not (D9)."
+    },
+    "SessionStartedPayload": {
+      "type": "object",
+      "properties": {
+        "tool": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool"
+      ]
+    },
+    "SessionEndedPayload": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "next_action": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary",
+        "next_action"
+      ]
+    },
+    "SessionClosedPayload": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "description": "Mechanical session close (SessionEnd hook fallback). Deliberately has no summary/next_action: those belong to session_ended (the write-back) and a mechanical close must never clobber them during fold."
+    },
+    "FileTouchedPayload": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "op": {
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "path",
+        "op"
+      ],
+      "description": "Mechanical outcome fields (self-improve D2): OPTIONAL, additive, and the ONLY outcome facts the durable record carries. `ok` is what the host said about the call — PostToolUse fires only on success, PostToolUseFailure only on failure — and `exit` is the process status when the host supplies one as a number. Absent means UNKNOWN (an engine or host that predates capture), never success. Everything richer — error text, output, timing — is a diagnostics row (src/diagnostics.ts), never a payload field."
+    },
+    "CommandRunPayload": {
+      "type": "object",
+      "properties": {
+        "cmd": {
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "exit": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cmd"
+      ]
+    },
+    "NoteAddedPayload": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ]
+    },
+    "MemoryPromotedPayload": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "supersedes": {
+          "type": "string",
+          "description": "The QUALIFIED handle `<slug> M<n>` of the memory this one replaces (r1-fixes 1.5, D8). Facts go stale; the record is append-only, so the replacement is a new promotion that names the old one, and readers (memory.md, doctor's repo-memory axis) retire the old handle."
+        },
+        "supersedes_id": {
+          "type": "string",
+          "description": "The event id of the memory `supersedes` named when it was written (memory-lead 2.8, D12), stamped by the writer — `M<n>` moves on a merge, the id does not. Only alongside `supersedes`."
+        },
+        "origin": {
+          "type": "string",
+          "description": "Where the words came from when they are not the author's own (memory-lead 2.4, D13/D14): `claude-memory:<file>@<16 hex>` — a Claude Code auto-memory topic file the operator approved importing, and the first 16 hex of that file's sha256 at import. Every surface marks such a memory as native memory's words; a changed file is a new digest, so an import is offered again as an update."
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "description": "A fact its author declares repo memory — operational knowledge that is not a decision (a release command, a failure mode) and so can never be observed as repo-general from citation behaviour, because nothing derives a fact that was never written down (repo-memory-capture D1)."
+    },
+    "JudgementRecordedPayload": {
+      "type": "object",
+      "properties": {
+        "producer": {
+          "type": "string",
+          "description": "Who ran the judge: `sofar-cloud`, `deterministic`, `agent`, …"
+        },
+        "model": {
+          "type": "string",
+          "description": "Exact model version (never an alias), or `deterministic`."
+        },
+        "question": {
+          "type": "string",
+          "description": "The question id, as the seam names it (`relevance`, `progress`, …)."
+        },
+        "subject": {
+          "type": "string",
+          "description": "What it is about: an event id, a task id of this initiative, or a record handle qualified per the citation grammar — a bare `D12` is the envelope's own initiative, anything else `<slug> D12` / `<slug> M3` (typed-judge D10)."
+        },
+        "about": {
+          "type": "string",
+          "description": "What `subject` was judged AGAINST, for a relevance judgement (typed-judge D10): `task:<id>` (a task of the envelope's initiative) or `file:<repo-relative path>`. Absent for a judgement about the subject alone."
+        },
+        "answer": {
+          "$ref": "#/definitions/JudgementAnswer"
+        },
+        "state_hash": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "producer",
+        "model",
+        "question",
+        "subject",
+        "answer"
+      ]
+    },
+    "JudgementAnswer": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "noul"
+            },
+            "noul": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "noul"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "choice"
+            },
+            "choice": {
+              "type": "string"
+            },
+            "probabilities": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number"
+              }
+            },
+            "confidence": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "choice",
+            "probabilities",
+            "confidence"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "score"
+            },
+            "score": {
+              "type": "number"
+            },
+            "probabilities": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number"
+              }
+            },
+            "confidence": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "score",
+            "probabilities",
+            "confidence"
+          ]
+        }
+      ]
+    },
+    "ReviewRecordedPayload": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "$ref": "#/definitions/ReviewScope"
+        },
+        "verdict": {
+          "$ref": "#/definitions/ReviewVerdict"
+        },
+        "watermark": {
+          "type": "string",
+          "description": "Sha read through; omitted only when the range was empty."
+        },
+        "phase": {
+          "type": "string",
+          "description": "Phase name for a `phase` review; absent for `final`."
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "scope",
+        "verdict"
+      ],
+      "description": "A review that was actually performed (commit-attribution 4.4).\n\n`watermark` is the load-bearing field, not `verdict`. It is the sha the review read through, and it is what makes the NEXT review's range computable — watermark..HEAD filtered to this initiative's attributed commits (D9). Without it a range could only be derived from task timestamps, which is the time-window guess record-integrity D6 rejected. That is why a review is an EVENT and could never have been a note.\n\n`findings` are the ones that survived, one line each. An empty list with verdict `pass` is a legitimate outcome; an empty list with verdict `findings` is not, and validation rejects it — a review that reports findings must say what they were, or it is a rubber stamp wearing the wrong hat."
+    },
+    "ReviewScope": {
+      "type": "string",
+      "enum": [
+        "phase",
+        "final"
+      ]
+    },
+    "ReviewVerdict": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "findings",
+        "blocked"
+      ]
+    },
+    "RunStartedPayload": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string",
+          "description": "Run id minted by the driver (a ulid) — the key every handoff and the stop cite."
+        },
+        "adapter": {
+          "type": "string",
+          "description": "Adapter name, e.g. `claude-code`: which headless agent the run launches."
+        },
+        "policy": {
+          "$ref": "#/definitions/RunPolicy"
+        },
+        "threshold_pct": {
+          "type": "integer",
+          "description": "Context percentage at which a session is told to finish and hand off; REQUIRED for `threshold`."
+        },
+        "context_window": {
+          "type": "integer",
+          "description": "Tokens the session's context window holds — the DENOMINATOR `threshold_pct` is a percentage of, and REQUIRED for `threshold` for the same reason the percentage is: 80% of 200k and 80% of 1M are different runs, so a record carrying only the percentage cannot say what the last driver actually nudged at. Sofar never infers it from the model name — a model table it cannot keep true would mis-time every handoff silently — so the operator states it and the record keeps it (session-driver 2.3)."
+        },
+        "max_sessions": {
+          "type": "integer"
+        },
+        "surface": {
+          "$ref": "#/definitions/RunSurface",
+          "description": "The permission surface every session in the run was launched under (session-driver 2.4, D8) — what the driver PINNED, never what the session could ultimately do: the agent's settings file is one source among the operator's own and allow rules union across them. Absent on a run whose adapter pins nothing. `model`/`effort` are recorded here so a reader can tell a run that pinned them from one that left them to whatever the operator's mutable config said that day."
+        },
+        "verify": {
+          "type": "string",
+          "description": "The run's default acceptance command (r1-fixes 3.1, D19): `--verify`, applied to every task that carries no `verify` of its own. Operator- stated, so it always runs; recorded so a resumed run keeps it."
+        }
+      },
+      "required": [
+        "run",
+        "adapter",
+        "policy"
+      ]
+    },
+    "RunPolicy": {
+      "type": "string",
+      "enum": [
+        "task",
+        "threshold"
+      ]
+    },
+    "RunSurface": {
+      "type": "object",
+      "properties": {
+        "permission_mode": {
+          "type": "string"
+        },
+        "allow": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deny": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "model": {
+          "type": "string"
+        },
+        "effort": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "permission_mode",
+        "allow"
+      ],
+      "description": "What `run_started.surface` carries; the driver's own type is engine-side."
+    },
+    "HandoffPayload": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string",
+          "description": "The session that just ended — registered here by its own session_started."
+        },
+        "reason": {
+          "$ref": "#/definitions/HandoffReason"
+        },
+        "task": {
+          "type": "string",
+          "description": "Task the session was working, when the driver knows it."
+        },
+        "tokens": {
+          "type": "integer",
+          "description": "Context tokens the session held when it ended, when the adapter could report them."
+        },
+        "detail": {
+          "type": "string",
+          "description": "How the agent process ended, when that is worth knowing (r1-fixes 1.6, D9): the exit code or signal, a spawn error, the last stderr line. Set on stalls and on any unclean exit; never consulted for `reason`, which the driver reads from the fold alone (session-driver D5)."
+        }
+      },
+      "required": [
+        "run",
+        "session_id",
+        "reason"
+      ]
+    },
+    "HandoffReason": {
+      "type": "string",
+      "enum": [
+        "task_done",
+        "threshold",
+        "stall",
+        "needs_user",
+        "verify_failed"
+      ]
+    },
+    "RunStoppedPayload": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string"
+        },
+        "reason": {
+          "$ref": "#/definitions/RunStopReason"
+        },
+        "note": {
+          "type": "string",
+          "description": "What happened; REQUIRED for `error` — a run that died unexplained is one nobody can resume."
+        }
+      },
+      "required": [
+        "run",
+        "reason"
+      ]
+    },
+    "RunStopReason": {
+      "type": "string",
+      "enum": [
+        "closed",
+        "needs_user",
+        "stall",
+        "cost_cap",
+        "max_sessions",
+        "interrupted",
+        "error"
+      ]
+    },
+    "RunStopRequestedPayload": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "run"
+      ],
+      "description": "An operator asking the driver of `run` to end it from OUTSIDE the driver (in-session-drive D2) — `sofar drive --stop`, for a detached driver no ^C can reach. A request, never a stop: only the driver writes `run_stopped`, after reading the handoff of the session it signalled."
+    },
+    "RunAdoptedPayload": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string"
+        },
+        "epoch": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "run",
+        "epoch"
+      ],
+      "description": "A driver took over a run that has no stop (drive-visibility 2.2): `sofar drive --resume` appends one before its first launch, at one more than the run's highest epoch — `run_started` is epoch 1, so an adoption is never below 2. The fencing token for a record that syncs: the fold's owner is the highest epoch (the first-sorting id on a tie), and a driver that finds it is no longer the owner steps down. One event per takeover, never a heartbeat."
+    },
+    "VerificationRecordedPayload": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string"
+        },
+        "task": {
+          "type": "string"
+        },
+        "attempt": {
+          "type": "integer"
+        },
+        "command": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Relative to the launch directory; `.` for the launch directory itself."
+        },
+        "checked": {
+          "type": "object",
+          "properties": {
+            "head": {
+              "type": "string"
+            },
+            "tree": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "head",
+            "tree"
+          ],
+          "description": "The tree the command ran on: HEAD, and a digest of every tracked change plus every untracked file."
+        },
+        "validator": {
+          "type": "string",
+          "description": "Engine version that ran it."
+        },
+        "result": {
+          "$ref": "#/definitions/VerificationResult"
+        },
+        "exit_code": {
+          "type": "integer"
+        },
+        "signal": {
+          "type": "string"
+        },
+        "duration_ms": {
+          "type": "integer"
+        },
+        "timeout_ms": {
+          "type": "integer"
+        },
+        "diagnostics": {
+          "type": "string",
+          "description": "≤1,024 chars: ANSI-stripped, redacted tail of stdout and stderr."
+        },
+        "decision": {
+          "type": "string",
+          "description": "The decision whose `check` this was, as `<slug> D<n>` (memory-lead 2.3, D9). Absent: the task's own acceptance command. The fold keeps the two apart, so a check never displaces the task's verify pass."
+        }
+      },
+      "required": [
+        "run",
+        "task",
+        "attempt",
+        "command",
+        "cwd",
+        "checked",
+        "validator",
+        "result",
+        "duration_ms",
+        "timeout_ms"
+      ],
+      "description": "The driver ran a task's acceptance command (r1-fixes 3.1, D19) — the record of WHAT was checked, on WHICH tree, and how it ended. Written by the driver before it accepts a `task_done`, and again on every retry; the fold keeps each task's latest. A pass counts only while `checked` still names the current tree and `command` is unchanged — the driver re-fingerprints before trusting one. Diagnostics are a bounded, redacted tail of the command's output (D9's precedent for driver diagnostics on the record)."
+    },
+    "VerificationResult": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "fail",
+        "timeout",
+        "error",
+        "refused"
+      ]
+    },
+    "CorrectionPayload": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ]
+    },
+    "SuggestionProposedPayload": {
+      "type": "object",
+      "properties": {
+        "candidate": {
+          "type": "string"
+        },
+        "signal": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Event ids (or `row:` hashes) the detector cited — the whole set the hash covers."
+        },
+        "count": {
+          "type": "integer"
+        },
+        "cutoff": {
+          "type": "string",
+          "description": "Highest event id the deriving report read. Recorded, never hashed."
+        },
+        "engine": {
+          "type": "string"
+        },
+        "detector_version": {
+          "type": "integer"
+        },
+        "trust": {
+          "$ref": "#/definitions/SuggestionTrust"
+        }
+      },
+      "required": [
+        "candidate",
+        "signal",
+        "evidence",
+        "count",
+        "engine",
+        "detector_version",
+        "trust"
+      ],
+      "description": "A LOSS ROW proposed from a trusted detector — never a cause, never a fix (self-improve 2.3). `candidate` is sha256 over {version, signal, scope, sorted evidence}, so new evidence is a new candidate and approval binds to the exact one."
+    },
+    "SuggestionTrust": {
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "type": "string",
+          "description": "Event id of the protocol decision the numbers were produced under."
+        },
+        "verdict": {
+          "type": "string",
+          "description": "Event id of the decision carrying the verdict."
+        },
+        "precision": {
+          "type": "number"
+        },
+        "recall": {
+          "type": "number"
+        },
+        "judged": {
+          "type": "integer",
+          "description": "Findings judged on held-out splits — the n behind the precision."
+        }
+      },
+      "required": [
+        "protocol",
+        "verdict",
+        "precision",
+        "recall",
+        "judged"
+      ],
+      "description": "What the 2.2 protocol measured about the detector behind a suggestion (self-improve 2.3): a reader sees how often this signal is right without leaving the row. Every field is a measurement, never an estimate."
+    },
+    "SuggestionTransitionPayload": {
+      "type": "object",
+      "properties": {
+        "candidate": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate"
+      ],
+      "description": "approve / reject / revert: append-only transitions on one candidate."
+    }
+  }
+}

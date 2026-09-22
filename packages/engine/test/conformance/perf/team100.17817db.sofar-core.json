@@ -1,0 +1,32 @@
+{
+  "implementation": "candidate",
+  "command": [
+    "/Users/jins/IO/sofar-rust-core/target/release/sofar-core"
+  ],
+  "recordedAt": "2026-09-17T08:50:43.612Z",
+  "iterations": 25,
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "cores": 14,
+    "node": "v24.15.0",
+    "platform": "darwin",
+    "release": "27.0.0"
+  },
+  "load": {
+    "start": 7.58,
+    "end": 6.86
+  },
+  "abCommand": [
+    "node",
+    "/Users/jins/IO/sofar-rust-core/packages/engine/dist/cli.js"
+  ],
+  "commit": "6af34c4",
+  "nodeSpawnMs": {
+    "n": 25,
+    "min": 20.41,
+    "p50": 21.71,
+    "p95": 22.72
+  },
+  "cells": [],
+  "label": "rust-core 1.5 team100: sofar-core direct, interleaved ABAB with node dist/cli.js (D12)"
+}

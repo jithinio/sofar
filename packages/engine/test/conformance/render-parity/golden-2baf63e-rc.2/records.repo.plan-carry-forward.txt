@@ -1,0 +1,416 @@
+== options (37514 bytes) ==
+{
+  "plain": {},
+  "hook": {
+    "sessionId": "plan-carry-forward-session",
+    "git": {
+      "branch": "feature/plan-carry-forward",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 3,
+        "decisions": 7
+      },
+      {
+        "initiative": "beta",
+        "paths": 1,
+        "decisions": 1
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare."
+    ]
+  },
+  "lane": {
+    "lane": true,
+    "sessionId": "lane-session",
+    "git": {
+      "branch": "feature/plan-carry-forward",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    }
+  },
+  "quiet": {
+    "activity": false,
+    "sessionId": " quiet-session\t"
+  },
+  "cap": {
+    "sessionId": "plan-carry-forward-session",
+    "git": {
+      "branch": "feature/plan-carry-forward",
+      "head": "a1b2c3d",
+      "headFull": "a1b2c3d000000000000000000000000000000000",
+      "upstream": "a1b2c3d",
+      "upstreamFull": "a1b2c3d000000000000000000000000000000000",
+      "synced": true
+    },
+    "neighbours": [
+      {
+        "initiative": "alpha",
+        "paths": 3,
+        "decisions": 7
+      },
+      {
+        "initiative": "beta",
+        "paths": 1,
+        "decisions": 1
+      }
+    ],
+    "repoMemory": "# Repo memory — sofar\n\n- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):\n  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP\n  server \"sofar\" with sofar_* tools, record dir `.sofar/`. No back-compat\n  aliases (pre-publish). Historical event/projection text and the archived\n  docs still say harness — that is history, never rewritten.\n- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,\n  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision\n  if SPEC must change.\n- Test command: `npm test` (vitest). Build: `npm run build` (esbuild).\n  Both run at the workspace root; typecheck: `npm run typecheck`.\n- Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema\n  (source-shipped, no build); packages/engine → sofar bin\n  (packages/engine/dist/cli.js after build).\n- Definition of done per task: acceptance criteria in docs/SPEC.md\n  §Acceptance.\n- Boundary: harness-docs/ (00-spine, 01-roadmap, 02-action-plan,\n  03-architecture — pre-rename dir name, kept) and the Phase 0 scorecard\n  live OUTSIDE this repo in the user's strategy vault. Engine sessions\n  never need them; 5.3 scoring is performed by the user against that\n  scorecard. Do not go looking for them; do not block on them.\n- Push policy: push origin main at each verified wrap-up (user-established\n  Jul 3). Pushing is part of ending a work batch, not per-commit.\n- Committing the record needs a BARE git call (repo-memory-capture M2): the\n  D1 exemption (cli/event.ts shellSegments) splits on every shell separator\n  INCLUDING newlines and exempts only if EVERY segment leads with git or\n  sofar. `git add -A && git commit -F msg.txt` is exempt; a heredoc\n  (`git commit -F - <<'EOF'`) is NOT — the message body's lines scan as\n  segments leading with prose. Mixing in echo/printf defeats it identically.\n  Symptom: write back, commit, and the tree is dirty again with command_run\n  events about the commit itself. Put the message in a file, use\n  `git commit -F <path>`, and keep status/diff checks bare.\n- Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare\n  `npm publish` from inside packages/engine) — always run by the USER (OTP\n  + permission classifier), agent stages everything up to it. Bare\n  `npm publish` at the root targets the PRIVATE monorepo package and would\n  tarball the entire repo including .sofar/ records; the root\n  package.json's `\"private\": true` is the guard that blocks it (EPRIVATE,\n  hit 2026-08-04) — never remove that field. An expired npm token surfaces\n  as E404 on the publish PUT (npm masks auth errors); `npm whoami`\n  returning E401 confirms it, `npm login` fixes it.\n- RELEASE GATE, user ruling 2026-08-13 (commit-attribution M7): do NOT\n  publish while commit-attribution is unfinished — let the whole thing\n  land, then publish once. Attribution is a CHAIN (hook writes the\n  trailer → core/attribution.ts reads it → doctor reports whether it\n  works → the shipping notice and review packet consume it), so a\n  partial release puts users in the worst state available: a hook\n  writing trailers nothing consumes, or a doctor reporting \"attribution\n  off\" in a version with no way to switch it on. Two consequences: do\n  not install .git/hooks/prepare-commit-msg in THIS repo before the\n  release (trailers stay hand-written, and the accurate \"attribution\n  off\" beats a misleading \"installed but nothing attributed\"), and\n  session-orientation's protocol-block change rides the same release,\n  since a half-shipped versioned block leaves repos matching no known\n  version.\n- Misrouted sessions are silent (repo-memory-capture M3): a session rooted in\n  this repo fires the hooks on EVERY tool call, and with no explicit pin the\n  branch binding decides where they land. A session working on a DIFFERENT\n  initiative here must call sofar_start_session with an explicit `initiative`\n  as its first act. Doctor cannot catch the failure: its Session routing axis\n  only detects sessions SPANNING 2+ initiatives; events landing uniformly in\n  one WRONG initiative are byte-identical to correct work and it reports \"no\n  problems found\". Symptom: a closed initiative's tree goes dirty seconds\n  after a clean commit, its banner shows \"N other session(s) did work without\n  writing back\", and its next action reads stale — all from a concurrent\n  session unrelated to it. Observed 2026-08-05 (session a18d80d0's\n  session-strategy-bench harvest filed under repo-memory-capture).\n- Dogfooding semantics: this repo SELF-HOSTS — it tracks itself via its own\n  installed sofar record (.sofar/initiatives/harness-build/, migrated\n  2026-07-07, BD47; initiative slug keeps the original name as history).\n  docs/harness.md is the archived pre-migration prose record (superseded\n  banner at its top); it stays readable for the ceremony history but is\n  never written again. Write-back means the sofar record: MCP tools or\n  `sofar event append`, per the installed protocol blocks.\n- Hooks (.claude/hooks/*.sh) and .mcp.json both exec the GLOBAL `sofar`\n  from PATH (installed under ~/.local, npm prefix override needed:\n  `npm install -g --prefix ~/.local sofar.sh@latest`). After each\n  npm publish, upgrade the global install — otherwise this repo dogfoods\n  a stale engine (found 2026-07-10: hooks ran the Jul-7 0.1.0 build for\n  three days; injected status was missing the rejected-approaches ledger).\n  A running Claude Code session keeps its already-launched MCP server;\n  new binary takes effect on the next session (or /mcp reconnect).\n  Corollary: to WRITE events using a feature not yet in the global install\n  (a new status, a new event type), the in-session MCP tools will reject it\n  — go through the freshly built local engine instead:\n  `node packages/engine/dist/cli.js event append <slug> --type … --payload …`.\n- Commit messages: NO \"Co-Authored-By\" trailers — user ruling\n  2026-07-11; end the message after the descriptive body.\n- Zero model API calls (felt-cost D3): sofar itself never calls a model — no\n  API keys, no inference costs, no user content sent anywhere. Write-backs\n  cost nothing extra because they are the agent's own tool-call args.\n  Cheap-model or Batch-API bookkeeping is rejected; revisiting requires a new\n  Decision citing that one. Binds every surface, including the statusline.\n- CLI output law (cli-ui D1): styled static output + stderr spinners at the\n  emit()/renderer boundary; semantic ANSI-16 only (green=success, red=error,\n  cyan=identifiers, dim=secondary) — no hex for text, no background\n  detection; degradation ladder NO_COLOR > --no-color > FORCE_COLOR > TTY;\n  animation only when isTTY && !CI. Agent-facing surfaces — renderStatus\n  digest, hook stdout, NDJSON, MCP stdio — are guaranteed BYTE-PLAIN. Every\n  new CLI surface inherits this; no TUI framework, no truecolor themes.\n- Emitted-directive version gating (scanner-version-gate M1): any Tailwind\n  directive sofar writes into a host stylesheet is gated on the host's\n  INSTALLED tailwindcss version — `@source not` needs >=4.1; on 4.0.x it\n  fails the host build (\"`@source` paths must be quoted\"). Establish such\n  boundaries from the artifact, never a changelog: `npm pack tailwindcss@X`,\n  untar, grep dist/ for the parse site. Second rule from the same bug:\n  Tailwind resolves every path relative to the STYLESHEET, so suggested\n  directives are computed per stylesheet (like sofarExclusionDirective) and\n  live-fired with `npx @tailwindcss/cli -i <entry> -o /dev/null` first.\n- A literal NUL byte makes a file invisible to grep (record-index M1,\n  record-index M3, peer-messaging M1):\n  grep and ripgrep classify the file as binary and print NOTHING — silently,\n  exit 0 — so a symbol that lives there reads as nonexistent. Diagnose with\n  `file <path>` (it says \"data\") and confirm with `grep -a`. core/fold.ts\n  carried two, as separators in a composite map key; FIXED 2026-08-09 by\n  spelling the separator as a backslash-u-0000 escape, which yields an\n  identical string from an ASCII source. Write separators that way, and keep\n  NULs out of event prose too — one there makes events.jsonl binary to grep.\n- Deliberately NOT promoted: felt-cost D4 (the `sofar statusline`\n  subcommand) is a feature contract, not repo-wide law — docs/SPEC.md and the\n  code already describe it, and the parts that generalize are covered by\n  felt-cost D3 (zero model calls) and BD22 (best-effort, never break the\n  session). Named here so doctor's repo-memory axis reads as judged rather\n  than unnoticed (2026-08-03).\n",
+    "notices": [
+      "Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).",
+      "",
+      "   ",
+      "3 commits of this record are unverified — no origin ref to compare.",
+      "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    ]
+  }
+}
+== status (9002 bytes) ==
+# plan-carry-forward
+
+Status: done 2026-08-13T16:03:11.040Z — All four phases resolved, D1 through D4 ruled and built, final review recorded with findings before closing. What shipped is a WARNING, not the carry-forward the slug names: Phase 1 measured zero occurrences in 85 plan_updated events across 41 records, which turned the initiative from repair into prevention and made the smallest sufficient answer the right one. D1 closes a hole SPEC had already ruled on and half-implemented; D2 rules renames out because the payload cannot support identity; D3 rules the 34 recent phase closes need nothing; D4 makes the signal readable. Two claims were asserted, published and retracted along the way, both by name in the record. Not released — D1 and D4 are in main only, and the installed engine is 0.28.0.
+Closed over 2 finding(s):
+  - closing with 1 event since the last write-back — the record's next action predates them, and nothing here says what the last stretch of work was
+  - 2 phases of 4 never reviewed (D9): Phase 2 — The ruling, Phase 4 — Make the signal readable (D4)
+Goal: Close the hole SPEC left in its own rule: §Forward compatibility of plan_updated says an unrecognised status is coerced to pending AND WARNED ABOUT, while an OMITTED status reached the same destination in silence. RULED 2026-08-13 as (e), D1: extend the fold's existing coerce-and-warn to omission, scoped to entries PRESENT in the payload whose previous status was resolved. Diagnostic, never preventive — state is untouched, so every historical log folds byte-identically, and because 1.1 measured the omission shape at ZERO the change is provably silent on all existing history. Renames are ruled out with reasons (D2); the 34 recent phase closes need nothing (D3). Phase 4 then fixed what D1's own phase review found: doctor showed only the FIRST fold warning per record, so the new signal would have been a bare count in exactly the records that already had warnings (D4). Measured, not assumed — the original premise that this bug had fired did NOT survive Phase 1, and the record carries both retractions by name.
+
+Standing constraints — obey verbatim (1):
+- [D1] Never let this initiative change folded STATE. The deliverable is a warning; state stays exactly what the payload says, so every historical log folds byte-identically before and after. And never widen the warning to entries ABSENT from the payload — that is the rename/delete case, it cannot be told from a deliberate deletion, and 1.1 measured ~52 historical instances that would become permanent doctor noise.
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
+Phases:
+- Phase 1 — Establish the exposure (blocks the ruling) [done] 3/3
+  - [x] 1.1 MEASURE it retroactively before designing anything, the repo's refute-before-building discipline. Replay every initiative's log and find every plan_updated that took a phase or task from a resolved status back to pending or omitted. If it is ZERO, the hazard is theoretical and the ruling changes shape — say so rather than building for it. MEASURE ON THE PAYLOAD, never on folded state: omitted-versus-explicit is the whole discriminator and folded state cannot see it.
+  - [x] 1.2 Establish whether the hole is MCP-only or dialect-wide. `sofar event append --type plan_updated` bypasses any tool-layer merge entirely, and the MCP-less convention dialect uses exactly that path (phase-lifecycle D1). Read cli/event.ts's append against mcp/update-plan.ts and state which callers a tool-boundary fix would and would not cover.
+  - [x] 1.3 Separate the two candidate defects. Does SPEC promise full-replace to CALLERS, and do the tool description and docs tell an agent it must restate statuses? A contract nobody is told about is a documentation defect, not a missing merge, and it has a much cheaper fix.
+- Phase 2 — The ruling [done] 3/3
+  - [x] 2.1 DECIDE the mechanism, against a measured incident count of ZERO — so do-nothing is a serious answer and the burden is on any option that adds code. Weigh a tool-boundary merge, a fold-level merge, a boundary warning, documentation only, and extending the fold's existing coerce-and-warn.
+  - [x] 2.2 DECIDE what protects the closes already written, if 2.1 leaves any window open. Answer it explicitly rather than by assumption.
+  - [x] 2.3 DECIDE what happens across a RENAME, at its real size. Deciding to do NOTHING is legitimate; it must be a decision rather than an oversight.
+- Phase 3 — Build the warning (D1) [done] 4/4
+  - [x] 3.1 core/fold.ts, plan_updated case: warn when a phase or task is PRESENT in the payload with no `status` key AND its previous status was resolved. State is NOT touched — the entry still becomes pending, so the log folds byte-identically (D1's rule). Entries ABSENT get nothing (D2).
+  - [x] 3.2 Tests: omitted-on-done warns (task and phase); never-resolved stays silent; an explicit `pending` over a done entry stays silent because key presence is the discriminator, not value; an absent entry stays silent (D2); a task moving between phases is followed rather than called a drop.
+  - [x] 3.3 Prove the retroactive-silence claim rather than asserting it: fold all 41 existing records on the built engine and confirm the new warning fires ZERO times. If it fires anywhere, 1.1 was wrong and the ruling reopens.
+  - [x] 3.4 docs/SPEC.md is authoritative: extend §Forward compatibility of plan_updated so the omitted case sits beside the unrecognised one, plus §Acceptance criteria. Also fix what 1.3 found on the caller side — the sofar_update_plan entry and the tool description say nothing about status at all.
+- Phase 4 — Make the signal readable (D4) [done] 1/1
+  - [x] 4.1 doctor rendered `warnings[0]` alone, so every fold warning after the first was invisible — and a record that already carries warnings is exactly where a new one most needs reading. List them instead, one hint line each, capped at 5 with the usual `+N more` sentinel. Needs multi-line hint support in BOTH renderers: the plain one indents each line identically (its byte contract for single-line hints is unchanged), the styled one puts the elbow on the first line and aligns continuations under it. Tests for the list, the cap, and the elbow placement; SPEC's doctor axis records the new shape.
+
+Next action: Nothing open — plan-carry-forward is closed and verified on the 0.29.0 tree. At release, the bar is zero D1 warnings and an unchanged verdict, NOT byte-identical output.
+
+⚠ Staleness:
+- next action may be stale: 1 event since the last write-back (2026-08-13T17:10:58.761Z) — 1 note
+- last write-back summary exceeds the SessionStart budget (450 chars) and is clipped there — full text in sessions/6cd75ed5-5f58-4f0b-aa67-3b10153ba21a.md
+
+Notes since write-back (1):
+- 2026-08-13T17:14:24.173Z RELEASE BAR MET — the verification this record closed asking for is done, on the actually-installed binary rather than on a build from dist. 0.29.0 is now installed (`sofar --version` = 0.29.0; it was not when the correction above was written, which said the hooks still ran 0.28.0). Run against the live record with the installed engine: - D1's warning ("counted as pending; restate a status") fires ZERO times. This was the bar, and it is met by the shipped artifact rather than by a candidate build. - Verdict: 7 problems, 177 warnings. Warnings match the earlier snapshot exactly; problems fell from 10 to 7 because doctor grades session-routing splits by LIVENESS, and peers wrapped up in between — live-torn FAILs became history WARNs. Expected churn from other people finishing work, not a regression, and a reminder that the problem count is time-varying while the warning count was stable. So D1 and D4 are live: the fold warning exists in a published engine and has never fired on this repo's history, which is exactly the outcome Phase 1 predicted and Phase 3 was built to guarantee.
+
+Last session (claude-code, ended 2026-08-13T17:10:58.761Z):
+  Corrected this record's closing next action, which was wrong. It asked for byte-identical doctor output after installing — an expectation measured at the end of Phase 3 and invalidated by Phase 4 hours later, since D4 IS an output change. A peer caught it and ran the comparison; I verified it independently on the 0.29.0 tree against a frozen snapshot. All three claims hold: D1's warning fires ZERO times across 42 records, the verdict is identical on both binaries, and the whole delta is 2 lines — pre-existing stub-session warnings the old renderer was suppressing, which is exactly what D4 was built to surface.
+
+Files touched (6):
+- /private/tmp/claude-501/-Users-jins-IO-sofar/6cd75ed5-5f58-4f0b-aa67-3b10153ba21a/scratchpad/scan-drops.py
+- /Users/jins/IO/sofar/packages/engine/src/core/fold.ts
+- /Users/jins/IO/sofar/docs/SPEC.md
+- /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts
+- /Users/jins/IO/sofar/packages/engine/test/fold.test.ts
+- /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts
+
+== digest:plain (3062 bytes) ==
+# Sofar status: plan-carry-forward
+
+Goal: Close the hole SPEC left in its own rule: §Forward compatibility of plan_updated says an unrecognised status is coerced to pending AND WARNED ABOUT, while an OMITTED status reached the same destination in silence. RULED 2026-08-13 as (e), D1: extend the fold's existing coerce-and-warn to omission, scoped to entries PRESENT in the payload whose previous status was resolved. Diagnostic, never preve…
+
+Next action: Nothing open — plan-carry-forward is closed and verified on the 0.29.0 tree. At release, the bar is zero D1 warnings and an unchanged verdict, NOT byte-identical output.
+⚠ next action may be stale: 1 event since write-back (1 note)
+Notes since write-back:
+- 2026-08-13 RELEASE BAR MET — the verification this record closed asking for is done, on the actually-installed binary rather than on a build from dist. 0.29.0 is now installed (`sofar --version` = 0.…
+
+Last session (claude-code, ended 2026-08-13T17:10:58.761Z):
+  Corrected this record's closing next action, which was wrong. It asked for byte-identical doctor output after installing — an expectation measured at the end of Phase 3 and invalidated by Phase 4 hours later, since D4 IS an output change. A peer caught it and ran the comparison; I verified it independently on t… (clipped — full text in sessions/6cd75ed5-5f58-4f0b-aa67-3b10153ba21a.md)
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
+Recent decisions (4; full text in decisions.md):
+- [D1] 2026-08-13 (rule below) (e) Extend the fold's EXISTING coerce-and-warn rule to cove… — over (a) carry-forward at the tool boundary, which prevents rather than re…
+- [D2] 2026-08-13 2.3 — do NOTHING about renames, as a decision rather than an oversight. A resolved phase … — over Adding stable phase ids to the payload so status can survive a rename
+- [D3] 2026-08-13 2.2 — the 34 phase closes phase-lifecycle 4.3 wrote across 16 still-active records need N… — over A protective sweep that re-asserts every recent phase close, or a doc…
+- [D4] 2026-08-13 Fix doctor's fold-warning rendering INSIDE plan-carry-forward as Phase 4, rather than ope… — over A separate initiative, on the argument the Phase 3 review itself made
+
+Next ids: D5 (decision), M1 (memory)
+
+Standing constraints — obey verbatim (1):
+- [D1] Never let this initiative change folded STATE. The deliverable is a warning; state stays exactly what the payload says, so every historical log folds byte-identically before and after. And never widen the warning to entries ABSENT from the payload — that is the rename/delete case, it cannot be told from a deliberate deletion, and 1.1 measured ~52 historical instances that would become permanent doctor noise.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:hook (4272 bytes) ==
+# Sofar status: plan-carry-forward
+
+Goal: Close the hole SPEC left in its own rule: §Forward compatibility of plan_updated says an unrecognised status is coerced to pending AND WARNED ABOUT, while an OMITTED status reached the same destination in silence. RULED 2026-08-13 as (e), D1: extend the fold's existing coerce-and-warn to omission, scoped to entries PRESENT in the payload whose previous status was resolved. Diagnostic, never preve…
+
+Next action: Nothing open — plan-carry-forward is closed and verified on the 0.29.0 tree. At release, the bar is zero D1 warnings and an unchanged verdict, NOT byte-identical output.
+⚠ next action may be stale: 1 event since write-back (1 note)
+Notes since write-back:
+- 2026-08-13 RELEASE BAR MET — the verification this record closed asking for is done, on the actually-installed binary rather than on a build from dist. 0.29.0 is now installed (`sofar --version` = 0.…
+
+Last session (claude-code, ended 2026-08-13T17:10:58.761Z):
+  Corrected this record's closing next action, which was wrong. It asked for byte-identical doctor output after installing — an expectation measured at the end of Phase 3 and invalidated by Phase 4 hours later, since D4 IS an output change. A peer caught it and ran the comparison; I verified it independently on t… (clipped — full text in sessions/6cd75ed5-5f58-4f0b-aa67-3b10153ba21a.md)
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
+Repo memory (.sofar/repo.md):
+# Repo memory — sofar
+
+- Product renamed harness → sofar on 2026-07-07 (BD49-revised, BD50):
+  CLI/bin `sofar`, packages sofar-monorepo + @sofar/schema + sofar, MCP
+  server "sofar" with sofar_* tools, record dir `.sofar/`. No back-compat
+  aliases (pre-publish). Historical event/projection text and the archived
+  docs still say harness — that is history, never rewritten.
+- Contracts: docs/SPEC.md is authoritative for envelope, tools, layout,
+  acceptance criteria. If code and SPEC disagree, SPEC wins; log a decision
+…truncated — read .sofar/repo.md for the rest
+
+Recent decisions (4; full text in decisions.md):
+- [D1] 2026-08-13 (rule below) (e) Extend the fold's EXISTING coerce-and-warn rule to cove… — over (a) carry-forward at the tool boundary, which prevents rather than re…
+- [D2] 2026-08-13 2.3 — do NOTHING about renames, as a decision rather than an oversight. A resolved phase … — over Adding stable phase ids to the payload so status can survive a rename
+- [D3] 2026-08-13 2.2 — the 34 phase closes phase-lifecycle 4.3 wrote across 16 still-active records need N… — over A protective sweep that re-asserts every recent phase close, or a doc…
+- [D4] 2026-08-13 Fix doctor's fold-warning rendering INSIDE plan-carry-forward as Phase 4, rather than ope… — over A separate initiative, on the argument the Phase 3 review itself made
+
+Next ids: D5 (decision), M1 (memory)
+
+Adjacent records — 8 decisions across 2 other initiatives that have worked this one's files, densest first:
+- alpha — 3 shared files, 7 decisions
+- beta — 1 shared file, 1 decision
+Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: plan-carry-forward-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: feature/plan-carry-forward @ a1b2c3d — in sync with origin/feature/plan-carry-forward
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+Standing constraints — obey verbatim (1):
+- [D1] Never let this initiative change folded STATE. The deliverable is a warning; state stays exactly what the payload says, so every historical log folds byte-identically before and after. And never widen the warning to entries ABSENT from the payload — that is the rename/delete case, it cannot be told from a deliberate deletion, and 1.1 measured ~52 historical instances that would become permanent doctor noise.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:lane (3745 bytes) ==
+# Sofar: quick-work lane (plan-carry-forward)
+
+Goal: Close the hole SPEC left in its own rule: §Forward compatibility of plan_updated says an unrecognised status is coerced to pending AND WARNED ABOUT, while an OMITTED status reached the same destination in silence. RULED 2026-08-13 as (e), D1: extend the fold's existing coerce-and-warn to omission, scoped to entries PRESENT in the payload whose previous status was resolved. Diagnostic, never preve…
+
+This branch is bound to no initiative, so the hooks capture edits and commands here — no sofar new, no plan, no write-back.
+- Made a decision? sofar_start_session (id below) then sofar_log_decision — one line of why. That is the only ask.
+- Project-sized work needs its own record: sofar new <slug> --goal "<one line>" (or sofar switch <slug>) — this session follows the branch there.
+
+Notes since write-back:
+- 2026-08-13 RELEASE BAR MET — the verification this record closed asking for is done, on the actually-installed binary rather than on a build from dist. 0.29.0 is now installed (`sofar --version` = 0.…
+
+Last session (claude-code, ended 2026-08-13T17:10:58.761Z):
+  Corrected this record's closing next action, which was wrong. It asked for byte-identical doctor output after installing — an expectation measured at the end of Phase 3 and invalidated by Phase 4 hours later, since D4 IS an output change. A peer caught it and ran the comparison; I verified it independently on t… (clipped — full text in sessions/6cd75ed5-5f58-4f0b-aa67-3b10153ba21a.md)
+
+Recent quick work (1 session, 4 decisions since 2026-08-13):
+- 2026-08-13 claude-code — 6 files (/private/tmp/claude-501/-Users-jins-IO-sofar/6cd75ed5-5f58-4f0b-aa67-3b10153ba21a/scratchpad/scan-drops.py, /Users/jins/IO/sofar/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/engine/test/fold.test.ts, /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts), 74 commands, task changes: 1.1 → done, 1.2 → done, 1.3 → done, 2.1 → done, 2.2 → done, 2.3 → done, 3.1 → done, 3.2 → done, 3.3 → done, 3.4 → done, 4.1 → done
+
+Recent decisions (4; full text in decisions.md):
+- [D1] 2026-08-13 (rule below) (e) Extend the fold's EXISTING coerce-and-warn rule to cove… — over (a) carry-forward at the tool boundary, which prevents rather than re…
+- [D2] 2026-08-13 2.3 — do NOTHING about renames, as a decision rather than an oversight. A resolved phase … — over Adding stable phase ids to the payload so status can survive a rename
+- [D3] 2026-08-13 2.2 — the 34 phase closes phase-lifecycle 4.3 wrote across 16 still-active records need N… — over A protective sweep that re-asserts every recent phase close, or a doc…
+- [D4] 2026-08-13 Fix doctor's fold-warning rendering INSIDE plan-carry-forward as Phase 4, rather than ope… — over A separate initiative, on the argument the Phase 3 review itself made
+
+Next ids: D5 (decision), M1 (memory)
+
+Session: lane-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: feature/plan-carry-forward @ a1b2c3d — in sync with origin/feature/plan-carry-forward
+
+Standing constraints — obey verbatim (1):
+- [D1] Never let this initiative change folded STATE. The deliverable is a warning; state stays exactly what the payload says, so every historical log folds byte-identically before and after. And never widen the warning to entries ABSENT from the payload — that is the rename/delete case, it cannot be told from a deliberate deletion, and 1.1 measured ~52 historical instances that would become permanent doctor noise.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:quiet (3148 bytes) ==
+# Sofar status: plan-carry-forward
+
+Goal: Close the hole SPEC left in its own rule: §Forward compatibility of plan_updated says an unrecognised status is coerced to pending AND WARNED ABOUT, while an OMITTED status reached the same destination in silence. RULED 2026-08-13 as (e), D1: extend the fold's existing coerce-and-warn to omission, scoped to entries PRESENT in the payload whose previous status was resolved. Diagnostic, never preve…
+
+Next action: Nothing open — plan-carry-forward is closed and verified on the 0.29.0 tree. At release, the bar is zero D1 warnings and an unchanged verdict, NOT byte-identical output.
+⚠ next action may be stale: 1 event since write-back (1 note)
+Notes since write-back:
+- 2026-08-13 RELEASE BAR MET — the verification this record closed asking for is done, on the actually-installed binary rather than on a build from dist. 0.29.0 is now installed (`sofar --version` = 0.…
+
+Last session (claude-code, ended 2026-08-13T17:10:58.761Z):
+  Corrected this record's closing next action, which was wrong. It asked for byte-identical doctor output after installing — an expectation measured at the end of Phase 3 and invalidated by Phase 4 hours later, since D4 IS an output change. A peer caught it and ran the comparison; I verified it independently on t… (clipped — full text in sessions/6cd75ed5-5f58-4f0b-aa67-3b10153ba21a.md)
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
+Recent decisions (4; full text in decisions.md):
+- [D1] 2026-08-13 (rule below) (e) Extend the fold's EXISTING coerce-and-warn rule to cove… — over (a) carry-forward at the tool boundary, which prevents rather than re…
+- [D2] 2026-08-13 2.3 — do NOTHING about renames, as a decision rather than an oversight. A resolved phase … — over Adding stable phase ids to the payload so status can survive a rename
+- [D3] 2026-08-13 2.2 — the 34 phase closes phase-lifecycle 4.3 wrote across 16 still-active records need N… — over A protective sweep that re-asserts every recent phase close, or a doc…
+- [D4] 2026-08-13 Fix doctor's fold-warning rendering INSIDE plan-carry-forward as Phase 4, rather than ope… — over A separate initiative, on the argument the Phase 3 review itself made
+
+Next ids: D5 (decision), M1 (memory)
+
+Session: quiet-session — adopted on Claude Code; else pass to sofar_start_session.
+
+Standing constraints — obey verbatim (1):
+- [D1] Never let this initiative change folded STATE. The deliverable is a warning; state stays exactly what the payload says, so every historical log folds byte-identically before and after. And never widen the warning to entries ABSENT from the payload — that is the rename/delete case, it cannot be told from a deliberate deletion, and 1.1 measured ~52 historical instances that would become permanent doctor noise.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== digest:cap (6037 bytes) ==
+# Sofar status: plan-carry-forward
+
+Goal: Close the hole SPEC left in its own rule: §Forward compatibility of plan_updated says an unrecognised status is coerced to pending AND WARNED ABOUT, while an OMITTED status reached the same destination in silence. RULED 2026-08-13 as (e), D1: extend the fold's existing coerce-and-warn to omission, scoped to entries PRESENT in the payload whose previous status was resolved. Diagnostic, never preve…
+
+Next action: Nothing open — plan-carry-forward is closed and verified on the 0.29.0 tree. At release, the bar is zero D1 warnings and an unchanged verdict, NOT byte-identical output.
+⚠ next action may be stale: 1 event since write-back (1 note)
+Notes since write-back:
+- 2026-08-13 RELEASE BAR MET — the verification this record closed asking for is done, on the actually-installed binary rather than on a build from dist. 0.29.0 is now installed (`sofar --version` = 0.…
+
+Phases:
+- done: Phase 1, Phase 2, Phase 3, Phase 4 (11/11 tasks)
+Progress: 11/11 tasks done (100%) across 4 phase(s)
+
+
+Next ids: D5 (decision), M1 (memory)
+
+Adjacent records — 8 decisions across 2 other initiatives that have worked this one's files, densest first:
+- alpha — 3 shared files, 7 decisions
+- beta — 1 shared file, 1 decision
+Adjacency, not aboutness — offered as worth reading, never as a rule.
+
+Session: plan-carry-forward-session — adopted on Claude Code; else pass to sofar_start_session.
+Git: feature/plan-carry-forward @ a1b2c3d — in sync with origin/feature/plan-carry-forward
+
+Recent work elsewhere: repo touched 2 files 3h ago (see sofar status repo).
+
+3 commits of this record are unverified — no origin ref to compare.
+
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+…truncated — run sofar status for full detail
+
+Standing constraints — obey verbatim (1):
+- [D1] Never let this initiative change folded STATE. The deliverable is a warning; state stays exactly what the payload says, so every historical log folds byte-identically before and after. And never widen the warning to entries ABSENT from the payload — that is the rename/delete case, it cannot be told from a deliberate deletion, and 1.1 measured ~52 historical instances that would become permanent doctor noise.
+
+Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
+
+(generated by sofar — full detail in plan.md, decisions.md, sessions/)
+
+== plan (5243 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Plan: plan-carry-forward
+
+Goal: Close the hole SPEC left in its own rule: §Forward compatibility of plan_updated says an unrecognised status is coerced to pending AND WARNED ABOUT, while an OMITTED status reached the same destination in silence. RULED 2026-08-13 as (e), D1: extend the fold's existing coerce-and-warn to omission, scoped to entries PRESENT in the payload whose previous status was resolved. Diagnostic, never preventive — state is untouched, so every historical log folds byte-identically, and because 1.1 measured the omission shape at ZERO the change is provably silent on all existing history. Renames are ruled out with reasons (D2); the 34 recent phase closes need nothing (D3). Phase 4 then fixed what D1's own phase review found: doctor showed only the FIRST fold warning per record, so the new signal would have been a bare count in exactly the records that already had warnings (D4). Measured, not assumed — the original premise that this bug had fired did NOT survive Phase 1, and the record carries both retractions by name.
+
+Progress: 11/11 tasks done (100%)
+
+## Phase 1 — Establish the exposure (blocks the ruling) [done] — 3/3 done
+
+- [x] 1.1 MEASURE it retroactively before designing anything, the repo's refute-before-building discipline. Replay every initiative's log and find every plan_updated that took a phase or task from a resolved status back to pending or omitted. If it is ZERO, the hazard is theoretical and the ruling changes shape — say so rather than building for it. MEASURE ON THE PAYLOAD, never on folded state: omitted-versus-explicit is the whole discriminator and folded state cannot see it.
+- [x] 1.2 Establish whether the hole is MCP-only or dialect-wide. `sofar event append --type plan_updated` bypasses any tool-layer merge entirely, and the MCP-less convention dialect uses exactly that path (phase-lifecycle D1). Read cli/event.ts's append against mcp/update-plan.ts and state which callers a tool-boundary fix would and would not cover.
+- [x] 1.3 Separate the two candidate defects. Does SPEC promise full-replace to CALLERS, and do the tool description and docs tell an agent it must restate statuses? A contract nobody is told about is a documentation defect, not a missing merge, and it has a much cheaper fix.
+
+## Phase 2 — The ruling [done] — 3/3 done
+
+- [x] 2.1 DECIDE the mechanism, against a measured incident count of ZERO — so do-nothing is a serious answer and the burden is on any option that adds code. Weigh a tool-boundary merge, a fold-level merge, a boundary warning, documentation only, and extending the fold's existing coerce-and-warn.
+- [x] 2.2 DECIDE what protects the closes already written, if 2.1 leaves any window open. Answer it explicitly rather than by assumption.
+- [x] 2.3 DECIDE what happens across a RENAME, at its real size. Deciding to do NOTHING is legitimate; it must be a decision rather than an oversight.
+
+## Phase 3 — Build the warning (D1) [done] — 4/4 done
+
+- [x] 3.1 core/fold.ts, plan_updated case: warn when a phase or task is PRESENT in the payload with no `status` key AND its previous status was resolved. State is NOT touched — the entry still becomes pending, so the log folds byte-identically (D1's rule). Entries ABSENT get nothing (D2).
+- [x] 3.2 Tests: omitted-on-done warns (task and phase); never-resolved stays silent; an explicit `pending` over a done entry stays silent because key presence is the discriminator, not value; an absent entry stays silent (D2); a task moving between phases is followed rather than called a drop.
+- [x] 3.3 Prove the retroactive-silence claim rather than asserting it: fold all 41 existing records on the built engine and confirm the new warning fires ZERO times. If it fires anywhere, 1.1 was wrong and the ruling reopens.
+- [x] 3.4 docs/SPEC.md is authoritative: extend §Forward compatibility of plan_updated so the omitted case sits beside the unrecognised one, plus §Acceptance criteria. Also fix what 1.3 found on the caller side — the sofar_update_plan entry and the tool description say nothing about status at all.
+
+## Phase 4 — Make the signal readable (D4) [done] — 1/1 done
+
+> D1's signal can now actually be read in the records most likely to carry it. Closes the Phase 3 review's leading finding in the same initiative that raised it, which is what the review loop is for.
+
+- [x] 4.1 doctor rendered `warnings[0]` alone, so every fold warning after the first was invisible — and a record that already carries warnings is exactly where a new one most needs reading. List them instead, one hint line each, capped at 5 with the usual `+N more` sentinel. Needs multi-line hint support in BOTH renderers: the plain one indents each line identically (its byte contract for single-line hints is unchanged), the styled one puts the elbow on the first line and aligns continuations under it. Tests for the list, the cap, and the elbow placement; SPEC's doctor axis records the new shape.
+
+Next action: Nothing open — plan-carry-forward is closed and verified on the 0.29.0 tree. At release, the bar is zero D1 warnings and an unchanged verdict, NOT byte-identical output.
+
+== decisions (6794 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Decisions: plan-carry-forward
+
+- 2026-08-13T15:44:47.477Z — rule: **Never let this initiative change folded STATE. The deliverable is a warning; state stays exactly what the payload says, so every historical log folds byte-identically before and after. And never widen the warning to entries ABSENT from the payload — that is the rename/delete case, it cannot be told from a deliberate deletion, and 1.1 measured ~52 historical instances that would become permanent doctor noise.** — chose **(e) Extend the fold's EXISTING coerce-and-warn rule to cover an omitted status — warn when a plan_updated omits the status key on a phase or task that IS present in the payload and whose previous status was resolved. Scoped deliberately to that case ALONE. Ruled by the user 2026-08-13.** over (a) carry-forward at the tool boundary, which prevents rather than reports but covers only MCP callers and misses `sofar event append --type plan_updated` — the MCP-less dialect's only path and the one adopt.ts prints for migrations (1.2). (b) merging in the fold, which is the one option that changes how existing logs fold. (c) a warning at the write boundary, strictly worse than (e) on coverage for the same reason as (a). (d) documentation only, which leaves the failure silent if it ever fires. (e)+(a) together, two mechanisms to keep in step forever for a bug with zero occurrences. because SPEC already ruled this hazard and (e) finishes the job rather than opening a new one: §Forward compatibility of plan_updated says an unrecognised status is coerced to pending AND WARNED ABOUT, on the stated rationale that a reader should over-report remaining work rather than quietly claim something was resolved. An OMITTED status reaches the same destination in silence. That asymmetry is an oversight in task-drop-state D2, which was reasoning about a stale reader meeting a newer engine's status and never considered the payload simply not carrying one. The fold is downstream of both writers and of import and sync, so it covers every dialect by construction, including the Tier 3 path 1.2 found exposed — and fold warnings surface in doctor, which those sessions do run. THE SCOPING IS THE LOAD-BEARING PART, and it comes straight from 1.1: fold warnings ACCUMULATE ACROSS REPLAY and are rendered by doctor forever, so a warning that also fired on entries ABSENT from the payload would emit roughly 52 permanent warnings across harness-build, drift-certification, commit-attribution and token-optimization for restructures that were deliberate — wallpaper that would teach everyone to ignore the axis. 1.1 measured the omission shape at ZERO across 85 plan_updated events, so scoped this way the change is provably silent on every byte of existing history and can only ever fire on the bug itself. Accepted cost, stated: this is diagnostic, not preventive. It reports a dropped status; it does not keep it.
+- 2026-08-13T15:44:58.906Z — chose **2.3 — do NOTHING about renames, as a decision rather than an oversight. A resolved phase or task whose name or id simply leaves the plan gets no warning, no carried status, and no identity affordance.** over Adding stable phase ids to the payload so status can survive a rename (a schema change, and schema lives only in packages/schema/src), an explicit rename affordance on the tool, or widening D1's warning to cover any resolved entry leaving the plan. because The payload genuinely cannot support it: a rename and a delete-plus-add are byte-identical, so any mechanism would have to GUESS identity, and guessing wrong silently re-attaches a done status to work that was never done — strictly worse than the silence it replaces. The occurrence count is zero in the shape that implicates the default: 1.1 found all 54 displacements inside fully-explicit payloads, 52 of them entries vanishing by name, and re-verification confirmed the motivating example (commit-attribution Phase 3) was a deliberate reopen to an explicit `active`, which the default cannot produce. Widening the warning is separately ruled out by D1's scoping: it would emit roughly 52 permanent doctor warnings for deliberate restructures. The honest residual is narrow and is recorded rather than fixed — a fully-explicit payload proves the author wrote statuses deliberately for the entries they INCLUDED, not that they noticed one leaving. If that ever bites, it will bite visibly as a phase reading pending that someone remembers finishing, and this decision is where they should start.
+- 2026-08-13T15:45:06.408Z — chose **2.2 — the 34 phase closes phase-lifecycle 4.3 wrote across 16 still-active records need NOTHING beyond D1. No migration, no protective re-statement, no audit pass.** over A protective sweep that re-asserts every recent phase close, or a doctor axis that watches those specific records for regression. because The question was posed when the exposure was assumed and has to be answered against what 1.1 actually measured: zero occurrences of the omission shape in 85 plan_updated events across 41 records and roughly fourteen months. Nothing has ever been lost this way, so there is nothing to repair, and a protective sweep would append 34 events to defend against an event that has never happened once. D1 makes any future occurrence visible in doctor at the moment it folds, which is the proportionate answer. Recorded explicitly rather than dropped, because 2.2 was written as a separate question precisely so it would not be assumed answered by the mechanism ruling.
+- 2026-08-13T15:58:31.514Z — chose **Fix doctor's fold-warning rendering INSIDE plan-carry-forward as Phase 4, rather than opening an initiative for it. Ruled by the user 2026-08-13 ("yes do it").** over A separate initiative, on the argument the Phase 3 review itself made: the defect predates D1 and affects every fold warning equally, so it is not really about carrying plan status forward. because The review loop exists so findings get answered, not filed elsewhere — commit-attribution 4.5 decoupled review from marking done precisely so a finding costs something to ignore, and routing this to a new record would have been the cheapest possible way to ignore it. The work is one rendering change plus three tests, far lighter than the ceremony of a record. And the finding is not incidental to D1: it is the reason D1's signal would have been a bare count in auto-update and harness-build, the two records most likely to accumulate more. Scoping note kept honest: the fix is general, so a future reader looking for "why does doctor list fold warnings" should expect to find the answer under an initiative named for something else, which is what this decision is for.
+
+== session 6cd75ed5-5f58-4f0b-aa67-3b10153ba21a.md (2332 bytes) ==
+<!-- generated by sofar — do not hand-edit; truth lives in events.jsonl -->
+
+# Session 6cd75ed5-5f58-4f0b-aa67-3b10153ba21a
+
+- Initiative: plan-carry-forward
+- Tool: claude-code
+- Model: claude-opus-5[1m]
+- Started: 2026-08-13T15:14:20.184Z
+- Ended: 2026-08-13T17:10:58.761Z
+
+## Summary
+
+Corrected this record's closing next action, which was wrong. It asked for byte-identical doctor output after installing — an expectation measured at the end of Phase 3 and invalidated by Phase 4 hours later, since D4 IS an output change. A peer caught it and ran the comparison; I verified it independently on the 0.29.0 tree against a frozen snapshot. All three claims hold: D1's warning fires ZERO times across 42 records, the verdict is identical on both binaries, and the whole delta is 2 lines — pre-existing stub-session warnings the old renderer was suppressing, which is exactly what D4 was built to surface.
+
+## Next action
+
+Nothing open — plan-carry-forward is closed and verified on the 0.29.0 tree. At release, the bar is zero D1 warnings and an unchanged verdict, NOT byte-identical output.
+
+## Activity (derived from mechanical events)
+
+- Derived: 6 files (/private/tmp/claude-501/-Users-jins-IO-sofar/6cd75ed5-5f58-4f0b-aa67-3b10153ba21a/scratchpad/scan-drops.py, /Users/jins/IO/sofar/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar/docs/SPEC.md, /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts, /Users/jins/IO/sofar/packages/engine/test/fold.test.ts, /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts), 74 commands, task changes: 1.1 → done, 1.2 → done, 1.3 → done, 2.1 → done, 2.2 → done, 2.3 → done, 3.1 → done, 3.2 → done, 3.3 → done, 3.4 → done, 4.1 → done
+- Files:
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/6cd75ed5-5f58-4f0b-aa67-3b10153ba21a/scratchpad/scan-drops.py
+  - /Users/jins/IO/sofar/packages/engine/src/core/fold.ts
+  - /Users/jins/IO/sofar/docs/SPEC.md
+  - /Users/jins/IO/sofar/packages/schema/src/tool-inputs.ts
+  - /Users/jins/IO/sofar/packages/engine/test/fold.test.ts
+  - /Users/jins/IO/sofar/packages/engine/src/cli/doctor.ts
+- Commands run: 74
+- Task changes:
+  - 1.1 → done
+  - 1.2 → done
+  - 1.3 → done
+  - 2.1 → done
+  - 2.2 → done
+  - 2.3 → done
+  - 3.1 → done
+  - 3.2 → done
+  - 3.3 → done
+  - 3.4 → done
+  - 4.1 → done
+

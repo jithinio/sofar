@@ -1,4 +1,6 @@
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
@@ -79,26 +81,56 @@ function registerSession(fixture: Fixture, sessionId = 'claude-sess-1'): void {
   )
 }
 
-describe('hook shims (3.1) — zero logic, exec the CLI (BD4)', () => {
+describe('hook shims (3.1) — routing only, exec the core or the CLI (BD4, rust-core D32)', () => {
   const shims: Array<[string, string]> = [
     ['session-start.sh', 'session-start'],
     ['user-prompt-submit.sh', 'user-prompt'],
     ['post-tool-use.sh', 'post-tool'],
+    ['post-tool-use-failure.sh', 'post-tool-failure'],
     ['stop.sh', 'stop'],
     ['session-end.sh', 'session-end'],
   ]
 
   for (const [file, subcommand] of shims) {
-    it(`${file} is a POSIX sh shim that execs \`sofar event ${subcommand}\``, () => {
+    it(`${file} is a POSIX sh shim that execs \`sofar-core event ${subcommand}\` when on PATH, else \`sofar event ${subcommand}\``, () => {
       const content = readFileSync(join(hooksDir, file), 'utf8')
       const lines = content.split('\n')
       expect(lines[0]).toBe('#!/bin/sh')
-      expect(content).toContain(`exec sofar event ${subcommand}`)
-      // no logic: nothing but the shebang, comments, and the exec line
+      // no behaviour: the shebang, comments, and exactly the routing lines —
+      // SOFAR_CORE=0 forces the CLI, SOFAR_CORE=<path> names the core, the
+      // default is whichever `sofar-core` PATH finds, else the CLI.
       const codeLines = lines.filter((l) => l.trim() !== '' && !l.startsWith('#'))
-      expect(codeLines).toEqual([`exec sofar event ${subcommand}`])
+      expect(codeLines).toEqual([
+        'core="${SOFAR_CORE-}"',
+        'if [ "$core" != 0 ] && command -v "${core:-sofar-core}" >/dev/null 2>&1; then',
+        `  exec "\${core:-sofar-core}" event ${subcommand}`,
+        'fi',
+        `exec sofar event ${subcommand}`,
+      ])
     })
   }
+
+  it.skipIf(process.platform === 'win32')('the routing runs: a core on PATH is exec\'d, SOFAR_CORE=0 skips it, a named core wins', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sofar-shim-route-'))
+    const bin = join(dir, 'bin')
+    mkdirSync(bin)
+    const fakeCore = (name: string, tag: string) => {
+      const path = join(bin, name)
+      writeFileSync(path, `#!/bin/sh\necho ${tag} "$@"\n`)
+      chmodSync(path, 0o755)
+      return path
+    }
+    fakeCore('sofar-core', 'core:')
+    fakeCore('sofar', 'cli:')
+    const named = fakeCore('other-core', 'named:')
+    const run = (env: Record<string, string>) =>
+      spawnSync('/bin/sh', [join(hooksDir, 'stop.sh')], { encoding: 'utf8', env: { PATH: bin, ...env } }).stdout
+    expect(run({})).toBe('core: event stop\n')
+    expect(run({ SOFAR_CORE: '0' })).toBe('cli: event stop\n')
+    expect(run({ SOFAR_CORE: named })).toBe('named: event stop\n')
+    expect(run({ SOFAR_CORE: join(dir, 'missing') })).toBe('cli: event stop\n')
+    rmSync(dir, { recursive: true, force: true })
+  })
 })
 
 describe('sofar event session-start — context injection only, lazy registration (3.2, record-hygiene D2)', () => {
