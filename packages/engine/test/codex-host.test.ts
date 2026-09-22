@@ -55,7 +55,10 @@ function payload(name: string, overrides: Obj = {}): Obj {
 function run(name: HookName, root: string, body: Obj, host: 'codex' | null = 'codex'): HookResult {
   const sub = SUBCOMMANDS.find((s) => s.name === name)
   if (sub === undefined) throw new Error(`no hook ${name}`)
-  return sub.handler(root, JSON.stringify(body), host ?? undefined)
+  const out = sub.handler(root, JSON.stringify(body), host ?? undefined)
+  // Only the rewake hook is async, and it is not driven through this helper.
+  if (out instanceof Promise) throw new Error(`hook ${name} is async`)
+  return out
 }
 
 function logEvents(path: string): EventEnvelope[] {

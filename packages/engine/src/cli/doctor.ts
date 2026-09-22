@@ -36,6 +36,7 @@ import {
   SHIM_HOMES,
   shimHomeFor,
   SHIMS,
+  shimsFor,
   SHIPPED_AGENTS_PROTOCOL_BLOCKS,
   SHIPPED_PROTOCOL_BLOCKS,
   wiredAgents,
@@ -268,12 +269,14 @@ function auditWiring(rootDir: string, userHome: string | undefined): Section {
 
   if (claude || cursor) {
     const { dir } = SHIM_HOMES[home]
-    const missingShims = SHIMS.filter((shim) => !existsSync(join(rootDir, dir, shim.file))).map(
+    // Claude Code's set includes the rewake shim; every other host's does not (3.7).
+    const expected = shimsFor(home)
+    const missingShims = expected.filter((shim) => !existsSync(join(rootDir, dir, shim.file))).map(
       (shim) => shim.file,
     )
     findings.push(
       missingShims.length === 0
-        ? { level: 'ok', text: `hook shims installed (${SHIMS.length}/${SHIMS.length})` }
+        ? { level: 'ok', text: `hook shims installed (${expected.length}/${expected.length})` }
         : { level: 'fail', text: `hook shims missing: ${missingShims.join(', ')}`, hint: repair },
     )
   }
@@ -300,9 +303,10 @@ function auditWiring(rootDir: string, userHome: string | undefined): Section {
   // a hook it cannot dedupe against, so each is checked in Cursor's own file.
   if (cursor) {
     const cursorHooksPath = join(rootDir, '.cursor', 'hooks.json')
-    const missingCursorHooks = SHIMS.filter(
-      (shim) => !fileHas(cursorHooksPath, hookCommand(shim.file, home)),
-    ).map((shim) => CURSOR_HOOKS[shim.event].event)
+    // Cursor's set excludes the Claude-only rewake shim (3.7).
+    const missingCursorHooks = shimsFor('cursor')
+      .filter((shim) => !fileHas(cursorHooksPath, hookCommand(shim.file, home)))
+      .map((shim) => CURSOR_HOOKS[shim.event].event)
     findings.push(
       missingCursorHooks.length === 0
         ? { level: 'ok', text: '.cursor/hooks.json hooks wired' }

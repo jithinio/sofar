@@ -8,6 +8,7 @@ import {
   type RunPolicy,
   type RunStopReason,
 } from '@sofar/schema'
+import { appendedBytesScan, RUN_EVENT_MARKERS, STOP_POLL_MS } from '../core/log-scan'
 import { nextTask, queuedTasks, type DriveTask } from '../core/drive-queue'
 import { latestRun, stopRequestsInForce, type InitiativeState, type TaskState } from '../core/fold'
 import { TASK_FILES_CAP } from '../core/adjacency'
@@ -115,8 +116,9 @@ function cleanExit(exit: SessionExit): boolean {
   return exit.code === 0 && exit.spawn_error === undefined
 }
 
-/** The queue lives in core/drive-queue.ts, where hot-path readers can reach it. */
+/** The queue and the log scan live in core/, where hot-path readers can reach them. */
 export { nextTask, queuedTasks, type DriveTask }
+export { appendedBytesScan, STOP_POLL_MS }
 
 /** Consecutive stalls that stop a run; `--max-stalls` overrides it. */
 export const DEFAULT_MAX_STALLS = 2
@@ -127,59 +129,6 @@ export const DEFAULT_MAX_STALLS = 2
  * slower risks nudging a session that has already filled its window.
  */
 export const NUDGE_POLL_MS = 2_000
-
-/**
- * How often a driver waiting on a session looks for `sofar drive --stop`
- * (in-session-drive D2) and for another driver's adoption of its run
- * (drive-visibility 2.2). Either is someone who has already decided, so
- * seconds matter more than they do for the gauge, and a tick is a stat.
- */
-export const STOP_POLL_MS = 2_000
-
-/**
- * The bytes a line must contain for the byte scan to fold: a stop request, or
- * an adoption that may have taken the run from this driver. Nothing else a
- * session appends can change what the driver does next while it waits.
- */
-const RUN_EVENT_MARKERS = ['"run_stop_requested"', '"run_adopted"'] as const
-
-/**
- * A scan of the bytes appended to a log since the last call: true when they
- * name one of `markers`. It stats the log and reads only what is new, so a
- * caller that ticks every few seconds for hours costs a stat per tick, and
- * folds only when the new bytes are worth it. It decides nothing — the caller
- * folds and reads — it only says when the fold is worth asking.
- */
-export function appendedBytesScan(path: string, from: number, markers: readonly string[]): () => boolean {
-  let offset = from
-  // A marker can straddle two reads; carrying the longest one's length back covers that.
-  const carryLength = Math.max(...markers.map((m) => m.length))
-  let carry = ''
-  return () => {
-    let size: number
-    try {
-      size = statSync(path).size
-    } catch {
-      return false
-    }
-    if (size <= offset) {
-      offset = size
-      return false
-    }
-    const fd = openSync(path, 'r')
-    let text: string
-    try {
-      const bytes = Buffer.alloc(size - offset)
-      readSync(fd, bytes, 0, bytes.length, offset)
-      text = carry + bytes.toString('utf8')
-    } finally {
-      closeSync(fd)
-    }
-    offset = size
-    carry = text.slice(-carryLength)
-    return markers.some((marker) => text.includes(marker))
-  }
-}
 
 /**
  * Watch the log for a stop request or an adoption while a session runs

@@ -1,5 +1,10 @@
 # Golden manifest (rust-core D11)
 
+Re-recorded for **drive-visibility 3.7** (the rewake hook): `argv.fast-path`
+gains four lines, the `sofar event drive-await` entry in the hook help. No
+other golden changed — the hook is wired by `sofar init`, which the goldens
+do not run.
+
 Re-pinned to **main 23243e8** (rust-core merge 74011d7: memory-lead 3.1,
 the repo-wide BM25 lexicon tier, 3ee5e98). No existing golden moved:
 every existing prompt is `continue`, which reaches no lesson on either

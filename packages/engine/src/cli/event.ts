@@ -70,7 +70,8 @@ import { NUDGE_ENV, nudgeLine, readNudge } from '../driver/nudge'
 import { nextTask } from '../core/drive-queue'
 import { noteDriveSeen } from '../core/drive-seen'
 import { probeRunLock, type RunLockOptions } from '../core/run-lock'
-import { taskProgress } from '../projections/templates/shared'
+import { awaitRun, stillRunning, AWAIT_HOOK_DEADLINE_MS, type AwaitOptions } from '../core/run-await'
+import { describeRun, taskProgress } from '../projections/templates/shared'
 import { resolvePhaseOrThrow } from '../mcp/update-phase'
 import { redactCommand } from '../core/redact'
 import { recordDiagnostic } from '../core/diagnostics'
@@ -2373,6 +2374,67 @@ export function driveLine(
   return clipTo(`sofar drive: run ${run.id} ${fate} · ${tail}`, DRIVE_LINE_BUDGET)
 }
 
+/**
+ * PostToolUse rewake (drive-visibility 3.7): after a Bash call that started a
+ * DETACHED run, wait on it and wake this session with one line when it stops
+ * or its driver dies. Wired only for Claude Code, whose `asyncRewake` runs the
+ * hook in the background and delivers exit 2 to the model.
+ *
+ * Exit 0 and silence for everything else — another Bash call, an unparseable
+ * payload, a repo with no record, nothing to await. Best-effort like every
+ * shim path (BD22): the failure of a watch must never be the failure of the
+ * command that triggered it.
+ */
+export function handleDriveAwait(rootDir: string, input: string): Promise<HookResult> {
+  return handleDriveAwaitWith(rootDir, input, {})
+}
+
+export async function handleDriveAwaitWith(
+  rootDir: string,
+  input: string,
+  options: AwaitOptions & { deadlineMs?: number; env?: NodeJS.ProcessEnv },
+): Promise<HookResult> {
+  try {
+    const hook = parseHook(input)
+    const tool = hook.tool_input
+    const command = isObj(tool) ? strField(tool, 'command') : null
+    if (command === null || !startsDetachedRun(command)) return { ...OK }
+    // Never inside a driven session (as the prompt line is silent there, 3.2):
+    // a run's own session starting another run should not be woken by it.
+    if ((options.env ?? process.env)[NUDGE_ENV] !== undefined) return { ...OK }
+    const ctx = createToolContext(rootDir)
+    const slug = ctx.resolveInitiative(slugOf(command) ?? undefined)
+    const outcome = await awaitRun(
+      rootDir,
+      { eventsPath: ctx.eventsPath(slug), fold: () => ctx.foldState(slug) },
+      { deadlineMs: AWAIT_HOOK_DEADLINE_MS, ...options },
+    )
+    if (outcome.kind === 'idle') return { ...OK }
+    const line =
+      outcome.kind === 'stopped'
+        ? `${describeRun(outcome.run)}${outcome.question === undefined ? '' : `. ${outcome.question.task}'s note: ${outcome.question.note}`}`
+        : outcome.kind === 'gone'
+          ? `run ${outcome.run} on "${slug}" has no stop and its driver is gone — the run lock on this machine is free, so it will never stop by itself; \`sofar drive ${slug} --resume\` picks it up`
+          : stillRunning(outcome.run, slug, outcome.waitedMs)
+    // Exit 2 is what wakes the model; the line rides stderr, which the host
+    // prefers over stdout when it builds the reminder.
+    return { exitCode: 2, stdout: '', stderr: `sofar drive --await: ${line}\n` }
+  } catch {
+    return { ...OK }
+  }
+}
+
+/** A Bash call that started a run this session should be woken about. */
+function startsDetachedRun(command: string): boolean {
+  return /(^|[;&|]\s*|\s)sofar\s+drive\b/.test(command) && /\s--detach\b/.test(command)
+}
+
+/** The slug `sofar drive <slug> --detach` names, when it names one. */
+function slugOf(command: string): string | null {
+  const m = /sofar\s+drive\s+([a-z0-9][a-z0-9-]*)\b/.exec(command)
+  return m === null ? null : m[1]!
+}
+
 export function handleUserPrompt(rootDir: string, input: string): HookResult {
   try {
     const hook = parseHook(input)
@@ -2752,7 +2814,8 @@ export async function readStdin(): Promise<string> {
 export const SUBCOMMANDS: ReadonlyArray<{
   name: string
   description: string
-  handler: (rootDir: string, input: string, host?: DeclaredHost) => HookResult
+  /** A handler may be ASYNC: the rewake hook waits on a run for hours (3.7). */
+  handler: (rootDir: string, input: string, host?: DeclaredHost) => HookResult | Promise<HookResult>
 }> = [
   {
     name: 'session-start',
@@ -2771,6 +2834,12 @@ export const SUBCOMMANDS: ReadonlyArray<{
     description:
       'PostToolUseFailure hook: append the same mechanical event with ok:false (and exit when the host gives one); the error text goes to the private diagnostics store, never the record',
     handler: forHost('post-tool-failure', handlePostToolFailure),
+  },
+  {
+    name: 'drive-await',
+    description:
+      'PostToolUse hook (Claude Code, asyncRewake): after a Bash call that started a detached run, wait on it and wake this session with one line when it stops or its driver is gone',
+    handler: handleDriveAwait,
   },
   {
     name: 'user-prompt',
@@ -2871,7 +2940,7 @@ export function registerEventCommand(program: Command): void {
       )
       .action(async (opts: { root?: string; host?: DeclaredHost }) => {
         const input = await readStdin()
-        mirror(handler(resolve(opts.root ?? process.cwd()), input, opts.host))
+        mirror(await handler(resolve(opts.root ?? process.cwd()), input, opts.host))
       })
   }
 }
