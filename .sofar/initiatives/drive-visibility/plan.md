@@ -39,4 +39,4 @@ Progress: 10/17 tasks done (58%)
 - [ ] 5.2 README + release staged for the user to publish.
 
 Active phase: Phase 3 — Progress in the session
-Next action: Start 3.3: statusline drive segment, with tests.
+Next action: Start 3.5: prototype the asyncRewake --await hook.
