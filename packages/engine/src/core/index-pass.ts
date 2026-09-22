@@ -61,6 +61,13 @@ export interface SlugReducer<S> {
   clone: (state: S) => S
   /** Apply one event, exactly as the fold would. */
   apply: (state: S, event: IndexedEvent, slug: string) => void
+  /**
+   * Whether an event can change this state at all. A batch with none that
+   * can is carried by reference and leaves `stateChanged` false, so a tier
+   * whose events are rare (memory-lead 3.1, D15: decisions and notes) is not
+   * rewritten because a hook appended a command_run. Absent: every event can.
+   */
+  relevant?: (event: IndexedEvent) => boolean
 }
 
 export interface PassResult<S> {
@@ -68,6 +75,12 @@ export interface PassResult<S> {
   states: Record<string, S>
   /** False when nothing moved — callers skip writing what has not changed. */
   changed: boolean
+  /**
+   * False when no state differs from `prior` — the cursors may still have
+   * moved (`changed`), but the payload need not be rewritten. Only a reducer
+   * with `relevant` can make the two differ.
+   */
+  stateChanged: boolean
 }
 
 /** The `ref` of a correction, or null when the payload does not carry one. */
@@ -106,6 +119,7 @@ export function passOverRecord<S>(
   }
   const states: Record<string, S> = {}
   let changed = prior === null
+  let stateChanged = prior === null
 
   for (const slug of initiativeSlugs(sofarDir)) {
     const log = join(sofarDir, 'initiatives', slug, 'events.jsonl')
@@ -159,16 +173,19 @@ export function passOverRecord<S>(
     // path entries, which is most of what the derived half cost to read
     // (record-index 3.3). Safe because `prior` is a fresh parse owned by this
     // call and the states it returns are serialized, never mutated.
+    // A batch nothing in which can move this state is quiet too (`relevant`).
+    const quiet = events.length === 0 || (reducer.relevant !== undefined && !events.some(reducer.relevant))
     const state = rebuilt
       ? reducer.empty()
-      : events.length === 0
+      : quiet
         ? priorState!
         : reducer.clone(priorState!)
     for (const event of events) {
       const ref = voidedRef(event)
       if (ref !== null) voided.add(ref)
     }
-    for (const event of events) {
+    // A quiet batch applies nothing: its state is prior's, by reference.
+    for (const event of rebuilt || !quiet ? events : []) {
       if (voided.has(event.id)) continue
       reducer.apply(state, event, slug)
     }
@@ -179,6 +196,7 @@ export function passOverRecord<S>(
     // one logless initiative would rewrite every index file on every pass.
     if (events.length > 0 || priorState === undefined) changed = true
     else if (read.full && read.cursor !== null) changed = true
+    if (rebuilt || !quiet) stateChanged = true
 
     if (read.cursor === null) {
       if (meta.cursors[slug] !== undefined) {
@@ -201,10 +219,13 @@ export function passOverRecord<S>(
       changed = true
     }
   }
-  if (prior !== null && Object.keys(prior).some((slug) => states[slug] === undefined)) changed = true
+  if (prior !== null && Object.keys(prior).some((slug) => states[slug] === undefined)) {
+    changed = true
+    stateChanged = true
+  }
 
   if (changed) writeIndexMeta(sofarDir, meta, metaFile)
-  return { states, changed }
+  return { states, changed, stateChanged }
 }
 
 export { DEFAULT_META_FILE }

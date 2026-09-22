@@ -254,7 +254,7 @@ function headSource(text: string): string {
  * one (memory-lead 2.8, D12), NaN when none has it — never the handle, which
  * is what a merge moves — else the handle's own ordinal.
  */
-function supersededOrdinal(p: DecisionLoggedPayload, ordinal: number, ids: readonly string[]): number {
+export function supersededOrdinal(p: DecisionLoggedPayload, ordinal: number, ids: readonly string[]): number {
   if (typeof p.supersedes_id === 'string') {
     for (let i = ordinal - 2; i >= 0; i--) if (ids[i] === p.supersedes_id) return i + 1
     return NaN
