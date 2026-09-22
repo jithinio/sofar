@@ -67,6 +67,10 @@
   version equal to the new one, exactly five sofar-core deps pinned to it —
   and run the packaging and conformance suites, which catch (3) and (4).
   Never `npm install --package-lock-only`: it can reach the network.
+- A vitest file that fails to LOAD reads as "not run", never as a failure
+  (drive-visibility M7): the suite still says PASSED while covering less.
+  Compare test COUNTS against the base whenever the environment differs —
+  a release gated on a suite that quietly skipped a file is not gated.
 - A release branch in a git WORKTREE needs its own node_modules (M6): a
   symlink to the main checkout's carries npm's workspace links, which point
   at the MAIN tree, so the packaging test reads main's version and fails.
