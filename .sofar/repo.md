@@ -177,8 +177,11 @@
   `sofar import - <slug> --root <worktree>`, which dedupes by id. A plan
   replacement must be made on the branch, by spawning `sofar mcp` with that
   worktree as cwd. From main's stale copy it clobbers the branch plan when
-  the copies union. After ANY sofar_update_plan, re-issue sofar_update_phase
-  for every phase that had a note, because plan_updated drops notes silently.
+  the copies union.
+- sofar_update_plan drops every phase note (self-improve M8). plan_updated is
+  a full replace, and the plan schema has no field for a phase note. Copy
+  plan.md aside before the call, diff it after, and restore any lost note
+  with sofar_update_phase.
 - Hangs in CI and in the perf harness (rust-core M1, rust-core M3). A vitest
   job that runs to the 6 h CI limit is a file that never finished: diff the
   files the log reported against `git ls-files '*.test.ts'`. Never put an
