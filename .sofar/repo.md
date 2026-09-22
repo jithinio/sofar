@@ -55,6 +55,14 @@
   whatever anyone has staged. Staging by explicit path is not enough.
   Use `git commit -F <msgfile> -- <paths>`. Observed 2026-09-22: typed-judge's
   4.2/4.3 code landed in drive-visibility's record commit d0ebec9.
+- Version bumps touch SIX pins per file (drive-visibility M5): packages/engine/
+  package.json carries `version` plus five sofar-core optional deps
+  (darwin-arm64, darwin-x64, linux-x64, linux-arm64, win32-x64), and
+  package-lock.json repeats all six. Replace the version string GLOBALLY in
+  both, then self-check before committing — parses as JSON, zero occurrences
+  of the old string left, engine version equal to the new one, exactly five
+  sofar-core deps pinned to it. Never `npm install --package-lock-only`: it
+  can reach the network.
 - Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare
   `npm publish` from inside packages/engine) — always run by the USER (OTP
   + permission classifier), agent stages everything up to it. Bare
