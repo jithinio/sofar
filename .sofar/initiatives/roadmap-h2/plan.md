@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: User rules: round-2 freeze items, live-proof consent, phase-lifecycle D4 reopen.
+Next action: User: consent for memory-lead's live Cursor check; round-2 freeze items once round 1 lands.
