@@ -37,6 +37,10 @@
   clamshell or battery sleep. Simultaneous timedOut rows mean sleep; check
   `pmset -g log`. A lone Cursor failed row with null usage whose transcript
   ends in `turn_ended` success is a hang behind a stray background server (L23).
+- Round-1 rescores use round 1's FROZEN tests (bench-refresh M3): the round-1
+  runner copy's hidden-tests/ (= 9f1e1cb), never handoff-bench's own, which is
+  round 2's tree since 6999515. The analysis scripts default to the copy and
+  patch with -N; "Reversed (or previously applied) patch" means the wrong tree.
 - Committing the record needs a BARE git call (repo-memory-capture M2): the
   D1 exemption (cli/event.ts shellSegments) splits on every shell separator
   INCLUDING newlines and exempts only if EVERY segment leads with git or

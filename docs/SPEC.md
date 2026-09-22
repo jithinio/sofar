@@ -1985,7 +1985,14 @@ answer every host can reach (see the Host tiers section).
 - The statusline appends `drive <task>`, `drive gone` or `drive <stop
   reason>` after the initiative's progress, the last only for a stop newer
   than the session's start, within the statusline laws (words over glyphs).
-  The Claude desktop app does not render statusLine (claude-code#41456).
+  `<task>` is the driver's own next task (`core/drive-queue.ts`), `running`
+  when none is queued; a run with no lock on this machine reads `drive <task>
+  liveness unknown`, never gone; a gone run shows until `--resume` or
+  `--stop`, since it blocks a fresh start. The `drive` label is dim and the
+  value toned: the task cyan, gone red, `needs_user` yellow, `error` and
+  `stall` red, `closed` green, a limit or an interrupt dim. The lock is
+  probed only while a run is open. The Claude desktop app does not render
+  statusLine (claude-code#41456).
 - The protocol block tells an agent, after `--detach`, to run `sofar drive
   <slug> --await` in its background shell and relay the line it prints; a
   host with no background shell points the operator at the prompt line, the
@@ -5495,8 +5502,9 @@ Shims contain no logic — they invoke the sofar CLI.
 - `sofar statusline` (felt-cost 3.1/3.2, D4; identity segments D6; styling
   D7/D8) — the rent-meter, wired as Claude Code's statusLine command. Reads
   statusline JSON from stdin, prints ONE line: `<model> · <dir> ·
-  <branch> · <pie> <slug> <done>/<total> · ctx <used%> ·
-  cache <warm%>[⚠|✓][ · ↑<version>]`. The trailing update segment
+  <branch> · <pie> <slug> <done>/<total>[ · drive <…>] · ctx <used%> ·
+  cache <warm%>[⚠|✓][ · ↑<version>]`, the drive segment as
+  §Driver, watching a run, says. The trailing update segment
   (auto-update 2.1) appears ONLY when the cached check knows of a newer
   release: `↑<version>` normally, `↻<version>` when a background
   auto-install already applied it and the running process is still the old

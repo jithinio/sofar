@@ -4,7 +4,7 @@
 
 Goal: An operator always knows whether a drive run is alive and how far it has got — in the calling session, on the status bar, and in the sofar apps — without asking an agent or opening another terminal, and one run can never be driven by two drivers at once. Liveness is decided by a machine-local lock the OS releases on exit, never by a heartbeat or a record event; a heartbeat exists only to show presence to remote viewers.
 
-Progress: 8/17 tasks done (47%)
+Progress: 9/17 tasks done (52%)
 
 ## Phase 1 — Contract and rulings [done] — 2/2 done
 
@@ -18,11 +18,11 @@ Progress: 8/17 tasks done (47%)
 - [x] 2.3 `sofar status` (one-shot and --watch) shows a run as running, driver gone (no run_stopped, lock free) or stopped wherever the lock is visible; `sofar drive --stop` against a gone driver says so at once instead of waiting 30s. Tests.
 - [x] 2.4 Keep-awake per the 1.1(e) ruling: macOS `caffeinate -i -w <own pid>` spawned by the driver for the run's life; setting in ~/.config/sofar/config.json; terminal prompt once when unset; detached runs state the unset setting in the preflight lines; per-run flags override; the opening lines say idle sleep is blocked but lid-close sleep is not. Tests.
 
-## Phase 3 — Progress in the session [active] — 2/6 done
+## Phase 3 — Progress in the session [active] — 3/6 done
 
 - [x] 3.1 `sofar drive <slug> --await`: blocks at zero cost and exits with one line on needs_user, run_stopped or driver gone (lock free); built for an agent's background shell. Tests.
 - [x] 3.2 UserPromptSubmit drive line, printed only when the run changed since the session's last prompt (handoffs, task done, now on); within the hook shim's budget; install Codex hooks.json so Codex gets it too. Tests.
-- [ ] 3.3 Statusline drive segment: run state, task in flight, done/total; gone or stopped runs show their reason; within the statusline laws. rust-core 2.6 statusline parity must include it. Tests.
+- [x] 3.3 Statusline drive segment: run state, task in flight, done/total; gone or stopped runs show their reason; within the statusline laws. rust-core 2.6 statusline parity must include it. Tests.
 - [ ] 3.4 `sofar drive <slug> --follow` for a terminal or opt-in narration: one line per handoff, task change and warning; exits on run_stopped or driver gone. Tests.
 - [ ] 3.5 Prototype an asyncRewake PostToolUse hook on Bash(sofar drive *) that runs --await and wakes an idle Claude Code session; measure whether a multi-hour hook timeout holds. Keep it only if it does; log the result.
 - [ ] 3.6 Protocol block (CLAUDE.md + AGENTS.md): before --detach, ask the operator about keep-awake when the preflight says it is unset; after --detach, start `sofar drive <slug> --await` in the background shell (or rely on the 3.5 hook) and relay what it prints; hosts without a background shell point the operator at the prompt line, statusline or `sofar status`. Previous block kept as a shipped version.
