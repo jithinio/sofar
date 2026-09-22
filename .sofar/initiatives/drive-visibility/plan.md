@@ -41,5 +41,5 @@ Progress: 11/17 tasks done (64%)
 - [ ] 5.2 README + release staged for the user to publish.
 
 Active phase: Phase 3 — Progress in the session
-Next action: Read probe C, log the 3.5 decision, then 5.1 on sofar-07's go or stand down.
+Next action: none in this record — the work is memory-lead 2.x
 Blocked on: phase Phase 4 — Sync, presence and app contract (paid)
