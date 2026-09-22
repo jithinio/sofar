@@ -1,29 +1,31 @@
 //! `Math.log` as Node computes it, bit for bit (rust-core D2).
 //!
 //! V8's `Math.log` is fdlibm's `__ieee754_log` (`base::ieee754::log`), not
-//! the platform libm Rust's `f64::ln` calls: on this machine 4.2% of a
+//! the platform libm Rust's `f64::ln` calls: on darwin-arm64 4.2% of a
 //! million BM25 inputs differed in the last bit, which is enough to move a
 //! lessons score across a cut (`LESSON_OVER_SHARE`, the runner-up ratio, the
-//! corpus floor) or to reorder a tie. And V8 is compiled with floating-point
-//! contraction, so on aarch64 every `a * b + c` in fdlibm is ONE fused
-//! multiply-add, while baseline x86-64 has no FMA to fuse into. `madd` is
-//! that one difference; everything else is fdlibm as written.
+//! corpus floor) or to reorder a tie. And each official Node build compiles
+//! fdlibm with its own floating-point contraction, so the bits depend on the
+//! target's compiler, measured against each one's own Node (rust-core 2.11):
+//!
+//! - macOS arm64 (clang): every `a * b + c` inside an expression is one fused
+//!   multiply-add, and nothing fuses across statements.
+//! - Linux arm64 (gcc): exactly two fuse — the outer Horner step of `t2`, and
+//!   `R = t2 + t1` with `t1 = w * p1` carried across the statement.
+//! - x86-64 (every OS): nothing fuses; baseline x86-64 has no FMA.
 //!
 //! Proven per target by `tests/js_log_crosscheck.rs` against pairs the same
 //! machine's Node generates (CI's core matrix, every target).
 
-/// `a * b + c` as V8's build computes it on this target.
-#[cfg(target_arch = "aarch64")]
-#[inline]
-fn madd(a: f64, b: f64, c: f64) -> f64 {
-    a.mul_add(b, c)
-}
+/// Clang's contraction: every multiply-add within an expression (macOS arm64).
+const CLANG: bool = cfg!(all(target_arch = "aarch64", target_vendor = "apple"));
+/// Gcc's contraction on the official Linux arm64 build.
+const GCC: bool = cfg!(all(target_arch = "aarch64", not(target_vendor = "apple")));
 
-/// `a * b + c` as V8's build computes it on this target.
-#[cfg(not(target_arch = "aarch64"))]
+/// `a * b + c`, fused when this target's Node build fuses this site.
 #[inline]
-fn madd(a: f64, b: f64, c: f64) -> f64 {
-    a * b + c
+fn madd(fused: bool, a: f64, b: f64, c: f64) -> f64 {
+    if fused { a.mul_add(b, c) } else { a * b + c }
 }
 
 /// `Math.log(x)`.
@@ -85,14 +87,14 @@ pub fn js_log(x: f64) -> f64 {
                 return 0.0;
             }
             let dk = f64::from(k);
-            return madd(dk, LN2_HI, dk * LN2_LO);
+            return madd(CLANG, dk, LN2_HI, dk * LN2_LO);
         }
-        let r = f * f * madd(-THIRD, f, 0.5);
+        let r = f * f * madd(CLANG, -THIRD, f, 0.5);
         if k == 0 {
             return f - r;
         }
         let dk = f64::from(k);
-        return madd(dk, LN2_HI, -(madd(-dk, LN2_LO, r) - f));
+        return madd(CLANG, dk, LN2_HI, -(madd(CLANG, -dk, LN2_LO, r) - f));
     }
     let s = f / (2.0 + f);
     let dk = f64::from(k);
@@ -100,21 +102,38 @@ pub fn js_log(x: f64) -> f64 {
     let mut i = hx - 0x6147a;
     let w = z * z;
     let j = 0x6b851 - hx;
-    let t1 = w * madd(w, madd(w, LG6, LG4), LG2);
-    let t2 = z * madd(w, madd(w, madd(w, LG7, LG5), LG3), LG1);
+    let p1 = madd(CLANG, w, madd(CLANG, w, LG6, LG4), LG2);
+    let p2 = madd(
+        CLANG || GCC,
+        w,
+        madd(CLANG, w, madd(CLANG, w, LG7, LG5), LG3),
+        LG1,
+    );
+    let t2 = z * p2;
     i |= j;
-    let r = t2 + t1;
+    // Gcc carries `t1 = w * p1` into the sum as one fused multiply-add.
+    let r = if GCC { w.mul_add(p1, t2) } else { t2 + w * p1 };
     if i > 0 {
         let hfsq = 0.5 * f * f;
         if k == 0 {
-            f - madd(-s, hfsq + r, hfsq)
+            f - madd(CLANG, -s, hfsq + r, hfsq)
         } else {
-            madd(dk, LN2_HI, -((hfsq - madd(s, hfsq + r, dk * LN2_LO)) - f))
+            madd(
+                CLANG,
+                dk,
+                LN2_HI,
+                -((hfsq - madd(CLANG, s, hfsq + r, dk * LN2_LO)) - f),
+            )
         }
     } else if k == 0 {
-        madd(-s, f - r, f)
+        madd(CLANG, -s, f - r, f)
     } else {
-        madd(dk, LN2_HI, -(madd(s, f - r, -(dk * LN2_LO)) - f))
+        madd(
+            CLANG,
+            dk,
+            LN2_HI,
+            -(madd(CLANG, s, f - r, -(dk * LN2_LO)) - f),
+        )
     }
 }
 

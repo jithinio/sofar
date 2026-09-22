@@ -25,5 +25,11 @@ const next = () => {
 }
 for (let i = 0; i < 100_000; i++) push(1 + Number(next()) / 2 ** 53)
 for (let i = 0; i < 100_000; i++) push((Number(next()) / 2 ** 53) * 10 ** ((i % 40) - 20))
+// fdlibm's |f| < 2**-20 branch: within ~1e-6 of a power of two, both sides.
+for (let k = -8; k <= 8; k++) for (let i = 0; i < 2_000; i++) {
+  const e = (Number(next()) / 2 ** 53) * 2 ** -(20 + (i % 40))
+  push(2 ** k * (1 + e))
+  push(2 ** k * (1 - e / 2))
+}
 for (const x of [0, -0, -1, 1, Infinity, NaN, 5e-324, 2.2250738585072014e-308, Number.MAX_VALUE, Math.E, 2, 0.5]) push(x)
 process.stdout.write(`${lines.join('\n')}\n`)

@@ -696,13 +696,15 @@ core must reproduce the JS semantics, NOT the Rust defaults:
 - P8 `Math.round` is round-half-up toward +∞ (`-0.5 → -0`), used for
   percentages and the `~Nh` labels.
 - P9 ISO timestamps: `toISOString()` millisecond precision, `Z` suffix.
-- P10 `Math.log` is V8's: fdlibm's `__ieee754_log`, compiled with the
-  target's floating-point contraction — each `a * b + c` one fused
-  multiply-add on aarch64, unfused on x86-64. Never the platform libm
-  (`f64::ln` differed from Node in the last bit on 4.2% of a million BM25
-  inputs on darwin-arm64). The lessons line's IDF and corpus floor go
-  through it (`js_math.rs`); `tests/js_log_crosscheck.rs` proves it against
-  each CI target's own Node.
+- P10 `Math.log` is V8's: fdlibm's `__ieee754_log`, compiled with each
+  official Node build's floating-point contraction. On macOS arm64 (clang)
+  every `a * b + c` within an expression is one fused multiply-add. On
+  Linux arm64 (gcc) exactly two fuse: the outer Horner step of `t2`, and
+  `R = t2 + w * p1` across statements. On x86-64 nothing fuses. Never the
+  platform libm: `f64::ln` differed from Node in the last bit on 4.2% of a
+  million BM25 inputs on darwin-arm64. The lessons line's IDF and corpus
+  floor go through it (`js_math.rs`), and `tests/js_log_crosscheck.rs`
+  proves it against each CI target's own Node.
 
 ## RC re-pin deltas (179b8fd, rust-core 1.4)
 
