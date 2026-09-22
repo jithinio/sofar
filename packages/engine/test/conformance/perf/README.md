@@ -111,6 +111,11 @@ hooks on a real record (same table on both records); n ≥ 25, same record and
 session id, and the report's `load` header (1-minute load average at start
 and end) says what the machine was doing.
 
+Run a long cell under `caffeinate -ims`. If the machine idle-sleeps mid-run,
+the 120 s spawn timeout counts the sleep, and the cell fails with
+`spawnSync … ETIMEDOUT` at a random measure (rust-core M3). `pmset -g log`
+over the run's window shows the sleep.
+
 ## Team scale (rust-core 1.5)
 
 `corpus.ts` generates a record shaped like 100 users on one repo (`TEAM100`):
@@ -170,6 +175,30 @@ second in about 6, and reaches team100's size in about 7 months. The
 non-linear turns and what fixing each would buy are in docs/HOTPATH.md
 §Team scale, and the ideas are recorded in the rust-core record. None of
 them is built here.
+
+### Turn 1 landed (2026-09-22)
+
+Turn 1 is the `files_touched` scan. TypeScript fixed it in r1-fixes 4.5
+(6ee2782), and the core mirrors that in 21ea3e8 (FileIndex). The core also
+borrowed where it had cloned in its guard check (8bad310), a cost that only
+the core had.
+`fileindex.8bad310-vs-c0c0e9f.*` measures the core at 8bad310 against the
+core before either change, ABAB with n = 25 on both corpus cells, with load
+3.7 to 8:
+
+| cell | bound log | new / old core p50 | session-start warm, cold | predicted |
+| --- | --- | ---: | ---: | ---: |
+| team100-w100 | 19.2 MB | 0.72–0.80× | 0.83×, 0.90× | ~0.6× |
+| team100 | 95.6 MB | 0.35–0.45× | 0.64×, 0.79× | ~0.4× |
+
+The fold is linear again. Per-event cost is 9.2–10.1 µs from 2.8k to 139k
+events (the fold-curve table in the report), where it was 9.5–21 µs. Each
+lever's own share of the fold, taken as a process with three arms
+interleaved and n = 9 on the team100 bound log, is 2,702 → 1,625 ms for
+FileIndex and → 1,225 ms for the guard borrow. Session-start misses the
+prediction because its derived-index refresh is its own cost (turn 3). The
+warm start still dropped 1.9 s (5,224 → 3,336 ms), which is what turn 3
+predicted turn 1 alone would take. RSS is unchanged at 1.26–1.78 GB (turn 2).
 
 ## Reading the baseline
 

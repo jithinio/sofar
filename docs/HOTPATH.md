@@ -882,6 +882,19 @@ recorded in the rust-core record, and none is built here (1.5).
    Predicted: the team100 fold from 3.6 s to ~1.1 s (TypeScript) and from
    2.9 s to ~0.9 s (core), per-event cost flat at ~6–10 µs, every team100 hook
    down ~60%, and ~40% at 19 MB.
+   **Landed 2026-09-22.**
+   - TypeScript: r1-fixes 4.5 (6ee2782), in-process foldLines 3,482 → 820 ms.
+   - Core: FileIndex (21ea3e8) took the fold as a process from 2,702 to
+     1,625 ms. That misses the ~0.9 s because `record_guard_violations`
+     cloned every decision's guard and rule on each file and command event,
+     a cost only the core had. Borrowing them (8bad310) took it to 1,225 ms,
+     and per-event cost is now flat at 9.2–10.1 µs.
+   - Hooks: core against core before both changes, ABAB with n = 25. At
+     team100 six of eight run at 0.35–0.45×, so the ~60% held there. At
+     19 MB they run at 0.72–0.80×, so the ~40% was optimistic. Session-start
+     runs at 0.64× warm and 0.79× cold (turn 3).
+   - The TypeScript per-hook ratio is not measured yet. Report:
+     `perf/fileindex.8bad310-vs-c0c0e9f.*`.
 2. **Memory high-water in the core.** The core decodes every line into an
    owned JSON tree and holds them all for the id-ordered replay. That comes
    to 13–18× the log's bytes, and malloc/free is ~20% of the fold's samples.
@@ -895,7 +908,9 @@ recorded in the rust-core record, and none is built here (1.5).
    siblings' 345 MB. The warm path still pays the bound fold and ~1.7 s the
    sample did not isolate. Idea: profile the warm path after turn 1 lands,
    before designing anything. Predicted: turn 1 alone takes ~2 s off the
-   4.7 s warm start.
+   4.7 s warm start. Checked 2026-09-22: with turn 1 and the guard borrow,
+   the warm start went from 5,224 to 3,336 ms (−1.9 s). Session-start is still
+   the hook that gains least, so the warm-path profile is the next step here.
 4. **Every hook refolds the whole log.** The incremental-fold snapshot is a
    consumer API that the engine never persists under `.sofar/` (r1-fixes
    5.1, D20), so a hook on a 139k-event log replays all of it every time. Idea: a per-clone persisted checkpoint in the state directory, not
