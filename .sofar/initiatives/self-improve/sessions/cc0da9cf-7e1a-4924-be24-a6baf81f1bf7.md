@@ -6,11 +6,11 @@
 - Tool: claude-code
 - Model: claude-opus-5
 - Started: 2026-09-22T14:51:15.416Z
-- Ended: 2026-09-22T22:50:05.092Z
+- Ended: 2026-09-22T22:52:47.585Z
 
 ## Summary
 
-Sent the measured binary-drift datapoint to bench-refresh, correcting the relayed cadence claim; idling.
+Measured that the auto_mode steer tracks the client binary, not a rollout; L17 line now evidence-backed. Idling.
 
 ## Next action
 
@@ -18,11 +18,11 @@ Operator: rule on L11 and Phase 3; no cycle while the lid is closed.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 158 commands, task changes: 3.4 → done
+- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 164 commands, task changes: 3.4 → done
 - Files:
   - /Users/jins/IO/sofar-evaluator/lib/commit.ts
   - /Users/jins/IO/sofar-evaluator/test/commit.test.ts
   - /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh
-- Commands run: 158
+- Commands run: 164
 - Task changes:
   - 3.4 → done
