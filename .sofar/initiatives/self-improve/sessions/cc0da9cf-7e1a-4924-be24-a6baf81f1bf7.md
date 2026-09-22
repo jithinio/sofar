@@ -6,21 +6,21 @@
 - Tool: claude-code
 - Model: claude-opus-5
 - Started: 2026-09-22T14:51:15.416Z
-- Ended: 2026-09-22T15:01:38.968Z
+- Ended: 2026-09-22T15:04:05.814Z
 
 ## Summary
 
-3.4 re-run prepared (D18): evaluator fixed at ec10f89, fix-cell leak closed via --hide, dry runs pass; awaiting operator go.
+cycle-L11b now waits for sofar-07's round2-smokes.done marker and a free :3000; still awaiting operator go.
 
 ## Next action
 
-On operator go, run the launchctl submit for cycle-L11b (see latest note).
+On operator go, launchctl submit cycle-L11b; it waits for the marker.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 52 commands
+- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 54 commands
 - Files:
   - /Users/jins/IO/sofar-evaluator/lib/commit.ts
   - /Users/jins/IO/sofar-evaluator/test/commit.test.ts
   - /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh
-- Commands run: 52
+- Commands run: 54
