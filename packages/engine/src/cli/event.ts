@@ -2234,6 +2234,21 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
     if (args.type === 'phase_status_changed' && typeof payload.phase === 'string') {
       payload.phase = resolvePhaseOrThrow(ctx.foldState(slug).phases, payload.phase, slug).name
     }
+    // The same for an added task's phase, and an id the plan already holds is
+    // refused rather than appended for the fold to skip (phase-lifecycle D7).
+    if (args.type === 'task_added' && typeof payload.phase === 'string') {
+      const state = ctx.foldState(slug)
+      payload.phase = resolvePhaseOrThrow(state.phases, payload.phase, slug).name
+      // Looked up here, not through mcp/update-task: this module is on the hook
+      // and statusline path, which must never load the judge (typed-judge D1).
+      const held = state.phases.flatMap((p) => p.tasks).find((t) => t.id === payload.id)
+      if (held !== undefined) {
+        throw new ToolError(
+          'invalid_input',
+          `task "${payload.id as string}" is already in the plan as "${held.title}" — pick an unused id, or append task_status_changed to change it`,
+        )
+      }
+    }
     const session = args.session ?? adoptSession(ctx, rootDir, slug, args.type)
     // The id is only news when sofar chose it.
     const named = args.session === undefined ? { session } : {}

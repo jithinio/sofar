@@ -140,7 +140,11 @@ export interface EndSessionTaskChange {
   task_id: string
   status: TaskStatus
   note?: string
-  /** Adds the task when the plan lacks `task_id` (memory-lead D3); ignored for a task that exists. */
+  /**
+   * Adds the task when the plan lacks `task_id` (memory-lead D3). For a task
+   * that exists it must match the held title (phase-lifecycle D7); a
+   * different one is refused as an id collision.
+   */
   title?: string
   /** Phase an added task joins — name or number; default the active phase. */
   phase?: string
@@ -157,6 +161,15 @@ export interface UpdateTaskArgs {
   task_id: string
   status: TaskStatus
   note?: string
+  /**
+   * Adds the task when the plan lacks `task_id` (phase-lifecycle D7) — the
+   * shape EndSessionTaskChange already takes, so adding one task never needs
+   * sofar_update_plan's full replace. For a task that exists it must match
+   * the held title; a different one is refused as an id collision.
+   */
+  title?: string
+  /** Phase an added task joins — name or number; default the active phase. */
+  phase?: string
 }
 /**
  * Phases are addressed by their NAME — plan_updated carries no phase ids, so
@@ -446,6 +459,8 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
         type: 'string',
         description: 'Why; required for dropped. Cite the deciding entry (e.g. "D3").',
       },
+      title: { type: 'string', description: 'Adds the task if the plan lacks it.' },
+      phase: { type: 'string', description: 'Its phase; default active.' },
     },
     required: ['task_id', 'status'],
     additionalProperties: false,
@@ -572,7 +587,7 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_update_plan',
     description:
-      'Replace the whole plan (goal + phases with tasks) — a full replace, not a merge: an omitted status means `pending`, so restate every status you keep.',
+      'Replace the whole plan (goal + phases with tasks) — a full replace, not a merge: an omitted status means `pending`, so restate every status you keep. To add one task, sofar_update_task with title.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_update_plan,
   },
   {
@@ -650,6 +665,8 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
       e.push(`status: must be one of ${TASK_STATUSES.join('|')}`)
     }
     if (!optStr(a.note)) e.push('note: must be a string')
+    if (!optStr(a.title)) e.push('title: must be a string')
+    if (!optStr(a.phase)) e.push('phase: must be a string')
     // A drop is the one status that closes a task without delivering it
     // (task-drop-state D3). Unexplained, it is indistinguishable from work
     // that was quietly forgotten — and unlike a wrong `pending`, nothing

@@ -3515,7 +3515,9 @@ sofar_start_session.`
   is planned and validated AS A WHOLE against one fold before any append —
   one bad entry files nothing, not the good ones and not the write-back:
   `invalid_input` naming the entry (`tasks[1] (9.9): …`). Entries:
-  `tasks` {task_id, status, note?, title?, phase?} — a task the plan has
+  `tasks` {task_id, status, note?, title?, phase?} — planned exactly as
+  sofar_update_task (phase-lifecycle D7), so a `title` naming a different
+  task than the one the plan holds is refused. A task the plan has
   appends task_status_changed; one it lacks WITH a title appends task_added
   {phase, id, title, status} into `phase` (resolved like
   sofar_update_phase; default the active phase), plus a task_status_changed
@@ -3569,7 +3571,19 @@ sofar_start_session.`
   peer fields are added at the tool layer, never on the folded
   ParallelWriteback — who is reachable is a fact about live host processes,
   and folding it in would make one log fold differently on two machines.
-- sofar_update_task({initiative?, task_id, status, note?}) → ok
+- sofar_update_task({initiative?, task_id, status, note?, title?, phase?}) → ok
+  # ADDS a task (phase-lifecycle D7, superseding D4): a task_id the plan
+  # lacks WITH a `title` appends task_added {phase, id, title, status} into
+  # `phase` (resolved like sofar_update_phase; default the active phase),
+  # plus a task_status_changed carrying `note` when one is given, both or
+  # neither, `event_id` the last; WITHOUT a title it is `invalid_input`
+  # (until D7 it appended a task_status_changed the fold skipped). A task the
+  # plan holds gets task_status_changed; a `title` naming a DIFFERENT task
+  # (case and whitespace aside) is `invalid_input` naming the held title,
+  # because an id collision is how a stale copy moves someone else's task.
+  # sofar_end_session's `tasks` entries run the same planner. Adding one task
+  # never needs sofar_update_plan: before D7, 47 of this repo's 126
+  # plan_updated events were full replaces whose only change was an add.
   # bare {ok, event_id} on EVERY status (r1-fixes 2.1, D10), except that a
   # `done` whose note cites no evidence adds `warnings` (typed-judge 3.3, D7,
   # §Judge). The
@@ -3592,7 +3606,9 @@ sofar_start_session.`
   to the one phase labelled `Phase <n>` (position only when no phase name
   carries such a label). The plan's own name is what gets recorded. The same
   resolution guards `sofar event append --type phase_status_changed`, whose
-  miss is now refused the same way instead of minting a phase.
+  miss is now refused the same way instead of minting a phase, and
+  `--type task_added` (phase-lifecycle D7), which also refuses an id the
+  plan already holds rather than appending a line the fold would skip.
   A name that matches nothing is an invalid_input error naming the phases
   that do exist — NEVER the fold's create-on-miss, which is correct for a
   fold (never lose a logged fact) and wrong for a tool (a typo would mint a
@@ -3627,6 +3643,9 @@ sofar_start_session.`
 - sofar_update_plan({initiative?, plan}) → ok   # full-structure replace;
   an omitted status means `pending`, NOT unchanged — restate every status
   you intend to keep, and expect a fold warning if a resolved one is dropped.
+  The description ends by naming sofar_update_task with `title` as the way
+  to add ONE task (phase-lifecycle D7): a replace drops every task the
+  writer's copy has not seen.
   A task may carry `route {agent?, model?, effort?}` for `sofar drive` (3.2),
   and it survives exactly as long as the plan restates it
 - sofar_add_note({initiative?, text}) → ok   # plus `warnings` when the note
@@ -6491,6 +6510,24 @@ stay the underlying derivation's, and exit codes are styling-independent.
   closes phases still owes a write-back; and replay stays deterministic.
   Closing a phase clears it from doctor's stale-phase axis and from the close
   audit's phases_unresolved finding — the same one fact, read by both.
+- **Adding a task (phase-lifecycle 3.3–3.5, D7):** sofar_update_task with a
+  `title` and a task_id the plan lacks appends exactly one task_added into
+  the active phase, or into `phase` named by number or in any case with the
+  plan's own name recorded, and no plan_updated; a note adds one
+  task_status_changed after it and `event_id` is that last event; an unknown
+  phase is `invalid_input` naming the phases that exist; an unknown task_id
+  without a title (or with a blank one) is `invalid_input`; a held task_id
+  with a different title is `invalid_input` naming the held title, while the
+  same title in another case or spacing is a plain status change; with no
+  plan, an add naming no phase says "no active phase". Every refusal leaves
+  events.jsonl byte-identical. The add follows the session pin across a
+  branch rebind. Over MCP the schema lists `title` and `phase`, and
+  sofar_update_plan's description names sofar_update_task for a single add.
+  sofar_end_session refuses a colliding title as `tasks[i] (<id>)` and files
+  nothing from the batch, while a task added earlier in the same batch can
+  change status later in it. `sofar event append --type task_added` resolves
+  its phase the same way and refuses an unknown phase or a held id, leaving
+  the log unchanged. The serialized tool surface stays ≤8,000 chars.
 - **core.hooksPath (hookspath-attribution):** a repo whose `core.hooksPath`
   resolves to its own `<common>/hooks` — spelled absolutely or relatively —
   gets the hook installed, and a hook placed in that directory demonstrably

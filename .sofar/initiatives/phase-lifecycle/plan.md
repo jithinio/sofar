@@ -4,7 +4,7 @@
 
 Goal: Make phase status writable at the same tier as task status. SHIPPED 2026-08-13: sofar_update_phase is the twelfth MCP tool, phase status is written and never derived (D2), and phase_status_changed now counts as drift (D3). Remaining: the 35 stale phases across 16 initiatives, which D5 rules a one-off append-only repair — and the mechanism for writing across 16 records without tearing the session doing it is the open question. Settled up front on measurement: MCP-only, no CLI sibling (D1).
 
-Progress: 15 done, 1 dropped, 0 remaining
+Progress: 18 done, 1 dropped, 1 remaining
 
 ## Phase 1 — Settle the write path (blocks everything else) [done] — 3/3 done
 
@@ -19,12 +19,16 @@ Progress: 15 done, 1 dropped, 0 remaining
 - [x] 2.3 Idempotence and error shape: already at this status appends nothing (the close-initiative precedent); an unknown phase name returns a typed error and never a silent no-op, since phases are addressed by free-text name and a typo would otherwise vanish.
 - [x] 2.4 Register in mcp/server.ts and confirm the tool table renders; the MCP-less dialect keeps reaching the same event through event append, so no caller is stranded.
 
-## Phase 3 — sofar_add_task [dropped] — 1/2 (1 dropped) done
+## Phase 3 — sofar_add_task [active] — 4/6 (1 dropped) done
 
-> sofar_add_task ruled out of scope (D4): task_added is rare but working — 3 uses ever, all folding correctly — and no surface is broken by its absence.
+> Reopened by D7, which supersedes D4. The add path becomes title+phase fields on sofar_update_task, not a twelfth tool; evidence in note 01M32J11.
 
 - [x] 3.1 DECIDE whether add_task is in scope. task_added has NO emitter anywhere in packages/engine/src — only the two consumers, fold.ts and index-reach.ts — and 3 uses across the entire 37-initiative record. Confirm it is dead rather than merely rare before building, or rule it out of scope and say why.
 - [-] 3.2 If in scope: mcp/add-task.ts plus schema, mirroring 2.x. Must not disturb plan_updated's full-replace contract, on which SPEC's forward-compatibility story rests (task-drop-state D2). (dropped)
+- [x] 3.3 Schema (packages/schema/src only): UpdateTaskArgs and sofar_update_task's JSON schema gain optional title + phase, the shape end_session's task entries already take; sofar_update_plan's description points at the additive path. The serialized tool surface stays ≤8,000 chars (was 7,794).
+- [x] 3.4 Engine: ONE task-change planner shared by end-session.ts and update-task.ts. An unknown task_id WITH a title → task_added into the resolved phase (default active) plus a status change when a note rides it; WITHOUT a title → invalid_input (today it files an orphan the fold silently drops). `sofar event append --type task_added` resolves the phase like phase_status_changed (D32) and refuses an id the plan holds.
+- [x] 3.5 Contract + tests: docs/SPEC.md §MCP tools (sofar_update_task) and a §Acceptance criteria bullet; tests for add, default phase, phase by number, unknown phase, missing title, held id, note-on-add, session pin, and the event-append guard.
+- [ ] 3.6 Release: ships in the next RC. Until it is published AND installed, sessions here see 0.32.0's surface with no MCP add path. The user runs `npm publish -w sofar.sh`.
 
 ## Phase 4 — The 35 existing stale phases [done] — 3/3 done
 
@@ -41,4 +45,5 @@ Progress: 15 done, 1 dropped, 0 remaining
 - [x] 5.3 Dogfood: close THIS initiative's own phases with the new tool as each completes, then re-run doctor and confirm the stale-phase count falls. The dogfood IS the acceptance evidence.
 - [x] 5.4 Release 0.27.0. Until it is published AND installed, this repo's own sessions cannot use the tool: .mcp.json runs the `sofar` on PATH, which is the installed bundle, so every session here still sees eleven tools. The user runs `npm publish -w sofar.sh` (classifier + OTP).
 
-Next action: Nothing open on phase-lifecycle — it is closed. The live finding wants a ruling in another record: whether update_plan should merge existing statuses forward, which changes the full-replace contract and needs its own Decision.
+Active phase: Phase 3 — sofar_add_task
+Next action: 3.6: operator publishes the next RC so installed sessions get the add path.

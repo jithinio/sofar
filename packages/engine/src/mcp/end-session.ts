@@ -13,6 +13,7 @@ import { ruleFidelityWarning } from '../core/rule-fidelity'
 import { homeInitiative, ToolError, type ToolContext } from './context'
 import { judgeOptionsFor } from './log-decision'
 import { resolvePhaseOrThrow } from './update-phase'
+import { heldTasks, planTaskChange } from './update-task'
 
 /**
  * A colliding write-back, plus how to reach the session that wrote it
@@ -83,10 +84,12 @@ interface PlannedBatch {
  * D3) — nothing here appends. Every refusal names its entry, and each entry
  * obeys the contract of the tool it stands in for:
  *
- *  - tasks: a task the plan has → task_status_changed. One it lacks WITH a
- *    `title` → task_added into `phase` (name or number, default the active
- *    phase); WITHOUT one it is refused — the fold would skip the change with a
- *    warning, a status silently lost at the one moment nobody is watching.
+ *  - tasks: planTaskChange, exactly as sofar_update_task — a task the plan
+ *    has → task_status_changed (a `title` naming a different task is an id
+ *    collision, refused); one it lacks WITH a `title` → task_added into
+ *    `phase` (name or number, default the active phase); WITHOUT one it is
+ *    refused — the fold would skip the change with a warning, a status
+ *    silently lost at the one moment nobody is watching.
  *  - phases: resolved like sofar_update_phase (D32); an unchanged status and
  *    note files nothing, as there.
  *  - decisions: sofar_log_decision's argument contract, then the payload's,
@@ -106,24 +109,14 @@ function planBatch(ctx: ToolContext, slug: string, args: EndSessionArgs): Planne
     appends.push({ type, payload })
   }
 
-  const known = new Set(state.phases.flatMap((p) => p.tasks.map((t) => t.id)))
-  const activePhase = state.phases.find((p) => p.name === state.current.active_phase)
+  // sofar_update_task's planner (phase-lifecycle D7); a task this batch adds
+  // is held for the entries after it.
+  const held = heldTasks(state)
   ;(args.tasks ?? []).forEach((t, i) => {
-    const where = `tasks[${i}] (${t.task_id})`
-    const note = t.note !== undefined ? { note: t.note } : {}
-    if (known.has(t.task_id)) {
-      check(where, 'task_status_changed', { id: t.task_id, status: t.status, ...note })
-      return
-    }
-    if (t.title === undefined || t.title.trim().length === 0) {
-      refuse(where, ['not in the plan — give it a `title` (and `phase`) to add it'])
-    }
-    const phase =
-      t.phase !== undefined ? resolvePhaseOrThrow(state.phases, t.phase, slug) : activePhase ?? refuse(where, ['no active phase — name the `phase` to add it to'])
-    check(where, 'task_added', { phase: phase.name, id: t.task_id, title: t.title!, status: t.status })
-    // task_added carries no note; the reason rides a status change of its own.
-    if (t.note !== undefined) check(where, 'task_status_changed', { id: t.task_id, status: t.status, ...note })
-    known.add(t.task_id)
+    const planned = planTaskChange(state, slug, t, held)
+    if (!planned.ok) return refuse(`tasks[${i}] (${t.task_id})`, planned.errors)
+    appends.push(...planned.appends)
+    if (!held.has(t.task_id)) held.set(t.task_id, t.title!)
   })
 
   ;(args.phases ?? []).forEach((ph, i) => {
