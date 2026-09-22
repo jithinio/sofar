@@ -4,7 +4,7 @@
 
 Goal: An operator always knows whether a drive run is alive and how far it has got — in the calling session, on the status bar, and in the sofar apps — without asking an agent or opening another terminal, and one run can never be driven by two drivers at once. Liveness is decided by a machine-local lock the OS releases on exit, never by a heartbeat or a record event; a heartbeat exists only to show presence to remote viewers.
 
-Progress: 13/18 tasks done (72%)
+Progress: 14/18 tasks done (77%)
 
 ## Phase 1 — Contract and rulings [done] — 2/2 done
 
@@ -36,11 +36,11 @@ Progress: 13/18 tasks done (72%)
 - [ ] 4.2 Paid, per 1.1(c) and (f), cloud-linked repos only: presence ping at start, handoff, stop and every 30s ±10% jitter; immediately on wake (local 5s tick detects a wall-clock jump); 10s timeout; failures and entitlement refusals dropped, never queued, never affecting the run; seq and boot nonce; never a record event. Tests.
 - [ ] 4.3 Contract handed to sofar-cloud (built there, paid apps): entitlement check on the push and presence endpoints and the status it returns; presence lease row computed at read with a 90s TTL, designed for a 100-person repo first (enterprise D1); UX states Running / Not responding (last seen, never 'offline since') / Stopped / viewer feed stale; how an app on the same Mac probes the run lock and reads runs from the record; SSE catch-up-then-live. Notifications, APNs and Live Activities are sofar-cloud's own design (push-notifications Decision).
 
-## Phase 5 — Proof [pending] — 1/2 done
+## Phase 5 — Proof [pending] — 2/2 done
 
 - [x] 5.1 Proof from a live Claude Code session on a throwaway initiative: --detach from inside the sandbox; --await wakes the session on needs_user and on stop; prompt line and statusline update; a second --resume is refused while the driver lives; kill -9 the driver and status shows driver gone, --await exits, --resume succeeds and fences via run_adopted; keep-awake holds an assertion (pmset -g assertions) for the run's life; check whether ending the calling session kills the detached driver. Record the numbers.
-- [ ] 5.2 README + release staged for the user to publish. (active)
+- [x] 5.2 README + release staged for the user to publish.
 
 Active phase: Phase 3 — Progress in the session
-Next action: Build 3.7; run 5.2's heavy half once L11b and 3ee5e98 clear.
+Next action: Hand the host to rust-core; build 3.7 next.
 Blocked on: phase Phase 4 — Sync, presence and app contract (paid)
