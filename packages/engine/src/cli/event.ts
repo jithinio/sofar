@@ -1991,9 +1991,9 @@ export function readPaths(hook: Obj, rootDir: string): string[] {
   const cwd = strField(hook, 'cwd') ?? rootDir
   let candidates: string[] = []
   if (toolName === 'Read') {
-    // Claude Code names it file_path; Cursor's field is unverified, so the
-    // plausible names are all read (SPEC §Read-time surfacing (memory-lead 2.1, D6)).
-    const path = strField(toolInput, 'file_path') ?? strField(toolInput, 'path') ?? strField(toolInput, 'target_file')
+    // `file_path` on both hosts: Claude Code documents it, and Cursor sends it
+    // too (live on cursor-agent 2026.09.18, with no `cwd` beside it).
+    const path = strField(toolInput, 'file_path')
     if (path !== null) candidates = [path]
   } else if (toolName === 'Grep') {
     const path = strField(toolInput, 'path')

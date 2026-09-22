@@ -593,7 +593,8 @@ is the first moment the path is known, and it comes before the edit.
 - Claude Code `Read` (`tool_input.file_path`), and `Grep`
   (`tool_input.path` when it names a regular file, plus the first 5 strings of
   `tool_response.filenames` when present);
-- Cursor `Read` (`file_path`, else `path`, else `target_file`);
+- Cursor `Read` (`tool_input.file_path`, absolute; verified live on
+  cursor-agent 2026.09.18, whose postToolUse payload carries no `cwd`);
 - a shell call on any host (Bash, and Cursor's Shell after the D34
   conversion): the first 5 distinct operands, taken before any `<<`, that name
   an existing regular file. They are resolved against the payload's `cwd`.
@@ -730,6 +731,14 @@ render time. INDEX_SCHEMA_VERSION is 6.
 
 No schema change, no new event type, no model call. Warn-only
 (drift-hardening D3).
+
+**Proven live (2026-09-22, cursor-agent 2026.09.18-9a7762b, print mode).** A
+scratch project on an unbound branch held one decision naming
+`docs/notes.txt`, and its postToolUse ran this build. Asked to read the file
+and quote any context it received, the model quoted `sofar: [probe D1]
+2026-09-22 names docs/notes.txt: chose keep docs/notes.txt ASCII-only over
+allowing UTF-8 in notes.` from a system reminder, and no quick lane was
+created. The payload is test/fixtures/cursor/hook-payloads.cursor-agent-2026.09.18.json.
 
 ### Rule fidelity (memory-lead 1.2, D2)
 A `rule` is the agent's restatement of what the operator said, and a
@@ -7239,8 +7248,9 @@ stay the underlying derivation's, and exit codes are styling-independent.
   told again; SessionStart `compact` and a lost told set re-tell; a hook with
   no session keeps no set. Bash operands that name a regular file are read,
   while a missing file and a heredoc body are not; `.sofar/` paths are never
-  subjects; Grep's file path and its `filenames` are read; a Cursor Read
-  through the D34 conversion returns `additional_context`; a read on an
+  subjects; Grep's file path and its `filenames` are read; Cursor's live Read
+  payload (fixture, cursor-agent 2026.09.18) returns `additional_context`
+  through the D34 conversion; a read on an
   unbound branch surfaces with qualified handles and creates no quick lane.
   Stored relevance reorders within a tier and never lifts a mention over a
   guard. The scope tier's supersession marks and retired set equal the fold's,

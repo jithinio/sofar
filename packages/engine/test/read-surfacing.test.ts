@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { makeEvent } from '../src/core/envelope'
 import { fileMentions, mentionDepth } from '../src/core/file-mentions'
@@ -23,6 +24,7 @@ import { makeRepoFixture, type Fixture } from './helpers/mcp'
  * retired stays silent; a session is told each thing once.
  */
 
+const here = fileURLToPath(new URL('.', import.meta.url))
 const roots: string[] = []
 afterAll(() => {
   for (const r of roots) rmSync(r, { recursive: true, force: true })
@@ -346,22 +348,21 @@ describe('2.1 subjects on every host', () => {
     expect(found).toContain('names src/b.ts')
   })
 
-  it('Cursor: a Read through the D34 conversion comes back as additional_context', () => {
+  it('Cursor: its live Read payload, through the D34 conversion, comes back as additional_context', () => {
+    // Captured from cursor-agent 2026.09.18 in print mode (memory-lead 2.1):
+    // tool_input.file_path, absolute, and no cwd. Replayed against a fixture
+    // repo by rewriting its root.
+    const fixture = JSON.parse(
+      readFileSync(join(here, 'fixtures', 'cursor', 'hook-payloads.cursor-agent-2026.09.18.json'), 'utf8'),
+    ) as Record<string, { payload: Record<string, unknown> }>
     const f = fx()
-    decide(f.root, 'alpha', { chose: 'split src/a.ts' })
-    const result = forHost('post-tool', handlePostTool)(
-      f.root,
-      JSON.stringify({
-        conversation_id: 'C',
-        cursor_version: '2026.09.15',
-        hook_event_name: 'postToolUse',
-        cwd: f.root,
-        tool_name: 'Read',
-        tool_input: { path: join(f.root, 'src/a.ts') },
-      }),
-    )
+    decide(f.root, 'alpha', { chose: 'keep docs/notes.txt ASCII-only' }, T0)
+    const payload = JSON.stringify(fixture['post-tool-use.read']!.payload).replaceAll('/tmp/repo', f.root)
+    const result = forHost('post-tool', handlePostTool)(f.root, payload)
     expect(result.exitCode).toBe(0)
-    expect((JSON.parse(result.stdout) as { additional_context: string }).additional_context).toContain('names src/a.ts')
+    expect(JSON.parse(result.stdout)).toEqual({
+      additional_context: 'sofar: [alpha D1] 2026-09-01 names docs/notes.txt: chose keep docs/notes.txt ASCII-only.',
+    })
   })
 })
 
