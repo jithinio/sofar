@@ -24,10 +24,12 @@ Progress: 11/17 tasks done (64%)
 - [x] 3.2 UserPromptSubmit drive line, printed only when the run changed since the session's last prompt (handoffs, task done, now on); within the hook shim's budget; install Codex hooks.json so Codex gets it too. Tests.
 - [x] 3.3 Statusline drive segment: run state, task in flight, done/total; gone or stopped runs show their reason; within the statusline laws. rust-core 2.6 statusline parity must include it. Tests.
 - [x] 3.4 `sofar drive <slug> --follow` for a terminal or opt-in narration: one line per handoff, task change and warning; exits on run_stopped or driver gone. Tests.
-- [ ] 3.5 Prototype an asyncRewake PostToolUse hook on Bash(sofar drive *) that runs --await and wakes an idle Claude Code session; measure whether a multi-hour hook timeout holds. Keep it only if it does; log the result.
+- [ ] 3.5 Prototype an asyncRewake PostToolUse hook on Bash(sofar drive *) that runs --await and wakes an idle Claude Code session; measure whether a multi-hour hook timeout holds. Keep it only if it does; log the result. (active)
 - [x] 3.6 Protocol block (CLAUDE.md + AGENTS.md): before --detach, ask the operator about keep-awake when the preflight says it is unset; after --detach, start `sofar drive <slug> --await` in the background shell (or rely on the 3.5 hook) and relay what it prints; hosts without a background shell point the operator at the prompt line, statusline or `sofar status`. Previous block kept as a shipped version.
 
-## Phase 4 — Sync, presence and app contract (paid) [pending] — 0/3 done
+## Phase 4 — Sync, presence and app contract (paid) [blocked] — 0/3 done
+
+> Later milestone with sofar-cloud (the Phase 4 split decision, 2026-09-22). 4.1–4.3 need sofar-cloud's push and presence endpoints and its server-side entitlement check. It does not gate the 0.34 local release (Phases 1–3, then 5.1 and 5.2).
 
 - [ ] 4.1 Paid, per 1.1(f): a linked driver pushes the record as it appends (debounced pushStream after handoffs and task changes), so the doorbell rings mid-run; when the cloud refuses for entitlement the driver says so once in its opening or progress lines and keeps running unsynced; push failures never affect the run. Debounce sized for a 100-person repo with many concurrent runs (sofar-cloud enterprise D1). Tests with injected fetch.
 - [ ] 4.2 Paid, per 1.1(c) and (f), cloud-linked repos only: presence ping at start, handoff, stop and every 30s ±10% jitter; immediately on wake (local 5s tick detects a wall-clock jump); 10s timeout; failures and entitlement refusals dropped, never queued, never affecting the run; seq and boot nonce; never a record event. Tests.
@@ -39,4 +41,5 @@ Progress: 11/17 tasks done (64%)
 - [ ] 5.2 README + release staged for the user to publish.
 
 Active phase: Phase 3 — Progress in the session
-Next action: 3.5 waits for the operator's go; plan in the 3.5 note.
+Next action: Read probe C (3h timeout, ends ~19:56Z), then rule on keeping the hook.
+Blocked on: phase Phase 4 — Sync, presence and app contract (paid)

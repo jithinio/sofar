@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: Operator: push policy A/B/C, now also gating the PR #2 merge landing on origin.
+Next action: Verify and push rust-core's PR #2 merge when sofar-68 reports the fast-forward.
