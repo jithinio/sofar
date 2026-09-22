@@ -1,5 +1,12 @@
 # Golden manifest (rust-core D11)
 
+Re-recorded on **release/0.34.0-rc.1** (drive-visibility 5.2) from the
+TypeScript reference. The version bump is the whole diff — two goldens
+changed, each by one string: `argv.fast-path` (`--version` is now
+`0.34.0-rc.1`) and `open.O2-update-segment` (`you have 0.34.0-rc.1`). Every
+other golden is byte-identical, and the entries below keep the versions they
+were recorded against, which is what makes them history.
+
 Re-pinned to **main ce2f9f2** (rust-core merge 47d5a44: drive-visibility
 3.3). `syn.driven` gained five statusline steps, re-recorded from the
 TypeScript reference: the drive segment with no lock (`drive 1.2 liveness
