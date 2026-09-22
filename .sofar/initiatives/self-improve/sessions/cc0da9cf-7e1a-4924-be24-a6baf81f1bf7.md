@@ -6,11 +6,11 @@
 - Tool: claude-code
 - Model: claude-opus-5
 - Started: 2026-09-22T14:51:15.416Z
-- Ended: 2026-09-22T15:07:10.508Z
+- Ended: 2026-09-22T16:58:58.881Z
 
 ## Summary
 
-cycle-L11b launched 15:06Z; waiting on sofar-07's round2-smokes.done marker before any cell.
+D19 per-cell ports shipped (evaluator c562789); cycle-L11b relaunched 16:58Z, gated on round-2 smokes.
 
 ## Next action
 
@@ -18,9 +18,9 @@ When cycle-L11b.log shows done, read its compare verdict; record 3.4.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 57 commands
+- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 90 commands
 - Files:
   - /Users/jins/IO/sofar-evaluator/lib/commit.ts
   - /Users/jins/IO/sofar-evaluator/test/commit.test.ts
   - /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh
-- Commands run: 57
+- Commands run: 90
