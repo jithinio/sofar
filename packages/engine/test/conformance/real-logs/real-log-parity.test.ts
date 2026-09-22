@@ -88,6 +88,6 @@ describe.skipIf(BIN === undefined)('real-log parity (rust-core 5.1)', () => {
           throw new Error(`${where}${take !== undefined ? ` --take ${take}` : ''} differs at ${firstDifference(want, got)}`)
         }
       }
-    })
+    }, 300_000) // a 19 MB log folds for seconds on a hosted runner
   }
 })

@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { monotonicFactory } from 'ulid'
 import { afterAll, describe, expect, it } from 'vitest'
 import { makeEvent, type EventEnvelope } from '../src/core/envelope'
 import { buildGraph, whyFile } from '../src/core/graph'
@@ -63,8 +64,13 @@ function event(
     type,
     payload,
   })
-  return ts === undefined ? made : { ...made, ts }
+  // Monotonic ids: makeEvent's ulid() is random within a millisecond, and the
+  // fold replays in id order, so two decisions minted in one millisecond could
+  // swap D1 and D2 (the 3.5 "logged alpha D1" flake, rust-core CI 2026-09-22).
+  const ordered = { ...made, id: nextId() }
+  return ts === undefined ? ordered : { ...ordered, ts }
 }
+const nextId = monotonicFactory()
 
 function emit(sofar: string, slug: string, e: EventEnvelope): EventEnvelope {
   const dir = join(sofar, 'initiatives', slug)
