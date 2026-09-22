@@ -893,8 +893,10 @@ recorded in the rust-core record, and none is built here (1.5).
      team100 six of eight run at 0.35–0.45×, so the ~60% held there. At
      19 MB they run at 0.72–0.80×, so the ~40% was optimistic. Session-start
      runs at 0.64× warm and 0.79× cold (turn 3).
-   - The TypeScript per-hook ratio is not measured yet. Report:
-     `perf/fileindex.8bad310-vs-c0c0e9f.*`.
+   - TypeScript hooks, 6ee2782 against its parent, ABAB with n = 25: 0.37–0.44×
+     at team100 and 0.75–0.80× at 19 MB. That is the same result as the core.
+     Reports: `perf/fileindex.8bad310-vs-c0c0e9f.*` and
+     `perf/hasfile.6ee2782-vs-5027480.typescript.*`.
 2. **Memory high-water in the core.** The core decodes every line into an
    owned JSON tree and holds them all for the id-ordered replay. That comes
    to 13–18× the log's bytes, and malloc/free is ~20% of the fold's samples.
@@ -911,6 +913,20 @@ recorded in the rust-core record, and none is built here (1.5).
    4.7 s warm start. Checked 2026-09-22: with turn 1 and the guard borrow,
    the warm start went from 5,224 to 3,336 ms (−1.9 s). Session-start is still
    the hook that gains least, so the warm-path profile is the next step here.
+   **Profiled and fixed 2026-09-22.** The warm path spent 2,114 of 3,144
+   samples parsing `graph.json` (28.8 MB). The cold path spent ~2,900 of
+   6,441 in the index reducer and its write. All three costs are O(K²) in
+   the paths per initiative (60,691 in the bound one), and TypeScript has
+   none of them:
+   - the JSON parser's duplicate-key scan, fixed in 1a95096;
+   - the reducer's per-event path scan, turn 1's shape again, fixed in 157dc88;
+   - `Object::insert`'s duplicate scan on a write of keys that are already
+     unique, fixed in 157dc88.
+   Warm at team100 went 3,242 → 1,270 ms and cold 6,907 → 2,768 ms (0.39× and
+   0.40×). At 19 MB they went to 0.74× and 0.77×. Report:
+   `perf/sessionstart-arms.157dc88.md`. The PostToolUse lookup's
+   `union_files` keeps the same per-path scan over the repo-wide union. It is
+   not built, and is the next thing to measure on this path.
 4. **Every hook refolds the whole log.** The incremental-fold snapshot is a
    consumer API that the engine never persists under `.sofar/` (r1-fixes
    5.1, D20), so a hook on a 139k-event log replays all of it every time. Idea: a per-clone persisted checkpoint in the state directory, not

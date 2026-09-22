@@ -200,6 +200,27 @@ prediction because its derived-index refresh is its own cost (turn 3). The
 warm start still dropped 1.9 s (5,224 → 3,336 ms), which is what turn 3
 predicted turn 1 alone would take. RSS is unchanged at 1.26–1.78 GB (turn 2).
 
+The TypeScript side of the same lever is `hasfile.6ee2782-vs-5027480.typescript.*`:
+the engine at 6ee2782 against its parent, ABAB with n = 25 on both cells,
+load 5.0 to 4.7. At team100, six hooks run at 0.37–0.44×, and session-start
+at 0.43× warm and 0.68× cold. At 19 MB they run at 0.75–0.80×. So TypeScript
+met ~60% at team100 and missed ~40% at 19 MB, the same as the core.
+
+### Turn 3: session-start's index (2026-09-22)
+
+After turn 1, the core's warm start at team100 (3.3 s) trailed TypeScript's
+(2.2 s). Profiles showed three costs in the derived index, each O(K²) in the
+paths per initiative (60,691 in the bound one), and each present only in the
+core:
+- the JSON parser's duplicate-key scan (1a95096);
+- the index reducer's path lookup, the same shape as turn 1;
+- the duplicate scan when writing `graph.json` (both in 157dc88).
+
+`sessionstart-arms.157dc88.md` has three core builds interleaved, n = 25.
+At team100, warm goes 3,242 → 1,270 ms (0.39×) and cold 6,907 → 2,768 ms
+(0.40×). At 19 MB, 0.74× and 0.77×. Each prediction was written before its
+build and was met or beaten.
+
 ## Reading the baseline
 
 The recorded machine is in the JSON header (`machine`, `commit`,
