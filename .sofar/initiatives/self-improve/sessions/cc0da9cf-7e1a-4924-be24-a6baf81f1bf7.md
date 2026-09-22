@@ -6,11 +6,11 @@
 - Tool: claude-code
 - Model: claude-opus-5
 - Started: 2026-09-22T14:51:15.416Z
-- Ended: 2026-09-22T22:55:30.629Z
+- Ended: 2026-09-22T22:56:22.366Z
 
 ## Summary
 
-Retracted the version claim on round-1 counter-evidence; 3.6 now requires per-session prompt hash and steer flags.
+Recorded that round 1's prompt non-uniformity was already L17, not a tonight discovery; idling, nothing running.
 
 ## Next action
 
@@ -18,11 +18,11 @@ Operator: rule on L11 and Phase 3; no cycle while the lid is closed.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 167 commands, task changes: 3.4 → done
+- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 168 commands, task changes: 3.4 → done
 - Files:
   - /Users/jins/IO/sofar-evaluator/lib/commit.ts
   - /Users/jins/IO/sofar-evaluator/test/commit.test.ts
   - /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh
-- Commands run: 167
+- Commands run: 168
 - Task changes:
   - 3.4 → done
