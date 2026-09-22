@@ -6,11 +6,11 @@
 - Tool: claude-code
 - Model: claude-opus-5
 - Started: 2026-09-22T14:51:15.416Z
-- Ended: 2026-09-22T19:45:19.294Z
+- Ended: 2026-09-22T19:46:00.379Z
 
 ## Summary
 
-Logged D20 (caps see only what they can reach); 5.1's spend folded into sofar-07's L19 packet; cycle running.
+Adopted the post-cycle order: verdict and 3.4 evidence first, then commit D20's ledger comment.
 
 ## Next action
 
@@ -18,9 +18,9 @@ When cycle-L11b.log shows done, read its compare verdict; record 3.4.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 112 commands
+- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 114 commands
 - Files:
   - /Users/jins/IO/sofar-evaluator/lib/commit.ts
   - /Users/jins/IO/sofar-evaluator/test/commit.test.ts
   - /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh
-- Commands run: 112
+- Commands run: 114
