@@ -590,13 +590,16 @@ phase bracket, `Next action:`, parallel write-backs, `Blocked on:`,
 
 `.sofar/.index/` (created on demand with a `.gitignore` of `*`). Any file
 absent/unreadable/malformed/wrong-version → cold start, never a wrong
-answer. `INDEX_SCHEMA_VERSION = 5` on every tier and meta file. Files and
-who touches them on the hot path:
+answer. `INDEX_SCHEMA_VERSION = 9` on every tier and meta file (5 until
+the trunk catch-up, rust-core D29). Files and who touches them on the hot
+path:
 
 | file | reader/writer on hot path |
 | --- | --- |
 | `meta.json` + `open.json` (Tier 0: slug → session → files\|null) | user-prompt (refresh) |
-| `meta-guards.json` + `guards.json` (every guarded decision + decision counts per slug) | post-tool (every edit), session-start |
+| `meta-guards.json` + `guards.json` (the decision-scope tier: per slug `{decisions, ruled, ids, superseded, until, entries}` — every decision that guards or names a file, or carries a rule; memory-lead 2.1–2.3, 2.8) | post-tool (every read and edit), session-start, stop (checks) |
+| `meta-relevance.json` + `relevance.json` (stored relevance: about → subject → `{subject, p, model, id}`, typed-judge 5.1) | post-tool, only when a notice tier has two or more candidates |
+| `told/<session>.json` (`{v: 1, told: ["<decision id> <path>", …]}`) | post-tool (read, add); session-start deletes it on `compact`/`clear` |
 | `meta-graph.json` + `graph.json` (slug → path → session → [ts, touches]) | post-tool (after a path match), session-start |
 | `shipwatch.json` (`{version: 2, marks: {sid: {branch, upstream\|null, engine?, seq}}}`, ≤64 marks by `seq`) | session-start, user-prompt |
 
@@ -614,10 +617,16 @@ READ: `.sofar/bindings.json`; `.sofar/repo.md`; every
 with mtime pruning; tails for recency); `.git` / `.git/HEAD` /
 `refs/heads/*` / `refs/remotes/origin/*` / `packed-refs` / `commondir`;
 `transcript_path` (stat); `$SOFAR_DRIVE_NUDGE`; `~/.claude/sessions/*.json`;
-`$XDG_STATE_HOME/sofar/update.json`; index files above.
+`$XDG_STATE_HOME/sofar/update.json`; index files above; other worktrees'
+`.sofar/initiatives/<slug>/events.jsonl` (session-start leads, status
+union) and `<common git dir>/worktrees/*/{gitdir,HEAD}`;
+`$XDG_STATE_HOME/sofar/checks/<clone key of the common git dir>.json`
+(stop: approvals); `$XDG_STATE_HOME/sofar/runs/<run id>.lock` (probed,
+never created); `$XDG_STATE_HOME/sofar/drive-seen/<clone key>.json`.
 WRITTEN: `events.jsonl` (append); `plan.md`, `decisions.md`, `memory.md`,
 `sessions/<id>.md` (atomic, if-changed); index files (atomic, silent on
-failure); `update.json` (statusline claim, temp+rename); the git commit
+failure); `update.json` (statusline claim, temp+rename);
+`drive-seen/<clone key>.json` (user-prompt, only on news); the git commit
 message file (commit-trailer).
 
 ## Environment variables
@@ -648,6 +657,9 @@ message file (commit-trailer).
 | `node <dir>/cli.js update-check --refresh` (detached) | statusline / status, ≤ once per 24 h (from the stub when the core rendered them) |
 | `sofar-core <argv>` (stdio inherited) | boot stub, every `event` / `statusline` / `status` when a core is present (rust-core 3.1) |
 | `kill(pid, 0)` | user-prompt peer liveness (not a spawn) |
+| `/bin/sh -c <check cmd>` (per check ≤30 s, all ≤45 s; `kill -TERM` on timeout) | stop, ONLY when the session is already blocked and a decision check is approved on this clone (memory-lead 2.3) |
+| `git for-each-ref --no-merged=HEAD …` and one `git cat-file --batch` | plain `status`, to fold the record's unmerged branch copies (branch-visibility 1.1) — never a hook |
+| `flock -s -n` (TypeScript on Linux only; the core uses flock(2) directly) | status, statusline and the user-prompt drive line, to probe the run lock of an unstopped run |
 
 ## Text-semantics pins (JS behaviours the bytes depend on)
 
@@ -721,6 +733,45 @@ per golden. Contract deltas a native core must reproduce:
   `verification_recorded` event.
 - §Fold: appending hooks fold once per log per process; the appended event
   advances a checkpoint instead of a refold (2.7, D17) — bytes unchanged.
+
+## Trunk deltas (main 72146d9 → ce2f9f2, rust-core D29)
+
+rust-core tracks trunk continuously (D29). The goldens name their trunk
+commit in `golden/MANIFEST.md`. Contract deltas the core reproduces:
+- §Fold: `run_adopted {run, epoch ≥ 2}`, where RunState gains `adoptions`
+  and `owner` and `stop_requests` holds event ids (drive-visibility 2.2).
+  `judgement_recorded` is validated, then ignored by state and drift
+  (typed-judge 2.4). A decision's `check` and a verification's
+  `decision` are kept in `task.checks` (memory-lead 2.3). A stamped
+  `supersedes_id` resolves by event id alone (memory-lead 2.8). Proved by
+  fold-parity FP-11, FP-13 and FP-14.
+- §post-tool: reads are subjects (Read `file_path`, Grep `path` and result
+  `filenames`, shell operands that stat as regular files; at most 5, never
+  under `.sofar`). Notices come in three tiers (guard → "is governed by",
+  ruled mention → "names … Its standing rule", unruled mention → "names
+  …: chose …"), at most 3 under 1,500 units plus an overflow line. A
+  (decision, path) pair is told once per session. Stored relevance
+  reorders within a tier. With no record bound, a read still surfaces,
+  every handle qualified. `apply_patch` yields one `file_touched` per
+  patched file (memory-lead 2.1, agents-parity 2.1).
+- §session-start: repo-wide rules after the record's own constraints
+  (`repoRuleLines`, ≤ min(1,200, what own rules left of 2,000); memory-lead
+  2.2); the other-worktrees notice (branch-visibility 3.3); the told set is
+  cleared on `source: compact|clear`.
+- §stop: approved decision checks run and ride the block, beside an
+  unapproved-checks line and a spent-budget line (memory-lead 2.3).
+- §user-prompt: the drive line after the parallel-wrap line, only on news
+  (drive-visibility 3.2).
+- §statusline: the drive segment after the record's progress
+  (drive-visibility 3.3).
+- §status: the latest unstopped run's fate comes from the run lock (held,
+  free → "driver gone", absent → "liveness unknown"), and `runDetailLines`
+  interleaves adoptions with handoffs (drive-visibility 2.3). The record
+  is folded across its other copies with an "Across branches" block, and
+  an explicit slug held only on another copy still has a status
+  (branch-visibility 1.1–2.3).
+- `--host codex` (agents-parity 2.1) is not an owned shape: the core
+  returns exit 64 and TypeScript serves Codex.
 
 ## SPEC gaps
 

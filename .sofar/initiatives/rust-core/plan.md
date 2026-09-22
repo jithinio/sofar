@@ -4,9 +4,9 @@
 
 Goal: Move sofar's hot path to a native Rust core incrementally (rust-core D1): contract first, then sofar-core in Rust behind the same CLI and hook contract, integrated with TypeScript fallback, shipped as prebuilt binaries, and proven as its own benchmark arm that shrinks no held-out lead margin (bench-refresh D19). After parity, new hot-path code is Rust-only.
 
-Progress: 15/22 tasks done (68%)
+Progress: 16/23 tasks done (69%)
 
-## Phase 1 — Contract [done] — 6/6 done
+## Phase 1 — Contract [done] — 7/7 done
 
 > Contract, conformance, perf baseline, RC re-pins (rc.1 in 1.4; rc.2 on 2026-09-21), order independence (1.6) and team scale (1.5) all landed.
 
@@ -16,6 +16,7 @@ Progress: 15/22 tasks done (68%)
 - [x] 1.4 Re-pin both parity targets to the RC: re-record the conformance goldens and the perf baseline against r1-fixes 179b8fd (sofar.sh 0.33.0-rc.1, schema 0.10.0) with a reason per changed golden, keeping the 0.32.0 as-shipped and a45ea21 sets alongside (D11); regenerate crates/sofar-schema from the RC's packages/schema/src (task_added/plan verify, run_started verify, handoff detail, memory_promoted supersedes, verification_recorded)
 - [x] 1.5 team100 scale corpus and perf cell: a PARAMETERISED, exported synthetic-record generator (named writer profiles `agent` 14.3 ev/session 593 B/ev file_touched-heavy and `human` 21 ev/session 798 B/ev with a 1–4 KB session_ended tail, blend ratio, initiatives, writers, events per stream, heavy-tail size distribution) shaped like 100 users on one repo (~20 initiatives, ~500k events, largest log ≥50 MB, 100 session ids); report cold process and warm fold separately, the fold-cost curve vs events and vs bytes (name the log size crossing 100 ms and the full-refold ≥250 ms point), session-start digest, user-prompt, statusline, find/index build, memory high-water, digest and statusline cost as sessions[] grows to 100 writers; interleaved per D12; record the growth budget (MB and events per user per week) and every non-linear turn as an idea with a predicted gain, never built here
 - [x] 1.6 Order-independence and merge conformance: a property test that the same event SET folds to an identical state under any arrival order (shuffle N times; duplicate ids, out-of-order session_started/ended, corrections; proptest shapes fine), and a union-merge test where N branches append to the SAME initiative's events.jsonl (merge=union .gitattributes path) plus across-initiative merges, asserting the merged fold equals the fold of the union and measuring merged-log fold time
+- [x] 1.7 Catch up with trunk (rust-core D29): merge main and mirror every hot-path change since rc.2 with conformance, fold and render parity on the trunk commit merged
 
 ## Phase 2 — Rust core [done] — 6/6 done
 
