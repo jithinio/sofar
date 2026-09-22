@@ -1,5 +1,5 @@
 import type { InitiativeState } from '../../core/fold'
-import { GENERATED_HEADER, doc } from './shared'
+import { GENERATED_HEADER, doc, nativeOriginMark } from './shared'
 
 /**
  * memory.md template — facts this initiative promoted toward repo memory,
@@ -25,7 +25,7 @@ export function renderMemory(state: InitiativeState): string {
     // its successor named, so a reader never carries it into repo.md.
     const body = memory.superseded_by !== undefined ? `~~${memory.text}~~ — superseded by ${memory.superseded_by}` : memory.text
     const replaces = memory.supersedes !== undefined ? ` (supersedes ${memory.supersedes})` : ''
-    lines.push(`- **M${index + 1}** (${memory.ts})${replaces} — ${body}`)
+    lines.push(`- **M${index + 1}** (${memory.ts})${replaces} — ${nativeOriginMark(memory.origin)}${body}`)
   })
 
   return doc(lines)

@@ -79,6 +79,7 @@ Three consequences run through every design decision in the codebase:
 | `core/closeout.ts` | The mechanical audit run at close (5.1) — outstanding tasks, unresolved phases, done tasks with no file evidence, unaddressed guard crossings, drift since the write-back, unreviewed phases. Refuses nothing: the findings ride on the close event so an override is recorded rather than prevented (5.2). |
 | `core/cursor.ts` | Export/import cursors: the entire sync interface. |
 | `core/session-pointer.ts` | The live-session pointer (r1-fixes 4.1.3, D30): `.sofar/.index/session.json` names the session hooks registered (or a hookless `session_started` minted), so a CLI append with no `--session` joins it instead of splitting the launch into two ids. Derived and per-worktree; whether that session ended is read from the record. |
+| `core/native-memory.ts` | Claude Code auto memory as an import source (memory-lead 2.4, D13/D14): where the store is (as Claude resolves it), its topic files and their frontmatter types, which entries may be offered (project and reference only, not already imported, not declined), the review's secret flag, and the per-clone decline file. Reads native memory; never writes it. |
 | `core/state-dir.ts` | Per-clone state OUTSIDE the repo: `$XDG_STATE_HOME/sofar`, keyed by a hash of the clone's real path. Shared by sync cursors and the diagnostics store; `resolvesInside` is the one refusal of a state dir under the clone. |
 | `core/run-lock.ts` | The run lock (drive-visibility D2, D3): an empty flock-semantics file lock at `<state base>/runs/<run id>.lock` a driver holds for its life — macOS `O_EXLOCK` descriptor, Linux `flock(1)` child on a pipe. `probeRunLock` reads held / free / absent with a shared non-blocking lock; never a pid, never unlinked. |
 | `core/drive-queue.ts` | The driver's task queue — `nextTask` / `queuedTasks`, active phase first, active task before pending — kept apart from `driver/drive.ts` (which re-exports it) so the hot-path surfaces that watch a run name the task in flight by the driver's own rule without bundling the driver (drive-visibility 3.2). |
@@ -183,6 +184,7 @@ a commit.
 | `cli/graph.ts` | `sofar graph` — cross-record queries. |
 | `cli/find.ts` | `sofar find` — traverse from a seed within a hop budget. Offers adjacency, never asserts relevance; every row cites its event. |
 | `cli/remember.ts` | `sofar remember` — promote an operational fact. |
+| `cli/native-import.ts` | `sofar remember --from-native` — show each importable Claude memory entry on the operator's terminal and append the approved ones as memory marked with their origin; refuses without a terminal (D13). |
 | `cli/statusline.ts` | `sofar statusline` — the one-line host status. Resolves session-first. |
 | `cli/serve.ts` | `sofar serve` — localhost JSON state server. |
 | `cli/transfer.ts` | `sofar export` / `sofar import`. |

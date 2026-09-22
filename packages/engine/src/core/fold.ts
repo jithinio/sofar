@@ -221,6 +221,8 @@ export interface MemoryState {
   supersedes?: string
   /** Event id of the memory replaced, as the writer stamped it — how a reader in another record resolves it. */
   supersedes_id?: string
+  /** `claude-memory:<file>@<16 hex>` when the words are Claude auto memory's, imported with the operator's approval (memory-lead D13/D14). */
+  origin?: string
   /** Qualified handle of the later memory IN THIS RECORD that replaced this one. */
   superseded_by?: string
 }
@@ -1681,6 +1683,7 @@ function applyEvent(
         text: p.text,
         ...(p.supersedes !== undefined ? { supersedes: p.supersedes } : {}),
         ...(typeof p.supersedes_id === 'string' ? { supersedes_id: p.supersedes_id } : {}),
+        ...(typeof p.origin === 'string' ? { origin: p.origin } : {}),
       })
       // Retire the replaced memory when it lives in this record: ordinals are
       // log order, so `M<n>` with n at or below the count already promoted is

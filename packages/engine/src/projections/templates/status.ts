@@ -30,7 +30,7 @@ import {
   repoRuleLines,
   runDetailLines,
   standingConstraintLines,
-  taskProgress, testOutcomeLine } from './shared'
+  taskProgress, testOutcomeLine, nativeOriginMark } from './shared'
 import { lexicalCounts } from '../../core/lexicon'
 
 /**
@@ -699,7 +699,7 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   // sessions opened memory.md for them. Yielding (precedence 1).
   const renderedMemories = new Set<number>()
   const liveMemories = state.memories
-    .map((m, i) => ({ text: m.text, ordinal: i + 1, superseded: m.superseded_by !== undefined }))
+    .map((m, i) => ({ text: m.text, ordinal: i + 1, superseded: m.superseded_by !== undefined, mark: nativeOriginMark(m.origin) }))
     .filter((m) => !m.superseded)
   if (liveMemories.length > 0) {
     blocks.push({
@@ -936,7 +936,7 @@ const CLAUSE_BOUNDARIES = ['; ', ' — ', ': ', ' (']
  * that share a term with the focus to MEMORY_WHOLE_BUDGET, then every other
  * one as a head, then a count of what did not fit.
  */
-function memoryLines(ranked: ReadonlyArray<{ text: string; ordinal: number }>, focus: ReadonlySet<string>, budget: number): string[] {
+function memoryLines(ranked: ReadonlyArray<{ text: string; ordinal: number; mark: string }>, focus: ReadonlySet<string>, budget: number): string[] {
   const header = `Memory (${ranked.length}; full text in memory.md):`
   if (header.length + 1 + OVERFLOW_RESERVE > budget) return []
   const lines = [header]
@@ -949,9 +949,9 @@ function memoryLines(ranked: ReadonlyArray<{ text: string; ordinal: number }>, f
     shown.add(ordinal)
   }
   for (const m of ranked.slice(0, MEMORY_WHOLE_MAX)) {
-    if (relevanceScore(m.text, focus) > 0) tryPush(`- [M${m.ordinal}] ${clip(m.text, MEMORY_WHOLE_BUDGET)}`, m.ordinal)
+    if (relevanceScore(m.text, focus) > 0) tryPush(`- [M${m.ordinal}] ${m.mark}${clip(m.text, MEMORY_WHOLE_BUDGET)}`, m.ordinal)
   }
-  for (const m of ranked) if (!shown.has(m.ordinal)) tryPush(`- [M${m.ordinal}] ${clip(m.text, MEMORY_HEAD_BUDGET)}`, m.ordinal)
+  for (const m of ranked) if (!shown.has(m.ordinal)) tryPush(`- [M${m.ordinal}] ${m.mark}${clip(m.text, MEMORY_HEAD_BUDGET)}`, m.ordinal)
   if (shown.size === 0) return []
   const rest = ranked.length - shown.size
   if (rest > 0) lines.push(`- …and ${rest} more in memory.md`)
