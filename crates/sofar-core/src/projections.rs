@@ -399,6 +399,18 @@ pub fn rank_by_relevance<T: Clone>(
     scored.into_iter().map(|(_, item)| item).collect()
 }
 
+/// `nativeOriginMark` (memory-lead D13/D14): the mark every surface puts on
+/// a memory whose words are native memory's, so no reader takes a model's
+/// note for the operator's instruction. Empty for the rest.
+#[must_use]
+pub fn native_origin_mark(origin: Option<&str>) -> &'static str {
+    if origin.is_some_and(|o| o.starts_with("claude-memory:")) {
+        "(from Claude memory, not the operator's words) "
+    } else {
+        ""
+    }
+}
+
 /// `retireEnabled`: `SOFAR_RETIRE=off` (also `0`, `false`) renders every
 /// decision as if none were retired — read by the render callers, never the fold.
 #[must_use]
@@ -957,9 +969,10 @@ pub fn render_memory(state: &InitiativeState) -> String {
             .map(|s| format!(" (supersedes {s})"))
             .unwrap_or_default();
         lines.push(format!(
-            "- **M{}** ({}){replaces} — {body}",
+            "- **M{}** ({}){replaces} — {}{body}",
             index + 1,
-            memory.ts
+            memory.ts,
+            native_origin_mark(memory.origin.as_deref())
         ));
     }
     doc(&lines)

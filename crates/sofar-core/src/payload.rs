@@ -193,6 +193,25 @@ pub fn is_qualified_decision_handle(s: &str) -> bool {
         .is_some_and(|(slug, handle)| is_initiative_slug(slug) && is_decision_handle(handle))
 }
 
+/// `NATIVE_ORIGIN_RE = /^claude-memory:([^@/\\\n]+)@([0-9a-f]{16})$/`
+/// (memory-lead D14): a file name with no `@`, `/`, `\\` or newline, then the
+/// first 16 lowercase hex of its sha256.
+#[must_use]
+pub fn is_native_origin(s: &str) -> bool {
+    let Some(rest) = s.strip_prefix("claude-memory:") else {
+        return false;
+    };
+    let Some((file, digest)) = rest.rsplit_once('@') else {
+        return false;
+    };
+    !file.is_empty()
+        && !file.contains(['@', '/', '\\', '\n'])
+        && digest.len() == 16
+        && digest
+            .bytes()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
 /// `JUDGEMENT_ABOUT_RE = /^(task:\S+|file:[^/\s].*)$/` (typed-judge D10): JS
 /// `\S`/`\s` are the JS whitespace class, `.` any code unit but a line
 /// terminator, and `$` the end of input (no `m` flag).
@@ -848,6 +867,14 @@ fn validate_known(event_type: &str, p: &Object, e: &mut Vec<String>) {
                 );
             }
             supersedes_id_errors(p, "memory", e);
+            if p.contains_key("origin")
+                && !p
+                    .get("origin")
+                    .and_then(Json::as_nonempty_str)
+                    .is_some_and(is_native_origin)
+            {
+                e.push("origin: must be `claude-memory:<file>@<16 hex>` when present — set by `sofar remember --from-native`".to_owned());
+            }
         }
         "review_recorded" => {
             if !one_of(p.get("scope"), &REVIEW_SCOPES) {

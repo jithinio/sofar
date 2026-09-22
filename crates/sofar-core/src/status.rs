@@ -594,7 +594,11 @@ pub fn minutiae_head(text: &str, max: usize) -> String {
     clippy::items_after_statements,
     reason = "the pusher reads best beside its loops"
 )]
-fn memory_lines(ranked: &[(usize, String)], focus: &[String], budget: usize) -> Vec<String> {
+fn memory_lines(
+    ranked: &[(usize, (String, &'static str))],
+    focus: &[String],
+    budget: usize,
+) -> Vec<String> {
     let header = format!("Memory ({}; full text in memory.md):", ranked.len());
     if utf16_len(&header) + 1 + OVERFLOW_RESERVE > budget {
         return Vec::new();
@@ -617,10 +621,10 @@ fn memory_lines(ranked: &[(usize, String)], focus: &[String], budget: usize) -> 
         lines.push(line);
         shown.push(ordinal);
     }
-    for (ordinal, text) in ranked.iter().take(MEMORY_WHOLE_MAX) {
+    for (ordinal, (text, mark)) in ranked.iter().take(MEMORY_WHOLE_MAX) {
         if relevance_score(text, focus) > 0 {
             try_push(
-                format!("- [M{ordinal}] {}", clip(text, MEMORY_WHOLE_BUDGET)),
+                format!("- [M{ordinal}] {mark}{}", clip(text, MEMORY_WHOLE_BUDGET)),
                 *ordinal,
                 budget,
                 &mut used,
@@ -629,10 +633,10 @@ fn memory_lines(ranked: &[(usize, String)], focus: &[String], budget: usize) -> 
             );
         }
     }
-    for (ordinal, text) in ranked {
+    for (ordinal, (text, mark)) in ranked {
         if !shown.contains(ordinal) {
             try_push(
-                format!("- [M{ordinal}] {}", clip(text, MEMORY_HEAD_BUDGET)),
+                format!("- [M{ordinal}] {mark}{}", clip(text, MEMORY_HEAD_BUDGET)),
                 *ordinal,
                 budget,
                 &mut used,
@@ -1221,15 +1225,25 @@ pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String
     }
 
     // (6) Memory — yielding (precedence 1).
-    let live_memories: Vec<(usize, String)> = state
+    // (text, native-origin mark): the mark rides every rendered line
+    // (memory-lead D13/D14); relevance reads the text alone.
+    let live_memories: Vec<(usize, (String, &'static str))> = state
         .memories
         .iter()
         .enumerate()
         .filter(|(_, m)| m.superseded_by.is_none())
-        .map(|(i, m)| (i + 1, m.text.clone()))
+        .map(|(i, m)| {
+            (
+                i + 1,
+                (
+                    m.text.clone(),
+                    crate::projections::native_origin_mark(m.origin.as_deref()),
+                ),
+            )
+        })
         .collect();
     if !live_memories.is_empty() {
-        let ranked = rank_by_relevance(&live_memories, &focus_terms, Clone::clone);
+        let ranked = rank_by_relevance(&live_memories, &focus_terms, |(text, _)| text.clone());
         let focus_terms_ref = &focus_terms;
         let rendered = &rendered_memories;
         blocks.push(Block::Yielding {

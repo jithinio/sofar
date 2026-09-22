@@ -138,6 +138,9 @@ pub struct MemoryState {
     pub supersedes: Option<String>,
     /// Event id of the memory replaced, as the writer stamped it.
     pub supersedes_id: Option<String>,
+    /// `claude-memory:<file>@<16 hex>` when the words are Claude auto
+    /// memory's, imported with the operator's approval (memory-lead D13/D14).
+    pub origin: Option<String>,
     pub superseded_by: Option<String>,
 }
 
@@ -965,6 +968,7 @@ fn apply_event(
                 text: req_str(p, "text"),
                 supersedes: supersedes.clone(),
                 supersedes_id: opt_str(p, "supersedes_id"),
+                origin: opt_str(p, "origin"),
                 superseded_by: None,
             });
             // Retire the replaced memory when it lives in this record — by
@@ -1950,6 +1954,7 @@ impl MemoryState {
         put(&mut o, "text", &self.text);
         put_opt(&mut o, "supersedes", self.supersedes.as_deref());
         put_opt(&mut o, "supersedes_id", self.supersedes_id.as_deref());
+        put_opt(&mut o, "origin", self.origin.as_deref());
         put_opt(&mut o, "superseded_by", self.superseded_by.as_deref());
         Json::Obj(o)
     }
@@ -2457,6 +2462,7 @@ impl MemoryState {
             text: rs(o, "text")?,
             supersedes: os(o, "supersedes")?,
             supersedes_id: os(o, "supersedes_id")?,
+            origin: os(o, "origin")?,
             superseded_by: os(o, "superseded_by")?,
         })
     }

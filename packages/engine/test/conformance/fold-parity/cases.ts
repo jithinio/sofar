@@ -334,7 +334,26 @@ export function buildCases(): FoldParityCase[] {
     l.ev('verification_recorded', verification({ decision: 'D2' })) // invalid: unqualified
     cases.push({ id: 'FP-14-decision-checks-and-judgements', lines: l.lines, sidecar: { tail_at: 11, seeds: [40, 41, 42], order_independence: true, note: 'memory-lead 2.3 (D9): task.checks keeps the latest run per decision in first-checked order, apart from task.verification; a check needs a rule; verification decision must be qualified. typed-judge 2.4: judgement_recorded validated, then ignored by state and drift. The tail starts at the invalid judgement' } })
   }
+  {
+    // memory-lead 2.4 (D13/D14): a memory's native origin is kept and marked
+    // on every surface; a malformed origin fails validation.
+    const l = new Log('demo')
+    l.ev('initiative_created', { slug: 'demo', goal: 'g' })
+    l.ev('memory_promoted', { text: 'an operator fact' }, { session: 'A' })
+    l.ev('memory_promoted', { text: 'a fact from Claude memory', origin: 'claude-memory:project_notes.md@0123456789abcdef' }, { session: 'A' })
+    const imported = l.ev('memory_promoted', { text: 'an older native fact', origin: 'claude-memory:feedback.md@fedcba9876543210' }, { session: 'A' })
+    l.ev('memory_promoted', { text: 'its replacement', supersedes: 'demo M3', supersedes_id: imported, origin: 'claude-memory:feedback.md@00000000000000aa' }, { session: 'A' })
+    l.ev('memory_promoted', { text: 'bad digest', origin: 'claude-memory:x.md@0123' }, { session: 'A' }) // invalid
+    l.ev('memory_promoted', { text: 'a path in the name', origin: 'claude-memory:dir/x.md@0123456789abcdef' }, { session: 'A' }) // invalid
+    l.ev('memory_promoted', { text: 'another source', origin: 'notes:x.md@0123456789abcdef' }, { session: 'A' }) // invalid
+    l.ev('memory_promoted', { text: 'two at signs', origin: 'claude-memory:a@b.md@0123456789abcdef' }, { session: 'A' }) // invalid
+    l.ev('memory_promoted', { text: 'upper hex', origin: 'claude-memory:x.md@0123456789ABCDEF' }, { session: 'A' }) // invalid
+    cases.push({ id: 'FP-15-native-memory-origin', lines: l.lines, sidecar: { tail_at: 5, seeds: [43, 44, 45], order_independence: true, note: 'memory-lead 2.4 (D13/D14): memory_promoted origin claude-memory:<file>@<16 lowercase hex> is kept in state (a superseding import too); a short digest, a path, another scheme, a second @ or upper-case hex fail validation. The tail starts at the replacement' } })
+  }
   return cases
+}
+
+/** A seeded Fisher–Yates  return cases
 }
 
 /** A seeded Fisher–Yates over a copy: the same seed shuffles the same way on every machine. */

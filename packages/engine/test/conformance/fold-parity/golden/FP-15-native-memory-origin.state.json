@@ -1,0 +1,75 @@
+{
+  "state": {
+    "current": {
+      "active_phase": null,
+      "next_action": null
+    },
+    "cursor": "01KDVDNKRG1CVY50ZJ9M36D87T",
+    "decisions": [],
+    "drop_notes": {},
+    "files_touched": [],
+    "freshness": {
+      "events_since_writeback": {
+        "commands": 0,
+        "decisions": 0,
+        "files": 0,
+        "memories": 4,
+        "notes": 0,
+        "phases": 0,
+        "reviews": 0,
+        "tasks": 0
+      },
+      "last_writeback_ts": null,
+      "notes": [],
+      "unattributed_mutations": 4
+    },
+    "goal": "g",
+    "guard_violations": [],
+    "memories": [
+      {
+        "id": "01KDVDNBYGS4KPXRQA1CVY50ZJ",
+        "text": "an operator fact",
+        "ts": "2026-01-01T00:00:02.000Z"
+      },
+      {
+        "id": "01KDVDNCXRPXRQA1CVY50ZJ9M3",
+        "origin": "claude-memory:project_notes.md@0123456789abcdef",
+        "text": "a fact from Claude memory",
+        "ts": "2026-01-01T00:00:03.000Z"
+      },
+      {
+        "id": "01KDVDNDX0KPXRQA1CVY50ZJ9M",
+        "origin": "claude-memory:feedback.md@fedcba9876543210",
+        "superseded_by": "demo M4",
+        "text": "an older native fact",
+        "ts": "2026-01-01T00:00:04.000Z"
+      },
+      {
+        "id": "01KDVDNEW8GF2S4KPXRQA1CVY5",
+        "origin": "claude-memory:feedback.md@00000000000000aa",
+        "supersedes": "demo M3",
+        "supersedes_id": "01KDVDNDX0KPXRQA1CVY50ZJ9M",
+        "text": "its replacement",
+        "ts": "2026-01-01T00:00:05.000Z"
+      }
+    ],
+    "phases": [],
+    "reviews": [],
+    "runs": [],
+    "sessions": [],
+    "slug": "demo",
+    "status": "active",
+    "status_note": null,
+    "status_overrides": [],
+    "status_ts": null,
+    "successor": null,
+    "task_files": {}
+  },
+  "warnings": [
+    "line 6: invalid memory_promoted payload (origin: must be `claude-memory:<file>@<16 hex>` when present — set by `sofar remember --from-native`) — skipped",
+    "line 7: invalid memory_promoted payload (origin: must be `claude-memory:<file>@<16 hex>` when present — set by `sofar remember --from-native`) — skipped",
+    "line 8: invalid memory_promoted payload (origin: must be `claude-memory:<file>@<16 hex>` when present — set by `sofar remember --from-native`) — skipped",
+    "line 9: invalid memory_promoted payload (origin: must be `claude-memory:<file>@<16 hex>` when present — set by `sofar remember --from-native`) — skipped",
+    "line 10: invalid memory_promoted payload (origin: must be `claude-memory:<file>@<16 hex>` when present — set by `sofar remember --from-native`) — skipped"
+  ]
+}
