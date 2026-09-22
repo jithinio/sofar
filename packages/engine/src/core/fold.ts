@@ -151,7 +151,12 @@ export interface DecisionState {
    * glob list. Present only alongside `rule`, by payload validation.
    */
   guard?: string
-  /** `D<n>` of the earlier decision this one replaces, as recorded (r1-fixes 3.2, D25). */
+  /**
+   * `D<n>` of the earlier decision this one replaces (r1-fixes 3.2, D25): as
+   * recorded, or, when the payload carries `supersedes_id` and it resolves, the
+   * current handle of that decision (memory-lead 2.8, D12) — a merge that
+   * renumbered the record then still names the decision actually replaced.
+   */
   supersedes?: string
   /** Task id this decision is in force until, as recorded (D25); never present with `rule`. */
   until?: string
@@ -208,8 +213,14 @@ export interface MemoryState {
   id: string
   ts: string
   text: string
-  /** Qualified handle of the memory this one replaces (r1-fixes D8). */
+  /**
+   * Qualified handle of the memory this one replaces (r1-fixes D8) — for one
+   * in this record resolved through `supersedes_id`, its current handle
+   * (memory-lead 2.8, D12).
+   */
   supersedes?: string
+  /** Event id of the memory replaced, as the writer stamped it — how a reader in another record resolves it. */
+  supersedes_id?: string
   /** Qualified handle of the later memory IN THIS RECORD that replaced this one. */
   superseded_by?: string
 }
@@ -1487,6 +1498,28 @@ function decisionCheck(check: DecisionCheck): DecisionCheck {
   }
 }
 
+/**
+ * Index of the decision a `supersedes` retires, among those folded before the
+ * superseder (the last entry, at `ordinal`), or -1 when it is inert.
+ *
+ * A stamped `supersedes_id` (memory-lead 2.8, D12) decides alone, with no
+ * fallback to the ordinal: `D<n>` is a position in id order, and a union merge
+ * of two branches that both logged decisions moves it, so after a merge the
+ * ordinal names whatever the other branch put there — a teammate's standing
+ * rule, retired silently, while the intended target stays in force. An id
+ * that names nothing folded (voided, or never in this log) is inert. Payloads
+ * written before the stamp resolve by the ordinal as recorded (r1-fixes D25).
+ */
+function supersededIndex(decisions: readonly DecisionState[], p: DecisionLoggedPayload, ordinal: number): number {
+  if (typeof p.supersedes_id === 'string') {
+    for (let i = ordinal - 2; i >= 0; i--) if (decisions[i]!.id === p.supersedes_id) return i
+    return -1
+  }
+  const m = DECISION_HANDLE_RE.exec(p.supersedes ?? '')
+  const n = m === null ? NaN : Number(m[1])
+  return Number.isInteger(n) && n < ordinal ? n - 1 : -1
+}
+
 function findTask(state: InitiativeState, id: string): TaskState | undefined {
   for (const phase of state.phases) {
     const task = phase.tasks.find((t) => t.id === id)
@@ -1619,22 +1652,24 @@ function applyEvent(
         ...(p.until !== undefined ? { until: p.until } : {}),
         ...(p.check !== undefined ? { check: decisionCheck(p.check) } : {}),
       })
-      // Supersession (r1-fixes 3.2, D25): resolve `D<n>` against the
-      // decisions already folded — the log alone, no clock, no env. Inert
-      // when it points forward or at itself (nothing to retire yet; a
-      // decision cannot retire the future), or when a rule-less decision
-      // names a rule: a standing constraint is replaced only by a new
-      // constraint, never dropped by a plain choice. Ordinals are 1-based in
-      // id order, which is what the fold applies in, so the same log folds
-      // to the same marks whatever order the lines arrived.
+      // Supersession (r1-fixes 3.2, D25): resolve against the decisions
+      // already folded — the log alone, no clock, no env. Inert when it
+      // points forward or at itself (nothing to retire yet; a decision
+      // cannot retire the future), or when a rule-less decision names a rule:
+      // a standing constraint is replaced only by a new constraint, never
+      // dropped by a plain choice. Ordinals are 1-based in id order, which is
+      // what the fold applies in, so the same log folds to the same marks
+      // whatever order the lines arrived.
       if (p.supersedes !== undefined) {
-        const m = DECISION_HANDLE_RE.exec(p.supersedes)
-        const n = m === null ? NaN : Number(m[1])
         const ordinal = state.decisions.length
-        const target = Number.isInteger(n) && n < ordinal ? state.decisions[n - 1] : undefined
+        const at = supersededIndex(state.decisions, p, ordinal)
+        const target = at >= 0 ? state.decisions[at] : undefined
         if (target !== undefined && (target.rule === undefined || p.rule !== undefined)) {
           target.superseded_by = ordinal
         }
+        // After a merge renumbered the record, the handle as written names
+        // some other decision; state names the one actually replaced.
+        if (typeof p.supersedes_id === 'string' && at >= 0) state.decisions[ordinal - 1]!.supersedes = `D${at + 1}`
       }
       break
     }
@@ -1645,16 +1680,28 @@ function applyEvent(
         ts: event.ts,
         text: p.text,
         ...(p.supersedes !== undefined ? { supersedes: p.supersedes } : {}),
+        ...(typeof p.supersedes_id === 'string' ? { supersedes_id: p.supersedes_id } : {}),
       })
       // Retire the replaced memory when it lives in this record: ordinals are
       // log order, so `M<n>` with n at or below the count already promoted is
-      // resolvable here and now. A handle in another record is left to the
-      // cross-record readers (doctor folds every log).
+      // resolvable here and now — or, stamped (memory-lead 2.8, D12), the id
+      // is, and a merge cannot move it. A handle in another record is left to
+      // the cross-record readers (doctor folds every log).
       if (p.supersedes !== undefined) {
         const m = /^([a-z0-9-]+) M([1-9][0-9]*)$/.exec(p.supersedes)
         const n = m === null ? 0 : Number.parseInt(m[2]!, 10)
-        if (m !== null && m[1] === event.initiative && n < state.memories.length) {
-          state.memories[n - 1]!.superseded_by = `${event.initiative} M${state.memories.length}`
+        const count = state.memories.length
+        let at = -1
+        if (m !== null && m[1] === event.initiative) {
+          if (typeof p.supersedes_id === 'string') {
+            for (let i = count - 2; i >= 0 && at < 0; i--) if (state.memories[i]!.id === p.supersedes_id) at = i
+          } else if (n < count) {
+            at = n - 1
+          }
+        }
+        if (at >= 0) {
+          state.memories[at]!.superseded_by = `${event.initiative} M${count}`
+          if (typeof p.supersedes_id === 'string') state.memories[count - 1]!.supersedes = `${event.initiative} M${at + 1}`
         }
       }
       break

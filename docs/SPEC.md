@@ -168,7 +168,9 @@ alongside `rule`; see §Decision guards, drift-hardening D3 — check? —
 {cmd, hint?, timeout_ms?}, the executable half of that clause, valid ONLY
 alongside `rule`; see §Decision checks, memory-lead D9 — supersedes? —
 the bare handle `D<n>` of an earlier decision in this record that this one
-replaces — until? — a task id this decision is in force until; never with
+replaces — supersedes_id? — that decision's event id, stamped by the writer
+and never passed by an agent, valid ONLY alongside `supersedes`; memory-lead
+2.8, D12 — until? — a task id this decision is in force until; never with
 `rule`; r1-fixes 3.2, D25) ·
 session_started (tool, model?) · session_ended (summary, next_action) ·
 session_closed (reason — mechanical close from the SessionEnd hook; never
@@ -181,7 +183,9 @@ ONLY outcome facts the record carries, everything richer is a private row
 (self-improve D2, see §Diagnostics store) · note_added ·
 memory_promoted (text, supersedes? — a fact its author declares repo memory,
 addressable as `<slug> M<n>`; `supersedes` names the qualified handle of the
-fact it replaces, r1-fixes D8; repo-memory-capture D1) ·
+fact it replaces, r1-fixes D8; repo-memory-capture D1 — supersedes_id? — that
+fact's event id, stamped by the writer, valid ONLY alongside `supersedes`;
+memory-lead 2.8, D12) ·
 judgement_recorded (producer, model — the exact version, never an alias —
 question, subject — an event id, a task id or a record handle qualified per
 the citation grammar — about? — `task:<id>` or `file:<repo-relative path>`,
@@ -778,9 +782,10 @@ decision names the file, never that it governs it.
 
 **Index.** The declared half (guards.json, meta-guards.json) becomes the
 decision-scope tier. Per initiative it holds:
-- the decision count, a ruled bitmap, and the superseded and until ordinals
-  of EVERY decision, which is what supersession and the relevance reader's
-  `retired` set need;
+- the decision count, a ruled bitmap, the event id of EVERY decision (so a
+  stamped supersession retires its target's ordinal even when the target is
+  not an entry; memory-lead 2.8, D12), and the superseded and until ordinals,
+  which is what supersession and the relevance reader's `retired` set need;
 - one entry per decision that guards or names a file, or carries a rule
   (memory-lead 2.2, D8 — the digest's repo-wide rules read them; an entry
   with neither guard nor mention is never a read-time hit): id, ordinal, ts,
@@ -792,9 +797,10 @@ decision-scope tier. Per initiative it holds:
 
 `guards` is the view of entries that carry both a rule and a guard. Superseded
 entries stay in it, marked, to stay faithful to the fold; the filter runs at
-render time. INDEX_SCHEMA_VERSION is 8 (6 at 2.1; 7 when 2.2 added every rule
+render time. INDEX_SCHEMA_VERSION is 9 (6 at 2.1; 7 when 2.2 added every rule
 and the labels tier; 8 when 2.3 added each ruled entry's `check` and the
-check command's file tokens to its mentions).
+check command's file tokens to its mentions; 9 when 2.8 added every
+decision's id, and each label entry's id, for supersession by stamped id).
 
 **Labels tier (memory-lead 2.2, D8).** labels.json on its own cursor
 (meta-labels.json), read only by sofar_log_decision, sofar_end_session and
@@ -802,8 +808,9 @@ check command's file tokens to its mentions).
 count, and one entry per STANDING decision whose chose and over are each at
 most 600 chars (LABEL_CLAUSE_MAX; a lexicon-free cut well past the longest
 label-sized clause on record, 345 of 7,494 — core/reversal's term count still
-decides at query time): ordinal, ts, chose, over, ruled. A later
-`supersedes: "D<n>"` removes the entry as the fold retires it (backward only;
+decides at query time): id, ordinal, ts, chose, over, ruled. A later
+`supersedes` removes the entry as the fold retires it (by the stamped id when
+the payload carries one, memory-lead 2.8, D12; backward only;
 a ruled target only for a ruled superseder); an until-scoped decision never
 enters, since task resolution is not indexed.
 
@@ -3453,7 +3460,9 @@ never writes to any copy and adds no event type.
 **Why the union is well defined.** The fold replays in ulid order and is
 convergent (§Cursor primitive (sync-ready contract)), and duplicate ids are
 dropped before it runs. The union's state is therefore exactly what merging
-every branch with `merge=union` would produce.
+every branch with `merge=union` would produce. Merging renumbers the `D<n>`
+and `M<n>` of copies that both wrote, so supersession resolves by the
+target's stamped event id, not its handle (memory-lead 2.8, D12).
 
 **Which copies** (`core/record-copies.ts`):
 - Every OTHER worktree of the repo, read as its working file, so uncommitted
@@ -4244,7 +4253,24 @@ yields the same state (the fold API's purity, D20). (1) `supersedes:
 "D<n>"` names an EARLIER decision of the SAME record this one replaces
 (per-record, like the ordinals; no cross-record form). The fold marks the
 target `superseded_by: <ordinal>` when the reference resolves and is
-permitted; a forward or self reference is recorded and inert. (2) `until:
+permitted; a forward or self reference is recorded and inert. MERGE-STABLE
+(memory-lead 2.8, D12): `D<n>` is a position in id order, and a `merge=union`
+of two branches that both logged decisions (or a correction voiding one)
+moves it, so an ordinal written on one branch can name the other branch's
+decision after the merge. The writer therefore stamps `supersedes_id`, the
+target's event id, beside the handle, in ToolContext.appendAndProject, the one
+mutation path. The MCP tools, the batched write-back and `sofar event append`
+all stamp it; agents type only the handle. It is resolved in the writer's own
+fold. A handle that resolves to nothing there is left unstamped. A caller-supplied
+id that differs from the derived one is refused. When a payload carries an id,
+the fold resolves by it alone, among the decisions folded before the
+superseder, and never falls back to the ordinal. An id naming nothing folded
+is inert. State's `supersedes` then reads the target's CURRENT handle, so
+every projection names the decision actually replaced. A payload with no id
+(written before 2.8) resolves by its ordinal, as before. memory_promoted does
+the same for its qualified handle, resolved in the named record: the fold
+retires within a record by id, and doctor's repo-memory axis resolves a
+cross-record one by id. (2) `until:
 "<task id>"` scopes the decision to a task of this record: it is in force
 until that task RESOLVES (done or dropped, as replayed) — derived at read
 time from the task's final status (core/retire.ts), never stored; an id the
@@ -4254,7 +4280,9 @@ rule-carrying decision is retired ONLY by a superseder that itself carries
 `rule` — the fold leaves a rule-less superseder's reference inert — so the
 set of standing constraints only ever shrinks by an explicit new constraint
 that names the old one. COUNTERS: ordinals `D<n>` and `Next ids` count every
-decision, retired or not; a retired D7 is D7 in every citation. SURFACES:
+decision, retired or not; a retired D7 is D7 in every citation of that
+log, and only a merge that interleaves two logs' decisions renumbers them,
+which is why supersession resolves by id. SURFACES:
 the SessionStart digest (renderStatus) and the relevant-lessons line drop
 retired decisions; the full status and the review packet demand only rules
 in force; decisions.md keeps every decision and marks the retired ones
@@ -6033,6 +6061,22 @@ stay the underlying derivation's, and exit codes are styling-independent.
   a retired decision is not a lesson and the switch restores it; the
   fold-parity suite passes with `FP-10-decision-supersession` and the
   earlier goldens unchanged.
+- **Merge-stable supersession (memory-lead 2.8, D12):** a decision_logged or
+  memory_promoted carrying `supersedes` is appended with `supersedes_id`, the
+  target's event id, from the writer's own fold, through sofar_log_decision,
+  a batched write-back (including a decision superseding one filed earlier in
+  the same batch), sofar_remember and `sofar event append`. A handle that
+  resolves to nothing is appended unstamped, and a caller-supplied id that
+  differs from the derived one appends nothing. The fold resolves a stamped
+  supersession by id only: after two branches' decisions interleave, it
+  retires the decision the writer named and leaves its new neighbour in
+  force, and it names the target's current handle in state. An id naming
+  nothing folded is inert, never the ordinal. It folds to the same state
+  from shuffled lines. An unstamped payload resolves by its ordinal, as
+  before. The decision-scope and labels tiers retire the same ordinal. A
+  real two-branch `git merge` of a record where one branch superseded its
+  own D1 leaves both branches' rules standing and only the replaced one
+  retired (test/merge-stable.test.ts).
 - **Code-unit order (r1-fixes 5.2, rust-core D6):** every sort of a path,
   slug, session or event id or lexicon term on a shared surface goes through
   `byCodeUnit` (core/order.ts) — plain `<`/`>` on strings, UTF-16 code-unit

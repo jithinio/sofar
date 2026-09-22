@@ -1,7 +1,13 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
-import { validatePayload, isClosedInitiativeStatus, isKnownEventType } from '@sofar/schema'
+import {
+  DECISION_HANDLE_RE,
+  MEMORY_HANDLE_RE,
+  validatePayload,
+  isClosedInitiativeStatus,
+  isKnownEventType,
+} from '@sofar/schema'
 import type { ToolErrorCode, ToolErrorShape } from '@sofar/schema/tool-inputs'
 import { makeEvent, SOURCES, type Actor, type EventEnvelope, type Source } from '../core/envelope'
 import { appendEvent, serializeEvent } from '../core/log'
@@ -535,12 +541,47 @@ export function createToolContext(rootDir: string): ToolContext {
     return state
   }
 
+  /**
+   * Stamp a supersession with its target's event id (memory-lead 2.8, D12).
+   *
+   * `D<n>` and `M<n>` are positions in id order, and a union merge of two
+   * branches that both wrote moves them, so the fold resolves by the id when a
+   * payload carries one. It is stamped here, on the one mutation path, so the
+   * MCP tools, the batched write-back and `sofar event append` all get it, and
+   * agents keep typing the handle. The target is resolved in THIS writer's
+   * fold: the record its author was reading. A handle that resolves to nothing
+   * (forward, self, a record with no such entry) is left unstamped, and the
+   * fold treats it as inert, as before. The handle stays as written for readers
+   * that predate the stamp. A caller-supplied id must be the one derived.
+   */
+  function stampSupersession(slug: string, type: string, payload: Record<string, unknown>): Record<string, unknown> {
+    const handle = payload.supersedes
+    if ((type !== 'decision_logged' && type !== 'memory_promoted') || typeof handle !== 'string') return payload
+    let target: string | undefined
+    if (type === 'decision_logged') {
+      const m = DECISION_HANDLE_RE.exec(handle)
+      if (m !== null) target = foldState(slug).decisions[Number(m[1]) - 1]?.id
+    } else {
+      const m = MEMORY_HANDLE_RE.exec(handle)
+      if (m !== null) target = foldState(m[1]!).memories[Number(m[2]) - 1]?.id
+    }
+    const given = payload.supersedes_id
+    if (given === undefined) return target === undefined ? payload : { ...payload, supersedes_id: target }
+    if (given !== target) {
+      throw new ToolError('invalid_input', `refusing to append ${type}: supersedes_id is stamped by the writer — omit it`, [
+        `supersedes_id: ${handle} is ${target === undefined ? 'no entry' : target} in this checkout, not ${String(given)}`,
+      ])
+    }
+    return payload
+  }
+
   function appendAndProject(
     slug: string,
     type: string,
-    payload: Record<string, unknown>,
+    raw: Record<string, unknown>,
     options?: AppendOptions,
   ): EventEnvelope {
+    const payload = stampSupersession(slug, type, raw)
     // Belt and braces: tool arg validation should make this unreachable, but
     // an invalid payload must never reach the log.
     const check = validatePayload(type, payload)

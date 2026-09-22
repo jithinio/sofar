@@ -847,9 +847,20 @@ function auditRepoMemory(rootDir: string, folded: Folded[]): Section {
   // A superseded memory (r1-fixes D8) is retired: its successor is what
   // repo.md should name, so the old handle stops being reported. Resolved
   // across every folded record here, since a supersession may cross records.
+  // A stamped one (memory-lead 2.8, D12) is resolved by id: its `M<n>` moves
+  // when a merge renumbers the target record, and the id never does.
+  const handleOf = new Map(
+    folded.flatMap(({ slug, state }) => (state?.memories ?? []).map((memory, index) => [memory.id, `${slug} M${index + 1}`] as const)),
+  )
   const retired = new Set(
     folded.flatMap(({ state }) =>
-      (state?.memories ?? []).flatMap((memory) => (memory.supersedes !== undefined ? [memory.supersedes] : [])),
+      (state?.memories ?? []).flatMap((memory) => {
+        if (memory.supersedes_id !== undefined) {
+          const handle = handleOf.get(memory.supersedes_id)
+          return handle !== undefined ? [handle] : []
+        }
+        return memory.supersedes !== undefined ? [memory.supersedes] : []
+      }),
     ),
   )
   const promoted = folded.flatMap(({ slug, state }) =>

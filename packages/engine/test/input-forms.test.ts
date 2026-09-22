@@ -122,7 +122,9 @@ describe('sofar remember --supersedes (r1-fixes 1.5, D8)', () => {
     const r = runRemember(root, 'deploy with npm run release', { initiative: 'alpha', supersedes: 'M1' }, PLAIN, PLAIN)
     expect(r.exitCode).toBe(0)
     expect(r.stdout).toContain('promoted alpha M2 (supersedes alpha M1, now retired)')
-    expect(lastEvent(root).payload).toEqual({ text: 'deploy with npm run release', supersedes: 'alpha M1' })
+    // The writer stamps the replaced memory's id beside the handle (memory-lead 2.8, D12).
+    const firstId = foldLog(logPath(root)).state.memories[0]!.id
+    expect(lastEvent(root).payload).toEqual({ text: 'deploy with npm run release', supersedes: 'alpha M1', supersedes_id: firstId })
 
     const { state } = foldLog(logPath(root))
     expect(state.memories[0]).toMatchObject({ superseded_by: 'alpha M2' })
