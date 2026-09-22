@@ -79,4 +79,4 @@ Progress: 15/26 tasks done (57%)
 - [ ] 6.3 Replace stale public claims: one-pager R04 figures, install name @alignlabs/sofar, "adds nothing to your bill" next to --cost-cap
 
 Active phase: Phase 5 — Round 2
-Next action: 5.0: check each smoke against PRE-REGISTRATION-R2 §9, run crosscell.py --round smoke-r2, then touch round2-smokes.done.
+Next action: 5.0: confirm the first re-run Claude session's validity.json is ok, then check each smoke against PRE-REGISTRATION-R2 §9.
