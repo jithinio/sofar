@@ -883,6 +883,9 @@ pub fn rank_lexicon(
         let docs = docs_of(index.state(slug).expect("found"));
         // Doc position → hits, in first-seen order.
         let mut hits: Vec<(usize, Vec<Hit<'_>>)> = Vec::new();
+        // Doc position → its slot in `hits`: a common term has thousands of
+        // postings in one record, and a scan per posting is quadratic.
+        let mut slot: HashMap<usize, usize> = HashMap::new();
         for (term, rows) in terms {
             for p in rows {
                 #[allow(
@@ -898,9 +901,11 @@ pub fn rank_lexicon(
                 let Some(doc) = docs.get(at) else { continue };
                 let damp = K1 * (1.0 - B + (B * doc.len) / average);
                 let weight = idf[term] * ((p.tf * (K1 + 1.0)) / (p.tf + damp));
-                match hits.iter_mut().find(|(a, _)| *a == at) {
-                    Some((_, row)) => row.push((term, weight, p.over)),
-                    None => hits.push((at, vec![(term, weight, p.over)])),
+                if let Some(&i) = slot.get(&at) {
+                    hits[i].1.push((term, weight, p.over));
+                } else {
+                    slot.insert(at, hits.len());
+                    hits.push((at, vec![(term, weight, p.over)]));
                 }
             }
         }
