@@ -131,6 +131,18 @@ impl Object {
         }
     }
 
+    /// Append a key the caller knows is absent: [`Object::insert`] without
+    /// its duplicate scan, for an object built from keys that are already
+    /// unique. Built through `insert`, the index's 60,691-key `files` object
+    /// costs O(K²).
+    pub(crate) fn push_unique(&mut self, key: String, value: Json) {
+        debug_assert!(
+            !self.contains_key(&key),
+            "push_unique: {key:?} is already present"
+        );
+        self.entries.push((key, value));
+    }
+
     /// [`Object::insert`] for the parser, with the same rule. Past
     /// [`PARSE_INDEX_AT`] keys, a repeated key is found through `keys` (key →
     /// position, built here on first need) instead of a scan. Without it,

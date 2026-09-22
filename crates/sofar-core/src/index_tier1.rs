@@ -3,6 +3,8 @@
 //! half (path → session → [ts, touches]) on two cursors, and the adjacency
 //! derivation the `SessionStart` block renders.
 
+use std::collections::HashMap;
+
 use crate::index_pass::{PassResult, SlugReducer, pass_over_record};
 use crate::index_store::{
     INDEX_SCHEMA_VERSION, read_index_file, tier_initiatives, write_index_file,
@@ -40,9 +42,42 @@ pub struct SlugGuardState {
 pub type PathSessions = Vec<(String, (String, f64))>;
 
 /// path → sessions, insertion-ordered.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default)]
 pub struct SlugFileState {
     pub files: Vec<(String, PathSessions)>,
+    /// The paths in `files`. Rebuilt on demand, never serialized or compared.
+    index: PathIndex,
+}
+
+impl PartialEq for SlugFileState {
+    fn eq(&self, other: &Self) -> bool {
+        self.files == other.files
+    }
+}
+
+/// What `files.iter().position(|(p, _)| p == path)` answers, in O(1): the
+/// TypeScript `state.files[path]` lookup. `applyFile` asks once per
+/// `file_touched` event, so the scan made the index pass O(file events ×
+/// paths), 1.5 turn 1's shape: ~1.5 s of a 7 s cold session-start at team100.
+///
+/// Exact for the same reason as `fold::FileIndex`: the reducer only PUSHES
+/// to `files`, with paths unique in it, so indexing the vec's new tail on each
+/// call sees every path a scan would. A state read back from disk starts empty
+/// and indexes on first use.
+#[derive(Debug, Clone, Default)]
+struct PathIndex {
+    indexed: usize,
+    by_path: HashMap<String, usize>,
+}
+
+impl PathIndex {
+    fn position(&mut self, files: &[(String, PathSessions)], path: &str) -> Option<usize> {
+        for (i, (p, _)) in files.iter().enumerate().skip(self.indexed) {
+            self.by_path.entry(p.clone()).or_insert(i);
+        }
+        self.indexed = files.len();
+        self.by_path.get(path).copied()
+    }
 }
 
 impl SlugGuardState {
@@ -107,7 +142,9 @@ impl SlugFileState {
                     Json::Arr(vec![Json::Str(ts.clone()), Json::Num(*n)]),
                 );
             }
-            files.insert(path.clone(), Json::Obj(by_session));
+            // Unique by construction: from_json reads an object's keys, and
+            // the reducer pushes only a path its index does not hold.
+            files.push_unique(path.clone(), Json::Obj(by_session));
         }
         let mut o = Object::with_capacity(1);
         o.insert("files", Json::Obj(files));
@@ -128,7 +165,10 @@ impl SlugFileState {
             }
             out.push((path.to_owned(), by_session));
         }
-        Some(Self { files: out })
+        Some(Self {
+            files: out,
+            index: PathIndex::default(),
+        })
     }
 }
 
@@ -180,7 +220,7 @@ impl SlugReducer for FileReducer {
         let Some(path) = event.payload.get("path").and_then(Json::as_str) else {
             return;
         };
-        let i = if let Some(i) = state.files.iter().position(|(p, _)| p == path) {
+        let i = if let Some(i) = state.index.position(&state.files, path) {
             i
         } else {
             state.files.push((path.to_owned(), Vec::new()));
@@ -420,6 +460,68 @@ mod tests {
         assert_eq!(refresh_neighbours(&layout, "a")[0].paths, 2);
         assert_eq!(refresh_guards(&layout).guards.len(), 1);
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_file_reducer_keeps_first_positions_across_a_restored_state() {
+        let touch = |id: &str, session: &str, path: &str| {
+            let mut payload = Object::new();
+            payload.insert("path", Json::Str(path.to_owned()));
+            IndexedEvent {
+                id: id.to_owned(),
+                event_type: "file_touched".to_owned(),
+                session: session.to_owned(),
+                initiative: "a".to_owned(),
+                payload,
+                ts: "2026-01-01T00:00:00.000Z".to_owned(),
+            }
+        };
+        let mut state = FileReducer.empty();
+        FileReducer.apply(
+            &mut state,
+            &touch("01ARZ3NDEKTSV4RRFFQ69G5FA1", "s1", "b.ts"),
+            "a",
+        );
+        FileReducer.apply(
+            &mut state,
+            &touch("01ARZ3NDEKTSV4RRFFQ69G5FA2", "s1", "a.ts"),
+            "a",
+        );
+        // Written and read back, as a warm start does: the index starts empty.
+        let mut state = SlugFileState::from_json(&state.to_json()).unwrap();
+        FileReducer.apply(
+            &mut state,
+            &touch("01ARZ3NDEKTSV4RRFFQ69G5FA3", "s2", "b.ts"),
+            "a",
+        );
+        FileReducer.apply(
+            &mut state,
+            &touch("01ARZ3NDEKTSV4RRFFQ69G5FA4", "s1", "c.ts"),
+            "a",
+        );
+        FileReducer.apply(
+            &mut state,
+            &touch("01ARZ3NDEKTSV4RRFFQ69G5FA5", "s1", "a.ts"),
+            "a",
+        );
+        let ts = "2026-01-01T00:00:00.000Z".to_owned();
+        assert_eq!(
+            state.files,
+            vec![
+                (
+                    "b.ts".to_owned(),
+                    vec![
+                        ("s1".to_owned(), (ts.clone(), 1.0)),
+                        ("s2".to_owned(), (ts.clone(), 1.0))
+                    ]
+                ),
+                (
+                    "a.ts".to_owned(),
+                    vec![("s1".to_owned(), (ts.clone(), 2.0))]
+                ),
+                ("c.ts".to_owned(), vec![("s1".to_owned(), (ts, 1.0))]),
+            ]
+        );
     }
 }
 
