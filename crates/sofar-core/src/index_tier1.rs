@@ -20,7 +20,8 @@ pub const GUARDS_META: &str = "meta-guards.json";
 pub const FILES_FILE: &str = "graph.json";
 pub const FILES_META: &str = "meta-graph.json";
 
-/// A decision that declared which work it governs (rule + guard).
+/// A decision that declared which work it governs (rule + guard) — the
+/// scope-tier entries carrying both, superseded ones included and marked.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GuardedDecision {
     pub id: String,
@@ -30,12 +31,49 @@ pub struct GuardedDecision {
     pub rule: String,
     pub guard: String,
     pub chose: String,
+    pub superseded_by: Option<f64>,
 }
 
+/// A decision in the decision-scope tier (memory-lead 2.1, D6): one that
+/// declares the work it governs (rule + guard), names a file in its chose,
+/// over, rule or check command, or carries a rule at all (memory-lead 2.2,
+/// D8). Its fields are what a notice renders, so a hook never folds.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScopedDecision {
+    pub id: String,
+    pub initiative: String,
+    pub ordinal: f64,
+    pub ts: String,
+    /// `headSource`: whitespace-collapsed, trimmed, first 120 UTF-16 units.
+    pub chose: String,
+    pub over: String,
+    pub rule: Option<String>,
+    pub quote: Option<String>,
+    /// Only alongside `rule`.
+    pub guard: Option<String>,
+    /// Only alongside `rule` (memory-lead 2.3, D9): `{cmd, hint?, timeout_ms?}`.
+    pub check: Option<Json>,
+    pub until: Option<String>,
+    pub superseded_by: Option<f64>,
+    /// File tokens of chose, over, rule and the check's command.
+    pub mentions: Vec<String>,
+}
+
+/// One initiative's scope-tier state (`SlugGuardState`), in the TypeScript
+/// key order the index file holds.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SlugGuardState {
+    /// `decision_logged` events applied so far — the `D<n>` base.
     pub decisions: f64,
-    pub guards: Vec<GuardedDecision>,
+    /// `'1'` where that ordinal carries a rule, else `'0'`, for EVERY decision.
+    pub ruled: String,
+    /// The event id of EVERY decision, by ordinal − 1 (memory-lead 2.8, D12).
+    pub ids: Vec<String>,
+    /// Ordinals a later decision superseded, ascending.
+    pub superseded: Vec<f64>,
+    /// Ordinals scoped by `until`.
+    pub until: Vec<f64>,
+    pub entries: Vec<ScopedDecision>,
 }
 
 /// session id → (most recent ts, touch count), insertion-ordered.
@@ -80,54 +118,117 @@ impl PathIndex {
     }
 }
 
+impl ScopedDecision {
+    fn to_json(&self) -> Json {
+        let mut d = Object::with_capacity(13);
+        d.insert("id", Json::Str(self.id.clone()));
+        d.insert("initiative", Json::Str(self.initiative.clone()));
+        d.insert("ordinal", Json::Num(self.ordinal));
+        d.insert("ts", Json::Str(self.ts.clone()));
+        d.insert("chose", Json::Str(self.chose.clone()));
+        d.insert("over", Json::Str(self.over.clone()));
+        let opt = |d: &mut Object, k: &str, v: &Option<String>| {
+            if let Some(v) = v {
+                d.insert(k, Json::Str(v.clone()));
+            }
+        };
+        opt(&mut d, "rule", &self.rule);
+        opt(&mut d, "quote", &self.quote);
+        opt(&mut d, "guard", &self.guard);
+        if let Some(check) = &self.check {
+            d.insert("check", check.clone());
+        }
+        opt(&mut d, "until", &self.until);
+        d.insert(
+            "mentions",
+            Json::Arr(self.mentions.iter().map(|m| Json::Str(m.clone())).collect()),
+        );
+        // Set after the push, so it follows `mentions` in the TypeScript object.
+        if let Some(by) = self.superseded_by {
+            d.insert("superseded_by", Json::Num(by));
+        }
+        Json::Obj(d)
+    }
+
+    fn from_json(v: &Json) -> Option<Self> {
+        let g = v.as_obj()?;
+        let s = |k: &str| g.get(k)?.as_str().map(str::to_owned);
+        let opt = |k: &str| match g.get(k) {
+            None => Some(None),
+            Some(v) => v.as_str().map(|s| Some(s.to_owned())),
+        };
+        Some(ScopedDecision {
+            id: s("id")?,
+            initiative: s("initiative")?,
+            ordinal: g.get("ordinal")?.as_f64()?,
+            ts: s("ts")?,
+            chose: s("chose")?,
+            over: s("over")?,
+            rule: opt("rule")?,
+            quote: opt("quote")?,
+            guard: opt("guard")?,
+            check: g.get("check").cloned(),
+            until: opt("until")?,
+            superseded_by: match g.get("superseded_by") {
+                None => None,
+                Some(v) => Some(v.as_f64()?),
+            },
+            mentions: g
+                .get("mentions")?
+                .as_arr()?
+                .iter()
+                .map(|m| m.as_str().map(str::to_owned))
+                .collect::<Option<_>>()?,
+        })
+    }
+}
+
+fn nums(v: &[f64]) -> Json {
+    Json::Arr(v.iter().map(|n| Json::Num(*n)).collect())
+}
+
+fn read_nums(v: Option<&Json>) -> Option<Vec<f64>> {
+    v?.as_arr()?.iter().map(Json::as_f64).collect()
+}
+
 impl SlugGuardState {
     fn to_json(&self) -> Json {
-        let mut o = Object::with_capacity(2);
+        let mut o = Object::with_capacity(6);
         o.insert("decisions", Json::Num(self.decisions));
+        o.insert("ruled", Json::Str(self.ruled.clone()));
         o.insert(
-            "guards",
-            Json::Arr(
-                self.guards
-                    .iter()
-                    .map(|g| {
-                        let mut d = Object::with_capacity(7);
-                        d.insert("id", Json::Str(g.id.clone()));
-                        d.insert("initiative", Json::Str(g.initiative.clone()));
-                        d.insert("ordinal", Json::Num(g.ordinal));
-                        d.insert("ts", Json::Str(g.ts.clone()));
-                        d.insert("rule", Json::Str(g.rule.clone()));
-                        d.insert("guard", Json::Str(g.guard.clone()));
-                        d.insert("chose", Json::Str(g.chose.clone()));
-                        Json::Obj(d)
-                    })
-                    .collect(),
-            ),
+            "ids",
+            Json::Arr(self.ids.iter().map(|i| Json::Str(i.clone())).collect()),
+        );
+        o.insert("superseded", nums(&self.superseded));
+        o.insert("until", nums(&self.until));
+        o.insert(
+            "entries",
+            Json::Arr(self.entries.iter().map(ScopedDecision::to_json).collect()),
         );
         Json::Obj(o)
     }
 
     fn from_json(v: &Json) -> Option<Self> {
         let o = v.as_obj()?;
-        let decisions = o.get("decisions")?.as_f64()?;
-        let guards = o
-            .get("guards")?
-            .as_arr()?
-            .iter()
-            .map(|g| {
-                let g = g.as_obj()?;
-                let s = |k: &str| g.get(k)?.as_str().map(str::to_owned);
-                Some(GuardedDecision {
-                    id: s("id")?,
-                    initiative: s("initiative")?,
-                    ordinal: g.get("ordinal")?.as_f64()?,
-                    ts: s("ts")?,
-                    rule: s("rule")?,
-                    guard: s("guard")?,
-                    chose: s("chose")?,
-                })
-            })
-            .collect::<Option<Vec<_>>>()?;
-        Some(Self { decisions, guards })
+        Some(Self {
+            decisions: o.get("decisions")?.as_f64()?,
+            ruled: o.get("ruled")?.as_str()?.to_owned(),
+            ids: o
+                .get("ids")?
+                .as_arr()?
+                .iter()
+                .map(|i| i.as_str().map(str::to_owned))
+                .collect::<Option<_>>()?,
+            superseded: read_nums(o.get("superseded"))?,
+            until: read_nums(o.get("until"))?,
+            entries: o
+                .get("entries")?
+                .as_arr()?
+                .iter()
+                .map(ScopedDecision::from_json)
+                .collect::<Option<_>>()?,
+        })
     }
 }
 
@@ -172,35 +273,136 @@ impl SlugFileState {
     }
 }
 
+/// `SCOPE_HEAD_SOURCE`: how much of a decision's chose and over the tier
+/// keeps — every head a notice renders (`minutiaeHead`, ≤ 90) depends only on
+/// the first 90 units and on whether the text runs past them.
+pub const SCOPE_HEAD_SOURCE: usize = 120;
+
+/// `headSource`.
+fn head_source(text: &str) -> String {
+    crate::text::utf16_prefix(&crate::text::one_line(text), SCOPE_HEAD_SOURCE)
+}
+
+/// `supersededOrdinal`: the ordinal a `supersedes` retires, as the fold
+/// resolves it — where the stamped id sits among the decisions before this
+/// one (memory-lead 2.8, D12), never the handle; else the handle's own.
+fn superseded_ordinal(p: &Object, handle: &str, ordinal: usize, ids: &[String]) -> Option<f64> {
+    if let Some(id) = p.get("supersedes_id").and_then(Json::as_str) {
+        return ids[..ordinal - 1]
+            .iter()
+            .rposition(|i| i == id)
+            .map(|i| crate::json::usize_to_f64(i + 1));
+    }
+    let digits = handle.strip_prefix('D')?;
+    if digits.is_empty() || digits.starts_with('0') || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    // Number(m[1]): a huge handle is still an integer, and never below `ordinal`.
+    Some(digits.parse::<f64>().unwrap_or(f64::INFINITY))
+}
+
 struct GuardReducer;
 impl SlugReducer for GuardReducer {
     type State = SlugGuardState;
     fn empty(&self) -> SlugGuardState {
         SlugGuardState::default()
     }
-    /// `applyGuard`: counted BEFORE the guard test — `D<n>` is a position among all decisions.
+    /// `applyGuard`: the decision-scope half, mirroring the fold's own
+    /// bookkeeping — the same ordinals and the same supersession marks.
     fn apply(&self, state: &mut SlugGuardState, event: &IndexedEvent, slug: &str) {
         if event.event_type != "decision_logged" {
             return;
         }
+        let p = &event.payload;
+        // Counted BEFORE the scope test: `D<n>` is a position among all decisions.
         state.decisions += 1.0;
-        let (Some(rule), Some(guard)) = (
-            event.payload.get("rule").and_then(Json::as_str),
-            event.payload.get("guard").and_then(Json::as_str),
-        ) else {
-            return;
+        let ordinal = state.decisions;
+        let rule = p.get("rule").and_then(Json::as_str);
+        let ruled = rule.is_some();
+        state.ruled.push(if ruled { '1' } else { '0' });
+        state.ids.push(event.id.clone());
+
+        // Supersession, exactly as the fold resolves it: inert when it points
+        // forward or at itself, or when a rule-less decision names a rule.
+        // The last superseder wins the mark, as it does in the fold.
+        if let Some(handle) = p.get("supersedes").and_then(Json::as_str)
+            && let Some(n) = superseded_ordinal(p, handle, state.ids.len(), &state.ids)
+            && n.fract() == 0.0
+            && n >= 1.0
+            && n < ordinal
+        {
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "1 <= n < ordinal"
+            )]
+            let at = n as usize - 1;
+            if state.ruled.as_bytes().get(at) != Some(&b'1') || ruled {
+                if !state.superseded.contains(&n) {
+                    state.superseded.push(n);
+                    state.superseded.sort_by(f64::total_cmp);
+                }
+                if let Some(target) = state
+                    .entries
+                    .iter_mut()
+                    .find(|e| e.ordinal.total_cmp(&n).is_eq())
+                {
+                    target.superseded_by = Some(ordinal);
+                }
+            }
+        }
+        let until = p.get("until").and_then(Json::as_str);
+        if until.is_some() {
+            state.until.push(ordinal);
+        }
+
+        let text = |k: &str| {
+            p.get(k)
+                .map_or_else(|| "undefined".to_owned(), crate::json::js_to_string)
         };
-        state.guards.push(GuardedDecision {
+        let guard = rule.and(p.get("guard").and_then(Json::as_str));
+        let check = rule
+            .and(p.get("check").and_then(Json::as_obj))
+            .filter(|c| c.get("cmd").and_then(Json::as_str).is_some());
+        let cmd = check
+            .and_then(|c| c.get("cmd").and_then(Json::as_str))
+            .unwrap_or("");
+        let mentions = crate::file_mentions::file_mentions(
+            &[
+                text("chose"),
+                text("over"),
+                rule.unwrap_or("").to_owned(),
+                cmd.to_owned(),
+            ]
+            .join("\n"),
+        );
+        if !ruled && mentions.is_empty() {
+            return;
+        }
+        state.entries.push(ScopedDecision {
             id: event.id.clone(),
             initiative: slug.to_owned(),
-            ordinal: state.decisions,
+            ordinal,
             ts: event.ts.clone(),
-            rule: rule.to_owned(),
-            guard: guard.to_owned(),
-            chose: event
-                .payload
-                .get("chose")
-                .map_or_else(|| "undefined".to_owned(), crate::json::js_to_string),
+            chose: head_source(&text("chose")),
+            over: head_source(&text("over")),
+            rule: rule.map(str::to_owned),
+            quote: rule
+                .and(p.get("quote").and_then(Json::as_str))
+                .map(str::to_owned),
+            guard: guard.map(str::to_owned),
+            check: check.map(|c| {
+                let mut o = Object::with_capacity(3);
+                for key in ["cmd", "hint", "timeout_ms"] {
+                    if let Some(v) = c.get(key) {
+                        o.insert(key, v.clone());
+                    }
+                }
+                Json::Obj(o)
+            }),
+            until: until.map(str::to_owned),
+            superseded_by: None,
+            mentions,
         });
     }
 }
@@ -239,7 +441,7 @@ impl SlugReducer for FileReducer {
     }
 }
 
-fn read_half<S>(
+pub(crate) fn read_half<S>(
     layout: &Layout,
     file: &str,
     parse: impl Fn(&Json) -> Option<S>,
@@ -256,7 +458,7 @@ fn read_half<S>(
     Some(out)
 }
 
-fn write_half<S>(
+pub(crate) fn write_half<S>(
     layout: &Layout,
     file: &str,
     states: &[(String, S)],
@@ -294,46 +496,155 @@ fn refresh_file_states(layout: &Layout) -> Vec<(String, SlugFileState)> {
     states
 }
 
-/// The declared half, repo-wide (`GuardIndex`): guards sorted by initiative then
-/// ordinal, and decision counts per slug.
+/// The declared half, repo-wide (`GuardIndex`): the guarded entries and every
+/// scope-tier entry, each by initiative then ordinal; the retired handles;
+/// decision counts per slug.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct GuardIndex {
     pub guards: Vec<GuardedDecision>,
+    pub scoped: Vec<ScopedDecision>,
+    /// `<slug> D<n>` of every superseded or until-scoped decision.
+    pub retired: std::collections::HashSet<String>,
     pub decisions: Vec<(String, f64)>,
+}
+
+fn by_initiative_then_ordinal(a: (&str, f64), b: (&str, f64)) -> std::cmp::Ordering {
+    if a.0 == b.0 {
+        a.1.total_cmp(&b.1)
+    } else {
+        cmp_utf16(a.0, b.0)
+    }
 }
 
 fn declared_view(states: &[(String, SlugGuardState)]) -> GuardIndex {
     let mut slugs: Vec<&(String, SlugGuardState)> = states.iter().collect();
     slugs.sort_by(|a, b| cmp_utf16(&a.0, &b.0));
-    let mut guards = Vec::new();
-    let mut decisions = Vec::new();
+    let mut index = GuardIndex::default();
     for (slug, state) in slugs {
-        guards.extend(state.guards.iter().cloned());
-        decisions.push((slug.clone(), state.decisions));
-    }
-    guards.sort_by(|a, b| {
-        if a.initiative == b.initiative {
-            a.ordinal
-                .partial_cmp(&b.ordinal)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        } else {
-            cmp_utf16(&a.initiative, &b.initiative)
+        index.decisions.push((slug.clone(), state.decisions));
+        for n in state.superseded.iter().chain(&state.until) {
+            index
+                .retired
+                .insert(format!("{slug} D{}", crate::json::number_to_string(*n)));
         }
+        for entry in &state.entries {
+            index.scoped.push(entry.clone());
+            if let (Some(rule), Some(guard)) = (&entry.rule, &entry.guard) {
+                index.guards.push(GuardedDecision {
+                    id: entry.id.clone(),
+                    initiative: entry.initiative.clone(),
+                    ordinal: entry.ordinal,
+                    ts: entry.ts.clone(),
+                    rule: rule.clone(),
+                    guard: guard.clone(),
+                    chose: entry.chose.clone(),
+                    superseded_by: entry.superseded_by,
+                });
+            }
+        }
+    }
+    index.guards.sort_by(|a, b| {
+        by_initiative_then_ordinal((&a.initiative, a.ordinal), (&b.initiative, b.ordinal))
     });
-    GuardIndex { guards, decisions }
+    index.scoped.sort_by(|a, b| {
+        by_initiative_then_ordinal((&a.initiative, a.ordinal), (&b.initiative, b.ordinal))
+    });
+    index
 }
 
-/// `refreshGuards`: bring the declared half up to date.
+/// `refreshGuards`: bring the declared half up to date — every decision in
+/// the repo that guards or names a file, or carries a rule.
 #[must_use]
 pub fn refresh_guards(layout: &Layout) -> GuardIndex {
     declared_view(&refresh_guard_states(layout))
 }
 
+/// One other record's standing rule, as the digest renders it (memory-lead
+/// 2.2, D8).
+#[derive(Debug, Clone, PartialEq)]
+pub struct RepoRule {
+    pub initiative: String,
+    pub ordinal: f64,
+    pub ts: String,
+    pub rule: String,
+    pub quote: Option<String>,
+}
+
+/// `repoRules`: every other record's standing rules — the ruled scope entries
+/// outside `slug`, minus those a later rule of their own record replaced,
+/// unless `retire` is off (`SOFAR_RETIRE`, r1-fixes D25).
+#[must_use]
+pub fn repo_rules(index: &GuardIndex, slug: &str, retire: bool) -> Vec<RepoRule> {
+    index
+        .scoped
+        .iter()
+        .filter(|d| d.initiative != slug && !(retire && d.superseded_by.is_some()))
+        .filter_map(|d| {
+            Some(RepoRule {
+                initiative: d.initiative.clone(),
+                ordinal: d.ordinal,
+                ts: d.ts.clone(),
+                rule: d.rule.clone()?,
+                quote: d.quote.clone(),
+            })
+        })
+        .collect()
+}
+
+/// How one in-scope decision bears on one subject (`ScopeHit`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScopeHit<'a> {
+    pub decision: &'a ScopedDecision,
+    /// Its guard matches the subject: relevance the author DECLARED.
+    pub guarded: bool,
+    /// Segments of the path the decision's best file token names; 0 when none does.
+    pub depth: usize,
+}
+
+/// `scopeHitsForSubject`: every in-scope decision that guards or names this
+/// subject. A path is matched against guards and mentions, a command against
+/// `cmd:` guards only. Retirement is the caller's to apply.
+#[must_use]
+pub fn scope_hits_for_subject<'a>(
+    index: &'a GuardIndex,
+    domain: crate::guards::GuardDomain,
+    subject: &str,
+) -> Vec<ScopeHit<'a>> {
+    let mut hits = Vec::new();
+    for decision in &index.scoped {
+        let guarded = decision.guard.as_deref().is_some_and(|guard| {
+            crate::guards::parse_guard(guard)
+                .is_some_and(|g| g.domain == domain && crate::guards::guard_matches(&g, subject))
+        });
+        let depth = if domain == crate::guards::GuardDomain::Path {
+            decision
+                .mentions
+                .iter()
+                .map(|t| crate::file_mentions::mention_depth(t, subject))
+                .max()
+                .unwrap_or(0)
+        } else {
+            0
+        };
+        if guarded || depth > 0 {
+            hits.push(ScopeHit {
+                decision,
+                guarded,
+                depth,
+            });
+        }
+    }
+    hits
+}
+
 /// `refreshNeighbours` (record-index 3.3): the records that have worked this
 /// one's files, densest first.
 #[must_use]
-pub fn refresh_neighbours(layout: &Layout, slug: &str) -> Vec<NeighbourRecord> {
-    let declared = refresh_guards(layout);
+pub fn refresh_neighbours(
+    layout: &Layout,
+    slug: &str,
+    declared: &GuardIndex,
+) -> Vec<NeighbourRecord> {
     let states = refresh_file_states(layout);
     let Some((_, mine)) = states.iter().find(|(s, _)| s == slug) else {
         return Vec::new();
@@ -427,7 +738,7 @@ mod tests {
                 + &line("01ARZ3NDEKTSV4RRFFQ69G5FB3", "b", "cli", "file_touched", "{\"path\":\"y.ts\",\"op\":\"edit\"}"),
         )
         .unwrap();
-        let n = refresh_neighbours(&layout, "a");
+        let n = refresh_neighbours(&layout, "a", &refresh_guards(&layout));
         assert_eq!(
             n,
             vec![NeighbourRecord {
@@ -439,7 +750,10 @@ mod tests {
         assert!(layout.index_dir().join(GUARDS_FILE).exists());
         assert!(layout.index_dir().join(FILES_META).exists());
         // A second refresh resumes from the cursors and answers the same.
-        assert_eq!(refresh_neighbours(&layout, "a"), n);
+        assert_eq!(
+            refresh_neighbours(&layout, "a", &refresh_guards(&layout)),
+            n
+        );
         // An append is picked up incrementally.
         let mut f = fs::OpenOptions::new()
             .append(true)
@@ -457,7 +771,10 @@ mod tests {
         )
         .unwrap();
         drop(f);
-        assert_eq!(refresh_neighbours(&layout, "a")[0].paths, 2);
+        assert_eq!(
+            refresh_neighbours(&layout, "a", &refresh_guards(&layout))[0].paths,
+            2
+        );
         assert_eq!(refresh_guards(&layout).guards.len(), 1);
         fs::remove_dir_all(&dir).unwrap();
     }

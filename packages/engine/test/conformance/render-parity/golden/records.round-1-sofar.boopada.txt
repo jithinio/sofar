@@ -1,4 +1,4 @@
-== options (40697 bytes) ==
+== options (43185 bytes) ==
 {
   "plain": {},
   "hook": {
@@ -11,6 +11,45 @@
       "upstreamFull": "fedcba9111111111111111111111111111111111",
       "synced": false
     },
+    "repoRules": [
+      {
+        "initiative": "alpha",
+        "ordinal": 3,
+        "ts": "2026-09-01T10:00:00.000Z",
+        "rule": "Always run the full suite before pushing."
+      },
+      {
+        "initiative": "beta",
+        "ordinal": 1,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Always  run the full suite\nbefore pushing."
+      },
+      {
+        "initiative": "gamma",
+        "ordinal": 7,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Never edit generated files by hand.",
+        "quote": "no hand edits to generated files"
+      },
+      {
+        "initiative": "delta",
+        "ordinal": 2,
+        "ts": "2026-08-01T00:00:00.000Z",
+        "rule": "Keep the digest under its cap."
+      },
+      {
+        "initiative": "epsilon",
+        "ordinal": 4,
+        "ts": "2026-09-03T00:00:00.000Z",
+        "rule": "Every money value in the API is {amount_minor: integer, currency: ISO code} in minor units — never decimal strings or floats; convert provider QuotedPrice via apps/web/lib/money.ts."
+      },
+      {
+        "initiative": "zeta",
+        "ordinal": 9,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Name the boopada record's goal before its tasks."
+      }
+    ],
     "repoMemory": "# Repo memory\n\nHand-written, repo-scoped notes for agents working here: conventions,\ncommands, gotchas — anything true of the repo across all initiatives.\nSofar never generates or overwrites this file; initiative state lives in\n.sofar/initiatives/<slug>/ instead.\n\n## Boopada repo notes\n\n- Runtimes (boopada M1): `next start` runs on Node 24, `bun test` on Bun. SQLite goes\n  through `apps/web/lib/server/db.ts` only (node:sqlite / bun:sqlite loaded at runtime);\n  schema changes are new entries appended to `MIGRATIONS`. Web tests call route handlers\n  directly with `BOOPADA_DB_PATH` pointing at a temp file.\n- Gotchas (boopada M2): `.sofar` is excluded from Biome (generated index JSON fails lint).\n  Smoke-test `bun run start` on a random free `PORT` — other local next servers occupy\n  fixed ports and curl will hit them silently.\n- Dynamic routes (boopada M3): `route<{ params: Promise<{ id: string }> }>(…)`; `route()`\n  keeps the context arg optional. `bun run typecheck` includes Next's generated\n  `.next/types/validator.ts`, so bad handler signatures fail there (TS2344) even when\n  `bun test` passes.\n- Deleting (boopada D6): soft delete only, via `softDelete()` in\n  `apps/web/lib/server/deletions.ts`; register new entities in its `ENTITIES`.\n- Trip dates (boopada M4, D8): a day's index/date are derived from live `trip_days` rows\n  in position order (date = start_date + index − 1) — never stored. \"Today\" for a day is\n  judged only in that day's city zone via `apps/web/lib/server/trip-time.ts`\n  (`localDate`, `todayIndex`; zones from `getCatalog().timeZones`). Prove server-zone\n  independence with `TZ=Pacific/Kiritimati bun test test/trips-api.test.ts`.\n- Env: `BOOPADA_DB_PATH` (default `./data/boopada.sqlite`, relative to `apps/web` when\n  started there), `BOOPADA_NOW` (ISO timestamp, else system clock), `PORT`.\n- Money: `{ amount_minor, currency }` everywhere; convert provider decimal strings with\n  `parseDecimal` in `apps/web/lib/money.ts`.\n- Pricing (boopada M5): money shown to the traveller is in the profile home currency.\n  Get `await getPricing()` (`apps/web/lib/server/pricing.ts`) once per request and pass it\n  to sync readers (`getTrip`, `listTrips`, `undoLastDeletion`, ENTITIES loaders); convert\n  with `inHome` / `convertMoney` (exact, half-even). Itinerary edits live in\n  `apps/web/lib/server/itinerary.ts`; items reference `trip_days.id`, never a day index.\n- Totals (boopada phase 5): day/trip totals come only from `tripSummary(trip, pricing)` in\n  `apps/web/lib/server/summary.ts` (sum of rounded item `cost`); both\n  `GET /api/trips/{id}/summary` and the `/trips/{id}` page use it. The page is two columns:\n  left itinerary (`components/itinerary-editor.tsx` + trip total), right `trip-side` aside\n  reserved for destination info.\n- To-dos (boopada M6, phase 6): `todos` table (migration 5) hangs off `trip_days.id`; all\n  logic in `apps/web/lib/server/todos.ts` (`addTodo`, `updateTodo`, `removeTodo` soft via\n  ENTITIES \"todo\", `tripNow`). \"Where am I now\" (`day_index`, `city_id`, `arrived`, open\n  to-dos of every day in that city) comes only from `tripNow(trip)` — used by\n  `GET /api/trips/{id}/now` and the `/trips/{id}` arrival banner\n  (`components/arrival-banner.tsx`). Adding a field to `TripDay` breaks exact `toEqual`\n  day assertions in `test/trips-api.test.ts` and `test/itinerary-api.test.ts`.\n- Smoke-test cleanup (M6): stop only the server you started (`lsof -ti tcp:$PORT | xargs\n  kill`); never `pkill -f \"next start\"` — it kills other local next servers too.\n- Suggestions & transport (boopada M7, phase 7): every suggester calls `offer(kind,\n  storedAction, reason, pricing)` in `apps/web/lib/server/suggestions.ts`; new action types\n  go in its `ACTIONS` registry (`resolve()` → `{ok:false, why}` or `{ok:true, action,\n  apply}`), so nothing unapplicable is ever returned. Stored actions reference rows by\n  stable id (`trip_day_id`); migration 6 `suggestions` keys them by kind + action JSON (same\n  proposal → same id). `POST /api/suggestions/{id}/apply` re-resolves (409\n  `suggestion_not_applicable`). Shape types + `proposedStartTime` in `apps/web/lib/suggestions.ts`;\n  transport costs via `cityTransport()` in `lib/server/transport.ts`. UI: `components/trip-side.tsx`\n  (aside) and `components/suggestion-list.tsx` (Add buttons, also in the arrival banner).\n  Adding a `TripNow` field breaks exact `toEqual` in `test/todos-api.test.ts`; don't pin\n  `user_version` to the latest migration in tests.\n- Curation advisor (boopada M8, phase 8): rules live only in `detectAdvice()`\n  (`apps/web/lib/server/advisor.ts`, pure, never imports suggestions.ts); `tripAdvice()` in\n  `lib/server/suggestions.ts` publishes them through `offer()`. ACTIONS gained `remove_item`,\n  `move_item`, `replace_item`. `applySuggestion` re-runs detection for `ADVICE_KINDS`\n  (`lib/suggestions.ts`) → 409 unless the same kind+action is still advised. Route\n  `GET /api/trips/{id}/advice` → `{advice}`; UI `components/advice-list.tsx` tops the aside\n  (`advice-{kind}-{n}`, `advice-apply-{n}`, n = 1-based position). Sync insert for atomic\n  replace: `insertItem()` in itinerary.ts. Fixture facts for tests: rainy low-season months\n  only hanoi (7,8), ho-chi-minh-city (6–10), da-nang/hoi-an (9–11); london, san-francisco,\n  singapore, dubai, mumbai have no climate (provider throws → no risk); da-nang has no culture\n  activity; closed days: tokyo-act-2 Sun, kyoto-act-2 Wed, lisbon-act-2 Mon, petra-act-2 open\n  Mon/Wed/Thu only; 2027-04-11 is a Sunday.\n- Chat (boopada M9, phase 9): `POST /api/chat` → `runChat()` in `apps/web/lib/server/chat.ts`,\n  a `commands` table of `[regex, handler]` over the normalized message (lowercase, single\n  spaces, trailing `.!?` stripped). A new command goes in `commands` AND `CHAT_COMMANDS`\n  (`apps/web/lib/chat.ts`; the help reply and UI hint chips read it). Handlers only dispatch\n  to existing functions (`addActivity`, `removeItem`, `undoLastDeletion`,\n  `tripAdvice`+`applySuggestion`, `updateProfile`). Rephrasable misses → 200\n  `changed:false`; unknown interest → 400 field `message` (D2). UI\n  `components/trip-chat.tsx` tops the trip aside (`chat-input`, `chat-send`, `chat-reply`,\n  `chat-suggestion-apply-{n}`, `chat-hint-{n}`). Fixture durations: lisbon-act-3 Sintra 540\n  min, lisbon-act-1 150; tokyo-act-1 150, -2 180, -3 360.\n- Demo polish (boopada M10, phase 10): `POST /api/sample-trip` → `createSampleTrip()`\n  (`apps/web/lib/server/sample-trip.ts`) builds Tokyo & Kyoto starting today in Tokyo's zone\n  via the normal create/add functions (fills only blank profile interests/budget); button\n  `components/sample-trip-button.tsx` (home + /trips empty state). Shared nav\n  `components/site-nav.tsx`; home dashboard `app/page.tsx` uses `tripTiming()` (lib/server/trips.ts:\n  now/upcoming/past, city-zone). Date labels: `formatDate` in `apps/web/lib/dates.ts`. API\n  hardening: every route file exports `methodNotAllowed(...)` (lib/server/api.ts) for verbs it\n  lacks (JSON 405); catch-all is `app/api/[[...path]]`; `apps/web/proxy.ts` turns malformed\n  %-escapes under /api into JSON 404; provider-map id checks use `Object.hasOwn`, never `in`.\n  Migration 7 `deletions.replaced_by_item_id`: undoing a replace_item swap hides the replacement\n  (`linkReplacement` in deletions.ts). Drive the real UI with playwright-core from the bun cache +\n  system Chrome (see M10); tests for all of this in `apps/web/test/demo-polish.test.ts`.\n",
     "notices": [
       "Recent work elsewhere: round-1-sofar touched 2 files 3h ago (see sofar status round-1-sofar).",
@@ -45,6 +84,45 @@
       "upstreamFull": "fedcba9111111111111111111111111111111111",
       "synced": false
     },
+    "repoRules": [
+      {
+        "initiative": "alpha",
+        "ordinal": 3,
+        "ts": "2026-09-01T10:00:00.000Z",
+        "rule": "Always run the full suite before pushing."
+      },
+      {
+        "initiative": "beta",
+        "ordinal": 1,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Always  run the full suite\nbefore pushing."
+      },
+      {
+        "initiative": "gamma",
+        "ordinal": 7,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Never edit generated files by hand.",
+        "quote": "no hand edits to generated files"
+      },
+      {
+        "initiative": "delta",
+        "ordinal": 2,
+        "ts": "2026-08-01T00:00:00.000Z",
+        "rule": "Keep the digest under its cap."
+      },
+      {
+        "initiative": "epsilon",
+        "ordinal": 4,
+        "ts": "2026-09-03T00:00:00.000Z",
+        "rule": "Every money value in the API is {amount_minor: integer, currency: ISO code} in minor units — never decimal strings or floats; convert provider QuotedPrice via apps/web/lib/money.ts."
+      },
+      {
+        "initiative": "zeta",
+        "ordinal": 9,
+        "ts": "2026-09-02T10:00:00.000Z",
+        "rule": "Name the boopada record's goal before its tasks."
+      }
+    ],
     "repoMemory": "# Repo memory\n\nHand-written, repo-scoped notes for agents working here: conventions,\ncommands, gotchas — anything true of the repo across all initiatives.\nSofar never generates or overwrites this file; initiative state lives in\n.sofar/initiatives/<slug>/ instead.\n\n## Boopada repo notes\n\n- Runtimes (boopada M1): `next start` runs on Node 24, `bun test` on Bun. SQLite goes\n  through `apps/web/lib/server/db.ts` only (node:sqlite / bun:sqlite loaded at runtime);\n  schema changes are new entries appended to `MIGRATIONS`. Web tests call route handlers\n  directly with `BOOPADA_DB_PATH` pointing at a temp file.\n- Gotchas (boopada M2): `.sofar` is excluded from Biome (generated index JSON fails lint).\n  Smoke-test `bun run start` on a random free `PORT` — other local next servers occupy\n  fixed ports and curl will hit them silently.\n- Dynamic routes (boopada M3): `route<{ params: Promise<{ id: string }> }>(…)`; `route()`\n  keeps the context arg optional. `bun run typecheck` includes Next's generated\n  `.next/types/validator.ts`, so bad handler signatures fail there (TS2344) even when\n  `bun test` passes.\n- Deleting (boopada D6): soft delete only, via `softDelete()` in\n  `apps/web/lib/server/deletions.ts`; register new entities in its `ENTITIES`.\n- Trip dates (boopada M4, D8): a day's index/date are derived from live `trip_days` rows\n  in position order (date = start_date + index − 1) — never stored. \"Today\" for a day is\n  judged only in that day's city zone via `apps/web/lib/server/trip-time.ts`\n  (`localDate`, `todayIndex`; zones from `getCatalog().timeZones`). Prove server-zone\n  independence with `TZ=Pacific/Kiritimati bun test test/trips-api.test.ts`.\n- Env: `BOOPADA_DB_PATH` (default `./data/boopada.sqlite`, relative to `apps/web` when\n  started there), `BOOPADA_NOW` (ISO timestamp, else system clock), `PORT`.\n- Money: `{ amount_minor, currency }` everywhere; convert provider decimal strings with\n  `parseDecimal` in `apps/web/lib/money.ts`.\n- Pricing (boopada M5): money shown to the traveller is in the profile home currency.\n  Get `await getPricing()` (`apps/web/lib/server/pricing.ts`) once per request and pass it\n  to sync readers (`getTrip`, `listTrips`, `undoLastDeletion`, ENTITIES loaders); convert\n  with `inHome` / `convertMoney` (exact, half-even). Itinerary edits live in\n  `apps/web/lib/server/itinerary.ts`; items reference `trip_days.id`, never a day index.\n- Totals (boopada phase 5): day/trip totals come only from `tripSummary(trip, pricing)` in\n  `apps/web/lib/server/summary.ts` (sum of rounded item `cost`); both\n  `GET /api/trips/{id}/summary` and the `/trips/{id}` page use it. The page is two columns:\n  left itinerary (`components/itinerary-editor.tsx` + trip total), right `trip-side` aside\n  reserved for destination info.\n- To-dos (boopada M6, phase 6): `todos` table (migration 5) hangs off `trip_days.id`; all\n  logic in `apps/web/lib/server/todos.ts` (`addTodo`, `updateTodo`, `removeTodo` soft via\n  ENTITIES \"todo\", `tripNow`). \"Where am I now\" (`day_index`, `city_id`, `arrived`, open\n  to-dos of every day in that city) comes only from `tripNow(trip)` — used by\n  `GET /api/trips/{id}/now` and the `/trips/{id}` arrival banner\n  (`components/arrival-banner.tsx`). Adding a field to `TripDay` breaks exact `toEqual`\n  day assertions in `test/trips-api.test.ts` and `test/itinerary-api.test.ts`.\n- Smoke-test cleanup (M6): stop only the server you started (`lsof -ti tcp:$PORT | xargs\n  kill`); never `pkill -f \"next start\"` — it kills other local next servers too.\n- Suggestions & transport (boopada M7, phase 7): every suggester calls `offer(kind,\n  storedAction, reason, pricing)` in `apps/web/lib/server/suggestions.ts`; new action types\n  go in its `ACTIONS` registry (`resolve()` → `{ok:false, why}` or `{ok:true, action,\n  apply}`), so nothing unapplicable is ever returned. Stored actions reference rows by\n  stable id (`trip_day_id`); migration 6 `suggestions` keys them by kind + action JSON (same\n  proposal → same id). `POST /api/suggestions/{id}/apply` re-resolves (409\n  `suggestion_not_applicable`). Shape types + `proposedStartTime` in `apps/web/lib/suggestions.ts`;\n  transport costs via `cityTransport()` in `lib/server/transport.ts`. UI: `components/trip-side.tsx`\n  (aside) and `components/suggestion-list.tsx` (Add buttons, also in the arrival banner).\n  Adding a `TripNow` field breaks exact `toEqual` in `test/todos-api.test.ts`; don't pin\n  `user_version` to the latest migration in tests.\n- Curation advisor (boopada M8, phase 8): rules live only in `detectAdvice()`\n  (`apps/web/lib/server/advisor.ts`, pure, never imports suggestions.ts); `tripAdvice()` in\n  `lib/server/suggestions.ts` publishes them through `offer()`. ACTIONS gained `remove_item`,\n  `move_item`, `replace_item`. `applySuggestion` re-runs detection for `ADVICE_KINDS`\n  (`lib/suggestions.ts`) → 409 unless the same kind+action is still advised. Route\n  `GET /api/trips/{id}/advice` → `{advice}`; UI `components/advice-list.tsx` tops the aside\n  (`advice-{kind}-{n}`, `advice-apply-{n}`, n = 1-based position). Sync insert for atomic\n  replace: `insertItem()` in itinerary.ts. Fixture facts for tests: rainy low-season months\n  only hanoi (7,8), ho-chi-minh-city (6–10), da-nang/hoi-an (9–11); london, san-francisco,\n  singapore, dubai, mumbai have no climate (provider throws → no risk); da-nang has no culture\n  activity; closed days: tokyo-act-2 Sun, kyoto-act-2 Wed, lisbon-act-2 Mon, petra-act-2 open\n  Mon/Wed/Thu only; 2027-04-11 is a Sunday.\n- Chat (boopada M9, phase 9): `POST /api/chat` → `runChat()` in `apps/web/lib/server/chat.ts`,\n  a `commands` table of `[regex, handler]` over the normalized message (lowercase, single\n  spaces, trailing `.!?` stripped). A new command goes in `commands` AND `CHAT_COMMANDS`\n  (`apps/web/lib/chat.ts`; the help reply and UI hint chips read it). Handlers only dispatch\n  to existing functions (`addActivity`, `removeItem`, `undoLastDeletion`,\n  `tripAdvice`+`applySuggestion`, `updateProfile`). Rephrasable misses → 200\n  `changed:false`; unknown interest → 400 field `message` (D2). UI\n  `components/trip-chat.tsx` tops the trip aside (`chat-input`, `chat-send`, `chat-reply`,\n  `chat-suggestion-apply-{n}`, `chat-hint-{n}`). Fixture durations: lisbon-act-3 Sintra 540\n  min, lisbon-act-1 150; tokyo-act-1 150, -2 180, -3 360.\n- Demo polish (boopada M10, phase 10): `POST /api/sample-trip` → `createSampleTrip()`\n  (`apps/web/lib/server/sample-trip.ts`) builds Tokyo & Kyoto starting today in Tokyo's zone\n  via the normal create/add functions (fills only blank profile interests/budget); button\n  `components/sample-trip-button.tsx` (home + /trips empty state). Shared nav\n  `components/site-nav.tsx`; home dashboard `app/page.tsx` uses `tripTiming()` (lib/server/trips.ts:\n  now/upcoming/past, city-zone). Date labels: `formatDate` in `apps/web/lib/dates.ts`. API\n  hardening: every route file exports `methodNotAllowed(...)` (lib/server/api.ts) for verbs it\n  lacks (JSON 405); catch-all is `app/api/[[...path]]`; `apps/web/proxy.ts` turns malformed\n  %-escapes under /api into JSON 404; provider-map id checks use `Object.hasOwn`, never `in`.\n  Migration 7 `deletions.replaced_by_item_id`: undoing a replace_item swap hides the replacement\n  (`linkReplacement` in deletions.ts). Drive the real UI with playwright-core from the bun cache +\n  system Chrome (see M10); tests for all of this in `apps/web/test/demo-polish.test.ts`.\n",
     "notices": [
       "Recent work elsewhere: round-1-sofar touched 2 files 3h ago (see sofar status round-1-sofar).",
@@ -215,7 +293,7 @@ Read-back: before acting, restate goal, next action, and standing constraints in
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:hook (6065 bytes) ==
+== digest:hook (6064 bytes) ==
 # Sofar status: boopada
 
 Goal: Boopada trip planner (apps/web Next.js + @workspace/providers fixtures, SQLite, bun monorepo): profile → bucket list → trips → itinerary editing/view → location to-dos → suggestions & transport costs → curation advisor → chat command box. One roadmap piece per session.
@@ -252,14 +330,13 @@ Sofar never generates or overwrites this file; initiative state lives in
 …truncated — read .sofar/repo.md for the rest
 
 Recent decisions (last 5 of 28; full text in decisions.md):
-- [D25] 2026-09-15 POST /api/sample-trip → 201 trip — over A SQL fixture/seed script run from the CLI
-- [D26] 2026-09-15 Undoing an applied replace_item reverses the whole swap — over Keeping D25 as shipped (swap → undo left both activities on the day, …
 - [D27] 2026-09-15 (rule below) API hardening from the demo bug hunt — over Tightening addActivity (reject past-midnight/duplicates)
 - [D28] 2026-09-15 Demo-polish extras: (1) shared top nav components/site-nav.tsx on every page — over Per-trip totals on the /trips list
 Earlier rejected approaches — do NOT re-propose (23 older):
 - [D1] Decimal strings or floats
 - [D2] Free-text interests
-- …and 21 more (see decisions.md)
+- [D3] better-sqlite3 (native build, no Bun support in tests), forcing `bun …
+- …and 20 more (see decisions.md)
 
 Next ids: D29 (decision), M11 (memory)
 
@@ -281,6 +358,9 @@ Standing constraints — obey verbatim (12):
 - [D20] Advisor rules live only in detectAdvice() (lib/server/advisor.ts); publish advice only via tripAdvice() in suggestions.ts, and apply advice only via POST /api/suggestions/{id}/apply, which must re-detect it.
 - [D17] Create suggestions only via offer() in lib/server/suggestions.ts with an action type registered in its ACTIONS (check + apply); a suggestion is exactly {id, kind, reason, action:{type,...params}} and extra info goes inside action params.
 - …and 3 more (see decisions.md)
+Repo-wide rules from other records (1 of 4, most relevant first):
+- [alpha D3, beta D1] Always run the full suite before pushing.
+- …and 3 more in other records (their decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 
@@ -403,7 +483,7 @@ Read-back: before acting, restate goal, next action, and standing constraints in
 
 (generated by sofar — full detail in plan.md, decisions.md, sessions/)
 
-== digest:cap (6042 bytes) ==
+== digest:cap (6044 bytes) ==
 # Sofar status: boopada
 
 Goal: Boopada trip planner (apps/web Next.js + @workspace/providers fixtures, SQLite, bun monorepo): profile → bucket list → trips → itinerary editing/view → location to-dos → suggestions & transport costs → curation advisor → chat command box. One roadmap piece per session.
@@ -424,7 +504,7 @@ Recent work elsewhere: round-1-sofar touched 2 files 3h ago (see sofar status ro
 
 3 commits of this record are unverified — no origin ref to compare.
 
-NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 …truncated — run sofar status for full detail
 
 Standing constraints — obey verbatim (12):
@@ -438,6 +518,9 @@ Standing constraints — obey verbatim (12):
 - [D20] Advisor rules live only in detectAdvice() (lib/server/advisor.ts); publish advice only via tripAdvice() in suggestions.ts, and apply advice only via POST /api/suggestions/{id}/apply, which must re-detect it.
 - [D17] Create suggestions only via offer() in lib/server/suggestions.ts with an action type registered in its ACTIONS (check + apply); a suggestion is exactly {id, kind, reason, action:{type,...params}} and extra info goes inside action params.
 - …and 3 more (see decisions.md)
+Repo-wide rules from other records (1 of 4, most relevant first):
+- [alpha D3, beta D1] Always run the full suite before pushing.
+- …and 3 more in other records (their decisions.md)
 
 Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.
 

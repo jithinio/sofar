@@ -1,5 +1,14 @@
 # Render-parity manifest (rust-core D11)
 
+Re-recorded at **main a4f270a** for a harness change (rust-core D29): the
+`hook` and `cap` option variants carry `repoRules` on two hashes of three
+(memory-lead 2.2). The rules include a restatement, a quote, an over-budget
+rule on odd hashes, and the record's own first rule restated elsewhere.
+66 goldens changed, in their options section and in `digest:hook` /
+`digest:cap` only (the "Repo-wide rules from other records" block, or its
+one-line pointer when the record's own rules fill the budget). The other
+sections are byte-identical.
+
 Recorded at **main a4f270a** (rust-core merge cc14741): two goldens ADDED
 for the new fold-parity cases, and the other 97 are byte-identical:
 `fold-parity.cases.FP-13-stamped-supersession` (memory-lead 2.8: the

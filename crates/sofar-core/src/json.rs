@@ -242,6 +242,13 @@ impl FromIterator<(String, Json)> for Object {
 
 /// A canonical array index in the ECMAScript sense: the decimal form of an
 /// integer in `0..=2^32-2` with no leading zero.
+/// A count as a JavaScript number: exact below 2^53, which no record reaches.
+#[must_use]
+#[allow(clippy::cast_precision_loss, reason = "counts stay far below 2^53")]
+pub fn usize_to_f64(n: usize) -> f64 {
+    n as f64
+}
+
 fn array_index(key: &str) -> Option<u32> {
     let bytes = key.as_bytes();
     if bytes.is_empty() || bytes.len() > 10 || !bytes.iter().all(u8::is_ascii_digit) {

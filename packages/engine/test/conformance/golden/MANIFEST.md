@@ -1,5 +1,17 @@
 # Golden manifest (rust-core D11)
 
+Re-pinned to **main a4f270a** (rust-core merge cc14741: memory-lead 2.8
+and drive-visibility 3.2). No existing golden moved: no fixture carries a
+stamped supersession or a driven run. One case was ADDED and recorded from
+the TypeScript reference: `syn.surfacing` (synthetic fixture `surfacing`,
+rust-core D29). It is the conformance proof of read-time surfacing
+(memory-lead 2.1: Read, Grep and shell reads, the three tiers, told-set
+suppression and its reset on compact, stored-relevance order, the overflow
+line, qualified handles with no record bound, apply_patch), repo-wide rules
+with a restated rule (2.2), and decision checks in the Stop block (2.3: an
+approved failing check with its hint, an approved passing one, an
+unapproved one).
+
 Re-pinned to **main 72146d9** (rust-core merge 9614860), the first trunk
 target: rust-core tracks trunk continuously now, instead of RC tags
 (rust-core D29). Re-recorded from the TypeScript reference

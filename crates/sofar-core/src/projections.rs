@@ -434,6 +434,110 @@ pub fn retired_ordinals(state: &InitiativeState) -> Vec<usize> {
 }
 
 /// `standingConstraintLines`: rules VERBATIM (whitespace normalised, never
+/// `repoRuleLines` (memory-lead 2.2, D8): other records' standing rules,
+/// rendered after this record's own inside the constraints block. The same
+/// words are one rule (restatements render once under every handle, newest
+/// handle last); a rule this record already renders is not repeated. Most
+/// relevant to the focus first, then newest; whole entries only, within
+/// `budget`; with no room for one, a single pointer line.
+#[must_use]
+pub fn repo_rule_lines(
+    rules: &[crate::index_tier1::RepoRule],
+    budget: i64,
+    focus: &[String],
+    own: &[&DecisionState],
+) -> Vec<String> {
+    use crate::text::cmp_utf16;
+    let key = |rule: &str, quote: Option<&str>| {
+        format!("{}\u{0}{}", one_line(rule), one_line(quote.unwrap_or("")))
+    };
+    let handle_of = |r: &crate::index_tier1::RepoRule| {
+        format!("{} D{}", r.initiative, number_to_string(r.ordinal))
+    };
+    let mine: std::collections::HashSet<String> = own
+        .iter()
+        .filter_map(|d| d.rule.as_deref().map(|rule| key(rule, d.quote.as_deref())))
+        .collect();
+    let mut sorted: Vec<&crate::index_tier1::RepoRule> = rules.iter().collect();
+    sorted.sort_by(|a, b| {
+        if a.ts == b.ts {
+            cmp_utf16(&handle_of(a), &handle_of(b))
+        } else if cmp_utf16(&a.ts, &b.ts).is_lt() {
+            std::cmp::Ordering::Less
+        } else {
+            std::cmp::Ordering::Greater
+        }
+    });
+    let mut merged: Vec<(String, &crate::index_tier1::RepoRule, Vec<String>)> = Vec::new();
+    for r in sorted {
+        let k = key(&r.rule, r.quote.as_deref());
+        if mine.contains(&k) {
+            continue;
+        }
+        match merged.iter_mut().find(|(mk, _, _)| *mk == k) {
+            Some((_, newest, handles)) => {
+                handles.push(handle_of(r));
+                *newest = r; // the newest restatement dates the rule
+            }
+            None => merged.push((k, r, vec![handle_of(r)])),
+        }
+    }
+    if merged.is_empty() {
+        return Vec::new();
+    }
+    let mut ranked: Vec<(&crate::index_tier1::RepoRule, String, usize)> = merged
+        .into_iter()
+        .map(|(_, r, handles)| {
+            let score = relevance_score(
+                &format!("{} {}", r.rule, r.quote.as_deref().unwrap_or("")),
+                focus,
+            );
+            (r, handles.join(", "), score)
+        })
+        .collect();
+    ranked.sort_by(|a, b| {
+        b.2.cmp(&a.2).then_with(|| {
+            if a.0.ts == b.0.ts {
+                cmp_utf16(&a.1, &b.1)
+            } else if cmp_utf16(&a.0.ts, &b.0.ts).is_lt() {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Less
+            }
+        })
+    });
+    let mut entries: Vec<String> = Vec::new();
+    let mut used: i64 = 0;
+    for (r, handle, _) in &ranked {
+        let line = format!("- [{handle}] {}", render_rule(&r.rule, r.quote.as_deref()));
+        #[allow(clippy::cast_possible_wrap, reason = "line lengths are small")]
+        let len = utf16_len(&line) as i64;
+        if used + len + 1 > budget {
+            break;
+        }
+        entries.push(line);
+        used += len + 1;
+    }
+    let rest = ranked.len() - entries.len();
+    if entries.is_empty() {
+        return vec![format!(
+            "- …and {rest} more from other records (their decisions.md)"
+        )];
+    }
+    let mut out = vec![format!(
+        "Repo-wide rules from other records ({} of {}, most relevant first):",
+        entries.len(),
+        ranked.len()
+    )];
+    out.extend(entries);
+    if rest > 0 {
+        out.push(format!(
+            "- …and {rest} more in other records (their decisions.md)"
+        ));
+    }
+    out
+}
+
 /// clipped); a budget drops whole entries after the first with a pointer.
 #[must_use]
 pub fn standing_constraint_lines(

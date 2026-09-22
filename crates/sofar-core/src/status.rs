@@ -16,7 +16,7 @@ use crate::lexicon::lexical_counts;
 use crate::projections::{
     RunLiveness, clip, clip_block_detect, clip_detect, describe_activity, describe_freshness,
     describe_run, phase_fraction, plural, progress_text, rank_by_relevance, relevance_score,
-    retired_ordinals, run_detail_lines, standing_constraint_lines, task_progress,
+    repo_rule_lines, retired_ordinals, run_detail_lines, standing_constraint_lines, task_progress,
     test_outcome_line,
 };
 use crate::text::{
@@ -56,6 +56,9 @@ const MAX_DECISIONS: usize = 5;
 const REJECTED_OVER_LINE_BUDGET: usize = 70;
 const REJECTED_LEDGER_BUDGET: usize = 450;
 const STANDING_LEDGER_BUDGET: usize = 2_000;
+// Other records' rules (memory-lead 2.2, D8) take what this record's own
+// rules leave of STANDING_LEDGER_BUDGET, and never more than this.
+const REPO_RULES_BUDGET: usize = 1_200;
 const CONFLICT_LINE_BUDGET: usize = 200;
 const MAX_CONFLICT_LINES: usize = 8;
 const STALENESS_LINE_BUDGET: usize = 200;
@@ -303,7 +306,7 @@ pub fn unwritten_sessions(sessions: &[SessionState]) -> Vec<&SessionState> {
 /// `hasRealAlternative`: `over` is non-blank and not the
 /// `(no alternative …` / `(none …` placeholder — `/^\(\s*(no alternative|none)/i`,
 /// a non-unicode regex, so the case fold is ASCII-only (P3).
-fn has_real_alternative(over: &str) -> bool {
+pub fn has_real_alternative(over: &str) -> bool {
     let t = js_trim(over);
     if t.is_empty() {
         return false;
@@ -384,6 +387,9 @@ pub struct StatusOptions {
     pub session_id: Option<String>,
     pub git: Option<GitState>,
     pub neighbours: Vec<NeighbourRecord>,
+    /// Every OTHER record's standing rules (memory-lead 2.2, D8), retirement
+    /// already applied; empty when the index is unreadable.
+    pub repo_rules: Vec<crate::index_tier1::RepoRule>,
     pub notices: Vec<String>,
     pub lane: bool,
     /// `activity !== false`: the D24 test line. `None`/`Some(true)` render it.
@@ -401,6 +407,7 @@ impl Default for StatusOptions {
             session_id: None,
             git: None,
             neighbours: Vec::new(),
+            repo_rules: Vec::new(),
             notices: Vec::new(),
             lane: false,
             activity: None,
@@ -1499,9 +1506,28 @@ pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String
         fixed(&mut blocks, vec![notice.clone(), String::new()]);
     }
 
-    // (10) Standing constraints LAST, most relevant first — protected.
-    if !rules.is_empty() {
+    // (10) Standing constraints LAST, most relevant first, then the other
+    // records' rules in what this record's own left (D8) — protected.
+    #[allow(clippy::cast_possible_wrap, reason = "line lengths are small")]
+    let own_used: i64 = rules.iter().map(|l| utf16_len(l) as i64 + 1).sum();
+    #[allow(clippy::cast_possible_wrap, reason = "budgets are small")]
+    let elsewhere_budget = (REPO_RULES_BUDGET as i64).min(STANDING_LEDGER_BUDGET as i64 - own_used);
+    let own_in_force: Vec<&DecisionState> = state
+        .decisions
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !retired.contains(&(i + 1)))
+        .map(|(_, d)| d)
+        .collect();
+    let elsewhere = repo_rule_lines(
+        &options.repo_rules,
+        elsewhere_budget,
+        &focus_terms,
+        &own_in_force,
+    );
+    if !rules.is_empty() || !elsewhere.is_empty() {
         let mut lines = rules.clone();
+        lines.extend(elsewhere.iter().cloned());
         lines.push(String::new());
         blocks.push(Block::Fixed {
             lines,
@@ -1509,7 +1535,8 @@ pub fn render_status(state: &InitiativeState, options: &StatusOptions) -> String
         });
     }
     // (11) Read-back, then the footer — protected.
-    if !lane && (state.current.next_action.is_some() || !rules.is_empty()) {
+    if !lane && (state.current.next_action.is_some() || !rules.is_empty() || !elsewhere.is_empty())
+    {
         blocks.push(Block::Fixed {
             lines: vec![READ_BACK_LINE.to_owned(), String::new()],
             protected: true,

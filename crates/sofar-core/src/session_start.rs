@@ -17,10 +17,11 @@ use crate::git::read_git_state;
 use crate::home::{LaneAvailability, ResolvedVia, lane_availability, resolve_session_first};
 use crate::hook::{clip_to, parse_hook, str_field};
 use crate::host::hook_host;
-use crate::index_tier1::refresh_neighbours;
+use crate::index_tier1::{refresh_guards, refresh_neighbours, repo_rules};
 use crate::json::{Json, Object, number_to_string};
 use crate::layout::{Layout, initiative_slugs};
 use crate::projections::retire_enabled;
+use crate::record_copies::{home_dir, worktree_leads, worktree_leads_notice};
 use crate::session_pointer::write_session_pointer;
 use crate::shipwatch::note_upstream;
 use crate::status::{
@@ -28,6 +29,7 @@ use crate::status::{
     session_id_line,
 };
 use crate::text::{date_part, js_trim, utf16_len};
+use crate::told::clear_told;
 use crate::warmth::newest_event;
 
 /// The attribution window `SessionStart` walks (`SHIPPING_WINDOW`).
@@ -404,6 +406,16 @@ pub fn unbound_notice(layout: &Layout, session_id: Option<&str>) -> String {
     enforce_status_limit(&lines.join("\n"))
 }
 
+/// `otherWorktreesNotice` (branch-visibility 3.3): events of this record
+/// that other worktrees hold and this checkout lacks. The quick lane is
+/// skipped: each checkout's lane is its own unplanned work.
+fn other_worktrees_notice(root: &Path, slug: &str, log_path: &Path) -> Option<String> {
+    if slug == QUICK_LANE {
+        return None;
+    }
+    worktree_leads_notice(&worktree_leads(root, slug, log_path), home_dir().as_deref())
+}
+
 /// `handleSessionStart`.
 #[must_use]
 pub fn handle_session_start(root: &Path, input: &str) -> CmdResult {
@@ -418,6 +430,13 @@ pub fn handle_session_start(root: &Path, input: &str) -> CmdResult {
     let Some((slug, via)) = resolve_session_first(&layout, session_id) else {
         return ok(unbound_notice(&layout, session_id));
     };
+    // The context that held this session's read-time notices is gone, so
+    // what it was told must be told again (memory-lead 2.1, D6).
+    if let Some(sid) = session_id
+        && matches!(str_field(&hook, "source"), Some("compact" | "clear"))
+    {
+        clear_told(&layout, sid);
+    }
     let now = now_ms();
     let events_path = layout.events_path(&slug);
     let advisory = cold_resume_advisory(&hook, &events_path, now);
@@ -427,11 +446,16 @@ pub fn handle_session_start(root: &Path, input: &str) -> CmdResult {
     if let (Some(sid), Some(g)) = (session_id, &git) {
         note_upstream(&layout, sid, &g.branch, g.upstream_full.as_deref());
     }
-    let neighbours = refresh_neighbours(&layout, &slug);
+    // One refresh of the scope tier for the neighbours and for every other
+    // record's standing rules (memory-lead 2.2, D8).
+    let scope = refresh_guards(&layout);
+    let neighbours = refresh_neighbours(&layout, &slug, &scope);
+    let repo_rules = repo_rules(&scope, &slug, retire_enabled());
     let commits = read_attribution(root, SHIPPING_WINDOW);
     let activity = activity_enabled();
     let notices: Vec<String> = [
         recent_work_elsewhere_notice(&layout, &slug, via, now),
+        other_worktrees_notice(root, &slug, &events_path),
         closed_banner(&state),
         advisory,
         shipping_notice(root, &slug, commits.as_deref()),
@@ -451,6 +475,7 @@ pub fn handle_session_start(root: &Path, input: &str) -> CmdResult {
             session_id: session_id.map(str::to_owned),
             git,
             neighbours,
+            repo_rules,
             notices,
             lane: slug == QUICK_LANE,
             activity: if activity { None } else { Some(false) },

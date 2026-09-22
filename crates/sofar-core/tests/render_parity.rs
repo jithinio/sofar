@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 
 use sofar_core::fold::{InitiativeState, empty_state};
 use sofar_core::git::GitState;
+use sofar_core::index_tier1::RepoRule;
 use sofar_core::json::{self, Json};
 use sofar_core::projections::{
     render_decisions, render_memory, render_plan, render_session, session_file_name,
@@ -100,11 +101,31 @@ fn options_from(value: &Json) -> StatusOptions {
                 .collect()
         })
         .unwrap_or_default();
+    let repo_rules = o
+        .get("repoRules")
+        .and_then(Json::as_arr)
+        .map(|items| {
+            items
+                .iter()
+                .map(|r| {
+                    let r = r.as_obj().expect("repo rule");
+                    RepoRule {
+                        initiative: opt_str(r, "initiative").unwrap_or_default(),
+                        ordinal: r.get("ordinal").and_then(Json::as_f64).unwrap_or(0.0),
+                        ts: opt_str(r, "ts").unwrap_or_default(),
+                        rule: opt_str(r, "rule").unwrap_or_default(),
+                        quote: opt_str(r, "quote"),
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     StatusOptions {
         repo_memory: opt_str(o, "repoMemory"),
         session_id: opt_str(o, "sessionId"),
         git,
         neighbours,
+        repo_rules,
         notices,
         lane: o.get("lane").is_some_and(Json::is_true),
         activity: o.get("activity").map(Json::is_true),

@@ -266,6 +266,22 @@ mod tests {
     }
 }
 
+/// Node's `path.posix.resolve(base, p)`: `p` when absolute, else `base/p`,
+/// with a relative base resolved against the process cwd; normalized, with
+/// no trailing slash (the root stays `/`).
+#[must_use]
+pub fn posix_resolve(base: &str, p: &str) -> String {
+    let joined = if p.starts_with('/') {
+        p.to_owned()
+    } else if base.starts_with('/') {
+        format!("{base}/{p}")
+    } else {
+        let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
+        format!("{}/{base}/{p}", cwd.to_string_lossy())
+    };
+    posix_normalize(&joined, false)
+}
+
 /// Node's `path.posix.relative(from, to)`: both resolved against the cwd,
 /// the common leading segments dropped, `..` for each remaining `from`
 /// segment. `""` when equal.

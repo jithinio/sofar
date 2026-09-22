@@ -1,4 +1,5 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { FixtureSpec, Materialized, Step } from './harness'
 
@@ -74,6 +75,11 @@ const edit = (path: string, fields: Record<string, unknown> = {}) =>
   hook('PostToolUse', { tool_name: 'Edit', tool_input: { file_path: path, old_string: 'a', new_string: 'b' }, tool_response: {}, ...fields })
 const bash = (command: string, fields: Record<string, unknown> = {}) =>
   hook('PostToolUse', { tool_name: 'Bash', tool_input: { command, description: 'x' }, tool_response: {}, ...fields })
+
+const read = (path: string, fields: Record<string, unknown> = {}) =>
+  hook('PostToolUse', { tool_name: 'Read', tool_input: { file_path: path }, tool_response: {}, ...fields })
+const grep = (path: string, filenames: string[], fields: Record<string, unknown> = {}) =>
+  hook('PostToolUse', { tool_name: 'Grep', tool_input: { pattern: 'x', path }, tool_response: { mode: 'files_with_matches', filenames, numFiles: filenames.length }, ...fields })
 
 function statusline(fields: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -372,6 +378,52 @@ export const CASES: ConformanceCase[] = [
       s('stop reports them too', ['event', 'stop'], stop({ session_id: 'sess-clean' })),
       s('the earlier session crossed before this run', ['event', 'user-prompt'], prompt({ session_id: 'sess-g' })),
       s('status', ['status']),
+    ],
+  },
+  {
+    // memory-lead 2.1–2.3/2.8 and typed-judge 5.1 on the hot path (rust-core D29).
+    name: 'syn.surfacing',
+    fixture: synthetic('surfacing'),
+    steps: [
+      s('session-start: repo-wide rules from the other record', ['event', 'session-start'], start({ session_id: 'sess-a' }), {
+        before: (m) => {
+          const files: Record<string, string> = {
+            'src/core/fold.ts': 'export {}\n',
+            'src/legacy/old.ts': 'export {}\n',
+            'docs/SPEC.md': '# spec\n',
+            'scripts/check-legacy.sh': 'echo "legacy tree modified: src/legacy/old.ts"\nexit 3\n',
+          }
+          for (const [rel, text] of Object.entries(files)) {
+            mkdirSync(join(m.root, rel, '..'), { recursive: true })
+            writeFileSync(join(m.root, rel), text)
+          }
+          // The operator approved two of the three checks on this clone (D9).
+          const key = createHash('sha256').update(realpathSync(join(m.root, '.git'))).digest('hex').slice(0, 32)
+          const dir = join(m.home, '.local', 'state', 'sofar', 'checks')
+          mkdirSync(dir, { recursive: true })
+          const approve = (cmd: string, handle: string) => [createHash('sha256').update(cmd).digest('hex'), { handle, cmd, ts: '2026-09-01T00:00:00.000Z' }]
+          const approved = Object.fromEntries([approve('sh scripts/check-legacy.sh', 'surf D1'), approve('true', 'surf D7')])
+          writeFileSync(join(dir, `${key}.json`), `${JSON.stringify({ version: 1, approved }, null, 2)}\n`)
+        },
+      }),
+      s('Read a file two records name: tiers, relevance, overflow', ['event', 'post-tool'], read('<ROOT>/src/core/fold.ts', { session_id: 'sess-a' })),
+      s('the same Read again: already told', ['event', 'post-tool'], read('<ROOT>/src/core/fold.ts', { session_id: 'sess-a' })),
+      s('Grep: its path and its result filenames', ['event', 'post-tool'], grep('src', ['src/core/fold.ts', 'docs/SPEC.md'], { session_id: 'sess-a' })),
+      s('Bash reads: the guarded file and the check script', ['event', 'post-tool'], bash('cat src/legacy/old.ts scripts/check-legacy.sh | head -5 <<EOF docs/SPEC.md', { session_id: 'sess-a' })),
+      s('Edit the guarded file after the read told it', ['event', 'post-tool'], edit('<ROOT>/src/legacy/old.ts', { session_id: 'sess-a' })),
+      s('compact: what was told is forgotten', ['event', 'session-start'], start({ session_id: 'sess-a', source: 'compact' })),
+      s('the Read is told again', ['event', 'post-tool'], read('<ROOT>/src/core/fold.ts', { session_id: 'sess-a' })),
+      s('apply_patch: every file it names', ['event', 'post-tool'], hook('PostToolUse', {
+        session_id: 'sess-a',
+        tool_name: 'apply_patch',
+        tool_input: { command: '*** Begin Patch\n*** Update File: src/a.ts\n*** Move to: src/b.ts\n@@\n-x\n+y\n*** Add File: src/legacy/new.ts\n+z\n*** End Patch\n' },
+        tool_response: {},
+      })),
+      s('stop: the block carries the checks', ['event', 'stop'], stop({ session_id: 'sess-a' })),
+      s('unbound: a read still surfaces, every handle qualified', ['event', 'post-tool'], read('<ROOT>/src/core/fold.ts', { session_id: 'sess-u' }), {
+        before: (m) => writeFileSync(join(m.root, '.git', 'HEAD'), 'ref: refs/heads/unbound\n'),
+      }),
+      s('status', ['status', 'surf']),
     ],
   },
   {

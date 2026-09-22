@@ -614,6 +614,19 @@ pub fn handle_stop(root: &Path, input: &str) -> CmdResult {
         &session_guard_violations(&state, session_id, session.ended.as_deref()),
         root,
     ));
+    // Decision checks ride the same block (memory-lead 2.3, D9/D10): they
+    // run only here, where the gate already holds the session, so a failing
+    // check is read before the write-back and never stops a turn.
+    let files = session
+        .activity
+        .as_ref()
+        .map(|a| a.files.clone())
+        .unwrap_or_default();
+    lines.extend(crate::checks::stop_check_lines(
+        root,
+        &crate::index_tier1::refresh_guards(&layout),
+        &files,
+    ));
     CmdResult {
         exit_code: 2,
         stdout: String::new(),

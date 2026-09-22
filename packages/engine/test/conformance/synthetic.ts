@@ -383,6 +383,57 @@ function guards(): FixtureFiles {
   }
 }
 
+/**
+ * Read-time surfacing, repo-wide rules and decision checks (memory-lead
+ * 2.1–2.3, 2.8; typed-judge 5.1), mirrored by rust-core (D29): guards and
+ * file mentions in both records, a stamped supersession, an until-scoped
+ * decision, stored relevance on one file, and checks the case approves.
+ */
+function surfacing(): FixtureFiles {
+  const b = new LogBuilder('surf')
+  const goal = 'exercise read-time surfacing and decision checks'
+  b.ev('initiative_created', { slug: 'surf', goal })
+  b.ev('plan_updated', plan(goal, [{ name: 'Build', status: 'active', tasks: [{ id: '1.1', title: 'work', status: 'active' }] }]))
+  b.ev('decision_logged', {
+    chose: 'freeze the legacy tree',
+    over: 'editing it in place',
+    because: 'it is being replaced',
+    rule: 'Never edit files under src/legacy/.',
+    quote: 'leave src/legacy alone',
+    guard: 'path:src/legacy/**',
+    check: { cmd: 'sh scripts/check-legacy.sh', hint: 'restore src/legacy from git' },
+  })
+  b.ev('decision_logged', {
+    chose: 'keep the fold pure in src/core/fold.ts',
+    over: '(no alternative recorded)',
+    because: 'replay must not depend on the clock',
+    rule: 'The fold never reads the clock.',
+  })
+  b.ev('decision_logged', { chose: 'split fold.ts into stages, one per event family', over: 'one long function in fold.ts', because: 'readability' })
+  const d4 = b.ev('decision_logged', { chose: 'rename the helpers in core/fold.ts', over: 'keeping the old names', because: 'clarity' })
+  b.ev('decision_logged', { chose: 'document core/fold.ts instead of renaming', over: 'the rename', because: 'churn', supersedes: 'D4', supersedes_id: d4.id })
+  b.ev('decision_logged', { chose: 'freeze fold.ts until 1.1 lands', over: 'editing now', because: 'conflicts', until: '1.1' })
+  b.ev('decision_logged', { chose: 'test before commit', over: 'after', because: 'speed', rule: 'Run the suite before committing.', guard: 'cmd:*git commit*', check: { cmd: 'true' } })
+  b.ev('decision_logged', { chose: 'lint in CI', over: 'locally', because: 'speed', rule: 'Keep lint green.', check: { cmd: 'node -e "process.exit(1)"', timeout_ms: 5000 } })
+  b.ev('session_started', { tool: 'claude-code' }, { session: 'sess-a', ...HOOK })
+  b.ev('file_touched', { path: 'src/legacy/old.ts', op: 'edit' }, { session: 'sess-a', ...HOOK })
+
+  const o = new LogBuilder('other', EPOCH + 1_800_000)
+  o.ev('initiative_created', { slug: 'other', goal: 'a neighbouring record' })
+  o.ev('decision_logged', { chose: 'push only green', over: 'pushing red', because: 'CI time', rule: 'Always run the full suite before pushing.' })
+  o.ev('decision_logged', { chose: 'fold.ts stays under 3,000 lines', over: 'no limit', because: 'review', rule: 'Split src/core/fold.ts before it passes 3,000 lines.' })
+  o.ev('decision_logged', { chose: 'SPEC first', over: 'code first', because: 'contracts', rule: 'Change docs/SPEC.md before the code it governs.', quote: 'spec before code' })
+  o.ev('decision_logged', { chose: 'keep fold.ts free of IO', over: 'reading files in the fold', because: 'purity' })
+  o.ev('decision_logged', { chose: 'restated', over: 'x', because: 'y', rule: 'Always run the full suite before pushing.' })
+  o.ev('judgement_recorded', { producer: 'deterministic', model: 'deterministic', question: 'relevance', subject: 'surf D3', about: 'file:src/core/fold.ts', answer: { type: 'noul', noul: 0.1 } })
+  o.ev('judgement_recorded', { producer: 'deterministic', model: 'deterministic', question: 'relevance', subject: 'D4', about: 'file:src/core/fold.ts', answer: { type: 'noul', noul: 0.95 } })
+  return {
+    'bindings.json': bindings({ main: 'surf' }),
+    'initiatives/surf/events.jsonl': b.text(),
+    'initiatives/other/events.jsonl': o.text(),
+  }
+}
+
 /** Closed, superseded, dropped and never-written records side by side. */
 function lifecycle(): FixtureFiles {
   const done = new LogBuilder('finished')
@@ -483,6 +534,7 @@ export const SYNTHETIC: Record<string, () => FixtureFiles> = {
   unicode,
   budget,
   guards,
+  surfacing,
   lifecycle,
   many,
 }

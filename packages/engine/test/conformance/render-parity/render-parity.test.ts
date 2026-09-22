@@ -129,10 +129,27 @@ export function optionVariants(c: RenderCase): Record<string, StatusOptions> {
           ]
   const repoPath = join(c.sofar, 'repo.md')
   const repoMemory = existsSync(repoPath) ? readFileSync(repoPath, 'utf8') : undefined
+  // Other records' rules (memory-lead 2.2, D8; rust-core D29): a restatement
+  // in other words' whitespace, a quote, one that overflows the budget on odd
+  // hashes, ts ties, and — when the record has one — its own rule restated
+  // elsewhere, which the block must not repeat.
+  const own = stateOf(c).decisions.find((d) => d.rule !== undefined)
+  const repoRules: StatusOptions['repoRules'] =
+    h % 3 === 2
+      ? undefined
+      : [
+          { initiative: 'alpha', ordinal: 3, ts: '2026-09-01T10:00:00.000Z', rule: 'Always run the full suite before pushing.' },
+          { initiative: 'beta', ordinal: 1, ts: '2026-09-02T10:00:00.000Z', rule: 'Always  run the full suite\nbefore pushing.' },
+          { initiative: 'gamma', ordinal: 7, ts: '2026-09-02T10:00:00.000Z', rule: 'Never edit generated files by hand.', quote: 'no hand edits to generated files' },
+          { initiative: 'delta', ordinal: 2, ts: '2026-08-01T00:00:00.000Z', rule: 'Keep the digest under its cap. '.repeat(h % 2 === 0 ? 1 : 40).trim() },
+          ...(own !== undefined ? [{ initiative: 'epsilon', ordinal: 4, ts: '2026-09-03T00:00:00.000Z', rule: own.rule!, ...(own.quote !== undefined ? { quote: own.quote } : {}) }] : []),
+          { initiative: 'zeta', ordinal: 9, ts: '2026-09-02T10:00:00.000Z', rule: `Name the ${c.slug} record's goal before its tasks.` },
+        ]
   const hook: StatusOptions = {
     sessionId: `${c.slug}-session`,
     ...(git !== undefined ? { git } : {}),
     ...(neighbours !== undefined ? { neighbours } : {}),
+    ...(repoRules !== undefined ? { repoRules } : {}),
     ...(repoMemory !== undefined ? { repoMemory } : {}),
     notices: [
       `Recent work elsewhere: ${c.fixture} touched 2 files 3h ago (see sofar status ${c.fixture}).`,
