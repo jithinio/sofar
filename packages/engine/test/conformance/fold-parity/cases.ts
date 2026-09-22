@@ -290,6 +290,50 @@ export function buildCases(): FoldParityCase[] {
     l.ev('session_ended', { summary: 'B done', next_action: 'C next' }, { session: 'B', at: base + 110_000 })
     cases.push({ id: 'FP-12-session-lifecycle-out-of-order', lines: l.lines, sidecar: { tail_at: 9, seeds: [31, 32, 33], order_independence: true, note: 'session lifecycle arriving out of order (rust-core 1.6): a write-back filed before its registration in file order, a mechanical event with an id below its session_started, a close with an id below its registration; the tail is monotonic so the fast path applies it' } })
   }
+  {
+    // memory-lead 2.8 (D12): a stamped supersession resolves by the target's
+    // EVENT id alone — never falling back to the handle a merge may have moved
+    // — and state rewrites `supersedes` to the target's current handle.
+    const l = new Log('demo')
+    l.ev('initiative_created', { slug: 'demo', goal: 'g' })
+    const d1 = l.ev('decision_logged', { chose: 'one', over: 'x', because: 'b', rule: 'Rule one.' }, { session: 'A' })
+    const d2 = l.ev('decision_logged', { chose: 'two', over: 'x', because: 'b' }, { session: 'A' })
+    const d3 = l.ev('decision_logged', { chose: 'three', over: 'x', because: 'b', rule: 'Rule three.' }, { session: 'A' })
+    l.ev('decision_logged', { chose: 'four', over: 'x', because: 'b', supersedes: 'D1', supersedes_id: d2 }, { session: 'A' }) // handle moved: retires D2, supersedes → D2
+    l.ev('decision_logged', { chose: 'five', over: 'x', because: 'b', rule: 'Rule five.', supersedes: 'D2', supersedes_id: d1 }, { session: 'A' }) // rule for rule: retires D1
+    l.ev('decision_logged', { chose: 'six', over: 'x', because: 'b', supersedes: 'D3', supersedes_id: d3 }, { session: 'A' }) // plain names a rule: inert, handle still rewritten
+    l.ev('decision_logged', { chose: 'seven', over: 'x', because: 'b', supersedes: 'D1', supersedes_id: '01J0000000000000000000NONE' }, { session: 'A' }) // unknown id: inert, no fallback to D1
+    l.ev('decision_logged', { chose: 'eight', over: 'x', because: 'b', supersedes_id: d1 }, { session: 'A' }) // invalid: requires supersedes
+    const m1 = l.ev('memory_promoted', { text: 'fact one' }, { session: 'A' })
+    const m2 = l.ev('memory_promoted', { text: 'fact two' }, { session: 'A' })
+    l.ev('memory_promoted', { text: 'fact three', supersedes: 'demo M1', supersedes_id: m2 }, { session: 'A' }) // retires M2 by id, supersedes → demo M2
+    l.ev('memory_promoted', { text: 'fact four', supersedes: 'demo M2', supersedes_id: '01J0000000000000000000NONE' }, { session: 'A' }) // inert
+    l.ev('memory_promoted', { text: 'fact five', supersedes: 'other M1', supersedes_id: m1 }, { session: 'A' }) // another record: left to cross-record readers
+    l.ev('memory_promoted', { text: 'fact six', supersedes: 'demo M1' }, { session: 'A' }) // unstamped: by the handle as recorded
+    cases.push({ id: 'FP-13-stamped-supersession', lines: l.lines, sidecar: { tail_at: 9, seeds: [37, 38, 39], order_independence: true, note: 'memory-lead 2.8 (D12): supersedes_id decides alone — a moved handle retires the stamped target, an unknown id is inert with no fallback, a plain decision still cannot retire a rule — and state names the target by its current handle; memories alike within the record; the tail starts at the invalid unrequited stamp' } })
+  }
+  {
+    // memory-lead 2.3 (D9) and typed-judge 2.4: a decision's check runs keep
+    // their own latest per decision on the task, apart from the task's own
+    // verification; a stored judgement is validated and then ignored.
+    const l = new Log('demo')
+    const RUN = '01J00000000000000000000RUN'
+    l.ev('initiative_created', { slug: 'demo', goal: 'g' })
+    l.ev('plan_updated', plan(2))
+    l.ev('decision_logged', { chose: 'c', over: 'o', because: 'b', rule: 'Tests pass.', check: { cmd: 'npm test', hint: 'run npm test', timeout_ms: 60000, } }, { session: 'A' })
+    l.ev('decision_logged', { chose: 'c', over: 'o', because: 'b', rule: 'Lint passes.', check: { cmd: 'npm run lint' } }, { session: 'A' })
+    l.ev('decision_logged', { chose: 'c', over: 'o', because: 'b', check: { cmd: 'x' } }, { session: 'A' }) // invalid: check without rule
+    l.ev('run_started', { run: RUN, adapter: 'claude-code', policy: 'task' })
+    const verification = (extra: Record<string, unknown>) => ({ run: RUN, task: '1.1', attempt: 1, command: 'npm test', cwd: '.', checked: { head: 'h', tree: 't' }, validator: '0.33.0', result: 'pass', exit_code: 0, duration_ms: 10, timeout_ms: 60000, ...extra })
+    l.ev('verification_recorded', verification({ decision: 'demo D2', result: 'fail', exit_code: 1 }))
+    l.ev('verification_recorded', verification({}))
+    l.ev('verification_recorded', verification({ decision: 'demo D1' }))
+    l.ev('judgement_recorded', { producer: 'deterministic', model: 'deterministic', question: 'relevance', subject: 'D1', about: 'file:src/a.ts', answer: { type: 'noul', noul: 0.8 } }, { session: 'A' })
+    l.ev('judgement_recorded', { producer: 'p', model: 'm', question: 'q', subject: 's', answer: { type: 'choice', choice: 'z', probabilities: { a: 0.5, b: 0.5 }, confidence: 1 } }) // invalid
+    l.ev('verification_recorded', verification({ decision: 'demo D2', attempt: 2 })) // replaces D2's entry in place
+    l.ev('verification_recorded', verification({ decision: 'D2' })) // invalid: unqualified
+    cases.push({ id: 'FP-14-decision-checks-and-judgements', lines: l.lines, sidecar: { tail_at: 11, seeds: [40, 41, 42], order_independence: true, note: 'memory-lead 2.3 (D9): task.checks keeps the latest run per decision in first-checked order, apart from task.verification; a check needs a rule; verification decision must be qualified. typed-judge 2.4: judgement_recorded validated, then ignored by state and drift. The tail starts at the invalid judgement' } })
+  }
   return cases
 }
 

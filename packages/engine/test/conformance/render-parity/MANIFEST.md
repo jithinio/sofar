@@ -1,5 +1,13 @@
 # Render-parity manifest (rust-core D11)
 
+Recorded at **main a4f270a** (rust-core merge cc14741): two goldens ADDED
+for the new fold-parity cases, and the other 97 are byte-identical:
+`fold-parity.cases.FP-13-stamped-supersession` (memory-lead 2.8: the
+retirement marks follow the stamped id, and decisions.md and memory.md name
+the target's current handle) and
+`fold-parity.cases.FP-14-decision-checks-and-judgements` (memory-lead 2.3,
+typed-judge 2.4).
+
 Re-recorded at **main 72146d9** (rust-core merge 9614860). One golden was
 added and one renamed; the other 95 are byte-identical:
 - `fold-parity.cases.FP-11-run-adoption-fencing` (new, drive-visibility 2.2):

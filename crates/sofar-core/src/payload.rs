@@ -262,6 +262,25 @@ fn opt_bool(v: Option<&Json>) -> bool {
     v.is_none_or(|v| matches!(v, Json::Bool(_)))
 }
 
+/// A stamped supersession (memory-lead 2.8, D12): `supersedes_id` is the
+/// target's event id, written only alongside `supersedes`. `what` is the
+/// record kind the handle names (`decision`, `memory`).
+fn supersedes_id_errors(p: &Object, what: &str, e: &mut Vec<String>) {
+    if !p.contains_key("supersedes_id") {
+        return;
+    }
+    if !str(p.get("supersedes_id")) {
+        e.push(
+            "supersedes_id: must be a non-empty string (target event id) when present".to_owned(),
+        );
+    }
+    if !p.contains_key("supersedes") {
+        e.push(format!(
+            "supersedes_id: requires `supersedes` — it is the id of the {what} that handle named"
+        ));
+    }
+}
+
 /// `checkSpecErrors` (memory-lead D9): shape errors of a decision's `check`.
 #[must_use]
 pub fn check_spec_errors(v: &Json) -> Vec<String> {
@@ -749,6 +768,7 @@ fn validate_known(event_type: &str, p: &Object, e: &mut Vec<String>) {
                     "supersedes: must be the bare handle `D<n>` of an earlier decision in this record when present",
                 );
             }
+            supersedes_id_errors(p, "decision", e);
             if let Some(until) = p.get("until") {
                 must(
                     e,
@@ -827,6 +847,7 @@ fn validate_known(event_type: &str, p: &Object, e: &mut Vec<String>) {
                         .to_owned(),
                 );
             }
+            supersedes_id_errors(p, "memory", e);
         }
         "review_recorded" => {
             if !one_of(p.get("scope"), &REVIEW_SCOPES) {

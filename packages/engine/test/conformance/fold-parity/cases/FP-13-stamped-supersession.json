@@ -1,0 +1,10 @@
+{
+  "tail_at": 9,
+  "seeds": [
+    37,
+    38,
+    39
+  ],
+  "order_independence": true,
+  "note": "memory-lead 2.8 (D12): supersedes_id decides alone — a moved handle retires the stamped target, an unknown id is inert with no fallback, a plain decision still cannot retire a rule — and state names the target by its current handle; memories alike within the record; the tail starts at the invalid unrequited stamp"
+}

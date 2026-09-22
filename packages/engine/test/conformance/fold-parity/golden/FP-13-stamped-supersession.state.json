@@ -1,0 +1,143 @@
+{
+  "state": {
+    "current": {
+      "active_phase": null,
+      "next_action": null
+    },
+    "cursor": "01KDVDNRMRJ9M36D87THWBENGF",
+    "decisions": [
+      {
+        "because": "b",
+        "chose": "one",
+        "id": "01KDVDNBYGS4KPXRQA1CVY50ZJ",
+        "over": "x",
+        "rule": "Rule one.",
+        "superseded_by": 5,
+        "ts": "2026-01-01T00:00:02.000Z"
+      },
+      {
+        "because": "b",
+        "chose": "two",
+        "id": "01KDVDNCXRPXRQA1CVY50ZJ9M3",
+        "over": "x",
+        "superseded_by": 4,
+        "ts": "2026-01-01T00:00:03.000Z"
+      },
+      {
+        "because": "b",
+        "chose": "three",
+        "id": "01KDVDNDX0KPXRQA1CVY50ZJ9M",
+        "over": "x",
+        "rule": "Rule three.",
+        "ts": "2026-01-01T00:00:04.000Z"
+      },
+      {
+        "because": "b",
+        "chose": "four",
+        "id": "01KDVDNEW8GF2S4KPXRQA1CVY5",
+        "over": "x",
+        "supersedes": "D2",
+        "ts": "2026-01-01T00:00:05.000Z"
+      },
+      {
+        "because": "b",
+        "chose": "five",
+        "id": "01KDVDNFVGD87THWBENGF2S4KP",
+        "over": "x",
+        "rule": "Rule five.",
+        "supersedes": "D1",
+        "ts": "2026-01-01T00:00:06.000Z"
+      },
+      {
+        "because": "b",
+        "chose": "six",
+        "id": "01KDVDNGTRA1CVY50ZJ9M36D87",
+        "over": "x",
+        "supersedes": "D3",
+        "ts": "2026-01-01T00:00:07.000Z"
+      },
+      {
+        "because": "b",
+        "chose": "seven",
+        "id": "01KDVDNHT07THWBENGF2S4KPXR",
+        "over": "x",
+        "supersedes": "D1",
+        "ts": "2026-01-01T00:00:08.000Z"
+      }
+    ],
+    "drop_notes": {},
+    "files_touched": [],
+    "freshness": {
+      "events_since_writeback": {
+        "commands": 0,
+        "decisions": 7,
+        "files": 0,
+        "memories": 6,
+        "notes": 0,
+        "phases": 0,
+        "reviews": 0,
+        "tasks": 0
+      },
+      "last_writeback_ts": null,
+      "notes": [],
+      "unattributed_mutations": 13
+    },
+    "goal": "g",
+    "guard_violations": [],
+    "memories": [
+      {
+        "id": "01KDVDNKRG1CVY50ZJ9M36D87T",
+        "superseded_by": "demo M6",
+        "text": "fact one",
+        "ts": "2026-01-01T00:00:10.000Z"
+      },
+      {
+        "id": "01KDVDNMQRY50ZJ9M36D87THWB",
+        "superseded_by": "demo M3",
+        "text": "fact two",
+        "ts": "2026-01-01T00:00:11.000Z"
+      },
+      {
+        "id": "01KDVDNNQ0VY50ZJ9M36D87THW",
+        "supersedes": "demo M2",
+        "supersedes_id": "01KDVDNMQRY50ZJ9M36D87THWB",
+        "text": "fact three",
+        "ts": "2026-01-01T00:00:12.000Z"
+      },
+      {
+        "id": "01KDVDNPP8RQA1CVY50ZJ9M36D",
+        "supersedes": "demo M2",
+        "supersedes_id": "01J0000000000000000000NONE",
+        "text": "fact four",
+        "ts": "2026-01-01T00:00:13.000Z"
+      },
+      {
+        "id": "01KDVDNQNGNGF2S4KPXRQA1CVY",
+        "supersedes": "other M1",
+        "supersedes_id": "01KDVDNKRG1CVY50ZJ9M36D87T",
+        "text": "fact five",
+        "ts": "2026-01-01T00:00:14.000Z"
+      },
+      {
+        "id": "01KDVDNRMRJ9M36D87THWBENGF",
+        "supersedes": "demo M1",
+        "text": "fact six",
+        "ts": "2026-01-01T00:00:15.000Z"
+      }
+    ],
+    "phases": [],
+    "reviews": [],
+    "runs": [],
+    "sessions": [],
+    "slug": "demo",
+    "status": "active",
+    "status_note": null,
+    "status_overrides": [],
+    "status_ts": null,
+    "successor": null,
+    "task_files": {}
+  },
+  "warnings": [
+    "line 9: invalid decision_logged payload (supersedes_id: requires `supersedes` — it is the id of the decision that handle named) — skipped"
+  ]
+}

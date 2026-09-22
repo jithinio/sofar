@@ -132,7 +132,12 @@ pub struct MemoryState {
     pub id: String,
     pub ts: String,
     pub text: String,
+    /// Qualified handle of the memory this one replaces (r1-fixes D8); for
+    /// one in this record resolved through `supersedes_id`, its current
+    /// handle (memory-lead 2.8, D12).
     pub supersedes: Option<String>,
+    /// Event id of the memory replaced, as the writer stamped it.
+    pub supersedes_id: Option<String>,
     pub superseded_by: Option<String>,
 }
 
@@ -931,19 +936,24 @@ fn apply_event(
                 check: p.get("check").and_then(Json::as_obj).map(decision_check),
                 superseded_by: None,
             });
-            // Supersession (r1-fixes 3.2, D25): resolve `D<n>` against the
-            // decisions already folded — the log alone, no clock, no env.
-            // Inert when it points forward or at itself, or when a rule-less
-            // decision names a rule (a constraint is replaced only by one).
-            if let Some(handle) = supersedes
-                && let Some(n) = decision_handle(&handle)
-            {
+            // Supersession (r1-fixes 3.2, D25): resolve against the decisions
+            // already folded — the log alone, no clock, no env. Inert when it
+            // points forward or at itself, or when a rule-less decision names
+            // a rule (a constraint is replaced only by one).
+            if let Some(handle) = supersedes {
                 let ordinal = state.decisions.len();
-                if n < ordinal
-                    && let Some(target) = state.decisions.get_mut(n - 1)
-                    && (target.rule.is_none() || has_rule)
-                {
-                    target.superseded_by = Some(ordinal as u64);
+                let stamped = opt_str(p, "supersedes_id");
+                if let Some(at) = superseded_index(&state.decisions, &handle, stamped.as_deref()) {
+                    let target = &mut state.decisions[at];
+                    if target.rule.is_none() || has_rule {
+                        target.superseded_by = Some(ordinal as u64);
+                    }
+                    // After a merge renumbered the record, the handle as
+                    // written names some other decision; state names the one
+                    // actually replaced (memory-lead 2.8, D12).
+                    if stamped.is_some() {
+                        state.decisions[ordinal - 1].supersedes = Some(format!("D{}", at + 1));
+                    }
                 }
             }
         }
@@ -954,17 +964,32 @@ fn apply_event(
                 ts: event.ts.clone(),
                 text: req_str(p, "text"),
                 supersedes: supersedes.clone(),
+                supersedes_id: opt_str(p, "supersedes_id"),
                 superseded_by: None,
             });
-            // Retire the replaced memory when it lives in this record.
+            // Retire the replaced memory when it lives in this record — by
+            // the stamped id when there is one (memory-lead 2.8, D12), which
+            // a merge cannot move, else by `M<n>`.
             if let Some(handle) = supersedes
                 && let Some((slug, n)) = memory_handle(&handle)
                 && slug == event.initiative
-                && n < state.memories.len()
             {
-                let ordinal = state.memories.len();
-                state.memories[n - 1].superseded_by =
-                    Some(format!("{} M{ordinal}", event.initiative));
+                let count = state.memories.len();
+                let stamped = opt_str(p, "supersedes_id");
+                let at = match &stamped {
+                    Some(id) => state.memories[..count - 1]
+                        .iter()
+                        .rposition(|m| &m.id == id),
+                    None => (n < count).then(|| n - 1),
+                };
+                if let Some(at) = at {
+                    state.memories[at].superseded_by =
+                        Some(format!("{} M{count}", event.initiative));
+                    if stamped.is_some() {
+                        state.memories[count - 1].supersedes =
+                            Some(format!("{} M{}", event.initiative, at + 1));
+                    }
+                }
             }
         }
         "review_recorded" => state.reviews.push(ReviewState {
@@ -1236,6 +1261,25 @@ fn apply_event(
 /// `usize` can never index a memory list and reads as no match.
 /// `DECISION_HANDLE_RE` (`/^D([1-9][0-9]*)$/`): the ordinal, or None. A
 /// value beyond `usize` cannot name a folded decision, so it is inert too.
+/// `supersededIndex`: the index of the decision a `supersedes` retires among
+/// those folded before the superseder (the last entry), or None when inert.
+/// A stamped `supersedes_id` (memory-lead 2.8, D12) decides alone, with no
+/// fallback to the ordinal a merge may have moved; unstamped payloads resolve
+/// by the handle as recorded (r1-fixes D25).
+fn superseded_index(
+    decisions: &[DecisionState],
+    handle: &str,
+    stamped: Option<&str>,
+) -> Option<usize> {
+    let ordinal = decisions.len();
+    if let Some(id) = stamped {
+        return decisions[..ordinal - 1].iter().rposition(|d| d.id == id);
+    }
+    decision_handle(handle)
+        .filter(|&n| n < ordinal)
+        .map(|n| n - 1)
+}
+
 fn decision_handle(handle: &str) -> Option<usize> {
     let digits = handle.strip_prefix('D')?;
     if digits.is_empty() || digits.starts_with('0') || !digits.bytes().all(|b| b.is_ascii_digit()) {
@@ -1249,7 +1293,9 @@ fn memory_handle(handle: &str) -> Option<(&str, usize)> {
     if !crate::payload::is_memory_handle(handle) {
         return None;
     }
-    Some((slug, n.parse().ok()?))
+    // Saturating: a handle past usize names no memory, as `n < count` fails
+    // for the float parseInt returns.
+    Some((slug, n.parse().unwrap_or(usize::MAX)))
 }
 
 /// One resolved status a `plan_updated` dropped by omitting the key (D1).
@@ -1903,6 +1949,7 @@ impl MemoryState {
         put(&mut o, "ts", &self.ts);
         put(&mut o, "text", &self.text);
         put_opt(&mut o, "supersedes", self.supersedes.as_deref());
+        put_opt(&mut o, "supersedes_id", self.supersedes_id.as_deref());
         put_opt(&mut o, "superseded_by", self.superseded_by.as_deref());
         Json::Obj(o)
     }
@@ -2409,6 +2456,7 @@ impl MemoryState {
             ts: rs(o, "ts")?,
             text: rs(o, "text")?,
             supersedes: os(o, "supersedes")?,
+            supersedes_id: os(o, "supersedes_id")?,
             superseded_by: os(o, "superseded_by")?,
         })
     }

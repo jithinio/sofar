@@ -1,0 +1,201 @@
+{
+  "state": {
+    "current": {
+      "active_phase": "Phase 1 — first",
+      "next_action": null
+    },
+    "cursor": "01KDVDNPP8RQA1CVY50ZJ9M36D",
+    "decisions": [
+      {
+        "because": "b",
+        "check": {
+          "cmd": "npm test",
+          "hint": "run npm test",
+          "timeout_ms": 60000
+        },
+        "chose": "c",
+        "id": "01KDVDNCXRPXRQA1CVY50ZJ9M3",
+        "over": "o",
+        "rule": "Tests pass.",
+        "ts": "2026-01-01T00:00:03.000Z"
+      },
+      {
+        "because": "b",
+        "check": {
+          "cmd": "npm run lint"
+        },
+        "chose": "c",
+        "id": "01KDVDNDX0KPXRQA1CVY50ZJ9M",
+        "over": "o",
+        "rule": "Lint passes.",
+        "ts": "2026-01-01T00:00:04.000Z"
+      }
+    ],
+    "drop_notes": {},
+    "files_touched": [],
+    "freshness": {
+      "events_since_writeback": {
+        "commands": 0,
+        "decisions": 2,
+        "files": 0,
+        "memories": 0,
+        "notes": 0,
+        "phases": 0,
+        "reviews": 0,
+        "tasks": 0
+      },
+      "last_writeback_ts": null,
+      "notes": [],
+      "unattributed_mutations": 2
+    },
+    "goal": "a goal of realistic length for the parity suite",
+    "guard_violations": [],
+    "memories": [],
+    "phases": [
+      {
+        "name": "Phase 1 — first",
+        "status": "active",
+        "tasks": [
+          {
+            "checks": [
+              {
+                "attempt": 2,
+                "checked": {
+                  "head": "h",
+                  "tree": "t"
+                },
+                "command": "npm test",
+                "cwd": ".",
+                "decision": "demo D2",
+                "duration_ms": 10,
+                "exit_code": 0,
+                "result": "pass",
+                "run": "01J00000000000000000000RUN",
+                "timeout_ms": 60000,
+                "ts": "2026-01-01T00:00:12.000Z",
+                "validator": "0.33.0"
+              },
+              {
+                "attempt": 1,
+                "checked": {
+                  "head": "h",
+                  "tree": "t"
+                },
+                "command": "npm test",
+                "cwd": ".",
+                "decision": "demo D1",
+                "duration_ms": 10,
+                "exit_code": 0,
+                "result": "pass",
+                "run": "01J00000000000000000000RUN",
+                "timeout_ms": 60000,
+                "ts": "2026-01-01T00:00:09.000Z",
+                "validator": "0.33.0"
+              }
+            ],
+            "id": "1.1",
+            "status": "active",
+            "title": "task 1",
+            "verification": {
+              "attempt": 1,
+              "checked": {
+                "head": "h",
+                "tree": "t"
+              },
+              "command": "npm test",
+              "cwd": ".",
+              "duration_ms": 10,
+              "exit_code": 0,
+              "result": "pass",
+              "run": "01J00000000000000000000RUN",
+              "timeout_ms": 60000,
+              "ts": "2026-01-01T00:00:08.000Z",
+              "validator": "0.33.0"
+            }
+          },
+          {
+            "id": "1.2",
+            "status": "pending",
+            "title": "task 2"
+          }
+        ]
+      },
+      {
+        "name": "Phase 2 — second",
+        "status": "pending",
+        "tasks": [
+          {
+            "id": "2.1",
+            "route": {
+              "agent": "codex"
+            },
+            "status": "pending",
+            "title": "later",
+            "verify": {
+              "cmd": "npm test"
+            }
+          }
+        ]
+      }
+    ],
+    "reviews": [],
+    "runs": [
+      {
+        "adapter": "claude-code",
+        "adoptions": [],
+        "done_tasks": [],
+        "handoffs": [],
+        "id": "01J00000000000000000000RUN",
+        "owner": {
+          "epoch": 1,
+          "id": "01KDVDNFVGD87THWBENGF2S4KP"
+        },
+        "policy": "task",
+        "stop_requests": [],
+        "ts": "2026-01-01T00:00:06.000Z",
+        "verifications": [
+          {
+            "attempt": 1,
+            "decision": "demo D2",
+            "result": "fail",
+            "task": "1.1",
+            "ts": "2026-01-01T00:00:07.000Z"
+          },
+          {
+            "attempt": 1,
+            "result": "pass",
+            "task": "1.1",
+            "ts": "2026-01-01T00:00:08.000Z"
+          },
+          {
+            "attempt": 1,
+            "decision": "demo D1",
+            "result": "pass",
+            "task": "1.1",
+            "ts": "2026-01-01T00:00:09.000Z"
+          },
+          {
+            "attempt": 2,
+            "decision": "demo D2",
+            "result": "pass",
+            "task": "1.1",
+            "ts": "2026-01-01T00:00:12.000Z"
+          }
+        ]
+      }
+    ],
+    "sessions": [],
+    "slug": "demo",
+    "status": "active",
+    "status_note": null,
+    "status_overrides": [],
+    "status_ts": null,
+    "successor": null,
+    "task_files": {}
+  },
+  "warnings": [
+    "line 5: invalid decision_logged payload (check: requires `rule` — a failing check has to cite the clause it enforces) — skipped",
+    "line 11: invalid judgement_recorded payload (answer.choice: must be one of answer.probabilities) — skipped",
+    "line 13: invalid verification_recorded payload (decision: must be a qualified handle `<slug> D<n>` when present) — skipped"
+  ]
+}
