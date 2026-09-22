@@ -4,7 +4,7 @@
 
 Goal: Make sofar measurably the best work memory for AI coding agents: never below any agent's native memory on any rep, bookkeeping at or below native overhead, and a lead of at least 25-30% (target 2x) on held-out long-horizon, cross-agent, decision-churn work. The lead must survive a native memory that syncs across machines and teammates, so it may never rest on native memory being machine-local.
 
-Progress: 9/22 tasks done (40%)
+Progress: 13/22 tasks done (59%)
 
 ## Phase 1 — Wave A: parity at native overhead (ships in 0.33.0-rc.2) [done] — 3/4 done
 
@@ -15,17 +15,17 @@ Progress: 9/22 tasks done (40%)
 - [x] 1.3 A3 digest composition: next task's spec first; remember entries surfaced; implementation minutiae dropped from rejected approaches and recent decisions; rules ranked by relevance and rendered last; ≤6k chars. PREDICT: ≤1 raw .sofar read per session; M3 unchanged or better.
 - [ ] 1.4 rust-core mirrors 1.1–1.3 (hooks, digest render) with conformance parity before rc.2 is pinned
 
-## Phase 2 — Wave B: structural lead [pending] — 4/9 done
+## Phase 2 — Wave B: structural lead [pending] — 8/9 done
 
 - [x] 2.1 B1 read-time surfacing: when a file is read or edited, the decisions whose guard or derived scope matches it are shown, worded as facts (Claude PostToolUse on Read/Grep, Codex Bash/apply_patch, Cursor postToolUse). PREDICT: C3 re-violation −50%, tokens +<1%.
 - [x] 2.2 B2 repo-wide scope and supersession across initiatives: a rule can be app-wide; a reversal of a standing rule in ANY initiative is refused without supersedes (extends L08, which is same-record only). Fixes cursor-sofar's cross-record A2 loss.
 - [x] 2.3 B3 executable decision checks with fix hints in the failure, run at Stop, pre-commit and in drive. Blocking needs a Decision revisiting drift-hardening D3 (warn, never block) first.
 - [ ] 2.4 B4 optional bridge into native memory (repo-local autoMemoryDirectory import, Codex summary), user/feedback types kept local. Needs a privacy Decision first.
-- [ ] 2.5 rust-core mirrors 2.1 (read subjects, the decision-scope tier, the told set, the fact wording) with conformance parity, as 1.4 did for Wave A
-- [ ] 2.6 rust-core mirrors 2.2 (memory-lead D8): the scope tier keeps every rule (INDEX_SCHEMA_VERSION 7), and the digest renders other records' rules after its own (within what own rules leave, at most 1,200 chars, D4 relevance, restatements merged, own duplicates dropped), with conformance parity, as 2.5 does for 2.1
-- [ ] 2.7 rust-core mirrors 2.3 (memory-lead D9): decision_logged check and verification_recorded decision (schema fingerprint), the fold's task.checks and run.verifications decision (task.verification never overwritten by a check), the scope tier's check and its command's file mentions (INDEX_SCHEMA_VERSION 8), with conformance parity, as 2.5 does for 2.1
+- [x] 2.5 rust-core mirrors 2.1 (read subjects, the decision-scope tier, the told set, the fact wording) with conformance parity, as 1.4 did for Wave A
+- [x] 2.6 rust-core mirrors 2.2 (memory-lead D8): the scope tier keeps every rule (INDEX_SCHEMA_VERSION 7), and the digest renders other records' rules after its own (within what own rules leave, at most 1,200 chars, D4 relevance, restatements merged, own duplicates dropped), with conformance parity, as 2.5 does for 2.1
+- [x] 2.7 rust-core mirrors 2.3 (memory-lead D9): decision_logged check and verification_recorded decision (schema fingerprint), the fold's task.checks and run.verifications decision (task.verification never overwritten by a check), the scope tier's check and its command's file mentions (INDEX_SCHEMA_VERSION 8), with conformance parity, as 2.5 does for 2.1
 - [x] 2.8 Merge-stable references (MOAT.md P0): a supersedes D<n> logged on one branch retargets after a union merge with a branch that logged decisions concurrently, silently retiring a teammate rule and leaving the intended target in force. Writers stamp the target event id beside the handle (decision supersedes, memory supersedes, verification_recorded decision); the fold resolves by id when present, by ordinal otherwise. Contract Decision first; the MOAT.md repro becomes a regression test.
-- [ ] 2.9 rust-core mirrors 2.8 (merge-stable references): the fold resolves supersedes and verification decision by stamped event id when present, with conformance parity, as 2.5 does for 2.1
+- [x] 2.9 rust-core mirrors 2.8 (merge-stable references): the fold resolves supersedes and verification decision by stamped event id when present, with conformance parity, as 2.5 does for 2.1
 
 ## Phase 3 — Wave C: scale (Rust core, cloud) [pending] — 0/3 done
 

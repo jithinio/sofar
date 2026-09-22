@@ -34,4 +34,4 @@ Progress: 0/15 tasks done (0%)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
 
 Active phase: Phase 1 — Contract
-Next action: Profile post-tool at team100 (union_files scan). 4.1 awaits the operator, the re-pin awaits rc.3.
+Next action: Merge main past ce2f9f2 and mirror any hot-path change (D29); then profile post-tool at team100 once the perf preconditions pass.
