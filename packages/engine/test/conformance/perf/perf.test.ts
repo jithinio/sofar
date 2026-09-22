@@ -294,9 +294,12 @@ function spawnTimed(
  * spawns it, A-then-B on even iterations and B-then-A on odd, so a machine
  * whose load drifts during the loop moves both sides alike. A comparator
  * that needs distinct stdin per run (session-end's closable sessions,
- * post-tool's edit paths) gets the iteration's twin (`i + ITER`).
+ * post-tool's edit paths) gets the iteration's twin (`i + ITER`). A measure
+ * pinned to its own `command` (`find`) is not the binary under test, so it
+ * runs alone: a native comparator does not own that surface and exits 64.
  */
 function measure(cell: Cell, m: Measure): { stat: Stat; ab?: Stat } {
+  const ab = m.command === undefined ? AB : null
   const samples: number[] = []
   const abSamples: number[] = []
   const one = (i: number, command?: readonly string[]) => {
@@ -313,17 +316,17 @@ function measure(cell: Cell, m: Measure): { stat: Stat; ab?: Stat } {
     return run.ms
   }
   for (let i = 0; i < ITER; i++) {
-    if (AB === null) {
+    if (ab === null) {
       samples.push(one(i))
     } else if (i % 2 === 0) {
       samples.push(one(i))
-      abSamples.push(one(i + ITER, AB))
+      abSamples.push(one(i + ITER, ab))
     } else {
-      abSamples.push(one(i + ITER, AB))
+      abSamples.push(one(i + ITER, ab))
       samples.push(one(i))
     }
   }
-  return { stat: stat(samples), ...(AB === null ? {} : { ab: stat(abSamples) }) }
+  return { stat: stat(samples), ...(ab === null ? {} : { ab: stat(abSamples) }) }
 }
 
 /**
