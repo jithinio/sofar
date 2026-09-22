@@ -6,11 +6,11 @@
 - Tool: claude-code
 - Model: claude-opus-5
 - Started: 2026-09-22T14:51:15.416Z
-- Ended: 2026-09-22T19:28:03.231Z
+- Ended: 2026-09-22T19:28:39.293Z
 
 ## Summary
 
-Smokes done 19:27Z; cycle holding at the 5.1 gate; window handed to sofar-3c, fallback at 20:12Z.
+5.1 took the window at 19:28Z; cycle holds at gate 2 for its marker, release expected 19:48-19:58Z.
 
 ## Next action
 
@@ -18,9 +18,9 @@ At the 5.1 handoff the cycle starts; read its compare verdict and record 3.4.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 103 commands
+- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 104 commands
 - Files:
   - /Users/jins/IO/sofar-evaluator/lib/commit.ts
   - /Users/jins/IO/sofar-evaluator/test/commit.test.ts
   - /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh
-- Commands run: 103
+- Commands run: 104
