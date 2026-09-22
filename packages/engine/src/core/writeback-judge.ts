@@ -106,7 +106,7 @@ function clip(text: string, max = JUDGE_TEXT_CHARS): string {
 }
 
 /** The task the digest names next: the active phase's active, pending or blocked task, else the first open phase's. */
-function nextTask(state: InitiativeState): { id: string; title: string } | undefined {
+export function nextTask(state: InitiativeState): { id: string; title: string } | undefined {
   const pick = (phase: InitiativeState['phases'][number]) =>
     phase.tasks.find((t) => t.status === 'active') ?? phase.tasks.find((t) => t.status === 'pending') ?? phase.tasks.find((t) => t.status === 'blocked')
   const active = state.phases.find((p) => p.name === state.current.active_phase)

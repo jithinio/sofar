@@ -4,7 +4,7 @@
 
 Goal: Adopt the shape of TypeSafe Jev / System One models in sofar: typed judgements (noul, choice, score) over record state with calibrated probabilities and confidence-gated escalation, behind a Judge seam whose default is deterministic and whose Jev path is the paid `cloud` provider (D2). Judging runs only at write time (MCP tools), in the driver, on pull surfaces or offline — never on a hook, statusline, shim, fold or projection path. Outputs are advisory: warnings and rankings, never mutations, never blocks. Catalogue A–E and predictions in the record notes.
 
-Progress: 10/15 tasks done (66%)
+Progress: 11/16 tasks done (68%)
 
 ## Phase 1 — Measure on our own record [done] — 2/2 done
 
@@ -32,15 +32,16 @@ Progress: 10/15 tasks done (66%)
 - [ ] 4.2 B3 pre-flight: task specified well enough to act; low → needs_user without a launch (blocked)
 - [ ] 4.3 B4 route hints: complexity Score → effort, Choice → model, filling only what the run left open (blocked)
 
-## Phase 5 — Context and pull [active] — 0/2 done
+## Phase 5 — Context and pull [active] — 1/3 done
 
-- [ ] 5.1 C1/C2: relevance scores for decisions, notes, rejected approaches, repo memory and adjacent initiatives against the next task, judged at write-back (or server-side over synced events), stored in the index, read by the SessionStart hook
+- [x] 5.1 C1/C2: relevance scores for decisions, notes, rejected approaches, repo memory and adjacent initiatives against the next task, judged at write-back (or server-side over synced events), stored in the index, read by the SessionStart hook
 - [ ] 5.2 D1/D2: judge-ranked find and answer packets (depends on linked-context Phase 5)
+- [ ] 5.3 SessionStart digest reads stored relevance (typed-judge D10, D11): rank decisions, rejected approaches, memory and notes by core/index-relevance for the next task, byte-identical with no rows; TS render plus the rust-core mirror. Waits on sofar-cloud's judge endpoint. (blocked)
 
 ## Phase 6 — Proof [pending] — 0/1 done
 
 - [ ] 6.1 E1: sofar + judge arm in bench-refresh; Jev as calibrated blind reviewer; grade the pre-registered predictions
 
 Active phase: Phase 5 — Context and pull
-Next action: Record sofar-6e's reply on the 5.1/B1 relevance shape (about field vs question), then build 5.1 to it.
-Blocked on: phase Phase 4 — Driver; task 4.2: Waits for drive-visibility 2.1–2.2 to land in src/driver/drive.ts (live in session sofar-1b); coordinate with sofar-1b before starting (sofar-c3 coordination note, 2026-09-22).; task 4.3: Same as 4.2: edits src/driver/drive.ts, where drive-visibility 2.1–2.2 is live in session sofar-1b; start after they land and after coordinating with sofar-1b.
+Next action: Check whether drive-visibility 2.1–2.2 have landed in src/driver/drive.ts; if so, ask sofar-1b, then start 4.2.
+Blocked on: phase Phase 4 — Driver; task 4.2: Waits for drive-visibility 2.1–2.2 to land in src/driver/drive.ts (live in session sofar-1b); coordinate with sofar-1b before starting (sofar-c3 coordination note, 2026-09-22).; task 4.3: Same as 4.2: edits src/driver/drive.ts, where drive-visibility 2.1–2.2 is live in session sofar-1b; start after they land and after coordinating with sofar-1b.; task 5.3: Waits on sofar-cloud's POST /v1/repos/:repo_id/judge. Until it ships, no relevance row can exist to render (D11).

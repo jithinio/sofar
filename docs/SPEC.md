@@ -181,8 +181,11 @@ memory_promoted (text, supersedes? — a fact its author declares repo memory,
 addressable as `<slug> M<n>`; `supersedes` names the qualified handle of the
 fact it replaces, r1-fixes D8; repo-memory-capture D1) ·
 judgement_recorded (producer, model — the exact version, never an alias —
-question, subject — an event id or a task id — answer {type: noul|choice|score,
-…the wire shape without `legend`}, state_hash? — a stored Judge answer:
+question, subject — an event id, a task id or a record handle qualified per
+the citation grammar — about? — `task:<id>` or `file:<repo-relative path>`,
+what a relevance judgement was judged against, typed-judge D10 — answer
+{type: noul|choice|score, …the wire shape without `legend`}, state_hash? — a
+stored Judge answer:
 ENRICHMENT the fold ignores for state and for drift, read by the index;
 typed-judge 2.4, see §Judge) ·
 review_recorded (scope: phase|final, verdict: pass|findings|blocked,
@@ -3047,15 +3050,44 @@ reads it, and a stored judgement is always attributable to the exact model
 version that made it. The type is `judgement_recorded` (§Event types):
 `producer` names who ran the judge (`sofar-cloud`, `deterministic`,
 `agent`), `model` the exact version, `question` the seam's question id,
-`subject` the event id or task id judged, `answer` the wire shape without
-its derivable legend, and `state_hash` (sha256 of the redacted state) lets
-a reader tell whether the material has moved since. It is excluded from
+`subject` the event id, task id or qualified record handle judged (a bare
+`D12` is the envelope's own initiative, any other record's `<slug> D12`;
+typed-judge D10), `about` what a relevance judgement was judged against
+(`task:<id>` of the envelope's initiative, or `file:<repo-relative path>`;
+anything else fails validation), `answer` the wire shape without its
+derivable legend, and `state_hash` (sha256 of the redacted state) lets a
+reader tell whether the material has moved since. It is excluded from
 drift for the reason driver events are (commit-attribution D18): it says
 what a judge thought, never what the plan says, so it cannot stale a next
 action and owes no write-back. Who WRITES one is each consumer's contract
 (3.x guards write none — their answers live in the tool result; 5.1's
-relevance pass and 4.1's progress verdict write theirs); nothing in the
-engine writes a judgement until a consumer that needs one ships.
+relevance pass and 4.1's progress verdict write theirs). Only MODEL answers
+are ever written: a rule's answer restates the record and has no model
+string (typed-judge D4).
+
+**Stored relevance (typed-judge 5.1, D10, D11; `core/relevance-judge.ts`,
+`core/index-relevance.ts`).** The contract memory-lead B1 shares (D10).
+WRITER: after sofar_end_session, and only with a `cloud` provider, one
+request over `{task, candidates}` asks a noul per candidate (`rel_<key>`):
+would a session doing the next task (the one the digest names) need to know
+it? Candidates are this record's in-force decisions (never a retired one),
+unsuperseded memories and notes, 8 per kind, BM25-ranked against the task
+and topped up newest. Each model answer lands as `judgement_recorded
+{question: "relevance", subject: D<n> | <slug> M<n> | <note event id>,
+about: "task:<id>"}` and adds no line to the result. READER: an index tier
+(`relevance.json`, its own cursor) keeps the latest row per (about,
+subject), qualifying bare `D<n>` with its initiative. `relevance(index,
+{about, initiative?, retired})` returns them strongest first. `task:` rows
+come from `initiative` only and `file:` rows from every initiative. It
+NEVER returns a handle in `retired`, a required parameter: the caller holds
+the fold or B1's own structure, and the tier does not re-derive supersession.
+`rankByRelevance(candidates, rows)` keeps every deterministic candidate
+(guard, derived scope, lexical link), however low its p, and orders by
+stored p, where no row counts as 0.5 and ties keep the deterministic order.
+It adds a non-candidate only at p ≥ 0.8 (`RELEVANCE_CARRY`, restated from
+THRESHOLDS so hooks never reach `core/judge`). The SessionStart digest's
+use of it is 5.3, waiting on sofar-cloud's judge endpoint (D11). Who writes
+`file:` rows is open (D10).
 
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
@@ -6822,6 +6854,19 @@ stay the underlying derivation's, and exit codes are styling-independent.
   that throws yields no verdict. Without a provider the run writes no
   judgement. `diffStatSince` counts commits, edits and untracked files since
   the launch head and ignores `.sofar/`.
+- **Stored relevance (typed-judge 5.1):** `about` validates as `task:<id>` or
+  `file:<repo-relative path>` (an absolute path, an empty target or any other
+  prefix fails) and appears in the fingerprinted fields line. The write-back
+  candidates skip a superseded decision and a superseded memory, qualify
+  memories as `<slug> M<n>` and notes by event id, cap at 8 per kind keeping
+  the BM25 hit, and yield nothing without a next task. Without a provider no
+  row is written. With one, each answer lands about `task:<id>` and validates,
+  and a provider that throws writes none. The index keeps the latest row per
+  subject, qualifies a bare `D<n>`, ignores other questions, extends from its
+  cursor, scopes `task:` rows to their initiative and unions `file:` rows, and
+  never returns a retired handle. `rankByRelevance` keeps a candidate at p
+  0.05, adds a stranger at 0.85 and not at 0.7. `RELEVANCE_CARRY` equals
+  THRESHOLDS.relevance_carry, and index-relevance imports no judge module.
 - **Stored judgements (typed-judge 2.4):** `judgement_recorded` validates
   producer, model, question and subject as non-empty strings and `answer` by
   its type (noul in [0,1]; choice naming one of 2+ probability keys with

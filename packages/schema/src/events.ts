@@ -296,11 +296,24 @@ export interface JudgementRecordedPayload {
   model: string
   /** The question id, as the seam names it (`relevance`, `progress`, …). */
   question: string
-  /** What it is about: an event id, or a task id of this initiative. */
+  /**
+   * What it is about: an event id, a task id of this initiative, or a record
+   * handle qualified per the citation grammar — a bare `D12` is the envelope's
+   * own initiative, anything else `<slug> D12` / `<slug> M3` (typed-judge D10).
+   */
   subject: string
+  /**
+   * What `subject` was judged AGAINST, for a relevance judgement (typed-judge
+   * D10): `task:<id>` (a task of the envelope's initiative) or
+   * `file:<repo-relative path>`. Absent for a judgement about the subject alone.
+   */
+  about?: string
   answer: JudgementAnswer
   state_hash?: string
 }
+
+/** `task:<id>` or `file:<repo-relative path>` (typed-judge D10). */
+export const JUDGEMENT_ABOUT_RE = /^(task:\S+|file:[^/\s].*)$/
 
 /** What a review concluded. `blocked` means it could not be performed at all. */
 export const REVIEW_VERDICTS = ['pass', 'findings', 'blocked'] as const
@@ -878,6 +891,9 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (!str(p.question)) e.push('question: must be a non-empty string')
     if (!str(p.subject)) e.push('subject: must be a non-empty string')
     if (p.state_hash !== undefined && !str(p.state_hash)) e.push('state_hash: must be a non-empty string when present')
+    if (p.about !== undefined && !(str(p.about) && JUDGEMENT_ABOUT_RE.test(p.about as string))) {
+      e.push('about: must be `task:<id>` or `file:<repo-relative path>` when present')
+    }
     const a = p.answer as Record<string, unknown> | undefined
     if (typeof a !== 'object' || a === null) {
       e.push('answer: must be an object')
@@ -1314,8 +1330,8 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
   },
   judgement_recorded: {
     writer: 'driver',
-    summary: "a stored judge answer (typed-judge 2.4) — enrichment the fold ignores for state and drift; nothing appends one yet, the driver's progress verdict (4.1) will be first",
-    fields: `producer, model (the exact version), question, subject (an event id or task id), answer {type: ${JUDGEMENT_ANSWER_TYPES.join('|')}, …}, state_hash?`,
+    summary: "a stored judge answer (typed-judge 2.4) — enrichment the fold ignores for state and drift; appended by the driver's progress judge (4.1) and the write-back relevance pass (5.1), never by hand",
+    fields: `producer, model (the exact version), question, subject (an event id, task id or qualified record handle), about? (task:<id> | file:<repo-relative path>), answer {type: ${JUDGEMENT_ANSWER_TYPES.join('|')}, …}, state_hash?`,
     example: { producer: 'sofar-cloud', model: 'jev-1.13.0', question: 'task_done', subject: '1.1', answer: { type: 'noul', noul: 0.92 } },
   },
 }

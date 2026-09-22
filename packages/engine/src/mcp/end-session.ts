@@ -7,6 +7,8 @@ import { currentBranch } from '../core/git'
 import type { JudgeOptions } from '../core/judge'
 import { writebackJudgeWarnings } from '../core/writeback-judge'
 import { evidenceWarnings, filingWarnings, type DoneTask, type FiledEntry } from '../core/filing-judge'
+import { readSince } from '../core/index-tail'
+import { relevanceJudgements, type NoteCandidate } from '../core/relevance-judge'
 import { resolvePeers } from '../core/peers'
 import { silentReversal } from '../core/reversal'
 import { ruleFidelityWarning } from '../core/rule-fidelity'
@@ -317,6 +319,9 @@ export function endSession(ctx: ToolContext, args: EndSessionArgs): EndSessionRe
  * marked done, exactly as their own tools would. The write-back judge (3.2)
  * reads the summary and next action against the fold that holds them. The
  * session has already ended; the lines only add to `warnings`, in that order.
+ * Last, with a cloud provider only, the relevance pass (5.1, D10) stores the
+ * model's relevance of this record's entries to the next task, as
+ * judgement_recorded; it adds no line.
  */
 export async function endSessionJudged(
   ctx: ToolContext,
@@ -341,6 +346,11 @@ export async function endSessionJudged(
     writebackJudgeWarnings(after, { session_id: sessionId, summary: args.summary, next_action: args.next_action }, opts),
   ])
   const judged = [...decided, ...misfiled, ...unproven, ...written]
+  if (opts.provider !== undefined) {
+    for (const payload of await relevanceJudgements(after, notesOf(ctx, after.slug), opts)) {
+      ctx.appendAndProject(after.slug, 'judgement_recorded', payload as unknown as Record<string, unknown>, { project: false })
+    }
+  }
   if (judged.length === 0) return result
   return { ...result, warnings: [...(result.warnings ?? []), ...judged] }
 }
@@ -418,4 +428,15 @@ function endSessionFiled(
     return peer.ambiguous ? { ...p, peer: peer.name, peer_cwd: peer.cwd } : { ...p, peer: peer.name }
   })
   return { result: { ok: true, event_id: event.id, ...applied, parallel_writebacks: withPeers, ...bound }, batch, after: state, sessionId }
+}
+
+/** This record's notes with their event ids, for the relevance pass (5.1): the fold keeps only un-absorbed ones, without ids. */
+function notesOf(ctx: ToolContext, slug: string): NoteCandidate[] {
+  try {
+    return readSince(ctx.eventsPath(slug), null)
+      .events.filter((e) => e.type === 'note_added' && typeof e.payload.text === 'string')
+      .map((e) => ({ id: e.id, ts: e.ts, text: e.payload.text as string }))
+  } catch {
+    return []
+  }
 }

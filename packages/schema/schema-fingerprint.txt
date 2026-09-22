@@ -13,7 +13,7 @@ file_touched: path, op, ok? (what the host said; absent = unknown, never success
 command_run: cmd, ok? (what the host said; absent = unknown), exit? (only when the host gives a number)
 note_added: text
 memory_promoted: text, supersedes? (qualified handle `<slug> M<n>` of the fact this one replaces)
-judgement_recorded: producer, model (the exact version), question, subject (an event id or task id), answer {type: noul|choice|score, …}, state_hash?
+judgement_recorded: producer, model (the exact version), question, subject (an event id, task id or qualified record handle), about? (task:<id> | file:<repo-relative path>), answer {type: noul|choice|score, …}, state_hash?
 review_recorded: scope: phase|final, verdict: pass|findings|blocked, watermark? (sha read through), phase?, findings?: string[] (required, non-empty, for findings)
 run_started: run, adapter, policy: task|threshold, threshold_pct? and context_window? (both required for threshold), max_sessions?, surface?, verify? (the run's default acceptance command)
 handoff: run, session_id, reason: task_done|threshold|stall|needs_user|verify_failed, task?, tokens?, detail? (how the process ended: exit, spawn error, last stderr line)

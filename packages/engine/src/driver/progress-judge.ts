@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { HandoffReason, JudgementAnswer } from '@sofar/schema'
 import { JUDGE_TEXT_CHARS, JUDGE_WARN_P } from '../core/decision-judge'
-import { judge, redactState, type Answer, type JudgeOptions, type JudgeState, type Question } from '../core/judge'
+import { CLOUD_PRODUCER, judge, redactState, type Answer, type JudgeOptions, type JudgeState, type Question } from '../core/judge'
 
 /**
  * Driver progress judge (typed-judge 4.1, catalogue B1/B2, SPEC §Judge).
@@ -52,9 +52,6 @@ export const OUTCOMES = {
   scope_creep: { what: 'The session did `task` and also substantial work `task` does not ask for.' },
   unclear: { what: 'The evidence does not show what the session did.' },
 }
-
-/** The producer a stored judgement names for the `cloud` provider (typed-judge D4). */
-export const CLOUD_PRODUCER = 'sofar-cloud'
 
 function clip(text: string, max = JUDGE_TEXT_CHARS): string {
   const flat = text.replace(/\s+/g, ' ').trim()

@@ -327,6 +327,9 @@ export interface JudgeOptions {
 
 export const DETERMINISTIC = 'deterministic'
 
+/** The `producer` a stored judgement names when the `cloud` provider answered it (typed-judge D4). */
+export const CLOUD_PRODUCER = 'sofar-cloud'
+
 /**
  * Run every rule; offer only the abstentions to `opts.provider` (if any) in
  * one request; never throw for a provider's failure. Same request, same
