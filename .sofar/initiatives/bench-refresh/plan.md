@@ -78,4 +78,4 @@ Progress: 3/25 tasks done (12%)
 - [ ] 6.3 Replace stale public claims: one-pager R04 figures, install name @alignlabs/sofar, "adds nothing to your bill" next to --cost-cap
 
 Active phase: Phase 1 — Claim + round design
-Next action: When round 1 lands: write the 4.1 final loss report; user sets the 5.0 freeze items.
+Next action: When codex-bare/r1 and codex-drive/r1 finish: run the analysis rescores and write the bench-refresh 4.1 final loss report.
