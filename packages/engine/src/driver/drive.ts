@@ -43,6 +43,7 @@ import {
 import { version as ENGINE_VERSION } from '../../package.json'
 import { resolveJudgeProvider } from '../client/judge'
 import type { JudgeOptions } from '../core/judge'
+import { judgePreflight } from './preflight-judge'
 import { judgeProgress } from './progress-judge'
 
 /**
@@ -1056,6 +1057,29 @@ async function driveHolding(
         lastCheck !== undefined && lastCheck.result !== 'pass'
           ? describeVerification(lastCheck.command, lastCheck.attempt, lastCheck)
           : undefined
+      // Pre-flight (typed-judge 4.2/4.3, D12): advisory, so the launch below
+      // goes ahead as routed whatever it says. The judge is a network wait, so
+      // ownership, stop requests and signals are re-read before anything is
+      // appended or launched (drive-visibility 2.2).
+      if (judging.provider !== undefined) {
+        const verdict = await judgePreflight(
+          { task: { id: task.id, title: task.title, phase: task.phase }, ...(failure !== undefined ? { failure } : {}) },
+          { effort: route.effort === undefined && routed.capabilities.effort, model: route.model === undefined && routed.capabilities.model },
+          judging,
+        )
+        const folded = ctx.foldState(initiative)
+        checkOwner(folded)
+        if (fenced !== undefined) break
+        takeRequests(folded)
+        if (interrupted) {
+          stop = interruptedStop()
+          break
+        }
+        for (const judgement of verdict.judgements) {
+          ctx.appendAndProject(initiative, 'judgement_recorded', judgement, { session: 'cli', source: 'cli', actor: 'human' })
+        }
+        for (const line of verdict.lines) progress(line)
+      }
       const session = routed.launch({
         cwd,
         initiative,
@@ -1183,6 +1207,10 @@ async function driveHolding(
           sessionId,
           judging,
         )
+        // The judge is a network wait, and a takeover can land during it
+        // (drive-visibility 2.2): a driver fenced meanwhile appends nothing.
+        checkOwner(ctx.foldState(initiative))
+        if (fenced !== undefined) break
         for (const judgement of verdict.judgements) {
           ctx.appendAndProject(initiative, 'judgement_recorded', judgement, { session: 'cli', source: 'cli', actor: 'human' })
         }

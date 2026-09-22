@@ -8,7 +8,7 @@ import { makeEvent } from '../src/core/envelope'
 import { foldLog } from '../src/core/fold'
 import type { JudgeProvider, WireAnswer, WireRequest } from '../src/core/judge'
 import { appendEvent } from '../src/core/log'
-import { drive } from '../src/driver/drive'
+import { drive, DriveFenced } from '../src/driver/drive'
 import { judgeProgress, progressRequest, type ProgressEvidence } from '../src/driver/progress-judge'
 import { diffStatSince, headOf } from '../src/driver/verify'
 import { FakeAdapter } from './helpers/fake-adapter'
@@ -173,9 +173,11 @@ describe('in a driven run', () => {
     const lines: string[] = []
     const out = await drive(root, 'demo', { adapter, maxSessions: 1, judge: { provider: fake(0.05, 'partial', 0.8, seen) }, onProgress: (l) => lines.push(l) })
     expect(out.handoffs.map((h) => h.reason)).toEqual(['task_done']) // D5: the judge vetoes nothing
-    expect(seen[0]!.state).toMatchObject({ task: '1.1 first', status: 'pending → done', diff: 'no change to the tree outside the record' })
+    // The pre-flight (4.2) asks first; the progress request is the one carrying `status`.
+    const progressSent = seen.find((r) => typeof r.state === 'object' && r.state !== null && 'status' in r.state)!
+    expect(progressSent.state).toMatchObject({ task: '1.1 first', status: 'pending → done', diff: 'no change to the tree outside the record' })
     const events = readFileSync(logPath(root), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { type: string; session: string; payload: Record<string, unknown> })
-    const judged = events.filter((e) => e.type === 'judgement_recorded')
+    const judged = events.filter((e) => e.type === 'judgement_recorded' && (e.payload.question === 'task_done' || e.payload.question === 'outcome'))
     expect(judged.map((e) => [e.session, e.payload.question, e.payload.subject])).toEqual([
       ['cli', 'task_done', '1.1'],
       ['cli', 'outcome', '1.1'],
@@ -184,6 +186,30 @@ describe('in a driven run', () => {
     const { state, warnings } = foldLog(logPath(root))
     expect(warnings).toEqual([])
     expect(state.phases[0]!.tasks[0]!.status).toBe('done')
+  })
+
+  it('a takeover during the judge wait: the fenced driver appends no judgement and steps down', async () => {
+    const root = repo()
+    const adapter = new FakeAdapter([
+      { logPath: logPath(root), initiative: 'demo', session_id: 'w1', write_back: true, complete: true },
+      { logPath: logPath(root), initiative: 'demo', session_id: 'w2', write_back: true, complete: true },
+    ])
+    const slow: JudgeProvider = {
+      name: 'cloud',
+      async judge(request) {
+        // The pre-flight (4.2) is answered normally; the takeover lands during the progress judge.
+        if (!(typeof request.state === 'object' && request.state !== null && 'status' in request.state)) return fake(0.9).judge(request)
+        // Another machine's --resume, synced in while the judge was out.
+        const run = foldLog(logPath(root)).state.runs.at(-1)!.id
+        appendEvent(logPath(root), makeEvent({ initiative: 'demo', session: 'cli', type: 'run_adopted', payload: { run, epoch: 2 }, source: 'cli', actor: 'human' }))
+        return fake(0.9).judge(request)
+      },
+    }
+    await expect(drive(root, 'demo', { adapter, judge: { provider: slow } })).rejects.toBeInstanceOf(DriveFenced)
+    expect(adapter.sessions).toHaveLength(1)
+    // The pre-flight's judgements precede the adoption; nothing follows it.
+    const after = readFileSync(logPath(root), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { type: string })
+    expect(after.slice(after.findIndex((e) => e.type === 'run_adopted') + 1).map((e) => e.type)).not.toContain('judgement_recorded')
   })
 
   it('without a provider the run judges nothing and writes no judgement', async () => {

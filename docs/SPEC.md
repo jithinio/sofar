@@ -1720,6 +1720,20 @@ who opted in but cannot reach the provider is told once, at the start.
 Without a provider the driver judges nothing and reads no diff. §Judge
 states the questions, the rules and the warnings.
 
+**Pre-flight (typed-judge 4.2, 4.3, D12).** With the same provider, before
+each launch and after routing, the driver judges the task: is it specified
+well enough to act on, how complex is it, and which model tier fits. By
+the user's ruling (D12, keeping D1), none of it changes the launch. An
+underspecified task still launches, and an effort or model hint is only
+printed, for a field the run and route left open and the adapter honours.
+The model's answers land as `judgement_recorded` before the session starts.
+
+**Judging under fencing (drive-visibility 2.2).** Both judge calls are
+network waits, and a takeover, a stop request or a signal can land during
+one. After each wait the driver re-folds, runs the ownership check and
+honours stop requests and signals BEFORE it appends a judgement or
+launches. A driver fenced meanwhile appends nothing and launches nothing.
+
 **What the driver is not (D2).** Not a session, not an agent loop, never an
 inference of its own: it launches existing headless agents through the
 adapter contract (launch, usage, wait) and writes nothing but these events,
@@ -3048,6 +3062,27 @@ disagrees with the fold with conviction, a warning: handed off as done
 `wrong_task`, `scope_creep` or an unrecorded `blocked_on_user` at P ≥ 0.9.
 Thresholds are 3.1's provisional 0.9 and its mirror, graded in 6.1. A
 provider failure yields no verdict, and the run proceeds.
+
+**Driver pre-flight (typed-judge 4.2, 4.3, `driver/preflight-judge.ts`).**
+One request per launch over `{task, phase, last_check?}` (the rejected
+check when a task was reopened), with no rules, sent only with a provider:
+- `specified` (B3), a noul: could a session act on the task without first
+  asking the operator? At p ≤ 0.1 a warning renders: `<id> may not be
+  specified well enough to act on (p <p>): the session may stop to ask;
+  launching anyway`.
+- `complexity` (B4), a score on four described levels (a small local change;
+  a contained change with a known approach; a cross-module or contract
+  change needing design and tests; open-ended or cross-cutting), mapped to
+  effort `low|medium|high|high`.
+- `model` (B4), a choice: `fast`, `standard`, `strongest`, `no_preference`
+  (the no-match option).
+Every model answer is stored (subject = the task id) and summarised as
+`pre-flight by <model>: specified p · complexity <score> of 3 · model <tier>
+(P)`. A `route hint for <id>: effort <e>, a <tier> model. Not applied; …`
+renders only for fields the route left unset and the adapter honours, at
+confidence ≥ 0.6, and never for `no_preference`. Nothing is applied: D12
+keeps D1's advisory rule over the plan's "needs_user without a launch" and
+"filling what the run left open".
 
 **Stored judgements (typed-judge 2.4).** A judgement worth keeping —
 relevance scores computed at write-back for the next SessionStart to read,
@@ -6863,6 +6898,17 @@ stay the underlying derivation's, and exit codes are styling-independent.
   that throws yields no verdict. Without a provider the run writes no
   judgement. `diffStatSince` counts commits, edits and untracked files since
   the launch head and ignores `.sofar/`.
+- **Driver pre-flight and fencing (typed-judge 4.1–4.3):** with a provider
+  judging a task underspecified at p 0.05, the run still launches it, prints
+  the warning, and files the pre-flight's `judgement_recorded` before the
+  session's `session_started`. Three answers are stored per launch, each
+  validating. A route hint names `effort high` for complexity 2 and a
+  `standard` model when both fields are open. It is absent for pinned or
+  unhonoured fields, `no_preference`, or tier P 0.5. Without a provider,
+  nothing is stored. A provider that throws yields no verdict. A takeover
+  landing during the pre-flight wait launches no session and appends no
+  judgement. One landing during the progress judge's wait appends no
+  judgement, and the driver steps down with DriveFenced.
 - **Stored relevance (typed-judge 5.1):** `about` validates as `task:<id>` or
   `file:<repo-relative path>` (an absolute path, an empty target or any other
   prefix fails) and appears in the fingerprinted fields line. The write-back
