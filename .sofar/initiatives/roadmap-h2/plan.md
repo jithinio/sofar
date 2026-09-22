@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: Keep monitoring the live sessions and main CI.
+Next action: Keep monitoring; watch codex-drive/r1 and note bench-refresh when it exits.
