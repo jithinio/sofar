@@ -19,6 +19,8 @@
 //! Node): `sofar status` surfaces it for a corrupt bindings.json. The fold
 //! itself just skips a bad line.
 
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::fmt::Write as _;
 
 /// A JSON value with JS semantics.
@@ -126,6 +128,39 @@ impl Object {
         match self.entries.iter_mut().find(|(k, _)| *k == key) {
             Some(slot) => slot.1 = value,
             None => self.entries.push((key, value)),
+        }
+    }
+
+    /// [`Object::insert`] for the parser, with the same rule. Past
+    /// [`PARSE_INDEX_AT`] keys, a repeated key is found through `keys` (key →
+    /// position, built here on first need) instead of a scan. Without it,
+    /// parsing an object of K keys is O(K²): 2.1 s of a 3.5 s warm
+    /// session-start at team100, whose index holds 60,691-key `files` objects.
+    fn insert_parsed(
+        &mut self,
+        keys: &mut Option<HashMap<String, usize>>,
+        key: String,
+        value: Json,
+    ) {
+        if keys.is_none() && self.entries.len() >= PARSE_INDEX_AT {
+            *keys = Some(
+                self.entries
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (k, _))| (k.clone(), i))
+                    .collect(),
+            );
+        }
+        let Some(keys) = keys else {
+            return self.insert(key, value);
+        };
+        match keys.entry(key) {
+            Entry::Occupied(slot) => self.entries[*slot.get()].1 = value,
+            Entry::Vacant(slot) => {
+                let key = slot.key().clone();
+                slot.insert(self.entries.len());
+                self.entries.push((key, value));
+            }
         }
     }
 
@@ -354,6 +389,10 @@ impl ParseError {
 /// for a hostile line, and a corrupt line is a skip either way.
 const MAX_DEPTH: u32 = 512;
 
+/// Keys an object being parsed holds before a repeated key is looked up by
+/// hash, not by scan. An event payload stays under it and pays nothing.
+const PARSE_INDEX_AT: usize = 16;
+
 /// `JSON.parse(text)`.
 pub fn parse(text: &str) -> Result<Json, ParseError> {
     let mut p = Parser {
@@ -450,6 +489,7 @@ impl Parser<'_> {
             return Ok(Json::Obj(obj));
         }
         let mut first = true;
+        let mut keys = None;
         loop {
             self.skip_ws();
             if self.peek() != Some(b'"') {
@@ -468,7 +508,7 @@ impl Parser<'_> {
             self.pos += 1;
             self.skip_ws();
             let value = self.value()?;
-            obj.insert(key, value);
+            obj.insert_parsed(&mut keys, key, value);
             self.skip_ws();
             match self.peek() {
                 Some(b',') => self.pos += 1,
@@ -911,6 +951,30 @@ mod tests {
     fn duplicate_keys_last_wins_in_first_position() {
         let v = parse("{\"a\":1,\"b\":2,\"a\":3}").unwrap();
         assert_eq!(stringify(&v), "{\"a\":3,\"b\":2}");
+    }
+
+    #[test]
+    fn duplicate_keys_keep_the_rule_past_the_parse_index() {
+        // Repeats before, at and past PARSE_INDEX_AT, so both the scan and
+        // the hashed path decide one: k0 and k17 repeat, k5 repeats twice.
+        let mut members: Vec<String> = (0..40).map(|i| format!("\"k{i}\":{i}")).collect();
+        members.insert(10, "\"k0\":100".to_owned());
+        members.insert(20, "\"k5\":105".to_owned());
+        members.push("\"k17\":117".to_owned());
+        members.push("\"k5\":205".to_owned());
+        let v = parse(&format!("{{{}}}", members.join(","))).unwrap();
+        let expected: Vec<String> = (0..40)
+            .map(|i| {
+                let n = match i {
+                    0 => 100,
+                    5 => 205,
+                    17 => 117,
+                    _ => i,
+                };
+                format!("\"k{i}\":{n}")
+            })
+            .collect();
+        assert_eq!(stringify(&v), format!("{{{}}}", expected.join(",")));
     }
 
     #[test]
