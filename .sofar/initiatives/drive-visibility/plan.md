@@ -39,4 +39,4 @@ Progress: 4/17 tasks done (23%)
 - [ ] 5.2 README + release staged for the user to publish.
 
 Active phase: Phase 2 — Liveness and fencing
-Next action: Start 2.3: status liveness + --stop against a gone driver.
+Next action: Start 2.3 (status liveness, --stop on a gone driver); stay out of the drive.ts loop until sofar-6c says 4.1-4.3 landed.
