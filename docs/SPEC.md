@@ -2610,10 +2610,12 @@ Every flag the adapter passes (`--json`, `--skip-git-repo-check`, `-m`, `-s`,
 
 Hooks apply to exec. A driven session in a project whose hooks are untrusted runs
 none of them unless it is launched with `--dangerously-bypass-hook-trust`.
-Whether exec trusts the project layer at all is unverified. The binary also
-computes a `non_cached_input`, which suggests `input_tokens` already counts
-cached tokens. The adapter adds the two, so its context figure may
-double-count (unverified).
+Whether exec trusts the project layer at all is unverified. `input_tokens`
+already counts the cached tokens and `output_tokens` the reasoning ones:
+round 1's rollouts show `total_tokens` = input + output (bench-refresh L27).
+So the adapter records `input_tokens` alone as the context figure and
+`output_tokens` alone as output. It used to add each subset to its total,
+which counted the subset twice.
 
 **Driven (agents-parity 3.1, D9).** The drive adapter now works whether or
 not Codex runs the project's hooks. The adapter cannot tell which at launch,
@@ -2689,7 +2691,8 @@ proof's (§Cursor host, its Proven live paragraph).
   - the Bash and apply_patch `tool_response` shapes. They are captured for
     the fixtures, but D4 names only binary and docs reads as sources, so
     adding them takes a Decision.
-  - whether `input_tokens` already counts cached tokens
+  - whether `input_tokens` already counts cached tokens (settled by round 1:
+    it does, bench-refresh L27)
   - which `sofar` a Codex hook finds
 - A failed check does not send Codex back to Tier 3 wholesale. The paragraph
   it contradicts is corrected, and so is §Host tiers, which then names what

@@ -275,7 +275,31 @@ cat "$SOFAR_DRIVE_NUDGE" > "$STUB_OUT/nudge"
     const exit = await session.wait()
     // A post-mortem is not a gauge: it rides the exit, never usage().
     expect(session.usage()).toBeUndefined()
-    expect(exit.usage).toEqual({ context_tokens: 21_780 + 11_008, output_tokens: 131 + 46 })
+    // Cached input sits inside input, reasoning inside output: the fixture's
+    // own total_tokens (21,911) is input + output, nothing more.
+    expect(exit.usage).toEqual({ context_tokens: 21_780, output_tokens: 131 })
+  })
+
+  it('counts a recorded round-1 turn once — input_tokens is the context, cached tokens not added again (bench-refresh L27)', async () => {
+    // codex-sofar/r1 S1's turn.completed, verbatim from codex 0.154.0. Its
+    // rollout's total_token_usage carries the same five counts plus
+    // total_tokens 5,550,905 = 5,511,127 input + 39,778 output.
+    const recorded = {
+      type: 'turn.completed',
+      usage: {
+        input_tokens: 5_511_127,
+        cached_input_tokens: 5_366_016,
+        cache_write_input_tokens: 0,
+        output_tokens: 39_778,
+        reasoning_output_tokens: 12_034,
+      },
+    }
+    const c = cell('recorded')
+    const session = new CodexAdapter().launch(
+      c.request({ env: { STUB_STREAM: withStream(c, [THREAD, TURN_STARTED, recorded]) } }),
+    )
+    const exit = await session.wait()
+    expect(exit.usage).toEqual({ context_tokens: 5_511_127, output_tokens: 39_778 })
   })
 
   it('keeps the failure message from turn.failed and from a bare error line', async () => {
@@ -310,7 +334,7 @@ cat "$SOFAR_DRIVE_NUDGE" > "$STUB_OUT/nudge"
     const session = new CodexAdapter().launch(c.request({ env: { STUB_STREAM: path } }))
     const exit = await session.wait()
     expect(session.threadId).toBe(THREAD.thread_id)
-    expect(exit.usage?.context_tokens).toBe(21_780 + 11_008)
+    expect(exit.usage?.context_tokens).toBe(21_780)
   })
 
   it('keeps the stderr tail on a bad exit, and a missing binary is 127', async () => {
@@ -479,8 +503,9 @@ exit 0
     expect(outcome.handoffs[0]?.session_id).toMatch(/^[0-9a-f-]{36}$/)
     expect(outcome.stop.reason).toBe('closed')
     expect(outcome.stop.note).toContain('no task left to run')
-    // Usage reached the record from turn.completed even though usage() never did.
-    expect(outcome.handoffs[0]?.tokens).toBe(120)
+    // Usage reached the record from turn.completed even though usage() never
+    // did — input_tokens alone, its 20 cached tokens not added twice (L27).
+    expect(outcome.handoffs[0]?.tokens).toBe(100)
     // And the run said what codex cannot honour, before it launched anything.
     expect(progress.some((l) => l.includes('no per-tool permission rules'))).toBe(true)
     expect(progress.some((l) => l.includes('--cost-cap can never fire'))).toBe(true)

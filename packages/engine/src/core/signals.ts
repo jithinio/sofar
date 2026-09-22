@@ -207,7 +207,7 @@ export const SIGNALS: readonly SignalSpec[] = [
     source: 'record',
     ceiling: 'partial',
     reason:
-      'handoff.tokens is recorded only for driven runs whose adapter reports usage (claude-code yes, codex no — session-driver D9); cost_usd is not recorded at all (rejected in session-driver). Manual sessions have no cost signal anywhere in sofar.',
+      'handoff.tokens is recorded only for driven runs, from the usage the adapter reports at exit (claude-code, codex and cursor all do; only claude-code also gauges it live — session-driver D9); cost_usd is not recorded at all (rejected in session-driver). Manual sessions have no cost signal anywhere in sofar.',
     requires: ['driven_run'],
   },
 ]
