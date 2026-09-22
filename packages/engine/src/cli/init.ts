@@ -47,10 +47,36 @@ import postToolUseFailureShim from '../hooks/post-tool-use-failure.sh'
 import stopShim from '../hooks/stop.sh'
 import sessionEndShim from '../hooks/session-end.sh'
 import prepareCommitMsgShim from '../hooks/prepare-commit-msg.sh'
+import preCommitShim from '../hooks/pre-commit.sh'
 
 /** Identifies a prepare-commit-msg hook as sofar's, so ours can be kept current
  * while a hand-written one is left strictly alone. */
 export const GIT_HOOK_MARKER = 'sofar prepare-commit-msg shim'
+/** Identifies a pre-commit hook as sofar's (memory-lead 2.3, D9). */
+export const PRE_COMMIT_MARKER = 'sofar pre-commit shim'
+
+/** One git hook sofar installs, and what a user who keeps their own must add by hand. */
+interface GitHookSpec {
+  name: string
+  shim: string
+  marker: string
+  /** The line that does sofar's part, for a hook we may not write. */
+  line: string
+  /** What is missing while it is not installed. */
+  purpose: string
+}
+
+/** The git hooks `sofar init` installs, never clobbering (D5; memory-lead D9 added pre-commit). */
+export const GIT_HOOKS: readonly GitHookSpec[] = [
+  { name: 'prepare-commit-msg', shim: prepareCommitMsgShim, marker: GIT_HOOK_MARKER, line: '`sofar commit-trailer "$1"`', purpose: 'attribution' },
+  {
+    name: 'pre-commit',
+    shim: preCommitShim,
+    marker: PRE_COMMIT_MARKER,
+    line: '`sofar check --staged` (it exits 10 only to refuse a commit)',
+    purpose: 'decision checks at commit',
+  },
+]
 
 /**
  * `sofar init` (task 4.1, SPEC §CLI) — make a repo sofar-ready:
@@ -1736,6 +1762,10 @@ function sameDir(a: string, b: string): boolean {
 }
 
 function installGitHook(rootDir: string, report: string[]): void {
+  for (const hook of GIT_HOOKS) installOneGitHook(rootDir, hook, report)
+}
+
+function installOneGitHook(rootDir: string, hook: GitHookSpec, report: string[]): void {
   // The COMMON dir, never the per-worktree one: git runs hooks from the common
   // dir, so a hook written into `.git/worktrees/<name>/hooks` never fires
   // (verified, git 2.50.1). Installing there would report success and silently
@@ -1743,42 +1773,40 @@ function installGitHook(rootDir: string, report: string[]): void {
   // prevent, arrived at by a different route.
   const dir = commonGitDir(rootDir)
   if (dir === null) {
-    report.push('skipped .git/hooks/prepare-commit-msg (not a git repo — no attribution)')
+    report.push(`skipped .git/hooks/${hook.name} (not a git repo — no ${hook.purpose})`)
     return
   }
   const ours = join(dir, 'hooks')
   const hooks = effectiveHooksDir(rootDir, dir)
   if (hooks.configured !== null && !sameDir(hooks.dir, ours)) {
     report.push(
-      `skipped prepare-commit-msg (core.hooksPath is ${hooks.configured}, so .git/hooks is inert) — ` +
-        `add \`sofar commit-trailer "$1"\` to ${join(hooks.configured, 'prepare-commit-msg')} for attribution`,
+      `skipped ${hook.name} (core.hooksPath is ${hooks.configured}, so .git/hooks is inert) — ` +
+        `add ${hook.line} to ${join(hooks.configured, hook.name)} for ${hook.purpose}`,
     )
     return
   }
 
-  const path = join(ours, 'prepare-commit-msg')
+  const path = join(ours, hook.name)
   if (existsSync(path)) {
     const existing = readFileSync(path, 'utf8')
-    if (existing === prepareCommitMsgShim) {
-      report.push('unchanged .git/hooks/prepare-commit-msg')
+    if (existing === hook.shim) {
+      report.push(`unchanged .git/hooks/${hook.name}`)
       return
     }
-    if (!existing.includes(GIT_HOOK_MARKER)) {
-      report.push(
-        'skipped .git/hooks/prepare-commit-msg (yours — add `sofar commit-trailer "$1"` to it for attribution)',
-      )
+    if (!existing.includes(hook.marker)) {
+      report.push(`skipped .git/hooks/${hook.name} (yours — add ${hook.line} to it for ${hook.purpose})`)
       return
     }
     // Ours from an older version: keep it current, same as the .claude shims.
-    writeFileSync(path, prepareCommitMsgShim, 'utf8')
+    writeFileSync(path, hook.shim, 'utf8')
     chmodSync(path, 0o755)
-    report.push('updated .git/hooks/prepare-commit-msg')
+    report.push(`updated .git/hooks/${hook.name}`)
     return
   }
   mkdirSync(join(dir, 'hooks'), { recursive: true })
-  writeFileSync(path, prepareCommitMsgShim, 'utf8')
+  writeFileSync(path, hook.shim, 'utf8')
   chmodSync(path, 0o755)
-  report.push('created .git/hooks/prepare-commit-msg')
+  report.push(`created .git/hooks/${hook.name}`)
 }
 
 function installShims(rootDir: string, dir: string, shims: readonly ShimSpec[], report: string[]): void {

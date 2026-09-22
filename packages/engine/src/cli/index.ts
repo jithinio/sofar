@@ -26,6 +26,7 @@ import {
   terminalPrompt,
 } from './drive'
 import { runRelated, runWhy } from './graph'
+import { runCheck } from './check'
 import { runFind } from './find'
 import { REACH_DEFAULT_HOPS, REACH_MAX_HOPS } from '../core/index-reach'
 import { runRemember } from './remember'
@@ -238,6 +239,37 @@ program
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((path: string, opts: { root?: string }) => {
     emit(runWhy(rootOf(opts), path))
+  })
+
+program
+  .command('check')
+  .description(
+    'run the decision checks that bear on your changes (memory-lead 2.3): each a command a ruled decision carries, run only once the operator approved it on this clone; warns, and fails a commit only when this clone opted in',
+  )
+  .option('--staged', 'check the staged paths — what the pre-commit hook runs; exits 10 only when this clone opted in and an approved check failed')
+  .option('--all', 'run every approved check, whatever changed')
+  .option('--strict', 'exit 1 when a check failed')
+  .option('--list', 'list every in-force check and whether it is approved here; runs nothing')
+  .option('--approve <handle>', 'approve one check\'s command on this clone ("<slug> D<n>") — asks on a terminal; an agent cannot approve its own command')
+  .option('--block-commits <on|off>', 'make a failed approved check refuse commits on this clone (on), or only warn (off, the default)')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action(async (opts: { staged?: boolean; all?: boolean; strict?: boolean; list?: boolean; approve?: string; blockCommits?: string; root?: string }) => {
+    // The approval is the operator's (memory-lead D9): asked only on a real
+    // terminal, never under CI, never from a piped agent shell.
+    const terminal = process.stdin.isTTY === true && process.stderr.isTTY === true && process.env.CI === undefined
+    const confirm = terminal
+      ? async (question: string): Promise<boolean> => {
+          const { createInterface } = await import('node:readline/promises')
+          const rl = createInterface({ input: process.stdin, output: process.stderr })
+          try {
+            return /^y(es)?$/i.test((await rl.question(question)).trim())
+          } finally {
+            rl.close()
+          }
+        }
+      : null
+    const { root, ...rest } = opts
+    emit(await runCheck(rootOf({ ...(root !== undefined ? { root } : {}) }), rest, { confirm }))
   })
 
 program

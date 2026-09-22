@@ -68,6 +68,7 @@ Three consequences run through every design decision in the codebase:
 | `core/graph.ts` | The cross-record adjacency graph — facts that outlive one log. **Never on the hot path**: it reads N logs where a shim can afford one. |
 | `core/citations.ts` | The citation grammar — scan handles from prose (lexical, permanent), bind them to initiatives (current, because `sofar new` changes the answer). Below `graph.ts` so the index can reach it. |
 | `core/warmth.ts` | Has a log grown recently? Read from the log's own newest event, never filesystem mtime — `git checkout` rewrites mtime on every file. |
+| `core/checks.ts` | Decision checks (memory-lead 2.3, D9): the in-force checks from the scope tier, which ones bear on a set of changed paths, the per-clone trust file (approved commands and the pre-commit opt-in), and the failure line with its fix hint. Runs nothing itself; the Stop hook, `sofar check` and drive's gate pass in the runner. |
 | `core/cross-conflicts.ts` | Files under concurrent edit by sessions in *different* initiatives. Gated on the hot path, exhaustive in `doctor`. |
 | `core/listing.ts` | `initiativeSlugs` and the portfolio listing behind `sofar list`. |
 | `core/record-copies.ts` | Every OTHER copy of the record (branch-visibility D1): other worktrees' working files (read as files), unmerged local branches not checked out (one `git cat-file --batch`), remotes opt-in; and `unionFold`, which folds this checkout's log with theirs, dedupes by id, and says which copies hold what this one lacks. Read-side only, never writes a copy. The scan spawns git, so it stays OUT of `git.ts` and off the hot path. Two parts are files only: `copyWatch`, the paths and filter `status --watch` watches to rescan on change (3.2), and `worktreeLeads`, which counts what other worktrees hold for the SessionStart hint and the write guard, proving an older-prefix copy with a stat and a 4 KB tail probe (3.3). |
@@ -140,7 +141,7 @@ silence, never a broken session.
 | UserPromptSubmit | Crossed guards and the lessons the prompt re-proposes first (D16), then live hazards: file conflicts, reachable peers, parallel wrap-ups, git state, drift nudge. |
 | PostToolUse | Captures file touches and commands as events (`ok: true`). The point-of-use guard fires here. On an unbound branch it creates the quick lane (`quick`) on the first edit and captures there (D14). A `tool_outcome` diagnostics row goes to the private store — including for the self-recording commands the record exempts. Outcomes (`ok`/`exit`) fold into per-session failed counts and per-task test outcomes (D24). |
 | PostToolUseFailure | The failed half: the same mechanical event with `ok: false` (and `exit` when the host gives one), and a `tool_failure` row carrying the redacted, clipped error text the record must never hold. Routes like PostToolUse, quick lane included. |
-| Stop | Blocks a session that owes a write-back — never in the quick lane, which has no write-back. |
+| Stop | Blocks a session that owes a write-back — never in the quick lane, which has no write-back. Guard crossings and failed decision checks (memory-lead 2.3) ride that block; neither ever causes one. |
 | SessionEnd | Closes the session. |
 
 A seventh shim, `hooks/prepare-commit-msg.sh`, is a **git** hook rather than a
@@ -149,6 +150,13 @@ file. It stamps `Sofar-Initiative:` onto the commit message (D5). It cannot
 `exec` like the six above: it runs inside `git commit`, so it guards on the
 binary existing and exits 0 unconditionally — a hook that can abort a commit is
 worse than no attribution.
+
+An eighth, `hooks/pre-commit.sh` (memory-lead 2.3, D9), runs `sofar check
+--staged`: the decision checks that bear on the staged paths. It is installed
+and removed like prepare-commit-msg. It refuses a commit only on exit 10, which
+the CLI returns only when the operator opted the clone in and an approved check
+failed. Any other status passes, so an older sofar without `check` never blocks
+a commit.
 
 | module | surface |
 | --- | --- |
@@ -169,6 +177,7 @@ worse than no attribution.
 | `cli/list.ts` | `sofar list` — the portfolio. |
 | `cli/doctor.ts` | `sofar doctor` — the audit: records, lifecycle, split sessions, concurrency, guards, repo memory, scanners, formatters. |
 | `cli/drive.ts` | `sofar drive` — the CLI skin on the driver loop: builds the adapter, streams progress to stderr, and mirrors the run back through `describeRun`. Exit 0 for every stop the record can explain; 1 for `error` and for a preflight that refused to start. `--detach` re-spawns the command detached and answers its caller over IPC once the run is certain to start; `--stop` appends `run_stop_requested` and watches for the stop (in-session-drive D1/D2). |
+| `cli/check.ts` | `sofar check` — run the checks that bear on your changes, `--approve` one (terminal only), `--block-commits on\|off`; `--staged` is the pre-commit hook. |
 | `cli/graph.ts` | `sofar graph` — cross-record queries. |
 | `cli/find.ts` | `sofar find` — traverse from a seed within a hop budget. Offers adjacency, never asserts relevance; every row cites its event. |
 | `cli/remember.ts` | `sofar remember` — promote an operational fact. |

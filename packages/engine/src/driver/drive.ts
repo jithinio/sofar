@@ -10,7 +10,10 @@ import {
   type TaskRoute,
 } from '@sofar/schema'
 import type { InitiativeState, PhaseState } from '../core/fold'
-import { latestRun, stopRequestsInForce } from '../core/fold'
+import { latestRun, stopRequestsInForce, type TaskState } from '../core/fold'
+import { TASK_FILES_CAP } from '../core/adjacency'
+import { applicableChecks, changedPaths, checkFailureLine, checksInForce, isApproved, type InForceCheck } from '../core/checks'
+import { refreshGuards } from '../core/index-tier1'
 import { claimRunLock, probeRunLock, type RunLockOptions } from '../core/run-lock'
 import { createKeepAwake, type KeepAwakeOptions } from './keep-awake'
 import { createToolContext, ToolError } from '../mcp/context'
@@ -28,6 +31,7 @@ import {
 import { previewRoutes, resolveRoute, RouteError, type RoutingOptions } from './routing'
 import {
   attemptsSoFar,
+  failuresSoFar,
   commandAllowed,
   DEFAULT_MAX_VERIFY_ATTEMPTS,
   DEFAULT_VERIFY_TIMEOUT_MS,
@@ -841,6 +845,30 @@ async function driveHolding(
     const task = folded.phases.flatMap((p) => p.tasks).find((t) => t.id === taskId)
     const run = folded.runs.find((r) => r.id === runId)
     if (task === undefined || run === undefined || task.status !== 'done') return { applies: false }
+    const verified = verifyGate(task, run)
+    if (verified.applies && !verified.passed) return verified
+    // Decision checks (memory-lead 2.3, D9/D10) — only once the task's own
+    // command passed or none applies, since a reopened task is checked again
+    // anyway. A failure blocks acceptance exactly as a failed verify does:
+    // an unattended run has no one to read a warning.
+    const checked = checkGate(folded, task, run)
+    if (!checked.applies) return verified
+    if (!checked.passed) return checked
+    const line = [verified.applies ? verified.line : '', checked.line].filter((l) => l.length > 0).join('; ')
+    return { applies: true, passed: true, attempt: checked.attempt, line, exhausted: false }
+  }
+  /** A recorded check failure, worded as the gate worded it — with its rule and fix while the decision is in force. */
+  const checkFailureFor = (handle: string, outcome: VerificationOutcome & { command: string; attempt: number }): string => {
+    try {
+      const c = checksInForce(refreshGuards(ctx.sofarDir)).find((x) => x.handle === handle)
+      if (c !== undefined) return checkFailureLine(c, outcome)
+    } catch {
+      // the index is disposable; the record's own words still say what failed
+    }
+    return `${describeVerification(outcome.command, outcome.attempt, outcome)} (the check of ${handle})`
+  }
+  const verifyGate = (task: TaskState, run: InitiativeState['runs'][number]): Gate => {
+    const taskId = task.id
     const which = resolveVerify(task, runVerify, verifyTimeoutMs)
     if (which === undefined) return { applies: false }
     const dirs = verifyDirs(cwd, which.cwd)
@@ -890,7 +918,72 @@ async function driveHolding(
       { session: 'cli', source: 'cli', actor: 'human' },
     )
     progress(`  ${line} — task reopened`)
-    return { applies: true, passed: false, attempt, line, exhausted: attempt >= maxVerifyAttempts }
+    // "Once one task has FAILED N times" (D19): this failure plus the earlier.
+    return { applies: true, passed: false, attempt, line, exhausted: failuresSoFar(run, taskId) + 1 >= maxVerifyAttempts }
+  }
+  const checkGate = (folded: InitiativeState, task: TaskState, run: InitiativeState['runs'][number]): Gate => {
+    let checks: InForceCheck[]
+    try {
+      checks = checksInForce(refreshGuards(ctx.sofarDir))
+    } catch {
+      return { applies: false }
+    }
+    if (checks.length === 0) return { applies: false }
+    // What the task changed: the files touched while it was active, and
+    // whatever the tree still holds uncommitted. A list at its cap has lost
+    // its oldest paths, so every check applies rather than a guessed few.
+    const touched = folded.task_files[task.id] ?? []
+    const applicable =
+      touched.length >= TASK_FILES_CAP ? checks : applicableChecks(checks, [...new Set([...touched, ...(changedPaths(cwd, 'worktree') ?? [])])])
+    if (applicable.length === 0) return { applies: false }
+    const fingerprint = fingerprintTree(cwd)
+    let attempt = attemptsSoFar(run, task.id)
+    const failures = failuresSoFar(run, task.id)
+    for (const c of applicable) {
+      // A pass on this tree, for this exact command, still covers (D19).
+      if (verificationCovers(task.checks?.find((v) => v.decision === c.handle), c.check.cmd, fingerprint)) continue
+      attempt += 1
+      const approved = isApproved(rootDir, c.check.cmd) || commandAllowed(c.check.cmd, surface)
+      const timeoutMs = c.check.timeout_ms ?? verifyTimeoutMs
+      progress(`  checking ${task.id} against [${c.handle}]: ${c.check.cmd}${approved ? '' : ' — refused, neither approved on this clone nor inside the run\'s permission surface'}`)
+      const outcome: VerificationOutcome = approved
+        ? runVerification(c.check.cmd, cwd, timeoutMs)
+        : { result: 'refused', duration_ms: 0, diagnostics: 'decision check is neither approved on this clone nor covered by the run\'s allow rules; nothing was run' }
+      ctx.appendAndProject(
+        initiative,
+        'verification_recorded',
+        {
+          run: runId,
+          task: task.id,
+          attempt,
+          command: c.check.cmd,
+          cwd: '.',
+          checked: fingerprint ?? { head: 'none', tree: 'none' },
+          validator: ENGINE_VERSION,
+          result: outcome.result,
+          ...(outcome.exit_code !== undefined ? { exit_code: outcome.exit_code } : {}),
+          ...(outcome.signal !== undefined ? { signal: outcome.signal } : {}),
+          duration_ms: outcome.duration_ms,
+          timeout_ms: timeoutMs,
+          ...(outcome.diagnostics !== undefined ? { diagnostics: outcome.diagnostics } : {}),
+          decision: c.handle,
+        },
+        { session: 'cli', source: 'cli', actor: 'human' },
+      )
+      // Refused never blocks: nothing ran, and nothing an agent controls
+      // decides whether a check is approved.
+      if (outcome.result === 'refused' || outcome.result === 'pass') continue
+      const line = checkFailureLine(c, outcome)
+      ctx.appendAndProject(
+        initiative,
+        'task_status_changed',
+        { id: task.id, status: 'active', note: `reopened by the driver — ${line}` },
+        { session: 'cli', source: 'cli', actor: 'human' },
+      )
+      progress(`  ${line} — task reopened`)
+      return { applies: true, passed: false, attempt, line, exhausted: failures + 1 >= maxVerifyAttempts }
+    }
+    return { applies: true, passed: true, attempt, line: '', exhausted: false }
   }
 
   // The progress judge (typed-judge 4.1, D8): only with a configured provider,
@@ -1004,7 +1097,9 @@ async function driveHolding(
       const thisRun = state.runs.find((r) => r.id === runId)
       for (const doneId of thisRun?.done_tasks ?? []) {
         const task = state.phases.flatMap((p) => p.tasks).find((t) => t.id === doneId)
-        if (task === undefined || task.status !== 'done' || task.verification !== undefined) continue
+        // A recorded decision check (memory-lead D9) is a check behind it too:
+        // the gate ran, and the closing sweep re-checks what it accepted.
+        if (task === undefined || task.status !== 'done' || task.verification !== undefined || (task.checks?.length ?? 0) > 0) continue
         const g = gate(state, doneId)
         if (g.applies && !g.passed) {
           reopened = true
@@ -1072,12 +1167,20 @@ async function driveHolding(
       progress(
         `session ${launched + 1}: ${task.id} — ${task.title}${routed !== adapter ? ` via ${routed.name}` : ''}`,
       )
-      // What the last check said about this task, if it was reopened (D19).
-      const lastCheck = state.phases.flatMap((p) => p.tasks).find((t) => t.id === task.id)?.verification
+      // What the last check said about this task, if it was reopened (D19):
+      // its acceptance command, or a decision's check (memory-lead D9), with
+      // the rule and the fix. A refused check never reopened anything.
+      const folded = state.phases.flatMap((p) => p.tasks).find((t) => t.id === task.id)
+      const lastCheck = [folded?.verification, ...(folded?.checks ?? [])]
+        .filter((v): v is NonNullable<typeof v> => v !== undefined && !('decision' in v && v.result === 'refused'))
+        .sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0))
+        .pop()
       const failure =
-        lastCheck !== undefined && lastCheck.result !== 'pass'
-          ? describeVerification(lastCheck.command, lastCheck.attempt, lastCheck)
-          : undefined
+        lastCheck === undefined || lastCheck.result === 'pass'
+          ? undefined
+          : 'decision' in lastCheck && typeof lastCheck.decision === 'string'
+            ? checkFailureFor(lastCheck.decision, lastCheck)
+            : describeVerification(lastCheck.command, lastCheck.attempt, lastCheck)
       // Pre-flight (typed-judge 4.2/4.3, D12): advisory, so the launch below
       // goes ahead as routed whatever it says. The judge is a network wait, so
       // ownership, stop requests and signals are re-read before anything is

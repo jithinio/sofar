@@ -1,0 +1,280 @@
+import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { guardMatches, parseGuard, type DecisionCheck } from '@sofar/schema'
+import { commonGitDir } from './git'
+import type { GuardIndex } from './index-tier1'
+import { byCodeUnit } from './order'
+import { cloneKey, resolvesInside, stateBase, type StateEnv } from './state-dir'
+
+/**
+ * Decision checks (memory-lead 2.3, D9) — the executable half of a rule.
+ *
+ * A guard says which files a rule governs and warns when work crosses it. A
+ * check says how to TELL whether the rule still holds: a shell command whose
+ * exit 0 means it does, and a hint for when it does not. Round 1's research
+ * behind it: harness engineering puts the remediation in the lint message, so
+ * the fix lands in the agent's context at the moment of failure; and agents
+ * edit tests to pass them (ImpossibleBench), so the command lives in the
+ * append-only record, and its script is surfaced on read like any file the
+ * decision names.
+ *
+ * WHEN IT BLOCKS (the user's ruling, D9/D10, qualifying drift-hardening D3):
+ * never at Stop, where failures ride the write-back block; at pre-commit only
+ * when the operator opted in; and at `sofar drive`'s task acceptance, because
+ * an unattended run has no one to read a warning. Everywhere else it warns.
+ *
+ * WHETHER IT RUNS AT ALL. A check is text an agent wrote into a record that
+ * travels with branches and teammates. Run from a Stop or git hook it would
+ * execute on the operator's machine outside every permission prompt the host
+ * has, so it runs only once the operator approved that exact command on this
+ * clone (`sofar check --approve`, on a terminal) — or, under drive, when the
+ * run's permission surface covers it (r1-fixes D19's rule for agent-written
+ * commands). The approval lives in the state dir, per clone, never in the
+ * repo: a merged branch cannot approve its own command.
+ */
+
+/** One in-force check, repo-wide, as the scope tier holds it. */
+export interface InForceCheck {
+  /** `<slug> D<n>`. */
+  handle: string
+  initiative: string
+  ordinal: number
+  rule: string
+  quote?: string
+  guard?: string
+  check: DecisionCheck
+}
+
+/**
+ * Every in-force decision check in the repo (D9): ruled scope-tier entries
+ * carrying `check` that no later rule of their own record replaced. A check
+ * never outlives its rule. By initiative, then ordinal.
+ */
+export function checksInForce(index: GuardIndex): InForceCheck[] {
+  const out: InForceCheck[] = []
+  for (const d of index.scoped) {
+    if (d.check === undefined || d.rule === undefined || d.superseded_by !== undefined) continue
+    out.push({
+      handle: `${d.initiative} D${d.ordinal}`,
+      initiative: d.initiative,
+      ordinal: d.ordinal,
+      rule: d.rule,
+      ...(d.quote !== undefined ? { quote: d.quote } : {}),
+      ...(d.guard !== undefined ? { guard: d.guard } : {}),
+      check: d.check,
+    })
+  }
+  return out.sort((a, b) => (a.initiative === b.initiative ? a.ordinal - b.ordinal : byCodeUnit(a.initiative, b.initiative)))
+}
+
+/**
+ * The checks that bear on these changed paths (D9): a check whose decision
+ * has a `path:` guard applies when the guard matches one of them; one with no
+ * path guard (none, or a `cmd:` guard) applies to any change. With no changed
+ * paths nothing applies — there is nothing new to check.
+ */
+export function applicableChecks(checks: readonly InForceCheck[], paths: readonly string[]): InForceCheck[] {
+  if (paths.length === 0) return []
+  return checks.filter((c) => {
+    const guard = c.guard === undefined ? null : parseGuard(c.guard)
+    if (guard === null || guard.domain !== 'path') return true
+    return paths.some((p) => guardMatches(guard, p))
+  })
+}
+
+/** The record directory, a git-changed path outside it, and nothing else. */
+const RECORD = '.sofar/'
+
+function git(cwd: string, args: string[]): string | null {
+  try {
+    return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 })
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Paths the work changed, relative to the repo top, the record excluded: the
+ * index (`staged`), or the working tree against HEAD plus untracked files.
+ * Null without git.
+ */
+export function changedPaths(rootDir: string, mode: 'staged' | 'worktree'): string[] | null {
+  const split = (out: string): string[] => out.split('\0').filter((p) => p.length > 0 && !p.startsWith(RECORD))
+  if (mode === 'staged') {
+    const staged = git(rootDir, ['diff', '--cached', '--name-only', '-z'])
+    return staged === null ? null : split(staged)
+  }
+  const tracked = git(rootDir, ['diff', '--name-only', '-z', 'HEAD']) ?? git(rootDir, ['diff', '--cached', '--name-only', '-z'])
+  const untracked = git(rootDir, ['ls-files', '--others', '--exclude-standard', '-z', '--full-name'])
+  if (tracked === null || untracked === null) return null
+  return [...new Set([...split(tracked), ...split(untracked)])]
+}
+
+// ---------------------------------------------------------------------------
+// Trust: what the operator approved on this clone, and whether commits block.
+// ---------------------------------------------------------------------------
+
+interface TrustFile {
+  version: 1
+  /** sha256(cmd) → what was approved, and when. */
+  approved: Record<string, { handle: string; cmd: string; ts: string }>
+  /** The pre-commit opt-in (D9): a failed approved check fails the commit. */
+  block_commits?: boolean
+}
+
+/**
+ * `<state>/checks/<key>.json`, keyed by the clone's COMMON git dir so every
+ * worktree of one clone shares its approvals; null when the state dir would
+ * sit inside the clone (self-improve D3) — then nothing is trusted.
+ */
+export function trustPath(rootDir: string, env: StateEnv = process.env): string | null {
+  const base = stateBase(env)
+  if (resolvesInside(base, rootDir)) return null
+  return join(base, 'checks', `${cloneKey(commonGitDir(rootDir) ?? rootDir)}.json`)
+}
+
+function readTrust(path: string | null): TrustFile {
+  const empty: TrustFile = { version: 1, approved: {} }
+  if (path === null || !existsSync(path)) return empty
+  try {
+    const decoded = JSON.parse(readFileSync(path, 'utf8')) as Partial<TrustFile> | null
+    if (decoded === null || typeof decoded !== 'object' || typeof decoded.approved !== 'object' || decoded.approved === null) return empty
+    return { version: 1, approved: decoded.approved, ...(decoded.block_commits === true ? { block_commits: true } : {}) }
+  } catch {
+    return empty // an unreadable file approves nothing
+  }
+}
+
+function writeTrust(path: string, trust: TrustFile): void {
+  mkdirSync(dirname(path), { recursive: true })
+  const tmp = `${path}.${process.pid}.tmp`
+  writeFileSync(tmp, `${JSON.stringify(trust, null, 2)}\n`, 'utf8')
+  renameSync(tmp, path)
+}
+
+/** sha256 of the command exactly as recorded: a changed command is a new command. */
+export function checkDigest(cmd: string): string {
+  return createHash('sha256').update(cmd).digest('hex')
+}
+
+/** Whether the operator approved this exact command on this clone. */
+export function isApproved(rootDir: string, cmd: string, env: StateEnv = process.env): boolean {
+  return readTrust(trustPath(rootDir, env)).approved[checkDigest(cmd)] !== undefined
+}
+
+/** Record the operator's approval of one check's command. Throws when there is no state dir to hold it. */
+export function approveCheck(rootDir: string, check: InForceCheck, now: string, env: StateEnv = process.env): void {
+  const path = trustPath(rootDir, env)
+  if (path === null) throw new Error('the sofar state dir resolves inside this clone — set XDG_STATE_HOME elsewhere to approve checks')
+  const trust = readTrust(path)
+  trust.approved[checkDigest(check.check.cmd)] = { handle: check.handle, cmd: check.check.cmd, ts: now }
+  writeTrust(path, trust)
+}
+
+/** The pre-commit opt-in (D9). Default false: an unreadable file is not consent. */
+export function blocksCommits(rootDir: string, env: StateEnv = process.env): boolean {
+  return readTrust(trustPath(rootDir, env)).block_commits === true
+}
+
+export function setBlocksCommits(rootDir: string, on: boolean, env: StateEnv = process.env): void {
+  const path = trustPath(rootDir, env)
+  if (path === null) throw new Error('the sofar state dir resolves inside this clone — set XDG_STATE_HOME elsewhere')
+  const trust = readTrust(path)
+  if (on) trust.block_commits = true
+  else delete trust.block_commits
+  writeTrust(path, trust)
+}
+
+// ---------------------------------------------------------------------------
+// Running and reporting.
+// ---------------------------------------------------------------------------
+
+/** How one check ended — the shape driver/verify's runner returns. */
+export interface CheckOutcome {
+  result: 'pass' | 'fail' | 'timeout' | 'error' | 'refused'
+  exit_code?: number
+  signal?: string
+  duration_ms: number
+  diagnostics?: string
+}
+
+/** How a non-passing outcome ended, in a few words. */
+export function describeOutcome(outcome: CheckOutcome): string {
+  if (outcome.result === 'timeout') return `timed out after ${Math.round(outcome.duration_ms / 1000)}s`
+  if (outcome.result === 'error') return 'could not run'
+  if (outcome.result === 'refused') return 'refused — not approved on this clone and not inside the run\'s permission surface'
+  if (outcome.exit_code !== undefined) return `exit ${outcome.exit_code}`
+  if (outcome.signal !== undefined) return `killed by ${outcome.signal}`
+  return outcome.result === 'pass' ? 'passed' : 'failed'
+}
+
+function lastLine(text: string | undefined): string | undefined {
+  return text
+    ?.split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .pop()
+}
+
+const flat = (text: string): string => text.replace(/\s+/g, ' ').trim()
+
+/**
+ * The failure line every surface prints (D9): which decision, how it ended,
+ * the last thing the command said, the rule, and the fix. The hint is the
+ * author's remediation; without one, the operator's quote (or the rule) is
+ * what to restore, and superseding is the other way out.
+ */
+export function checkFailureLine(check: InForceCheck, outcome: CheckOutcome): string {
+  const last = lastLine(outcome.diagnostics)
+  const fix = check.check.hint !== undefined
+    ? flat(check.check.hint)
+    : `make the work hold the rule${check.quote !== undefined ? ` (the operator: "${flat(check.quote)}")` : ''}, or log a decision that supersedes ${check.handle}`
+  return `sofar: check for [${check.handle}] failed (${describeOutcome(outcome)})${last !== undefined ? `: ${last}` : ''} — rule: "${flat(check.rule)}" — fix: ${fix}`
+}
+
+/** The line naming checks that bear on the work but that nothing approved (D9). */
+export function unapprovedLine(checks: readonly InForceCheck[]): string | null {
+  if (checks.length === 0) return null
+  const named = checks.slice(0, 3).map((c) => `[${c.handle}] \`${c.check.cmd}\``).join(', ')
+  const more = checks.length > 3 ? `, +${checks.length - 3} more` : ''
+  return `sofar: ${checks.length} decision check(s) bear on this work but are not approved on this clone, so none ran: ${named}${more} — the operator approves one with \`sofar check --approve "<handle>"\``
+}
+
+/** Default per-check bound when the decision sets none (D9). */
+export const DEFAULT_CHECK_TIMEOUT_MS = 120_000
+
+export interface CheckRun {
+  check: InForceCheck
+  outcome: CheckOutcome
+}
+
+/**
+ * Run the approved checks among `checks`, within an optional total budget:
+ * each runs for min(its timeout, per-check cap, what the budget has left),
+ * and once the budget is spent the rest are `skipped` rather than run.
+ * `run` is driver/verify's runVerification, injected so core runs nothing of
+ * its own accord.
+ */
+export function runChecks(
+  checks: readonly InForceCheck[],
+  cwd: string,
+  run: (cmd: string, cwd: string, timeoutMs: number) => CheckOutcome,
+  limits: { perCheckMs?: number; budgetMs?: number } = {},
+): { ran: CheckRun[]; skipped: InForceCheck[] } {
+  const ran: CheckRun[] = []
+  const skipped: InForceCheck[] = []
+  let left = limits.budgetMs ?? Number.POSITIVE_INFINITY
+  for (const check of checks) {
+    const bound = Math.min(check.check.timeout_ms ?? DEFAULT_CHECK_TIMEOUT_MS, limits.perCheckMs ?? Number.POSITIVE_INFINITY, left)
+    if (bound < 1_000) {
+      skipped.push(check)
+      continue
+    }
+    const outcome = run(check.check.cmd, cwd, bound)
+    ran.push({ check, outcome })
+    left -= outcome.duration_ms
+  }
+  return { ran, skipped }
+}

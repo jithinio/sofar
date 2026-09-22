@@ -16,6 +16,7 @@ import {
   REVIEW_SCOPES,
   REVIEW_VERDICTS,
   validatePayload,
+  type DecisionCheck,
   type PhaseStatus,
   type PlanStructure,
   type ReviewScope,
@@ -198,6 +199,8 @@ export interface LogDecisionArgs {
   supersedes?: string
   /** Task id this decision is in force until; never with `rule` (r1-fixes 3.2, D25). */
   until?: string
+  /** Executable half of `rule` (memory-lead 2.3, D9): a command whose exit 0 means it holds. */
+  check?: DecisionCheck
 }
 export interface UpdatePlanArgs {
   initiative?: string
@@ -505,13 +508,14 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       guard: {
         type: 'string',
         minLength: 1,
-        description:
-          'Machine-checkable half of `rule` (requires it): "path:<globs>" against edited paths or "cmd:<globs>" against commands; comma-separated, leading "!" exempts. Warns, never blocks. Omit unless the rule is these files or commands.',
+        description: 'Globs `rule` governs (needs rule): "path:<globs>" or "cmd:<globs>", comma-separated, "!" exempts. Warns only.',
       },
       // Shape is enforced by the payload validator (D25); the schema stays
       // terse because the whole tool surface is budgeted (2.4, D13).
       supersedes: { type: 'string', description: 'Earlier decision this replaces (`D<n>`); a rule only by a rule.' },
       until: { type: 'string', description: 'Task id this holds until it resolves; never with `rule`.' },
+      // Shape is the payload validator's (D9), like guard's; the surface is budgeted.
+      check: { type: 'object', description: 'Command proving `rule` holds (needs rule): {cmd, hint?}; hint = the fix.' },
     },
     required: ['chose', 'over', 'because'],
     additionalProperties: false,

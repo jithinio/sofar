@@ -201,6 +201,22 @@ describe('sofar uninit and the prepare-commit-msg hook (D5)', () => {
     expect(runUninit(root, { purge: true }).exitCode).toBe(0)
     expect(readFileSync(hookPath(root), 'utf8')).toBe(mine)
   })
+
+  it('the pre-commit hook (memory-lead 2.3) goes the same way: ours removed, yours kept', () => {
+    const pre = (root: string): string => join(root, '.git', 'hooks', 'pre-commit')
+    const ours = freshRepo()
+    expect(runInit(ours).stdout).toContain('created .git/hooks/pre-commit')
+    expect(runUninit(ours, { purge: true }).stdout).toContain('removed .git/hooks/pre-commit')
+    expect(existsSync(pre(ours))).toBe(false)
+
+    const yours = freshRepo()
+    mkdirSync(join(yours, '.git', 'hooks'), { recursive: true })
+    const mine = '#!/bin/sh\nnpx lint-staged\n'
+    writeFileSync(pre(yours), mine)
+    expect(runInit(yours).stdout).toContain('skipped .git/hooks/pre-commit (yours — add `sofar check --staged` (it exits 10 only to refuse a commit) to it for decision checks at commit)')
+    expect(runUninit(yours, { purge: true }).exitCode).toBe(0)
+    expect(readFileSync(pre(yours), 'utf8')).toBe(mine)
+  })
 })
 
 describe('sofar uninit preserves foreign content in the files it edits', () => {

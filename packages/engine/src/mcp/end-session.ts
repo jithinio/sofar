@@ -141,7 +141,7 @@ function planBatch(ctx: ToolContext, slug: string, args: EndSessionArgs): Planne
     if (!input.ok) refuse(where, input.errors)
     if ((d as { initiative?: unknown }).initiative !== undefined) refuse(where, ['initiative: not allowed — a write-back files in its session\'s record'])
     const payload: Record<string, unknown> = { chose: d.chose, over: d.over, because: d.because }
-    for (const key of ['rule', 'quote', 'guard', 'supersedes', 'until'] as const) {
+    for (const key of ['rule', 'quote', 'guard', 'supersedes', 'until', 'check'] as const) {
       if (d[key] !== undefined) payload[key] = d[key]
     }
     const reversal = silentReversal({ ...state, decisions: seen } as InitiativeState, d, foreign)

@@ -22,6 +22,7 @@ import {
   type CorrectionPayload,
   type GuardDomain,
   DECISION_HANDLE_RE,
+  type DecisionCheck,
   type DecisionLoggedPayload,
   type HandoffPayload,
   type HandoffReason,
@@ -88,6 +89,18 @@ export interface TaskState {
    * one that would run now — the driver re-fingerprints before trusting it.
    */
   verification?: TaskVerification
+  /**
+   * The latest check run per decision (memory-lead 2.3, D9), oldest decision
+   * first: verification_recorded carrying `decision`. Kept apart from
+   * `verification` so a decision's check never displaces the task's own pass.
+   */
+  checks?: CheckVerification[]
+}
+
+/** A decision's check as the driver ran it for one task (D9). */
+export interface CheckVerification extends TaskVerification {
+  /** `<slug> D<n>` whose check this was. */
+  decision: string
 }
 
 /** One `verification_recorded`, as the task and the run keep it (D19). */
@@ -142,6 +155,8 @@ export interface DecisionState {
   supersedes?: string
   /** Task id this decision is in force until, as recorded (D25); never present with `rule`. */
   until?: string
+  /** The executable half of `rule` (memory-lead 2.3, D9), as recorded; only alongside `rule`. */
+  check?: DecisionCheck
   /**
    * Ordinal of the decision that replaced this one (D25) — set by the fold
    * when a later decision's `supersedes` resolves here and is permitted (a
@@ -298,7 +313,7 @@ export interface RunState {
   /** Log order. */
   handoffs: RunHandoff[]
   /** Every verification this run recorded, log order (D19). */
-  verifications: { ts: string; task: string; attempt: number; result: VerificationResult }[]
+  verifications: { ts: string; task: string; attempt: number; result: VerificationResult; decision?: string }[]
   /**
    * Tasks that reached `done` while this run was open, log order, deduplicated
    * (D19). What a resumed driver checks for a missing verification: a crash
@@ -1463,6 +1478,15 @@ function droppedResolvedStatuses(state: InitiativeState, payload: PlanUpdatedPay
   return dropped
 }
 
+/** A decision's check as recorded, known keys only — absent stays absent (D9). */
+function decisionCheck(check: DecisionCheck): DecisionCheck {
+  return {
+    cmd: check.cmd,
+    ...(check.hint !== undefined ? { hint: check.hint } : {}),
+    ...(check.timeout_ms !== undefined ? { timeout_ms: check.timeout_ms } : {}),
+  }
+}
+
 function findTask(state: InitiativeState, id: string): TaskState | undefined {
   for (const phase of state.phases) {
     const task = phase.tasks.find((t) => t.id === id)
@@ -1593,6 +1617,7 @@ function applyEvent(
         ...(p.guard !== undefined ? { guard: p.guard } : {}),
         ...(p.supersedes !== undefined ? { supersedes: p.supersedes } : {}),
         ...(p.until !== undefined ? { until: p.until } : {}),
+        ...(p.check !== undefined ? { check: decisionCheck(p.check) } : {}),
       })
       // Supersession (r1-fixes 3.2, D25): resolve `D<n>` against the
       // decisions already folded — the log alone, no clock, no env. Inert
@@ -1686,13 +1711,13 @@ function applyEvent(
         warnings.push(`line ${lineNo}: verification for run "${p.run}" that never started — skipped`)
         break
       }
-      run.verifications.push({ ts: event.ts, task: p.task, attempt: p.attempt, result: p.result })
+      run.verifications.push({ ts: event.ts, task: p.task, attempt: p.attempt, result: p.result, ...(p.decision !== undefined ? { decision: p.decision } : {}) })
       const task = findTask(state, p.task)
       if (!task) {
         warnings.push(`line ${lineNo}: verification for task "${p.task}" not in the plan — kept on the run only`)
         break
       }
-      task.verification = {
+      const verification: TaskVerification = {
         run: p.run,
         attempt: p.attempt,
         ts: event.ts,
@@ -1706,6 +1731,18 @@ function applyEvent(
         duration_ms: p.duration_ms,
         timeout_ms: p.timeout_ms,
         ...(p.diagnostics !== undefined ? { diagnostics: p.diagnostics } : {}),
+      }
+      // A decision's check (memory-lead 2.3, D9) keeps its own latest, in the
+      // order decisions were first checked; the task's own verify stays put.
+      if (p.decision !== undefined) {
+        const checks = task.checks ?? []
+        const at = checks.findIndex((c) => c.decision === p.decision)
+        const entry: CheckVerification = { ...verification, decision: p.decision }
+        if (at >= 0) checks[at] = entry
+        else checks.push(entry)
+        task.checks = checks
+      } else {
+        task.verification = verification
       }
       break
     }

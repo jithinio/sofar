@@ -35,6 +35,8 @@ import {
 import { commitsByTask, readAttribution, readShippingFrom, type CommitAttribution } from '../core/attribution'
 import { activityEnabled } from '../core/derived'
 import { retireEnabled } from '../core/retire'
+import { applicableChecks, checkFailureLine, checksInForce, isApproved, runChecks, unapprovedLine } from '../core/checks'
+import { runVerification } from '../driver/verify'
 import { readGitState, type GitState } from '../core/git'
 import { noteEngine, noteUpstream } from '../core/shipwatch'
 import { version as ENGINE_VERSION } from '../../package.json'
@@ -1229,13 +1231,47 @@ export function handleStop(
       sessionGuardViolations(state, sessionId, session.ended),
       rootDir,
     )
+    // Decision checks ride the same block (memory-lead 2.3, D9/D10): they run
+    // only here, where the gate already holds the session, so a failing check
+    // is read before the write-back and can never be what stops a turn.
+    const checks = stopCheckLines(rootDir, ctx.sofarDir, session)
     return {
       exitCode: 2,
       stdout: '',
-      stderr: [STOP_BLOCK_MESSAGE, ...crossings].join('\n'),
+      stderr: [STOP_BLOCK_MESSAGE, ...crossings, ...checks].join('\n'),
     }
   } catch {
     return { ...OK }
+  }
+}
+
+/** Stop's bound on decision checks (D9): the whole pass, and any one check. */
+export const STOP_CHECK_BUDGET_MS = 45_000
+export const STOP_CHECK_MAX_MS = 30_000
+
+/**
+ * The decision checks bearing on what this session touched, run and reported
+ * for the write-back block (D9). Only approved commands run; the rest are
+ * named with the approval command. A session whose file list overflowed its
+ * cap touched too much to scope, so every check applies. Never throws: a
+ * check that cannot be read is one that says nothing.
+ */
+function stopCheckLines(rootDir: string, sofarDir: string, session: SessionState): string[] {
+  try {
+    const checks = checksInForce(refreshGuards(sofarDir))
+    if (checks.length === 0) return []
+    const files = session.activity?.files ?? []
+    const overflow = files.some((f) => f.startsWith('+'))
+    const applicable = overflow ? checks : applicableChecks(checks, files)
+    const approved = applicable.filter((c) => isApproved(rootDir, c.check.cmd))
+    const { ran, skipped } = runChecks(approved, rootDir, runVerification, { perCheckMs: STOP_CHECK_MAX_MS, budgetMs: STOP_CHECK_BUDGET_MS })
+    const lines = ran.filter((r) => r.outcome.result !== 'pass').map((r) => checkFailureLine(r.check, r.outcome))
+    const unapproved = unapprovedLine(applicable.filter((c) => !approved.includes(c)))
+    if (unapproved !== null) lines.push(unapproved)
+    if (skipped.length > 0) lines.push(`sofar: ${skipped.length} decision check(s) did not run — Stop's ${STOP_CHECK_BUDGET_MS / 1000}s budget was spent; \`sofar check\` runs them all`)
+    return lines
+  } catch {
+    return []
   }
 }
 

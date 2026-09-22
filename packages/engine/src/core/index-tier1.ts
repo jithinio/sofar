@@ -1,4 +1,4 @@
-import { DECISION_HANDLE_RE, parseGuard, type GuardDomain } from '@sofar/schema'
+import { DECISION_HANDLE_RE, parseGuard, type DecisionCheck, type GuardDomain } from '@sofar/schema'
 import type { DecisionLoggedPayload, FileTouchedPayload } from '@sofar/schema'
 import { GRAPH_RESULT_CAP, matchRecordedPaths } from './adjacency'
 import { fileMentions, mentionDepth } from './file-mentions'
@@ -109,9 +109,15 @@ export interface ScopedDecision {
   quote?: string
   /** Only alongside `rule`, as the fold requires. */
   guard?: string
+  /** Only alongside `rule` (memory-lead 2.3, D9): what `sofar check`, Stop, pre-commit and drive run. */
+  check?: DecisionCheck
   until?: string
   superseded_by?: number
-  /** File tokens of chose, over and rule (core/file-mentions). */
+  /**
+   * File tokens of chose, over, rule and the check's command (core/file-mentions)
+   * — the command's, so a read or edit of the check's own script surfaces the
+   * decision it enforces (D9: agents edit tests to pass them).
+   */
   mentions: string[]
 }
 
@@ -268,7 +274,8 @@ function applyGuard(state: SlugGuardState, event: IndexedEvent, slug: string): v
   if (typeof p.until === 'string') state.until.push(ordinal)
 
   const guard = ruled && typeof p.guard === 'string' ? p.guard : undefined
-  const mentions = fileMentions([p.chose, p.over, p.rule ?? ''].join('\n'))
+  const check = ruled && typeof p.check?.cmd === 'string' ? p.check : undefined
+  const mentions = fileMentions([p.chose, p.over, p.rule ?? '', check?.cmd ?? ''].join('\n'))
   if (!ruled && mentions.length === 0) return
   state.entries.push({
     id: event.id,
@@ -280,6 +287,9 @@ function applyGuard(state: SlugGuardState, event: IndexedEvent, slug: string): v
     ...(ruled ? { rule: p.rule } : {}),
     ...(ruled && typeof p.quote === 'string' ? { quote: p.quote } : {}),
     ...(guard !== undefined ? { guard } : {}),
+    ...(check !== undefined
+      ? { check: { cmd: check.cmd, ...(check.hint !== undefined ? { hint: check.hint } : {}), ...(check.timeout_ms !== undefined ? { timeout_ms: check.timeout_ms } : {}) } }
+      : {}),
     ...(typeof p.until === 'string' ? { until: p.until } : {}),
     mentions,
   })

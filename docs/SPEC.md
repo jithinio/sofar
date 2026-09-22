@@ -164,7 +164,9 @@ contract: never clipped, never aged out; drift-hardening D1 — quote? — the
 operator's exact words the rule came from, ≤300 chars, valid ONLY alongside
 `rule`; see §Rule fidelity, memory-lead D2 — guard? — the
 mechanical half of that same clause, a `path:`/`cmd:` glob list valid ONLY
-alongside `rule`; see §Decision guards, drift-hardening D3 — supersedes? —
+alongside `rule`; see §Decision guards, drift-hardening D3 — check? —
+{cmd, hint?, timeout_ms?}, the executable half of that clause, valid ONLY
+alongside `rule`; see §Decision checks, memory-lead D9 — supersedes? —
 the bare handle `D<n>` of an earlier decision in this record that this one
 replaces — until? — a task id this decision is in force until; never with
 `rule`; r1-fixes 3.2, D25) ·
@@ -196,7 +198,7 @@ context_window? — BOTH REQUIRED for `threshold`, max_sessions?, surface?,
 verify? — the run's default acceptance command, r1-fixes 3.1 D19) · handoff (run, session_id, reason:
 task_done|threshold|stall|needs_user|verify_failed, task?, tokens?, detail? — how the
 process ended, on stalls and unclean exits, r1-fixes D9; `verify_failed`
-since r1-fixes 3.1) · verification_recorded (run, task, attempt, command, cwd, checked {head, tree}, validator, result: pass|fail|timeout|error|refused, exit_code?, signal?, duration_ms, timeout_ms, diagnostics? ≤1,024 chars — the driver ran a task's acceptance command before accepting it, r1-fixes 3.1 D19) · run_stopped (run,
+since r1-fixes 3.1) · verification_recorded (run, task, attempt, command, cwd, checked {head, tree}, validator, result: pass|fail|timeout|error|refused, exit_code?, signal?, duration_ms, timeout_ms, diagnostics? ≤1,024 chars — the driver ran a task's acceptance command before accepting it, r1-fixes 3.1 D19 — decision? `<slug> D<n>` when it ran that decision's check, memory-lead D9) · run_stopped (run,
 reason: closed|needs_user|stall|cost_cap|max_sessions|interrupted|error,
 note? — REQUIRED for `error`; the three driver events ride on envelope
 session `cli`, since a run is not a session; session-driver 1.2, see
@@ -582,6 +584,67 @@ DESCENDING (record recency), never-logged initiatives last by slug asc;
 tolerant like the fold (unreadable log or corrupt bindings.json → warning
 + thinner entry, never fatal); zero new event types.
 
+### Decision checks (memory-lead 2.3, D9, D10)
+The executable half of a rule. A guard says which work a rule governs and
+warns when work crosses it; a check says how to TELL whether the rule still
+holds: `check: {cmd, hint?, timeout_ms?}` on decision_logged, valid only
+alongside `rule`. cmd is a shell command (≤500 chars) run from the repo root,
+exit 0 meaning the decision holds; hint (≤300) is the remediation a failure
+shows; timeout_ms is 1..600,000 (default 120,000; Stop caps it at 30,000).
+The fold keeps DecisionState.check; the scope tier (§Derived index) keeps it
+on every ruled entry, and the command's file tokens join the entry's
+mentions, so reading or editing the check's own script surfaces the decision
+(§Read-time surfacing). Agents edit tests to pass them (ImpossibleBench);
+the command itself lives in the append-only record and changes only through
+a ruled superseder.
+
+IN FORCE: a ruled decision carrying `check` that no later rule of its own
+record replaced — checks are repo-wide, like the rules they belong to.
+APPLIES to a set of changed paths when its decision's `path:` guard matches
+one of them, or always when it has no path guard; nothing applies to no
+change.
+
+APPROVAL — a check never runs unapproved. It is text an agent wrote into a
+record that travels with branches and teammates, and a Stop or git hook runs
+outside every permission prompt the host has. A check runs only when:
+- the operator approved that exact command on this clone: `sofar check
+  --approve "<slug> D<n>"`, which asks on a terminal (stdin and stderr TTY,
+  not CI) and refuses otherwise, since an approval from an agent's shell is
+  the agent approving its own command. It stores sha256(cmd) in
+  `<state>/checks/<key>.json` (`$XDG_STATE_HOME/sofar` or
+  `~/.local/state/sofar`, key = cloneKey of the COMMON git dir, so worktrees
+  of one clone share it; never inside the clone, never committed or synced).
+  A changed command is a new command;
+- or, under `sofar drive` only, the run's recorded permission surface covers
+  it (commandAllowed, r1-fixes D19's rule for agent-written commands).
+An applicable unapproved check is named, never run: `sofar: N decision
+check(s) bear on this work but are not approved on this clone, so none ran:
+[<slug> D<n>] \`<cmd>\`, … — the operator approves one with \`sofar check
+--approve "<handle>"\``.
+
+FAILURE LINE, on every surface: `sofar: check for [<slug> D<n>] failed
+(<how>): <last output line> — rule: "<rule>" — fix: <hint>`, the fix being,
+without a hint, `make the work hold the rule (the operator: "<quote>"), or
+log a decision that supersedes <slug> D<n>`. <how> is `exit N`, `timed out
+after Ns`, `killed by <signal>` or `could not run`.
+
+WHERE, AND WHETHER IT BLOCKS (the user's ruling "Drive + opt-in pre-commit",
+D9 as restated by D10). It qualifies drift-hardening D3 rather than
+overturning it: a GUARD still never changes an exit code.
+- Stop: checks run ONLY when the write-back block already fires, over the
+  session's touched files (every check when its file list overflowed), within
+  45 s in total. Failures, the unapproved line and a budget line ride the
+  block's stderr. They never cause a block, and a session that wrote back is
+  never held and runs nothing.
+- pre-commit: the `pre-commit` git hook (§Hooks) runs `sofar check --staged`
+  over the staged paths. It warns on stderr and exits 10 ONLY when the clone
+  opted in (`sofar check --block-commits on`, in the same file) and an approved
+  check failed. The hook refuses the commit on 10 alone. Any other status,
+  including an older sofar without `check` (exit 1) or no record, lets the
+  commit through.
+- drive: at task acceptance (§Driver, Decision checks at acceptance).
+- `sofar check` (§CLI): warns, exit 0; `--strict` exits 1 on a failure.
+
 ### Read-time surfacing (memory-lead 2.1, D6)
 The point-of-use push of §Decision guards (drift-hardening D3), extended from
 the edit to the READ, and from guarded rules to every decision that names the
@@ -729,8 +792,9 @@ decision-scope tier. Per initiative it holds:
 
 `guards` is the view of entries that carry both a rule and a guard. Superseded
 entries stay in it, marked, to stay faithful to the fold; the filter runs at
-render time. INDEX_SCHEMA_VERSION is 7 (6 at 2.1; 2.2 added every rule and
-the labels tier).
+render time. INDEX_SCHEMA_VERSION is 8 (6 at 2.1; 7 when 2.2 added every rule
+and the labels tier; 8 when 2.3 added each ruled entry's `check` and the
+check command's file tokens to its mentions).
 
 **Labels tier (memory-lead 2.2, D8).** labels.json on its own cursor
 (meta-labels.json), read only by sofar_log_decision, sofar_end_session and
@@ -1376,6 +1440,26 @@ as before. SURFACES: plan.md appends `verify: \`cmd\`` and `verified pass
 task line; describeRun appends `, P/N verification(s) passed` when the run
 recorded any; sessions/<id>.md shows `verify_failed` like any reason.
 Records without checks render byte-identically.
+
+**Decision checks at acceptance (memory-lead 2.3, D9).** Once the task's own
+command passes, or none applies, the gate runs the in-force decision checks
+(§Decision checks) that apply to the task's files: task_files[task], plus the
+tree's uncommitted and untracked paths. A list at TASK_FILES_CAP has lost its
+oldest paths, so every check applies. Each runs if approved on the clone or
+covered by the run's surface, and is recorded as verification_recorded with
+`decision: "<slug> D<n>"`, cwd `.` and timeout_ms = the check's own, else
+the run's verify timeout. A covered pass (same command, same tree) runs
+nothing. `refused` is recorded and NEVER blocks: nothing ran, and nothing an
+agent controls decides approval. A fail or timeout blocks exactly as a failed
+verify does: reopened with `reopened by the driver — <failure line>`,
+handoff `verify_failed` with the line as detail, and the next session's
+prompt says `The previous session marked this task done, but <failure
+line>`. The fold keeps these records apart: run.verifications (with
+`decision`) and task.checks (latest per decision) — never
+task.verification, so the task's own pass keeps covering. A resumed driver
+treats a recorded check like a verification. `--max-verify-attempts` counts
+FAILURES per task per run, verify and check alike, a refused check excepted.
+Since check passes are attempts too, attempts can outnumber failures.
 
 **Fold.** `runs[]` in log order; latestRun is the resume point — a run with
 no stop is still going, or its driver died without writing one, which is
@@ -3905,7 +3989,7 @@ sofar_start_session.`
   abandonment with no stated reason reads as something quietly forgotten.
   There is deliberately no `sofar phase` CLI sibling (D1): the
   MCP-less dialect reaches the same event through `sofar event append`.
-- sofar_log_decision({initiative?, chose, over, because, rule?, quote?, guard?}) → ok, warnings?
+- sofar_log_decision({initiative?, chose, over, because, rule?, quote?, guard?, supersedes?, until?, check?}) → ok, warnings?
   # rule (drift-hardening D1): standing-constraint clause, rendered verbatim
   # on every surface — never clipped, never aged out of the digest
   # quote (memory-lead D2): the operator's exact words the rule came from;
@@ -3914,6 +3998,11 @@ sofar_start_session.`
   # guard (drift-hardening D3): the machine-checkable half of that rule —
   # `path:`/`cmd:` globs (§Decision guards). Requires `rule`; a malformed
   # guard fails payload validation and appends nothing. Warns, never blocks.
+  # check (memory-lead D9): the executable half of that rule — {cmd, hint?,
+  # timeout_ms?} (§Decision checks). Requires `rule`; shape is the payload
+  # validator's. Runs only once the operator approved it on the clone (or,
+  # in drive, the run's surface covers it); blocks only at drive's task
+  # acceptance and, opted in, at pre-commit.
   # REVERSAL CHECK (r1-fixes D31), here and on `sofar event append --type
   # decision_logged`, before any append: a decision whose distinguishing terms
   # (chose minus over, over minus chose; core/lexicon's tokenizer) land on a
@@ -4742,6 +4831,15 @@ fires, and a Codex session is Tier 3 (§Host tiers).
   into an exit-0 — no today-exit-0 path becomes blocking.
 - SessionEnd shim → appends mechanical session-close marker (fallback only;
   cannot feed back to the agent).
+- pre-commit shim → `.git/hooks/pre-commit` (memory-lead 2.3, D9): runs
+  `sofar check --staged` and exits 1 only when that returned 10, else 0 —
+  so no sofar, an older sofar without `check`, or a crash never fails a
+  commit. `--staged` exits only 0 or 10, so a 1 is an older sofar rejecting
+  the subcommand: its output is swallowed rather than shown on every commit;
+  any other output goes to stderr. Installed, kept current, skipped and removed exactly as the
+  prepare-commit-msg shim below (common git dir, core.hooksPath resolved,
+  never clobbering, marker `sofar pre-commit shim`); a skip names the line to
+  add by hand, `sofar check --staged` (it exits 10 only to refuse a commit).
 - prepare-commit-msg shim → `.git/hooks/prepare-commit-msg`, the one shim that
   is GIT's rather than the host's (commit-attribution 2.5, D7). Calls
   `sofar commit-trailer "$1"` and exits 0 unconditionally. Unlike every shim
@@ -5155,6 +5253,19 @@ Shims contain no logic — they invoke the sofar CLI.
   other copies of the record, like `sofar list`, and a record another copy
   closed is omitted (§Record copies across branches); `--here` reads this
   checkout alone, `--remotes` adds remote-tracking refs.
+- `sofar check [--staged|--all] [--strict] [--list] [--approve <handle>]
+  [--block-commits on|off]` (memory-lead 2.3, D9; §Decision checks) — run
+  the approved in-force decision checks that apply to the working tree's
+  changes (tracked against HEAD plus untracked, `.sofar/` excluded), print each
+  failure line, the unapproved line and `sofar check: N check(s) ran on M
+  changed path(s) — P passed, F failed`; exit 0 (`--strict`: 1 on a failure).
+  `--staged` is the pre-commit hook: the staged paths, the report on stderr,
+  exit 10 only when the clone opted in and an approved check failed, 0 for
+  everything else including its own errors. `--all` runs every approved check.
+  `--list` prints each check, approved or not, and its scope. `--approve`
+  asks on a terminal and refuses without one (a bare `D<n>` resolves in the
+  bound initiative). `--block-commits on|off` sets the clone's pre-commit
+  opt-in.
 - `sofar why <path>` — every task, session and decision behind a path,
   across ALL initiatives, newest-first (§Record graph `whyFile`). Prints the
   recorded paths the query resolved to (§Path identity) VERBATIM — those are
@@ -7405,3 +7516,32 @@ stay the underlying derivation's, and exit codes are styling-independent.
   a write-back batch is refused whole naming `decisions[0]` and
   sofar_log_decision as the route. Tests: test/repo-scope.test.ts,
   test/reversal.test.ts.
+- **Decision checks (memory-lead 2.3):** decision_logged `check` without
+  `rule` is refused, as are an empty or 501-char cmd, a 301-char hint, a
+  timeout_ms of 0 or 600,001 and an unknown key; verification_recorded
+  `decision` must be qualified. sofar_log_decision carries a check through.
+  The fold keeps the check on the decision, and a check run lands in
+  task.checks (latest per decision) and run.verifications with `decision`
+  while task.verification keeps the task's own. The scope tier names a
+  check's script as a mention; a check falls with its rule; a `path:`
+  guard scopes it and no guard applies it to any change.
+  Approval is per exact command. It is shared by a clone's worktrees and
+  lives under XDG_STATE_HOME. `--approve` without a terminal refuses with
+  "an agent cannot approve its own command". `sofar check` on a changed
+  guarded file prints the failure line with rule and fix, and names an
+  unapproved check without running it (its side effect never happens);
+  `--strict` exits 1. `--staged` warns ("the commit goes ahead") until
+  `--block-commits on`, then exits 10 ("commit refused"). With no record
+  or no git it exits 0 silently. The pre-commit shim refuses a real `git
+  commit` on 10 and lets one through on 1 (silently) and 0 (its output shown). A session owing its
+  write-back gets the failure and unapproved lines on the Stop block (exit 2,
+  as before). A written-back session is not held, and its check never runs.
+  Under drive, another record's check reopens the task
+  (`verify_failed`, detail with the fix) and the next prompt carries it; a
+  pass accepts it with task.verification absent. An unapproved check
+  outside the surface is recorded `refused` and the task is accepted
+  without it running. An operator-approved check runs outside the surface,
+  and a scoped check the work never touched records nothing. init creates
+  `.git/hooks/pre-commit` and uninit removes only its own. The tool surface
+  stays ≤8,000 chars. Tests: test/decision-checks.test.ts,
+  test/uninit.test.ts, test/init.test.ts.

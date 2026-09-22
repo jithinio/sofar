@@ -216,6 +216,25 @@ export interface DecisionLoggedPayload {
    * constraint never ages out. An id the plan never names never retires.
    */
   until?: string
+  /**
+   * `check` (memory-lead 2.3, D9): the executable half of the SAME clause — a
+   * shell command whose exit 0 means the decision holds. Valid only alongside
+   * `rule`, like `guard`: a failure has to cite the clause it enforces. It is
+   * text an agent wrote into a shared record, so nothing runs it until the
+   * operator approved that exact command on their clone, or, under `sofar
+   * drive`, the run's permission surface covers it. It WARNS everywhere, and
+   * blocks only at drive's task acceptance and, opted in, at pre-commit.
+   */
+  check?: DecisionCheck
+}
+/** The command that checks a decision still holds, and the fix to show when it does not (D9). */
+export interface DecisionCheck {
+  /** ≤ CHECK_CMD_MAX chars; run from the repo root; exit 0 = the decision holds. */
+  cmd: string
+  /** The remediation a failure shows, ≤ CHECK_HINT_MAX chars; absent, the rule and its quote stand in. */
+  hint?: string
+  /** @asType integer */
+  timeout_ms?: number
 }
 export interface SessionStartedPayload { tool: string; model?: string }
 export interface SessionEndedPayload { session_id?: string; summary: string; next_action: string }
@@ -272,6 +291,14 @@ export const MEMORY_HANDLE_RE = /^([a-z0-9-]+) M([1-9][0-9]*)$/
 export const DECISION_HANDLE_RE = /^D([1-9][0-9]*)$/
 /** Longest operator quote a rule may carry (memory-lead D2): the sentence, not the message. */
 export const RULE_QUOTE_MAX = 300
+/** A decision handle qualified by its record: `<slug> D<n>` (memory-lead 2.2, D8). */
+export const QUALIFIED_DECISION_HANDLE_RE = /^([a-z0-9-]+) D([1-9][0-9]*)$/
+/** Longest check command a decision may carry (memory-lead D9). */
+export const CHECK_CMD_MAX = 500
+/** Longest fix hint a check may carry (memory-lead D9). */
+export const CHECK_HINT_MAX = 300
+/** Longest a check may run, in ms (memory-lead D9) — the driver's verify ceiling. */
+export const CHECK_TIMEOUT_MAX_MS = 600_000
 
 /**
  * A stored judgement (typed-judge 2.4, SPEC §Judge "Stored judgements"): what
@@ -488,6 +515,12 @@ export interface VerificationRecordedPayload {
   timeout_ms: number
   /** ≤1,024 chars: ANSI-stripped, redacted tail of stdout and stderr. */
   diagnostics?: string
+  /**
+   * The decision whose `check` this was, as `<slug> D<n>` (memory-lead 2.3,
+   * D9). Absent: the task's own acceptance command. The fold keeps the two
+   * apart, so a check never displaces the task's verify pass.
+   */
+  decision?: string
 }
 
 export interface RunStoppedPayload {
@@ -651,6 +684,21 @@ function optStr(v: unknown): boolean {
 /** Optional, but non-empty when present — an empty rule would render an empty constraint. */
 function optNonEmptyStr(v: unknown): boolean {
   return v === undefined || str(v)
+}
+/** Shape errors of a decision's `check` (memory-lead D9); [] when valid. Shared with the MCP input validator. */
+export function checkSpecErrors(v: unknown): string[] {
+  if (!isObj(v)) return ['check: must be {cmd, hint?, timeout_ms?}']
+  const e: string[] = []
+  if (!str(v.cmd) || v.cmd.trim().length === 0) e.push('check.cmd: must be a non-empty shell command')
+  else if (v.cmd.length > CHECK_CMD_MAX) e.push(`check.cmd: at most ${CHECK_CMD_MAX} chars — point it at a script if it is longer`)
+  if (v.hint !== undefined && (!str(v.hint) || v.hint.length > CHECK_HINT_MAX)) {
+    e.push(`check.hint: must be a non-empty string of at most ${CHECK_HINT_MAX} chars when present`)
+  }
+  if (v.timeout_ms !== undefined && !(Number.isInteger(v.timeout_ms) && (v.timeout_ms as number) >= 1 && (v.timeout_ms as number) <= CHECK_TIMEOUT_MAX_MS)) {
+    e.push(`check.timeout_ms: must be an integer from 1 to ${CHECK_TIMEOUT_MAX_MS} when present`)
+  }
+  for (const key of Object.keys(v)) if (key !== 'cmd' && key !== 'hint' && key !== 'timeout_ms') e.push(`check.${key}: unknown field`)
+  return e
 }
 function taskStatus(v: unknown): v is TaskStatus {
   return typeof v === 'string' && (TASK_STATUSES as readonly string[]).includes(v)
@@ -867,6 +915,12 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
       // that names it (`supersedes`) instead of scheduling its expiry.
       if (str(p.rule)) e.push('until: not allowed with `rule` — a standing constraint never ages out; supersede it with a new rule instead')
     }
+    if (p.check !== undefined) {
+      // The executable half of a rule (memory-lead D9), as `guard` is the
+      // matchable half: a failure has to name the clause it enforces.
+      if (!str(p.rule)) e.push('check: requires `rule` — a failing check has to cite the clause it enforces')
+      e.push(...checkSpecErrors(p.check))
+    }
   },
   session_started(p, e) {
     if (!str(p.tool)) e.push('tool: must be a non-empty string')
@@ -1044,6 +1098,9 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (p.diagnostics !== undefined && (!str(p.diagnostics) || (p.diagnostics as string).length > 1024)) {
       e.push('diagnostics: must be a non-empty string of at most 1,024 chars when present')
     }
+    if (p.decision !== undefined && !(str(p.decision) && QUALIFIED_DECISION_HANDLE_RE.test(p.decision as string))) {
+      e.push('decision: must be a qualified handle `<slug> D<n>` when present')
+    }
   },
   run_stopped(p, e) {
     if (!str(p.run)) e.push('run: must be a non-empty string')
@@ -1205,7 +1262,7 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
   decision_logged: {
     writer: 'agent',
     summary: 'a design decision: what was chosen, over what, and why',
-    fields: 'chose, over, because, rule? (one imperative every later session must obey), quote? (the operator\'s exact words the rule came from; only with rule), guard? (path:<globs> or cmd:<globs>; only with rule), supersedes? (D<n> of the earlier decision this one replaces), until? (task id — in force until it resolves; never with rule)',
+    fields: 'chose, over, because, rule? (one imperative every later session must obey), quote? (the operator\'s exact words the rule came from; only with rule), guard? (path:<globs> or cmd:<globs>; only with rule), supersedes? (D<n> of the earlier decision this one replaces), until? (task id — in force until it resolves; never with rule), check? ({cmd, hint?, timeout_ms?}: a command whose exit 0 means the rule holds; only with rule)',
     // The condition rides `via` (printed as `note:`), not `fields`: fields is
     // hashed into the schema fingerprint both implementations embed (D22).
     via: 'add rule when the operator states the choice for the whole project — every later session sees it as a standing constraint, whichever record it works in; omit it for a one-off choice. Word the rule as the operator did (no status code, path or value they did not state) and put their exact words in quote. A decision that reverses a standing one in ANY record is refused unless supersedes names it or because cites it (a narrower exception); another record\'s is cited as `<slug> D<n>` and replaced from its own record (--initiative <slug>, supersedes D<n>)',
@@ -1281,8 +1338,8 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
   },
   verification_recorded: {
     writer: 'driver',
-    summary: "the driver ran a task's acceptance command before accepting it as done",
-    fields: `run, task, attempt, command, cwd, checked: {head, tree}, validator, result: ${VERIFICATION_RESULTS.join('|')}, exit_code?, signal?, duration_ms, timeout_ms, diagnostics? (≤1,024 chars)`,
+    summary: "the driver ran a task's acceptance command, or a decision's check, before accepting it as done",
+    fields: `run, task, attempt, command, cwd, checked: {head, tree}, validator, result: ${VERIFICATION_RESULTS.join('|')}, exit_code?, signal?, duration_ms, timeout_ms, diagnostics? (≤1,024 chars), decision? (<slug> D<n> whose check this was)`,
     example: {
       run: '01J00000000000000000000000',
       task: '1.1',

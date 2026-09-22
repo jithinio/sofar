@@ -14,7 +14,7 @@ import {
   CODEX_SHIM_DIR,
   CODEX_SHIMS,
   GITATTRIBUTES_LINE,
-  GIT_HOOK_MARKER,
+  GIT_HOOKS,
   isSofarStatusline,
   PROTOCOL_END,
   PROTOCOL_START,
@@ -137,17 +137,21 @@ function removeGitHook(rootDir: string, report: string[]): void {
   const dir = commonGitDir(rootDir) // where installGitHook put it
 
   if (dir === null) return
-  const path = join(dir, 'hooks', 'prepare-commit-msg')
-  if (!existsSync(path)) return
-  let content: string
-  try {
-    content = readFileSync(path, 'utf8')
-  } catch {
-    return
+  // Every hook init installs (GIT_HOOKS: prepare-commit-msg, and pre-commit
+  // since memory-lead 2.3), each only while its marker says it is ours.
+  for (const hook of GIT_HOOKS) {
+    const path = join(dir, 'hooks', hook.name)
+    if (!existsSync(path)) continue
+    let content: string
+    try {
+      content = readFileSync(path, 'utf8')
+    } catch {
+      continue
+    }
+    if (!content.includes(hook.marker)) continue // yours — left alone
+    unlinkSync(path)
+    report.push(`removed .git/hooks/${hook.name}`)
   }
-  if (!content.includes(GIT_HOOK_MARKER)) return // yours — left alone
-  unlinkSync(path)
-  report.push('removed .git/hooks/prepare-commit-msg')
 }
 
 /**

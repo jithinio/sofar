@@ -244,6 +244,19 @@ export function attemptsSoFar(run: RunState, taskId: string): number {
   return run.verifications.filter((v) => v.task === taskId).length
 }
 
+/**
+ * How many of those FAILED — what `--max-verify-attempts` bounds ("once one
+ * task has failed N times", D19). Not the attempt number: since decision
+ * checks (memory-lead D9) record their passes on the same run, a task's
+ * attempts outnumber its failures. A refused check never blocked anything, so
+ * it is not a failure; a refused acceptance command is, as it always was.
+ */
+export function failuresSoFar(run: RunState, taskId: string): number {
+  return run.verifications.filter(
+    (v) => v.task === taskId && v.result !== 'pass' && !(v.decision !== undefined && v.result === 'refused'),
+  ).length
+}
+
 /** One line for a handoff detail, a task note or a prompt: what ran, how it ended, the last thing it said. */
 export function describeVerification(cmd: string, attempt: number, outcome: VerificationOutcome): string {
   const how =

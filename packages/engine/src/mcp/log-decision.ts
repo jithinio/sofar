@@ -11,7 +11,7 @@ import { ToolError, type ToolContext } from './context'
 
 /**
  * sofar_log_decision — appends decision_logged {chose, over, because, rule?,
- * quote?, guard?, supersedes?, until?}. Resolution pins to the active session's initiative (task 12.1,
+ * quote?, guard?, supersedes?, until?, check?}. Resolution pins to the active session's initiative (task 12.1,
  * BD58). A malformed guard (or one without a rule) fails payload validation
  * inside appendAndProject and appends nothing — the typed error is the whole
  * feedback loop, since a guard nobody can compile would otherwise sit in the
@@ -72,6 +72,7 @@ function logDecisionLogged(
     ...(args.guard !== undefined ? { guard: args.guard } : {}),
     ...(args.supersedes !== undefined ? { supersedes: args.supersedes } : {}),
     ...(args.until !== undefined ? { until: args.until } : {}),
+    ...(args.check !== undefined ? { check: args.check } : {}),
   })
   // What the rule adds to the operator's words (memory-lead 1.2, D2) — after
   // the append, so a warning never reads as a refusal.
