@@ -13,12 +13,14 @@ use std::path::Path;
 
 use crate::fold::empty_state;
 use crate::fold_cli::CmdResult;
+use crate::git::current_branch;
 use crate::layout::Layout;
 use crate::projections::retire_enabled;
+use crate::record_copies::{ForeignLog, home_dir, scan_record_copies, union_fold};
 use crate::resolve::{ResolveError, resolve_initiative, unbound_status_applies};
 use crate::run_lock::probe_run_lock;
 use crate::snapshot::{fold_file, state_of};
-use crate::status::render_full_status;
+use crate::status::{CopiesView, render_full_status};
 use crate::ui::Style;
 use crate::update_cache::{UpdateNotice, notice_from, notice_line, read_update_cache};
 
@@ -34,34 +36,71 @@ fn fail(message: String) -> CmdResult {
 #[must_use]
 pub fn run_status(root: &Path, slug: Option<&str>) -> CmdResult {
     let layout = Layout::new(root);
-    let resolved = match resolve_initiative(&layout, slug) {
-        Ok(slug) => slug,
-        // An unbound branch orients instead of failing (r1-fixes L10, D28):
-        // the most recently active initiative's status plus the listing —
-        // rendered by the TypeScript CLI, which owns `sofar list`; exit 64
-        // hands the whole call back (rust-core D31).
-        Err(ResolveError::UnknownInitiative(_))
-            if slug.is_none() && unbound_status_applies(&layout) =>
-        {
-            return CmdResult {
-                exit_code: 64,
-                stdout: String::new(),
-                stderr: String::new(),
-            };
-        }
+    match resolve_initiative(&layout, slug) {
+        Ok(resolved) => status_of(root, &layout, &resolved, None),
         Err(e) => {
-            return fail(format!(
+            // An initiative that exists only on another branch still has a
+            // status (branch-visibility D1): look for it there first.
+            if let Some(slug) = slug.filter(|s| crate::payload::is_initiative_slug(s)) {
+                let copies = scan_record_copies(root, slug);
+                if !copies.is_empty() {
+                    return status_of(root, &layout, slug, Some(copies));
+                }
+            }
+            // An unbound branch orients instead of failing (r1-fixes L10,
+            // D28): the most recently active initiative's status plus the
+            // listing — rendered by the TypeScript CLI, which owns `sofar
+            // list`; exit 64 hands the whole call back (rust-core D31).
+            if matches!(e, ResolveError::UnknownInitiative(_))
+                && slug.is_none()
+                && unbound_status_applies(&layout)
+            {
+                return CmdResult {
+                    exit_code: 64,
+                    stdout: String::new(),
+                    stderr: String::new(),
+                };
+            }
+            fail(format!(
                 "sofar status: {} (usage: sofar status [slug])",
                 e.message()
-            ));
+            ))
         }
-    };
-    let log_path = layout.events_path(&resolved);
-    let (mut state, warnings) = if log_path.exists() {
-        match fold_file(&log_path, &resolved) {
+    }
+}
+
+/// `statusOf`: one initiative's status, folded across the record's other
+/// copies (branch-visibility D1); `scan` when resolution already had to look.
+fn status_of(
+    root: &Path,
+    layout: &Layout,
+    resolved: &str,
+    scan: Option<Vec<ForeignLog>>,
+) -> CmdResult {
+    let copies = scan.unwrap_or_else(|| scan_record_copies(root, resolved));
+    let log_path = layout.events_path(resolved);
+    let (mut state, warnings, provenance) = if !copies.is_empty() {
+        let local = if log_path.exists() {
+            match std::fs::read(&log_path) {
+                Ok(bytes) => Some(String::from_utf8_lossy(&bytes).into_owned()),
+                Err(e) => {
+                    return fail(format!(
+                        "sofar status: failed to read {}: {e}",
+                        log_path.display()
+                    ));
+                }
+            }
+        } else {
+            None
+        };
+        let (result, provenance) =
+            union_fold(resolved, local.as_deref(), &copies, current_branch(root));
+        (result.state, result.warnings, provenance)
+    } else if log_path.exists() {
+        match fold_file(&log_path, resolved) {
             Ok(snapshot) => {
                 let result = state_of(&snapshot);
-                (result.state, result.warnings)
+                (result.state, result.warnings, None)
             }
             Err(e) => {
                 return fail(format!(
@@ -71,10 +110,10 @@ pub fn run_status(root: &Path, slug: Option<&str>) -> CmdResult {
             }
         }
     } else {
-        (empty_state(), Vec::new())
+        (empty_state(), Vec::new(), None)
     };
     if state.slug.is_empty() {
-        state.slug = resolved;
+        resolved.clone_into(&mut state.slug);
     }
     // The run lock on the latest run with no stop (drive-visibility 2.3): a
     // record no driver is running probes nothing.
@@ -83,9 +122,18 @@ pub fn run_status(root: &Path, slug: Option<&str>) -> CmdResult {
         .last()
         .filter(|run| run.stopped.is_none())
         .map(|run| probe_run_lock(root, &run.id));
+    let home = home_dir();
     CmdResult {
         exit_code: 0,
-        stdout: render_full_status(&state, retire_enabled(), liveness),
+        stdout: render_full_status(
+            &state,
+            retire_enabled(),
+            liveness,
+            &CopiesView {
+                provenance: provenance.as_ref(),
+                home: home.as_deref(),
+            },
+        ),
         stderr: warnings
             .iter()
             .map(|w| format!("warning: {w}"))

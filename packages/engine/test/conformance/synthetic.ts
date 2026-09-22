@@ -434,6 +434,44 @@ function surfacing(): FixtureFiles {
   }
 }
 
+/**
+ * A driven record (drive-visibility 2.2–3.2, rust-core D29): a resumed run
+ * with a stop request left for the driver it replaced and one in force, and
+ * a session that began after the run started, for the prompt's drive line.
+ */
+function driven(): FixtureFiles {
+  const b = new LogBuilder('drv')
+  const goal = 'watch a driven run from a session'
+  b.ev('initiative_created', { slug: 'drv', goal })
+  b.ev(
+    'plan_updated',
+    plan(goal, [
+      {
+        name: 'Build',
+        status: 'active',
+        tasks: [
+          { id: '1.1', title: 'first', status: 'done' },
+          { id: '1.2', title: 'second', status: 'active' },
+          { id: '1.3', title: 'third', status: 'pending' },
+        ],
+      },
+      { name: 'Ship', status: 'pending', tasks: [{ id: '2.1', title: 'ship it', status: 'pending' }] },
+    ]),
+  )
+  const run = '01K0DRV0000000000000000RUN'
+  b.ev('run_started', { run, adapter: 'claude-code', policy: 'task' })
+  b.ev('session_started', { tool: 'claude-code' }, { session: 'sess-run-1', ...HOOK })
+  b.ev('handoff', { run, session_id: 'sess-run-1', reason: 'task_done', task: '1.1' })
+  b.ev('run_stop_requested', { run }, { actor: 'human' })
+  b.ev('run_adopted', { run, epoch: 2 })
+  b.ev('run_stop_requested', { run }, { actor: 'human' })
+  b.ev('session_started', { tool: 'claude-code' }, { session: 'sess-d', ...HOOK })
+  return {
+    'bindings.json': bindings({ main: 'drv' }),
+    'initiatives/drv/events.jsonl': b.text(),
+  }
+}
+
 /** Closed, superseded, dropped and never-written records side by side. */
 function lifecycle(): FixtureFiles {
   const done = new LogBuilder('finished')
@@ -535,6 +573,7 @@ export const SYNTHETIC: Record<string, () => FixtureFiles> = {
   budget,
   guards,
   surfacing,
+  driven,
   lifecycle,
   many,
 }

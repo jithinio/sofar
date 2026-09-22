@@ -32,6 +32,8 @@ pub mod cross_conflicts;
 pub mod date;
 pub mod derived;
 pub mod diagnostics;
+pub mod drive_queue;
+pub mod drive_seen;
 pub mod entropy;
 pub mod envelope;
 pub mod file_mentions;

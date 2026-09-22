@@ -1,5 +1,8 @@
 # Render-parity manifest (rust-core D11)
 
+At **main a4f270a**: `synthetic.driven.drv` ADDED with the new synthetic
+fixture (a resumed run in every surface).
+
 Re-recorded at **main a4f270a** for a harness change (rust-core D29): the
 `hook` and `cap` option variants carry `repoRules` on two hashes of three
 (memory-lead 2.2). The rules include a restatement, a quote, an over-budget

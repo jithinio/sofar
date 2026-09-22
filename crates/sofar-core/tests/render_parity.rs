@@ -18,7 +18,9 @@ use sofar_core::projections::{
     render_decisions, render_memory, render_plan, render_session, session_file_name,
 };
 use sofar_core::snapshot::{fold_file, state_of};
-use sofar_core::status::{NeighbourRecord, StatusOptions, render_full_status, render_status};
+use sofar_core::status::{
+    CopiesView, NeighbourRecord, StatusOptions, render_full_status, render_status,
+};
 use sofar_core::text::utf16_len;
 
 fn conformance_dir() -> PathBuf {
@@ -258,7 +260,7 @@ fn every_surface_matches_the_typescript_golden_byte_for_byte() {
             &id,
             "status",
             by_name["status"],
-            &render_full_status(&state, true, None),
+            &render_full_status(&state, true, None, &CopiesView::default()),
         );
         for (variant, value) in options.js_ordered() {
             let name = format!("digest:{variant}");

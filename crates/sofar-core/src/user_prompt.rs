@@ -18,7 +18,7 @@ use crate::layout::Layout;
 use crate::lessons::{Lesson, lessons_enabled, relevant_lessons};
 use crate::peers::{Peer, resolve_peers};
 use crate::post_tool::{GUARD_RULES_MAX, render_subject};
-use crate::projections::retire_enabled;
+use crate::projections::{RunLiveness, retire_enabled, task_progress};
 use crate::session_pointer::{clear_session_pointer, write_session_pointer};
 use crate::shipwatch::{note_engine, note_upstream};
 use crate::status::{FileConflict, QUICK_LANE, open_session_file_conflicts, open_session_files};
@@ -279,6 +279,69 @@ fn reachable_peer_line(others: &[String]) -> Option<String> {
 }
 
 /// `parallelWrapLine`.
+/// `DRIVE_LINE_BUDGET` (drive-visibility 3.2).
+pub const DRIVE_LINE_BUDGET: usize = 200;
+
+/// `driveLine`: how the session's initiative's run stands, for a run still
+/// open or stopped since this session began, and ONLY when it moved since
+/// this session last saw it (the line minus its liveness word). The lock is
+/// probed only once the line will print; a driven session gets no line.
+fn drive_line(root: &Path, state: &InitiativeState, me: &SessionState) -> Option<String> {
+    if std::env::var_os(crate::nudge::NUDGE_ENV).is_some_and(|v| !v.is_empty()) {
+        return None;
+    }
+    let run = state.runs.last()?;
+    if run
+        .stopped
+        .as_deref()
+        .is_some_and(|stopped| cmp_utf16(stopped, &me.started).is_lt())
+    {
+        return None;
+    }
+    let n = run.handoffs.len();
+    let p = task_progress(&state.phases);
+    let now = if run.stopped.is_none() {
+        crate::drive_queue::next_task(state).map(|t| t.id.clone())
+    } else {
+        None
+    };
+    let mut parts = vec![format!("{n} handoff{}", if n == 1 { "" } else { "s" })];
+    if let Some(now) = now {
+        parts.push(format!("now on {now}"));
+    }
+    parts.push(format!("{}/{}", p.done, p.total));
+    let tail = parts.join(" · ");
+    let stopped = run.stopped.as_ref().map(|_| {
+        format!(
+            "stopped: {}",
+            run.stop_reason.as_deref().unwrap_or("unknown")
+        )
+    });
+    if !crate::drive_seen::note_drive_seen(
+        root,
+        &me.id,
+        &format!(
+            "{} {} · {tail}",
+            run.id,
+            stopped.as_deref().unwrap_or("open")
+        ),
+    ) {
+        return None;
+    }
+    let fate = stopped.unwrap_or_else(|| {
+        match crate::run_lock::probe_run_lock(root, &run.id) {
+            RunLiveness::Held => "running",
+            RunLiveness::Free => "driver gone",
+            RunLiveness::Absent => "liveness unknown",
+        }
+        .to_owned()
+    });
+    Some(clip_to(
+        &format!("sofar drive: run {} {fate} · {tail}", run.id),
+        DRIVE_LINE_BUDGET,
+    ))
+}
+
 fn parallel_wrap_line(state: &InitiativeState, session_id: &str) -> Option<String> {
     let me = state.sessions.iter().find(|s| s.id == session_id)?;
     let since = me.ended.as_deref().unwrap_or(&me.started);
@@ -554,6 +617,10 @@ pub fn handle_user_prompt(root: &Path, input: &str) -> CmdResult {
     let mut lines = head;
     if let Some(wrap) = parallel_wrap_line(&state, session_id) {
         lines.push(wrap);
+    }
+    // News too, of the run driving this initiative (drive-visibility 3.2).
+    if let Some(drive) = drive_line(root, &state, me) {
+        lines.push(drive);
     }
     let git = read_git_state(root);
     if let Some(line) =

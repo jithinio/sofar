@@ -427,6 +427,75 @@ export const CASES: ConformanceCase[] = [
     ],
   },
   {
+    // drive-visibility 2.2, 2.3 and 3.2 on the hot path (rust-core D29).
+    name: 'syn.driven',
+    fixture: synthetic('driven'),
+    steps: [
+      s('prompt: the drive line, no lock on this machine', ['event', 'user-prompt'], prompt({ session_id: 'sess-d' })),
+      s('prompt again: nothing moved, no line', ['event', 'user-prompt'], prompt({ session_id: 'sess-d' })),
+      s('status: resumed, liveness unknown, one stop request in force', ['status']),
+      s('status with the run lock free: driver gone', ['status'], undefined, {
+        before: (m) => {
+          const dir = join(m.home, '.local', 'state', 'sofar', 'runs')
+          mkdirSync(dir, { recursive: true })
+          writeFileSync(join(dir, '01K0DRV0000000000000000RUN.lock'), '')
+        },
+      }),
+      s('prompt: only the liveness moved, no line', ['event', 'user-prompt'], prompt({ session_id: 'sess-d' })),
+      s('a handoff lands', ['event', 'append', '--type', 'handoff', '--session', 'sess-run-2', '--payload', '{"run":"01K0DRV0000000000000000RUN","session_id":"sess-run-2","reason":"task_done","task":"1.2"}']),
+      s('task 1.2 done', ['event', 'append', '--type', 'task_status_changed', '--payload', '{"id":"1.2","status":"done"}']),
+      s('prompt: the run moved', ['event', 'user-prompt'], prompt({ session_id: 'sess-d' })),
+      s('the run stops', ['event', 'append', '--type', 'run_stopped', '--payload', '{"run":"01K0DRV0000000000000000RUN","reason":"closed"}']),
+      s('a driven session gets no line, news or not', ['event', 'user-prompt'], prompt({ session_id: 'sess-d' }), {
+        env: { SOFAR_DRIVE_NUDGE: '/nonexistent/sofar-nudge.json' },
+      }),
+      s('prompt: stopped', ['event', 'user-prompt'], prompt({ session_id: 'sess-d' })),
+    ],
+  },
+  {
+    // branch-visibility 1.1–2.3 and 3.3 on the hot path (rust-core D29): two
+    // linked worktrees under the scratch home, one ahead of this checkout on a
+    // branch and one detached and diverged, a prefix copy that adds nothing,
+    // and a record that exists only on another worktree.
+    name: 'syn.copies',
+    fixture: synthetic('surfacing'),
+    steps: [
+      s('session-start: other worktrees hold events of this record', ['event', 'session-start'], start({ session_id: 'sess-a' }), {
+        before: (m) => {
+          const line = (id: string, initiative: string, text: string) =>
+            JSON.stringify({ v: 1, id, ts: '2026-09-02T10:00:00.000Z', initiative, session: 'cli', source: 'cli', actor: 'agent', type: 'note_added', payload: { text } })
+          const own = (slug: string) => readFileSync(join(m.root, '.sofar', 'initiatives', slug, 'events.jsonl'), 'utf8')
+          const worktree = (name: string, head: string, logs: Record<string, string>) => {
+            const admin = join(m.root, '.git', 'worktrees', name)
+            const checkout = join(m.home, name)
+            mkdirSync(admin, { recursive: true })
+            writeFileSync(join(admin, 'gitdir'), `${join(checkout, '.git')}\n`)
+            writeFileSync(join(admin, 'HEAD'), head)
+            writeFileSync(join(admin, 'commondir'), '../..\n')
+            mkdirSync(checkout, { recursive: true })
+            writeFileSync(join(checkout, '.git'), `gitdir: ${admin}\n`)
+            for (const [slug, text] of Object.entries(logs)) {
+              mkdirSync(join(checkout, '.sofar', 'initiatives', slug), { recursive: true })
+              writeFileSync(join(checkout, '.sofar', 'initiatives', slug, 'events.jsonl'), text)
+            }
+          }
+          worktree('wt1', 'ref: refs/heads/feature\n', {
+            surf: `${own('surf')}${line('01K5WT10000000000000000001', 'surf', 'from wt1, one')}\n${line('01K5WT10000000000000000002', 'surf', 'from wt1, two')}\n`,
+            other: own('other'),
+            elsewhere: `${line('01K5WT10000000000000000003', 'elsewhere', 'only here')}\n`,
+          })
+          worktree('wt2', `${'b'.repeat(40)}\n`, {
+            surf: `${own('surf').split('\n').slice(0, 3).join('\n')}\n{broken\n${line('01K5WT20000000000000000001', 'surf', 'from wt2')}\n${line('01K5WT10000000000000000002', 'surf', 'from wt1, two')}\n`,
+          })
+        },
+      }),
+      s('status: folded across the copies', ['status', 'surf']),
+      s('status of a record whose other copy adds nothing', ['status', 'other']),
+      s('status of a record held only on another worktree', ['status', 'elsewhere']),
+      s('status of a slug held nowhere', ['status', 'nowhere']),
+    ],
+  },
+  {
     name: 'syn.lifecycle',
     fixture: synthetic('lifecycle'),
     steps: [

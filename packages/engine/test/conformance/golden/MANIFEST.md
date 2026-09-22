@@ -1,5 +1,15 @@
 # Golden manifest (rust-core D11)
 
+Still at **main a4f270a**: two more cases ADDED, recorded from the
+TypeScript reference (rust-core D29), with no existing golden moved:
+`syn.driven` (synthetic fixture `driven`: drive-visibility 3.2's prompt
+drive line, speaking only on news, with no lock, a free lock, a stop, and
+under a driven session's nudge env; 2.2's resumed run and its in-force stop
+request; 2.3's liveness fates in `sofar status`) and `syn.copies` (fixture
+`surfacing` plus two linked worktrees made under the scratch home by the
+step: branch-visibility 3.3's SessionStart notice and 1.1–2.3's union
+fold in `sofar status`, including a record held only on another worktree).
+
 Re-pinned to **main a4f270a** (rust-core merge cc14741: memory-lead 2.8
 and drive-visibility 3.2). No existing golden moved: no fixture carries a
 stamped supersession or a driven run. One case was ADDED and recorded from
