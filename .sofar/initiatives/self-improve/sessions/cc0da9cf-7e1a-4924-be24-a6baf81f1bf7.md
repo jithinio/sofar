@@ -6,11 +6,11 @@
 - Tool: claude-code
 - Model: claude-opus-5
 - Started: 2026-09-22T14:51:15.416Z
-- Ended: 2026-09-22T19:47:10.366Z
+- Ended: 2026-09-22T19:47:47.515Z
 
 ## Summary
 
-Recorded D20's third blind spot (depth) and the headroom correction; loop-fix done, direct-fix running.
+Budget corrections carried in bench-refresh note 01M35AH0; direct-fix arm running with its own hidden set.
 
 ## Next action
 
@@ -18,9 +18,9 @@ When cycle-L11b.log shows done, read its compare verdict; record 3.4.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 117 commands
+- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 119 commands
 - Files:
   - /Users/jins/IO/sofar-evaluator/lib/commit.ts
   - /Users/jins/IO/sofar-evaluator/test/commit.test.ts
   - /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh
-- Commands run: 117
+- Commands run: 119
