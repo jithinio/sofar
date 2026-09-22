@@ -79,4 +79,4 @@ Progress: 15/26 tasks done (57%)
 - [ ] 6.3 Replace stale public claims: one-pager R04 figures, install name @alignlabs/sofar, "adds nothing to your bill" next to --cost-cap
 
 Active phase: Phase 5 — Round 2
-Next action: 5.0: when rust-core lands, send the packet — corrected table, three questions, supersession line, coverage threshold and memory hygiene.
+Next action: 5.0: send the freeze packet — three questions, corrected table with its supersession line, memory-win finding first, fresh paths as a condition.
