@@ -153,6 +153,12 @@ interface SlugGuardState {
    * target need not be in scope for the question to be asked.
    */
   ruled: string
+  /**
+   * The event id of EVERY decision, by ordinal − 1: a stamped supersession
+   * (memory-lead 2.8, D12) names its target by id, and the target need not be
+   * in scope for its ordinal to be retired.
+   */
+  ids: string[]
   /** Ordinals a later decision superseded (the fold's rule), ascending. */
   superseded: number[]
   /** Ordinals scoped by `until`. */
@@ -202,12 +208,13 @@ function isTierDisk<S>(v: unknown): v is TierDisk<S> {
   return r.version === INDEX_SCHEMA_VERSION && typeof r.initiatives === 'object' && r.initiatives !== null
 }
 
-const emptyGuards = (): SlugGuardState => ({ decisions: 0, ruled: '', superseded: [], until: [], entries: [] })
+const emptyGuards = (): SlugGuardState => ({ decisions: 0, ruled: '', ids: [], superseded: [], until: [], entries: [] })
 
 function cloneGuards(state: SlugGuardState): SlugGuardState {
   return {
     decisions: state.decisions,
     ruled: state.ruled,
+    ids: [...state.ids],
     superseded: [...state.superseded],
     until: [...state.until],
     entries: state.entries.map((e) => ({ ...e, mentions: [...e.mentions] })),
@@ -242,6 +249,21 @@ function headSource(text: string): string {
 }
 
 /**
+ * The ordinal a `supersedes` retires, as the fold resolves it (core/fold.ts,
+ * supersededIndex): where the stamped id sits among the decisions before this
+ * one (memory-lead 2.8, D12), NaN when none has it — never the handle, which
+ * is what a merge moves — else the handle's own ordinal.
+ */
+function supersededOrdinal(p: DecisionLoggedPayload, ordinal: number, ids: readonly string[]): number {
+  if (typeof p.supersedes_id === 'string') {
+    for (let i = ordinal - 2; i >= 0; i--) if (ids[i] === p.supersedes_id) return i + 1
+    return NaN
+  }
+  const m = DECISION_HANDLE_RE.exec(p.supersedes ?? '')
+  return m === null ? NaN : Number(m[1])
+}
+
+/**
  * Apply one event to the decision-scope half, mirroring the fold's own
  * bookkeeping: the same ordinals, and the same supersession marks
  * (core/fold.ts, decision_logged).
@@ -255,13 +277,14 @@ function applyGuard(state: SlugGuardState, event: IndexedEvent, slug: string): v
   const ordinal = state.decisions
   const ruled = typeof p.rule === 'string'
   state.ruled += ruled ? '1' : '0'
+  state.ids.push(event.id)
 
-  // Supersession, exactly as the fold resolves it: inert when it points
-  // forward or at itself, or when a rule-less decision names a rule. The last
-  // superseder wins the mark, as it does in the fold.
+  // Supersession, exactly as the fold resolves it: by the stamped id when
+  // there is one (memory-lead 2.8, D12), else by the ordinal; inert when it
+  // points forward or at itself, or when a rule-less decision names a rule.
+  // The last superseder wins the mark, as it does in the fold.
   if (typeof p.supersedes === 'string') {
-    const m = DECISION_HANDLE_RE.exec(p.supersedes)
-    const n = m === null ? NaN : Number(m[1])
+    const n = supersededOrdinal(p, ordinal, state.ids)
     if (Number.isInteger(n) && n >= 1 && n < ordinal && (state.ruled[n - 1] !== '1' || ruled)) {
       if (!state.superseded.includes(n)) {
         state.superseded.push(n)
@@ -326,6 +349,8 @@ function applyFile(state: SlugFileState, event: IndexedEvent): void {
 export const LABEL_CLAUSE_MAX = 600
 
 interface LabelEntry {
+  /** Event id — what a stamped supersession (memory-lead 2.8, D12) names. */
+  id: string
   ordinal: number
   ts: string
   chose: string
@@ -360,14 +385,21 @@ function applyLabel(state: SlugLabelState, event: IndexedEvent): void {
   const ordinal = state.decisions
   const ruled = typeof p.rule === 'string'
   if (typeof p.supersedes === 'string') {
-    const m = DECISION_HANDLE_RE.exec(p.supersedes)
-    const n = m === null ? NaN : Number(m[1])
-    const at = Number.isInteger(n) && n < ordinal ? state.entries.findIndex((e) => e.ordinal === n) : -1
+    // By the stamped id when there is one (memory-lead 2.8, D12): only
+    // entries can be spliced, and each keeps its id, so no ordinal is needed.
+    let at = -1
+    if (typeof p.supersedes_id === 'string') {
+      at = state.entries.findIndex((e) => e.id === p.supersedes_id)
+    } else {
+      const m = DECISION_HANDLE_RE.exec(p.supersedes)
+      const n = m === null ? NaN : Number(m[1])
+      at = Number.isInteger(n) && n < ordinal ? state.entries.findIndex((e) => e.ordinal === n) : -1
+    }
     if (at >= 0 && (!state.entries[at]!.ruled || ruled)) state.entries.splice(at, 1)
   }
   if (typeof p.until === 'string' || typeof p.chose !== 'string' || typeof p.over !== 'string') return
   if (p.chose.length > LABEL_CLAUSE_MAX || p.over.length > LABEL_CLAUSE_MAX) return
-  state.entries.push({ ordinal, ts: event.ts, chose: p.chose, over: p.over, ruled })
+  state.entries.push({ id: event.id, ordinal, ts: event.ts, chose: p.chose, over: p.over, ruled })
 }
 
 function refreshHalf<S>(

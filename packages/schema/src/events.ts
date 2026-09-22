@@ -210,6 +210,14 @@ export interface DecisionLoggedPayload {
    */
   supersedes?: string
   /**
+   * `supersedes_id` (memory-lead 2.8, D12): the event id of the decision
+   * `supersedes` named when it was written, stamped by the writer from its own
+   * fold — agents never pass it. `D<n>` is a position in id order, so a union
+   * merge of branches that both logged decisions moves it; the id does not.
+   * When present the fold resolves by it alone. Only alongside `supersedes`.
+   */
+  supersedes_id?: string
+  /**
    * `until` (r1-fixes 3.2, D25): the id of a task in this record. The
    * decision is in force until that task RESOLVES (done or dropped, as
    * replayed) and then leaves the digest — validity derives from recorded
@@ -284,6 +292,12 @@ export interface MemoryPromotedPayload {
    * (memory.md, doctor's repo-memory axis) retire the old handle.
    */
   supersedes?: string
+  /**
+   * The event id of the memory `supersedes` named when it was written
+   * (memory-lead 2.8, D12), stamped by the writer — `M<n>` moves on a merge,
+   * the id does not. Only alongside `supersedes`.
+   */
+  supersedes_id?: string
 }
 
 /** A qualified memory handle: `<slug> M<n>`. */
@@ -925,6 +939,10 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (p.supersedes !== undefined && !(str(p.supersedes) && DECISION_HANDLE_RE.test(p.supersedes as string))) {
       e.push('supersedes: must be the bare handle `D<n>` of an earlier decision in this record when present')
     }
+    if (p.supersedes_id !== undefined) {
+      if (!str(p.supersedes_id)) e.push('supersedes_id: must be a non-empty string (target event id) when present')
+      if (p.supersedes === undefined) e.push('supersedes_id: requires `supersedes` — it is the id of the decision that handle named')
+    }
     if (p.until !== undefined) {
       if (!str(p.until)) e.push('until: must be a non-empty task id when present')
       // A standing constraint never ages out — replace it with a new rule
@@ -969,6 +987,10 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (!str(p.text)) e.push('text: must be a non-empty string')
     if (p.supersedes !== undefined && !(str(p.supersedes) && MEMORY_HANDLE_RE.test(p.supersedes as string))) {
       e.push('supersedes: must be a qualified memory handle `<slug> M<n>` when present')
+    }
+    if (p.supersedes_id !== undefined) {
+      if (!str(p.supersedes_id)) e.push('supersedes_id: must be a non-empty string (target event id) when present')
+      if (p.supersedes === undefined) e.push('supersedes_id: requires `supersedes` — it is the id of the memory that handle named')
     }
   },
   judgement_recorded(p, e) {
@@ -1278,7 +1300,7 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
   decision_logged: {
     writer: 'agent',
     summary: 'a design decision: what was chosen, over what, and why',
-    fields: 'chose, over, because, rule? (one imperative every later session must obey), quote? (the operator\'s exact words the rule came from; only with rule), guard? (path:<globs> or cmd:<globs>; only with rule), supersedes? (D<n> of the earlier decision this one replaces), until? (task id — in force until it resolves; never with rule), check? ({cmd, hint?, timeout_ms?}: a command whose exit 0 means the rule holds; only with rule)',
+    fields: 'chose, over, because, rule? (one imperative every later session must obey), quote? (the operator\'s exact words the rule came from; only with rule), guard? (path:<globs> or cmd:<globs>; only with rule), supersedes? (D<n> of the earlier decision this one replaces), supersedes_id? (that decision\'s event id; stamped by the writer, never passed), until? (task id — in force until it resolves; never with rule), check? ({cmd, hint?, timeout_ms?}: a command whose exit 0 means the rule holds; only with rule)',
     // The condition rides `via` (printed as `note:`), not `fields`: fields is
     // hashed into the schema fingerprint both implementations embed (D22).
     via: 'add rule when the operator states the choice for the whole project — every later session sees it as a standing constraint, whichever record it works in; omit it for a one-off choice. Word the rule as the operator did (no status code, path or value they did not state) and put their exact words in quote. A decision that reverses a standing one in ANY record is refused unless supersedes names it or because cites it (a narrower exception); another record\'s is cited as `<slug> D<n>` and replaced from its own record (--initiative <slug>, supersedes D<n>)',
@@ -1330,7 +1352,7 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
     writer: 'command',
     via: 'sofar remember "<fact>" [--supersedes "<slug> M<n>"] [--initiative <slug>]  (or `sofar remember -` with the text on stdin, `sofar remember @<file>`)',
     summary: 'an operational fact for repo memory (a release command, a failure mode) — not a decision',
-    fields: 'text, supersedes? (qualified handle `<slug> M<n>` of the fact this one replaces)',
+    fields: 'text, supersedes? (qualified handle `<slug> M<n>` of the fact this one replaces), supersedes_id? (that fact\'s event id; stamped by the writer, never passed)',
     example: { text: 'Run `bun test` from the repo root; per-package runs miss the setup file.' },
   },
   review_recorded: {

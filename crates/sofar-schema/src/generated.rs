@@ -50,6 +50,9 @@ pub struct DecisionLoggedPayload {
     #[doc = "`supersedes` (r1-fixes 3.2, D25): the bare handle `D<n>` of an EARLIER decision in the SAME record this one replaces. The fold resolves it from the log alone and marks the target `superseded_by` this decision's ordinal; the digest then stops rendering the target. Per-record like the ordinals themselves. A rule-carrying target is retired ONLY by a rule-carrying superseder — standing rules never age out, they are only ever replaced by a new rule that names them; any other reference is recorded but inert (forward, self, rule mismatch)."]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub supersedes: ::std::option::Option<::std::string::String>,
+    #[doc = "`supersedes_id` (memory-lead 2.8, D12): the event id of the decision `supersedes` named when it was written, stamped by the writer from its own fold — agents never pass it. `D<n>` is a position in id order, so a union merge of branches that both logged decisions moves it; the id does not. When present the fold resolves by it alone. Only alongside `supersedes`."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub supersedes_id: ::std::option::Option<::std::string::String>,
     #[doc = "`until` (r1-fixes 3.2, D25): the id of a task in this record. The decision is in force until that task RESOLVES (done or dropped, as replayed) and then leaves the digest — validity derives from recorded events, never from a clock. REJECTED alongside `rule`: a standing constraint never ages out. An id the plan never names never retires."]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub until: ::std::option::Option<::std::string::String>,
@@ -293,6 +296,9 @@ pub struct MemoryPromotedPayload {
     #[doc = "The QUALIFIED handle `<slug> M<n>` of the memory this one replaces (r1-fixes 1.5, D8). Facts go stale; the record is append-only, so the replacement is a new promotion that names the old one, and readers (memory.md, doctor's repo-memory axis) retire the old handle."]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub supersedes: ::std::option::Option<::std::string::String>,
+    #[doc = "The event id of the memory `supersedes` named when it was written (memory-lead 2.8, D12), stamped by the writer — `M<n>` moves on a merge, the id does not. Only alongside `supersedes`."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub supersedes_id: ::std::option::Option<::std::string::String>,
     pub text: ::std::string::String,
 }
 #[doc = "`NoteAddedPayload`"]
