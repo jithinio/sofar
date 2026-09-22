@@ -5,7 +5,8 @@ import { readBindingsFile } from '../core/bindings'
 import { currentBranch } from '../core/git'
 import { ensureIndexDir } from '../core/index-store'
 import { QUICK_LANE, QUICK_LANE_GOAL } from '../core/lane'
-import { lessonsEnabled, relevantLessons, type Lesson } from '../core/lessons'
+import { refreshLexicon } from '../core/index-lexicon'
+import { indexedLessons, lessonsEnabled, lessonsSource, relevantLessons, type Lesson } from '../core/lessons'
 import { withFileLock } from '../core/lock'
 import { silentReversal } from '../core/reversal'
 import { quoteClause, ruleFidelityWarning } from '../core/rule-fidelity'
@@ -1355,13 +1356,49 @@ export const LESSON_LINE_BUDGET = 320
  * revisited, and the line's job is to make that a choice rather than a lapse.
  */
 export function lessonLines(lessons: readonly Lesson[]): string[] {
-  return lessons.map((l) =>
-    clipTo(
-      `sofar: ruled out before — [${l.handle}] ${l.text} (matched: ${l.terms.join(', ')}; full text in decisions.md)`,
-      LESSON_LINE_BUDGET,
-    ),
-  )
+  return lessons.map((l) => {
+    const matched = `matched: ${l.terms.join(', ')}`
+    // Where the full text is: this record's decisions.md, or another's (D15).
+    const where = l.initiative === undefined ? 'decisions.md' : `${l.initiative}/decisions.md`
+    const line =
+      l.kind === 'decided'
+        ? `sofar: decided before — [${l.handle}] chose ${l.text} (${matched}; full text in ${where})`
+        : l.kind === 'noted'
+          ? `sofar: noted before — [${l.handle}] ${l.text} (${matched})`
+          : `sofar: ruled out before — [${l.handle}] ${l.text} (${matched}; full text in ${where})`
+    return clipTo(line, LESSON_LINE_BUDGET)
+  })
 }
+
+/**
+ * The lessons for this prompt (memory-lead 3.1, D15): ranked over the
+ * repo-wide lexicon tier and told once per session, or — with
+ * `SOFAR_LESSONS=fold`, or when the tier cannot be read — over this record's
+ * fold alone, as r1-fixes 3.3 shipped it. The told set is written only for
+ * what renders, and a failed write re-tells (core/told).
+ */
+function promptLessons(sofarDir: string, state: InitiativeState, slug: string, sessionId: string, prompt: string): Lesson[] {
+  const retire = retireEnabled()
+  if (lessonsSource() === 'index') {
+    let lessons: Lesson[] | null = null
+    try {
+      const told = readTold(sofarDir, sessionId)
+      const shown = new Set([...told].filter((k) => k.endsWith(` ${LESSON_TOLD_SUBJECT}`)).map((k) => k.slice(0, -LESSON_TOLD_SUBJECT.length - 1)))
+      lessons = indexedLessons(refreshLexicon(sofarDir), state, slug, prompt, shown, retire)
+    } catch {
+      // An unreadable or stale tier (LexiconStale) is the fold's to answer.
+      lessons = null
+    }
+    if (lessons !== null) {
+      addTold(sofarDir, sessionId, lessons.flatMap((l) => (l.key === undefined ? [] : [toldKey(l.key, LESSON_TOLD_SUBJECT)])))
+      return lessons
+    }
+  }
+  return relevantLessons(state, prompt, retire)
+}
+
+/** The told-set subject a lesson is keyed under — a prompt, not a path (D15). */
+export const LESSON_TOLD_SUBJECT = 'prompt'
 
 function clipTo(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, Math.max(0, max - 1))}…`
@@ -2393,7 +2430,7 @@ export function handleUserPrompt(rootDir: string, input: string): HookResult {
     // `SOFAR_LESSONS=off` is the ablation switch (D18): round 2 prices the
     // line's tokens on their own, and a lever must be separable to be priced.
     const prompt = strField(hook, 'prompt')
-    if (prompt !== null && lessonsEnabled()) lines.unshift(...lessonLines(relevantLessons(state, prompt, retireEnabled())))
+    if (prompt !== null && lessonsEnabled()) lines.unshift(...lessonLines(promptLessons(ctx.sofarDir, state, slug, sessionId, prompt)))
     lines.unshift(...guardViolationLines(sessionGuardViolations(state, sessionId, me.ended), rootDir))
 
     const wrap = parallelWrapLine(state, sessionId)
