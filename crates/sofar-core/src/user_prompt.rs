@@ -12,10 +12,14 @@ use crate::fold_cli::CmdResult;
 use crate::git::{GitState, read_git_state};
 use crate::home::resolve_session_first;
 use crate::hook::{clip_to, parse_hook, str_field};
+use crate::index_lexicon::refresh_lexicon;
 use crate::index_tier0::{refresh_tier0, refresh_tier0_known};
 use crate::json::{Json, Object};
 use crate::layout::Layout;
-use crate::lessons::{Lesson, lessons_enabled, relevant_lessons};
+use crate::lessons::{
+    Lesson, LessonKind, LessonsSource, indexed_lessons, lessons_enabled, lessons_source,
+    relevant_lessons,
+};
 use crate::peers::{Peer, resolve_peers};
 use crate::post_tool::{GUARD_RULES_MAX, render_subject};
 use crate::projections::{RunLiveness, retire_enabled, task_progress};
@@ -23,6 +27,7 @@ use crate::session_pointer::{clear_session_pointer, write_session_pointer};
 use crate::shipwatch::{note_engine, note_upstream};
 use crate::status::{FileConflict, QUICK_LANE, open_session_file_conflicts, open_session_files};
 use crate::text::{cmp_utf16, utf16_len, utf16_prefix};
+use crate::told::{add_told, read_told, told_key};
 use crate::version::engine_version;
 
 pub const STOP_BLOCK_MESSAGE: &str = "Write back to the sofar record before finishing: call sofar_end_session (or append session_ended via `sofar event append`).";
@@ -122,22 +127,72 @@ pub fn guard_violation_lines(violations: &[&GuardViolation], root: &Path) -> Vec
     lines
 }
 
-/// `lessonLines`.
+/// `lessonLines`: ruled out, decided or noted before, pointing at where the
+/// full text is — this record's decisions.md, or another's (D15).
 fn lesson_lines(lessons: &[Lesson]) -> Vec<String> {
     lessons
         .iter()
         .map(|l| {
-            clip_to(
-                &format!(
-                    "sofar: ruled out before — [{}] {} (matched: {}; full text in decisions.md)",
-                    l.handle,
-                    l.text,
-                    l.terms.join(", ")
+            let matched = format!("matched: {}", l.terms.join(", "));
+            let place = l.initiative.as_ref().map_or_else(
+                || "decisions.md".to_owned(),
+                |i| format!("{i}/decisions.md"),
+            );
+            let line = match l.kind {
+                LessonKind::Decided => format!(
+                    "sofar: decided before — [{}] chose {} ({matched}; full text in {place})",
+                    l.handle, l.text
                 ),
-                LESSON_LINE_BUDGET,
-            )
+                LessonKind::Noted => {
+                    format!(
+                        "sofar: noted before — [{}] {} ({matched})",
+                        l.handle, l.text
+                    )
+                }
+                LessonKind::Rejected | LessonKind::Failure => format!(
+                    "sofar: ruled out before — [{}] {} ({matched}; full text in {place})",
+                    l.handle, l.text
+                ),
+            };
+            clip_to(&line, LESSON_LINE_BUDGET)
         })
         .collect()
+}
+
+/// The told-set subject a lesson is keyed under — a prompt, not a path (D15).
+pub const LESSON_TOLD_SUBJECT: &str = "prompt";
+
+/// `promptLessons`: ranked over the repo-wide lexicon tier and told once per
+/// session, or — with `SOFAR_LESSONS=fold`, or when the tier cannot be read —
+/// over this record's fold alone. The told set is written only for what
+/// renders, and a failed write re-tells.
+fn prompt_lessons(
+    layout: &Layout,
+    state: &InitiativeState,
+    slug: &str,
+    session_id: &str,
+    prompt: &str,
+) -> Vec<Lesson> {
+    let retire = retire_enabled();
+    if lessons_source() == LessonsSource::Index {
+        let suffix = format!(" {LESSON_TOLD_SUBJECT}");
+        let shown: std::collections::HashSet<String> = read_told(layout, session_id)
+            .into_iter()
+            .filter_map(|k| k.strip_suffix(&suffix).map(str::to_owned))
+            .collect();
+        // An unreadable or stale tier is the fold's to answer.
+        let ranked = refresh_lexicon(layout)
+            .and_then(|mut index| indexed_lessons(&mut index, state, slug, prompt, &shown, retire));
+        if let Ok(lessons) = ranked {
+            let keys: Vec<String> = lessons
+                .iter()
+                .filter_map(|l| l.key.as_deref().map(|k| told_key(k, LESSON_TOLD_SUBJECT)))
+                .collect();
+            add_told(layout, session_id, &keys);
+            return lessons;
+        }
+    }
+    relevant_lessons(state, prompt, retire)
 }
 
 /// `myFileConflicts`.
@@ -607,10 +662,8 @@ pub fn handle_user_prompt(root: &Path, input: &str) -> CmdResult {
     if let Some(prompt) = str_field(&hook, "prompt")
         && lessons_enabled()
     {
-        head.extend(lesson_lines(&relevant_lessons(
-            &state,
-            prompt,
-            retire_enabled(),
+        head.extend(lesson_lines(&prompt_lessons(
+            &layout, &state, &slug, session_id, prompt,
         )));
     }
     head.extend(lines);

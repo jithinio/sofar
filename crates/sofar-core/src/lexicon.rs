@@ -206,7 +206,7 @@ pub fn rank_lexical(docs: &[LexicalDoc], query: &str, limit: usize) -> Vec<Lexic
         df.iter()
             .find(|(t, _)| *t == term)
             .map_or(0.0, |(_, count)| {
-                (1.0 + (n - count + 0.5) / (count + 0.5)).ln()
+                crate::js_math::js_log(1.0 + (n - count + 0.5) / (count + 0.5))
             })
     };
     let average = tokens / n;

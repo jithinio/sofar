@@ -84,6 +84,16 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --all-targets --target ${{ matrix.target }} -- -D warnings
       - run: cargo test -p sofar-core --target ${{ matrix.target }}
+      # Math.log is fdlibm compiled with each target's contraction (FMA on
+      # aarch64), so js_log proves against THIS runner's Node (rust-core D2).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: js_log against this target's Node
+        shell: bash
+        run: |
+          node crates/sofar-core/tests/js_log_pairs.mjs > "$RUNNER_TEMP/js-log-pairs.txt"
+          SOFAR_JS_LOG_PAIRS="$RUNNER_TEMP/js-log-pairs.txt" cargo test -p sofar-core --target ${{ matrix.target }} --test js_log_crosscheck -- --ignored
       - run: cargo build --release -p sofar-core --target ${{ matrix.target }}
       - uses: actions/upload-artifact@v4
         with:

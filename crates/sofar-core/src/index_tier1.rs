@@ -286,7 +286,12 @@ fn head_source(text: &str) -> String {
 /// `supersededOrdinal`: the ordinal a `supersedes` retires, as the fold
 /// resolves it — where the stamped id sits among the decisions before this
 /// one (memory-lead 2.8, D12), never the handle; else the handle's own.
-fn superseded_ordinal(p: &Object, handle: &str, ordinal: usize, ids: &[String]) -> Option<f64> {
+pub(crate) fn superseded_ordinal(
+    p: &Object,
+    handle: &str,
+    ordinal: usize,
+    ids: &[String],
+) -> Option<f64> {
     if let Some(id) = p.get("supersedes_id").and_then(Json::as_str) {
         return ids[..ordinal - 1]
             .iter()
@@ -477,8 +482,9 @@ pub(crate) fn write_half<S>(
 /// `refreshHalf` for the declared tier.
 fn refresh_guard_states(layout: &Layout) -> Vec<(String, SlugGuardState)> {
     let prior = read_half(layout, GUARDS_FILE, SlugGuardState::from_json);
-    let PassResult { states, changed } =
-        pass_over_record(layout, GUARDS_META, prior.as_deref(), &GuardReducer);
+    let PassResult {
+        states, changed, ..
+    } = pass_over_record(layout, GUARDS_META, prior.as_deref(), &GuardReducer);
     if changed {
         write_half(layout, GUARDS_FILE, &states, SlugGuardState::to_json);
     }
@@ -488,8 +494,9 @@ fn refresh_guard_states(layout: &Layout) -> Vec<(String, SlugGuardState)> {
 /// `refreshHalf` for the derived tier.
 fn refresh_file_states(layout: &Layout) -> Vec<(String, SlugFileState)> {
     let prior = read_half(layout, FILES_FILE, SlugFileState::from_json);
-    let PassResult { states, changed } =
-        pass_over_record(layout, FILES_META, prior.as_deref(), &FileReducer);
+    let PassResult {
+        states, changed, ..
+    } = pass_over_record(layout, FILES_META, prior.as_deref(), &FileReducer);
     if changed {
         write_half(layout, FILES_FILE, &states, SlugFileState::to_json);
     }
