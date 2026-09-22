@@ -282,7 +282,9 @@ describe('the AGENTS.md block a Codex session reads (agents-parity 2.3, D8)', ()
       "server; Codex loads them from a trusted\n  project's `.codex/config.toml`). Then write through them, not the\n  CLI: call",
       'server). Then write through them, not the\n  CLI: call',
     )
-    expect(undone).toBe(v8)
+    // drive-visibility 3.6 then rewrote DRIVING in the same unreleased block; undo it too.
+    const driving = (b: string): string => /- DRIVING:[\s\S]*?(?=\n- BEFORE FINISHING)/.exec(b)![0]
+    expect(undone.replace(driving(undone), driving(v8))).toBe(v8)
     expect(v8).not.toContain('Codex,')
   })
 

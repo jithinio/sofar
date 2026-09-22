@@ -521,7 +521,12 @@ ${PROTOCOL_END}
 `
 
 
-export const PROTOCOL_BLOCK = `${PROTOCOL_START}
+/**
+ * V9 (memory-lead 1.1, D3; shipped in 0.33.0-rc.2): the block before
+ * drive-visibility 3.6. Its DRIVING clause said nothing of keep-awake or of
+ * watching the run with --await. Kept byte-exact — see the ledger note.
+ */
+export const PROTOCOL_BLOCK_V9 = `${PROTOCOL_START}
 ## Sofar protocol (jurisdiction is total)
 
 This repo's work memory lives in sofar records under \`.sofar/\`.
@@ -576,6 +581,66 @@ Session loop:
 ${PROTOCOL_END}
 `
 
+export const PROTOCOL_BLOCK = `${PROTOCOL_START}
+## Sofar protocol (jurisdiction is total)
+
+This repo's work memory lives in sofar records under \`.sofar/\`.
+1. ALL work state lives in sofar records — never in tool memory, scratch
+   files, ad-hoc notes, or a message from another session. If it is worth
+   keeping, it goes in the record.
+2. Work that matches no existing initiative requires creating one first:
+   run \`sofar new <slug>\` before proceeding.
+3. Bindings (\`.sofar/bindings.json\`) resolve which record a session
+   serves — the current git branch selects the initiative.
+
+Session loop:
+- START: the SessionStart hook has ALREADY injected the record above —
+  goal, progress, next action, decisions, rejected approaches, and the
+  next D/M ids (cite the decision you are about to log by that id). Do not
+  call \`sofar_get_state\` to re-read it: that digest is the same
+  projection rendered with fewer fields, so it can only tell you less.
+  Reach for it only when the injected block is missing or truncated, or
+  to read a DIFFERENT initiative. The files under \`.sofar/\` are
+  projections of the same record: open one only for full text the block
+  points to.
+  On Claude Code, sofar's tools adopt this session from its own id: there is
+  no start call. Elsewhere, call \`sofar_start_session\` first with the
+  \`session_id\` from the injected "Session:" line — it pins which record
+  your writes land in and attaches them to YOUR session.
+- RE-HOME the moment the work turns out to belong to a DIFFERENT record
+  than the one injected: call \`sofar_start_session\` with that
+  \`initiative\` (plus the \`session_id\` from the "Session:" line).
+  Passing \`initiative\` to any other tool routes ONE write; re-homing moves the SESSION,
+  because \`sofar_end_session\` takes no \`initiative\` and always follows the home.
+- DURING: work; the record is written once, at wrap-up. Keep track of what
+  the session decides and changes — \`sofar_end_session\` carries all of it.
+  Call \`sofar_log_decision\` mid-session only for a decision a concurrent
+  session must see before you finish. A rule is worded as the operator
+  worded it, with their exact words in \`quote\`. A note or summary is WHY:
+  files, commands, test outcomes and commits are captured by hooks and
+  derived, never restated.
+- DRIVING: when the operator asks for the work to run under sofar drive
+  ("run this in sofar drive"), write back FIRST with \`sofar_end_session\`
+  — the run's first session resumes from your next action — then start it
+  with \`sofar drive <slug> --detach\`, adding \`--allow\` for what proving
+  a task needs (the test command) and \`--session-timeout\`. Relay what it
+  prints: the run id, every warning, how to stop it. When it says
+  keep-awake is unset, ask the operator and save the answer with
+  \`sofar drive --keep-awake-setting on|off\`. Then run
+  \`sofar drive <slug> --await\` in a background shell: silent until the
+  run stops or its driver dies, it prints ONE line and exits — relay it (a
+  needs_user stop carries the operator's question). Do not write to that
+  record again while the run goes. \`sofar drive <slug> --stop\` ends it.
+- BEFORE FINISHING: write back with ONE \`sofar_end_session\` call —
+  summary and next action, plus the session's \`decisions\` (each as
+  sofar_log_decision's arguments), \`tasks\` (status changes; a task the
+  plan lacks, with its \`title\`), \`phases\`, \`memories\` (operational
+  facts every later session needs: a release command, a failure mode and
+  its diagnosis, a convention) and \`notes\`. The Stop hook blocks sessions
+  that skip this.
+${PROTOCOL_END}
+`
+
 /** Superseded CLAUDE.md blocks, oldest first. */
 export const SHIPPED_PROTOCOL_BLOCKS: readonly string[] = [
   PROTOCOL_BLOCK_V1,
@@ -586,6 +651,7 @@ export const SHIPPED_PROTOCOL_BLOCKS: readonly string[] = [
   PROTOCOL_BLOCK_V6,
   PROTOCOL_BLOCK_V7,
   PROTOCOL_BLOCK_V8,
+  PROTOCOL_BLOCK_V9,
 ]
 
 /**
@@ -1233,9 +1299,16 @@ Session loop on the CLI:
   below) — the run's first session resumes from your next_action — then
   start it with \`sofar drive <slug> --detach\`, adding \`--allow\` for what
   proving a task needs (the test command) and \`--session-timeout\`. Relay
-  what it prints: the run id, every warning, how to stop it. Do not append
-  to that record again while the run goes. \`sofar drive <slug> --stop\`
-  ends it. A sandbox with no network cannot host a run.
+  what it prints: the run id, every warning, how to stop it. When it says
+  keep-awake is unset, ask the operator and save the answer with
+  \`sofar drive --keep-awake-setting on|off\`. If your shell can run a
+  command in the background, run \`sofar drive <slug> --await\` there: it
+  prints ONE line when the run stops or its driver dies, and exits — relay
+  it (a needs_user stop carries the operator's question). If it cannot,
+  tell the operator the run shows in \`sofar status\`, and on each prompt
+  where sofar's hooks run. Do not append to that record again while the
+  run goes. \`sofar drive <slug> --stop\` ends it. A sandbox with no
+  network cannot host a run.
 - BEFORE FINISHING (MANDATORY): write back —
   \`sofar event append <slug> --type session_ended --source <tool> --payload '{"summary":"<what happened>","next_action":"<single next step>"}'\`
   A session that skips this abandons its state and the next session starts blind.

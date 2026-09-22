@@ -2000,10 +2000,16 @@ answer every host can reach (see the Host tiers section).
   `stall` red, `closed` green, a limit or an interrupt dim. The lock is
   probed only while a run is open. The Claude desktop app does not render
   statusLine (claude-code#41456).
-- The protocol block tells an agent, after `--detach`, to run `sofar drive
-  <slug> --await` in its background shell and relay the line it prints; a
-  host with no background shell points the operator at the prompt line, the
-  statusline or `sofar status`.
+- The protocol block (drive-visibility 3.6) tells an agent, after
+  `--detach`, to ask the operator when the opening lines say keep-awake is
+  unset and save the answer with `sofar drive --keep-awake-setting on|off`,
+  then to run `sofar drive <slug> --await` in its background shell and
+  relay the line it prints. The AGENTS.md block covers a host with no
+  background shell by pointing the operator at `sofar status` and the
+  prompt line. Only DRIVING changed. The CLAUDE.md block it replaced, the
+  one 0.33.0-rc.2 wrote, is in the ledger as V9, so init refreshes it and
+  doctor reports it stale. The AGENTS.md block was edited in place, since
+  no cut build carries it.
 
 **Sync and presence during a run (drive-visibility D4, D6 — paid).** For a
 LINKED repo (`.sofar/remote.json` plus a credential for its api_url), the
