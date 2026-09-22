@@ -18,7 +18,9 @@ Progress: 15/18 tasks done (83%)
 - [x] 2.3 `sofar status` (one-shot and --watch) shows a run as running, driver gone (no run_stopped, lock free) or stopped wherever the lock is visible; `sofar drive --stop` against a gone driver says so at once instead of waiting 30s. Tests.
 - [x] 2.4 Keep-awake per the 1.1(e) ruling: macOS `caffeinate -i -w <own pid>` spawned by the driver for the run's life; setting in ~/.config/sofar/config.json; terminal prompt once when unset; detached runs state the unset setting in the preflight lines; per-run flags override; the opening lines say idle sleep is blocked but lid-close sleep is not. Tests.
 
-## Phase 3 — Progress in the session [active] — 7/7 done
+## Phase 3 — Progress in the session [done] — 7/7 done
+
+> All seven tasks done and verified on origin (42c633f): --await (3.1), the prompt drive line (3.2), the statusline segment (3.3), --follow (3.4), the asyncRewake measurement and verdict (3.5), the protocol block (3.6), and the rewake hook shipped through init (3.7). The phase's own proof is 5.1, which exercised every surface live.
 
 - [x] 3.1 `sofar drive <slug> --await`: blocks at zero cost and exits with one line on needs_user, run_stopped or driver gone (lock free); built for an agent's background shell. Tests.
 - [x] 3.2 UserPromptSubmit drive line, printed only when the run changed since the session's last prompt (handoffs, task done, now on); within the hook shim's budget; install Codex hooks.json so Codex gets it too. Tests.
@@ -41,6 +43,5 @@ Progress: 15/18 tasks done (83%)
 - [x] 5.1 Proof from a live Claude Code session on a throwaway initiative: --detach from inside the sandbox; --await wakes the session on needs_user and on stop; prompt line and statusline update; a second --resume is refused while the driver lives; kill -9 the driver and status shows driver gone, --await exits, --resume succeeds and fences via run_adopted; keep-awake holds an assertion (pmset -g assertions) for the run's life; check whether ending the calling session kills the detached driver. Record the numbers.
 - [x] 5.2 README + release staged for the user to publish.
 
-Active phase: Phase 3 — Progress in the session
 Next action: Close Phase 3, then decide whether the rc should carry 3.7.
 Blocked on: phase Phase 4 — Sync, presence and app contract (paid)
