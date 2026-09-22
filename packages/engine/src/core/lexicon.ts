@@ -1,3 +1,4 @@
+import { fdlibmLog } from './fdlibm'
 import { byCodeUnit } from './order'
 /**
  * Lexical seeding (record-index 3.5) — the last step of resolving a question.
@@ -228,7 +229,7 @@ export function rankLexical(
 
   const n = docs.length
   const idf = new Map<string, number>()
-  for (const [term, count] of df) idf.set(term, Math.log(1 + (n - count + 0.5) / (count + 0.5)))
+  for (const [term, count] of df) idf.set(term, fdlibmLog(1 + (n - count + 0.5) / (count + 0.5)))
   const average = tokens / n
 
   const scored: LexicalMatch[] = []

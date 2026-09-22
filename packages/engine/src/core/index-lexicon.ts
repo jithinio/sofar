@@ -1,6 +1,7 @@
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import type { DecisionLoggedPayload, HandoffPayload, NoteAddedPayload } from '@sofar/schema'
+import { fdlibmLog } from './fdlibm'
 import { passOverRecord } from './index-pass'
 import { INDEX_SCHEMA_VERSION, indexDir, readIndexFile, writeIndexFile } from './index-store'
 import { type IndexedEvent } from './index-tail'
@@ -528,7 +529,7 @@ export function rankLexicon(
   }
   const average = tokens / n
   const idf = new Map<string, number>()
-  for (const [term, count] of df) idf.set(term, Math.log(1 + (n - count + 0.5) / (count + 0.5)))
+  for (const [term, count] of df) idf.set(term, fdlibmLog(1 + (n - count + 0.5) / (count + 0.5)))
 
   const out: LexiconMatch[] = []
   for (const [slug, terms] of found) {

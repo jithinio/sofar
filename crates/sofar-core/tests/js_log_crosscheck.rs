@@ -1,6 +1,6 @@
-//! `js_log` cross-checked against Node's `Math.log` on this target
-//! (rust-core D2). Ignored by default: the pairs come from the machine's own
-//! Node, because V8's fdlibm is contracted differently per target —
+//! `js_log` cross-checked against the TypeScript engine's `fdlibmLog`
+//! (core/fdlibm.ts, rust-core D33), bit for bit. Ignored by default: the
+//! pairs are generated (~20 MB), and CI makes them on every target —
 //! `node crates/sofar-core/tests/js_log_pairs.mjs > pairs.txt &&
 //! SOFAR_JS_LOG_PAIRS=pairs.txt cargo test -p sofar-core --test
 //! js_log_crosscheck -- --ignored`.
@@ -8,8 +8,8 @@
 use sofar_core::js_math::js_log;
 
 #[test]
-#[ignore = "needs SOFAR_JS_LOG_PAIRS from this machine's Node"]
-fn every_input_logs_as_node_does() {
+#[ignore = "needs SOFAR_JS_LOG_PAIRS from js_log_pairs.mjs"]
+fn every_input_logs_as_typescript_does() {
     let path = std::env::var("SOFAR_JS_LOG_PAIRS").expect("SOFAR_JS_LOG_PAIRS");
     let text = std::fs::read_to_string(path).unwrap();
     let mut checked = 0usize;
@@ -27,7 +27,7 @@ fn every_input_logs_as_node_does() {
         }
         if !same && failures.len() < 10 {
             failures.push(format!(
-                "log({x:e}): rust {:e}, node {:e}",
+                "log({x:e}): rust {:e}, typescript {:e}",
                 f64::from_bits(got),
                 f64::from_bits(want)
             ));

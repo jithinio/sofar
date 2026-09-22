@@ -696,15 +696,17 @@ core must reproduce the JS semantics, NOT the Rust defaults:
 - P8 `Math.round` is round-half-up toward +∞ (`-0.5 → -0`), used for
   percentages and the `~Nh` labels.
 - P9 ISO timestamps: `toISOString()` millisecond precision, `Z` suffix.
-- P10 `Math.log` is V8's: fdlibm's `__ieee754_log`, compiled with each
-  official Node build's floating-point contraction. On macOS arm64 (clang)
-  every `a * b + c` within an expression is one fused multiply-add. On
-  Linux arm64 (gcc) exactly two fuse: the outer Horner step of `t2`, and
-  `R = t2 + w * p1` across statements. On x86-64 nothing fuses. Never the
-  platform libm: `f64::ln` differed from Node in the last bit on 4.2% of a
-  million BM25 inputs on darwin-arm64. The lessons line's IDF and corpus
-  floor go through it (`js_math.rs`), and `tests/js_log_crosscheck.rs`
-  proves it against each CI target's own Node.
+- P10 The logarithm is owned, not `Math.log` (rust-core D33). The
+  TypeScript engine's BM25 scores call `core/fdlibm.ts`, fdlibm's
+  `__ieee754_log` with no contraction, and the core runs the same algorithm
+  (`js_math.rs`). `Math.log` is not one function: each official Node build
+  compiles V8's fdlibm with its own contraction. clang fuses every
+  `a * b + c` on macOS arm64, gcc fuses two sites on Linux arm64, and x86-64
+  fuses none. `f64::ln` is the platform libm, which differed from Node on
+  4.2% of a million BM25 inputs. Neither JavaScript nor Rust contracts
+  floating point on its own, so the owned function is bit-identical
+  everywhere. `tests/js_log_crosscheck.rs` holds the two ports together on
+  every CI target.
 
 ## RC re-pin deltas (179b8fd, rust-core 1.4)
 

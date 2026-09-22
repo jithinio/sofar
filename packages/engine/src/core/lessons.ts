@@ -1,3 +1,4 @@
+import { fdlibmLog } from './fdlibm'
 import type { InitiativeState } from './fold'
 import { lexiconHeads, lexiconSuperseded, rankLexicon, type LexiconDoc, type LexiconIndex } from './index-lexicon'
 import { lexicalCounts, rankLexical, type LexicalDoc } from './lexicon'
@@ -128,7 +129,7 @@ export const LESSON_INDEX_RARE_TERMS = 2
 
 /** The indexed path's floor for a corpus of `docs` (LESSON_INDEX_RARE_TERMS). */
 export function indexFloor(docs: number): number {
-  const rarest = Math.log(1 + (docs - 0.5) / 1.5)
+  const rarest = fdlibmLog(1 + (docs - 0.5) / 1.5)
   return Math.max(LESSON_MIN_SCORE, LESSON_INDEX_RARE_TERMS * rarest)
 }
 

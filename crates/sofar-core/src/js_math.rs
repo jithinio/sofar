@@ -1,34 +1,22 @@
-//! `Math.log` as Node computes it, bit for bit (rust-core D2).
+//! The natural logarithm, owned (rust-core D33): fdlibm's `__ieee754_log`,
+//! unfused, on every target — the same algorithm the TypeScript engine runs
+//! as `core/fdlibm.ts` in place of `Math.log`.
 //!
-//! V8's `Math.log` is fdlibm's `__ieee754_log` (`base::ieee754::log`), not
-//! the platform libm Rust's `f64::ln` calls: on darwin-arm64 4.2% of a
-//! million BM25 inputs differed in the last bit, which is enough to move a
-//! lessons score across a cut (`LESSON_OVER_SHARE`, the runner-up ratio, the
-//! corpus floor) or to reorder a tie. And each official Node build compiles
-//! fdlibm with its own floating-point contraction, so the bits depend on the
-//! target's compiler, measured against each one's own Node (rust-core 2.11):
+//! `Math.log` itself is not one function: each official Node build compiles
+//! V8's fdlibm with its own contraction (clang fuses every `a * b + c` on
+//! macOS arm64, gcc two sites on Linux arm64, x86-64 none), and `f64::ln` is
+//! the platform libm, which differed from Node in the last bit on 4.2% of a
+//! million BM25 inputs. An ulp moves a lessons score across a cut
+//! (`LESSON_OVER_SHARE`, the runner-up ratio, the corpus floor). Owning the
+//! function on both sides makes conformance bit-identity to one algorithm.
+//! Rust never contracts floating point without an explicit `mul_add`, and
+//! JavaScript never does, so both are the same on every platform.
 //!
-//! - macOS arm64 (clang): every `a * b + c` inside an expression is one fused
-//!   multiply-add, and nothing fuses across statements.
-//! - Linux arm64 (gcc): exactly two fuse — the outer Horner step of `t2`, and
-//!   `R = t2 + t1` with `t1 = w * p1` carried across the statement.
-//! - x86-64 (every OS): nothing fuses; baseline x86-64 has no FMA.
-//!
-//! Proven per target by `tests/js_log_crosscheck.rs` against pairs the same
-//! machine's Node generates (CI's core matrix, every target).
+//! `tests/js_log_crosscheck.rs` proves it against the TypeScript port on
+//! every CI target; CI run 35794294826 also showed this unfused form equal
+//! to x86-64 Node's own `Math.log` on Linux, macOS and Windows.
 
-/// Clang's contraction: every multiply-add within an expression (macOS arm64).
-const CLANG: bool = cfg!(all(target_arch = "aarch64", target_vendor = "apple"));
-/// Gcc's contraction on the official Linux arm64 build.
-const GCC: bool = cfg!(all(target_arch = "aarch64", not(target_vendor = "apple")));
-
-/// `a * b + c`, fused when this target's Node build fuses this site.
-#[inline]
-fn madd(fused: bool, a: f64, b: f64, c: f64) -> f64 {
-    if fused { a.mul_add(b, c) } else { a * b + c }
-}
-
-/// `Math.log(x)`.
+/// `log(x)`, bit for bit what fdlibm's `e_log.c` returns with no contraction.
 #[must_use]
 #[allow(
     clippy::unreadable_literal,
@@ -38,7 +26,8 @@ fn madd(fused: bool, a: f64, b: f64, c: f64) -> f64 {
     clippy::cast_sign_loss,
     clippy::cast_possible_truncation,
     clippy::float_cmp,
-    reason = "fdlibm e_log.c, ported as written: its word arithmetic and its constants"
+    clippy::suboptimal_flops,
+    reason = "fdlibm e_log.c, ported as written: its word arithmetic, its constants, and no fused multiply-add"
 )]
 pub fn js_log(x: f64) -> f64 {
     const LN2_HI: f64 = 6.93147180369123816490e-01; // 3fe62e42 fee00000
@@ -51,7 +40,6 @@ pub fn js_log(x: f64) -> f64 {
     const LG5: f64 = 1.818357216161805012e-01; // 3FC74664 96CB03DE
     const LG6: f64 = 1.531383769920937332e-01; // 3FC39A09 D078C69F
     const LG7: f64 = 1.479819860511658591e-01; // 3FC2F112 DF3E5244
-    const THIRD: f64 = 0.33333333333333333;
 
     let mut x = x;
     let mut hx = (x.to_bits() >> 32) as u32 as i32;
@@ -80,60 +68,43 @@ pub fn js_log(x: f64) -> f64 {
     x = f64::from_bits((u64::from(high) << 32) | (x.to_bits() & 0xffff_ffff));
     k += i >> 20;
     let f = x - 1.0;
+    let dk = f64::from(k);
     if (0x000f_ffff & (2 + hx)) < 3 {
         // -2**-20 <= f < 2**-20
         if f == 0.0 {
-            if k == 0 {
-                return 0.0;
-            }
-            let dk = f64::from(k);
-            return madd(CLANG, dk, LN2_HI, dk * LN2_LO);
+            return if k == 0 {
+                0.0
+            } else {
+                dk * LN2_HI + dk * LN2_LO
+            };
         }
-        let r = f * f * madd(CLANG, -THIRD, f, 0.5);
-        if k == 0 {
-            return f - r;
-        }
-        let dk = f64::from(k);
-        return madd(CLANG, dk, LN2_HI, -(madd(CLANG, -dk, LN2_LO, r) - f));
+        let r = f * f * (0.5 - 0.33333333333333333 * f);
+        return if k == 0 {
+            f - r
+        } else {
+            dk * LN2_HI - ((r - dk * LN2_LO) - f)
+        };
     }
     let s = f / (2.0 + f);
-    let dk = f64::from(k);
     let z = s * s;
     let mut i = hx - 0x6147a;
     let w = z * z;
     let j = 0x6b851 - hx;
-    let p1 = madd(CLANG, w, madd(CLANG, w, LG6, LG4), LG2);
-    let p2 = madd(
-        CLANG || GCC,
-        w,
-        madd(CLANG, w, madd(CLANG, w, LG7, LG5), LG3),
-        LG1,
-    );
-    let t2 = z * p2;
+    let t1 = w * (LG2 + w * (LG4 + w * LG6));
+    let t2 = z * (LG1 + w * (LG3 + w * (LG5 + w * LG7)));
     i |= j;
-    // Gcc carries `t1 = w * p1` into the sum as one fused multiply-add.
-    let r = if GCC { w.mul_add(p1, t2) } else { t2 + w * p1 };
+    let r = t2 + t1;
     if i > 0 {
         let hfsq = 0.5 * f * f;
         if k == 0 {
-            f - madd(CLANG, -s, hfsq + r, hfsq)
+            f - (hfsq - s * (hfsq + r))
         } else {
-            madd(
-                CLANG,
-                dk,
-                LN2_HI,
-                -((hfsq - madd(CLANG, s, hfsq + r, dk * LN2_LO)) - f),
-            )
+            dk * LN2_HI - ((hfsq - (s * (hfsq + r) + dk * LN2_LO)) - f)
         }
     } else if k == 0 {
-        madd(CLANG, -s, f - r, f)
+        f - s * (f - r)
     } else {
-        madd(
-            CLANG,
-            dk,
-            LN2_HI,
-            -(madd(CLANG, s, f - r, -(dk * LN2_LO)) - f),
-        )
+        dk * LN2_HI - ((s * (f - r) - dk * LN2_LO) - f)
     }
 }
 
