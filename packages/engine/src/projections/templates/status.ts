@@ -201,7 +201,7 @@ export function unwrittenSessions(sessions: readonly SessionState[]): SessionSta
  * A decision recorded a real rejected alternative — vs the placeholder
  * "(no alternative recorded)" logged when nothing was weighed.
  */
-function hasRealAlternative(over: string | undefined): boolean {
+export function hasRealAlternative(over: string | undefined): boolean {
   if (over === undefined) return false
   const t = over.trim()
   return t.length > 0 && !/^\(\s*(no alternative|none)/i.test(t)

@@ -582,6 +582,164 @@ DESCENDING (record recency), never-logged initiatives last by slug asc;
 tolerant like the fold (unreadable log or corrupt bindings.json → warning
 + thinner entry, never fatal); zero new event types.
 
+### Read-time surfacing (memory-lead 2.1, D6)
+The point-of-use push of §Decision guards (drift-hardening D3), extended from
+the edit to the READ, and from guarded rules to every decision that names the
+file. The digest carries one record's decisions, once, at SessionStart. A read
+is the first moment the path is known, and it comes before the edit.
+
+**Subjects.** PostToolUse tests every path a call reads or writes:
+- edit paths as before (Edit, Write, MultiEdit, apply_patch);
+- Claude Code `Read` (`tool_input.file_path`), and `Grep`
+  (`tool_input.path` when it names a regular file, plus the first 5 strings of
+  `tool_response.filenames` when present);
+- Cursor `Read` (`tool_input.file_path`, absolute; verified live on
+  cursor-agent 2026.09.18, whose postToolUse payload carries no `cwd`);
+- a shell call on any host (Bash, and Cursor's Shell after the D34
+  conversion): the first 5 distinct operands, taken before any `<<`, that name
+  an existing regular file. They are resolved against the payload's `cwd`.
+  Flags (`-…`) and tokens carrying `=`, `$`, `*` or `?` are skipped.
+
+A path under a `.sofar/` directory is never a subject. A path outside the repo
+root still is: a session rooted in one worktree that edits a sibling worktree
+must keep its notices, and guard globs already match by tail.
+
+A read appends NOTHING: the record holds what changed, not what was looked at.
+It never creates the quick lane either (r1-fixes D14 creates it on the first
+captured EDIT), so on an unbound branch a read still surfaces, with every
+handle qualified, and nothing is written.
+
+Matchers: Claude Code `PostToolUse` is `Edit|Write|MultiEdit|Bash|Read|Grep`;
+Cursor `postToolUse` is `Shell|Write|Read`; Codex stays `Bash|apply_patch`,
+because it reads through its shell. The PostToolUseFailure matchers are
+unchanged. `sofar init` widens an entry of ours that still carries a matcher
+an earlier sofar shipped (`Edit|Write|MultiEdit|Bash`, Cursor's
+`Shell|Write`) in place, and leaves any other matcher, the user's, alone.
+
+**Candidates** are in-force decisions from EVERY initiative, in three tiers:
+1. GUARD: a `path:` guard matches the subject. `cmd:` guards keep matching
+   commands, as §Decision guards (drift-hardening D3) has them.
+2. RULED MENTION: a decision with a `rule` whose `chose`, `over` or `rule`
+   names the file.
+3. UNRULED MENTION: any other decision that names it.
+
+A decision NAMES a file when a file token of that text equals the subject's
+path, or its tail at a `/` boundary.
+
+File tokens (core/file-mentions.ts):
+- Split on whitespace, backticks, quotes, brackets, commas and semicolons.
+- Drop trailing sentence punctuation, `:<line>[:<col>]`, `#L<n>` and a
+  leading `./`.
+- Keep a token when its last segment is `name.ext` (rule-fidelity's file-name
+  class) or a dotfile (`.mcp.json`), and no segment is empty. A bare name
+  needs two characters before its extension, which keeps `e.g` out; behind a
+  `/`, one is enough (`src/a.ts`).
+- A token carrying `://`, `*`, `?` or `$`, or starting with `~`, is not a
+  file.
+
+Directory tokens and `because` are not scope. Measured on this repo: directory
+tokens alone spread over 375 files, while file tokens name 74, with a median
+of 1 decision per file.
+
+IN FORCE:
+- A decision the fold marks superseded (§State (result of fold); a ruled
+  target falls only to a ruled superseder) is out while retirement is on.
+  That is `SOFAR_RETIRE`, read at render time, as the digest reads it.
+- An `until`-scoped decision is never a candidate, because task resolution is
+  not indexed.
+- A voided decision is gone, as everywhere.
+
+The edit-time guard notice obeys the same filter, so a superseded guard stops
+speaking. The fold's own `guard_violations` are unchanged.
+
+**Order and cap.** Tier by tier:
+- Guards: other initiatives before this one, then initiative, then ordinal,
+  as §Decision guards (drift-hardening D3) ordered them.
+- Mentions: the longer matched tail (counted in segments) first, then the
+  newest.
+
+Stored relevance (typed-judge D10; core/index-relevance.ts, with `about:
+"file:<repo-relative path>"`) reranks WITHIN a tier through `rankByRelevance`,
+and never across tiers. It is read only when some tier holds two notices. A
+subject it would ADD at p ≥ 0.8 is not rendered yet: no writer of `file:` rows
+exists, and a judged relevance is not a mention, so its wording belongs to the
+task that first writes those rows.
+
+A call surfaces at most 3 decisions across all its subjects, each decision
+once. The rest become ONE line: `sofar: …and N more decision(s) on <first
+dropped subject> (in <initiatives>) — sofar find <subject>`.
+
+**Told once.** Each (session, decision, subject) is told once, overflow
+included.
+- The told set is `.sofar/.index/told/<session>.json`. It is derived and
+  disposable: a lost or corrupt file re-tells, never silences, and concurrent
+  hooks can lose an entry the same way.
+- Read and edit notices share it. Edits also keep their lastTouch suppression
+  (§Decision guards (drift-hardening D3)).
+- SessionStart with `source` `compact` or `clear` deletes the session's file,
+  because the context that held the notices is gone.
+- Session `cli` keeps no set, and `cmd:` guard notices are never suppressed,
+  because each run is its own act.
+
+**Wording: facts, not commands.** Claude Code's hook docs warn that text
+framed as out-of-band system commands can trigger its prompt-injection
+defenses, and ask for factual statements.
+- Rules render verbatim with the operator's quote clause
+  (§Rule fidelity (memory-lead 1.2, D2)).
+- `chose` and `over` render as minutiaeHead heads of 90 and 70 chars
+  (§Digest composition (memory-lead 1.3, D4)).
+- The handle is `D<n>` for the bound record and `<slug> D<n>` otherwise.
+- `<subject>` is repo-relative for a path, and a command clipped to 60 chars.
+
+The lines:
+- guard: `sofar: <subject> is governed by [<handle>], a standing rule:
+  "<rule>"[ — operator: "<quote>"…] (guard: <guard>). Work against it needs a
+  decision that supersedes <handle>.`
+- ruled mention: `sofar: [<handle>] names <subject>. Its standing rule:
+  "<rule>"[ — operator: …].`
+- unruled mention: `sofar: [<handle>] <YYYY-MM-DD> names <subject>: chose
+  <head>[ over <head>].` There is no over clause for the `(no alternative
+  recorded)` placeholder.
+
+Only a guard says "governed by" (record-index D2). A mention states that the
+decision names the file, never that it governs it.
+
+**Budget.**
+- At most 1,500 chars per call, the overflow line included. Rules are never
+  clipped: a decision that does not fit joins the overflow count instead, and
+  only a first line that alone exceeds the budget can pass it.
+- The p50 of a Read hook on this repo stays within +5 ms of a no-op Read
+  before 2.1. Measured 2026-09-22 on the fast path, 40 runs each: 32.8 → 35.5
+  ms on a file three guards and three mentions reach, 32.3 → 34.4 ms on one
+  with three.
+
+**Index.** The declared half (guards.json, meta-guards.json) becomes the
+decision-scope tier. Per initiative it holds:
+- the decision count, a ruled bitmap, and the superseded and until ordinals
+  of EVERY decision, which is what supersession and the relevance reader's
+  `retired` set need;
+- one entry per decision that guards or names a file: id, ordinal, ts, chose,
+  over, rule?, quote?, guard?, until?, superseded_by? and mentions. `chose` and
+  `over` are kept as their first 120 whitespace-collapsed characters: a head of
+  at most 90 depends only on its first 90 and on whether the text runs past
+  them, so it renders the same bytes. On this repo the tier falls from 246 KB
+  to 102 KB. Rules and quotes are kept whole.
+
+`guards` is the view of entries that carry both a rule and a guard. Superseded
+entries stay in it, marked, to stay faithful to the fold; the filter runs at
+render time. INDEX_SCHEMA_VERSION is 6.
+
+No schema change, no new event type, no model call. Warn-only
+(drift-hardening D3).
+
+**Proven live (2026-09-22, cursor-agent 2026.09.18-9a7762b, print mode).** A
+scratch project on an unbound branch held one decision naming
+`docs/notes.txt`, and its postToolUse ran this build. Asked to read the file
+and quote any context it received, the model quoted `sofar: [probe D1]
+2026-09-22 names docs/notes.txt: chose keep docs/notes.txt ASCII-only over
+allowing UTF-8 in notes.` from a system reminder, and no quick lane was
+created. The payload is test/fixtures/cursor/hook-payloads.cursor-agent-2026.09.18.json.
+
 ### Rule fidelity (memory-lead 1.2, D2)
 A `rule` is the agent's restatement of what the operator said, and a
 restatement can add law nobody made (round 1: "Reject anything else" became
@@ -7126,3 +7284,33 @@ stay the underlying derivation's, and exit codes are styling-independent.
   chars. The SessionStart hook drops the `sofar init` stub preamble from
   repo.md and omits a stub-only file; dropMemoryCopies removes only
   top-level bullets naming a rendered `<slug> M<n>`.
+- **Read-time surfacing (memory-lead 2.1):** a Read of a file another record
+  guards returns `sofar: <path> is governed by [<slug> D<n>], a standing rule:
+  "<rule>" (guard: …). Work against it needs a decision that supersedes <slug>
+  D<n>.` and appends nothing, not even a session. An unruled decision whose
+  chose or over names the file renders `sofar: [<handle>] <date> names <path>:
+  chose <head>[ over <head>].`; a ruled one renders `… names <path>. Its
+  standing rule: "<rule>"` with the operator's quote clause, and never says
+  "governed". A token names a path only by its tail at a `/` boundary;
+  directory tokens and `because` never do. A superseded decision is silent
+  unless `SOFAR_RETIRE=off`, a rule-less superseder leaves a rule standing, an
+  until-scoped decision is never a candidate, and a superseded guard is silent
+  at the edit too. Guards lead ruled mentions, which lead unruled ones; within
+  a tier the deeper tail, then the newest. At most 3 decisions and one
+  overflow line naming the initiatives and `sofar find <path>`, all within
+  1,500 chars. A second read of the same file in a session is silent, overflow
+  included; a read then an edit tells once; another path or another session is
+  told again; SessionStart `compact` and a lost told set re-tell; a hook with
+  no session keeps no set. Bash operands that name a regular file are read,
+  while a missing file and a heredoc body are not; `.sofar/` paths are never
+  subjects; Grep's file path and its `filenames` are read; Cursor's live Read
+  payload (fixture, cursor-agent 2026.09.18) returns `additional_context`
+  through the D34 conversion; a read on an
+  unbound branch surfaces with qualified handles and creates no quick lane.
+  Stored relevance reorders within a tier and never lifts a mention over a
+  guard. The scope tier's supersession marks and retired set equal the fold's,
+  and heads rendered from its 120-char prefix equal heads of the whole text.
+  `sofar init` writes `Edit|Write|MultiEdit|Bash|Read|Grep` (Cursor:
+  `Shell|Write|Read`), widens our pre-2.1 matcher in place, and keeps a
+  user's. Tests: test/read-surfacing.test.ts, test/guard-point-of-use.test.ts,
+  test/init.test.ts.

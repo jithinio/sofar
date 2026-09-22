@@ -8,7 +8,7 @@ import { QUICK_LANE, QUICK_LANE_GOAL } from '../core/lane'
 import { lessonsEnabled, relevantLessons, type Lesson } from '../core/lessons'
 import { withFileLock } from '../core/lock'
 import { silentReversal } from '../core/reversal'
-import { ruleFidelityWarning } from '../core/rule-fidelity'
+import { quoteClause, ruleFidelityWarning } from '../core/rule-fidelity'
 import { clearSessionPointer, readSessionPointer, writeSessionPointer } from '../core/session-pointer'
 import type { Command } from 'commander'
 import { ulid } from 'ulid'
@@ -46,14 +46,18 @@ const SHIPPING_WINDOW = 30
 const COMMIT_SUBJECT_BUDGET = 72
 import { refreshTier0, refreshTier0Known } from '../core/index-tier0'
 import {
-  guardsForSubject,
   lastTouch,
   refreshFiles,
   refreshGuards,
   refreshNeighbours,
-  type GuardedDecision,
+  scopeHitsForSubject,
+  type FileIndex,
+  type GuardIndex,
   type NeighbourRecord,
+  type ScopedDecision,
 } from '../core/index-tier1'
+import { rankByRelevance, refreshRelevance, relevance, type RelevanceRow } from '../core/index-relevance'
+import { addTold, clearTold, readTold, toldKey } from '../core/told'
 import { resolvePeers, type Peer } from '../core/peers'
 import { nudgeLine, readNudge } from '../driver/nudge'
 import { resolvePhaseOrThrow } from '../mcp/update-phase'
@@ -75,7 +79,13 @@ import {
   type ResolvedVia,
   type ToolContext,
 } from '../mcp/context'
-import { enforceStatusLimit, renderStatus, sessionIdLine } from '../projections/templates/status'
+import {
+  enforceStatusLimit,
+  hasRealAlternative,
+  minutiaeHead,
+  renderStatus,
+  sessionIdLine,
+} from '../projections/templates/status'
 import { REPO_MD_STUB, readInput } from './shared'
 import {
   DECLARED_HOSTS,
@@ -731,6 +741,10 @@ export function handleSessionStart(rootDir: string, input: string, declared?: Ho
     const bound = resolveBound(rootDir, sessionId)
     if (bound === null) return { ...OK, stdout: unboundNotice(rootDir, sessionId) }
     const { ctx, slug, via } = bound
+    // The context that held this session's read-time notices is gone, so what
+    // it was told must be told again (memory-lead 2.1, D6).
+    const source = strField(hook, 'source')
+    if (sessionId !== null && (source === 'compact' || source === 'clear')) clearTold(ctx.sofarDir, sessionId)
 
     // The gap is measured to the prior session's last event; with lazy
     // registration this hook writes nothing, so no bookkeeping of ours can
@@ -995,10 +1009,12 @@ export function handlePostToolFailure(rootDir: string, input: string, declared?:
  *    so a session enters the log immediately before its first real event.
  *    Sessions that only read and exit never register at all.
  *
- * It also READS (record-index 3.2): the same edit is tested against every
- * guarded decision in the repo, and a match returns the rule verbatim as
- * PostToolUse additionalContext. See guardNotice for why this hook and not the
- * prompt line, and why the read runs before the append.
+ * It also READS (record-index 3.2, memory-lead 2.1): every path the call edits
+ * or reads, and the command it runs, is tested against every decision in the
+ * repo that guards or names it, and what matches returns as PostToolUse
+ * additionalContext. A read (Read, Grep, a shell command's file operands)
+ * appends nothing. See scopeNotice for why this hook and not the prompt line,
+ * and why the read runs before the append.
  */
 export function handlePostTool(rootDir: string, input: string, declared?: HookHost): HookResult {
   try {
@@ -1017,21 +1033,39 @@ export function handlePostTool(rootDir: string, input: string, declared?: HookHo
     const nudge = readNudge()
     const driven = nudge === null ? [] : [nudgeLine(nudge)]
 
-    // Nothing resolves → the quick lane (r1-fixes 2.6, D14), created here on
-    // the first captured edit. Resolution is re-run rather than assumed: the
-    // lane is a FALLBACK inside resolveInitiative, and this hook must route
-    // exactly as every other surface does.
-    let bound = resolveBound(rootDir, session)
-    if (bound === null && ensureLane(rootDir)) bound = resolveBound(rootDir, session)
-    if (bound === null) return driven.length === 0 ? { ...OK } : { ...OK, stdout: postToolContext(driven) }
-    const { ctx, slug } = bound
-
     const injected = (lines: readonly string[]): HookResult =>
       lines.length === 0 ? { ...OK } : { ...OK, stdout: postToolContext(lines) }
 
     const calls = classifyToolCall(hook)
+    // Reads are subjects too (memory-lead 2.1, D6), and append nothing.
+    const edited = new Set(calls.filter((c) => c.domain === 'path').map((c) => resolve(rootDir, c.subject)))
+    const reads = readPaths(hook, rootDir).filter((p) => !edited.has(p))
+    const readSubjects = reads.map((p) => ({ domain: 'path' as const, subject: p, edit: false }))
+
+    // Nothing resolves → the quick lane (r1-fixes 2.6, D14), created here on
+    // the first captured edit. Resolution is re-run rather than assumed: the
+    // lane is a FALLBACK inside resolveInitiative, and this hook must route
+    // exactly as every other surface does. A READ never creates it: creating
+    // a record is an append, and a read appends nothing (memory-lead 2.1).
+    let bound = resolveBound(rootDir, session)
+    if (bound === null && calls.length > 0 && ensureLane(rootDir)) bound = resolveBound(rootDir, session)
+    if (bound === null) {
+      // No record to append to, yet the repo's decisions still bear on what was
+      // read. No record is "this" one here, so every handle is qualified.
+      const sofarDir = join(rootDir, '.sofar')
+      const readOnly = calls.length === 0 && existsSync(join(sofarDir, 'initiatives'))
+      return injected([...driven, ...(readOnly ? scopeNotice(sofarDir, rootDir, '', session, readSubjects) : [])])
+    }
+    const { ctx, slug } = bound
+
+    // Before the append, never after: the notice asks what this session has
+    // already been told, and the current edit is not yet part of that history.
+    const notice = scopeNotice(ctx.sofarDir, rootDir, slug, session, [
+      ...calls.map((c) => ({ domain: c.domain, subject: c.subject, edit: c.type === 'file_touched' })),
+      ...readSubjects,
+    ])
     const [call] = calls
-    if (call === undefined) return injected(driven)
+    if (call === undefined) return injected([...driven, ...notice])
     const { head } = call
     const exempt = calls.every((c) => c.exempt)
 
@@ -1046,12 +1080,8 @@ export function handlePostTool(rootDir: string, input: string, declared?: HookHo
     const exit = response !== null && typeof response.exit_code === 'number' ? response.exit_code : null
     const ok = interrupted ? false : postToolProvesSuccess(host) ? true : undefined
 
-    const notice: string[] = []
     let registered = false
-    for (const { type, domain, subject, payload, exempt: self } of calls) {
-      // Before the append, never after: the notice asks what this session has
-      // already been told, and the current edit is not yet part of that history.
-      notice.push(...guardNotice(ctx.sofarDir, rootDir, slug, session, domain, subject))
+    for (const { type, payload, exempt: self } of calls) {
       if (self) continue
       if (!registered) {
         // Lazy registration: one fold to see whether this session is already in
@@ -1733,126 +1763,284 @@ export function guardViolationLines(
 }
 
 /**
- * The same rule, un-scoped and moved to the point of use (record-index 3.2).
+ * The same rule, un-scoped and moved to the point of use (record-index 3.2),
+ * then moved earlier, to the READ, and widened from guarded rules to every
+ * decision that names the file (memory-lead 2.1, D6; SPEC §Read-time surfacing (memory-lead 2.1, D6)).
  *
  * The surfaces above read `state.guard_violations`, which the fold builds while
  * replaying ONE initiative's log against THAT initiative's decisions. That is
  * the whole of the mechanical tier's reach, and it has a hole in the middle of
  * it: the work is appended wherever the branch is bound, so a rule declared in
  * `security-hardening` has never once been tested against an edit made on the
- * `record-index` branch. Not "rarely" — structurally never. A user who writes a
- * standing rule reasonably believes it governs the repo; it governed one log.
+ * `record-index` branch. Tier 1 closes it by materializing every decision that
+ * guards or names a file into one list, so asking "does ANY decision anywhere
+ * bear on this path" costs O(scope) instead of folding every log.
  *
- * Tier 1 closes it by materializing every guarded decision in the repo into one
- * list (this record: 6 of 208 decisions), so asking "does ANY decision anywhere
- * guard this path" costs O(guards) instead of folding every log.
+ * PostToolUse, because it fires when the path is first known. A read is that
+ * moment, and it comes before the edit: the prompt line reports at the next
+ * turn, and the Stop message only when the session is already blocked (D3).
  *
- * PostToolUse rather than the prompt line, because this is the surface where
- * the mechanical tier arrives while the edit is still the current thought. The
- * prompt line reports at the next turn, and the Stop message only when the
- * session is already being blocked for something else (D3) — both are after the
- * fact by construction.
+ * THREE TIERS, by who declared the relevance (record-index D2). A guard is
+ * relevance its author declared, so it is asserted: the path "is governed by"
+ * the rule. A mention is only a fact about the decision's text, so it says the
+ * decision "names" the file and never that it governs it. Both are worded as
+ * facts, not commands: Claude Code's hook docs warn that out-of-band
+ * imperatives can trip its prompt-injection defenses.
  *
- * D2 of this initiative governs the wording: a guard is relevance its author
- * DECLARED, so it is asserted — "obey it verbatim" — not offered as worth
- * reading. Only adjacency gets hedged.
- *
- * OTHER initiatives lead. Under the cap the rule to keep is the one the agent
- * cannot already see: its own record's standing constraints render verbatim and
- * un-clipped in the SessionStart digest, while a rule from a record it has
+ * OTHER initiatives lead among guards. Under the cap the rule to keep is the
+ * one the agent cannot already see: its own record's standing constraints
+ * render verbatim in the SessionStart digest, while a rule from a record it has
  * never opened appears nowhere else in its context.
  *
- * The rule renders VERBATIM and is never clipped (drift-hardening D2) — the
- * subject and the overflow pointer absorb the budget instead.
+ * The rule renders VERBATIM and is never clipped (drift-hardening D2): the cap
+ * counts decisions, and the overflow line absorbs the rest.
  */
-export function guardNoticeLines(
-  hits: readonly GuardedDecision[],
-  domain: GuardDomain,
-  subject: string,
-  slug: string,
-  rootDir: string,
-): string[] {
-  if (hits.length === 0) return []
+export const SCOPE_DECISIONS_MAX = 3
+export const SCOPE_NOTICE_BUDGET = 1500
+const SCOPE_CHOSE_HEAD = 90
+const SCOPE_OVER_HEAD = 70
 
-  const ordered = [...hits].sort((a, b) => {
-    if ((a.initiative === slug) !== (b.initiative === slug)) return a.initiative === slug ? 1 : -1
-    return a.initiative === b.initiative ? a.ordinal - b.ordinal : byCodeUnit(a.initiative, b.initiative)
-  })
+/** One thing a PostToolUse call acted on: a command, or a path it edited or read. */
+export interface NoticeSubject {
+  domain: GuardDomain
+  /** An absolute path, or the redacted command the record holds. */
+  subject: string
+  /** Edits keep the lastTouch suppression; reads have no touch to compare. */
+  edit: boolean
+}
 
-  const rendered = renderSubject(domain, subject, rootDir)
-  const lines = ordered.slice(0, GUARD_RULES_MAX).map((d) => {
-    // `D<n>` is initiative-scoped, so a handle from elsewhere has to carry its
-    // record — and carrying it is also what makes the un-scoping visible.
-    const handle = d.initiative === slug ? `D${d.ordinal}` : `${d.initiative} D${d.ordinal}`
+/** A decision to tell, and why: 0 guard, 1 ruled mention, 2 unruled mention. */
+interface ScopeNotice {
+  tier: 0 | 1 | 2
+  decision: ScopedDecision
+  depth: number
+  rendered: string
+  domain: GuardDomain
+}
+
+function scopeHandle(d: ScopedDecision, slug: string): string {
+  // `D<n>` is initiative-scoped, so a handle from elsewhere carries its record.
+  return d.initiative === slug ? `D${d.ordinal}` : `${d.initiative} D${d.ordinal}`
+}
+
+function scopeRuleText(d: ScopedDecision): string {
+  const rule = (d.rule ?? '').replace(/\s+/g, ' ').trim()
+  return d.quote === undefined ? `"${rule}"` : `"${rule}" — ${quoteClause(d.rule ?? '', d.quote)}`
+}
+
+/** The line for one notice, worded as a fact (SPEC §Read-time surfacing (memory-lead 2.1, D6)). */
+export function scopeNoticeLine(n: ScopeNotice, slug: string): string {
+  const d = n.decision
+  const handle = scopeHandle(d, slug)
+  if (n.tier === 0) {
     return (
-      `sofar: [${handle}] standing rule guards ${rendered} — "${d.rule}" ` +
-      `(guard: ${d.guard}) — obey it verbatim, or log a decision that supersedes it.`
-    )
-  })
-
-  const dropped = ordered.slice(GUARD_RULES_MAX)
-  if (dropped.length > 0) {
-    // Not a pointer at `sofar doctor`: doctor audits ONE initiative, and the
-    // rules dropped here are exactly the ones that may live in another.
-    const where = [...new Set(dropped.map((d) => d.initiative))].join(', ')
-    lines.push(
-      `sofar: …and ${dropped.length} more standing rule(s) guard this, in ${where} — read their decisions.md.`,
+      `sofar: ${n.rendered} is governed by [${handle}], a standing rule: ${scopeRuleText(d)} ` +
+      `(guard: ${d.guard}). Work against it needs a decision that supersedes ${handle}.`
     )
   }
-  return lines
+  if (n.tier === 1) return `sofar: [${handle}] names ${n.rendered}. Its standing rule: ${scopeRuleText(d)}.`
+  const over = hasRealAlternative(d.over) ? ` over ${minutiaeHead(d.over, SCOPE_OVER_HEAD)}` : ''
+  return `sofar: [${handle}] ${d.ts.slice(0, 10)} names ${n.rendered}: chose ${minutiaeHead(d.chose, SCOPE_CHOSE_HEAD)}${over}.`
 }
 
 /**
- * Resolve the notice for one just-made edit, suppressing what has already been
- * said.
- *
- * REFRESHED, not merely read, for the reason 2.2 established: an index nobody
- * maintains reports no guards, and "no guards" is indistinguishable from "no
- * rule applies" — D1 forbids absence costing correctness.
- *
- * Refreshed BEFORE the caller appends, which is semantics rather than
- * convenience: the question is whether this session has ALREADY been told, and
- * an index that already contained the current edit would answer about itself.
- *
- * Non-retroactivity comes free here, where the fold has to arrange it: every
- * decision in the index was logged before an edit that is happening now, so a
- * guard still cannot flag the work that motivated it.
- *
- * Commands are not suppressed — Tier 1 keys touches by path and has no command
- * history to suppress against, and each run of a guarded command is a separate
- * act with separate consequences, unlike re-editing a file already reported.
- *
- * TWO REFRESHES, ordered by what they cost. The declared half is sized by the
- * repo's guarded decisions and is refreshed on every edit; the derived half is
- * sized by the repo's whole touch history (31.8ms at 1000 initiatives) and is
- * refreshed only once a rule has actually matched — which is what a hot path
- * can afford to be exact about, and rare enough that being exact is cheap.
+ * Order notices tier by tier (D6 (c)). Guards: other initiatives first, then
+ * initiative, then ordinal. Mentions: the longer matched tail, then the newest.
+ * Stored relevance (typed-judge D10) then reranks WITHIN each tier only, so a
+ * high p never lifts a mention over a guard. Strangers the judge would add are
+ * not rendered here: no writer of `file:` rows exists yet, and a judged
+ * relevance is not a mention, so its wording belongs to that writer's task.
  */
-function guardNotice(
+function orderNotices(notices: readonly ScopeNotice[], slug: string, rows: readonly RelevanceRow[]): ScopeNotice[] {
+  const byTier: ScopeNotice[][] = [[], [], []]
+  for (const n of notices) byTier[n.tier]!.push(n)
+  byTier[0]!.sort((a, b) => {
+    const [x, y] = [a.decision, b.decision]
+    if ((x.initiative === slug) !== (y.initiative === slug)) return x.initiative === slug ? 1 : -1
+    return x.initiative === y.initiative ? x.ordinal - y.ordinal : byCodeUnit(x.initiative, y.initiative)
+  })
+  for (const tier of [byTier[1]!, byTier[2]!]) {
+    tier.sort((a, b) => b.depth - a.depth || byCodeUnit(b.decision.ts, a.decision.ts) || byCodeUnit(a.decision.id, b.decision.id))
+  }
+  const ordered: ScopeNotice[] = []
+  for (const tier of byTier) {
+    if (rows.length === 0 || tier.length < 2) {
+      ordered.push(...tier)
+      continue
+    }
+    const byHandle = new Map(tier.map((n) => [`${n.decision.initiative} D${n.decision.ordinal}`, n]))
+    for (const handle of rankByRelevance([...byHandle.keys()], rows)) {
+      const n = byHandle.get(handle)
+      if (n !== undefined) ordered.push(n)
+    }
+  }
+  return ordered
+}
+
+/**
+ * Resolve the notice for one PostToolUse call, suppressing what this session
+ * has already been told.
+ *
+ * REFRESHED, not merely read, for the reason record-index 2.2 established: an
+ * index nobody maintains reports no decisions, and "none" is
+ * indistinguishable from "nothing applies". Refreshed BEFORE the caller
+ * appends: the question is whether this session has ALREADY been told, and an
+ * index that already held the current edit would answer about itself.
+ *
+ * Suppression. A path pair (decision, subject) is told once per session, on a
+ * read or an edit (core/told). An edit also keeps the lastTouch test: a
+ * decision logged at or before my last touch of this path was already told on
+ * that touch. The derived half it needs is sized by the repo's whole touch
+ * history, so it is refreshed only once something has matched. Commands are
+ * never suppressed: each run of a guarded command is its own act.
+ */
+function scopeNotice(
   sofarDir: string,
   rootDir: string,
   slug: string,
   session: string,
-  domain: GuardDomain,
-  subject: string,
+  subjects: readonly NoticeSubject[],
 ): string[] {
   try {
-    const declared = refreshGuards(sofarDir)
-    if (declared.guards.length === 0) return []
+    const index = refreshGuards(sofarDir)
+    if (index.scoped.length === 0 || subjects.length === 0) return []
+    const retire = retireEnabled()
+    const told = readTold(sofarDir, session)
+    let files: FileIndex | null = null
 
-    let hits = guardsForSubject(declared, domain, subject)
-    if (hits.length === 0) return []
-
-    if (domain === 'path' && session !== 'cli') {
-      const since = lastTouch(refreshFiles(sofarDir), subject, session)
-      // A rule logged at or before my last touch of this path already fired on
-      // that touch. One logged after it has never been tested against this path
-      // and still has its first warning to give.
-      if (since !== null) hits = hits.filter((d) => d.ts > since)
+    const notices: ScopeNotice[] = []
+    const shown = new Set<string>()
+    const tell: string[] = []
+    for (const { domain, subject, edit } of subjects) {
+      let hits = scopeHitsForSubject(index, domain, subject).filter(
+        // An until-scoped decision is never a candidate (task resolution is not
+        // indexed); a superseded one is out while retirement is on.
+        ({ decision: d }) => d.until === undefined && !(retire && d.superseded_by !== undefined),
+      )
+      if (hits.length === 0) continue
+      const rendered = renderSubject(domain, subject, rootDir)
+      if (domain === 'path' && session !== 'cli') {
+        hits = hits.filter(({ decision }) => !told.has(toldKey(decision.id, rendered)))
+        if (edit && hits.length > 0) {
+          files ??= refreshFiles(sofarDir)
+          const since = lastTouch(files, subject, session)
+          if (since !== null) hits = hits.filter(({ decision }) => decision.ts > since)
+        }
+        for (const { decision } of hits) tell.push(toldKey(decision.id, rendered))
+      }
+      for (const { decision, guarded, depth } of hits) {
+        if (shown.has(decision.id)) continue
+        shown.add(decision.id)
+        notices.push({ tier: guarded ? 0 : decision.rule !== undefined ? 1 : 2, decision, depth, rendered, domain })
+      }
     }
-    return guardNoticeLines(hits, domain, subject, slug, rootDir)
+    if (notices.length === 0) return []
+
+    const ordered = orderNotices(notices, slug, storedRelevance(sofarDir, index, notices))
+    const rendered = ordered.slice(0, SCOPE_DECISIONS_MAX).map((n) => scopeNoticeLine(n, slug))
+    // The budget counts the overflow line too. A decision that does not fit
+    // joins the count rather than being cut, and the first line always renders
+    // whole: a rule is never clipped (drift-hardening D2).
+    let kept = rendered.length
+    const lengthOf = (k: number): number => {
+      const over = overflowLine(ordered.slice(k))
+      return rendered.slice(0, k).reduce((sum, line) => sum + line.length + 1, 0) + (over === null ? 0 : over.length)
+    }
+    while (kept > 1 && lengthOf(kept) > SCOPE_NOTICE_BUDGET) kept -= 1
+    const over = overflowLine(ordered.slice(kept))
+    addTold(sofarDir, session, tell)
+    return over === null ? rendered.slice(0, kept) : [...rendered.slice(0, kept), over]
   } catch {
     return []
+  }
+}
+
+/** The one line for what did not render, or null when everything did. */
+function overflowLine(dropped: readonly ScopeNotice[]): string | null {
+  if (dropped.length === 0) return null
+  const first = dropped[0]!
+  const where = [...new Set(dropped.map((n) => n.decision.initiative))].join(', ')
+  // Not a pointer at `sofar doctor`: doctor audits ONE initiative, and the
+  // decisions dropped here may live in several.
+  const pointer = first.domain === 'path' ? `sofar find ${first.rendered}` : 'read their decisions.md'
+  return `sofar: …and ${dropped.length} more decision(s) on ${first.rendered} (in ${where}) — ${pointer}.`
+}
+
+/**
+ * Stored relevance for the paths these notices name (typed-judge D10), read
+ * only when some tier has two notices to order, so a call with one candidate
+ * pays nothing. Rows for retired decisions are never returned.
+ */
+function storedRelevance(sofarDir: string, index: GuardIndex, notices: readonly ScopeNotice[]): RelevanceRow[] {
+  const counts = [0, 0, 0]
+  for (const n of notices) counts[n.tier]! += 1
+  if (counts.every((c) => c < 2)) return []
+  const relevanceIndex = refreshRelevance(sofarDir)
+  const abouts = [...new Set(notices.filter((n) => n.domain === 'path').map((n) => `file:${n.rendered}`))]
+  return abouts.flatMap((about) => relevance(relevanceIndex, { about, retired: index.retired }))
+}
+
+/** Every path a call READ (memory-lead 2.1, D6), as absolute paths, at most READ_SUBJECTS_MAX. */
+export const READ_SUBJECTS_MAX = 5
+const SHELL_TOKENS_MAX = 40
+const SHELL_SCAN_CLIP = 2000
+
+export function readPaths(hook: Obj, rootDir: string): string[] {
+  const toolName = strField(hook, 'tool_name')
+  const toolInput = isObj(hook.tool_input) ? hook.tool_input : {}
+  const cwd = strField(hook, 'cwd') ?? rootDir
+  let candidates: string[] = []
+  if (toolName === 'Read') {
+    // `file_path` on both hosts: Claude Code documents it, and Cursor sends it
+    // too (live on cursor-agent 2026.09.18, with no `cwd` beside it).
+    const path = strField(toolInput, 'file_path')
+    if (path !== null) candidates = [path]
+  } else if (toolName === 'Grep') {
+    const path = strField(toolInput, 'path')
+    if (path !== null && isRegularFile(resolve(cwd, path))) candidates.push(path)
+    const response = isObj(hook.tool_response) ? hook.tool_response : null
+    if (response !== null && Array.isArray(response.filenames)) {
+      candidates.push(...response.filenames.filter((f): f is string => typeof f === 'string').slice(0, READ_SUBJECTS_MAX))
+    }
+  } else if (toolName === 'Bash') {
+    const cmd = strField(toolInput, 'command')
+    if (cmd !== null) candidates = shellOperands(cmd, cwd)
+  }
+  const out: string[] = []
+  for (const candidate of candidates) {
+    const abs = resolve(cwd, candidate)
+    if (abs.split('/').includes('.sofar') || out.includes(abs)) continue
+    out.push(abs)
+    if (out.length >= READ_SUBJECTS_MAX) break
+  }
+  return out
+}
+
+/**
+ * The operands of a shell command that name an existing regular file: what a
+ * `cat`, `sed -n`, `grep` or `head` read, on every host (Codex reads only this
+ * way). Taken before any heredoc, flags and expansions skipped, one stat each.
+ * A write through the shell is caught the same way, which is fine: the
+ * surface is the same fact about the file either way.
+ */
+function shellOperands(cmd: string, cwd: string): string[] {
+  const head = cmd.split('<<')[0]!.slice(0, SHELL_SCAN_CLIP)
+  const found: string[] = []
+  let seen = 0
+  for (const raw of head.split(/[\s;&|()<>]+/)) {
+    if (seen++ >= SHELL_TOKENS_MAX || found.length >= READ_SUBJECTS_MAX) break
+    const token = raw.replace(/^['"`]+|['"`]+$/g, '')
+    if (token.length === 0 || token.startsWith('-') || /[=$*?]/.test(token)) continue
+    if (!found.includes(token) && isRegularFile(resolve(cwd, token))) found.push(token)
+  }
+  return found
+}
+
+function isRegularFile(path: string): boolean {
+  try {
+    return statSync(path).isFile()
+  } catch {
+    return false
   }
 }
 
@@ -2433,7 +2621,7 @@ export const SUBCOMMANDS: ReadonlyArray<{
   {
     name: 'post-tool',
     description:
-      'PostToolUse hook: append mechanical file_touched (Edit|Write|MultiEdit|apply_patch) / command_run (Bash) events, and surface any repo-wide guarded rule the subject crosses',
+      'PostToolUse hook: append mechanical file_touched (Edit|Write|MultiEdit|apply_patch) / command_run (Bash) events, and surface every repo-wide decision that guards or names what the call edited, read or ran',
     handler: forHost('post-tool', handlePostTool),
   },
   {
