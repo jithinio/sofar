@@ -6,21 +6,21 @@
 - Tool: claude-code
 - Model: claude-opus-5
 - Started: 2026-09-22T14:51:15.416Z
-- Ended: 2026-09-22T17:30:02.482Z
+- Ended: 2026-09-22T19:28:03.231Z
 
 ## Summary
 
-Handoff gate now accepts the neutral /private/tmp path; overnight plan agreed with sofar-c3; nothing started.
+Smokes done 19:27Z; cycle holding at the 5.1 gate; window handed to sofar-3c, fallback at 20:12Z.
 
 ## Next action
 
-When cycle-L11b.log shows done, read its compare verdict; record 3.4.
+At the 5.1 handoff the cycle starts; read its compare verdict and record 3.4.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 101 commands
+- Derived: 3 files (/Users/jins/IO/sofar-evaluator/lib/commit.ts, /Users/jins/IO/sofar-evaluator/test/commit.test.ts, /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh), 103 commands
 - Files:
   - /Users/jins/IO/sofar-evaluator/lib/commit.ts
   - /Users/jins/IO/sofar-evaluator/test/commit.test.ts
   - /Users/jins/IO/bench-cells/evaluator/logs/cycle-L11b.sh
-- Commands run: 101
+- Commands run: 103
