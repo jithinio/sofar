@@ -35,7 +35,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - run: npm test
+      # The unit project only: the shim-latency pin (speed T2) is wall-clock on
+      # the machine it runs on, and the push path runs nothing timing-sensitive
+      # (the header's ruling) — a hosted runner's SessionStart floor sits above
+      # the 100 ms budget. `npm test` locally still runs it (rust-core's ci.yml).
+      - run: npx vitest run --project unit
       - run: npm run typecheck
 
   # Loose read-path tripwire (r1-fixes D18): a gross regression cannot reach
