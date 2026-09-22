@@ -1841,13 +1841,19 @@ in `~/.config/sofar/config.json` beside `auto_upgrade`; `sofar drive
 --keep-awake-setting <on|off>` writes it and starts nothing, as `sofar
 upgrade --auto` does for its own. Per run, `--keep-awake` / `--no-keep-awake`
 win and are not saved. Unset and on a TTY — the foreground driver, or the
-`--detach` caller before it spawns — sofar asks once and saves the answer.
+`--detach` caller before it spawns — sofar asks once and saves the answer
+(Enter means yes; a TTY here is stdin and stderr both terminals, not CI, not
+an agent's shell). `--keep-awake-setting` refuses an initiative or any other
+flag beside it, since it starts nothing.
 Unset and with no TTY, it NEVER prompts: the opening lines say keep-awake is
 unset and how to set it, so an agent relaying them asks the operator in chat,
 and a run with no per-run flag re-reads the setting before every launch, so
 the answer takes effect from the next session. The opening lines also say
-that idle sleep is blocked and lid-close sleep is not. Elsewhere than macOS
-the setting is inert, and a run that asked for it says so.
+that idle sleep is blocked and lid-close sleep is not. A `caffeinate` that
+cannot start, or ends before the driver lets it go, is a warning on the
+progress stream, never silence. Elsewhere than macOS the setting is inert,
+and a run that asked for it says so. A library caller of the loop that
+states no keep-awake gets neither a line nor an assertion.
 
 **Watching a run (drive-visibility 3.1–3.6).** Progress already lands in the
 record as it happens; these surfaces carry it to where the operator is,

@@ -271,7 +271,8 @@ describe('verification flags reach the run through the CLI (r1-fixes 3.1)', () =
     const block = source.slice(start, source.indexOf('\nprogram', start))
     const flags = [...block.matchAll(/\.option\(\s*'--([a-z-]+)/g)].map((m) => m[1]!)
     expect(flags).toContain('verify')
-    const camel = (flag: string): string => flag.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())
+    // commander reads `--no-x` into `opts.x` (drive-visibility 2.4's --no-keep-awake).
+    const camel = (flag: string): string => flag.replace(/^no-/, '').replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())
     const unread = flags.filter((flag) => flag !== 'root' && !new RegExp(`opts\\.${camel(flag)}\\b`).test(block))
     expect(unread).toEqual([])
   })

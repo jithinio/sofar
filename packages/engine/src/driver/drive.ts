@@ -11,7 +11,8 @@ import {
 } from '@sofar/schema'
 import type { InitiativeState, PhaseState } from '../core/fold'
 import { latestRun, stopRequestsInForce } from '../core/fold'
-import { claimRunLock, probeRunLock, type RunLock, type RunLockOptions } from '../core/run-lock'
+import { claimRunLock, probeRunLock, type RunLockOptions } from '../core/run-lock'
+import { createKeepAwake, type KeepAwakeOptions } from './keep-awake'
 import { createToolContext, ToolError } from '../mcp/context'
 import type { NudgeDetail } from './nudge'
 import { describeSurface, sameSurface, type PermissionSurface } from './permissions'
@@ -366,6 +367,12 @@ export interface DriveOptions {
   /** Test seam: where and with which primitive the run lock is taken (drive-visibility 2.1). */
   lock?: RunLockOptions
   /**
+   * Keeping the Mac awake for the run (drive-visibility D5). Absent means the
+   * driver neither blocks sleep nor says anything about it — the CLI always
+   * passes it; a library caller that wants it states it.
+   */
+  keepAwake?: KeepAwakeOptions
+  /**
    * Called once the run is CERTAIN to start — after run_started (or the
    * adoption of a resumed run) and after every opening line has been
    * reported. `--detach` answers its caller here (in-session-drive D1).
@@ -569,14 +576,15 @@ export function renderPrompt(
  * The run lock (drive-visibility D2) is released HERE, after the loop has
  * returned or thrown: the loop appends `run_stopped` before it returns, so no
  * reader ever sees the lock free on a run that is still open. A driver that
- * dies instead lets the kernel release it.
+ * dies instead lets the kernel release it. The keep-awake assertion (D5) is
+ * held and let go the same way, `caffeinate -w` standing in for the kernel.
  */
 export async function drive(
   rootDir: string,
   slug: string | undefined,
   options: DriveOptions,
 ): Promise<DriveOutcome> {
-  const held: RunLock[] = []
+  const held: { release(): void }[] = []
   try {
     return await driveHolding(rootDir, slug, options, held)
   } finally {
@@ -593,7 +601,7 @@ async function driveHolding(
   rootDir: string,
   slug: string | undefined,
   options: DriveOptions,
-  held: RunLock[],
+  held: { release(): void }[],
 ): Promise<DriveOutcome> {
   const ctx = createToolContext(rootDir)
   const initiative = ctx.resolveInitiative(slug)
@@ -771,6 +779,13 @@ async function driveHolding(
       `warning: liveness unavailable for this run — ${claim.why}. \`sofar status\` will say liveness unknown, and nothing on this machine refuses a second driver on it`,
     )
   }
+  // Keep-awake (D5): the answer as it stands, said with the opening lines;
+  // the assertion itself is taken once the run is recorded, below.
+  const awake = options.keepAwake !== undefined ? createKeepAwake(options.keepAwake) : undefined
+  if (awake !== undefined) {
+    held.push(awake)
+    opening.push(...awake.opening())
+  }
 
   // Who this driver is in the fold (drive-visibility 2.2): run_started's own
   // id at epoch 1 for a fresh run; for a resumed one, the adoption it appends
@@ -807,6 +822,7 @@ async function driveHolding(
     mine = { id: started.id, epoch: 1 }
   }
   for (const line of opening) progress(line)
+  awake?.start(progress)
 
   // ---------------------------------------------------------------------
   // The verification gate (r1-fixes 3.1, D19). `gate` runs the task's
@@ -1028,6 +1044,11 @@ async function driveHolding(
         }
         break
       }
+
+      // The setting is read again before every launch (D5), so an answer the
+      // operator gave mid-run takes effect from this session on.
+      const awakeChanged = awake?.beforeLaunch()
+      if (awakeChanged !== undefined) progress(awakeChanged)
 
       const beforeStatuses = taskStatuses(state)
       // Who was in the record BEFORE the launch: the exact half of session

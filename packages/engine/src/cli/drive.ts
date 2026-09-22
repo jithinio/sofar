@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { closeSync, mkdirSync, openSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createInterface } from 'node:readline/promises'
 import { ToolError, createToolContext } from '../mcp/context'
 import { latestRun, stopRequestsInForce } from '../core/fold'
 import { probeRunLock, type RunLiveness, type RunLockOptions } from '../core/run-lock'
@@ -13,6 +14,8 @@ import { drive, type DriveOptions } from '../driver/drive'
 import { buildSurface, SurfaceError } from '../driver/permissions'
 import { launchEnv, type Adapter } from '../driver/adapter'
 import { errMessage, fail, ok, type CmdResult } from './shared'
+import { stderrCaps } from './ui'
+import { readKeepAwake, userConfigPath, writeKeepAwake } from './user-config'
 
 /**
  * `sofar drive <initiative>` (session-driver 2.2) — the CLI skin on the loop
@@ -64,6 +67,13 @@ export interface DriveCliOptions {
    * agent `--agent` NAMED and no other, for the reason `--bin` does.
    */
   agentArgs?: string[]
+  /** `--keep-awake` (true) / `--no-keep-awake` (false): this run only, never saved (drive-visibility D5). */
+  keepAwake?: boolean
+  /**
+   * Where the one keep-awake question may be asked. Absent never asks — the
+   * CLI entry passes `terminalPrompt`, as `sofar init` passes its picker's.
+   */
+  prompt?: KeepAwakePrompt
   /** Test seam: an adapter to drive with, instead of building the Claude Code one. */
   adapter?: Adapter
   /** Called once the run is certain to start — a detached child answers its caller here. */
@@ -82,6 +92,70 @@ const AGENT_SHELL_ENV = ['CLAUDECODE', 'CODEX_SANDBOX', 'CODEX_THREAD_ID'] as co
 
 export function insideAgentShell(env: NodeJS.ProcessEnv): boolean {
   return AGENT_SHELL_ENV.some((name) => (env[name] ?? '').length > 0)
+}
+
+/** How the one keep-awake question is asked (drive-visibility D5). */
+export interface KeepAwakePrompt {
+  /** The only place a question may block: a terminal on both ends, not CI, not an agent's shell, not a detached driver. */
+  interactive: boolean
+  ask(question: string): Promise<string>
+}
+
+/** The operator's own terminal, when there is one (D5). */
+export function terminalPrompt(env: NodeJS.ProcessEnv = process.env): KeepAwakePrompt {
+  return {
+    interactive:
+      process.stdin.isTTY === true && stderrCaps().animate && !insideAgentShell(env) && env[DETACH_ENV] !== '1',
+    async ask(question) {
+      const rl = createInterface({ input: process.stdin, output: process.stderr })
+      try {
+        return await rl.question(question)
+      } finally {
+        rl.close()
+      }
+    },
+  }
+}
+
+/**
+ * Ask once, and save the answer (drive-visibility D5): only on macOS, only
+ * while `drive.keep_awake` is unset and the run states no flag, and only
+ * where the prompt is interactive. Everywhere else the driver's opening lines
+ * say the setting is unset instead, so an agent relaying them asks in chat.
+ * Enter means yes — the run is the reason the question is asked. The line
+ * returned says what was saved and how to change it.
+ */
+export async function askKeepAwakeOnce(
+  flag: boolean | undefined,
+  prompt: KeepAwakePrompt | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): Promise<string | undefined> {
+  if (platform !== 'darwin' || flag !== undefined || prompt?.interactive !== true) return undefined
+  if (readKeepAwake(env) !== undefined) return undefined
+  const answer = await prompt.ask(
+    "Keep this Mac awake while sofar drives? caffeinate blocks idle sleep for the driver's life; closing the lid still sleeps it. Saved for every run on this machine. [Y/n] ",
+  )
+  const on = !/^\s*n/i.test(answer)
+  writeKeepAwake(on, env)
+  return `keep-awake ${on ? 'on' : 'off'} — saved to ${userConfigPath(env)}; \`sofar drive --keep-awake-setting ${on ? 'off' : 'on'}\` changes it`
+}
+
+/**
+ * `sofar drive --keep-awake-setting <on|off>` (drive-visibility D5): write
+ * the setting and start nothing, as `sofar upgrade --auto` does for its own.
+ */
+export function runKeepAwakeSetting(
+  value: string,
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): CmdResult {
+  if (value !== 'on' && value !== 'off') return fail(`sofar drive --keep-awake-setting takes on or off, got "${value}"`)
+  writeKeepAwake(value === 'on', env)
+  const inert = platform === 'darwin' ? '' : ` It is inert on ${platform}: keep-awake is macOS-only.`
+  return ok(
+    `keep-awake ${value} — saved to ${userConfigPath(env)}. A running driver with no --keep-awake/--no-keep-awake picks it up before its next launch.${inert}\n`,
+  )
 }
 
 function positive(name: string, raw: string | undefined): number | undefined {
@@ -173,9 +247,14 @@ export async function runDrive(
       ...(options.effort !== undefined ? { effort: options.effort } : {}),
     })
     const { adapter, agents } = buildAgents(options)
+    const env = options.env ?? process.env
     driveOptions = {
       adapter,
       agents,
+      keepAwake: {
+        ...(options.keepAwake !== undefined ? { flag: options.keepAwake } : {}),
+        setting: () => readKeepAwake(env),
+      },
       ...(options.policy !== undefined ? { policy: options.policy as DriveOptions['policy'] } : {}),
       ...(thresholdPct !== undefined ? { thresholdPct } : {}),
       ...(contextWindow !== undefined ? { contextWindow } : {}),
@@ -210,6 +289,10 @@ export async function runDrive(
       "warning: this looks like an agent's shell — its command timeout will end the driver mid-run and orphan the session it is waiting on; `sofar drive --detach` starts a run that outlives the shell",
     )
   }
+
+  // The one question (D5), before the run so its answer is the run's.
+  const saved = await askKeepAwakeOnce(options.keepAwake, options.prompt, options.env ?? process.env)
+  if (saved !== undefined) onProgress(saved)
 
   let outcome
   try {
@@ -359,6 +442,10 @@ export interface DriveDetachOptions {
   logDir?: string
   /** Test seam (default DETACH_START_TIMEOUT_MS). */
   startTimeoutMs?: number
+  /** `--keep-awake` / `--no-keep-awake` as the caller gave them; the child reads them from its argv. */
+  keepAwake?: boolean
+  /** Where the caller may ask the keep-awake question before it spawns (D5); absent never asks. */
+  prompt?: KeepAwakePrompt
 }
 
 /**
@@ -409,6 +496,11 @@ export async function runDriveDetached(
       "sofar drive --detach: the calling agent's sandbox reports no network (CODEX_SANDBOX_NETWORK_DISABLED=1). A detached driver inherits that sandbox, so every session it launched would fail to reach its model. Run the agent with network access, or start the run from a terminal.",
     )
   }
+
+  // The caller is the last process with the operator's terminal (D5): it
+  // asks, saves, and the child reads the saved answer.
+  const saved = await askKeepAwakeOnce(options.keepAwake, options.prompt, env)
+  if (saved !== undefined) process.stderr.write(`${saved}\n`)
 
   const logDir = options.logDir ?? join(tmpdir(), 'sofar-drive')
   mkdirSync(logDir, { recursive: true })

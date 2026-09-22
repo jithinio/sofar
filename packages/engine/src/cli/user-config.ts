@@ -30,20 +30,45 @@ export function readAutoUpgrade(env: Env = process.env): boolean {
 
 /** Merge-write the flag, preserving any other keys the file already carries. */
 export function writeAutoUpgrade(enabled: boolean, env: Env = process.env): void {
+  mergeWrite(() => ({ auto_upgrade: enabled }), env)
+}
+
+/**
+ * `drive.keep_awake` (drive-visibility D5): true or false once the operator
+ * has answered, undefined while unset — and an unreadable config is unset,
+ * never an answer, so the run says so rather than guessing.
+ */
+export function readKeepAwake(env: Env = process.env): boolean | undefined {
+  const drive = readConfig(env)?.drive
+  if (typeof drive !== 'object' || drive === null) return undefined
+  const value = (drive as { keep_awake?: unknown }).keep_awake
+  return typeof value === 'boolean' ? value : undefined
+}
+
+/** Merge-write `drive.keep_awake`, keeping every other key, `drive`'s own included. */
+export function writeKeepAwake(on: boolean, env: Env = process.env): void {
+  mergeWrite((existing) => {
+    const drive = typeof existing.drive === 'object' && existing.drive !== null ? existing.drive : {}
+    return { drive: { ...drive, keep_awake: on } }
+  }, env)
+}
+
+function readConfig(env: Env): Record<string, unknown> | undefined {
   const path = userConfigPath(env)
-  let existing: Record<string, unknown> = {}
-  if (existsSync(path)) {
-    try {
-      const decoded = JSON.parse(readFileSync(path, 'utf8')) as unknown
-      if (typeof decoded === 'object' && decoded !== null) existing = decoded as Record<string, unknown>
-    } catch {
-      // Unreadable config is rewritten rather than blocking an explicit opt-in.
-    }
+  if (!existsSync(path)) return undefined
+  try {
+    const decoded = JSON.parse(readFileSync(path, 'utf8')) as unknown
+    return typeof decoded === 'object' && decoded !== null ? (decoded as Record<string, unknown>) : undefined
+  } catch {
+    return undefined
   }
+}
+
+/** Write `changes` over whatever the file already carries. */
+function mergeWrite(changes: (existing: Record<string, unknown>) => Record<string, unknown>, env: Env): void {
+  const path = userConfigPath(env)
+  // Unreadable config is rewritten rather than blocking an explicit opt-in.
+  const existing = readConfig(env) ?? {}
   mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(
-    path,
-    `${JSON.stringify({ ...existing, version: 1, auto_upgrade: enabled }, null, 2)}\n`,
-    'utf8',
-  )
+  writeFileSync(path, `${JSON.stringify({ ...existing, version: 1, ...changes(existing) }, null, 2)}\n`, 'utf8')
 }

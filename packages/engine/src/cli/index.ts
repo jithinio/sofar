@@ -17,7 +17,14 @@ import { runClose } from './close'
 import { runStatus, runStatusWatch } from './status'
 import { runList } from './list'
 import { runNext } from './next'
-import { detachedStartNotifier, runDrive, runDriveDetached, runDriveStop } from './drive'
+import {
+  detachedStartNotifier,
+  runDrive,
+  runDriveDetached,
+  runDriveStop,
+  runKeepAwakeSetting,
+  terminalPrompt,
+} from './drive'
 import { runRelated, runWhy } from './graph'
 import { runFind } from './find'
 import { REACH_DEFAULT_HOPS, REACH_MAX_HOPS } from '../core/index-reach'
@@ -536,6 +543,12 @@ program
     '--stop',
     "ask the latest unstopped run's driver to end it (a second --stop kills its session outright) — how a detached run is stopped",
   )
+  .option('--keep-awake', 'macOS: block idle sleep for this run (caffeinate), whatever the saved setting says; not saved')
+  .option('--no-keep-awake', 'macOS: do not block idle sleep for this run, whatever the saved setting says; not saved')
+  .option(
+    '--keep-awake-setting <on|off>',
+    'save whether runs keep this Mac awake (~/.config/sofar/config.json) and start nothing; a running driver picks it up before its next launch',
+  )
   .option('--root <dir>', 'repo root (default: current directory)')
   .action(
     async (
@@ -564,9 +577,22 @@ program
         bareTools?: boolean
         detach?: boolean
         stop?: boolean
+        keepAwake?: boolean
+        keepAwakeSetting?: string
         root?: string
       },
     ) => {
+      if (opts.keepAwakeSetting !== undefined) {
+        // A machine preference, not a run: a slug or run flag beside it would
+        // read as honoured and be ignored.
+        const extra = Object.keys(opts).filter((k) => k !== 'keepAwakeSetting' && k !== 'root')
+        if (slug !== undefined || extra.length > 0) {
+          emit(fail('sofar drive --keep-awake-setting takes no initiative and no other flag — it saves a setting for this machine and starts nothing'))
+          return
+        }
+        emit(runKeepAwakeSetting(opts.keepAwakeSetting))
+        return
+      }
       if (opts.stop === true) {
         // A stop names a run, not a way to run one: a flag beside it would read
         // as honoured and be ignored.
@@ -579,7 +605,13 @@ program
         return
       }
       if (opts.detach === true) {
-        emit(await runDriveDetached(rootOf(opts), slug, { argv: process.argv.slice(2) }))
+        emit(
+          await runDriveDetached(rootOf(opts), slug, {
+            argv: process.argv.slice(2),
+            ...(opts.keepAwake !== undefined ? { keepAwake: opts.keepAwake } : {}),
+            prompt: terminalPrompt(),
+          }),
+        )
         return
       }
       const onStarted = detachedStartNotifier()
@@ -607,6 +639,8 @@ program
           ...(opts.deny !== undefined ? { deny: opts.deny } : {}),
           ...(opts.bareTools === true ? { bareTools: true } : {}),
           ...(onStarted !== undefined ? { onStarted } : {}),
+          ...(opts.keepAwake !== undefined ? { keepAwake: opts.keepAwake } : {}),
+          prompt: terminalPrompt(),
         }),
       )
     },

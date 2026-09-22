@@ -4,21 +4,21 @@
 
 Goal: An operator always knows whether a drive run is alive and how far it has got — in the calling session, on the status bar, and in the sofar apps — without asking an agent or opening another terminal, and one run can never be driven by two drivers at once. Liveness is decided by a machine-local lock the OS releases on exit, never by a heartbeat or a record event; a heartbeat exists only to show presence to remote viewers.
 
-Progress: 5/17 tasks done (29%)
+Progress: 6/17 tasks done (35%)
 
 ## Phase 1 — Contract and rulings [done] — 2/2 done
 
 - [x] 1.1 Operator rulings, each logged as a Decision before dependent work. Recommended in the 2026-09-17 session: (a) lock primitive = flock semantics everywhere — Rust std File::try_lock (zero crates under rust-core D1), Swift flock, Node O_EXLOCK on macOS (verified to contend with flock), Linux flock(1) child until sofar-core binaries ship; no Node floor raise, no node:sqlite/rusqlite; (b) an empty OS-released lock file under the per-user state dir is NOT the pid file in-session-drive D2 forbids (clarify D2, do not overturn); (c) the presence ping is user-facing sync for cloud-linked repos, not telemetry emission; (e) keep-awake lives in the engine as a ~/.config/sofar setting (terminal asks once when unset; agent-launched runs never block, the preflight says it is unset and the agent asks the operator; --keep-awake/--no-keep-awake per run; the Mac app toggles the same setting); (f) sync during a run (4.1) and presence (4.2) are PAID, following sofar-cloud v2-sync-team D2 (sync is the paid product): enforced by sofar-cloud's entitlement check on the server, never by licence code in the MIT engine; the engine's client code only acts for linked repos. Local pieces (lock, fencing, --await, --follow, prompt line, statusline, keep-awake) touch no cloud and stay in the free engine. (d) moved to sofar-cloud by the push-notifications Decision.
 - [x] 1.2 docs/SPEC.md Driver section: run lock (flock-semantics file lock keyed by run id under the per-user state dir, never unlinked, same primitive for Node, Rust and the Mac app), run_adopted {run, epoch} fencing with step-down, stop requests ordered after the adoption instead of wall-clock, `--await`, `--follow`, keep-awake, statusline drive segment, UserPromptSubmit drive line, driver push-as-it-appends, presence ping contract, and what the driver does when the cloud refuses for entitlement; acceptance entries. Update the Host tiers section: Codex hooks stable in codex-cli 0.136.0 make Codex Tier 2; the Claude desktop app ignores statusLine. Note the rust-core parity impact (status render, hook handlers, statusline).
 
-## Phase 2 — Liveness and fencing [active] — 3/4 done
+## Phase 2 — Liveness and fencing [done] — 4/4 done
 
 - [x] 2.1 Run lock per the 1.1(a) ruling: held from taking the run until run_stopped; a fresh start and --resume refuse while held, naming the live driver's log; released by the OS on crash or kill -9, kept through SIGSTOP and sleep; works inside the Claude Code and Codex sandboxes. Tests: two drivers on one run, SIGSTOP holder, kill -9 then resume, sandboxed launch.
 - [x] 2.2 run_adopted {run, epoch} in packages/schema: run_started is epoch 1, --resume appends max+1; a driver that sees a newer adoption in its pre-launch fold or its 2s byte scan steps down without writing run_stopped; stop requests count by log order after the latest adoption, retiring the wall-clock adoptedAt check. Fold, render, tests.
 - [x] 2.3 `sofar status` (one-shot and --watch) shows a run as running, driver gone (no run_stopped, lock free) or stopped wherever the lock is visible; `sofar drive --stop` against a gone driver says so at once instead of waiting 30s. Tests.
-- [ ] 2.4 Keep-awake per the 1.1(e) ruling: macOS `caffeinate -i -w <own pid>` spawned by the driver for the run's life; setting in ~/.config/sofar/config.json; terminal prompt once when unset; detached runs state the unset setting in the preflight lines; per-run flags override; the opening lines say idle sleep is blocked but lid-close sleep is not. Tests.
+- [x] 2.4 Keep-awake per the 1.1(e) ruling: macOS `caffeinate -i -w <own pid>` spawned by the driver for the run's life; setting in ~/.config/sofar/config.json; terminal prompt once when unset; detached runs state the unset setting in the preflight lines; per-run flags override; the opening lines say idle sleep is blocked but lid-close sleep is not. Tests.
 
-## Phase 3 — Progress in the session [pending] — 0/6 done
+## Phase 3 — Progress in the session [active] — 0/6 done
 
 - [ ] 3.1 `sofar drive <slug> --await`: blocks at zero cost and exits with one line on needs_user, run_stopped or driver gone (lock free); built for an agent's background shell. Tests.
 - [ ] 3.2 UserPromptSubmit drive line, printed only when the run changed since the session's last prompt (handoffs, task done, now on); within the hook shim's budget; install Codex hooks.json so Codex gets it too. Tests.
@@ -38,5 +38,5 @@ Progress: 5/17 tasks done (29%)
 - [ ] 5.1 Proof from a live Claude Code session on a throwaway initiative: --detach from inside the sandbox; --await wakes the session on needs_user and on stop; prompt line and statusline update; a second --resume is refused while the driver lives; kill -9 the driver and status shows driver gone, --await exits, --resume succeeds and fences via run_adopted; keep-awake holds an assertion (pmset -g assertions) for the run's life; check whether ending the calling session kills the detached driver. Record the numbers.
 - [ ] 5.2 README + release staged for the user to publish.
 
-Active phase: Phase 2 — Liveness and fencing
-Next action: Start 2.4: keep-awake via caffeinate, with tests.
+Active phase: Phase 3 — Progress in the session
+Next action: Start 3.1: sofar drive --await, with tests.
