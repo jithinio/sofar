@@ -189,9 +189,10 @@ describe('codex exec --json, 0.136.0 adapter against the 0.154.0 vocabulary', ()
     const started = examples.find((l) => l.type === 'thread.started')!
     expect(session.threadId).toBe(started.thread_id)
     // cache_write_input_tokens is new beside the 0.136.0 names and is not
-    // counted; whether input_tokens already includes cached tokens is
-    // unverified (README), so this pins today's arithmetic, not its truth.
-    expect(exit.usage).toEqual({ context_tokens: 21_780 + 11_008, output_tokens: 131 + 46 })
+    // counted. input_tokens already includes the cached tokens and
+    // output_tokens the reasoning ones, as round 1's rollouts show
+    // (total_tokens = input + output; bench-refresh L27).
+    expect(exit.usage).toEqual({ context_tokens: 21_780, output_tokens: 131 })
     expect(session.failure).toContain('stream disconnected')
   })
 })

@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: Keep monitoring; next milestone is the bench-refresh 4.1 report and the operator freeze.
+Next action: Operator: rule the push policy (A/B/C), the self-improve go, drive-visibility 3.5, and closing session-strategy-bench.

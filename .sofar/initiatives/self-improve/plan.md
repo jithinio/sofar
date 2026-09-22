@@ -36,4 +36,4 @@ Progress: 9/14 tasks done (64%)
 - [ ] 4.3 Public standing snapshot (downloads, stars, listings) reported separately and never used as a technical gate
 - [ ] 4.4 Expand autonomy, including any in-product local adaptation, only after 3 consecutive cycles beat the direct-fix baseline on unseen work
 
-Next action: When launchd job com.sofar.evaluator.cycle-L11-resume finishes (it waits for round-1 codex to end), read the compare verdict in logs/cycle-L11-direct.log, then record 3.4 evidence in the evaluator README.
+Next action: When cycle-L11b.log shows done, read its compare verdict; record 3.4.

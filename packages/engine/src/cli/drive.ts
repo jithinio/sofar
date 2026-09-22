@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, statSync } from 'node:fs'
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
@@ -475,14 +475,166 @@ export async function runDriveAwait(
     if (!first && !scan() && liveness !== 'free') continue
     const run = ctx.foldState(initiative).runs.find((r) => r.id === runId)
     if (run?.stopped !== undefined) return ok(`${stoppedLine(ctx, initiative, run)}\n`)
-    if (liveness === 'free') {
-      return {
-        exitCode: 2,
-        stdout: `run ${runId} on "${initiative}" has no stop and its driver is gone — the run lock on this machine is free, so it will never stop by itself; \`sofar drive ${initiative} --resume\` picks it up\n`,
-        stderr: '',
-      }
-    }
+    if (liveness === 'free') return driverGone(runId, initiative)
   }
+}
+
+/** Exit 2, the one line both watchers end on when the lock falls with no stop recorded. */
+function driverGone(runId: string, initiative: string): CmdResult {
+  return {
+    exitCode: 2,
+    stdout: `run ${runId} on "${initiative}" has no stop and its driver is gone — the run lock on this machine is free, so it will never stop by itself; \`sofar drive ${initiative} --resume\` picks it up\n`,
+    stderr: '',
+  }
+}
+
+export interface DriveFollowOptions extends DriveAwaitOptions {
+  /** Where each event's line goes the moment it lands (default stdout). */
+  onLine?: (line: string) => void
+}
+
+/**
+ * `sofar drive [slug] --follow` (drive-visibility 3.4): narrate the latest
+ * unstopped run, one plain line per handoff, task status change, adoption and
+ * stop request, as each lands. It ends as `--await` does, on the stop's line
+ * (exit 0) or the driver-gone line (exit 2), and exits 1 with nothing to follow.
+ * It is for a terminal, or for narration the operator asked for, and never the
+ * agent default: under an agent's monitor every line is a model turn.
+ *
+ * A tick probes the lock, then reads only the complete lines appended since
+ * the last tick, in log order, so it costs nothing while the run is quiet. The
+ * opening line, and the ABSENT notice where there is no lock, go to stderr;
+ * stdout carries the events and the ending.
+ */
+export async function runDriveFollow(
+  rootDir: string,
+  slug: string | undefined,
+  options: DriveFollowOptions = {},
+): Promise<CmdResult> {
+  const ctx = createToolContext(rootDir)
+  const notice = options.onNotice ?? ((line: string) => process.stderr.write(`${line}\n`))
+  const say = options.onLine ?? ((line: string) => process.stdout.write(`${line}\n`))
+  let initiative: string
+  let runId: string
+  let read: () => string[]
+  const statuses = new Map<string, string>()
+  let liveness: RunLiveness
+  try {
+    initiative = ctx.resolveInitiative(slug)
+    const eventsPath = ctx.eventsPath(initiative)
+    // Taken BEFORE the fold, so nothing landing between the two is missed.
+    read = appendedLines(eventsPath, existsSync(eventsPath) ? statSync(eventsPath).size : 0)
+    const state = ctx.foldState(initiative)
+    const run = latestRun(state)
+    if (run === undefined) return fail(`sofar drive --follow: "${initiative}" has never been driven — nothing to follow`)
+    if (run.stopped !== undefined) {
+      return fail(`sofar drive --follow: nothing to follow — the latest run on "${initiative}" already ended: ${stoppedLine(ctx, initiative, run)}`)
+    }
+    runId = run.id
+    for (const phase of state.phases) for (const task of phase.tasks) statuses.set(task.id, task.status)
+    liveness = probeRunLock(rootDir, runId, options.lock)
+    notice(`sofar drive --follow: ${describeRun(run, liveness)} — ^C stops following, not the run`)
+  } catch (err) {
+    return fail(errMessage(err))
+  }
+  if (liveness === 'absent') {
+    notice(
+      `sofar drive --follow: run ${runId} has no run lock on this machine (liveness unknown) — following the record alone, so only a recorded stop ends this; a driver that dies without one is not seen here`,
+    )
+  }
+  for (let first = true; ; first = false) {
+    if (!first) {
+      await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? STOP_POLL_MS))
+      liveness = probeRunLock(rootDir, runId, options.lock)
+    }
+    let stopped = false
+    for (const raw of read()) {
+      const line = followLine(raw, runId, statuses)
+      if (line === STOP_SEEN) stopped = true
+      else if (line !== null) say(line)
+    }
+    if (!stopped && liveness !== 'free') continue
+    const run = ctx.foldState(initiative).runs.find((r) => r.id === runId)
+    if (run?.stopped !== undefined) return ok(`${stoppedLine(ctx, initiative, run)}\n`)
+    if (liveness === 'free') return driverGone(runId, initiative)
+  }
+}
+
+/** The complete lines appended to a log since the last call; a torn tail waits for its newline. */
+function appendedLines(path: string, from: number): () => string[] {
+  let offset = from
+  let partial = ''
+  return () => {
+    let size: number
+    try {
+      size = statSync(path).size
+    } catch {
+      return []
+    }
+    if (size <= offset) {
+      offset = size
+      return []
+    }
+    const fd = openSync(path, 'r')
+    let text: string
+    try {
+      const bytes = Buffer.alloc(size - offset)
+      readSync(fd, bytes, 0, bytes.length, offset)
+      text = partial + bytes.toString('utf8')
+    } finally {
+      closeSync(fd)
+    }
+    offset = size
+    const lines = text.split('\n')
+    partial = lines.pop() ?? ''
+    return lines.filter((l) => l.trim().length > 0)
+  }
+}
+
+const STOP_SEEN = Symbol('run_stopped')
+/** How much of a note or an exit detail a follow line quotes. */
+const FOLLOW_TEXT_MAX = 160
+
+/**
+ * One event as a follow line, or null for anything the narration skips: other
+ * runs, other event types, a line that does not parse (skipped, never fatal).
+ * `statuses` carries each task's status forward so a change reads from → to.
+ */
+function followLine(raw: string, runId: string, statuses: Map<string, string>): string | null | typeof STOP_SEEN {
+  let event: { type?: unknown; ts?: unknown; payload?: unknown }
+  try {
+    event = JSON.parse(raw) as typeof event
+  } catch {
+    return null
+  }
+  if (typeof event !== 'object' || event === null || typeof event.payload !== 'object' || event.payload === null) return null
+  const p = event.payload as Record<string, unknown>
+  const at = typeof event.ts === 'string' && !Number.isNaN(Date.parse(event.ts)) ? `${new Date(event.ts).toTimeString().slice(0, 8)} ` : ''
+  const clip = (text: string): string => {
+    const flat = text.replace(/\s+/g, ' ').trim()
+    return flat.length > FOLLOW_TEXT_MAX ? `${flat.slice(0, FOLLOW_TEXT_MAX - 1)}…` : flat
+  }
+  const str = (v: unknown): string | undefined => (typeof v === 'string' && v.length > 0 ? v : undefined)
+  if (event.type === 'task_status_changed') {
+    const id = str(p.id)
+    const status = str(p.status)
+    if (id === undefined || status === undefined) return null
+    const from = statuses.get(id)
+    statuses.set(id, status)
+    const note = str(p.note)
+    return `${at}task ${id}: ${from !== undefined && from !== status ? `${from} → ` : ''}${status}${note !== undefined ? ` — ${clip(note)}` : ''}`
+  }
+  if (p.run !== runId) return null
+  if (event.type === 'run_stopped') return STOP_SEEN
+  if (event.type === 'run_stop_requested') return `${at}stop requested`
+  if (event.type === 'run_adopted') return `${at}adopted at epoch ${String(p.epoch)} — a --resume took the run over`
+  if (event.type === 'handoff') {
+    const task = str(p.task)
+    const session = str(p.session_id)
+    const detail = str(p.detail)
+    return `${at}handoff ${String(p.reason)}${task !== undefined ? ` on ${task}` : ''}${session !== undefined ? ` (session ${session.slice(0, 8)})` : ''}${detail !== undefined ? ` — ${clip(detail)}` : ''}`
+  }
+  return null
 }
 
 /**

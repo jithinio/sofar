@@ -306,9 +306,15 @@ export class CodexSession implements AgentSession {
       case 'turn.completed': {
         const u = decoded.usage
         if (!isObj(u)) return
+        // Each count already holds its subset: input_tokens includes
+        // cached_input_tokens, output_tokens includes reasoning_output_tokens.
+        // Codex's own total_tokens is input + output (a round-1 rollout:
+        // 4,212,754 + 32,658 = 4,245,412), so adding a subset counts it twice
+        // (bench-refresh L27). Like Cursor's, it is the session's total across
+        // every model call, not the context held at the end.
         this.finalUsage = {
-          context_tokens: num(u.input_tokens) + num(u.cached_input_tokens),
-          output_tokens: num(u.output_tokens) + num(u.reasoning_output_tokens),
+          context_tokens: num(u.input_tokens),
+          output_tokens: num(u.output_tokens),
         }
         return
       }

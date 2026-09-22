@@ -22,7 +22,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ulid } from 'ulid'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { runDriveAwait, runDriveStop } from '../src/cli/drive'
+import { runDriveAwait, runDriveFollow, runDriveStop } from '../src/cli/drive'
 import { createStatusWatchModel, runStatus } from '../src/cli/status'
 import type { Caps } from '../src/cli/ui'
 import { foldLog, latestRun, type InitiativeState } from '../src/core/fold'
@@ -726,6 +726,90 @@ describe.skipIf(!PLATFORM_LOCK)('sofar drive --await (drive-visibility 3.1)', ()
   })
 })
 
+describe.skipIf(!PLATFORM_LOCK)('sofar drive --follow (drive-visibility 3.4)', () => {
+  it('has nothing to follow on a record never driven, or whose latest run already ended — exit 1', async () => {
+    const r = repo()
+    expect((await runDriveFollow(r.root, 'demo', { lock: { env: stateEnv() } })).stderr).toContain('"demo" has never been driven — nothing to follow')
+    const run = openRun(r)
+    append(r, 'run_stopped', { run, reason: 'closed' })
+    const ended = await runDriveFollow(r.root, 'demo', { lock: { env: stateEnv() } })
+    expect(ended.exitCode).toBe(1)
+    expect(ended.stderr).toContain('nothing to follow — the latest run on "demo" already ended: ')
+  })
+
+  it('narrates each handoff, task change, adoption and stop request as it lands, then ends on the stop', async () => {
+    const r = repo()
+    const env = stateEnv()
+    const run = openRun(r)
+    const claim = await claimRunLock(r.root, run, { env })
+    const lines: string[] = []
+    const notices: string[] = []
+    const following = runDriveFollow(r.root, 'demo', { pollMs: 10, lock: { env }, onLine: (l) => lines.push(l), onNotice: (l) => notices.push(l) })
+    append(r, 'task_status_changed', { id: '1.1', status: 'active' })
+    await until(() => lines.length === 1)
+    append(r, 'task_status_changed', { id: '1.1', status: 'done' })
+    append(r, 'handoff', { run, session_id: 'a1b2c3d4-e5f6', reason: 'task_done', task: '1.1' })
+    // Another run's events and a line that does not parse are skipped, never fatal.
+    append(r, 'run_stop_requested', { run: ulid() })
+    appendFileSync(r.log, 'not json\n')
+    // A torn line is read once it is whole.
+    appendFileSync(r.log, '{"type":"run_stop_req')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    appendFileSync(r.log, `uested","ts":"2026-09-22T10:00:00.000Z","payload":{"run":"${run}"}}\n`)
+    append(r, 'run_adopted', { run, epoch: 2 })
+    append(r, 'task_status_changed', { id: '1.2', status: 'blocked', note: 'which region:\nus-east or eu-west?' })
+    append(r, 'handoff', { run, session_id: 'f9e8d7c6-b5a4', reason: 'needs_user', task: '1.2' })
+    append(r, 'run_stopped', { run, reason: 'needs_user', note: '1.2 is blocked — read its note' })
+    if (claim.kind === 'claimed') claim.lock.release()
+    const res = await following
+    expect(res.exitCode, res.stderr).toBe(0)
+    const time = String.raw`\d\d:\d\d:\d\d `
+    expect(lines.map((l) => l.replace(new RegExp(`^${time}`), ''))).toEqual([
+      'task 1.1: pending → active',
+      'task 1.1: active → done',
+      'handoff task_done on 1.1 (session a1b2c3d4)',
+      'stop requested',
+      'adopted at epoch 2 — a --resume took the run over',
+      'task 1.2: pending → blocked — which region: us-east or eu-west?',
+      'handoff needs_user on 1.2 (session f9e8d7c6)',
+    ])
+    for (const line of lines) expect(line).toMatch(new RegExp(`^${time}`))
+    expect(res.stdout).toContain('stopped: needs_user')
+    expect(res.stdout).toContain("1.2's note: which region: us-east or eu-west?")
+    expect(notices).toEqual([expect.stringContaining(`sofar drive --follow: run ${run} via fake, task policy — 0 handoffs; running — ^C stops following, not the run`)])
+  })
+
+  it('ends on the driver-gone line (exit 2) when the lock falls with no stop', async () => {
+    const r = repo()
+    const env = stateEnv()
+    const run = openRun(r)
+    const claim = await claimRunLock(r.root, run, { env })
+    const lines: string[] = []
+    const following = runDriveFollow(r.root, 'demo', { pollMs: 10, lock: { env }, onLine: (l) => lines.push(l), onNotice: () => {} })
+    append(r, 'handoff', { run, session_id: 'S1', reason: 'stall', detail: 'exit 1; stderr: logged out' })
+    await until(() => lines.length === 1)
+    if (claim.kind === 'claimed') claim.lock.release()
+    const res = await following
+    expect(res.exitCode).toBe(2)
+    expect(lines[0]).toMatch(/handoff stall \(session S1\) — exit 1; stderr: logged out$/)
+    expect(res.stdout).toContain(`run ${run} on "demo" has no stop and its driver is gone`)
+  })
+
+  it('with no lock on this machine, says it follows the record alone, and a stop still ends it', async () => {
+    const r = repo()
+    const run = openRun(r)
+    const notices: string[] = []
+    const following = runDriveFollow(r.root, 'demo', { pollMs: 10, lock: { env: stateEnv() }, onLine: () => {}, onNotice: (l) => notices.push(l) })
+    await until(() => notices.length === 2)
+    expect(notices[0]).toContain('liveness unknown')
+    expect(notices[1]).toContain(`run ${run} has no run lock on this machine (liveness unknown) — following the record alone`)
+    append(r, 'run_stopped', { run, reason: 'max_sessions' })
+    const res = await following
+    expect(res.exitCode).toBe(0)
+    expect(res.stdout).toContain('stopped: max_sessions')
+  })
+})
+
 // ---------------------------------------------------------------------------
 // Real processes, through the built CLI
 // ---------------------------------------------------------------------------
@@ -822,11 +906,13 @@ describe.skipIf(!PLATFORM_LOCK)('--await on a real driver (drive-visibility 3.1)
     ])
   })
 
-  it('refuses any flag beside it but --root', () => {
+  it('--await and --follow each refuse any flag beside them but --root', () => {
     const r = repo()
-    const res = cli(r, ['drive', 'demo', '--await', '--resume'], stateEnv())
-    expect(res.status).toBe(1)
-    expect(res.stderr).toContain('sofar drive --await takes no other flag but --root (got --resume)')
+    for (const flag of ['--await', '--follow']) {
+      const res = cli(r, ['drive', 'demo', flag, '--resume'], stateEnv())
+      expect(res.status).toBe(1)
+      expect(res.stderr).toContain(`sofar drive ${flag} takes no other flag but --root (got --resume)`)
+    }
   })
 })
 

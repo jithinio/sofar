@@ -1966,6 +1966,13 @@ answer every host can reach (see the Host tiers section).
   or a FREE lock — for a terminal, or for narration the operator asked for.
   It is not the agent default: every line under an agent's monitor is a
   model turn, and Claude Code ends a monitor after 30 minutes (2.1.271).
+  Each event line leads with the event's local time and lands on stdout
+  as it is appended, in log order. A task change reads `task <id>: <from> →
+  <to>` with its note clipped, and a line that does not parse is skipped.
+  It ENDS as `--await` does, on the same line and exit code (0 on the stop,
+  2 when the lock goes FREE with no stop, 1 with nothing to follow). Its
+  opening line (the run as `sofar status` describes it, and that ^C stops
+  following, not the run) and the ABSENT notice go to stderr.
 - The UserPromptSubmit shim adds one drive line —
   `sofar drive: run <id> <running|driver gone|liveness unknown|stopped:
   reason> · <n> handoffs · now on <task> · <done>/<total>` — for the
@@ -1993,10 +2000,16 @@ answer every host can reach (see the Host tiers section).
   `stall` red, `closed` green, a limit or an interrupt dim. The lock is
   probed only while a run is open. The Claude desktop app does not render
   statusLine (claude-code#41456).
-- The protocol block tells an agent, after `--detach`, to run `sofar drive
-  <slug> --await` in its background shell and relay the line it prints; a
-  host with no background shell points the operator at the prompt line, the
-  statusline or `sofar status`.
+- The protocol block (drive-visibility 3.6) tells an agent, after
+  `--detach`, to ask the operator when the opening lines say keep-awake is
+  unset and save the answer with `sofar drive --keep-awake-setting on|off`,
+  then to run `sofar drive <slug> --await` in its background shell and
+  relay the line it prints. The AGENTS.md block covers a host with no
+  background shell by pointing the operator at `sofar status` and the
+  prompt line. Only DRIVING changed. The CLAUDE.md block it replaced, the
+  one 0.33.0-rc.2 wrote, is in the ledger as V9, so init refreshes it and
+  doctor reports it stale. The AGENTS.md block was edited in place, since
+  no cut build carries it.
 
 **Sync and presence during a run (drive-visibility D4, D6 — paid).** For a
 LINKED repo (`.sofar/remote.json` plus a credential for its api_url), the
@@ -2603,10 +2616,12 @@ Every flag the adapter passes (`--json`, `--skip-git-repo-check`, `-m`, `-s`,
 
 Hooks apply to exec. A driven session in a project whose hooks are untrusted runs
 none of them unless it is launched with `--dangerously-bypass-hook-trust`.
-Whether exec trusts the project layer at all is unverified. The binary also
-computes a `non_cached_input`, which suggests `input_tokens` already counts
-cached tokens. The adapter adds the two, so its context figure may
-double-count (unverified).
+Whether exec trusts the project layer at all is unverified. `input_tokens`
+already counts the cached tokens and `output_tokens` the reasoning ones:
+round 1's rollouts show `total_tokens` = input + output (bench-refresh L27).
+So the adapter records `input_tokens` alone as the context figure and
+`output_tokens` alone as output. It used to add each subset to its total,
+which counted the subset twice.
 
 **Driven (agents-parity 3.1, D9).** The drive adapter now works whether or
 not Codex runs the project's hooks. The adapter cannot tell which at launch,
@@ -2682,7 +2697,8 @@ proof's (§Cursor host, its Proven live paragraph).
   - the Bash and apply_patch `tool_response` shapes. They are captured for
     the fixtures, but D4 names only binary and docs reads as sources, so
     adding them takes a Decision.
-  - whether `input_tokens` already counts cached tokens
+  - whether `input_tokens` already counts cached tokens (settled by round 1:
+    it does, bench-refresh L27)
   - which `sofar` a Codex hook finds
 - A failed check does not send Codex back to Tier 3 wholesale. The paragraph
   it contradicts is corrected, and so is §Host tiers, which then names what
@@ -5383,7 +5399,8 @@ Shims contain no logic — they invoke the sofar CLI.
   [--agent claude-code|codex|cursor] [--bin <path>] [--agent-arg <arg>]
   [--permission-mode <mode>]
   [--allow <rule...>] [--deny <rule...>] [--bare-tools] [--detach] [--stop]
-  [--await] [--keep-awake|--no-keep-awake] [--keep-awake-setting <on|off>]` — run an initiative task-by-task through
+  [--await] [--follow] [--keep-awake|--no-keep-awake]
+  [--keep-awake-setting <on|off>]` — run an initiative task-by-task through
   fresh headless sessions (§Driver, the loop). `--agent codex` launches
   `codex exec`. In a repo `sofar init --agents codex` wired and Codex trusts,
   its sessions are hooked; elsewhere they run on the id the pin line assigns
@@ -5391,12 +5408,11 @@ Shims contain no logic — they invoke the sofar CLI.
   the same way: hooked where the project has sofar hooks Cursor runs, on the
   assigned id elsewhere (§Driver, the cursor adapter). `--detach` starts the run as a
   process that outlives the shell that asked for it, returning once the run is
-  certain to start; `--stop` asks the latest unstopped run's driver to end it
-  and `--await` blocks until that run stops or its driver is gone, and each
-  takes no other flag but `--root`
+  certain to start. `--stop` asks the latest unstopped run's driver to end
+  it, `--await` blocks until that run stops or its driver is gone, and
+  `--follow` narrates it until then; each takes no other flag but `--root`
   (§Driver, starting a run from inside a session; watching a run). The
-  permission flags state the
-  run's surface (§Driver, the permission surface): `--allow` ADDS to sofar's
+  permission flags state the run's surface (§Driver, the permission surface): `--allow` ADDS to sofar's
   floor and `--bare-tools` drops the floor so `--allow` states the whole of
   it. An unknown mode is refused before a run is minted; the modes sofar
   accepts are the ones the agent does, since the driver builds the child's

@@ -673,6 +673,22 @@ describe('re-homing instruction (session-orientation 1.1)', () => {
     expect(AGENTS_PROTOCOL_BLOCK).not.toContain('sofar event append --type')
   })
 
+  it('tells a driving agent to settle keep-awake and watch the run with --await (drive-visibility 3.6)', () => {
+    const flat = (b: string): string => b.replace(/\s+/g, ' ')
+    for (const block of [PROTOCOL_BLOCK, AGENTS_PROTOCOL_BLOCK].map(flat)) {
+      expect(block).toContain('keep-awake is unset, ask the operator and save the answer with `sofar drive --keep-awake-setting on|off`')
+      expect(block).toContain('`sofar drive <slug> --await`')
+      expect(block).toContain("a needs_user stop carries the operator's question")
+    }
+    expect(flat(PROTOCOL_BLOCK)).toContain('`sofar drive <slug> --await` in a background shell')
+    // A host with no background shell is pointed at what every host can reach.
+    expect(flat(AGENTS_PROTOCOL_BLOCK)).toContain('If it cannot, tell the operator the run shows in `sofar status`')
+    // Only DRIVING changed: the shipped block before it is this one minus the new sentences.
+    const before = SHIPPED_PROTOCOL_BLOCKS[SHIPPED_PROTOCOL_BLOCKS.length - 1]!
+    const driving = (b: string): string => /- DRIVING:[\s\S]*?(?=\n- BEFORE FINISHING)/.exec(b)![0]
+    expect(PROTOCOL_BLOCK.replace(driving(PROTOCOL_BLOCK), driving(before))).toBe(before)
+  })
+
   it('keeps every block sofar ever shipped classifiable as stale, in both dialects', () => {
     // The ledger is the whole delivery mechanism (speed-2 T6): a predecessor
     // that stops byte-matching silently becomes "customized", and the repo
