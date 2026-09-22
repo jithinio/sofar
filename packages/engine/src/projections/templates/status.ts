@@ -366,12 +366,26 @@ export function renderFullStatus(
         for (const rule of s.allow) lines.push(`    allow ${rule}`)
         for (const rule of s.deny ?? []) lines.push(`    deny ${rule}`)
       }
+      // Handoffs and takeovers on one timeline (drive-visibility 2.2), by
+      // time; the sort is stable, so a record with no adoption lists its
+      // handoffs exactly as before.
+      const timeline: { ts: string; line: string }[] = []
       for (const h of run.handoffs) {
         const task = h.task !== undefined ? `, task ${h.task}` : ''
         const tokens = h.tokens !== undefined ? `, ${h.tokens} tokens` : ''
         const detail = h.detail !== undefined ? ` (${h.detail})` : ''
-        lines.push(`  - ${h.ts} session ${h.session_id} — ${h.reason}${task}${tokens}${detail}`)
+        timeline.push({ ts: h.ts, line: `  - ${h.ts} session ${h.session_id} — ${h.reason}${task}${tokens}${detail}` })
       }
+      // An adoption that did not outrank every one before it never held the
+      // run — a race another driver won — and says so.
+      let highest = 1
+      for (const a of run.adoptions) {
+        const lost = a.epoch <= highest ? ', outranked — never in force' : ''
+        highest = Math.max(highest, a.epoch)
+        timeline.push({ ts: a.ts, line: `  - ${a.ts} resumed — epoch ${a.epoch}${lost}` })
+      }
+      timeline.sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0))
+      for (const entry of timeline) lines.push(entry.line)
     }
   }
 

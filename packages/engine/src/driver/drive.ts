@@ -10,7 +10,7 @@ import {
   type TaskRoute,
 } from '@sofar/schema'
 import type { InitiativeState, PhaseState } from '../core/fold'
-import { latestRun } from '../core/fold'
+import { latestRun, stopRequestsInForce } from '../core/fold'
 import { claimRunLock, probeRunLock, type RunLock, type RunLockOptions } from '../core/run-lock'
 import { createToolContext, ToolError } from '../mcp/context'
 import type { NudgeDetail } from './nudge'
@@ -122,31 +122,38 @@ export const NUDGE_POLL_MS = 2_000
 
 /**
  * How often a driver waiting on a session looks for `sofar drive --stop`
- * (in-session-drive D2). A request is an operator who has already decided, so
+ * (in-session-drive D2) and for another driver's adoption of its run
+ * (drive-visibility 2.2). Either is someone who has already decided, so
  * seconds matter more than they do for the gauge, and a tick is a stat.
  */
 export const STOP_POLL_MS = 2_000
 
-/** The bytes a stop request's line must contain — the byte scan's only question. */
-const STOP_REQUEST_MARKER = '"run_stop_requested"'
+/**
+ * The bytes a line must contain for the byte scan to fold: a stop request, or
+ * an adoption that may have taken the run from this driver. Nothing else a
+ * session appends can change what the driver does next while it waits.
+ */
+const RUN_EVENT_MARKERS = ['"run_stop_requested"', '"run_adopted"'] as const
+const MARKER_CARRY = Math.max(...RUN_EVENT_MARKERS.map((m) => m.length))
 
 /**
- * Watch the log for a stop request while a session runs (in-session-drive D2).
+ * Watch the log for a stop request or an adoption while a session runs
+ * (in-session-drive D2, drive-visibility 2.2).
  *
  * Cheap by construction: a tick stats the log, reads only the bytes appended
- * since the last one, and calls `onRequest` only when those bytes name a stop
- * request. Driven sessions write on every tool call, so a fold per tick would
+ * since the last one, and calls `onMatch` only when those bytes name one of
+ * the two. Driven sessions write on every tool call, so a fold per tick would
  * cost more than the session being watched. The scan decides nothing — the
  * caller folds and counts — it only says when the fold is worth asking.
  */
-export function watchStopRequests(
+export function watchRunEvents(
   path: string,
   from: number,
-  onRequest: () => void,
+  onMatch: () => void,
   intervalMs: number = STOP_POLL_MS,
 ): () => void {
   let offset = from
-  // The marker can straddle two reads; carrying its length back covers that.
+  // A marker can straddle two reads; carrying the longest one's length back covers that.
   let carry = ''
   const tick = (): void => {
     let size: number
@@ -169,8 +176,8 @@ export function watchStopRequests(
       closeSync(fd)
     }
     offset = size
-    carry = text.slice(-STOP_REQUEST_MARKER.length)
-    if (text.includes(STOP_REQUEST_MARKER)) onRequest()
+    carry = text.slice(-MARKER_CARRY)
+    if (RUN_EVENT_MARKERS.some((marker) => text.includes(marker))) onMatch()
   }
   const timer = setInterval(tick, intervalMs)
   timer.unref()
@@ -179,6 +186,23 @@ export function watchStopRequests(
 
 /** What an interrupted run's stop says when a request, not a signal, ended it. */
 export const STOP_REQUEST_NOTE = 'stop requested with `sofar drive --stop`'
+
+/**
+ * A driver whose run another driver adopted at a higher epoch (drive-visibility
+ * 2.2). It has stepped down: launched nothing more, filed no handoff and no
+ * stop — the run is the new owner's — and the CLI exits 1 on it.
+ */
+export class DriveFenced extends Error {
+  constructor(
+    readonly run: string,
+    readonly epoch: number,
+  ) {
+    super(
+      `sofar drive: run ${run} was adopted at epoch ${epoch} by another driver — this one stepped down, filing no handoff and no stop; the run is that driver's now`,
+    )
+    this.name = 'DriveFenced'
+  }
+}
 
 /** How long a signalled session gets to exit on its own before SIGKILL. */
 export const KILL_GRACE_MS = 10_000
@@ -685,9 +709,6 @@ async function driveHolding(
     }
   }
   const runId = resuming ? last.id : ulid()
-  // Requests older than this belong to a driver that is gone (in-session-drive
-  // D2): one left for a driver that died must not stop the --resume after it.
-  const adoptedAt = new Date().toISOString()
   if (!resuming) {
     opening.push(`run ${runId} — ${adapter.name}, ${policy} policy, in ${cwd}`)
     if (surface !== undefined) opening.push(`  permissions: ${describeSurface(surface)}`)
@@ -750,8 +771,24 @@ async function driveHolding(
     )
   }
 
-  if (!resuming) {
-    ctx.appendAndProject(
+  // Who this driver is in the fold (drive-visibility 2.2): run_started's own
+  // id at epoch 1 for a fresh run; for a resumed one, the adoption it appends
+  // at one more than the run's highest epoch, read AFTER the claim so a
+  // takeover that landed while this driver was preflighting is outranked.
+  let mine: { id: string; epoch: number }
+  if (resuming) {
+    const current = ctx.foldState(initiative).runs.find((r) => r.id === runId) ?? last
+    const epoch = current.owner.epoch + 1
+    const adopted = ctx.appendAndProject(
+      initiative,
+      'run_adopted',
+      { run: runId, epoch },
+      { session: 'cli', source: 'cli', actor: 'human' },
+    )
+    mine = { id: adopted.id, epoch }
+    opening.push(`  adopted at epoch ${epoch} — a driver still holding an earlier epoch steps down when it sees this`)
+  } else {
+    const started = ctx.appendAndProject(
       initiative,
       'run_started',
       {
@@ -766,6 +803,7 @@ async function driveHolding(
       },
       { session: 'cli', source: 'cli', actor: 'human' },
     )
+    mine = { id: started.id, epoch: 1 }
   }
   for (const line of opening) progress(line)
 
@@ -891,10 +929,29 @@ async function driveHolding(
     }
   }
   const onSignal = (): void => interrupt('signal')
+  /**
+   * The epoch that took this run from this driver, once one has (drive-
+   * visibility 2.2). Set, never cleared: a driver that has lost its run does
+   * not win it back, and from then on it only waits for its live session.
+   */
+  let fenced: number | undefined
+  const checkOwner = (folded: InitiativeState): void => {
+    if (fenced !== undefined) return
+    const owner = folded.runs.find((r) => r.id === runId)?.owner
+    if (owner === undefined || owner.id === mine.id) return
+    fenced = owner.epoch
+    // Nothing is signalled: a live session is real work whose write-back the
+    // new owner resumes from.
+    progress(
+      `fenced: run ${runId} was adopted at epoch ${owner.epoch} — ${live !== undefined ? 'waiting for the live session to exit, then ' : ''}launching nothing more`,
+    )
+  }
   /** Honour every request the fold shows for this run since this driver took it. */
   const takeRequests = (folded: InitiativeState): void => {
     const run = folded.runs.find((r) => r.id === runId)
-    const count = run?.stop_requests.filter((ts) => ts >= adoptedAt).length ?? 0
+    // In force = sorting after the owner's adoption, which is this driver's
+    // own while checkOwner has not fenced it (drive-visibility 2.2).
+    const count = run !== undefined ? stopRequestsInForce(run).length : 0
     for (; honoured < count; honoured += 1) interrupt('request')
   }
   const interruptedStop = (why?: string): { reason: RunStopReason; note?: string } => {
@@ -911,6 +968,8 @@ async function driveHolding(
       // request landing between the two is seen by both, and counted once.
       const watchFrom = existsSync(eventsPath) ? statSync(eventsPath).size : 0
       const state = ctx.foldState(initiative)
+      checkOwner(state)
+      if (fenced !== undefined) break
       takeRequests(state)
       if (interrupted) {
         stop = interruptedStop()
@@ -1007,10 +1066,15 @@ async function driveHolding(
         ...(surface !== undefined ? { surface } : {}),
       })
       live = session
-      const unwatch = watchStopRequests(
+      const unwatch = watchRunEvents(
         eventsPath,
         watchFrom,
-        () => takeRequests(ctx.foldState(initiative)),
+        () => {
+          const folded = ctx.foldState(initiative)
+          checkOwner(folded)
+          // A fenced driver's requests are the new owner's to honour.
+          if (fenced === undefined) takeRequests(folded)
+        },
         options.stopPollMs,
       )
       const gauge =
@@ -1033,6 +1097,10 @@ async function driveHolding(
       cost += exit.usage?.cost_usd ?? 0
 
       const after = ctx.foldState(initiative)
+      // An adoption that landed after the last scan tick is caught here, before
+      // anything is filed: a fenced driver files no handoff for the new owner's run.
+      checkOwner(after)
+      if (fenced !== undefined) break
       const resolved = resolveLaunchedSession(after, exit, launchedAt, routed.name, knownSessions)
       if (resolved.kind !== 'found') {
         // No session to name, so no handoff to file (D3). It still counts as a
@@ -1149,6 +1217,10 @@ async function driveHolding(
     process.removeListener('SIGINT', onSignal)
     process.removeListener('SIGTERM', onSignal)
   }
+
+  // Stepped down (drive-visibility 2.2): no run_stopped, since the run is the
+  // new owner's and a stop filed here would end it under that driver.
+  if (fenced !== undefined) throw new DriveFenced(runId, fenced)
 
   const ended = stop ?? { reason: 'error' as RunStopReason, note: 'the loop ended without a stop rule' }
   ctx.appendAndProject(

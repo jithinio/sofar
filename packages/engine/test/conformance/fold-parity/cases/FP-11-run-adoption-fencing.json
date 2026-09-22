@@ -1,0 +1,10 @@
+{
+  "tail_at": 7,
+  "seeds": [
+    31,
+    32,
+    33
+  ],
+  "order_independence": true,
+  "note": "drive-visibility 2.2: run_started is epoch 1; an epoch-1 adoption is an invalid payload and one for a run that never started is skipped; the owner is the highest epoch, first id on a tie; stop_requests carry event ids, and only the request after the owner adoption is in force; the tail starts at the first epoch-3 adoption"
+}

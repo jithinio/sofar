@@ -10,6 +10,7 @@ import {
   awaitSession,
   describeExit,
   drive,
+  DriveFenced,
   handoffReason,
   nextTask,
   renderPrompt,
@@ -1204,8 +1205,9 @@ describe('stopping a run from outside its driver (in-session-drive D2)', () => {
         actor: 'human',
       }),
     )
+    // No pause before the resume: the request and the adoption are ordered by
+    // their ids (drive-visibility 2.2), not by whose clock read later.
     requestStop(root, open)
-    await new Promise((r) => setTimeout(r, 5))
     const adapter = new FakeAdapter([worker(root, 'R1'), worker(root, 'R2')])
     const outcome = await drive(root, 'demo', { adapter, resume: true, stopPollMs: 5 })
     expect(outcome.run).toBe(open)
@@ -1313,5 +1315,162 @@ describe('sofar drive --stop (in-session-drive D2)', () => {
     expect(res.stderr).toContain('no run_stopped within')
     expect(res.stderr).toContain('--resume')
     expect(state(root).runs.at(-1)?.stop_requests).toHaveLength(1)
+  })
+})
+
+describe('fencing a takeover (drive-visibility 2.2) — one event per takeover, never a heartbeat', () => {
+  function append(root: string, type: string, payload: Record<string, unknown>): void {
+    appendEvent(logPath(root), makeEvent({ initiative: 'demo', session: 'cli', type, payload, source: 'cli', actor: 'human' }))
+  }
+  const runningId = (root: string): string => state(root).runs.at(-1)!.id
+  /** Event types after the last line of `type` — what a fenced driver must not have written. */
+  function typesAfter(root: string, type: string): string[] {
+    const types = readTypes(root)
+    return types.slice(types.lastIndexOf(type) + 1)
+  }
+
+  it('--resume appends run_adopted at one more than the highest epoch, before its first launch', async () => {
+    const root = repo('adopt-epoch')
+    const open = '01JZ8B3V0N5B4W8XK2M9QF7TSH'
+    append(root, 'run_started', { run: open, adapter: 'fake', policy: 'task', max_sessions: 1 })
+    const lines: string[] = []
+    const adapter = new FakeAdapter([worker(root, 'S1')])
+    await drive(root, 'demo', { adapter, resume: true, onProgress: (l) => lines.push(l) })
+    const run = state(root).runs.at(-1)!
+    expect(run.adoptions.map((a) => a.epoch)).toEqual([2])
+    expect(run.owner.epoch).toBe(2)
+    // Before the first launch: the adoption precedes the session it launched.
+    const types = readTypes(root)
+    expect(types.indexOf('run_adopted')).toBeLessThan(types.indexOf('session_started'))
+    expect(lines).toContain('  adopted at epoch 2 — a driver still holding an earlier epoch steps down when it sees this')
+
+    // A second takeover of a run already at epoch 2 claims 3.
+    const again = repo('adopt-epoch-3')
+    append(again, 'run_started', { run: open, adapter: 'fake', policy: 'task', max_sessions: 1 })
+    append(again, 'run_adopted', { run: open, epoch: 2 })
+    await drive(again, 'demo', { adapter: new FakeAdapter([worker(again, 'S1')]), resume: true })
+    expect(state(again).runs.at(-1)!.owner.epoch).toBe(3)
+  })
+
+  it('a fresh run records no adoption — run_started is its epoch 1', async () => {
+    const root = repo('adopt-fresh')
+    await drive(root, 'demo', { adapter: new FakeAdapter([worker(root, 'S1'), worker(root, 'S2')]) })
+    expect(readTypes(root)).not.toContain('run_adopted')
+    expect(state(root).runs.at(-1)!.owner.epoch).toBe(1)
+  })
+
+  it('adopted while its session ran: files no handoff and no stop, launches nothing more, and rejects fenced', async () => {
+    const root = repo('fence-after-exit')
+    const adapter = new FakeAdapter([worker(root, 'F1'), worker(root, 'F2')])
+    const original = adapter.launch.bind(adapter)
+    adapter.launch = (request) => {
+      const session = original(request)
+      const done = session.wait.bind(session)
+      session.wait = async () => {
+        const exit = await done()
+        // Another machine's --resume, synced in while this session ran.
+        append(root, 'run_adopted', { run: runningId(root), epoch: 2 })
+        return exit
+      }
+      return session
+    }
+    const lines: string[] = []
+    // A poll slower than the session: the fold after the exit must catch it.
+    const attempt = drive(root, 'demo', { adapter, stopPollMs: 60_000, onProgress: (l) => lines.push(l) })
+    await expect(attempt).rejects.toBeInstanceOf(DriveFenced)
+    await expect(attempt).rejects.toThrow('adopted at epoch 2 by another driver')
+    expect(adapter.sessions).toHaveLength(1)
+    expect(typesAfter(root, 'run_adopted')).toEqual([])
+    expect(state(root).runs.at(-1)!.stopped).toBeUndefined()
+    expect(lines.some((l) => l.startsWith(`fenced: run ${runningId(root)} was adopted at epoch 2`))).toBe(true)
+  })
+
+  it('adopted between sessions: the handoff already filed stands, and the next launch never happens', async () => {
+    const root = repo('fence-between')
+    const adapter = new FakeAdapter([worker(root, 'B1'), worker(root, 'B2')])
+    const attempt = drive(root, 'demo', {
+      adapter,
+      onProgress: (line) => {
+        if (line.startsWith('  task_done — session B1')) append(root, 'run_adopted', { run: runningId(root), epoch: 2 })
+      },
+    })
+    await expect(attempt).rejects.toBeInstanceOf(DriveFenced)
+    expect(adapter.sessions).toHaveLength(1)
+    const run = state(root).runs.at(-1)!
+    expect(run.handoffs.map((h) => h.session_id)).toEqual(['B1'])
+    expect(run.stopped).toBeUndefined()
+  })
+
+  it('adopted mid-session: the byte scan finds it, signals nothing, and waits for the session to exit', async () => {
+    const root = repo('fence-scan')
+    let end!: () => void
+    let signalled: NodeJS.Signals | undefined
+    const adapter: Adapter = {
+      name: 'fake',
+      capabilities: { usage: false, nudge: false, model: false, effort: false, permission_rules: true, cost: false },
+      launch: () => ({
+        usage: () => undefined,
+        kill: (signal: NodeJS.Signals = 'SIGTERM') => {
+          signalled = signal
+        },
+        wait: () => new Promise<SessionExit>((resolve) => (end = () => resolve({ code: 0 }))),
+      }),
+    }
+    const lines: string[] = []
+    const attempt = drive(root, 'demo', { adapter, stopPollMs: 5, onProgress: (l) => lines.push(l) })
+    attempt.catch(() => {})
+    const deadline = Date.now() + 5_000
+    while (end === undefined && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5))
+    append(root, 'run_adopted', { run: runningId(root), epoch: 2 })
+    while (!lines.some((l) => l.startsWith('fenced:')) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5))
+    expect(lines.find((l) => l.startsWith('fenced:'))).toContain('waiting for the live session to exit')
+    // The live session is real work whose write-back the new owner resumes from.
+    expect(signalled).toBeUndefined()
+    end()
+    await expect(attempt).rejects.toBeInstanceOf(DriveFenced)
+    expect(typesAfter(root, 'run_adopted')).toEqual([])
+  })
+
+  it('a stop request sorting before the adoption is ignored by the new owner; one after it is honoured', async () => {
+    const root = repo('fence-requests')
+    const open = '01JZ8B3V0N5B4W8XK2M9QF7TSJ'
+    append(root, 'run_started', { run: open, adapter: 'fake', policy: 'task' })
+    append(root, 'run_stop_requested', { run: open })
+    const adapter = new FakeAdapter([worker(root, 'Q1'), worker(root, 'Q2')])
+    const original = adapter.launch.bind(adapter)
+    adapter.launch = (request) => {
+      const session = original(request)
+      const done = session.wait.bind(session)
+      session.wait = async () => {
+        const exit = await done()
+        append(root, 'run_stop_requested', { run: open })
+        return exit
+      }
+      return session
+    }
+    const outcome = await drive(root, 'demo', { adapter, resume: true, stopPollMs: 60_000 })
+    // The stale request did not stop the resume before its first launch; the
+    // fresh one ended the run after it.
+    expect(adapter.sessions).toHaveLength(1)
+    expect(outcome.stop).toEqual({ reason: 'interrupted', note: STOP_REQUEST_NOTE })
+  })
+
+  it('the CLI exits 1 on a fenced driver, with the reason', async () => {
+    const root = repo('fence-cli')
+    const adapter = new FakeAdapter([worker(root, 'C1'), worker(root, 'C2')])
+    const original = adapter.launch.bind(adapter)
+    adapter.launch = (request) => {
+      const session = original(request)
+      const done = session.wait.bind(session)
+      session.wait = async () => {
+        const exit = await done()
+        append(root, 'run_adopted', { run: runningId(root), epoch: 2 })
+        return exit
+      }
+      return session
+    }
+    const res = await runDrive(root, 'demo', { adapter }, () => {})
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toContain('stepped down, filing no handoff and no stop')
   })
 })

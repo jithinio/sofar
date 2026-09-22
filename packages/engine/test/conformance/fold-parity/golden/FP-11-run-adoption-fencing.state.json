@@ -1,0 +1,119 @@
+{
+  "state": {
+    "current": {
+      "active_phase": "Phase 1 — first",
+      "next_action": null
+    },
+    "cursor": "01KDVDNMQRY50ZJ9M36D87THWB",
+    "decisions": [],
+    "drop_notes": {},
+    "files_touched": [],
+    "freshness": {
+      "events_since_writeback": {
+        "commands": 0,
+        "decisions": 0,
+        "files": 0,
+        "memories": 0,
+        "notes": 0,
+        "phases": 0,
+        "reviews": 0,
+        "tasks": 0
+      },
+      "last_writeback_ts": null,
+      "notes": [],
+      "unattributed_mutations": 0
+    },
+    "goal": "a goal of realistic length for the parity suite",
+    "guard_violations": [],
+    "memories": [],
+    "phases": [
+      {
+        "name": "Phase 1 — first",
+        "status": "active",
+        "tasks": [
+          {
+            "id": "1.1",
+            "status": "active",
+            "title": "task 1"
+          },
+          {
+            "id": "1.2",
+            "status": "pending",
+            "title": "task 2"
+          }
+        ]
+      },
+      {
+        "name": "Phase 2 — second",
+        "status": "pending",
+        "tasks": [
+          {
+            "id": "2.1",
+            "route": {
+              "agent": "codex"
+            },
+            "status": "pending",
+            "title": "later",
+            "verify": {
+              "cmd": "npm test"
+            }
+          }
+        ]
+      }
+    ],
+    "reviews": [],
+    "runs": [
+      {
+        "adapter": "claude-code",
+        "adoptions": [
+          {
+            "epoch": 2,
+            "id": "01KDVDNGTRA1CVY50ZJ9M36D87",
+            "ts": "2026-01-01T00:00:07.000Z"
+          },
+          {
+            "epoch": 3,
+            "id": "01KDVDNHT07THWBENGF2S4KPXR",
+            "ts": "2026-01-01T00:00:08.000Z"
+          },
+          {
+            "epoch": 3,
+            "id": "01KDVDNJS84KPXRQA1CVY50ZJ9",
+            "ts": "2026-01-01T00:00:09.000Z"
+          },
+          {
+            "epoch": 2,
+            "id": "01KDVDNKRG1CVY50ZJ9M36D87T",
+            "ts": "2026-01-01T00:00:10.000Z"
+          }
+        ],
+        "done_tasks": [],
+        "handoffs": [],
+        "id": "01J00000000000000000000000",
+        "owner": {
+          "epoch": 3,
+          "id": "01KDVDNHT07THWBENGF2S4KPXR"
+        },
+        "policy": "task",
+        "stop_requests": [
+          "01KDVDNDX0KPXRQA1CVY50ZJ9M",
+          "01KDVDNMQRY50ZJ9M36D87THWB"
+        ],
+        "ts": "2026-01-01T00:00:03.000Z",
+        "verifications": []
+      }
+    ],
+    "sessions": [],
+    "slug": "demo",
+    "status": "active",
+    "status_note": null,
+    "status_overrides": [],
+    "status_ts": null,
+    "successor": null,
+    "task_files": {}
+  },
+  "warnings": [
+    "line 5: invalid run_adopted payload (epoch: must be an integer of at least 2 — run_started is epoch 1) — skipped",
+    "line 6: adoption of run \"01J0000000000000000000GONE\" that never started — skipped"
+  ]
+}

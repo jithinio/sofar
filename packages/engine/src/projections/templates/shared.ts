@@ -1,5 +1,6 @@
 import {
   standingRules,
+  stopRequestsInForce,
   type DecisionState,
   type FreshnessState,
   type RunState,
@@ -64,13 +65,18 @@ export function describeRun(run: RunState): string {
   const checks =
     run.verifications.length > 0 ? `, ${passes}/${run.verifications.length} verification${run.verifications.length === 1 ? '' : 's'} passed` : ''
   const handoffs = `${n} handoff${n === 1 ? '' : 's'}${breakdown.length > 0 ? ` (${breakdown})` : ''}${checks}`
+  // Only the requests the owner must honour (drive-visibility 2.2): one left
+  // for a driver that died is not a stop the resumed run is ignoring.
+  const requests = stopRequestsInForce(run).length
   const fate =
     run.stop_reason !== undefined
       ? `stopped: ${run.stop_reason}${run.stop_note !== undefined ? ` — ${run.stop_note}` : ''}`
-      : run.stop_requests.length > 0
-        ? `running — stop requested${run.stop_requests.length > 1 ? ` ${run.stop_requests.length} times` : ''}, not yet stopped`
+      : requests > 0
+        ? `running — stop requested${requests > 1 ? ` ${requests} times` : ''}, not yet stopped`
         : 'running'
-  return `run ${run.id} via ${run.adapter}, ${policy} — ${handoffs}; ${fate}`
+  // A resumed run says so, and at which epoch; one never resumed renders as before.
+  const resumed = run.owner.epoch > 1 ? `, resumed (epoch ${run.owner.epoch})` : ''
+  return `run ${run.id} via ${run.adapter}, ${policy}${resumed} — ${handoffs}; ${fate}`
 }
 
 /**

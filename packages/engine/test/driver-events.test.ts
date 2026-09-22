@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { validatePayload } from '@sofar/schema'
-import { foldLog, freshnessTotal, latestRun } from '../src/core/fold'
+import { foldLog, freshnessTotal, latestRun, stopRequestsInForce } from '../src/core/fold'
 import { makeEvent } from '../src/core/envelope'
 import { appendEvent } from '../src/core/log'
 import { renderFullStatus, renderStatus } from '../src/projections/templates/status'
@@ -364,5 +364,77 @@ describe('run_stop_requested (in-session-drive D2) — a request, never a stop',
   it('once the run stops, the stop is the fate the render states', () => {
     const { state } = foldLog(log('request-stopped', [started, request, stopped]))
     expect(describeRun(latestRun(state)!)).toContain('stopped: needs_user')
+  })
+})
+
+describe('run_adopted (drive-visibility 2.2) — the fence a synced record carries', () => {
+  const adopt = (epoch: number, run = RUN): Line => ({ type: 'run_adopted', payload: { run, epoch } })
+  const request: Line = { type: 'run_stop_requested', payload: { run: RUN } }
+
+  it('rejects an epoch below 2 — run_started is epoch 1 — and the fold skips such a line', () => {
+    expect(validatePayload('run_adopted', { run: RUN, epoch: 2 }).ok).toBe(true)
+    expect(validatePayload('run_adopted', { run: RUN, epoch: 1 }).ok).toBe(false)
+    const { state, warnings } = foldLog(log('adopt-epoch-1', [started, adopt(1)]))
+    expect(latestRun(state)!.adoptions).toEqual([])
+    expect(latestRun(state)!.owner.epoch).toBe(1)
+    expect(warnings.join('\n')).toContain('invalid run_adopted payload')
+  })
+
+  it('run_started is the owner at epoch 1 until an adoption outranks it', () => {
+    const { state } = foldLog(log('adopt-none', [started]))
+    const run = latestRun(state)!
+    expect(run.owner.epoch).toBe(1)
+    expect(run.adoptions).toEqual([])
+  })
+
+  it('the owner is the highest epoch, and the first-sorting id on a tie', () => {
+    const { state, warnings } = foldLog(log('adopt-owner', [started, adopt(2), adopt(3), adopt(3), adopt(2)]))
+    expect(warnings).toEqual([])
+    const run = latestRun(state)!
+    expect(run.adoptions.map((a) => a.epoch)).toEqual([2, 3, 3, 2])
+    // The first epoch-3 adoption holds the run; the second lost the tie, and
+    // the late epoch-2 (a driver that had not seen epoch 3) never outranked it.
+    expect(run.owner).toEqual({ id: run.adoptions[1]!.id, epoch: 3 })
+  })
+
+  it('an adoption for a run that never started is skipped with a warning — no stub run', () => {
+    const { state, warnings } = foldLog(log('adopt-orphan', [adopt(2)]))
+    expect(state.runs).toEqual([])
+    expect(warnings.join('\n')).toContain(`adoption of run "${RUN}" that never started`)
+  })
+
+  it('stop requests are event ids, and only those sorting after the owner adoption are in force', () => {
+    const { state } = foldLog(log('adopt-requests', [started, request, adopt(2), request, request]))
+    const run = latestRun(state)!
+    expect(run.stop_requests).toHaveLength(3)
+    for (const id of run.stop_requests) expect(id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/)
+    // The one left for the driver the adoption replaced does not count.
+    expect(stopRequestsInForce(run)).toEqual(run.stop_requests.slice(1))
+    const never = latestRun(foldLog(log('adopt-requests-none', [started, request])).state)!
+    expect(stopRequestsInForce(never)).toEqual(never.stop_requests)
+  })
+
+  it('an adoption does not stale the next action — it schedules sessions, it says nothing of the plan', () => {
+    const { state } = foldLog(log('adopt-drift', [started, s1, s1end, h1, adopt(2)]))
+    expect(freshnessTotal(state.freshness)).toBe(0)
+  })
+
+  it('the render names a resumed run and its epoch, and counts only requests in force', () => {
+    const plain = foldLog(log('adopt-render-none', [started, h1])).state
+    expect(describeRun(latestRun(plain)!)).toBe(`run ${RUN} via claude-code, task policy — 1 handoff (1 task_done); running`)
+    const { state } = foldLog(log('adopt-render', [started, h1, request, adopt(2)]))
+    const line = `run ${RUN} via claude-code, task policy, resumed (epoch 2) — 1 handoff (1 task_done); running`
+    expect(describeRun(latestRun(state)!)).toBe(line)
+    expect(renderStatus(state)).toContain(`Driven: ${line}`)
+  })
+
+  it('the full status puts takeovers on the handoff timeline, and names one that lost a race', () => {
+    const { state } = foldLog(log('adopt-full', [started, s1, s1end, h1, adopt(2), adopt(2)]))
+    const text = renderFullStatus(state)
+    const run = latestRun(state)!
+    const [won, lost] = run.adoptions
+    expect(text).toContain(`  - ${won!.ts} resumed — epoch 2\n`)
+    expect(text).toContain(`  - ${lost!.ts} resumed — epoch 2, outranked — never in force`)
+    expect(text.indexOf('session s1')).toBeLessThan(text.indexOf('resumed — epoch 2'))
   })
 })

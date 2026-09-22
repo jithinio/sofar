@@ -3,7 +3,7 @@ import { closeSync, mkdirSync, openSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ToolError, createToolContext } from '../mcp/context'
-import { latestRun } from '../core/fold'
+import { latestRun, stopRequestsInForce } from '../core/fold'
 import { describeRun } from '../projections/templates/shared'
 import { ClaudeCodeAdapter } from '../driver/claude-code'
 import { CodexAdapter } from '../driver/codex'
@@ -23,7 +23,8 @@ import { errMessage, fail, ok, type CmdResult } from './shared'
  *
  * Exit code is 0 for every stop the record can explain — `needs_user` and
  * `stall` are outcomes of a working driver, not failures of the command —
- * and 1 only for `error`, or for a preflight that refused to start a run.
+ * and 1 only for `error`, for a preflight that refused to start a run, or
+ * for a driver fenced off its run by a later adoption (drive-visibility 2.2).
  */
 
 export interface DriveCliOptions {
@@ -266,7 +267,8 @@ export async function runDriveStop(
       return fail(`sofar drive --stop: nothing to stop — the latest run on "${initiative}" already ended (${describeRun(run)})`)
     }
     runId = run.id
-    requests = run.stop_requests.length + 1
+    // Only requests the run's owner honours count toward escalation (drive-visibility 2.2).
+    requests = stopRequestsInForce(run).length + 1
     ctx.appendAndProject(initiative, 'run_stop_requested', { run: runId }, { session: 'cli', source: 'cli', actor: 'human' })
   } catch (err) {
     return fail(errMessage(err))

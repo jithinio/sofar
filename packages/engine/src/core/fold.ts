@@ -35,6 +35,7 @@ import {
   type VerificationRecordedPayload,
   type VerificationResult,
   type RunStopRequestedPayload,
+  type RunAdoptedPayload,
   type ReviewRecordedPayload,
   type ReviewScope,
   type ReviewVerdict,
@@ -262,6 +263,13 @@ export interface RunHandoff {
   detail?: string
 }
 
+/** A `--resume` taking the run over (drive-visibility 2.2). */
+export interface RunAdoption {
+  id: string
+  ts: string
+  epoch: number
+}
+
 /**
  * One `sofar drive` run (session-driver 1.2, D2): the driver's ENTIRE state,
  * folded from run_started / handoff / run_stopped. A driver holds nothing
@@ -299,10 +307,21 @@ export interface RunState {
    */
   done_tasks: string[]
   /**
-   * When `sofar drive --stop` asked this run's driver to end it (in-session-drive
-   * D2), log order. Envelope timestamps, because a driver honours only the
-   * requests made after it took the run — one left behind for a driver that
-   * died must not stop the `--resume` that follows it.
+   * Takeovers by `--resume` (drive-visibility 2.2), replay order. `run_started`
+   * is epoch 1 and is not listed.
+   */
+  adoptions: RunAdoption[]
+  /**
+   * The driver in force: the highest epoch, the first-sorting id on a tie —
+   * `run_started`'s own id at epoch 1 until an adoption outranks it. A driver
+   * whose adoption is not this one steps down (drive-visibility D2's fence).
+   */
+  owner: { id: string; epoch: number }
+  /**
+   * Event ids of every `sofar drive --stop` for this run (in-session-drive D2),
+   * log order. Ids rather than timestamps (drive-visibility 2.2): only the
+   * requests sorting after the owner's adoption are in force — see
+   * `stopRequestsInForce` — and every reader compares the same bytes.
    */
   stop_requests: string[]
   stopped?: string
@@ -674,6 +693,15 @@ export function emptyState(): InitiativeState {
 /** The most recent run, or undefined when no driver has ever run this initiative. */
 export function latestRun(state: InitiativeState): RunState | undefined {
   return state.runs.length > 0 ? state.runs[state.runs.length - 1] : undefined
+}
+
+/**
+ * The stop requests the run's owner must honour (drive-visibility 2.2): those
+ * whose id sorts after the owner's adoption. One left behind for a driver that
+ * died cannot stop the `--resume` that followed it.
+ */
+export function stopRequestsInForce(run: RunState): string[] {
+  return run.stop_requests.filter((id) => id > run.owner.id)
 }
 
 function emptyFreshness(): FreshnessState {
@@ -1076,6 +1104,7 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
     case 'handoff':
     case 'run_stopped':
     case 'run_stop_requested':
+    case 'run_adopted':
     case 'verification_recorded':
       // Driver events are EXCLUDED from drift, deliberately (commit-attribution
       // D18 requires the class decided here). Drift asks whether the recorded
@@ -1642,6 +1671,8 @@ function applyEvent(
         handoffs: [],
         verifications: [],
         done_tasks: [],
+        adoptions: [],
+        owner: { id: event.id, epoch: 1 },
         stop_requests: [],
       })
       break
@@ -1739,7 +1770,22 @@ function applyEvent(
         warnings.push(`line ${lineNo}: stop requested for run "${p.run}" that never started — skipped`)
         break
       }
-      run.stop_requests.push(event.ts)
+      run.stop_requests.push(event.id)
+      break
+    }
+    case 'run_adopted': {
+      // No stub, as for a handoff: `--resume` adopts a run it found in this
+      // fold. The validator has already refused an epoch below 2.
+      const p = event.payload as unknown as RunAdoptedPayload
+      const run = state.runs.find((r) => r.id === p.run)
+      if (!run) {
+        warnings.push(`line ${lineNo}: adoption of run "${p.run}" that never started — skipped`)
+        break
+      }
+      run.adoptions.push({ id: event.id, ts: event.ts, epoch: p.epoch })
+      // Replay is in id order, so on a tie the adoption already in force
+      // sorts first and keeps the run: only a HIGHER epoch takes it.
+      if (p.epoch > run.owner.epoch) run.owner = { id: event.id, epoch: p.epoch }
       break
     }
     case 'session_started': {

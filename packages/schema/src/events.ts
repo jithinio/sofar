@@ -507,6 +507,20 @@ export interface RunStopRequestedPayload {
 }
 
 /**
+ * A driver took over a run that has no stop (drive-visibility 2.2): `sofar
+ * drive --resume` appends one before its first launch, at one more than the
+ * run's highest epoch — `run_started` is epoch 1, so an adoption is never
+ * below 2. The fencing token for a record that syncs: the fold's owner is the
+ * highest epoch (the first-sorting id on a tie), and a driver that finds it
+ * is no longer the owner steps down. One event per takeover, never a heartbeat.
+ */
+export interface RunAdoptedPayload {
+  run: string
+  /** @asType integer */
+  epoch: number
+}
+
+/**
  * What the 2.2 protocol measured about the detector behind a suggestion
  * (self-improve 2.3): a reader sees how often this signal is right without
  * leaving the row. Every field is a measurement, never an estimate.
@@ -568,6 +582,7 @@ export interface KnownEventPayloads {
   handoff: HandoffPayload
   run_stopped: RunStoppedPayload
   run_stop_requested: RunStopRequestedPayload
+  run_adopted: RunAdoptedPayload
   verification_recorded: VerificationRecordedPayload
   correction: CorrectionPayload
   suggestion_proposed: SuggestionProposedPayload
@@ -607,6 +622,7 @@ export const EVENT_TYPES = [
   'handoff',
   'run_stopped',
   'run_stop_requested',
+  'run_adopted',
   'verification_recorded',
   'correction',
   'suggestion_proposed',
@@ -1044,6 +1060,14 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
   run_stop_requested(p, e) {
     if (!str(p.run)) e.push('run: must be a non-empty string')
   },
+  run_adopted(p, e) {
+    if (!str(p.run)) e.push('run: must be a non-empty string')
+    // Epoch 1 is run_started's: an adoption at or below it could never
+    // outrank the driver that started the run, so it fences nobody.
+    if (!(Number.isInteger(p.epoch) && (p.epoch as number) >= 2)) {
+      e.push('epoch: must be an integer of at least 2 — run_started is epoch 1')
+    }
+  },
   correction(p, e) {
     if (!str(p.ref)) e.push('ref: must be a non-empty string (target event id)')
     if (!optStr(p.reason)) e.push('reason: must be a string')
@@ -1285,6 +1309,12 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
     summary: 'a request for a running drive to stop',
     fields: 'run',
     example: { run: '01J00000000000000000000000' },
+  },
+  run_adopted: {
+    writer: 'driver',
+    summary: 'a sofar drive --resume took over a run that had no stop',
+    fields: 'run, epoch (integer ≥2; run_started is epoch 1 — the owner is the highest)',
+    example: { run: '01J00000000000000000000000', epoch: 2 },
   },
   correction: {
     writer: 'agent',

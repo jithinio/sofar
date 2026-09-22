@@ -48,6 +48,7 @@ const validPayloads: Record<string, Record<string, unknown>> = {
   handoff: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSE', session_id: 's1', reason: 'task_done', task: '1.2', tokens: 84_000 },
   run_stopped: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSE', reason: 'needs_user', note: 'next action names a release' },
   run_stop_requested: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSE' },
+  run_adopted: { run: '01JZ8B3V0N5B4W8XK2M9QF7TSE', epoch: 2 },
   verification_recorded: {
     run: '01JZ8B3V0N5B4W8XK2M9QF7TSE',
     task: '1.2',
@@ -149,6 +150,11 @@ describe('validatePayload', () => {
     ['run_stopped', { run: 'r', reason: 'crashed' }, /reason/],
     ['run_stopped', { run: 'r', reason: 'error' }, /note: required/],
     ['run_stop_requested', {}, /run/],
+    // Epoch 1 is run_started's own (drive-visibility 2.2): an adoption at or
+    // below it could never outrank the driver that started the run.
+    ['run_adopted', { run: 'r', epoch: 1 }, /epoch: must be an integer of at least 2/],
+    ['run_adopted', { run: 'r', epoch: 2.5 }, /epoch/],
+    ['run_adopted', { epoch: 2 }, /run/],
     ['correction', {}, /ref/],
     // A loss row is its evidence and its measured trust (self-improve 2.3):
     // without either it could never be re-derived or weighed.

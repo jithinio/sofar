@@ -1067,6 +1067,9 @@ and never registers as one, so it can never read as a misrouted session:
 - `run_stop_requested` (run) — `sofar drive --stop` asking the driver of that
   run to end it (in-session-drive D2). A request, never a stop: only the
   driver writes `run_stopped`.
+- `run_adopted` (run, epoch ≥2) — a `--resume` taking over a run with no stop
+  (drive-visibility 2.2), at one more than the run's highest epoch; the
+  fencing token a synced record carries.
 
 **Policy (D2, D7).** `task`: one task per session, no context sensing needed
 — identical on every agent and model, and therefore the default.
@@ -1201,8 +1204,11 @@ command_run's): they say how sessions were scheduled, never what the plan
 says, so they cannot stale the next action.
 
 **Render.** The digest carries one budgeted `Driven:` line for the latest
-run — adapter, policy, handoffs by reason in log order, running or stopped
-and why; a record no driver ever ran renders byte-identically to before.
+run — adapter, policy, `resumed (epoch N)` once adopted, handoffs by reason
+in log order, running or stopped and why, counting only the stop requests
+in force; a record no driver ever ran renders byte-identically to before.
+The full status puts each adoption on the run's handoff timeline and marks
+one that never outranked the adoptions before it.
 `sofar status` lists every run and every handoff, and beside the latest
 unstopped run says `running`, `driver gone` or `liveness unknown` from the
 run lock; sessions/<id>.md names the run that handed the session off.
@@ -1554,9 +1560,11 @@ reads requests from the fold before every launch, and during a session from a
 when those bytes name a stop request — driven sessions write on every tool
 call, so a fold per tick, or even per growth, would cost more than the session
 it watches. The byte scan decides nothing; the fold counts the requests. A
-request counts only when its id sorts after the run's latest adoption
-(`run_started` for a run never resumed), so one left behind for a dead
-driver cannot stop the `--resume` that follows it. It compares two record
+request counts only when its id sorts after the OWNER's adoption — the one
+in force (`run_started` for a run never resumed), not merely the newest,
+since a late adoption that lost to a higher epoch holds nothing
+(drive-visibility D8) — so one left behind for a dead driver cannot stop
+the `--resume` that follows it. It compares two record
 ids rather than a driver's private clock reading (drive-visibility 2.2), so
 every reader of the fold agrees which requests apply. The stop's
 note says a request ended the run rather than a signal.
@@ -1618,9 +1626,10 @@ liveness is unavailable for this run (D9), and the run proceeds as before.
 record syncs. A `--resume` therefore appends `run_adopted {run, epoch}` with
 one more than the run's highest epoch before its first launch, and the
 fold's OWNER is the highest epoch, the first-sorting id on a tie. A driver
-reads ownership from the fold before every launch and, during a session,
-from the same 2s byte scan that finds stop requests, folding only when the
-new bytes name a `run_adopted`. A driver that finds it no longer owns its
+reads ownership from the fold before every launch, from the fold it reads
+once a session exits (before filing anything), and, during a session, from
+the same 2s byte scan that finds stop requests, folding only when the new
+bytes name a `run_adopted`. A driver that finds it no longer owns its
 run STEPS DOWN: it signals nothing — a live session is real work whose
 write-back the new owner resumes from — waits for that session to exit,
 files no handoff and no `run_stopped` (the run is someone else's now), says
@@ -6656,7 +6665,7 @@ stay the underlying derivation's, and exit codes are styling-independent.
   stub) and names the owner by highest epoch, first id on a tie; a driver
   whose run was adopted at a higher epoch launches nothing more, files no
   handoff or stop, and exits 1 once its live session ends; a stop request
-  sorting before the latest adoption is ignored. `--stop` against a FREE
+  sorting before the owner's adoption is ignored. `--stop` against a FREE
   lock appends nothing and returns at once. `--await` exits 0 with one line
   on any `run_stopped` (naming the blocked task and its note for
   `needs_user`), 2 when the lock goes FREE with no stop, and 1 with nothing
