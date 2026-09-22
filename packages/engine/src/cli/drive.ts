@@ -1,16 +1,21 @@
 import { spawn } from 'node:child_process'
-import { closeSync, mkdirSync, openSync, readFileSync } from 'node:fs'
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createInterface } from 'node:readline/promises'
 import { ToolError, createToolContext } from '../mcp/context'
-import { latestRun } from '../core/fold'
+import { decodeLines, latestRun, stopRequestsInForce, type RunState } from '../core/fold'
+import { probeRunLock, type RunLiveness, type RunLockOptions } from '../core/run-lock'
 import { describeRun } from '../projections/templates/shared'
 import { ClaudeCodeAdapter } from '../driver/claude-code'
 import { CodexAdapter } from '../driver/codex'
-import { drive, type DriveOptions } from '../driver/drive'
+import { CursorAdapter } from '../driver/cursor'
+import { appendedBytesScan, drive, STOP_POLL_MS, type DriveOptions } from '../driver/drive'
 import { buildSurface, SurfaceError } from '../driver/permissions'
 import { launchEnv, type Adapter } from '../driver/adapter'
 import { errMessage, fail, ok, type CmdResult } from './shared'
+import { stderrCaps } from './ui'
+import { readKeepAwake, userConfigPath, writeKeepAwake } from './user-config'
 
 /**
  * `sofar drive <initiative>` (session-driver 2.2) — the CLI skin on the loop
@@ -22,7 +27,8 @@ import { errMessage, fail, ok, type CmdResult } from './shared'
  *
  * Exit code is 0 for every stop the record can explain — `needs_user` and
  * `stall` are outcomes of a working driver, not failures of the command —
- * and 1 only for `error`, or for a preflight that refused to start a run.
+ * and 1 only for `error`, for a preflight that refused to start a run, or
+ * for a driver fenced off its run by a later adoption (drive-visibility 2.2).
  */
 
 export interface DriveCliOptions {
@@ -44,9 +50,9 @@ export interface DriveCliOptions {
   verifyTimeout?: string
   /** Failed verifications on one task before the run stops (default 3). */
   maxVerifyAttempts?: string
-  /** Which agent to drive: `claude-code` (default) or `codex` (3.1). */
+  /** Which agent to drive: `claude-code` (default), `codex` (3.1) or `cursor` (r1-fixes 6.8). */
   agent?: string
-  /** Binary the adapter spawns (default: the agent's own name). */
+  /** Binary the adapter spawns (default: the agent's own — claude, codex, cursor-agent). */
   bin?: string
   /** Permission surface for every session in the run (2.4). */
   permissionMode?: string
@@ -61,6 +67,13 @@ export interface DriveCliOptions {
    * agent `--agent` NAMED and no other, for the reason `--bin` does.
    */
   agentArgs?: string[]
+  /** `--keep-awake` (true) / `--no-keep-awake` (false): this run only, never saved (drive-visibility D5). */
+  keepAwake?: boolean
+  /**
+   * Where the one keep-awake question may be asked. Absent never asks — the
+   * CLI entry passes `terminalPrompt`, as `sofar init` passes its picker's.
+   */
+  prompt?: KeepAwakePrompt
   /** Test seam: an adapter to drive with, instead of building the Claude Code one. */
   adapter?: Adapter
   /** Called once the run is certain to start — a detached child answers its caller here. */
@@ -79,6 +92,70 @@ const AGENT_SHELL_ENV = ['CLAUDECODE', 'CODEX_SANDBOX', 'CODEX_THREAD_ID'] as co
 
 export function insideAgentShell(env: NodeJS.ProcessEnv): boolean {
   return AGENT_SHELL_ENV.some((name) => (env[name] ?? '').length > 0)
+}
+
+/** How the one keep-awake question is asked (drive-visibility D5). */
+export interface KeepAwakePrompt {
+  /** The only place a question may block: a terminal on both ends, not CI, not an agent's shell, not a detached driver. */
+  interactive: boolean
+  ask(question: string): Promise<string>
+}
+
+/** The operator's own terminal, when there is one (D5). */
+export function terminalPrompt(env: NodeJS.ProcessEnv = process.env): KeepAwakePrompt {
+  return {
+    interactive:
+      process.stdin.isTTY === true && stderrCaps().animate && !insideAgentShell(env) && env[DETACH_ENV] !== '1',
+    async ask(question) {
+      const rl = createInterface({ input: process.stdin, output: process.stderr })
+      try {
+        return await rl.question(question)
+      } finally {
+        rl.close()
+      }
+    },
+  }
+}
+
+/**
+ * Ask once, and save the answer (drive-visibility D5): only on macOS, only
+ * while `drive.keep_awake` is unset and the run states no flag, and only
+ * where the prompt is interactive. Everywhere else the driver's opening lines
+ * say the setting is unset instead, so an agent relaying them asks in chat.
+ * Enter means yes — the run is the reason the question is asked. The line
+ * returned says what was saved and how to change it.
+ */
+export async function askKeepAwakeOnce(
+  flag: boolean | undefined,
+  prompt: KeepAwakePrompt | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): Promise<string | undefined> {
+  if (platform !== 'darwin' || flag !== undefined || prompt?.interactive !== true) return undefined
+  if (readKeepAwake(env) !== undefined) return undefined
+  const answer = await prompt.ask(
+    "Keep this Mac awake while sofar drives? caffeinate blocks idle sleep for the driver's life; closing the lid still sleeps it. Saved for every run on this machine. [Y/n] ",
+  )
+  const on = !/^\s*n/i.test(answer)
+  writeKeepAwake(on, env)
+  return `keep-awake ${on ? 'on' : 'off'} — saved to ${userConfigPath(env)}; \`sofar drive --keep-awake-setting ${on ? 'off' : 'on'}\` changes it`
+}
+
+/**
+ * `sofar drive --keep-awake-setting <on|off>` (drive-visibility D5): write
+ * the setting and start nothing, as `sofar upgrade --auto` does for its own.
+ */
+export function runKeepAwakeSetting(
+  value: string,
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): CmdResult {
+  if (value !== 'on' && value !== 'off') return fail(`sofar drive --keep-awake-setting takes on or off, got "${value}"`)
+  writeKeepAwake(value === 'on', env)
+  const inert = platform === 'darwin' ? '' : ` It is inert on ${platform}: keep-awake is macOS-only.`
+  return ok(
+    `keep-awake ${value} — saved to ${userConfigPath(env)}. A running driver with no --keep-awake/--no-keep-awake picks it up before its next launch.${inert}\n`,
+  )
 }
 
 function positive(name: string, raw: string | undefined): number | undefined {
@@ -104,13 +181,14 @@ function integer(name: string, raw: string | undefined): number | undefined {
  * cannot answer, so the CLI is the only place that knows the names — and
  * per-task routing (3.2) is a lookup in THIS list rather than a second one.
  */
-export const AGENTS = ['claude-code', 'codex'] as const
+export const AGENTS = ['claude-code', 'codex', 'cursor'] as const
 
 type AgentOptions = { bin?: string; args?: string[] }
 
 function adapterNamed(agent: string, options: AgentOptions): Adapter {
   if (agent === 'claude-code') return new ClaudeCodeAdapter(options)
   if (agent === 'codex') return new CodexAdapter(options)
+  if (agent === 'cursor') return new CursorAdapter(options)
   throw new ToolError('invalid_input', `sofar drive: --agent must be one of ${AGENTS.join('|')}, got "${agent}"`)
 }
 
@@ -169,9 +247,14 @@ export async function runDrive(
       ...(options.effort !== undefined ? { effort: options.effort } : {}),
     })
     const { adapter, agents } = buildAgents(options)
+    const env = options.env ?? process.env
     driveOptions = {
       adapter,
       agents,
+      keepAwake: {
+        ...(options.keepAwake !== undefined ? { flag: options.keepAwake } : {}),
+        setting: () => readKeepAwake(env),
+      },
       ...(options.policy !== undefined ? { policy: options.policy as DriveOptions['policy'] } : {}),
       ...(thresholdPct !== undefined ? { thresholdPct } : {}),
       ...(contextWindow !== undefined ? { contextWindow } : {}),
@@ -207,6 +290,10 @@ export async function runDrive(
     )
   }
 
+  // The one question (D5), before the run so its answer is the run's.
+  const saved = await askKeepAwakeOnce(options.keepAwake, options.prompt, options.env ?? process.env)
+  if (saved !== undefined) onProgress(saved)
+
   let outcome
   try {
     outcome = await drive(rootDir, slug, driveOptions)
@@ -235,6 +322,8 @@ export interface DriveStopOptions {
   waitMs?: number
   /** Test seam: how often to look (default 500ms). */
   pollMs?: number
+  /** Test seam: where and with which primitive the run lock is probed (drive-visibility 2.3). */
+  lock?: RunLockOptions
 }
 
 /**
@@ -246,6 +335,14 @@ export interface DriveStopOptions {
  * saw: the stop with its reason, or that none came — which is also exactly
  * what a request to a driver that already died looks like, and the command
  * says so rather than guessing which it was.
+ *
+ * Where the run lock CAN tell (drive-visibility 2.3), it does not guess: a
+ * FREE lock means no driver on this machine is left to read a request, so
+ * nothing is appended and the command says so at once; a lock that falls
+ * while it waits, with no stop recorded, ends the wait the same way. The
+ * driver appends `run_stopped` before it lets go of the lock, so the probe
+ * runs first and the fold second — a stop that landed is never mistaken for
+ * a driver that vanished.
  */
 export async function runDriveStop(
   rootDir: string,
@@ -264,16 +361,29 @@ export async function runDriveStop(
       return fail(`sofar drive --stop: nothing to stop — the latest run on "${initiative}" already ended (${describeRun(run)})`)
     }
     runId = run.id
-    requests = run.stop_requests.length + 1
+    if (probeRunLock(rootDir, runId, options.lock) === 'free') {
+      return fail(
+        `sofar drive --stop: run ${runId} on "${initiative}" has no stop, but its driver is gone — the run lock on this machine is free, so no driver is left to read a request and none was appended. ${resumeThenStop(initiative)}`,
+      )
+    }
+    // Only requests the run's owner honours count toward escalation (drive-visibility 2.2).
+    requests = stopRequestsInForce(run).length + 1
     ctx.appendAndProject(initiative, 'run_stop_requested', { run: runId }, { session: 'cli', source: 'cli', actor: 'human' })
   } catch (err) {
     return fail(errMessage(err))
   }
 
   const deadline = Date.now() + (options.waitMs ?? STOP_WAIT_MS)
+  let liveness: RunLiveness
   for (;;) {
+    liveness = probeRunLock(rootDir, runId, options.lock)
     const run = ctx.foldState(initiative).runs.find((r) => r.id === runId)
     if (run?.stopped !== undefined) return ok(`${describeRun(run)}\n`)
+    if (liveness === 'free') {
+      return fail(
+        `sofar drive --stop: stop requested for run ${runId}, but its driver exited without recording a stop — the run lock on this machine is free. ${resumeThenStop(initiative)}`,
+      )
+    }
     if (Date.now() >= deadline) break
     await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? 500))
   }
@@ -287,10 +397,124 @@ export async function runDriveStop(
     stderr: [
       `sofar drive --stop: stop requested for run ${runId}, but no run_stopped within ${Math.round((options.waitMs ?? STOP_WAIT_MS) / 1000)}s.`,
       `A driver waiting on a session signals it and stops once the session exits; ${escalation}.`,
-      `If no driver is running this run, it will never acknowledge — \`sofar drive ${initiative} --resume\` adopts the run, and a --stop after that ends it.`,
+      liveness === 'held'
+        ? 'Its driver is alive — it still holds the run lock on this machine — so the stop lands once its session exits; `sofar status` shows it.'
+        : `If no driver is running this run, it will never acknowledge — \`sofar drive ${initiative} --resume\` adopts the run, and a --stop after that ends it.`,
       '',
     ].join('\n'),
   }
+}
+
+/** The way out for a run whose driver is gone: adopt it, then stop it. */
+function resumeThenStop(initiative: string): string {
+  return `\`sofar drive ${initiative} --resume\` picks the run up; a --stop after that ends it.`
+}
+
+export interface DriveAwaitOptions {
+  /** Test seam: how often to look (default STOP_POLL_MS, the driver's own tick). */
+  pollMs?: number
+  /** Test seam: where and with which primitive the run lock is probed. */
+  lock?: RunLockOptions
+  /** Where the one line said before the wait goes — the ABSENT notice (default stderr). */
+  onNotice?: (line: string) => void
+}
+
+/**
+ * `sofar drive [slug] --await` (drive-visibility 3.1): block on the latest
+ * unstopped run until it needs someone, and say so in ONE line — built for an
+ * agent's background shell, where every line printed is a model turn and
+ * silence is free.
+ *
+ * A tick is a lock probe and a stat of the log; it folds only when the bytes
+ * appended since the last tick name a `run_stopped`, or when the lock falls.
+ * The probe runs before the fold, as `--stop`'s does: the driver appends its
+ * stop before it lets go of the lock, so a stop that landed is never mistaken
+ * for a driver that vanished. Exit 0 on a stop, 2 when the lock goes FREE with
+ * no stop (the driver died), 1 when there is nothing to await. A run with no
+ * lock on this machine is waited on through the record alone, which is said
+ * first, since only a stop can end that wait. No deadline: the run's own stop
+ * rules bound it.
+ */
+export async function runDriveAwait(
+  rootDir: string,
+  slug: string | undefined,
+  options: DriveAwaitOptions = {},
+): Promise<CmdResult> {
+  const ctx = createToolContext(rootDir)
+  const notice = options.onNotice ?? ((line: string) => process.stderr.write(`${line}\n`))
+  let initiative: string
+  let runId: string
+  let scan: () => boolean
+  try {
+    initiative = ctx.resolveInitiative(slug)
+    const eventsPath = ctx.eventsPath(initiative)
+    // Taken BEFORE the fold, so a stop landing between the two is still scanned.
+    scan = appendedBytesScan(eventsPath, existsSync(eventsPath) ? statSync(eventsPath).size : 0, ['"run_stopped"'])
+    const state = ctx.foldState(initiative)
+    const run = latestRun(state)
+    if (run === undefined) return fail(`sofar drive --await: "${initiative}" has never been driven — nothing to await`)
+    if (run.stopped !== undefined) {
+      return fail(`sofar drive --await: nothing to await — the latest run on "${initiative}" already ended: ${stoppedLine(ctx, initiative, run)}`)
+    }
+    runId = run.id
+  } catch (err) {
+    return fail(errMessage(err))
+  }
+
+  let liveness = probeRunLock(rootDir, runId, options.lock)
+  if (liveness === 'absent') {
+    notice(
+      `sofar drive --await: run ${runId} has no run lock on this machine (liveness unknown) — waiting on the record alone, so only a recorded stop ends this wait; a driver that dies without one is not seen here`,
+    )
+  }
+  for (let first = true; ; first = false) {
+    if (!first) {
+      await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? STOP_POLL_MS))
+      liveness = probeRunLock(rootDir, runId, options.lock)
+    }
+    if (!first && !scan() && liveness !== 'free') continue
+    const run = ctx.foldState(initiative).runs.find((r) => r.id === runId)
+    if (run?.stopped !== undefined) return ok(`${stoppedLine(ctx, initiative, run)}\n`)
+    if (liveness === 'free') {
+      return {
+        exitCode: 2,
+        stdout: `run ${runId} on "${initiative}" has no stop and its driver is gone — the run lock on this machine is free, so it will never stop by itself; \`sofar drive ${initiative} --resume\` picks it up\n`,
+        stderr: '',
+      }
+    }
+  }
+}
+
+/**
+ * A stopped run's line: the run as `describeRun` says it, and for a
+ * `needs_user` stop the blocked task's own note — the operator's question,
+ * which the stop note only points at.
+ */
+function stoppedLine(ctx: ReturnType<typeof createToolContext>, initiative: string, run: RunState): string {
+  const line = describeRun(run)
+  if (run.stop_reason !== 'needs_user') return line
+  const task = [...run.handoffs].reverse().find((h) => h.reason === 'needs_user' && h.task !== undefined)?.task
+  if (task === undefined) return line
+  const note = blockingNote(ctx.eventsPath(initiative), task)
+  return note === undefined ? line : `${line}. ${task}'s note: ${note.replace(/\s+/g, ' ').trim()}`
+}
+
+/**
+ * The note on the event that left `task` blocked, as the fold keeps it:
+ * replay order, corrections voided, cleared by any later status. Read here
+ * rather than added to the fold's state, whose shape rust-core mirrors.
+ */
+function blockingNote(eventsPath: string, task: string): string | undefined {
+  let note: string | undefined
+  const decoded = decodeLines(readFileSync(eventsPath, 'utf8').split('\n'))
+  for (const { event } of decoded.parsed) {
+    if (event.type !== 'task_status_changed' || decoded.voided.has(event.id)) continue
+    const p = event.payload as { id?: unknown; status?: unknown; note?: unknown }
+    if (p.id !== task) continue
+    if (p.status === 'blocked' && typeof p.note === 'string' && p.note.length > 0) note = p.note
+    else if (p.status !== 'blocked') note = undefined
+  }
+  return note
 }
 
 /** The message a detached child sends once its run is certain to start. */
@@ -325,6 +549,10 @@ export interface DriveDetachOptions {
   logDir?: string
   /** Test seam (default DETACH_START_TIMEOUT_MS). */
   startTimeoutMs?: number
+  /** `--keep-awake` / `--no-keep-awake` as the caller gave them; the child reads them from its argv. */
+  keepAwake?: boolean
+  /** Where the caller may ask the keep-awake question before it spawns (D5); absent never asks. */
+  prompt?: KeepAwakePrompt
 }
 
 /**
@@ -375,6 +603,11 @@ export async function runDriveDetached(
       "sofar drive --detach: the calling agent's sandbox reports no network (CODEX_SANDBOX_NETWORK_DISABLED=1). A detached driver inherits that sandbox, so every session it launched would fail to reach its model. Run the agent with network access, or start the run from a terminal.",
     )
   }
+
+  // The caller is the last process with the operator's terminal (D5): it
+  // asks, saves, and the child reads the saved answer.
+  const saved = await askKeepAwakeOnce(options.keepAwake, options.prompt, env)
+  if (saved !== undefined) process.stderr.write(`${saved}\n`)
 
   const logDir = options.logDir ?? join(tmpdir(), 'sofar-drive')
   mkdirSync(logDir, { recursive: true })

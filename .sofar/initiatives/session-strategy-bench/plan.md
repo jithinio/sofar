@@ -38,7 +38,9 @@ Progress: 20/20 tasks done (100%)
 - [x] 5.2 Freeze R02 section in the evidence file BEFORE any arm runs: P1'–P5' verbatim, method, version note, every deviation from R01 on its own line
 - [x] 5.3 Machinery: R02 workload envs (MODEL pinned), fresh arm worktrees, task-7 probe spec appended to both TASKS.md, sidecar replay script, Grader C runner
 
-## Phase 6 — S2-R02 execution + evidence [pending] — 5/5 done
+## Phase 6 — S2-R02 execution + evidence [done] — 5/5 done
+
+> Closed 2026-09-22. This answers the question the phase-lifecycle 4.3 note left open: the R02 evidence section exists and it includes the W1-L control re-run table. It was checked against the committed inputs (see the 6.5 note).
 
 - [x] 6.1 Run W1 tasks 1–7 both arms (fresh clones, arm S on published 0.10.0 default stdio config)
 - [x] 6.2 Run W2 tasks 1–7 both arms
@@ -46,4 +48,4 @@ Progress: 20/20 tasks done (100%)
 - [x] 6.4 Blind grading: primary pair (Claude + GLM, worse-of-two) adjudicates P2'; Grader C (gpt-5.5) robustness table reported separately
 - [x] 6.5 R02 evidence section: per-task tables, R01-vs-R02 arm-S delta table (tasks 1–6), P1'–P5' verdicts unsoftened, complete caveats, honest summary
 
-Next action: When the driver exits: extract telemetry, run the sidecar, grade (A+B primary, C robustness), write the R02 evidence section.
+Next action: Operator: close the initiative, or start an R03 (W3 or a longer workload)

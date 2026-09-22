@@ -250,6 +250,22 @@ export function buildCases(): FoldParityCase[] {
     cases.push({ id: 'FP-10-decision-supersession', lines: l.lines, sidecar: { tail_at: 9, seeds: [28, 29, 30], order_independence: true, note: 'decision retirement (r1-fixes 3.2, D25): D5 supersedes D1 (resolved), D4 names the rule D2 without a rule (inert), D6 points forward (inert), D7 replaces rule D2 with a rule (resolved), D8 names itself (inert), D3 carries until:1.1 which the tail resolves — stored as recorded, retirement derived; the tail starts at D7' } })
   }
   {
+    const l = new Log('demo')
+    const RUN = '01J00000000000000000000000'
+    l.ev('initiative_created', { slug: 'demo', goal: 'g' })
+    l.ev('plan_updated', plan(2))
+    l.ev('run_started', { run: RUN, adapter: 'claude-code', policy: 'task' })
+    l.ev('run_stop_requested', { run: RUN }) // left for the epoch-1 driver
+    l.ev('run_adopted', { run: RUN, epoch: 1 }) // invalid: epoch 1 is run_started's
+    l.ev('run_adopted', { run: '01J0000000000000000000GONE', epoch: 2 }) // a run that never started
+    l.ev('run_adopted', { run: RUN, epoch: 2 })
+    l.ev('run_adopted', { run: RUN, epoch: 3 })
+    l.ev('run_adopted', { run: RUN, epoch: 3 }) // loses the tie
+    l.ev('run_adopted', { run: RUN, epoch: 2 }) // late, never outranks
+    l.ev('run_stop_requested', { run: RUN }) // in force for the epoch-3 owner
+    cases.push({ id: 'FP-11-run-adoption-fencing', lines: l.lines, sidecar: { tail_at: 7, seeds: [31, 32, 33], order_independence: true, note: 'drive-visibility 2.2: run_started is epoch 1; an epoch-1 adoption is an invalid payload and one for a run that never started is skipped; the owner is the highest epoch, first id on a tie; stop_requests carry event ids, and only the request after the owner adoption is in force; the tail starts at the first epoch-3 adoption' } })
+  }
+  {
     // rust-core 1.6: the session lifecycle arriving out of order — three
     // ways a hook race or two writers with skewed clocks leave the file.
     const l = new Log('demo')
@@ -272,7 +288,7 @@ export function buildCases(): FoldParityCase[] {
     // The tail is monotonic again: a note from A after everything above.
     l.ev('note_added', { text: 'settled' }, { session: 'A', at: base + 100_000 })
     l.ev('session_ended', { summary: 'B done', next_action: 'C next' }, { session: 'B', at: base + 110_000 })
-    cases.push({ id: 'FP-11-session-lifecycle-out-of-order', lines: l.lines, sidecar: { tail_at: 9, seeds: [31, 32, 33], order_independence: true, note: 'session lifecycle arriving out of order (rust-core 1.6): a write-back filed before its registration in file order, a mechanical event with an id below its session_started, a close with an id below its registration; the tail is monotonic so the fast path applies it' } })
+    cases.push({ id: 'FP-12-session-lifecycle-out-of-order', lines: l.lines, sidecar: { tail_at: 9, seeds: [31, 32, 33], order_independence: true, note: 'session lifecycle arriving out of order (rust-core 1.6): a write-back filed before its registration in file order, a mechanical event with an id below its session_started, a close with an id below its registration; the tail is monotonic so the fast path applies it' } })
   }
   return cases
 }

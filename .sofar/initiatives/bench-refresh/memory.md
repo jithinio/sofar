@@ -6,3 +6,6 @@ Cite these in .sofar/repo.md by qualified handle — `bench-refresh M<n>` —
 which is how `sofar doctor` sees that a promoted fact reached repo memory.
 
 - **M1** (2026-09-15T14:46:04.940Z) — Boopada bench runners must run as launchd agents (com.sofar.bench.round1.{claude,codex,cursor} in ~/Library/LaunchAgents), never nohup from a Claude Code Bash call: the harness kills nohup'd children when the orchestrating session process exits. Stop with `launchctl bootout gui/$(id -u)/<label>`; also kill any orphaned `claude -p ... --setting-sources project,local --strict-mcp-config`, `codex exec`, or `cursor-agent -p` before restarting, or two agents edit one cell.
+- **M2** (2026-09-22T08:32:04.767Z) — Bench runs need the host on AC power with the lid open. caffeinate cannot stop clamshell or battery sleep. Timeouts then fire in DarkWakes and look like agent failures (L22).
+Diagnose a burst of simultaneous timedOut rows with `pmset -g log | grep -E "Entering Sleep|Wake from"` over the window. For a lone Cursor failed row with null usage, compare the transcript's final `turn_ended` time with the ledger's endedAt. A gap means the agent left a background server running and cursor-agent hung (L23), not an agent failure.
+Round-2 runner guards both (handoff-bench 079c495, 24bff1a). The frozen round-1 runner guards neither.

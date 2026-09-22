@@ -1,0 +1,25 @@
+{
+  "post-tool-use.read": {
+    "mode": "print (-p), memory-lead 2.1 live Read-payload check, 2026-09-22",
+    "payload": {
+      "conversation_id": "7480c16d-c6aa-432d-8f56-9c15155dce85",
+      "generation_id": "7480c16d-c6aa-432d-8f56-9c15155dce85",
+      "model": "default",
+      "tool_name": "Read",
+      "tool_input": {
+        "file_path": "/tmp/repo/docs/notes.txt"
+      },
+      "tool_output": "{\"file_path\":\"/tmp/repo/docs/notes.txt\",\"content_length\":21}",
+      "duration": 873.671,
+      "tool_use_id": "call-8f72c441-4eb6-475d-ac9d-f52edb778476-0\nfc_d7d68190-c8bf-99b5-9c4a-20d92b041642_0",
+      "session_id": "7480c16d-c6aa-432d-8f56-9c15155dce85",
+      "hook_event_name": "postToolUse",
+      "cursor_version": "2026.09.18-9a7762b",
+      "workspace_roots": [
+        "/tmp/repo"
+      ],
+      "user_email": "op@example.com",
+      "transcript_path": null
+    }
+  }
+}

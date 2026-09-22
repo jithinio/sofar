@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: Start item 5 with the agent-emitted layer, since it needs no ruling: define the enrichment event types in packages/schema with a producer field stamped on every event, and generalise the existing declared-relevance mechanism that sofar_log_decision guard and core index-tier1 already implement. Defer the semantic producer until there are real declared links to measure it against, then log a narrowly scoped Decision permitting a model call only from an explicit opt-in command, naming SPEC Architectural invariants and felt-cost D3.
+Next action: Keep monitoring; next milestone is the bench-refresh 4.1 report and the operator freeze.

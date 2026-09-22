@@ -12,6 +12,9 @@
   Both run at the workspace root; typecheck: `npm run typecheck`.
   A fresh worktree needs `npm ci` then `npm run build` first (r1-fixes M1):
   dist/ is gitignored and spawn-based suites execute dist/cli.js.
+  Load-flaky under a busy full run (branch-visibility M1): reach-index's
+  "3.5 lexical seeds" case and shim-latency's 100 ms SessionStart budget.
+  Rerun the file alone (`npx vitest run <file>`); a pass alone means load.
 - Monorepo (BD11): npm workspaces. packages/schema → @sofar/schema
   (source-shipped, no build); packages/engine → sofar bin
   (packages/engine/dist/cli.js after build).
@@ -24,6 +27,16 @@
   scorecard. Do not go looking for them; do not block on them.
 - Push policy: push origin main at each verified wrap-up (user-established
   Jul 3). Pushing is part of ending a work batch, not per-commit.
+- Version label after an RC tag (r1-fixes M7): main's engine version carries
+  semver build metadata (`0.33.0-rc.2+trunk`), so a main build is never
+  mistaken for the tagged RC. Only the tag's commit has the bare RC string,
+  and benches run the ~/.bench copy built from the tag.
+- Boopada bench runners (bench-refresh M1, M2) run as launchd agents
+  (com.sofar.bench.round1.*), never nohup from a Claude Code Bash call. The
+  host must stay on AC power with the lid open: caffeinate cannot stop
+  clamshell or battery sleep. Simultaneous timedOut rows mean sleep; check
+  `pmset -g log`. A lone Cursor failed row with null usage whose transcript
+  ends in `turn_ended` success is a hang behind a stray background server (L23).
 - Committing the record needs a BARE git call (repo-memory-capture M2): the
   D1 exemption (cli/event.ts shellSegments) splits on every shell separator
   INCLUDING newlines and exempts only if EVERY segment leads with git or
@@ -33,6 +46,11 @@
   Symptom: write back, commit, and the tree is dirty again with command_run
   events about the commit itself. Put the message in a file, use
   `git commit -F <path>`, and keep status/diff checks bare.
+- Commit WITH A PATHSPEC in the shared checkout (typed-judge M1): every live
+  session on main shares ONE git index, so a peer's plain `git commit` takes
+  whatever anyone has staged. Staging by explicit path is not enough.
+  Use `git commit -F <msgfile> -- <paths>`. Observed 2026-09-22: typed-judge's
+  4.2/4.3 code landed in drive-visibility's record commit d0ebec9.
 - Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare
   `npm publish` from inside packages/engine) — always run by the USER (OTP
   + permission classifier), agent stages everything up to it. Bare
@@ -133,3 +151,28 @@
   Cursor, and confirm with a `command -v sofar` trace in a scratch shim.
   Symptom: a Cursor session with no digest (an older sofar's plain text is
   dropped). Found in the 6.3/6.5 live proof, 2026-09-17.
+- A re-homed session's write-back moves main's binding (r1-fixes M8):
+  sofar_end_session rebinds the branch to the session's home initiative
+  (the result carries `rebound`). On this shared main checkout, every peer
+  whose hooks follow the binding then logs into that record. When a
+  write-back shows `rebound` for main, run `sofar switch <previous slug>` at
+  once (main = drive-visibility as of 2026-09-21), and never commit the
+  moved bindings.json. Seen twice on 2026-09-21.
+- Writing a record whose truth is on another worktree's branch (rust-core M2).
+  rust-core lives in ~/IO/sofar-rust-core, and main's copy of it is stale.
+  Event-only writes (notes, decisions, memories, session events) may go
+  through main. Carry them over with `sofar export <slug>` and
+  `sofar import - <slug> --root <worktree>`, which dedupes by id. A plan
+  replacement must be made on the branch, by spawning `sofar mcp` with that
+  worktree as cwd. From main's stale copy it clobbers the branch plan when
+  the copies union. After ANY sofar_update_plan, re-issue sofar_update_phase
+  for every phase that had a note, because plan_updated drops notes silently.
+- Hangs in CI and in the perf harness (rust-core M1, rust-core M3). A vitest
+  job that runs to the 6 h CI limit is a file that never finished: diff the
+  files the log reported against `git ls-files '*.test.ts'`. Never put an
+  "unwritable" test path under /proc, because on Linux a recursive mkdirSync
+  there loops forever. Use a path under a regular file instead. Run long perf
+  cells on this laptop under `caffeinate -ims`, on AC power with the lid open,
+  because caffeinate cannot stop clamshell or battery sleep (bench-refresh
+  M1). An idle sleep counts against the 120 s spawn timeout, and the cell
+  fails with ETIMEDOUT at a random measure. `pmset -g log` shows the sleep.

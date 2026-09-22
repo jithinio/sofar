@@ -17,8 +17,17 @@ import { runClose } from './close'
 import { runStatus, runStatusWatch } from './status'
 import { runList } from './list'
 import { runNext } from './next'
-import { detachedStartNotifier, runDrive, runDriveDetached, runDriveStop } from './drive'
+import {
+  detachedStartNotifier,
+  runDrive,
+  runDriveAwait,
+  runDriveDetached,
+  runDriveStop,
+  runKeepAwakeSetting,
+  terminalPrompt,
+} from './drive'
 import { runRelated, runWhy } from './graph'
+import { runCheck } from './check'
 import { runFind } from './find'
 import { REACH_DEFAULT_HOPS, REACH_MAX_HOPS } from '../core/index-reach'
 import { runRemember } from './remember'
@@ -177,34 +186,50 @@ program
 
 program
   .command('status [slug]')
-  .description('fold and print the initiative: goal, progress, phase tree, next action, blocked, last session')
-  .option('--watch', 'live status (TTY only; piped falls back to one shot): re-render on record changes, active tasks pulse, ^C to exit')
+  .description(
+    'fold and print the initiative: goal, progress, phase tree, next action, blocked, last session — across every copy of the record on other worktrees and unmerged branches',
+  )
+  .option('--watch', "live status (TTY only; piped falls back to one shot): re-render on record changes, other copies' included, active tasks pulse, ^C to exit")
+  .option('--here', "this checkout's copy of the record only, ignoring other worktrees and branches")
+  .option('--remotes', 'also fold remote-tracking branches (origin/*)')
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action((slug: string | undefined, opts: { watch?: boolean; root?: string }) => {
-    if (opts.watch === true) {
-      const result = runStatusWatch(rootOf(opts), slug)
-      if (result !== undefined) emit(result) // non-TTY fallback / resolution failure
-      return // live path: watcher + timer hold the process until ^C
-    }
-    emit(withUpdateNotice(runStatus(rootOf(opts), slug)))
-  })
+  .action(
+    (
+      slug: string | undefined,
+      opts: { watch?: boolean; here?: boolean; remotes?: boolean; root?: string },
+    ) => {
+      const copies = { here: opts.here, remotes: opts.remotes }
+      if (opts.watch === true) {
+        const result = runStatusWatch(rootOf(opts), slug, undefined, copies)
+        if (result !== undefined) emit(result) // non-TTY fallback / resolution failure
+        return // live path: watcher + timer hold the process until ^C
+      }
+      emit(withUpdateNotice(runStatus(rootOf(opts), slug, undefined, undefined, copies)))
+    },
+  )
 
 program
   .command('list')
-  .description('one line per initiative: slug, bound branch, progress, active phase, next action — most recently active first')
+  .description(
+    'one line per initiative: slug, bound branch, progress, active phase, next action — most recently active first, folded across other worktrees and unmerged branches',
+  )
+  .option('--here', "this checkout's copy of the record only, ignoring other worktrees and branches")
+  .option('--remotes', 'also fold remote-tracking branches (origin/*)')
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action((opts: { root?: string }) => {
-    emit(runList(rootOf(opts)))
+  .action((opts: { here?: boolean; remotes?: boolean; root?: string }) => {
+    emit(runList(rootOf(opts), undefined, undefined, { here: opts.here, remotes: opts.remotes }))
   })
 
 program
   .command('next')
   .description(
-    "every initiative's next action, one line each, most recently active first — entries with record drift since their last write-back flagged ⚠ may be stale",
+    "every initiative's next action, one line each, most recently active first — entries with record drift since their last write-back flagged ⚠ may be stale; folded across other worktrees and unmerged branches",
   )
+  .option('--here', "this checkout's copy of the record only, ignoring other worktrees and branches")
+  .option('--remotes', 'also fold remote-tracking branches (origin/*)')
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action((opts: { root?: string }) => {
-    emit(runNext(rootOf(opts)))
+  .action((opts: { here?: boolean; remotes?: boolean; root?: string }) => {
+    emit(runNext(rootOf(opts), undefined, undefined, { here: opts.here, remotes: opts.remotes }))
   })
 
 program
@@ -215,6 +240,37 @@ program
   .option('--root <dir>', 'repo root (default: current directory)')
   .action((path: string, opts: { root?: string }) => {
     emit(runWhy(rootOf(opts), path))
+  })
+
+program
+  .command('check')
+  .description(
+    'run the decision checks that bear on your changes (memory-lead 2.3): each a command a ruled decision carries, run only once the operator approved it on this clone; warns, and fails a commit only when this clone opted in',
+  )
+  .option('--staged', 'check the staged paths — what the pre-commit hook runs; exits 10 only when this clone opted in and an approved check failed')
+  .option('--all', 'run every approved check, whatever changed')
+  .option('--strict', 'exit 1 when a check failed')
+  .option('--list', 'list every in-force check and whether it is approved here; runs nothing')
+  .option('--approve <handle>', 'approve one check\'s command on this clone ("<slug> D<n>") — asks on a terminal; an agent cannot approve its own command')
+  .option('--block-commits <on|off>', 'make a failed approved check refuse commits on this clone (on), or only warn (off, the default)')
+  .option('--root <dir>', 'repo root (default: current directory)')
+  .action(async (opts: { staged?: boolean; all?: boolean; strict?: boolean; list?: boolean; approve?: string; blockCommits?: string; root?: string }) => {
+    // The approval is the operator's (memory-lead D9): asked only on a real
+    // terminal, never under CI, never from a piped agent shell.
+    const terminal = process.stdin.isTTY === true && process.stderr.isTTY === true && process.env.CI === undefined
+    const confirm = terminal
+      ? async (question: string): Promise<boolean> => {
+          const { createInterface } = await import('node:readline/promises')
+          const rl = createInterface({ input: process.stdin, output: process.stderr })
+          try {
+            return /^y(es)?$/i.test((await rl.question(question)).trim())
+          } finally {
+            rl.close()
+          }
+        }
+      : null
+    const { root, ...rest } = opts
+    emit(await runCheck(rootOf({ ...(root !== undefined ? { root } : {}) }), rest, { confirm }))
   })
 
 program
@@ -494,9 +550,9 @@ program
   .option('--max-verify-attempts <n>', 'stop the run once one task has failed verification this many times (default 3)')
   .option(
     '--agent <name>',
-    'default headless agent: claude-code (default) or codex — a task whose plan entry carries route.agent is launched with THAT one instead',
+    'default headless agent: claude-code (default), codex or cursor (cursor-agent) — a task whose plan entry carries route.agent is launched with THAT one instead',
   )
-  .option('--bin <path>', "agent binary to spawn (default: the agent's own name)")
+  .option('--bin <path>', "agent binary to spawn (default: the agent's own — claude, codex, cursor-agent)")
   .option(
     '--agent-arg <arg>',
     "extra argv for the agent named by --agent, repeat once per argument (e.g. --agent-arg=--debug) — the escape hatch past sofar's own flags",
@@ -519,6 +575,16 @@ program
   .option(
     '--stop',
     "ask the latest unstopped run's driver to end it (a second --stop kills its session outright) — how a detached run is stopped",
+  )
+  .option(
+    '--await',
+    "block until the latest unstopped run needs someone, then print one line: its stop (exit 0), its driver gone (exit 2), or nothing to await (exit 1) — for an agent's background shell",
+  )
+  .option('--keep-awake', 'macOS: block idle sleep for this run (caffeinate), whatever the saved setting says; not saved')
+  .option('--no-keep-awake', 'macOS: do not block idle sleep for this run, whatever the saved setting says; not saved')
+  .option(
+    '--keep-awake-setting <on|off>',
+    'save whether runs keep this Mac awake (~/.config/sofar/config.json) and start nothing; a running driver picks it up before its next launch',
   )
   .option('--root <dir>', 'repo root (default: current directory)')
   .action(
@@ -548,22 +614,43 @@ program
         bareTools?: boolean
         detach?: boolean
         stop?: boolean
+        await?: boolean
+        keepAwake?: boolean
+        keepAwakeSetting?: string
         root?: string
       },
     ) => {
-      if (opts.stop === true) {
-        // A stop names a run, not a way to run one: a flag beside it would read
-        // as honoured and be ignored.
-        const extra = Object.keys(opts).filter((k) => k !== 'stop' && k !== 'root')
-        if (extra.length > 0) {
-          emit(fail(`sofar drive --stop takes no other flag but --root (got ${extra.map((k) => `--${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`).join(', ')})`))
+      if (opts.keepAwakeSetting !== undefined) {
+        // A machine preference, not a run: a slug or run flag beside it would
+        // read as honoured and be ignored.
+        const extra = Object.keys(opts).filter((k) => k !== 'keepAwakeSetting' && k !== 'root')
+        if (slug !== undefined || extra.length > 0) {
+          emit(fail('sofar drive --keep-awake-setting takes no initiative and no other flag — it saves a setting for this machine and starts nothing'))
           return
         }
-        emit(await runDriveStop(rootOf(opts), slug))
+        emit(runKeepAwakeSetting(opts.keepAwakeSetting))
+        return
+      }
+      // --stop and --await name a run, not a way to run one: a flag beside
+      // either would read as honoured and be ignored.
+      const only = opts.stop === true ? 'stop' : opts.await === true ? 'await' : undefined
+      if (only !== undefined) {
+        const extra = Object.keys(opts).filter((k) => k !== only && k !== 'root')
+        if (extra.length > 0) {
+          emit(fail(`sofar drive --${only} takes no other flag but --root (got ${extra.map((k) => `--${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`).join(', ')})`))
+          return
+        }
+        emit(only === 'stop' ? await runDriveStop(rootOf(opts), slug) : await runDriveAwait(rootOf(opts), slug))
         return
       }
       if (opts.detach === true) {
-        emit(await runDriveDetached(rootOf(opts), slug, { argv: process.argv.slice(2) }))
+        emit(
+          await runDriveDetached(rootOf(opts), slug, {
+            argv: process.argv.slice(2),
+            ...(opts.keepAwake !== undefined ? { keepAwake: opts.keepAwake } : {}),
+            prompt: terminalPrompt(),
+          }),
+        )
         return
       }
       const onStarted = detachedStartNotifier()
@@ -591,6 +678,8 @@ program
           ...(opts.deny !== undefined ? { deny: opts.deny } : {}),
           ...(opts.bareTools === true ? { bareTools: true } : {}),
           ...(onStarted !== undefined ? { onStarted } : {}),
+          ...(opts.keepAwake !== undefined ? { keepAwake: opts.keepAwake } : {}),
+          prompt: terminalPrompt(),
         }),
       )
     },

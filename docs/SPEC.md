@@ -164,7 +164,9 @@ contract: never clipped, never aged out; drift-hardening D1 — quote? — the
 operator's exact words the rule came from, ≤300 chars, valid ONLY alongside
 `rule`; see §Rule fidelity, memory-lead D2 — guard? — the
 mechanical half of that same clause, a `path:`/`cmd:` glob list valid ONLY
-alongside `rule`; see §Decision guards, drift-hardening D3 — supersedes? —
+alongside `rule`; see §Decision guards, drift-hardening D3 — check? —
+{cmd, hint?, timeout_ms?}, the executable half of that clause, valid ONLY
+alongside `rule`; see §Decision checks, memory-lead D9 — supersedes? —
 the bare handle `D<n>` of an earlier decision in this record that this one
 replaces — until? — a task id this decision is in force until; never with
 `rule`; r1-fixes 3.2, D25) ·
@@ -180,6 +182,14 @@ ONLY outcome facts the record carries, everything richer is a private row
 memory_promoted (text, supersedes? — a fact its author declares repo memory,
 addressable as `<slug> M<n>`; `supersedes` names the qualified handle of the
 fact it replaces, r1-fixes D8; repo-memory-capture D1) ·
+judgement_recorded (producer, model — the exact version, never an alias —
+question, subject — an event id, a task id or a record handle qualified per
+the citation grammar — about? — `task:<id>` or `file:<repo-relative path>`,
+what a relevance judgement was judged against, typed-judge D10 — answer
+{type: noul|choice|score, …the wire shape without `legend`}, state_hash? — a
+stored Judge answer:
+ENRICHMENT the fold ignores for state and for drift, read by the index;
+typed-judge 2.4, see §Judge) ·
 review_recorded (scope: phase|final, verdict: pass|findings|blocked,
 watermark?, phase?, findings? — a review that was actually performed;
 commit-attribution 4.4, see §Review) ·
@@ -188,12 +198,14 @@ context_window? — BOTH REQUIRED for `threshold`, max_sessions?, surface?,
 verify? — the run's default acceptance command, r1-fixes 3.1 D19) · handoff (run, session_id, reason:
 task_done|threshold|stall|needs_user|verify_failed, task?, tokens?, detail? — how the
 process ended, on stalls and unclean exits, r1-fixes D9; `verify_failed`
-since r1-fixes 3.1) · verification_recorded (run, task, attempt, command, cwd, checked {head, tree}, validator, result: pass|fail|timeout|error|refused, exit_code?, signal?, duration_ms, timeout_ms, diagnostics? ≤1,024 chars — the driver ran a task's acceptance command before accepting it, r1-fixes 3.1 D19) · run_stopped (run,
+since r1-fixes 3.1) · verification_recorded (run, task, attempt, command, cwd, checked {head, tree}, validator, result: pass|fail|timeout|error|refused, exit_code?, signal?, duration_ms, timeout_ms, diagnostics? ≤1,024 chars — the driver ran a task's acceptance command before accepting it, r1-fixes 3.1 D19 — decision? `<slug> D<n>` when it ran that decision's check, memory-lead D9) · run_stopped (run,
 reason: closed|needs_user|stall|cost_cap|max_sessions|interrupted|error,
 note? — REQUIRED for `error`; the three driver events ride on envelope
 session `cli`, since a run is not a session; session-driver 1.2, see
 §Driver) · run_stop_requested (run — an operator asking a driver to end its
-run from outside it; in-session-drive D2, see §Driver) · correction (ref) ·
+run from outside it; in-session-drive D2, see §Driver) · run_adopted (run,
+epoch — an integer ≥2 a `--resume` claims, `run_started` being epoch 1; the
+fencing token of drive-visibility 2.2, see the Driver section) · correction (ref) ·
 suggestion_proposed (candidate, signal, evidence, count, cutoff?, engine,
 detector_version, trust {protocol, verdict, precision, recall, judged} — a
 loss row from a TRUSTED detector, never a cause and never a fix) ·
@@ -572,6 +584,240 @@ DESCENDING (record recency), never-logged initiatives last by slug asc;
 tolerant like the fold (unreadable log or corrupt bindings.json → warning
 + thinner entry, never fatal); zero new event types.
 
+### Decision checks (memory-lead 2.3, D9, D10)
+The executable half of a rule. A guard says which work a rule governs and
+warns when work crosses it; a check says how to TELL whether the rule still
+holds: `check: {cmd, hint?, timeout_ms?}` on decision_logged, valid only
+alongside `rule`. cmd is a shell command (≤500 chars) run from the repo root,
+exit 0 meaning the decision holds; hint (≤300) is the remediation a failure
+shows; timeout_ms is 1..600,000 (default 120,000; Stop caps it at 30,000).
+The fold keeps DecisionState.check; the scope tier (§Derived index) keeps it
+on every ruled entry, and the command's file tokens join the entry's
+mentions, so reading or editing the check's own script surfaces the decision
+(§Read-time surfacing). Agents edit tests to pass them (ImpossibleBench);
+the command itself lives in the append-only record and changes only through
+a ruled superseder.
+
+IN FORCE: a ruled decision carrying `check` that no later rule of its own
+record replaced — checks are repo-wide, like the rules they belong to.
+APPLIES to a set of changed paths when its decision's `path:` guard matches
+one of them, or always when it has no path guard; nothing applies to no
+change.
+
+APPROVAL — a check never runs unapproved. It is text an agent wrote into a
+record that travels with branches and teammates, and a Stop or git hook runs
+outside every permission prompt the host has. A check runs only when:
+- the operator approved that exact command on this clone: `sofar check
+  --approve "<slug> D<n>"`, which asks on a terminal (stdin and stderr TTY,
+  not CI) and refuses otherwise, since an approval from an agent's shell is
+  the agent approving its own command. It stores sha256(cmd) in
+  `<state>/checks/<key>.json` (`$XDG_STATE_HOME/sofar` or
+  `~/.local/state/sofar`, key = cloneKey of the COMMON git dir, so worktrees
+  of one clone share it; never inside the clone, never committed or synced).
+  A changed command is a new command;
+- or, under `sofar drive` only, the run's recorded permission surface covers
+  it (commandAllowed, r1-fixes D19's rule for agent-written commands).
+An applicable unapproved check is named, never run: `sofar: N decision
+check(s) bear on this work but are not approved on this clone, so none ran:
+[<slug> D<n>] \`<cmd>\`, … — the operator approves one with \`sofar check
+--approve "<handle>"\``.
+
+FAILURE LINE, on every surface: `sofar: check for [<slug> D<n>] failed
+(<how>): <last output line> — rule: "<rule>" — fix: <hint>`, the fix being,
+without a hint, `make the work hold the rule (the operator: "<quote>"), or
+log a decision that supersedes <slug> D<n>`. <how> is `exit N`, `timed out
+after Ns`, `killed by <signal>` or `could not run`.
+
+WHERE, AND WHETHER IT BLOCKS (the user's ruling "Drive + opt-in pre-commit",
+D9 as restated by D10). It qualifies drift-hardening D3 rather than
+overturning it: a GUARD still never changes an exit code.
+- Stop: checks run ONLY when the write-back block already fires, over the
+  session's touched files (every check when its file list overflowed), within
+  45 s in total. Failures, the unapproved line and a budget line ride the
+  block's stderr. They never cause a block, and a session that wrote back is
+  never held and runs nothing.
+- pre-commit: the `pre-commit` git hook (§Hooks) runs `sofar check --staged`
+  over the staged paths. It warns on stderr and exits 10 ONLY when the clone
+  opted in (`sofar check --block-commits on`, in the same file) and an approved
+  check failed. The hook refuses the commit on 10 alone. Any other status,
+  including an older sofar without `check` (exit 1) or no record, lets the
+  commit through.
+- drive: at task acceptance (§Driver, Decision checks at acceptance).
+- `sofar check` (§CLI): warns, exit 0; `--strict` exits 1 on a failure.
+
+### Read-time surfacing (memory-lead 2.1, D6)
+The point-of-use push of §Decision guards (drift-hardening D3), extended from
+the edit to the READ, and from guarded rules to every decision that names the
+file. The digest carries one record's decisions, once, at SessionStart. A read
+is the first moment the path is known, and it comes before the edit.
+
+**Subjects.** PostToolUse tests every path a call reads or writes:
+- edit paths as before (Edit, Write, MultiEdit, apply_patch);
+- Claude Code `Read` (`tool_input.file_path`), and `Grep`
+  (`tool_input.path` when it names a regular file, plus the first 5 strings of
+  `tool_response.filenames` when present);
+- Cursor `Read` (`tool_input.file_path`, absolute; verified live on
+  cursor-agent 2026.09.18, whose postToolUse payload carries no `cwd`);
+- a shell call on any host (Bash, and Cursor's Shell after the D34
+  conversion): the first 5 distinct operands, taken before any `<<`, that name
+  an existing regular file. They are resolved against the payload's `cwd`.
+  Flags (`-…`) and tokens carrying `=`, `$`, `*` or `?` are skipped.
+
+A path under a `.sofar/` directory is never a subject. A path outside the repo
+root still is: a session rooted in one worktree that edits a sibling worktree
+must keep its notices, and guard globs already match by tail.
+
+A read appends NOTHING: the record holds what changed, not what was looked at.
+It never creates the quick lane either (r1-fixes D14 creates it on the first
+captured EDIT), so on an unbound branch a read still surfaces, with every
+handle qualified, and nothing is written.
+
+Matchers: Claude Code `PostToolUse` is `Edit|Write|MultiEdit|Bash|Read|Grep`;
+Cursor `postToolUse` is `Shell|Write|Read`; Codex stays `Bash|apply_patch`,
+because it reads through its shell. The PostToolUseFailure matchers are
+unchanged. `sofar init` widens an entry of ours that still carries a matcher
+an earlier sofar shipped (`Edit|Write|MultiEdit|Bash`, Cursor's
+`Shell|Write`) in place, and leaves any other matcher, the user's, alone.
+
+**Candidates** are in-force decisions from EVERY initiative, in three tiers:
+1. GUARD: a `path:` guard matches the subject. `cmd:` guards keep matching
+   commands, as §Decision guards (drift-hardening D3) has them.
+2. RULED MENTION: a decision with a `rule` whose `chose`, `over` or `rule`
+   names the file.
+3. UNRULED MENTION: any other decision that names it.
+
+A decision NAMES a file when a file token of that text equals the subject's
+path, or its tail at a `/` boundary.
+
+File tokens (core/file-mentions.ts):
+- Split on whitespace, backticks, quotes, brackets, commas and semicolons.
+- Drop trailing sentence punctuation, `:<line>[:<col>]`, `#L<n>` and a
+  leading `./`.
+- Keep a token when its last segment is `name.ext` (rule-fidelity's file-name
+  class) or a dotfile (`.mcp.json`), and no segment is empty. A bare name
+  needs two characters before its extension, which keeps `e.g` out; behind a
+  `/`, one is enough (`src/a.ts`).
+- A token carrying `://`, `*`, `?` or `$`, or starting with `~`, is not a
+  file.
+
+Directory tokens and `because` are not scope. Measured on this repo: directory
+tokens alone spread over 375 files, while file tokens name 74, with a median
+of 1 decision per file.
+
+IN FORCE:
+- A decision the fold marks superseded (§State (result of fold); a ruled
+  target falls only to a ruled superseder) is out while retirement is on.
+  That is `SOFAR_RETIRE`, read at render time, as the digest reads it.
+- An `until`-scoped decision is never a candidate, because task resolution is
+  not indexed.
+- A voided decision is gone, as everywhere.
+
+The edit-time guard notice obeys the same filter, so a superseded guard stops
+speaking. The fold's own `guard_violations` are unchanged.
+
+**Order and cap.** Tier by tier:
+- Guards: other initiatives before this one, then initiative, then ordinal,
+  as §Decision guards (drift-hardening D3) ordered them.
+- Mentions: the longer matched tail (counted in segments) first, then the
+  newest.
+
+Stored relevance (typed-judge D10; core/index-relevance.ts, with `about:
+"file:<repo-relative path>"`) reranks WITHIN a tier through `rankByRelevance`,
+and never across tiers. It is read only when some tier holds two notices. A
+subject it would ADD at p ≥ 0.8 is not rendered yet: no writer of `file:` rows
+exists, and a judged relevance is not a mention, so its wording belongs to the
+task that first writes those rows.
+
+A call surfaces at most 3 decisions across all its subjects, each decision
+once. The rest become ONE line: `sofar: …and N more decision(s) on <first
+dropped subject> (in <initiatives>) — sofar find <subject>`.
+
+**Told once.** Each (session, decision, subject) is told once, overflow
+included.
+- The told set is `.sofar/.index/told/<session>.json`. It is derived and
+  disposable: a lost or corrupt file re-tells, never silences, and concurrent
+  hooks can lose an entry the same way.
+- Read and edit notices share it. Edits also keep their lastTouch suppression
+  (§Decision guards (drift-hardening D3)).
+- SessionStart with `source` `compact` or `clear` deletes the session's file,
+  because the context that held the notices is gone.
+- Session `cli` keeps no set, and `cmd:` guard notices are never suppressed,
+  because each run is its own act.
+
+**Wording: facts, not commands.** Claude Code's hook docs warn that text
+framed as out-of-band system commands can trigger its prompt-injection
+defenses, and ask for factual statements.
+- Rules render verbatim with the operator's quote clause
+  (§Rule fidelity (memory-lead 1.2, D2)).
+- `chose` and `over` render as minutiaeHead heads of 90 and 70 chars
+  (§Digest composition (memory-lead 1.3, D4)).
+- The handle is `D<n>` for the bound record and `<slug> D<n>` otherwise.
+- `<subject>` is repo-relative for a path, and a command clipped to 60 chars.
+
+The lines:
+- guard: `sofar: <subject> is governed by [<handle>], a standing rule:
+  "<rule>"[ — operator: "<quote>"…] (guard: <guard>). Work against it needs a
+  decision that supersedes <handle>.`
+- ruled mention: `sofar: [<handle>] names <subject>. Its standing rule:
+  "<rule>"[ — operator: …].`
+- unruled mention: `sofar: [<handle>] <YYYY-MM-DD> names <subject>: chose
+  <head>[ over <head>].` There is no over clause for the `(no alternative
+  recorded)` placeholder.
+
+Only a guard says "governed by" (record-index D2). A mention states that the
+decision names the file, never that it governs it.
+
+**Budget.**
+- At most 1,500 chars per call, the overflow line included. Rules are never
+  clipped: a decision that does not fit joins the overflow count instead, and
+  only a first line that alone exceeds the budget can pass it.
+- The p50 of a Read hook on this repo stays within +5 ms of a no-op Read
+  before 2.1. Measured 2026-09-22 on the fast path, 40 runs each: 32.8 → 35.5
+  ms on a file three guards and three mentions reach, 32.3 → 34.4 ms on one
+  with three.
+
+**Index.** The declared half (guards.json, meta-guards.json) becomes the
+decision-scope tier. Per initiative it holds:
+- the decision count, a ruled bitmap, and the superseded and until ordinals
+  of EVERY decision, which is what supersession and the relevance reader's
+  `retired` set need;
+- one entry per decision that guards or names a file, or carries a rule
+  (memory-lead 2.2, D8 — the digest's repo-wide rules read them; an entry
+  with neither guard nor mention is never a read-time hit): id, ordinal, ts,
+  chose, over, rule?, quote?, guard?, until?, superseded_by? and mentions. `chose` and
+  `over` are kept as their first 120 whitespace-collapsed characters: a head of
+  at most 90 depends only on its first 90 and on whether the text runs past
+  them, so it renders the same bytes. On this repo the tier falls from 246 KB
+  to 102 KB. Rules and quotes are kept whole.
+
+`guards` is the view of entries that carry both a rule and a guard. Superseded
+entries stay in it, marked, to stay faithful to the fold; the filter runs at
+render time. INDEX_SCHEMA_VERSION is 8 (6 at 2.1; 7 when 2.2 added every rule
+and the labels tier; 8 when 2.3 added each ruled entry's `check` and the
+check command's file tokens to its mentions).
+
+**Labels tier (memory-lead 2.2, D8).** labels.json on its own cursor
+(meta-labels.json), read only by sofar_log_decision, sofar_end_session and
+`sofar event append --type decision_logged`. Per initiative: the decision
+count, and one entry per STANDING decision whose chose and over are each at
+most 600 chars (LABEL_CLAUSE_MAX; a lexicon-free cut well past the longest
+label-sized clause on record, 345 of 7,494 — core/reversal's term count still
+decides at query time): ordinal, ts, chose, over, ruled. A later
+`supersedes: "D<n>"` removes the entry as the fold retires it (backward only;
+a ruled target only for a ruled superseder); an until-scoped decision never
+enters, since task resolution is not indexed.
+
+No schema change, no new event type, no model call. Warn-only
+(drift-hardening D3).
+
+**Proven live (2026-09-22, cursor-agent 2026.09.18-9a7762b, print mode).** A
+scratch project on an unbound branch held one decision naming
+`docs/notes.txt`, and its postToolUse ran this build. Asked to read the file
+and quote any context it received, the model quoted `sofar: [probe D1]
+2026-09-22 names docs/notes.txt: chose keep docs/notes.txt ASCII-only over
+allowing UTF-8 in notes.` from a system reminder, and no quick lane was
+created. The payload is test/fixtures/cursor/hook-payloads.cursor-agent-2026.09.18.json.
+
 ### Rule fidelity (memory-lead 1.2, D2)
 A `rule` is the agent's restatement of what the operator said, and a
 restatement can add law nobody made (round 1: "Reject anything else" became
@@ -662,7 +908,25 @@ one blank line):
    hook notices — as before.
 10. STANDING CONSTRAINTS (PROTECTED): standingConstraintLines with a focus —
     ranked by RELEVANCE, ties newest (highest ordinal) first — under the
-    2,000-char whole-entry budget, the first entry always whole.
+    2,000-char whole-entry budget, the first entry always whole. Then, in
+    the same block, REPO-WIDE RULES (memory-lead 2.2, D8): every OTHER
+    record's in-force rule from the decision-scope tier (§Derived index),
+    under `Repo-wide rules from other records (<shown> of <N>, most relevant
+    first):` as `- [<slug> D<n>] <rule>` with the operator's quote clause
+    (§Rule fidelity); ranked by relevance, ties newest by ts, then handle;
+    whole entries within min(1,200, 2,000 − the own lines' length); then
+    `- …and K more in other records (their decisions.md)`. With no room for
+    one entry the block is the single line `- …and N more from other records
+    (their decisions.md)`. The same words (rule and quote,
+    whitespace-collapsed) are one rule: restatements render once as
+    `[<slug> D<n>, <slug> D<n>]`, dated by the newest, and a rule this record
+    itself holds in force is not repeated; counts are of distinct rules. A
+    rule falls only to a ruled superseder of its own record, closing a
+    record retires nothing, and `SOFAR_RETIRE=off` shows superseded ones. The caller passes them (SessionStart, from the
+    same scope-tier refresh as the adjacency line; sofar_get_state);
+    omitted when the index is unreadable or no other record holds a rule, so
+    a one-record repo renders byte-identically. Read-back renders when
+    either list does.
 11. `Read-back: …` (PROTECTED; unchanged condition), then the footer
     (PROTECTED).
 
@@ -1057,6 +1321,9 @@ and never registers as one, so it can never read as a misrouted session:
 - `run_stop_requested` (run) — `sofar drive --stop` asking the driver of that
   run to end it (in-session-drive D2). A request, never a stop: only the
   driver writes `run_stopped`.
+- `run_adopted` (run, epoch ≥2) — a `--resume` taking over a run with no stop
+  (drive-visibility 2.2), at one more than the run's highest epoch; the
+  fencing token a synced record carries.
 
 **Policy (D2, D7).** `task`: one task per session, no context sensing needed
 — identical on every agent and model, and therefore the default.
@@ -1174,9 +1441,34 @@ task line; describeRun appends `, P/N verification(s) passed` when the run
 recorded any; sessions/<id>.md shows `verify_failed` like any reason.
 Records without checks render byte-identically.
 
+**Decision checks at acceptance (memory-lead 2.3, D9).** Once the task's own
+command passes, or none applies, the gate runs the in-force decision checks
+(§Decision checks) that apply to the task's files: task_files[task], plus the
+tree's uncommitted and untracked paths. A list at TASK_FILES_CAP has lost its
+oldest paths, so every check applies. Each runs if approved on the clone or
+covered by the run's surface, and is recorded as verification_recorded with
+`decision: "<slug> D<n>"`, cwd `.` and timeout_ms = the check's own, else
+the run's verify timeout. A covered pass (same command, same tree) runs
+nothing. `refused` is recorded and NEVER blocks: nothing ran, and nothing an
+agent controls decides approval. A fail or timeout blocks exactly as a failed
+verify does: reopened with `reopened by the driver — <failure line>`,
+handoff `verify_failed` with the line as detail, and the next session's
+prompt says `The previous session marked this task done, but <failure
+line>`. The fold keeps these records apart: run.verifications (with
+`decision`) and task.checks (latest per decision) — never
+task.verification, so the task's own pass keeps covering. A resumed driver
+treats a recorded check like a verification. `--max-verify-attempts` counts
+FAILURES per task per run, verify and check alike, a refused check excepted.
+Since check passes are attempts too, attempts can outnumber failures.
+
 **Fold.** `runs[]` in log order; latestRun is the resume point — a run with
 no stop is still going, or its driver died without writing one, which is
-the same fact as far as the record can tell. No stubs: a handoff or stop
+the same fact as far as the record can tell. The run lock tells them apart
+on the machine that ran it, and nowhere else (see One driver per run below).
+Each run carries its adoptions in replay order and its OWNER: the highest
+epoch, the adoption whose id sorts first on a tie; an adoption for a run
+that never started, or naming an epoch below 2, is skipped with a warning.
+No stubs: a handoff or stop
 for a run that never started is skipped with a warning (the session_closed
 rule); a duplicate start or a second stop is skipped and the first kept. A
 handoff attaches to the REGISTERED session it names (the attachActivity
@@ -1186,10 +1478,17 @@ command_run's): they say how sessions were scheduled, never what the plan
 says, so they cannot stale the next action.
 
 **Render.** The digest carries one budgeted `Driven:` line for the latest
-run — adapter, policy, handoffs by reason in log order, running or stopped
-and why; a record no driver ever ran renders byte-identically to before.
-`sofar status` lists every run and every handoff; sessions/<id>.md names
-the run that handed the session off.
+run — adapter, policy, `resumed (epoch N)` once adopted, handoffs by reason
+in log order, running or stopped and why, counting only the stop requests
+in force; a record no driver ever ran renders byte-identically to before.
+The full status puts each adoption on the run's handoff timeline and marks
+one that never outranked the adoptions before it.
+`sofar status` — plain, styled and `--watch`, which re-probes on every
+beat because a dying driver touches no file — lists every run and every
+handoff, and beside the latest unstopped run says `running`, `driver gone` or
+`liveness unknown` from the run lock; sessions/<id>.md names the run that handed the session off.
+Liveness is NEVER rendered into a generated file — plan.md, the digest and
+sessions/*.md project the record, and a lock is not in it.
 
 **Adapter (D3, D9).** A process wrapper and nothing more: `launch(request)` →
 a handle with `usage()`, optional `nudge()`, `kill()`, `wait()`;
@@ -1318,11 +1617,11 @@ from stdin" and waits, even with a prompt on the command line.
 It is the second adapter, and it proves the contract by fitting BADLY. An
 adapter written from the agent the contract was designed around shows only
 that the contract describes that agent; codex disagrees on every axis, and
-`sofar drive` runs against it unchanged anyway. Four capabilities are false.
-Usage arrives with `turn.completed`, i.e. after the session has ended, so
-`usage()` returns undefined forever and the threshold policy is refused —
-the final numbers ride `SessionExit` instead, where a post-mortem cannot be
-mistaken for a gauge. There is no channel into a running exec, so no nudge.
+`sofar drive` runs against it unchanged anyway. Three capabilities are false.
+Usage arrives with `turn.completed`, i.e. after the session has ended, and no
+hook payload carries a token count, so `usage()` returns undefined forever
+and the threshold policy is refused — the final numbers ride `SessionExit`
+instead, where a post-mortem cannot be mistaken for a gauge.
 Codex's permission vocabulary is a sandbox enum, not rules: the surface's
 MODE maps (`acceptEdits`/`default`/`dontAsk` → `workspace-write`,
 `bypassPermissions` → `danger-full-access`, `plan` → `read-only`, always with
@@ -1330,16 +1629,90 @@ MODE maps (`acceptEdits`/`default`/`dontAsk` → `workspace-write`,
 approval prompt), its rules do not, and a mode with no codex meaning throws
 instead of launching under one nobody chose. Nothing reports cost.
 
-Two things it does differently. The session id is ASSIGNED, not observed: the
-adapter mints it and writes it into the pin line, because codex runs no sofar
-hook to inject one — and `resolveLaunchedSession` still believes it only
-because the record registered it (D3), so a session that ignored the
-instruction falls through to the tool-and-time diff. And codex carries no
-sofar MCP server, so the pin line hands over the CLI dialect
-(`sofar event append <slug> --session <id> --source codex --type …`) with the
-payload keys spelled out, `task_status_changed` above all: the key is `id`,
-not `task_id`, and a session told otherwise stalls silently having done the
-work.
+**What Codex's hooks give it (agents-parity 3.1; agents-parity D9 revises
+session-driver D9).** Once `sofar init --agents codex` has wired the hooks
+and the MCP server (§Codex host) and Codex trusts them, a driven session is
+no longer reachable only through its prompt.
+- Nudge: `capabilities.nudge` is true, by Claude Code's channel. The child
+  gets `SOFAR_DRIVE_NUDGE`, `nudge()` creates that file, and Codex's
+  PostToolUse shim returns the nudge line as
+  `hookSpecificOutput.additionalContext`, which Codex's output schema
+  accepts. The threshold policy is still refused, now naming only the
+  missing gauge.
+- Session identity from the hook: the exit's `session_id` is
+  `thread.started.thread_id`, the id Codex's hooks register the session
+  under. Codex's docs call the hook field the "Current Codex session id";
+  that it equals the exec thread id is inferred.
+- A fallback id: the adapter cannot know at launch whether Codex trusts the
+  hooks, so it still mints an id, puts it in the pin line as the fallback,
+  and reports it as `assigned_session_id`. `resolveLaunchedSession` tries
+  the shown id, then the assigned one, and believes either only because the
+  record registered it (D3). When both are registered it takes the one that
+  wrote back, else the shown one. Both are provably this launch's, so a
+  parallel codex session never turns a launch into an ambiguity.
+- One id, never both. The pin line says to use the injected Session line's
+  id, and the assigned id only when no Session line arrived. Its commands
+  spell `<id>`, never the assigned id, which a hooked session would copy: one
+  launch writing under two ids is the split r1-fixes D30 removed for Cursor.
+- Both dialects. The pin line spells sofar's MCP loop (`sofar_start_session`
+  with tool `"codex"`) for a session that has the tools, and the CLI dialect
+  (`sofar event append <slug> --session <id> --source codex --type …`) for
+  one that does not. The payload keys are spelled out, `task_status_changed`
+  above all: the key is `id`, not `task_id`, and a session told otherwise
+  stalls silently having done the work.
+- Stated, not worked around. The adapter never passes
+  `--dangerously-bypass-hook-trust`, which skips the operator's review of
+  every enabled hook; an operator who wants it passes it through
+  `--agent-args`. A session whose hooks do not run gets no injected record,
+  no nudge and no write-back gate, and resolves by its assigned id. Whether
+  Codex hands its environment to hook commands, and whether the thread id
+  equals the hooks' `session_id`, are unverified. agents-parity 3.2 checks
+  both live, the second with a plain `codex exec --json` beside the hook
+  trace. A `task_done` handoff cannot show it, because
+  `resolveLaunchedSession` falls back to the diff when the thread id matches
+  no registered session (§Codex host, its Live proof paragraph).
+
+**The cursor adapter (r1-fixes 6.8, D38).** `cursor-agent -p
+--output-format stream-json --trust`, read from cursor-agent
+2026.09.15-d2fe57e: the stream of the live print-mode session in r1-fixes
+6.3 (S1c) and exits captured against an unreachable `--endpoint`, which cost
+nothing (fixtures in test/fixtures/cursor/). `{"type":"system","subtype":
+"init","session_id",…}` carries the chat id, the same id Cursor hands its
+hooks as `session_id` (equal in S1c and in every 6.9 driven launch).
+`{"type":"result","is_error","result",
+"session_id","usage":{inputTokens, outputTokens, cacheReadTokens,
+cacheWriteTokens}}` is the only line with numbers and the last line.
+`inputTokens` excludes the cache reads (6.9: 193,739 beside 253,696 read),
+so the exit's `context_tokens` is their sum plus cache writes. That is the
+session's total across its model calls, not the context it ended with.
+`user`, `assistant`, `thinking` and `tool_call` lines are skipped. A
+transport failure prints nothing on stdout and exits 1 with its cause on
+stderr, so the stderr tail is the diagnostic that reaches the stall note.
+- Declared, not worked around (session-driver D9). No live gauge: usage
+  rides the exit, and the threshold policy is refused. No nudge: Cursor
+  rebuilds its hooks' environment from the login shell (§Cursor host, its
+  "Which `sofar` Cursor runs" paragraph), so `SOFAR_DRIVE_NUDGE` is not
+  set. No effort: Cursor spells it inside a parameterized model name only
+  some models accept. No per-tool rules and no cost. `--model` is routed.
+- The surface's mode maps to flags, because print mode cannot answer an
+  approval: `plan` → `--mode plan`, `bypassPermissions` → `--force
+  --sandbox disabled`, every other mode → `--force`, with the sandbox left
+  to the operator's own Cursor config. A mode with no Cursor meaning throws.
+- `--trust` always: print mode cannot ask whether to trust a directory Cursor
+  has not seen, and exits 1 there with "Workspace Trust Required"; starting
+  the run in that directory answered the question. Never
+  `--approve-mcps`, which approves every project MCP server and not just
+  sofar's. A session whose sofar server the operator never approved writes
+  through the CLI dialect; an operator who wants blanket approval passes it
+  with `--agent-arg`.
+- Session identity is codex's scheme. The exit's `session_id` is the chat
+  id, and the adapter also assigns a fallback id for a project with no
+  sofar hooks Cursor runs. The pin line (`drivenPinLine`, shared with codex)
+  settles one id in both dialects, with tool `"cursor"` and `--source
+  cursor`, which the envelope maps to `cli` (r1-fixes D3).
+- Headless `cursor-agent -p` fires no stop hook, so a driven Cursor session
+  has no write-back gate; the fold judges its write-back, as for every
+  adapter. The live drive run is r1-fixes 6.9.
 
 **The loop (2.2).** Fold → next task → launch → wait → handoff, repeat. The
 next task is the one already `active` in the active phase, else its first
@@ -1354,7 +1727,10 @@ with the message as the note. Whatever ends it, a `run_stopped` lands behind
 it — a run with no stop is one the next driver has to ask the operator about,
 so `sofar drive` REFUSES to start over an unstopped run and offers
 `--resume`, which adopts that run id and its recorded `max_sessions` rather
-than minting a second run over the same work.
+than minting a second run over the same work. Where the run lock says a
+driver still holds the run, `--resume` is refused too and the refusal names
+`sofar drive --stop` and `sofar status`; where it says the driver is gone, the
+refusal says so; where it cannot say, the refusal keeps today's words.
 
 **Handoff reasons come from the fold (D5).** `needs_user` is the named task
 sitting in `blocked` — the record's existing word for "wants to happen,
@@ -1403,8 +1779,9 @@ drive", and the agent starts the run through its own shell with
 `sofar drive --detach`. Nothing else is portable: every one of those agents
 has a shell, none shares a process lifetime with an unattended run (a
 foreground tool call times out, a background one dies with the session, and
-an MCP server is the agent's own child), and codex carries no sofar MCP
-server at all.
+an MCP server is the agent's own child). A codex session also has sofar's MCP
+server only where `sofar init --agents codex` registered it and Codex trusts
+the project (§Codex host).
 
 `--detach` re-spawns the same command as a detached process — its own
 process group and session, stdin closed, stdout and stderr to a log file in
@@ -1443,20 +1820,32 @@ has no terminal, so ^C cannot reach it, and whatever replaces ^C must not be
 state the driver holds — no pid in the record (a machine-local number in a
 committed log, and a reused one signals a stranger), no pid file beside it.
 `sofar drive [slug] --stop` appends `run_stop_requested` for the latest run
-with no stop, refusing when there is none, and then watches the fold for up to
-30s: a `run_stopped` for that run is reported with its reason; none is
-reported as requested-but-unacknowledged, which is what a request to a driver
-that already died looks like (`--resume` adopts such a run; a later request
-can then stop it). The driver honours a request as it honours ^C, with the
+with no stop, refusing when there is none. When the run lock says the run's
+driver is gone, it appends nothing, says so at once and names `--resume`,
+since a request nobody holds the run to read is the 30s wait below for
+nothing. Otherwise it watches the fold and the lock for up to
+30s: a `run_stopped` for that run is reported with its reason; a lock that
+goes FREE with none recorded ends the wait at once and says the driver exited
+without a stop (the driver appends its stop before it lets go, and each look
+probes before it folds, so a stop that landed is never read as a vanished
+driver); none is reported as requested-but-unacknowledged — naming the driver
+alive where the lock is still HELD, and otherwise saying this is what a
+request to a driver that already died looks like (`--resume` adopts such a
+run; a later request can then stop it). The driver honours a request as it honours ^C, with the
 same two steps: the FIRST signals the live session and ends the run
 `interrupted` once the handoff is read, the SECOND escalates to SIGKILL. It
 reads requests from the fold before every launch, and during a session from a
 2s poll that reads only the bytes appended since its last tick and folds only
 when those bytes name a stop request — driven sessions write on every tool
 call, so a fold per tick, or even per growth, would cost more than the session
-it watches. The byte scan decides nothing; the fold counts the requests. A request counts only when its envelope
-`ts` is at or after the moment this driver took the run, so one left behind
-for a dead driver cannot stop the `--resume` that follows it. The stop's
+it watches. The byte scan decides nothing; the fold counts the requests. A
+request counts only when its id sorts after the OWNER's adoption — the one
+in force (`run_started` for a run never resumed), not merely the newest,
+since a late adoption that lost to a higher epoch holds nothing
+(drive-visibility D8) — so one left behind for a dead driver cannot stop
+the `--resume` that follows it. It compares two record
+ids rather than a driver's private clock reading (drive-visibility 2.2), so
+every reader of the fold agrees which requests apply. The stop's
 note says a request ended the run rather than a signal.
 
 **Clean launch environment (in-session-drive D3).** A session is launched
@@ -1476,9 +1865,169 @@ Vertex switches, `ANTHROPIC_*` and `CODEX_HOME` route the operator's own auth
 (D1) and pass through untouched. Variables the driver itself sets
 (`SOFAR_DRIVE_NUDGE`) are applied after the deletion.
 
+**One driver per run (drive-visibility D2, D3).** A driver holds an
+exclusive flock-semantics lock on `<state base>/runs/<run id>.lock` — the
+state base is `$XDG_STATE_HOME/sofar`, else `~/.local/state/sofar` — from
+the moment it takes the run (`run_started`, or its own `run_adopted`) until
+its process ends. The kernel releases it when the process dies by ANY path,
+kill -9 included, and keeps it through SIGSTOP and sleep. No launched session
+inherits it (the descriptor is close-on-exec; measured: a session still running after
+its driver's kill -9 leaves the lock free), so it answers "is that driver
+alive" — not "is its session" — with no pid, no heartbeat and nothing
+written: the file
+is empty, per user rather than per clone (a run id is a ulid, unique
+without one), NEVER unlinked — unlinking a lock someone may hold splits it
+into two files two holders can each lock — and refused, as the diagnostics
+store is, when the state base would resolve inside the repo. One primitive
+for every reader, because the readers are Node today and Rust and Swift
+next (rust-core D1 moves status, the statusline and the hooks; the Mac app
+folds through the Rust core): Rust takes it with `File::try_lock`, Swift
+with `flock`, Node on macOS by holding a descriptor opened with
+`O_EXLOCK|O_NONBLOCK` (verified to contend with `flock`), Node on Linux by
+holding a `flock(1)` child on a pipe from the driver, so the child exits and
+the lock falls the moment the driver does. fcntl/lockf locks, SQLite locks,
+sockets and pid files are out: they do not contend with flock on Linux, or
+fail inside the agent sandboxes `--detach` is launched from, or carry a pid.
+
+A claim retries for 500ms before reporting the lock held, since a reader's
+probe holds it for an instant. A probe takes a SHARED lock non-blockingly and
+releases it at once, so probes never block one another, and reads three
+answers: HELD (a driver on this machine runs the run), FREE (a driver ran it
+here and is gone — the file outlives it by design) or ABSENT (no driver ran
+it under this state base: another machine, another user, a GUI app with a
+different environment, or a run older than the lock). ABSENT is `liveness
+unknown`, NEVER `driver gone`: every reader that renders liveness renders
+that. Where the lock cannot be taken — Linux without `flock(1)`, Windows
+until sofar-core ships, a state base inside the repo — the opening lines say
+liveness is unavailable for this run (D9), and the run proceeds as before.
+
+**Fencing a takeover (drive-visibility 2.2).** The lock is machine-local; a
+record syncs. A `--resume` therefore appends `run_adopted {run, epoch}` with
+one more than the run's highest epoch before its first launch, and the
+fold's OWNER is the highest epoch, the first-sorting id on a tie. A driver
+reads ownership from the fold before every launch, from the fold it reads
+once a session exits (before filing anything), and, during a session, from
+the same 2s byte scan that finds stop requests, folding only when the new
+bytes name a `run_adopted`. A driver that finds it no longer owns its
+run STEPS DOWN: it signals nothing — a live session is real work whose
+write-back the new owner resumes from — waits for that session to exit,
+files no handoff and no `run_stopped` (the run is someone else's now), says
+it was fenced by epoch N on its progress stream and exits 1. One event per
+takeover, never a heartbeat. Across machines it detects only once the
+adoption has synced in; it does not prevent a race that sync has not yet
+shown, and says nothing about whether the old driver is alive.
+
+**Keeping the Mac awake (drive-visibility D5).** On macOS, with keep-awake on,
+the driver spawns `caffeinate -i -w <its own pid>` when it takes the run;
+`-w` ends the assertion by itself when the driver exits, so nothing is
+cleaned up and no pid is stored. The setting is `drive.keep_awake` (boolean)
+in `~/.config/sofar/config.json` beside `auto_upgrade`; `sofar drive
+--keep-awake-setting <on|off>` writes it and starts nothing, as `sofar
+upgrade --auto` does for its own. Per run, `--keep-awake` / `--no-keep-awake`
+win and are not saved. Unset and on a TTY — the foreground driver, or the
+`--detach` caller before it spawns — sofar asks once and saves the answer
+(Enter means yes; a TTY here is stdin and stderr both terminals, not CI, not
+an agent's shell). `--keep-awake-setting` refuses an initiative or any other
+flag beside it, since it starts nothing.
+Unset and with no TTY, it NEVER prompts: the opening lines say keep-awake is
+unset and how to set it, so an agent relaying them asks the operator in chat,
+and a run with no per-run flag re-reads the setting before every launch, so
+the answer takes effect from the next session. The opening lines also say
+that idle sleep is blocked and lid-close sleep is not. A `caffeinate` that
+cannot start, or ends before the driver lets it go, is a warning on the
+progress stream, never silence. Elsewhere than macOS the setting is inert,
+and a run that asked for it says so. A library caller of the loop that
+states no keep-awake gets neither a line nor an assertion.
+
+**Watching a run (drive-visibility 3.1–3.6).** Progress already lands in the
+record as it happens; these surfaces carry it to where the operator is,
+and none of them is the only way to learn it — `sofar status` stays the
+answer every host can reach (see the Host tiers section).
+- `sofar drive [slug] --await` blocks at zero cost on the latest unstopped
+  run, polling every 2s by byte scan and lock probe, and exits with ONE
+  line: on `run_stopped` (exit 0; a `needs_user` stop names the blocked task
+  and its note, which is the operator's question), or when the lock goes
+  FREE with no stop recorded (exit 2, naming `--resume`). With the lock
+  ABSENT it waits on the record alone and says so first. No deadline; exit 1
+  when there is nothing to await. The line goes to stdout; the ABSENT notice
+  and a nothing-to-await refusal go to stderr. A tick is a lock probe and a
+  stat, folding only when the new bytes name a `run_stopped` or the lock
+  falls. Built for an agent's background shell, where it costs no tokens
+  until the one line that needs acting on.
+- `sofar drive [slug] --follow` prints one plain line per handoff, task
+  status change, adoption, stop request and stop, and exits on `run_stopped`
+  or a FREE lock — for a terminal, or for narration the operator asked for.
+  It is not the agent default: every line under an agent's monitor is a
+  model turn, and Claude Code ends a monitor after 30 minutes (2.1.271).
+- The UserPromptSubmit shim adds one drive line —
+  `sofar drive: run <id> <running|driver gone|stopped: reason> · <n>
+  handoffs · now on <task> · <done>/<total>` — for the session's initiative
+  when its latest run is unstopped or stopped since this session began, and
+  ONLY when that run's newest event or task change is newer than the id this
+  session last saw. The last-seen id lives per session under the per-clone
+  state dir; a lost or unreadable one repeats the line, never silences it.
+- The statusline appends `drive <task>`, `drive gone` or `drive <stop
+  reason>` after the initiative's progress, the last only for a stop newer
+  than the session's start, within the statusline laws (words over glyphs).
+  The Claude desktop app does not render statusLine (claude-code#41456).
+- The protocol block tells an agent, after `--detach`, to run `sofar drive
+  <slug> --await` in its background shell and relay the line it prints; a
+  host with no background shell points the operator at the prompt line, the
+  statusline or `sofar status`.
+
+**Sync and presence during a run (drive-visibility D4, D6 — paid).** For a
+LINKED repo (`.sofar/remote.json` plus a credential for its api_url), the
+driver pushes the driven initiative's stream while it runs — at each
+handoff, at the stop, and trailing 15s after the log last grew — through
+`pushStream`, one push at a time, so the doorbell rings mid-run. It also
+sends presence: at start, at each handoff, at the stop, every 30s ±10%
+jitter, and at once when a 5s local tick sees the wall clock jump past two
+ticks (the machine slept); each ping carries `{run, slug, task?, state, seq,
+boot, interval_s}` and nothing else, has a 10s timeout, and is dropped on
+failure, never queued or retried — the next tick replaces it. Presence is
+never an event. Entitlement is the server's: a refusal the server marks as
+one (status and code are its contract, drive-visibility 4.3), and 401/404
+likewise, ends drive-time sync for the rest of the run, stated once on the
+progress stream; the engine carries no plan check of its own
+(drive-visibility D6). No push
+or ping failure ever delays a launch, changes a reason or stops a run, and
+an unlinked repo sends nothing. Concurrent pushes of one stream from the
+driver and an operator are safe by construction: push is idempotent by
+event id, and a cursor moved backwards only re-sends duplicates.
+
+**Progress judge (typed-judge 4.1, D8).** With a `cloud` judge provider
+configured (§Judge, Providers), the driver judges each resolved handoff
+after appending it, before the next launch: a `task_done` noul and an
+`outcome` choice over the task, its status before → after, the write-back,
+`git diff --shortstat` since the launch outside `.sofar/` (plus untracked
+files), and the acceptance check's line when the gate ran. The handoff and
+its reason stay the fold's (D5). The verdict re-runs nothing and stops
+nothing. The model's answers land as `judgement_recorded` on envelope session
+`cli`, and a line follows the handoff on the progress stream. An operator
+who opted in but cannot reach the provider is told once, at the start.
+Without a provider the driver judges nothing and reads no diff. §Judge
+states the questions, the rules and the warnings.
+
+**Pre-flight (typed-judge 4.2, 4.3, D12).** With the same provider, before
+each launch and after routing, the driver judges the task: is it specified
+well enough to act on, how complex is it, and which model tier fits. By
+the user's ruling (D12, keeping D1), none of it changes the launch. An
+underspecified task still launches, and an effort or model hint is only
+printed, for a field the run and route left open and the adapter honours.
+The model's answers land as `judgement_recorded` before the session starts.
+
+**Judging under fencing (drive-visibility 2.2).** Both judge calls are
+network waits, and a takeover, a stop request or a signal can land during
+one. After each wait the driver re-folds, runs the ownership check and
+honours stop requests and signals BEFORE it appends a judgement or
+launches. A driver fenced meanwhile appends nothing and launches nothing.
+
 **What the driver is not (D2).** Not a session, not an agent loop, never an
-inference: it launches existing headless agents through the adapter
-contract (launch, usage, wait) and writes nothing but these events.
+inference of its own: it launches existing headless agents through the
+adapter contract (launch, usage, wait) and writes nothing but these events,
+the verification gate's, and, only when the operator opted into the
+progress judge, the `judgement_recorded` events of an inference sofar-cloud
+ran (typed-judge D1, D8).
 
 ## Review (commit-attribution — phase boundaries, watermark ranges, gates nothing)
 Closing an initiative was an unconditional append: nothing rechecked that the
@@ -1573,8 +2122,14 @@ than a name-less variant is deliberate: "another record's work landed and you
 can do nothing about it" is noise, and a line that cannot be acted on trains
 the reader to skim the ones that can.
 
-**Tier 3 — no hooks at all** (Codex, Grok, OpenCode, anything on the AGENTS.md
-dialect). Nothing fires on its own, because nothing runs between prompts. The
+**A Tier 1 host is not Tier 1 in every surface.** The Claude desktop app runs
+the hooks but does not render `statusLine` (claude-code#41456, open since
+2026-03-31), so a statusline segment is a terminal-only convenience and never
+the carrier of anything a session must learn.
+
+**Tier 3 — no hooks at all** (Grok, OpenCode, anything on the AGENTS.md
+dialect alone, and Codex wherever its hooks do not run). Nothing fires on its
+own, because nothing runs between prompts. The
 same facts are all still REACHABLE, and the dialect's orient-first step is what
 reaches them: `sofar status` renders the record with its staleness signals, and
 `sofar review` renders the packet. The loss is latency and prompting, never
@@ -1587,6 +2142,17 @@ Tier 3 session that simply asks.
 
 Cursor is Tier 2 since r1-fixes Phase 6: it runs every shim, and publishes no
 live-session registry (§Cursor host).
+
+Codex is Tier 2 by agents-parity 2.1–3.1's wiring (placed by 3.2, D10), in a project Codex trusts
+whose sofar hooks the operator has trusted in `/hooks`. There it runs its five
+shims and loads the sofar MCP server, and sofar reads no Codex live-session
+registry (§Codex host). Everywhere else it is Tier 3. An untrusted project loads
+no project hook, and Codex skips a new or edited hook entry until it is trusted
+again, so one Codex binary can sit in either tier. The AGENTS.md block's CLI
+loop is what reaches the record from Tier 3. This placement rests on the wiring
+and its tests, as Cursor's did before r1-fixes 6.3's live proof. The live proof
+for Codex is agents-parity 3.2, which waits for the operator's consent
+(§Codex host, its Live proof paragraph).
 
 ## Cursor host (r1-fixes Phase 6, D33/D35 ruling, D34 contract)
 sofar serves Cursor with the SAME shims, the same MCP server and the same
@@ -1666,7 +2232,9 @@ and carry no `.claude/`; adding Claude Code later repoints them to the
 
 **Limits stated, not worked around.** Headless `cursor-agent -p` fires no
 stop, beforeSubmitPrompt or afterAgentResponse hook, so no write-back gate
-reaches a print-mode session; a driven Cursor session's write-back is judged
+reaches a print-mode session. It does fire sessionStart, postToolUse,
+postToolUseFailure (Shell and Write) and sessionEnd, as seen live in r1-fixes
+6.9. A driven Cursor session's write-back is judged
 from the fold, as for every adapter (session-driver D3). A resumed chat
 (`--resume`) gets no sessionStart context. The MCP server cannot learn the
 conversation id from its environment, so `sofar_start_session` still takes
@@ -1691,6 +2259,412 @@ stop each fired exactly once. Stop arrived with `loop_count: 0` and returned
 `followup_message`, the follow-up turn wrote session_ended, and no second
 stop fired. Evidence: r1-fixes note 01M2QE7G.
 
+**Proven live, driven (r1-fixes 6.9, 2026-09-21, cursor-agent
+2026.09.15-d2fe57e, tree from `sofar init --agents cursor`, sofar server
+approved once with `cursor-agent mcp enable sofar`).** `sofar drive --agent
+cursor` on a 3-task plan made 3 launches, 3 `task_done` handoffs and 0 stalls,
+and stopped `closed`. Every launch's `system/init.session_id`, its
+sessionStart hook's `session_id` and its handoff named the same chat id. Each
+session registered and wrote back through the MCP tools under the injected
+id, one session per launch, and none used the assigned fallback id or the
+CLI dialect. Evidence: r1-fixes 6.9's note.
+
+## Codex host (agents-parity 1.1 contract, r1-fixes 7.2)
+This section records what Codex reads, sends and honours. It was captured
+without running inference (agents-parity D3) from three sources: codex-cli
+0.154.0's binary (`--help` and `strings`), codex-cli 0.136.0's `--help`, and the
+Codex hooks docs saved 2026-09-16. Hooks are wired since agents-parity 2.1
+(the "Wired" paragraph below), the MCP server since 2.2 (after the
+**MCP** paragraph), the write-back gate and protocol text since 2.3 (after
+the **AGENTS.md** paragraph), and the revised drive adapter since 3.1 (the
+**Driven** paragraph). That wiring puts a trusted Codex project in Tier 2
+(§Host tiers, agents-parity D10). No live session has checked it yet: the
+live end-to-end is agents-parity 3.2 (the **Live proof** paragraph, last),
+and it waits for the operator's consent (D3). Each fact is marked (binary),
+(docs) or (unverified). The data is `packages/engine/test/fixtures/codex/`, whose README
+marks each field, and `codex-contract.test.ts` checks that the fixtures agree.
+Later tasks test against those files, never against remembered shapes.
+
+**Version.** Hooks and their trust gate exist in both installed releases:
+`--dangerously-bypass-hook-trust` appears in 0.136.0's `codex --help` (binary),
+and 0.154.0 embeds the hook schemas (binary). The first release with hooks is
+unverified because nothing older is installed. So the floor sofar can claim is
+0.136.0, and payload shapes are pinned to 0.154.0 only: 0.136.0's binary
+resolves under `~/.codex`, which the capture could not read. Hooks are on by
+default. `[features] hooks = false` turns them off, and `codex_hooks` is a
+deprecated alias for that key (docs).
+
+**Where hooks live.** Hooks are defined in `hooks.json` or in inline `[hooks]`
+tables in `config.toml`, beside each active config layer: `~/.codex/` and
+`<repo>/.codex/` (docs). Codex runs every matching hook from every source, and
+launches matching command hooks for one event concurrently. A layer holding both
+forms is merged, with a startup warning (docs). The project `.codex/` layer —
+hooks, MCP and settings alike — loads only for a trusted project,
+`projects."<path>".trust_level = "trusted"` (binary: "Project
+`.codex/config.toml`: settings for a trusted repository, including sandbox, MCP,
+hooks, model, and reasoning defaults."). Codex does not read
+`.claude/settings.json` hooks at runtime (unverified negative). The Claude
+config strings in the binary belong to its one-shot `/import`, which copies
+Claude Code hooks, MCP servers and instructions into `.codex/`. So unlike
+Cursor, there is no import to dedupe against.
+
+**Config shape (binary).** The file is `{description?, hooks: {<Event>:
+[{matcher?, hooks: [handler]}]}}`. A handler's `type` is `command` (keys
+`command`, `commandWindows`, `timeout`, `async`, `statusMessage`,
+`additionalContextLimit`) or `mcp_tool` (`server`, `tool`, `input`, `timeout`,
+`statusMessage`). Codex parses `prompt` and `agent` handlers but skips them
+(docs). There are twelve events: SessionStart, SessionEnd, UserPromptSubmit,
+PreToolUse, PermissionRequest, PostToolUse, PreCompact, PostCompact,
+SubagentStart, SubagentStop, Stop and Interrupt. None is PostToolUseFailure:
+PostToolUse also fires after a Bash command that exits non-zero (docs).
+
+Handler timeouts are in seconds, default 600; SessionEnd and Interrupt default
+to 1 and cap at 3 (docs). Commands run in the session cwd, which can be a
+subdirectory, so the docs advise resolving repo-local hook paths from the git
+root. `matcher` is a regex applied to one field per event (docs):
+- `tool_name` on PreToolUse, PermissionRequest and PostToolUse
+- `source` on SessionStart and `reason` on SessionEnd
+- `trigger` on PreCompact and PostCompact
+- `agent_type` on SubagentStart and SubagentStop
+- nothing on UserPromptSubmit, Stop and Interrupt, which ignore it
+
+**Review and trust.** A non-managed hook runs only after the operator reviews and
+trusts its exact definition in `/hooks`. Codex records trust against the
+definition's hash, so a new or edited hook is skipped until it is trusted again,
+and startup prints a warning that points at `/hooks` (docs). The trust state is
+`hooks.state."<key>"` with `enabled` and `trusted_hash` (binary); which config
+file holds it is unverified. For one invocation, `--dangerously-bypass-hook-trust`
+(in both versions) or the `bypass_hook_trust` override runs enabled hooks without
+trust, and Codex announces "Enabled hooks may run without review for this
+invocation." (binary). So `sofar init` cannot make its own hooks run. The
+operator trusts the project and trusts the hooks once, and any byte change to an
+entry asks again. That is the same once-per-hash approval Cursor applies to a
+project MCP server.
+
+**What a hook receives (binary).** One JSON object on stdin. The embedded
+draft-07 schemas are `additionalProperties: false`, so a field not listed is
+never sent. Common fields:
+- every event: `session_id` (the thread id; subagent hooks send the parent's,
+  docs), `transcript_path` (string or null), `cwd` and `hook_event_name`, whose
+  values are the PascalCase event names above
+- all but SessionEnd: `model`
+- turn-scoped events, i.e. all but SessionStart and SessionEnd: `turn_id`
+- all but SessionEnd, PreCompact and PostCompact: `permission_mode`, one of
+  `default`, `acceptEdits`, `plan`, `dontAsk`, `bypassPermissions`
+- tool, prompt and compaction events inside a subagent: optional `agent_id` and
+  `agent_type`
+
+Event-specific fields:
+- SessionStart: `source` (`startup`, `resume`, `clear` or `compact`)
+- SessionEnd: `reason`, always `other`
+- UserPromptSubmit: `prompt`
+- PostToolUse: `tool_name`, `tool_use_id`, `tool_input`, `tool_response`
+- Stop: `stop_hook_active`, `last_assistant_message` (string or null)
+
+These are Claude Code's field names, so the dialect gap Cursor needed a converter
+for is mostly absent. Tool names are where Codex differs (docs):
+- shell and unified exec: `Bash`
+- file edits: `apply_patch`, with the whole patch in `tool_input.command` and no
+  `file_path`. Paths sit on `*** Add File: `, `*** Update File: `,
+  `*** Delete File: ` and `*** Move to: ` lines (markers binary, grammar
+  unverified).
+- MCP tools: `mcp__<server>__<tool>`
+
+The `tool_response` shape for Bash and apply_patch is unverified. No field names
+the host or its version, so a Codex payload cannot be told from a Claude Code one
+by a `cursor_version`-style key.
+
+**What a hook may return (binary schemas, effects from docs).** Exit 0 with no
+output continues. Plain stdout:
+- becomes developer context on SessionStart, UserPromptSubmit and SubagentStart
+- is ignored on PreToolUse, PermissionRequest, PostToolUse, PreCompact and
+  PostCompact
+- is invalid on Stop, SubagentStop and Interrupt, which expect JSON when they
+  exit 0
+
+JSON output:
+- `hookSpecificOutput: {hookEventName, additionalContext}` on SessionStart,
+  UserPromptSubmit, PreToolUse, PostToolUse and SubagentStart
+- `decision: "block"` plus `reason`:
+  - UserPromptSubmit: blocks the prompt
+  - PostToolUse: replaces the tool result with the feedback
+  - Stop and SubagentStop: continue, with `reason` as a new user prompt
+- the common `continue`, `stopReason`, `systemMessage` and `suppressOutput`,
+  where the event supports them
+
+Exit 2 with the reason on stderr acts like `decision: "block"` on PreToolUse,
+PostToolUse, UserPromptSubmit, Stop and SubagentStop. Model-visible hook output
+over about 2,500 tokens is spilled: saved under
+`<temp_dir>/hook_outputs/<session_id>/` and replaced by a head-and-tail preview. A
+handler's `additionalContextLimit` moves that threshold for `additionalContext`,
+and 0 removes it (docs). Whether plain SessionStart stdout counts against that
+limit is unverified.
+
+**sofar's handlers measured against this.** Checked against the schemas in
+`codex-contract.test.ts`, today's handlers mostly already fit:
+- session-start and user-prompt print plain stdout, which is context on both
+  events
+- post-tool prints `hookSpecificOutput.additionalContext`, which is valid
+  PostToolUse output
+- the Stop gate exits 2 with its message on stderr, which becomes a continuation
+  prompt. `stop_hook_active` arrives under Claude Code's name, so the hold-once
+  guard reads it unchanged.
+- Cursor's `additional_context` and `followup_message` fail the schemas, so
+  `toCursor` must never serve Codex
+
+What 2.1 had to close, and how it did (next paragraph):
+- host identity. There is no stdin marker, and `CODEX_THREAD_ID` is a string in
+  the binary but unverified as a hook variable. The environment was ruled out for
+  Cursor because a nested session inherits it.
+- edits arrive as apply_patch text, not Edit or Write with `file_path`
+- there is no PostToolUseFailure event
+- the 10,000-character digest sits at the 2,500-token spill threshold
+- SessionEnd has only 1–3 s
+
+**Wired (agents-parity 2.1, D5).** `sofar init --agents codex` writes five
+shims to `.codex/hooks/sofar/` and one matcher group per event to
+`.codex/hooks.json`. The events are SessionStart, UserPromptSubmit,
+PostToolUse (matcher `Bash|apply_patch`), Stop and SessionEnd. Codex's shims
+are its own whichever agents are picked. Codex imports no Claude hook at
+runtime, so there is nothing to dedupe against, and a Codex-only repo carries
+no `.claude/`.
+- Commands. Each entry runs
+  `"$(git rev-parse --show-toplevel)/.codex/hooks/sofar/<shim>"`, the git-root
+  form the docs advise, because hooks run in the session cwd. SessionStart adds
+  `additionalContextLimit: 0` and SessionEnd adds `timeout: 3`, its ceiling.
+- Shims. Each runs `exec sofar event <hook> --host codex --root
+  "$(dirname "$0")/../../.."`. They name the host, which no payload field does,
+  and the repo root, which cwd may not be.
+- Trust. Every byte of an entry is trust-hashed, so behaviour changes go in the
+  shim or the CLI, never the entry (D5 rule). Script contents are not in the
+  hash (docs: trust covers "the hook definition"). A run that writes the file
+  prints the note that Codex needs the project and its hooks trusted.
+- IN (D6). A declared Codex payload is not converted, since the names are already
+  Claude Code's. It registers the session as tool `codex`. apply_patch appends
+  one file_touched per patched file (§Hooks). Bash's command_run and
+  apply_patch's file_touched carry NO `ok`: PostToolUse also fires after a
+  non-zero exit, and neither `tool_response` shape is verified. An absent `ok`
+  means unknown, never success. A diagnostics row records `ok: null`.
+- OUT (D6). Session-start and user-prompt context becomes
+  `{"hookSpecificOutput": {"hookEventName", "additionalContext"}}`, the form
+  `additionalContextLimit` is documented to govern, so the digest is never
+  spilled to a preview. Post-tool JSON, the Stop gate's exit 2 with the message
+  on stderr, and empty results already fit Codex's schemas and pass through.
+  `toCursor` never serves a declared Codex call.
+- Tests. Every shape is tested against the fixtures and the embedded output
+  schemas (`codex-host.test.ts`, D4). One case runs the hooks.json commands
+  from a subdirectory through the built CLI.
+
+Limits stated, not worked around:
+- A `[hooks]` table in `.codex/config.toml` beside the written `hooks.json` is
+  merged by Codex with a startup warning. init writes JSON only.
+- `sofar` is found on whatever PATH Codex gives its hooks, which is unverified,
+  so the r1-fixes M6 caution applies.
+- Whether `codex exec` loads trusted project hooks is unverified. The drive
+  adapter works either way (the **Driven** paragraph below).
+- The apply_patch grammar beyond the header markers is unverified.
+
+**MCP.** Servers are `[mcp_servers.<name>]` tables in `config.toml` (binary), and
+the project `.codex/config.toml` is read for a trusted project (binary, the same
+string as above). `codex mcp add <name> -- <command…>` writes
+`~/.codex/config.toml`, the user level (binary). Server keys seen: `args`, `env`,
+`env_vars`, `startup_timeout_sec`, `tool_timeout_sec`, `enabled_tools`,
+`disabled_tools` and `bearer_token_env_var` (binary). `command`, `args`, `env`
+and `cwd` lead the serde field names run into `struct RawMcpServerConfig with 28
+elements` (binary, read in 2.2). Codex never reads `.mcp.json` or
+`.cursor/mcp.json` at runtime, but its `/import` can copy `.mcp.json` servers
+into `.codex/config.toml` (binary, migration strings). SessionStart hooks may
+run before an MCP server is ready (docs). Whether Codex passes the thread id to
+an MCP server's environment is unverified, so `sofar_start_session` still takes
+the id from the injected Session line. Whether Codex asks the operator to
+approve a project MCP server beyond trusting the project, as Cursor does, is
+unverified.
+
+**Wired MCP (agents-parity 2.2, D7).** `sofar init --agents codex` registers
+the server `.mcp.json` registers, as a table appended to the project's
+`.codex/config.toml`:
+
+    [mcp_servers.sofar]
+    command = "sofar"
+    args = ["mcp"]
+
+- No TOML dependency. `cli/codex-config.ts` reads only the file's structure:
+  table headers, key paths, and where each sits. It knows basic, literal and
+  multi-line strings, arrays and inline tables well enough never to read their
+  contents as structure, and it interprets no value. A file it cannot follow is
+  unreadable and is never modified.
+- Append. When no sofar server exists in any form and `mcp_servers` is defined
+  only by `[mcp_servers.<name>]` tables (or not at all), the table goes after
+  the file's own bytes, with one blank line between. A new table at the end of
+  a valid document keeps it valid exactly then, and every user byte stays.
+- Theirs wins. A sofar server already defined in any form — its table or a
+  sub-table, an inline server under `[mcp_servers]`, dotted keys, an inline
+  `mcp_servers` — is left as it is (`unchanged`).
+- The user-level step. When `mcp_servers` is defined inline, by dotted keys or
+  as an array of tables, a `[mcp_servers.sofar]` table would define it twice
+  and invalidate the whole file, so init leaves the file. It does the same
+  when the file is unreadable. It reports `skipped .codex/config.toml (<why>) —
+  left as it is` and prints the one step, `codex mcp add sofar -- sofar mcp`,
+  which writes the user's config.toml (binary). It says this on every run
+  until the user config (`$CODEX_HOME/config.toml`, else
+  `~/.codex/config.toml`; CODEX_HOME is a binary string, its effect unverified)
+  registers sofar.
+- Trust. The project layer loads only for a trusted project, so a run that
+  writes `.codex/hooks.json` or the table prints one trust note for both.
+- `uninit` cuts out each `[mcp_servers.sofar]` table and sub-table, from its
+  header through its last pair, plus one seam blank line; a comment after the
+  last pair stays with what follows. `--purge` deletes a file left empty. A
+  sofar server in another form, or an unreadable file that mentions sofar, is
+  left with a warning, and the run goes on.
+- `doctor` passes on the project table or on a user-level registration.
+  Otherwise it fails, and its hint names `sofar init --agents codex`, or the
+  user-level step for a file init leaves. A project table alone counts the
+  repo as wired for Codex; a user-level one is the machine's and does not.
+- Tests (`codex-mcp.test.ts`, D4): the table's name, file and keys are held to
+  the contract fixture's `mcp` section.
+
+**AGENTS.md (binary).** Codex reads project docs in this order:
+`AGENTS.override.md`, `AGENTS.md`, then `project_doc_fallback_filenames` (empty by
+default). They share a `project_doc_max_bytes` budget, default 32768, and a doc
+past it is truncated. `CLAUDE.md` is read only when configured as a fallback, so a
+Codex session sees the AGENTS.md protocol block alone. The walk from repo root to
+cwd is unverified.
+
+**Write-back gate and protocol text (agents-parity 2.3, D8).** The gate is the
+Stop handler every host runs (§Hooks), with no Codex branch.
+- Loop cap. Codex runs Stop hooks once per turn (binary:
+  `codex_core::hook_runtime::run_turn_stop_hooks`) and has no `loop_limit` key
+  (binary handler keys). `stop_hook_active` means "whether this turn was already
+  continued by Stop" (docs), so the hold-once guard holds an indebted session at
+  most once per turn, as on Claude Code. A turn that ends while the debt still
+  stands is held once again.
+- Output. A hold is exit 2 with the message on stderr, which Codex turns into a
+  continuation prompt (docs). Codex ignores an exit 2 with empty stderr (binary:
+  "Stop hook exited with code 2 but did not write a continuation prompt to
+  stderr"), so the message is never empty. Every release is exit 0 with empty
+  stdout, because plain stdout is invalid on Stop.
+- Release. The gate lets the session stop after either write-back: a
+  `sofar_end_session` with the Session line's id, or `sofar event append
+  --type session_ended` with no `--session`. That append joins the session the
+  SessionStart hook pointed the worktree at.
+- Protocol text. The AGENTS.md block is Codex's only block, so both of its facts
+  name Codex. INJECTED lists Codex among the hooked hosts and adds that their
+  Stop hook blocks a session that ends without writing back, which the CLAUDE.md
+  block also says. MCP TOOLS says Codex loads the tools from a trusted project's
+  `.codex/config.toml`. The CLI loop is unchanged. r1-fixes 6.7's block, which
+  0.33.0-rc.2 carries, is in the shipped ledger, so init refreshes it and doctor
+  reports it as stale.
+- Limits stated, not worked around. Whether a continuation keeps the turn's
+  `turn_id` is unverified, and 3.2 checks `stop_hook_active` on it live. A
+  Stop hook can reject Codex's memory-consolidation subagent (binary: "Memory
+  consolidation was rejected by a Stop hook."). The gate holds only a session
+  the record registered that owes a write-back, and whether a project's hooks
+  run for that thread is unverified. Whether `codex exec` fires Stop is still
+  unverified. A driven session does not depend on it, because the driver
+  judges the write-back from the fold (session-driver D3). 3.2 checks it
+  live.
+- Tests (`codex-host.test.ts`, D4): the contract fixture's `stop_hook_active`
+  and `stop_runtime` sections.
+
+**`codex exec --json` since the 0.136.0 adapter (binary).** The line types are
+unchanged: `thread.started`, `turn.started`, `turn.completed`, `turn.failed`,
+`item.started`, `item.updated`, `item.completed` and `error`. Every type the
+adapter reads survives. The usage names beside `TurnCompletedEvent` now include
+`cache_write_input_tokens`, and `total_tokens` is not among them (struct
+membership inferred).
+
+`codex exec` adds `fork`, `--approve-for-me`, `--worktree` and `--thread-source`.
+Every flag the adapter passes (`--json`, `--skip-git-repo-check`, `-m`, `-s`,
+`-c`) exists in both versions. Top-level `-a` now lists only `on-request` and
+`never`, and `approval_policy` is still a config key.
+
+Hooks apply to exec. A driven session in a project whose hooks are untrusted runs
+none of them unless it is launched with `--dangerously-bypass-hook-trust`.
+Whether exec trusts the project layer at all is unverified. The binary also
+computes a `non_cached_input`, which suggests `input_tokens` already counts
+cached tokens. The adapter adds the two, so its context figure may
+double-count (unverified).
+
+**Driven (agents-parity 3.1, D9).** The drive adapter now works whether or
+not Codex runs the project's hooks. The adapter cannot tell which at launch,
+because trust is per hook hash and the file holding it is unverified.
+- Hooks run. The session takes its id from the injected Session line and
+  writes through the MCP tools, or through the CLI with that id. The exit
+  shows the `thread.started` id, the one the hooks registered. The
+  PostToolUse shim carries the driver's nudge, and the Stop gate holds the
+  same session it registered.
+- Hooks do not run. The session uses the id the adapter assigned in the pin
+  line, and the exit reports that id as `assigned_session_id`.
+- Either way, `resolveLaunchedSession` resolves the launch exactly, beside a
+  parallel codex session in the same record (§Driver).
+- The adapter never passes `--dangerously-bypass-hook-trust`. An operator
+  who wants it passes it through `--agent-args`.
+- Unverified, for 3.2 live:
+  - that the hooks' `session_id` equals exec's `thread_id` (docs: "Current
+    Codex session id")
+  - that Codex hands its environment, and so `SOFAR_DRIVE_NUDGE`, to hook
+    commands. The docs name only the variables Codex adds for plugin hooks.
+  - whether exec fires Stop
+  - whether exec loads the project's hooks and MCP server
+- Tests (`adapter-codex.test.ts`, D4). A stub `codex` fires the real
+  `.codex/hooks.json` commands through the built CLI, with the 0.154.0
+  payload fixtures and its thread id, then follows the pin line.
+  - Hooks run, beside a parallel codex session: `sofar drive` hands off
+    `task_done` on the thread id. Every file_touched sits on that session.
+    Stop holds it before the write-back and releases it after.
+  - Hooks untrusted: the handoff names the assigned id.
+  - Nudge: the nudge line reaches the PostToolUse output, valid against
+    Codex's schema.
+
+**Live proof (agents-parity 3.2, D10; pending the operator's consent).** No
+live Codex session has observed anything above. The proof spends the
+operator's Codex usage, so no driven session runs it (D3). The exact commands
+are in the record, in task 3.2's blocked note. The method is the Cursor
+proof's (§Cursor host, its Proven live paragraph).
+- Setup, with no inference:
+  - codex-cli 0.154.0, the version the fixtures pin
+  - a scratch git repo, set up by `sofar init` through the picker with only
+    Codex selected
+  - a record whose next action carries a code word that appears nowhere else
+  - the shims' `exec sofar` and the table's `command`, pinned by absolute
+    path to a logging wrapper around the build under test. The `sofar` on
+    Codex's hook PATH is unverified, and an older one rejects `--host`
+    (r1-fixes M6).
+  - the wrapper keeps each call's stdin, stdout, stderr and exit, plus the
+    `PATH`, `CODEX_THREAD_ID` and `SOFAR_DRIVE_NUDGE` it was handed
+- S1, interactive. The operator trusts the project, trusts sofar's five hooks
+  in `/hooks`, and relaunches.
+  - Orient. Asked for the record's next action and its Session id, with no
+    command run and no file read, the model answers with the code word and
+    the `session_id` that SessionStart received.
+  - Hold. Asked to create a file and run one command without writing back,
+    the session appends file_touched and command_run with no `ok`, and
+    registers as tool `codex`. Stop holds it with exit 2.
+  - Release. The continuation arrives with `stop_hook_active` true. It
+    writes back with `sofar_start_session` (that id) and one
+    `sofar_end_session`, and is released.
+  - Quit. Quitting appends session_closed `{reason: "other"}`. No "Memory
+    consolidation was rejected by a Stop hook." appears.
+- S2, one `codex exec --json`, its stream kept. Its `thread.started.thread_id`
+  equals the `session_id` its hooks receive. The trace shows whether exec
+  loads the project's hooks and MCP server, whether it fires Stop, and
+  whether hook commands inherit its environment, `SOFAR_DRIVE_NUDGE`
+  included.
+- S3, one `sofar drive --agent codex` session on a one-task plan. The run
+  hands off `task_done` naming that thread id, and `sofar status` shows it on
+  the `Driven:` line.
+- What it settles either way:
+  - whether a project MCP server needs approval beyond project trust
+  - whether a continuation keeps its `turn_id`
+  - the Bash and apply_patch `tool_response` shapes. They are captured for
+    the fixtures, but D4 names only binary and docs reads as sources, so
+    adding them takes a Decision.
+  - whether `input_tokens` already counts cached tokens
+  - which `sofar` a Codex hook finds
+- A failed check does not send Codex back to Tier 3 wholesale. The paragraph
+  it contradicts is corrected, and so is §Host tiers, which then names what
+  does not reach Codex.
+
 ## Derived index (record-index — local, incremental, never truth)
 Every cross-record question — which initiatives hold open sessions, who else
 has this file, what guards this path, what else bears on this work — costs a
@@ -1710,7 +2684,11 @@ rests on.
   meta.json           # Tier 0 cursors
   open.json           # TIER 0 — open sessions per initiative + files held
   meta-guards.json    # Tier 1 declared cursors
-  guards.json         # TIER 1 DECLARED — every guarded decision in the repo
+  guards.json         # TIER 1 DECLARED — every decision that guards or names
+                      #   a file or carries a rule (memory-lead 2.1, 2.2)
+  meta-labels.json    # labels cursors
+  labels.json         # LABELS — every standing label-sized decision, for the
+                      #   writers' reversal check (memory-lead 2.2, D8)
   meta-graph.json     # Tier 1 derived cursors
   graph.json          # TIER 1 DERIVED — path → session → (ts, touches)
   meta-reach.json     # Tier 1 reach cursors
@@ -1796,7 +2774,8 @@ parse and rewrite:
 | file | answers | read by | refreshed | sized by |
 | --- | --- | --- | --- | --- |
 | `open.json` | which sessions are open, holding what | UserPromptSubmit shim | on that shim | live sessions |
-| `guards.json` | does any decision ANYWHERE guard this subject | PostToolUse | every edit | guarded decisions (6 of 208 here) |
+| `guards.json` | does any decision ANYWHERE guard or name this subject; which rules does every other record hold | PostToolUse, SessionStart, get_state | every read and edit; once per session | decisions that guard, name a file or carry a rule |
+| `labels.json` | which standing decision ANYWHERE would a new one reverse | the three decision writers | on a decision append | standing decisions with both clauses ≤600 chars |
 | `graph.json` | who else has touched this path | PostToolUse dedupe, priming line | after a guard MATCHES; once per session | the repo's whole touch history |
 | `reach.json` | what else bears on this | `sofar find` | on a query | prose + terms of every decision and note |
 
@@ -2103,6 +3082,350 @@ evaluator integrity, permissions and release policy are never in it. No
 candidate kind that changes what is INJECTED may ship before the offline
 replay check (context size, information preservation) exists.
 
+## Judge (typed-judge — advisory judgements, deterministic by default)
+A JUDGEMENT is a typed question answered over a bounded state with a
+probability attached: is this proposal a re-proposal of that rejected
+approach (yes/no), which of these candidates bears on the next task
+(a ranking), how done is this task against its acceptance text (a level).
+The shape is TypeSafe's System One contract (noul / choice / score) and is
+adopted as sofar's own interface so that the same question can be answered
+by a rule today and by a model tomorrow without the caller changing. Two
+laws bound it, both standing decisions:
+
+- **Where it may run (typed-judge D1).** Only inside an MCP tool call, the
+  driver between sessions, a pull command (`find`, `related`, `why`,
+  `review`) or an explicit offline command. NEVER a hook, the statusline, a
+  shim, the fold or a projection: a model answers in 70–500ms against speed
+  T2's 100ms budget, and the fold's determinism law admits no inference. A
+  hook that needs a judgement reads one made earlier at write time (the
+  index, or an enrichment event) — it never asks. Pinned by test: no module
+  under `hooks/`, `projections/`, nor `core/fold.ts`, `core/atomic.ts`,
+  `core/log.ts`, `cli/fast*.ts` or `cli/statusline*.ts` imports
+  `core/judge`.
+- **Who may answer (typed-judge D2).** The engine ships exactly two
+  providers: `deterministic` (rules, free, the default everywhere) and
+  `cloud` (the paid path: the judge endpoint on api.sofar.sh under the
+  sync client's own auth, where sofar-cloud enforces the plan and calls the
+  model with sofar's key). No direct model provider ships in the engine and
+  no key is ever read by it. A default install therefore still makes zero
+  model API calls (§Architectural invariants, which holds for everyone who does
+  not opt in), and the free path is not a crippled one — it is exactly what
+  sofar does today, expressed as answers.
+
+**Advisory only.** A judgement never mutates the record, never blocks a
+tool call, never removes anything a recorded edge or a lexical rule put
+there. It ADDS: a warning line in a tool result, a rank among candidates
+that were already candidates, a hint the operator may ignore. Best-effort
+per BD22: a provider failure of any kind (network, 4xx, 5xx, entitlement,
+malformed answer) leaves the question ABSTAINED and the caller proceeds as
+if no judge existed; nothing waits on a retry loop inside a tool call.
+
+**Questions.** One request = one state + a map of named questions, each
+evaluated INDEPENDENTLY against that state (answers never cascade; a
+dependent question is a second request after the state moved). Ids match
+`[A-Za-z0-9_]+`. Three types, fields as TypeSafe's wire, so the cloud
+provider forwards them unchanged:
+- `noul` — "is this true?" `instructions` (string or JSON), optional
+  `criteria {true?, false?}`. Answer `{noul: p}`, p ∈ [0,1] = P(yes).
+- `choice` — one option from `criteria: {key: description|null}`, 2–255
+  keys; describe options with `what` / `not_for` / `examples` objects when
+  a boundary is subtle. Answer `{choice, probabilities, confidence}`,
+  probabilities summing to 1 over the keys.
+- `score` — a position on `criteria: [level0, level1, …]`, 2–10 ordered
+  levels that each describe a CONCRETE situation (never low/medium/high).
+  Answer `{score, probabilities, legend, confidence}`; score is the
+  probability-weighted position and may fall between levels.
+Instructions cite state fields by backticked path (`` `pairs[3].task` ``);
+one narrow judgement per question; a no-match option is always present in
+a choice. Questions carry an engine-only field the wire never sees:
+`decide?(state) → Answer | null`, the RULE that answers this question
+without a model or returns null to abstain — the deterministic provider is
+nothing but the runner of these.
+
+**State.** A string, a JSON object (preferred: named fields) or an array
+of text; text only. Code selects, the judge judges: the caller narrows to
+candidates first (the index, the reach set, the lexical grammar) and sends
+only what the judgement needs, because accuracy falls with unrelated
+state and the wire caps state plus the longest question at 32k tokens.
+The seam REFUSES a state whose serialization exceeds 100,000 characters
+with a typed error before any provider sees it — a request that would be
+truncated or rejected upstream is a request that was mis-scoped here.
+Redaction (`core/redact.ts`, applied to every string leaf) runs on the
+state before a non-deterministic provider receives it; the deterministic
+provider sees the original because it sends nothing anywhere.
+
+**The seam order.** `judge(request)` runs the deterministic provider FIRST
+over every question. A question its rule DECIDES is answered with
+confidence 1 (noul 0 or 1; choice/score with all mass on one key) and
+`origin: "rule"`, and is never sent on — code decides, the model judges
+only what code cannot. Every question the rules ABSTAIN on is answered
+`origin: "abstain"` (noul 0.5; choice and score uniform over their keys
+with confidence 0, `choice` the first key so the answer is still typed and
+deterministic) and, only when a non-deterministic provider is configured,
+those and only those are forwarded in ONE fan-out request; each answer
+that comes back replaces its abstention with `origin: "model"` and the
+provider's pinned `model` string. Any failure keeps the abstentions and
+names the reason in `response.fell_back`. This ordering is what makes
+"never remove a lexically linked item" structural rather than a rule each
+caller has to remember.
+
+**Confidence.** For a choice or score it is the wire's own statistic —
+`(n·pmax − 1)/(n − 1)` over n keys or levels, 0 for uniform, 1 for a
+point mass — recomputed by the seam from the probabilities so a provider
+cannot report one number and mean another. A noul carries no confidence
+on the wire; the engine's `noulConfidence(p) = |p − 0.5|·2` is a
+convenience for gating, and p ≈ 0.5 means UNDECIDED, never "medium".
+Calibration is a property of groups, not of one answer: a confident answer
+can be wrong, and structural invariants do not hold across questions
+(P(A) + P(not A) from two nouls need not be 1), so a threshold is never
+carried from one question type to another.
+
+**Thresholds (typed-judge 1.2, measured on this record against
+jev-1.13.0; re-measure on every model version).** Relevance nouls carry a
+candidate at p ≥ 0.8 (86% agreement measured) and drop one at p ≤ 0.2;
+between, the deterministic order decides. A constraint hint ("this reads
+as a standing rule — add a rule?") renders only at confidence ≥ 0.95 with
+no rule set. Nothing acts below confidence 0.6 on any question.
+Thresholds live in code beside the question that uses them, named for the
+model version they were measured against.
+
+**Providers.**
+- `deterministic` — pure, synchronous, no I/O, no clock: runs each
+  question's `decide`, abstains where there is none. The default, and the
+  whole judge for an unlinked repo or an operator who has not opted in.
+- `cloud` (typed-judge 2.3, `client/judge.ts`) — the client half of
+  `POST {api_url}/v1/repos/:repo_id/judge` under the base-URL resolution,
+  https rule and bearer credential of §Sync client. The path is repo-scoped
+  (typed-judge D3) so the server can charge the right org's plan with the
+  membership check push and pull already use; only the id travels, never
+  content. Body `{state, questions}` with `decide` stripped and the state
+  redacted (the provider redacts again when called without the seam);
+  response `{model, answers, usage?}` in the wire's answer shapes, `model`
+  the exact version the server ran (never an alias, at most 128 chars) and
+  carried onto every answer. A body without a model string or an answers
+  object is `malformed response`; `usage` keeps only non-negative
+  `input_tokens`/`output_tokens`. Errors are normalized as in §Sync client
+  and named `HTTP <status> <code>: <message>` in `fell_back` (clipped to
+  200 chars); 402/403 (no plan, no entitlement) and every other failure
+  fall back to abstention — the engine carries no entitlement logic
+  (drive-visibility D6), it only hears "no" and proceeds. Enabled only when
+  `judge.provider` is `"cloud"` in `~/.config/sofar/config.json`
+  (`{"judge": {"provider": "cloud"}}`, beside `auto_upgrade`) AND the repo
+  is linked AND the operator is logged in to its api_url; absent,
+  unreadable or anything else means `deterministic`.
+  `resolveJudgeProvider(root)` returns the provider, or, when the operator
+  opted in and one of the other two is missing, an `unavailable` reason
+  naming the fixing command (`sofar link`, `sofar login`) for a caller to
+  show; it never throws. One request per seam call, no retry inside a tool
+  call, and a bounded timeout (default 10s) that ABORTS the request — the
+  seam hands every provider an `AbortSignal` that fires with it, so a
+  hung server cannot hold a socket or keep a CLI process alive.
+
+**Write-time decision judge (typed-judge 3.1, `core/decision-judge.ts`).**
+The first consumer. After sofar_log_decision appends a decision, and after
+sofar_end_session appends its batched ones, each new decision D<n> is judged
+against its OWN initiative's record as folded before it (typed-judge D5;
+cross-initiative contradiction waits for an index that carries rule text).
+The candidates are the earlier decisions still in force (not superseded,
+not past their `until`; core/retire.ts) that D<n> has not already answered for: `supersedes` does not
+name them and `because` does not cite them. From these it asks two nouls,
+one state and one request per decision:
+- `reproposal_D<k>` (A2), over every candidate with an `over`: does
+  `decision.chose` bring back `rejected.D<k>.rejected`, the approach D<k>
+  turned down in favour of `rejected.D<k>.chosen_instead`? The rule decides
+  YES only for a near-verbatim restatement: D<n>'s distinguishing chose
+  terms and D<k>'s distinguishing over terms (§MCP tools, reversal check)
+  share at least 3 terms, making up at least 2/3 of the smaller set. It never
+  decides NO, because no lexical test excludes a paraphrase. Anything less
+  is abstained and left to the model.
+- `contradiction_D<k>` (A3), over every candidate with a `rule`: would
+  following `decision` break `rules.D<k>`? No rule answers this. The
+  reversal check has already refused the lexical case, before the append.
+Code selects: every candidate when there are at most 8 per kind; beyond that,
+the 8 BM25-ranked by core/lexicon against the new decision's text, topped up
+with the newest. Each text is clipped to 400 chars. A noul at p ≥ 0.9 from the rule or the
+provider renders one line citing its target, strongest first, at most 3 per
+decision; when D<k> is both re-proposed and contradicted, only the
+contradiction line renders. `D<n> may re-propose what D<k> rejected: "<over>"
+(<how>)` or `D<n> may contradict standing D<k>: "<rule>" (<how>)`, where
+<how> is `near-verbatim match` or `judged p <p> by <model>`, then the way
+out (`Follow D<k>; if the operator changed it, log a decision with
+"supersedes":"D<k>"`, plus `and a new rule` for a contradiction). The 0.9 is
+PROVISIONAL: the record holds no re-proposal ground truth (typed-judge 1.1),
+so it is graded in 6.1, not measured. It never refuses, never re-orders, and
+writes no `judgement_recorded`. Deterministic by default: without a
+configured `cloud` provider only the rule answers, and a provider failure
+leaves the rule's lines.
+
+**Write-back judge (typed-judge 3.2, `core/writeback-judge.ts`).** The
+second consumer. After sofar_end_session appends session_ended, its two
+fields are judged against the fold that holds them, in two requests so each
+state carries only what its judgement needs:
+- `next_action` (A1), a score over `{next_action, plan_next_task}` on four
+  levels, lowest first: names no task, file, command or outcome; names the
+  task but not how to begin it; names the task and a concrete first step;
+  executable verbatim. `plan_next_task` is the task the digest names next
+  (the active phase's active, pending or blocked task, else the first open
+  phase's). No open task asks nothing, since "nothing left" is then the right
+  next action. The rule decides level 0 only when the text carries no digit,
+  no backtick, no path and no term outside a closed set of continuation words
+  (continue, keep going, next, task, remaining, finish, pick up, left, …); it
+  never decides a higher level. Only level 0 warns: a next action that names
+  its task without a first step is how records normally write them.
+- `unlogged_decision` and `memory_fact` (A1), nouls over `{summary,
+  decisions, memories}`: does the summary report a choice between
+  alternatives that no entry of `decisions` records; does it state a build,
+  test or release command, a failure mode and its diagnosis, or a convention
+  that no entry of `memories` holds. `decisions` is every decision logged
+  since the session's own session_started (a peer's included), then the
+  older ones BM25-ranked against the summary and topped up newest, 8 in all
+  unless the session logged more; `memories` is the same over memories not
+  superseded. The summary is clipped to 6,000 chars, each entry to 400. The
+  decision rule decides YES only when the session logged no decision and a
+  summary sentence, code spans removed, carries a choice verb (chose,
+  decided, ruled, opted for, settled on, went with) followed by over /
+  instead of / rather than, and cites no `D<n>`. It never decides NO. The
+  memory noul has no rule.
+A level-0 score (P(level 0) ≥ 0.9 from a provider) or a noul at p ≥ 0.9
+renders one line, in that order: `next_action may be too vague to resume
+from (<how>): "<next_action>". Write back again with one that names the
+task (next in the plan: <id>) and its first concrete step.`; `The summary
+may report a decision the record does not hold (<how>)[: "<sentence>"]. Log
+it with sofar_log_decision …`; `The summary may state an operational fact
+later sessions need (<how>). Promote it with sofar_remember …`. <how> is the
+rule's reason or `judged p|P(vague) <p> by <model>`. The 0.9 is 3.1's
+provisional threshold, graded in 6.1. It never refuses (the session has
+already ended), writes no `judgement_recorded`, and a provider failure leaves
+the rules' lines.
+
+**Filing judge (typed-judge 3.3, `core/filing-judge.ts`).** Two questions,
+each asked over one entry alone, one request per entry, after the append:
+- `kind` (A4), a choice over `{entry}` with keys `decision`,
+  `operational_fact` and `note`, each described by `what` / `not_for`;
+  `note` is the catch-all and the no-match option. Asked of every decision
+  (sofar_log_decision and batched), memory (sofar_remember and batched) and
+  note (sofar_add_note and batched). The state is the entry (a decision's
+  chose/over/because, 400 chars each; a memory's or note's text, 1,200),
+  never what it was filed as. The rule decides `decision` only for a memory
+  or note holding a sentence the write-back judge's decision rule matches (a
+  choice verb before over / instead of / rather than, no `D<n>`); nothing
+  lexical rules on a decision. A line renders when the answer names a kind
+  other than the one filed with P ≥ 0.9: `<label> reads as <kind> (<how>)[:
+  "<sentence>"]. <how to file it>; the <decision|memory|note> stays as
+  filed.`, where <label> is `D<n>`, `<slug> M<n>`, `This note` or
+  `notes[<i>]`.
+- `evidence` (A5), a noul over `{task, note}` asked whenever a task is
+  marked done (sofar_update_task and a write-back's `tasks`): does the note
+  cite a test run and its result, a commit, a measured outcome or the
+  acceptance criteria met? The rule decides NO for a missing or blank note,
+  or one made only of completion words (done, finished, complete,
+  implemented, works, shipped, ok, lgtm, fixed, …) with no digit, backtick
+  or path; it never decides YES. A task the plan does not hold is not
+  judged. A line renders at p ≤ 0.1: `<ids> marked done without cited
+  evidence (<how>). Name the passing test run, the commit or the acceptance
+  criteria met: …`, one line per distinct <how>, so tasks sharing a reason
+  share a line (`1.1, 1.2 and 1.3`).
+<how> is the rule's reason or `judged P(<kind>)|P(evidence) <p> by <model>`.
+Both thresholds are provisional, graded in 6.1. The entry stays as filed; a
+line only says what to file next. sofar_update_task, sofar_add_note and
+sofar_remember return `warnings` only when a line renders, so the common
+case stays the bare `{ok, event_id}` (typed-judge D7, qualifying r1-fixes
+D10). No `judgement_recorded` is written, and a provider failure leaves the
+rules' lines.
+
+**Driver progress judge (typed-judge 4.1, `driver/progress-judge.ts`).**
+The first consumer that stores its answers (§Driver, Progress judge). One
+request per resolved handoff, over `{task, status, write_back, diff, test?}`.
+Missing evidence is named, never omitted: `none: the session did not write
+back`, `no change to the tree outside the record`. The fold's handoff reason
+is NOT in the state, so the judgement stays independent of it. Two questions:
+- `task_done` (B1), a noul: did the work the task asks for land, with
+  nothing left open and the check, if any, passed? The rule decides NO for a
+  `verify_failed` handoff.
+- `outcome` (B2), a choice: `task_done`, `partial`, `stalled`,
+  `blocked_on_user`, `wrong_task`, `scope_creep`, or `unclear` (the no-match
+  option). The rule decides `blocked_on_user` for a `needs_user` handoff.
+The rules restate the record, so their answers are never stored. Each MODEL
+answer lands as `judgement_recorded {producer: "sofar-cloud", model,
+question, subject: <task id>, answer, state_hash}`, where `state_hash` is
+the sha256 of the redacted state. The progress stream gets `judged by
+<model>: task_done p <p> · outcome <key> (P <p>)` and, when the verdict
+disagrees with the fold with conviction, a warning: handed off as done
+(`task_done`/`threshold`) but judged p ≤ 0.1; a `stall` judged p ≥ 0.9;
+`wrong_task`, `scope_creep` or an unrecorded `blocked_on_user` at P ≥ 0.9.
+Thresholds are 3.1's provisional 0.9 and its mirror, graded in 6.1. A
+provider failure yields no verdict, and the run proceeds.
+
+**Driver pre-flight (typed-judge 4.2, 4.3, `driver/preflight-judge.ts`).**
+One request per launch over `{task, phase, last_check?}` (the rejected
+check when a task was reopened), with no rules, sent only with a provider:
+- `specified` (B3), a noul: could a session act on the task without first
+  asking the operator? At p ≤ 0.1 a warning renders: `<id> may not be
+  specified well enough to act on (p <p>): the session may stop to ask;
+  launching anyway`.
+- `complexity` (B4), a score on four described levels (a small local change;
+  a contained change with a known approach; a cross-module or contract
+  change needing design and tests; open-ended or cross-cutting), mapped to
+  effort `low|medium|high|high`.
+- `model` (B4), a choice: `fast`, `standard`, `strongest`, `no_preference`
+  (the no-match option).
+Every model answer is stored (subject = the task id) and summarised as
+`pre-flight by <model>: specified p · complexity <score> of 3 · model <tier>
+(P)`. A `route hint for <id>: effort <e>, a <tier> model. Not applied; …`
+renders only for fields the route left unset and the adapter honours, at
+confidence ≥ 0.6, and never for `no_preference`. Nothing is applied: D12
+keeps D1's advisory rule over the plan's "needs_user without a launch" and
+"filling what the run left open".
+
+**Stored judgements (typed-judge 2.4).** A judgement worth keeping —
+relevance scores computed at write-back for the next SessionStart to read,
+a driver's progress verdict — lands as an ENRICHMENT event whose payload
+carries `producer`, `model`, the question id, the answer and the subject
+event id; schema in `packages/schema` only. The fold ignores enrichment
+for state (replay stays a pure function of the recorded facts), the index
+reads it, and a stored judgement is always attributable to the exact model
+version that made it. The type is `judgement_recorded` (§Event types):
+`producer` names who ran the judge (`sofar-cloud`, `deterministic`,
+`agent`), `model` the exact version, `question` the seam's question id,
+`subject` the event id, task id or qualified record handle judged (a bare
+`D12` is the envelope's own initiative, any other record's `<slug> D12`;
+typed-judge D10), `about` what a relevance judgement was judged against
+(`task:<id>` of the envelope's initiative, or `file:<repo-relative path>`;
+anything else fails validation), `answer` the wire shape without its
+derivable legend, and `state_hash` (sha256 of the redacted state) lets a
+reader tell whether the material has moved since. It is excluded from
+drift for the reason driver events are (commit-attribution D18): it says
+what a judge thought, never what the plan says, so it cannot stale a next
+action and owes no write-back. Who WRITES one is each consumer's contract
+(3.x guards write none — their answers live in the tool result; 5.1's
+relevance pass and 4.1's progress verdict write theirs). Only MODEL answers
+are ever written: a rule's answer restates the record and has no model
+string (typed-judge D4).
+
+**Stored relevance (typed-judge 5.1, D10, D11; `core/relevance-judge.ts`,
+`core/index-relevance.ts`).** The contract memory-lead B1 shares (D10).
+WRITER: after sofar_end_session, and only with a `cloud` provider, one
+request over `{task, candidates}` asks a noul per candidate (`rel_<key>`):
+would a session doing the next task (the one the digest names) need to know
+it? Candidates are this record's in-force decisions (never a retired one),
+unsuperseded memories and notes, 8 per kind, BM25-ranked against the task
+and topped up newest. Each model answer lands as `judgement_recorded
+{question: "relevance", subject: D<n> | <slug> M<n> | <note event id>,
+about: "task:<id>"}` and adds no line to the result. READER: an index tier
+(`relevance.json`, its own cursor) keeps the latest row per (about,
+subject), qualifying bare `D<n>` with its initiative. `relevance(index,
+{about, initiative?, retired})` returns them strongest first. `task:` rows
+come from `initiative` only and `file:` rows from every initiative. It
+NEVER returns a handle in `retired`, a required parameter: the caller holds
+the fold or B1's own structure, and the tier does not re-derive supersession.
+`rankByRelevance(candidates, rows)` keeps every deterministic candidate
+(guard, derived scope, lexical link), however low its p, and orders by
+stored p, where no row counts as 0.5 and ties keep the deterministic order.
+It adds a non-candidate only at p ≥ 0.8 (`RELEVANCE_CARRY`, restated from
+THRESHOLDS so hooks never reach `core/judge`). The SessionStart digest's
+use of it is 5.3, waiting on sofar-cloud's judge endpoint (D11). Who writes
+`file:` rows is open (D10).
+
 ## Cursor primitive (sync-ready contract)
 `export(sinceId?) → NDJSON stream of events` ; `import(stream)` appends
 events not already present (dedupe by id — idempotent). Per-initiative
@@ -2117,6 +3440,138 @@ Implemented task 13.1: foldLines sorts envelope-valid events by id (stable
 — a duplicated id keeps file order) before pass-2 replay; pass-1 decode
 warnings keep file order (they describe lines, not events); cursor is
 therefore the MAX event id, identical on every replica.
+
+## Record copies across branches
+The record is committed, so every branch carries its own copy of every
+events.jsonl, and a checkout that folds only its own copy reports whatever
+that branch last saw. Measured 2026-09-21: memory-lead's copies held 11, 143,
+132 and 149 of 158 events. No single copy was right, including the branch
+that did the work. `sofar status` and `sofar list` therefore fold the UNION
+of every copy they can see (branch-visibility D1). This is read-side only: it
+never writes to any copy and adds no event type.
+
+**Why the union is well defined.** The fold replays in ulid order and is
+convergent (§Cursor primitive (sync-ready contract)), and duplicate ids are
+dropped before it runs. The union's state is therefore exactly what merging
+every branch with `merge=union` would produce.
+
+**Which copies** (`core/record-copies.ts`):
+- Every OTHER worktree of the repo, read as its working file, so uncommitted
+  appends count. They are found from the common git dir's own files
+  (`<common>/worktrees/*/gitdir`, plus the main checkout when the common dir
+  is `<root>/.git`), with no subprocess. A worktree whose directory is gone
+  is skipped.
+- Every local branch that is NOT merged into HEAD and NOT checked out in a
+  worktree, read at its tip. This costs one `git for-each-ref --no-merged=HEAD`
+  and at most two `git cat-file --batch` processes (the initiatives tree, then
+  the logs). A merged branch is skipped with no loss: logs are append-only and
+  merge=union, so its whole committed log is already in HEAD's. A checked-out
+  branch is covered by its worktree's file. A ref at the same commit as one
+  already taken adds nothing and is dropped.
+- Remote-tracking refs only with `--remotes` (D1: opt-in). They cover
+  teammates' pushed branches but also bring in abandoned ones. A teammate's
+  unpushed work on another machine is invisible to any local read; that case
+  belongs to §Sync client (v2 — api.sofar.sh, the D14 seam; sync-client, Jul 2026).
+- Never this checkout: its file is "here" and is read as it always was. Any
+  failure (no git, an unborn HEAD, an unreadable checkout) degrades to fewer
+  copies, never to an error.
+
+**The union fold.** This checkout's lines come first and verbatim, so the
+line numbers and warnings for them are exactly those of a single-copy fold.
+Each other copy then adds only lines whose id is new to the union. A line
+with no readable id is left out, since the fold would skip it anyway. A copy
+that is a byte prefix of this checkout's log (a branch that forked and never
+wrote to this record) is skipped without a line walk. Warnings about added
+lines name the copy and that copy's own line number (`r1-fixes line 190:
+unknown event type …`): another branch may run a newer engine.
+
+**What is rendered.** When another copy adds at least one event, the headline
+progress is the union's, and the output says what it is made of: this
+checkout's own figure (or "not on this checkout") and each contributing copy
+with the number of events it holds that this checkout lacks, most first.
+Plain `sofar status` adds an `Across branches:` block under `Progress:`. The
+styled view adds an `⚠ Across branches` block under the goal. `sofar list`
+adds an `across branches: here D/T tasks done, +N event(s) on <copy>, <copy>,
++K more` part to the entry. `sofar next` ends the entry's line with the same
+part, and its styled view adds it as a `⚠` line under the action: the next
+action shown is the last write-back ANY copy holds, which may be a branch
+whose work has not reached this one. get_state view:"initiatives" carries
+the part in its budgeted line, and such a line gets the part's own length on
+top of the line budget, at most 100 characters more, so the next action
+after it is not clipped away (branch-visibility D2). A task done on a branch
+has not shipped to this one, and an abandoned branch must never read as
+landed work, so a merged number is never shown alone. When no other copy
+adds an event, every one of these surfaces prints byte-identically to a
+single-copy fold. `--here` restores the single-copy view on the commands.
+
+**Scope.** `sofar status` (one shot), `sofar list`, `sofar next` and get_state
+view:"initiatives", all through `listAcrossCopies` except status, which folds
+its one initiative directly. The MCP view reads worktrees and unmerged local
+branches, never remote-tracking refs, and takes no single-copy switch.
+The get_state digest and full views and every hook still fold this
+checkout's copy alone, because they run on the hot path. The SessionStart
+block adds one hint line instead (below). Reading N checkouts
+costs about 80 ms per listing on this repo's 5 worktrees and 62 initiatives
+(0.18 s to 0.26 s for `sofar list`). That is fine for an operator command or
+an on-demand tool call, and too much for the hot path. Writes always land in
+this checkout's copy: never write to, or rewrite, another checkout's copy
+(D1).
+
+**Live status.** `status --watch` folds the same union as the one-shot
+status, honours `--here` and `--remotes`, and resolves a slug only another
+copy holds. A scan spawns git, so it never runs on the 600 ms pulse. The
+pulse re-renders the cached fold, backed by one `stat` of this checkout's
+log that re-folds only when its size or mtime moved. The copies are
+rescanned when something that decides them changes, one rescan per burst
+(150 ms debounce). `copyWatch` in `core/record-copies.ts` names the targets:
+the common git dir and every other checkout's `.sofar/initiatives`, both
+existing paths only, since a watcher drops a missing one. Its filter lets
+through only this initiative's `events.jsonl` on any checkout, a `HEAD`,
+`packed-refs`, `refs/heads` (and `refs/remotes` with `--remotes`), and a
+worktree appearing or going. Git's objects, indexes, logs and lock files
+are never walked. A change to this checkout's own log re-folds against the
+copies already scanned, with no rescan. The watched set is re-derived after
+every rescan, so a worktree added mid-watch is picked up.
+
+**SessionStart hint.** The hook's block is folded from this checkout's copy
+alone, so when other WORKTREES hold events of the bound record that this
+copy lacks, the block carries one notice in its volatile tail, after the
+recent-work-elsewhere notice: `` ⚠ N event(s) of this record live on other
+worktrees, not on this checkout: +n on <branch> (worktree <path>), …, +K
+more. This block folds this checkout's copy alone; `sofar status` folds them
+in. They reach this branch only by a merge. `` It names two worktrees at most
+and is clipped to 360 characters. `worktreeLeads` in `core/record-copies.ts`
+computes it from files alone, with no subprocess, to fit the hook budget,
+so branches with no checkout are out of its reach. A copy no longer than
+this log whose last 4,096 bytes equal this log's bytes at the same offset
+is an older prefix and is skipped without reading either file, which is the
+usual case. Only a copy that diverged is read in full, against this log's
+ids, which are read once. Measured on this repo: 0.2 to 0.3 ms when every
+copy is a prefix (r1-fixes, four 1.7 MB copies), 3.3 ms when one diverged
+copy is read (rust-core, 1.8 MB). The quick lane gets no hint: each
+checkout's lane is its own unplanned work. No worktree adding an event means
+no notice, and the block is byte-identical to before.
+
+**Write guard.** A write into a copy other worktrees have moved past is
+where a stale copy costs most. A task is marked done twice. A decision takes
+a D handle numbered from this copy, which shifts when the copies merge. A
+write-back names a next action the other checkout has already overtaken. So
+after a write, `mcp/copy-lag.ts` runs `worktreeLeads` on the record written
+to, and the result gains one `warnings` line: `` this checkout's copy of
+<slug> is behind another worktree's: N event(s) are not here (+n on <branch>
+(worktree <path>), …). The write landed in this copy only
+(branch-visibility D1). If the work belongs to that checkout, make the next
+write from there. D/M handles minted here are numbered from this copy and
+can shift when the copies merge. `` The line is clipped to 420 characters.
+It only warns: the append has already happened, and D1 forbids moving it to
+another copy. The MCP server resolves the record the same way the tool does
+(`resolveWriteInitiative`, or the started session's record for
+`sofar_start_session`) and warns once per process for each lagging
+worktree. It re-arms when the lag clears, so a later lag is named again.
+`sofar event append` is a new process per call and has no such memory, so
+it speaks only on `session_started`, `decision_logged` and `session_ended`:
+the session's first write, the write that mints a handle, and the
+write-back. A copy no worktree has moved past gets the bare result.
 
 ## Sync client (v2 — api.sofar.sh, the D14 seam; sync-client, Jul 2026)
 The client half of sofar-cloud sync. The server (private repo) is
@@ -2266,7 +3721,7 @@ implementations, driven black-box through the hidden `sofar fold` command
 point recursively, arrays in order, JSON.stringify(v, null, 2) verbatim —
 {ok, cursor, version, state, warnings} or the refusal) with
 `SOFAR_CONFORMANCE_BIN` selecting the candidate and the built CLI as the
-reference. Cases `FP-01-plan-tasks-decisions` … `FP-11-session-lifecycle-out-of-order`
+reference. Cases `FP-01-plan-tasks-decisions` … `FP-12-session-lifecycle-out-of-order`
 are RAW lines (corrupt and unknown lines included) with a sidecar
 {tail_at, seeds, refusal?, order_independence, note} and a golden {state,
 warnings} recorded through the reference (`FOLD_PARITY_RECORD=1`).
@@ -2287,7 +3742,7 @@ without a conflict, the merged file is the union of every branch's lines
 order the union driver chose; the across-initiatives form merges branches
 that touched different records (and one that touched both, duplicating a
 byte-identical line the stable sort skips) and folds each to its golden.
-FP-11 is the session lifecycle arriving out of order: a write-back filed
+FP-11 is run adoption fencing (drive-visibility 2.2). FP-12 is the session lifecycle arriving out of order: a write-back filed
 before its registration in file order, a mechanical event with an id below
 its session_started, a close with an id below its registration. FP-08's duplicates are byte-identical lines (an
 idempotent re-import), so it takes part in order-independence; its tail
@@ -2310,6 +3765,13 @@ only for a decision a concurrent session must see first; review, close and
 find are CLI. SERVER_INSTRUCTIONS is the non-adopted text. The protocol block
 carries the loop itself; instructions ride every initialize, so they stay
 short.
+
+**Write guard (branch-visibility 3.4).** Every write tool's result, bare
+`{ok, event_id}` ones included, may add a `warnings` line when the record it
+wrote to is behind another worktree's copy. The server attaches it after the
+tool returns, once per process per lagging worktree
+(§Record copies across branches). The write has already landed and is
+never redirected.
 
 **Session adoption and always-load (memory-lead 1.1, D3).** `sofar mcp`
 passes CLAUDE_CODE_SESSION_ID (set by Claude Code ≥2.1.154 on its stdio MCP
@@ -2351,7 +3813,9 @@ sofar_start_session.`
   phase, next action), count-capped at 20 with an "+N more (run sofar
   list)" overflow line — and is the ONLY view that skips initiative
   resolution entirely (`initiative` ignored): it must work from an
-  unbound branch, which is exactly when a session needs it.
+  unbound branch, which is exactly when a session needs it. It folds every
+  copy of the record except remote-tracking refs
+  (§Record copies across branches).
   NOT called at session start (speed-2 T5a): the digest is
   renderStatus(state) and the SessionStart block is renderStatus(state,
   {repoMemory, sessionId, git}) — the same projection with strictly more, so
@@ -2431,7 +3895,9 @@ sofar_start_session.`
   is planned and validated AS A WHOLE against one fold before any append —
   one bad entry files nothing, not the good ones and not the write-back:
   `invalid_input` naming the entry (`tasks[1] (9.9): …`). Entries:
-  `tasks` {task_id, status, note?, title?, phase?} — a task the plan has
+  `tasks` {task_id, status, note?, title?, phase?} — planned exactly as
+  sofar_update_task (phase-lifecycle D7), so a `title` naming a different
+  task than the one the plan holds is refused. A task the plan has
   appends task_status_changed; one it lacks WITH a title appends task_added
   {phase, id, title, status} into `phase` (resolved like
   sofar_update_phase; default the active phase), plus a task_status_changed
@@ -2440,7 +3906,10 @@ sofar_start_session.`
   resolved and idempotent exactly as sofar_update_phase. `decisions` —
   sofar_log_decision's arguments minus `initiative`, checked by its input
   validator, the decision_logged payload validator and the D31 reversal
-  check against the record PLUS the batch's earlier decisions. `memories`
+  check against the record PLUS the batch's earlier decisions, and against
+  every other record (D8) — a refusal naming another record's decision adds
+  `a replacement for <slug> D<n> is filed with sofar_log_decision, not a
+  write-back`, since a batch entry takes no `initiative`. `memories`
   and `notes` — non-empty strings, appended as memory_promoted {text} and
   note_added {text}. Appended in order — tasks, phases, decisions, memories,
   notes — under the session BEFORE session_ended, with projections
@@ -2449,8 +3918,14 @@ sofar_start_session.`
   session-driver D5). `tasks_applied` is present iff `tasks` was passed;
   `decisions` lists the `D<n>` handles and `memories` the `<slug> M<n>`
   handles the batch took, and `warnings` carries §Rule fidelity's warning
-  for each batched rule; each is omitted when empty, so a bare write-back is
-  byte-identical to before. `rebound` names the
+  for each batched rule, then the write-time judge's lines for the batched
+  decisions (typed-judge 3.1, see §Judge), judged against the fold the batch
+  was planned on, then the filing judge's lines for the batched decisions,
+  memories and notes and its evidence lines for the tasks the batch marked
+  done (typed-judge 3.3), then the write-back judge's lines for the summary
+  and next action (typed-judge 3.2, see §Judge for both); each is omitted
+  when empty, so a write-back with no batch, a concrete next action and
+  nothing flagged in its summary is byte-identical to before. `rebound` names the
   branch binding this write-back moved ({branch, from, to}), omitted when
   none moved — the rebind contract and its four guards are stated with the
   session-before-branch precedence below (binding-follows-session D1,
@@ -2479,8 +3954,22 @@ sofar_start_session.`
   peer fields are added at the tool layer, never on the folded
   ParallelWriteback — who is reachable is a fact about live host processes,
   and folding it in would make one log fold differently on two machines.
-- sofar_update_task({initiative?, task_id, status, note?}) → ok
-  # bare {ok, event_id} on EVERY status (r1-fixes 2.1, D10). The
+- sofar_update_task({initiative?, task_id, status, note?, title?, phase?}) → ok
+  # ADDS a task (phase-lifecycle D7, superseding D4): a task_id the plan
+  # lacks WITH a `title` appends task_added {phase, id, title, status} into
+  # `phase` (resolved like sofar_update_phase; default the active phase),
+  # plus a task_status_changed carrying `note` when one is given, both or
+  # neither, `event_id` the last; WITHOUT a title it is `invalid_input`
+  # (until D7 it appended a task_status_changed the fold skipped). A task the
+  # plan holds gets task_status_changed; a `title` naming a DIFFERENT task
+  # (case and whitespace aside) is `invalid_input` naming the held title,
+  # because an id collision is how a stale copy moves someone else's task.
+  # sofar_end_session's `tasks` entries run the same planner. Adding one task
+  # never needs sofar_update_plan: before D7, 47 of this repo's 126
+  # plan_updated events were full replaces whose only change was an add.
+  # bare {ok, event_id} on EVERY status (r1-fixes 2.1, D10), except that a
+  # `done` whose note cites no evidence adds `warnings` (typed-judge 3.3, D7,
+  # §Judge). The
   # standing-constraint echo on `active` (drift-hardening 4.1) is gone:
   # it repeated the [D<n>] lines the session already holds from SessionStart,
   # ~600 chars per activation, while the point-of-use GUARD (§Hooks) is the
@@ -2500,7 +3989,9 @@ sofar_start_session.`
   to the one phase labelled `Phase <n>` (position only when no phase name
   carries such a label). The plan's own name is what gets recorded. The same
   resolution guards `sofar event append --type phase_status_changed`, whose
-  miss is now refused the same way instead of minting a phase.
+  miss is now refused the same way instead of minting a phase, and
+  `--type task_added` (phase-lifecycle D7), which also refuses an id the
+  plan already holds rather than appending a line the fold would skip.
   A name that matches nothing is an invalid_input error naming the phases
   that do exist — NEVER the fold's create-on-miss, which is correct for a
   fold (never lose a logged fact) and wrong for a tool (a typo would mint a
@@ -2512,7 +4003,7 @@ sofar_start_session.`
   abandonment with no stated reason reads as something quietly forgotten.
   There is deliberately no `sofar phase` CLI sibling (D1): the
   MCP-less dialect reaches the same event through `sofar event append`.
-- sofar_log_decision({initiative?, chose, over, because, rule?, quote?, guard?}) → ok, warnings?
+- sofar_log_decision({initiative?, chose, over, because, rule?, quote?, guard?, supersedes?, until?, check?}) → ok, warnings?
   # rule (drift-hardening D1): standing-constraint clause, rendered verbatim
   # on every surface — never clipped, never aged out of the digest
   # quote (memory-lead D2): the operator's exact words the rule came from;
@@ -2521,20 +4012,42 @@ sofar_start_session.`
   # guard (drift-hardening D3): the machine-checkable half of that rule —
   # `path:`/`cmd:` globs (§Decision guards). Requires `rule`; a malformed
   # guard fails payload validation and appends nothing. Warns, never blocks.
+  # check (memory-lead D9): the executable half of that rule — {cmd, hint?,
+  # timeout_ms?} (§Decision checks). Requires `rule`; shape is the payload
+  # validator's. Runs only once the operator approved it on the clone (or,
+  # in drive, the run's surface covers it); blocks only at drive's task
+  # acceptance and, opted in, at pre-commit.
   # REVERSAL CHECK (r1-fixes D31), here and on `sofar event append --type
   # decision_logged`, before any append: a decision whose distinguishing terms
   # (chose minus over, over minus chose; core/lexicon's tokenizer) land on a
-  # STANDING decision's over and chose in the same record — overlap ≥ 1/3 of
-  # the smaller set, both directions, label-sized clauses (≤24 terms) only —
-  # is refused as invalid_input naming each reversed D<n>, unless `supersedes`
-  # names it or `because` cites it as a word (a narrower exception).
+  # STANDING decision's over and chose — overlap ≥ 1/3 of the smaller set,
+  # both directions; or ≥ 1/4 both directions when the two share a SUBJECT
+  # term, one in both clauses of each (memory-lead 2.2, D8); label-sized
+  # clauses (≤24 terms) only — is refused as invalid_input naming each
+  # reversed D<n>, unless `supersedes` names it or `because` cites it as a
+  # word (a narrower exception). The check covers EVERY record (D8): this
+  # record from its fold, the others from the labels tier (§Derived index).
+  # Another record's decision is named `<slug> D<n>`; only that qualified
+  # handle in `because` excuses it, and the message routes a replacement to
+  # its own record (`initiative` "<slug>", `supersedes` "D<n>", plus a rule
+  # when it is ruled), whose fold then retires it. An unreadable index skips
+  # the other records, never the write.
+  # WRITE-TIME JUDGE (typed-judge 3.1, §Judge), AFTER the append: `warnings`
+  # gains a line per earlier decision this one may re-propose or contradict,
+  # then a filing line when it reads as a fact or a note (typed-judge 3.3).
+  # Advisory; the decision is already in the log.
 - sofar_update_plan({initiative?, plan}) → ok   # full-structure replace;
   an omitted status means `pending`, NOT unchanged — restate every status
   you intend to keep, and expect a fold warning if a resolved one is dropped.
+  The description ends by naming sofar_update_task with `title` as the way
+  to add ONE task (phase-lifecycle D7): a replace drops every task the
+  writer's copy has not seen.
   A task may carry `route {agent?, model?, effort?}` for `sofar drive` (3.2),
   and it survives exactly as long as the plan restates it
-- sofar_add_note({initiative?, text}) → ok
+- sofar_add_note({initiative?, text}) → ok   # plus `warnings` when the note
+  reads as a decision or a fact (typed-judge 3.3, D7, §Judge)
 - sofar_remember({initiative?, text, supersedes?}) → ok   # promote a fact to repo memory
+  (plus `warnings` when it reads as a decision or a note, typed-judge 3.3)
   (repo-memory-capture D1): operational knowledge that is NOT a decision — a
   release command, a failure mode — whose repo-wide scope is known when it is
   learned and which no citation behaviour can surface, because nothing derives
@@ -2826,7 +4339,16 @@ initiatives:` suffix, or a `sofar new` hint when none exist
 ## Hooks (installed by `sofar init` as standalone scripts in .claude/hooks/)
 Claude Code runs them from .claude/settings.json and Cursor from
 .cursor/hooks.json; Cursor's payloads and outputs are converted at the
-dispatch, and every behaviour below holds for both hosts (§Cursor host).
+dispatch, and every behaviour below holds for both hosts (§Cursor host),
+except that Cursor's print mode (`cursor-agent -p`, what `sofar drive
+--agent cursor` launches) fires only sessionStart, postToolUse,
+postToolUseFailure and sessionEnd: no Stop gate and no per-prompt lines reach
+a headless Cursor session. Codex runs its own five copies from .codex/hooks.json, each declaring
+`--host codex`; every behaviour below holds for Codex too, except where
+§Codex host says otherwise (no PostToolUseFailure, no asserted `ok`, JSON
+context carriers). Codex runs them only in a project it trusts, and only
+after the operator trusts each entry in `/hooks`; anywhere else nothing below
+fires, and a Codex session is Tier 3 (§Host tiers).
 - SessionStart shim → `sofar event session-start` then prints the status
   projection to stdout (context injection). The block carries a
   `Session: <id> — when calling sofar_start_session, pass this as
@@ -3170,7 +4692,12 @@ dispatch, and every behaviour below holds for both hosts (§Cursor host).
   file_touched / command_run from stdin JSON (tool_name, tool_input),
   preceded by a session_started for an unregistered session (lazy
   registration, record-hygiene D2; envelope session "cli" is never
-  registered).
+  registered). An `apply_patch` call (Codex, matcher `Bash|apply_patch`)
+  appends ONE file_touched per file its patch names, in patch order:
+  `*** Add File:` → `write`, `*** Update File:` → `edit`, `*** Delete File:`
+  → `delete`, and an update followed by `*** Move to:` → `delete` on the
+  source plus `write` on the destination. Paths are resolved against the
+  payload's `cwd`. The session registers once per call.
   REGISTRATION IS IDEMPOTENT PER (initiative, session) (r1-fixes 1.2): a
   log holds at most one session_started per session, whichever path
   registers it — this hook, sofar_start_session's unknown-id branch, or
@@ -3290,7 +4817,9 @@ dispatch, and every behaviour below holds for both hosts (§Cursor host).
   and no stdout: the notice comments on an edit just made, and this call made
   none. Best-effort per BD22: every failure path is exit 0 and silence.
 - Stop shim → reads stdin JSON; if stop_hook_active is true → exit 0
-  (loop guard). Else if no session_ended event exists for this session_id
+  (loop guard; Claude Code and Codex set it on a turn Stop already
+  continued, Codex once per turn with no loop key of its own, and Cursor's
+  `loop_count` converts to it — §Cursor host, §Codex host). Else if no session_ended event exists for this session_id
   AND gate-relevant drift is nonzero → exit 2 with stderr: "Write back to
   the sofar record before finishing: call sofar_end_session (or append
   session_ended via `sofar event append`)." Else exit 0.
@@ -3316,6 +4845,15 @@ dispatch, and every behaviour below holds for both hosts (§Cursor host).
   into an exit-0 — no today-exit-0 path becomes blocking.
 - SessionEnd shim → appends mechanical session-close marker (fallback only;
   cannot feed back to the agent).
+- pre-commit shim → `.git/hooks/pre-commit` (memory-lead 2.3, D9): runs
+  `sofar check --staged` and exits 1 only when that returned 10, else 0 —
+  so no sofar, an older sofar without `check`, or a crash never fails a
+  commit. `--staged` exits only 0 or 10, so a 1 is an older sofar rejecting
+  the subcommand: its output is swallowed rather than shown on every commit;
+  any other output goes to stderr. Installed, kept current, skipped and removed exactly as the
+  prepare-commit-msg shim below (common git dir, core.hooksPath resolved,
+  never clobbering, marker `sofar pre-commit shim`); a skip names the line to
+  add by hand, `sofar check --staged` (it exits 10 only to refuse a commit).
 - prepare-commit-msg shim → `.git/hooks/prepare-commit-msg`, the one shim that
   is GIT's rather than the host's (commit-attribution 2.5, D7). Calls
   `sofar commit-trailer "$1"` and exits 0 unconditionally. Unlike every shim
@@ -3370,7 +4908,8 @@ Shims contain no logic — they invoke the sofar CLI.
   block is the CLI convention dialect for MCP-less tools — added Phase 5,
   BD31). Since r1-fixes 6.7 (D37) an AGENTS.md reader may also have sofar's
   hooks and MCP tools (Cursor reads AGENTS.md, and CLAUDE.md too when both
-  are wired), so the block opens with the two facts that decide the loop:
+  are wired; Codex reads AGENTS.md alone, and both facts name it since
+  agents-parity 2.3, D8), so the block opens with the two facts that decide the loop:
   a record already INJECTED by the hooks is oriented from, never re-read
   with `sofar status`; with `sofar_*` tools available the writes go through
   them — `sofar_start_session` first with the "Session:" line's id, then
@@ -3380,9 +4919,11 @@ Shims contain no logic — they invoke the sofar CLI.
   both blocks loading in one Cursor session must never give two answers.
   ONLY THE AGENTS PICKED are set up (r1-fixes 7.1, D35, D36). Each agent owns
   its files: Claude Code `.claude/settings.json`, `.mcp.json`, CLAUDE.md;
-  Cursor `.cursor/hooks.json`, `.cursor/mcp.json`, AGENTS.md; Codex AGENTS.md
-  (its hooks and MCP entry are r1-fixes 7.3/7.4). `.sofar/`, `.gitattributes`
-  and the git hook are shared and always installed. `--agents` takes
+  Cursor `.cursor/hooks.json`, `.cursor/mcp.json`, AGENTS.md; Codex
+  `.codex/hooks.json`, its shims in `.codex/hooks/sofar/`, the
+  `[mcp_servers.sofar]` table in `.codex/config.toml`, and AGENTS.md
+  (agents-parity 2.1, D5; 2.2, D7). `.sofar/`,
+  `.gitattributes` and the git hook are shared and always installed. `--agents` takes
   `claude-code`, `cursor`, `codex` comma-separated, or `all`; an unknown name
   exits 1 and writes nothing. Without the flag, when stdin and stderr are a
   terminal (not CI, not TERM=dumb), init asks with a multi-select drawn on
@@ -3408,7 +4949,17 @@ Shims contain no logic — they invoke the sofar CLI.
   entries are repointed in place (other keys kept) even when Cursor was not
   picked, and the old copies removed, because Cursor fires each hook once
   only when its command matches settings.json's byte for byte
-  (§Cursor host). No selection is stored — the files are the selection. The
+  (§Cursor host). Codex's shims never share or move: they live in
+  `.codex/hooks/sofar/` whichever agents are picked, and `.codex/hooks.json`
+  runs them as `"$(git rev-parse --show-toplevel)/.codex/hooks/sofar/<shim>"`
+  (§Codex host). Merge rules are settings.json's, and a run that writes
+  `.codex/hooks.json` or `.codex/config.toml` prints the trust note, since
+  Codex loads no project hook or MCP server until the project is trusted, and
+  runs no hook until the operator trusts it in /hooks. The sofar server is a
+  table appended to `.codex/config.toml`, or, when that file cannot take one,
+  the printed user-level step `codex mcp add sofar -- sofar mcp` (§Codex host,
+  its Wired MCP paragraph). No selection is stored — the
+  files are the selection. The
   statusline hint and `--statusline` apply only with Claude Code picked;
   without it `--statusline` reports `skipped statusLine (Claude Code not
   selected)`. Writes the union-merge rule for committed event logs to
@@ -3487,9 +5038,16 @@ Shims contain no logic — they invoke the sofar CLI.
   checked — Claude Code when settings.json runs a shim, .mcp.json registers
   sofar or CLAUDE.md carries the block; Cursor when .cursor/hooks.json runs a
   shim from either home or .cursor/mcp.json registers sofar; Codex when
-  AGENTS.md carries the block — each unwired agent gets one ok line naming
+  .codex/hooks.json runs one of its shims or .codex/config.toml registers
+  sofar (AGENTS.md is shared with Cursor, so it no longer stands for Codex,
+  agents-parity 2.1), checked for its five shims, its five hooks.json entries
+  and its sofar server, in `.codex/config.toml` or the user's config.toml
+  (agents-parity 2.2) — each unwired agent gets one ok line naming
   `sofar init --agents <id>`, a partial install's repair hint names its own
-  agents, and a record with no agent wired at all FAILs; plus the
+  agents, and a record with no agent wired at all FAILs. A passing Codex
+  check means wired, not running: doctor cannot see whether Codex trusts the
+  project or sofar's hooks, because the file holding that state is
+  unverified (§Codex host). Plus the
   ATTRIBUTION check (commit-attribution 2.4), which is deliberately EMPIRICAL
   rather than diagnostic: it asks whether the last 20 commits actually carry
   trailers, not why they might not. Attribution goes silently off for several
@@ -3613,7 +5171,8 @@ Shims contain no logic — they invoke the sofar CLI.
   context and `sofar status` (rendered only when open sessions overlap, D-P11).
 - `sofar uninit [--purge]` — exact inverse of init, surgical: remove the
   hook shims from either home (`.claude/hooks/`, or `.cursor/hooks/sofar/`
-  for a repo set up without Claude Code — r1-fixes 7.1), every agent's
+  for a repo set up without Claude Code — r1-fixes 7.1) and Codex's from
+  `.codex/hooks/sofar/` (other files in `.codex/hooks/` kept), every agent's
   entries whichever agents were picked, `.git/hooks/prepare-commit-msg` ONLY while it still carries
   the `sofar prepare-commit-msg shim` marker (D7 — a user's own hook that calls
   `sofar commit-trailer` is the user's file, and `.git/hooks` has no other
@@ -3622,7 +5181,9 @@ Shims contain no logic — they invoke the sofar CLI.
   installs — matched on `type` + `command`, tolerating a retuned
   `refreshInterval` and the two-key entry installed before that key shipped,
   and refusing any other extra key (a customized statusLine is user config —
-  kept; init-statusline D1, statusline-refresh D1), .mcp.json's sofar server, our exact .gitattributes
+  kept; init-statusline D1, statusline-refresh D1), .mcp.json's sofar server
+  (and `.cursor/mcp.json`'s, and the `[mcp_servers.sofar]` tables in
+  `.codex/config.toml` — agents-parity 2.2), our exact .gitattributes
   union-merge line (a customized events.jsonl rule is user content — kept;
   team-readiness T2), and the protocol blocks (markers + one seam
   blank line), preserving all user content; .sofar/ is kept with a notice
@@ -3673,8 +5234,14 @@ Shims contain no logic — they invoke the sofar CLI.
   to pass, the most recently active open initiative's status (byte-identical
   to `sofar status <slug>`), a blank line, then the `sofar list` render; with
   no open initiative, the line names `sofar new <slug> --goal` before the
-  list. An explicit unknown slug, a branch bound to a missing directory, and
-  a repo with no `.sofar/` still exit 1. Read-only: nothing is bound.
+  list. An explicit slug that no copy of the record holds, a branch bound to
+  a missing directory, and a slug-less call in a repo with no `.sofar/`
+  still exit 1. Read-only: nothing is bound. The fold is across the other
+  copies of the record, the orientation's status and list included, and an
+  initiative that only another copy holds still resolves
+  (§Record copies across branches); `--here` reads this checkout alone,
+  `--remotes` adds remote-tracking refs, and `--watch` folds the same union
+  live, rescanning only when another copy changes.
 - `sofar list` — every initiative under .sofar/initiatives/, one line each
   (slug, bound branch(es) or "unbound", done/total tasks with %, active
   phase, next action), most recently active first per §State's
@@ -3682,7 +5249,10 @@ Shims contain no logic — they invoke the sofar CLI.
   sofar-status precedent), lines whitespace-collapsed so each initiative
   stays one line; derivation warnings to stderr without failing — an
   uninitialized repo prints the empty listing with a `sofar new` hint
-  (initiative-list 2.1).
+  (initiative-list 2.1). It folds each initiative across the other copies
+  of the record and also lists initiatives only another copy holds
+  (§Record copies across branches); `--here` reads this checkout alone,
+  `--remotes` adds remote-tracking refs.
 - `sofar next` — the portfolio next-actions surface: one line per
   initiative (slug, bound branch(es) or "unbound", the next action the
   last write-back recorded or "(no next action recorded)"), most recently
@@ -3693,7 +5263,23 @@ Shims contain no logic — they invoke the sofar CLI.
   UNCAPPED entry count (terminal surface), lines whitespace-collapsed so
   each initiative stays one line; derivation warnings to stderr without
   failing — an uninitialized repo prints the empty listing with a
-  `sofar new` hint (next-command 1.1).
+  `sofar new` hint (next-command 1.1). It folds each initiative across the
+  other copies of the record, like `sofar list`, and a record another copy
+  closed is omitted (§Record copies across branches); `--here` reads this
+  checkout alone, `--remotes` adds remote-tracking refs.
+- `sofar check [--staged|--all] [--strict] [--list] [--approve <handle>]
+  [--block-commits on|off]` (memory-lead 2.3, D9; §Decision checks) — run
+  the approved in-force decision checks that apply to the working tree's
+  changes (tracked against HEAD plus untracked, `.sofar/` excluded), print each
+  failure line, the unapproved line and `sofar check: N check(s) ran on M
+  changed path(s) — P passed, F failed`; exit 0 (`--strict`: 1 on a failure).
+  `--staged` is the pre-commit hook: the staged paths, the report on stderr,
+  exit 10 only when the clone opted in and an approved check failed, 0 for
+  everything else including its own errors. `--all` runs every approved check.
+  `--list` prints each check, approved or not, and its scope. `--approve`
+  asks on a terminal and refuses without one (a bare `D<n>` resolves in the
+  bound initiative). `--block-commits on|off` sets the clone's pre-commit
+  opt-in.
 - `sofar why <path>` — every task, session and decision behind a path,
   across ALL initiatives, newest-first (§Record graph `whyFile`). Prints the
   recorded paths the query resolved to (§Path identity) VERBATIM — those are
@@ -3750,14 +5336,22 @@ Shims contain no logic — they invoke the sofar CLI.
   [--context-window <tokens>] [--max-sessions <n>] [--max-stalls <n>]
   [--cost-cap <usd>] [--session-timeout <seconds>] [--cwd <dir>] [--model <m>]
   [--effort <e>] [--resume]
-  [--agent claude-code|codex] [--bin <path>] [--agent-arg <arg>]
+  [--agent claude-code|codex|cursor] [--bin <path>] [--agent-arg <arg>]
   [--permission-mode <mode>]
-  [--allow <rule...>] [--deny <rule...>] [--bare-tools] [--detach] [--stop]` — run an initiative task-by-task through
-  fresh headless sessions (§Driver, the loop). `--detach` starts the run as a
+  [--allow <rule...>] [--deny <rule...>] [--bare-tools] [--detach] [--stop]
+  [--await] [--keep-awake|--no-keep-awake] [--keep-awake-setting <on|off>]` — run an initiative task-by-task through
+  fresh headless sessions (§Driver, the loop). `--agent codex` launches
+  `codex exec`. In a repo `sofar init --agents codex` wired and Codex trusts,
+  its sessions are hooked; elsewhere they run on the id the pin line assigns
+  (§Driver, the codex adapter). `--agent cursor` launches `cursor-agent -p`
+  the same way: hooked where the project has sofar hooks Cursor runs, on the
+  assigned id elsewhere (§Driver, the cursor adapter). `--detach` starts the run as a
   process that outlives the shell that asked for it, returning once the run is
   certain to start; `--stop` asks the latest unstopped run's driver to end it
-  and takes no other flag but `--root` (§Driver, starting a run from inside a
-  session). The permission flags state the
+  and `--await` blocks until that run stops or its driver is gone, and each
+  takes no other flag but `--root`
+  (§Driver, starting a run from inside a session; watching a run). The
+  permission flags state the
   run's surface (§Driver, the permission surface): `--allow` ADDS to sofar's
   floor and `--bare-tools` drops the floor so `--allow` states the whole of
   it. An unknown mode is refused before a run is minted; the modes sofar
@@ -3817,8 +5411,10 @@ Shims contain no logic — they invoke the sofar CLI.
   — the v2 sync client against api.sofar.sh; full contract in
   §Sync client (sync-client, Jul 2026).
 - `sofar event <subcommand>` — append-side surface: session-start,
-  post-tool, post-tool-failure, stop, session-end are internal subcommands for
-  the hook shims;
+  user-prompt, post-tool, post-tool-failure, stop, session-end are internal
+  subcommands for the hook shims, taking `--root <dir>` and `--host codex`,
+  which a Codex shim passes because Codex's payload names no host
+  (§Codex host); any other `--host` value exits 1;
   `event append --type <event_type> --payload <json-object> [--session <id>]
   [--source <tool>] [--actor <actor>] [slug]` is the convention-dialect
   surface for MCP-less tools — validate payload, append ONE event,
@@ -4175,7 +5771,7 @@ the stdout bytes equal the plain renderer):
 | Command | stdout (report) | stderr (messaging) |
 |---|---|---|
 | status | full-zoom layout grammar / renderFullStatus | fold warnings + resolution failures — always plain |
-| status --watch | live full-zoom render: redraw on record changes (chokidar) + active-task marker pulses warn↔dim @600ms; TTY-gated by animate, piped/CI falls back to the one-shot result; ^C restores the cursor and re-raises | (same as status) |
+| status --watch | live full-zoom render across copies: redraw on record changes (chokidar; other copies rescanned on change, never per pulse) + active-task marker pulses warn↔dim @600ms; TTY-gated by animate, piped/CI falls back to the one-shot result; ^C restores the cursor and re-raises | (same as status) |
 | list | portfolio-zoom blocks / renderFullInitiativeList | derivation warnings — always plain |
 | next | two-part entry blocks (header: pointer + pie + bold slug + dim branch tag + dim task fraction; body: hanging-indent word-wrapped action; stale warning on its own line; blank line between entries) / renderNextActions | derivation warnings — always plain |
 | doctor | ✓/⚠/✗ findings report / marker-column report | scan spinner (animate-gated) |
@@ -4288,10 +5884,11 @@ stay the underlying derivation's, and exit codes are styling-independent.
   with different session id, sha and notices are byte-identical up to the
   `Session:` line, and a render with no per-session inputs shares that
   prefix too. The SessionStart hook passes its notices (recent work
-  elsewhere first, then closed banner, cold-resume advisory, shipping) as
-  `notices`; the hook output starts with `# Sofar status:` even when every
-  notice fires, and on a heavy record (24 rules, 33 decisions, summary at
-  budget, repo memory at budget, 780 chars of notices) the block stays
+  elsewhere first, then other worktrees, closed banner, cold-resume
+  advisory, shipping) as `notices`; the hook output starts with
+  `# Sofar status:` even when every notice fires, and on a heavy record (24
+  rules, 33 decisions, summary at budget, repo memory at budget, 1,140 chars
+  of notices) the block stays
   ≤10,000 chars with no truncation marker, every notice present, the ledger
   carrying the `…and N more` pointer and the read-back after it.
 - **Quick-work lane (r1-fixes 2.6):** on a branch bound to nothing, the first
@@ -4564,6 +6161,49 @@ stay the underlying derivation's, and exit codes are styling-independent.
   the available-initiatives suffix (≤10 named) or the `sofar new` hint on
   an initiative-less repo; the derivation is deterministic (same records
   → deep-equal listing, same warnings).
+- **Record copies (branch-visibility 1.1–3.4):** against real git repos with
+  linked worktrees, the scan returns every other worktree (an uncommitted
+  append included) and every unmerged branch that has no checkout, and never
+  returns this checkout, a merged branch, or a ref at a taken commit. Seen
+  from a worktree, main is the other copy. Remote-tracking refs appear only
+  with `remotes`. Outside git the scan is empty. The union fold applies an
+  event held by two copies once, counts it in each copy's contribution,
+  keeps this checkout's warnings unchanged, and names the copy in warnings
+  about added lines. A forked-but-idle branch yields no provenance.
+  `sofar status` and `sofar list` show the union with this checkout's figure
+  and the contributing copy. `--here` shows the single copy. A repo with no
+  other copy prints byte-identically either way. `sofar status <slug>`
+  resolves an initiative only another branch holds, and `sofar list` lists
+  it as "not on this checkout". `sofar next` shows the last write-back any
+  copy holds with the contributing copy, omits a record another copy closed,
+  and prints byte-identically to `--here` on a repo with no other copy.
+  get_state view:"initiatives" folds the union, and a line carrying the
+  across-branches part keeps a next action a flat 220-character clip would
+  cut, never exceeding 320. `listInitiatives` without copies stays
+  single-copy; `listAcrossCopies` with `here` equals it. The live status
+  model (3.2) scans once at start and never on a pulse, re-folds a local
+  append without a rescan, rescans once per copy change, and never scans
+  under `--here`. `copyWatch` targets the common git dir and every other
+  checkout's record but never this one, and its filter keeps HEADs, refs,
+  worktree entries and this initiative's logs while ignoring objects,
+  indexes, locks, tags, projections and other initiatives. A real watcher on
+  those targets hears another worktree's append and a new branch. The
+  SessionStart hint (3.3) counts each other worktree's uncommitted appends,
+  most first, and never this checkout. An idle fork, and one this checkout
+  has moved past, count nothing. A diverged copy smaller than this log is
+  still counted. With no copy here, every event another worktree holds
+  counts. Outside git there is no hint. The hook block names the worktree
+  and is unchanged without one, and the notice names two worktrees, counts
+  the rest, and holds 360 characters. The write guard (3.4): an MCP write
+  into a copy a worktree has moved past carries the lag line once, not on
+  the next write into the same lag, and again once the lag has cleared and
+  returned. `sofar_start_session` carries it for the record it starts in. A
+  copy no worktree has moved past gets exactly `{ok, event_id}`. `sofar
+  event append` carries it on `session_started`, `decision_logged` and
+  `session_ended` and on no other type. On an unbound branch, `sofar status`
+  names the record the union listing puts first (`--here`: this checkout's
+  listing). None of these surfaces changes a byte of another copy or its
+  `git status`.
 - **CLI UI (cli-ui):** with stdout and stderr both piped and no explicit
   opt-in, every command emits ZERO ESC (\x1b) bytes — ambient CI included;
   FORCE_COLOR=1 on the same piped invocation carries ANSI-16 SGR on the
@@ -5072,7 +6712,8 @@ stay the underlying derivation's, and exit codes are styling-independent.
   nudge, naming the missing half. `wroteBack` is false while a session runs,
   true once its session_ended is in the log, and false for an exit-0 session
   that never wrote back. `resolveLaunchedSession` takes a transport-shown id
-  the record registered, otherwise diffs the fold by tool and launch time,
+  the record registered, then an adapter-assigned one (agents-parity 3.1),
+  otherwise diffs the fold by tool and launch time,
   ignores sessions registered before the launch or by other tools, reports
   none when nothing registered, and REFUSES to choose between two
   candidates. A scripted fake adapter drives all of it.
@@ -5138,25 +6779,89 @@ stay the underlying derivation's, and exit codes are styling-independent.
   digest line does not.
 - **Codex adapter (session-driver 3.1):** tested against a stubbed `codex`,
   never the real one, replaying line shapes captured from codex-cli 0.136.0.
-  It declares `usage`, `nudge`, `permission_rules` and `cost` all false;
-  `policyUnavailable` refuses the threshold policy naming both missing halves,
-  and `inertOptions` says the allow/deny rules do not reach it and that
-  `--cost-cap` can never fire — and says nothing when nothing is inert. Each
+  It declares `usage`, `permission_rules` and `cost` false and `nudge` true
+  (agents-parity 3.1); `policyUnavailable` refuses the threshold policy
+  naming only the missing gauge, and `inertOptions` says the allow/deny rules
+  do not reach it and that `--cost-cap` can never fire — and says nothing
+  when nothing is inert. Each
   permission mode maps to a sandbox with `approval_policy="never"`, an
   unmappable mode throws instead of launching, and the argv carries the mode
   but not the rules. The argv asks for `--json`, skips the git check, routes
   `-m` and `model_reasoning_effort`, and puts the prompt LAST. The pin line
-  hands over the assigned session id, the CLI dialect, and `{"tool":"codex"}`.
-  `thread_id` is kept for diagnostics and never reported as the record session
-  id; the exit carries the ASSIGNED id, the final usage from `turn.completed`
+  settles ONE id — the injected Session line's, the assigned id only when none
+  arrived, which appears once and never inside a command — spells the MCP
+  loop and the CLI dialect with `<id>`, and states `{"tool":"codex"}`. The
+  exit shows `thread_id` as `session_id` and the assigned id as
+  `assigned_session_id` (the assigned id alone when no `thread.started`
+  arrived), the final usage from `turn.completed`
   while `usage()` stays undefined throughout, the stderr tail on a bad exit,
-  127 for a missing binary, and skips an unparseable or unknown line. And the
-  PROOF: `sofar drive` runs unchanged against it — a stub that reads its
-  session id and task id out of the prompt and writes the record with the CLI
-  dialect produces a `task_done` handoff naming the session codex registered,
+  127 for a missing binary, and skips an unparseable or unknown line. The
+  child's env names a nudge file that `nudge()` creates, and the session's
+  temp dir is gone after exit. `resolveLaunchedSession` answers a launch
+  exactly by either id beside a parallel codex session the diff alone finds
+  ambiguous, and takes the id that wrote back when both registered. And the
+  PROOF: `sofar drive` runs unchanged against it — a stub whose hooks never
+  ran reads its assigned id and task id out of the prompt and writes the
+  record with the CLI dialect, producing a `task_done` handoff naming the
+  session codex registered,
   a clean fold with no warnings, tokens from `turn.completed`, and a run that
   ends `closed`; the same stub marking the task `blocked` produces
-  `needs_user` and stops the run.
+  `needs_user` and stops the run. With the hooks in play (agents-parity 3.1),
+  a stub `codex` firing the real `.codex/hooks.json` commands through the
+  built CLI hands off `task_done` on the thread id beside a parallel codex
+  session, with every file_touched on that one session and Stop holding it
+  before the write-back and releasing it after. With hooks untrusted it hands
+  off on the assigned id, and a nudge reaches the PostToolUse output valid
+  against Codex's schema.
+- **Cursor host (r1-fixes 6.2–6.7, D34):** a payload is Cursor's only when it
+  carries a string `cursor_version`; Shell maps to Bash, Write stays, every
+  original field is kept, `loop_count` becomes `stop_hook_active`,
+  `error_message` becomes `error`, and `conversation_id` stands in for an
+  absent `session_id`. Output takes the form Cursor reads: session-start text
+  and PostToolUse's `hookSpecificOutput` become `additional_context`, the Stop
+  gate's exit 2 becomes exit 0 with `followup_message`, a per-prompt or
+  per-tool line is clipped under Cursor's 10,000-character carrier cap while
+  the digest never is, and nothing is printed when there is nothing to say.
+  Through the hook table, a Cursor session gets the digest with its Session
+  line as `additional_context`, a Shell call records command_run (with `ok`
+  false on failure) and registers the session as `cursor`, a Write records
+  file_touched, a session owing a write-back is held once through
+  `followup_message` and then let go, and sessionEnd closes it. A Claude Code
+  invocation passes through byte-identical. `sofar init` writes
+  `.cursor/hooks.json` with commands byte-identical to settings.json, so each
+  hook fires once, and registers the same sofar server in `.cursor/mcp.json`
+  as in `.mcp.json`. It is idempotent, names the Cursor approval step only on
+  the run that registered the server, merges into the user's own Cursor
+  files, and refuses to modify an unparseable `.cursor/hooks.json`. `sofar
+  uninit` strips only sofar's entries, and `--purge` removes the Cursor files
+  and the `.cursor/` that init alone created. doctor reports a Cursor-wired
+  repo's AGENTS.md block as current, stale or absent.
+- **Cursor adapter (r1-fixes 6.8, D38):** tested against a stubbed
+  `cursor-agent`, never the real one, replaying the live 6.3 print-mode
+  stream and failure exits captured against an unreachable `--endpoint`. It
+  declares `model` true and `usage`, `nudge`, `effort`, `permission_rules`
+  and `cost` false. `policyUnavailable` refuses the threshold policy naming
+  both missing halves. `inertOptions` says the rules, the cost cap and an
+  effort hint do not reach it, and says nothing about a model. Every
+  permission mode maps (`plan` → `--mode plan`, `bypassPermissions` →
+  `--force --sandbox disabled`, the rest → `--force`), and an unmappable mode
+  throws before anything is spawned. The argv starts `-p --output-format
+  stream-json --trust`, routes `--model`, never carries effort, rules or
+  `--approve-mcps`, keeps the operator's `--agent-arg` before the prompt, and
+  puts the prompt LAST. The pin line is `drivenPinLine` with tool
+  `"cursor"`, identical to codex's apart from the agent it names. The exit
+  shows `system/init.session_id` as `session_id` and the assigned id beside
+  it. The final usage comes from `result` while `usage()` stays undefined. A
+  transport failure (nothing on stdout, exit 1) keeps its cause in the
+  stderr tail. An `is_error` result keeps its text, and the result line's id
+  stands in when init was missed. A missing binary exits 127, and the child
+  runs in the request cwd. `sofar drive --agent cursor` records the run
+  under adapter `cursor`. And the PROOF: after `sofar init --agents cursor`,
+  a stub `cursor-agent` fires the real shims through the built CLI and
+  follows the pin line. A 3-task plan then drives to 3 `task_done` handoffs
+  with no stall, each naming the chat id the hooks registered, one cursor
+  session per launch. A project with no hooks Cursor runs hands off on the
+  assigned id beside a parallel cursor session.
 - **Per-task routing (session-driver 3.2):** a plan task carries
   `route {agent?, model?, effort?}` — validated strictly (a non-object route,
   or an empty agent/model/effort, rejects the payload), folded onto the task,
@@ -5226,6 +6931,24 @@ stay the underlying derivation's, and exit codes are styling-independent.
   closes phases still owes a write-back; and replay stays deterministic.
   Closing a phase clears it from doctor's stale-phase axis and from the close
   audit's phases_unresolved finding — the same one fact, read by both.
+- **Adding a task (phase-lifecycle 3.3–3.5, D7):** sofar_update_task with a
+  `title` and a task_id the plan lacks appends exactly one task_added into
+  the active phase, or into `phase` named by number or in any case with the
+  plan's own name recorded, and no plan_updated; a note adds one
+  task_status_changed after it and `event_id` is that last event; an unknown
+  phase is `invalid_input` naming the phases that exist; an unknown task_id
+  without a title (or with a blank one) is `invalid_input`; a held task_id
+  with a different title is `invalid_input` naming the held title, while the
+  same title in another case or spacing is a plain status change; with no
+  plan, an add naming no phase says "no active phase". Every refusal leaves
+  events.jsonl byte-identical. The add follows the session pin across a
+  branch rebind. Over MCP the schema lists `title` and `phase`, and
+  sofar_update_plan's description names sofar_update_task for a single add.
+  sofar_end_session refuses a colliding title as `tasks[i] (<id>)` and files
+  nothing from the batch, while a task added earlier in the same batch can
+  change status later in it. `sofar event append --type task_added` resolves
+  its phase the same way and refuses an unknown phase or a held id, leaving
+  the log unchanged. The serialized tool surface stays ≤8,000 chars.
 - **core.hooksPath (hookspath-attribution):** a repo whose `core.hooksPath`
   resolves to its own `<common>/hooks` — spelled absolutely or relatively —
   gets the hook installed, and a hook placed in that directory demonstrably
@@ -5305,6 +7028,41 @@ stay the underlying derivation's, and exit codes are styling-independent.
   and handed off `task_done` ($0.06); a `--stop` sent while session 2 was
   starting was acknowledged in 11s with the run `interrupted`, that launch
   unresolved (exit 143) and no process left behind.
+- **Drive visibility (drive-visibility):** one run has one driver, and an
+  operator can tell a live run from a dead one without asking an agent.
+  A driver holds `<state base>/runs/<run>.lock` for its whole life: a second
+  `sofar drive` and a `--resume` on the same machine are REFUSED while it is
+  held, including while the holder is SIGSTOPped; after kill -9 the lock is
+  FREE — even while a session that driver launched is still running, since
+  no child inherits the lock — status says `driver gone`, and `--resume`
+  succeeds. The lock file is
+  empty, outside the repo, never unlinked, and refused when the state base
+  would resolve inside the repo; a lock taken by Node is seen as held by
+  `flock` (the Rust and Swift primitive), and a probe never blocks another
+  probe. A run no lock was ever taken for reads `liveness unknown`, never
+  `driver gone`, on every surface. `run_adopted` REJECTS an epoch below 2;
+  the fold skips an adoption for a run that never started (warning, no
+  stub) and names the owner by highest epoch, first id on a tie; a driver
+  whose run was adopted at a higher epoch launches nothing more, files no
+  handoff or stop, and exits 1 once its live session ends; a stop request
+  sorting before the owner's adoption is ignored. `--stop` against a FREE
+  lock appends nothing and returns at once, and one whose lock falls while it
+  waits, with no stop recorded, returns at once too. `--await` exits 0 with one line
+  on any `run_stopped` (naming the blocked task and its note for
+  `needs_user`), 2 when the lock goes FREE with no stop, and 1 with nothing
+  to await; `--follow` prints one line per handoff, task change, adoption,
+  request and stop, and exits on either end. The prompt line appears when
+  the run changed since the session last saw it and not otherwise, and a
+  lost last-seen file repeats it; the statusline shows the run's task, gone
+  or stop reason. On macOS, keep-awake on holds a `caffeinate` assertion
+  for exactly the driver's life (`pmset -g assertions`); unset with no TTY
+  never prompts and says so in the opening lines; the setting is re-read
+  before each launch. No liveness appears in any generated file. For a
+  linked repo the driver pushes during the run and sends presence carrying
+  only `{run, slug, task?, state, seq, boot, interval_s}`; an unlinked repo
+  sends nothing; an entitlement refusal ends drive-time sync once, stated,
+  and a failing or refusing API never delays a launch, changes a reason or
+  stops a run (injected fetch).
 - **First session (r1-fixes 1.1):** SessionStart in a repo that carries
   `.sofar/` but no initiative injects `# Sofar: no initiative yet` with the
   hook payload's `Session: <id>` line (byte-identical to the status block's)
@@ -5492,12 +7250,132 @@ stay the underlying derivation's, and exit codes are styling-independent.
   and names the replacement; `reject` and `revert` without `--reason` exit 1;
   `revert` works on a stale approval and leaves proposed/approved/reverted in
   the log in order; the lifecycle leaves `events_since_writeback` unchanged.
+- **Judge seam (typed-judge 2.1, 2.2):** `core/judge.ts` validates ids,
+  choice key counts (2–255), score level counts (2–10) and the 100,000-char
+  state ceiling with typed errors before any provider runs; a question whose
+  `decide` returns an answer is reported `origin: "rule"` with confidence 1
+  and is absent from what a non-deterministic provider is sent; one it
+  abstains on is `origin: "abstain"` with noul 0.5 or uniform probabilities,
+  confidence 0 and the first key as `choice`; the same request judged twice
+  by the deterministic provider is deep-equal; confidence is recomputed from
+  probabilities (`(n·pmax − 1)/(n − 1)`), so a provider's own number is
+  ignored; a provider that throws, times out or returns a malformed answer
+  leaves every forwarded question abstained and names the reason in
+  `fell_back`, never throws to the caller; `redactState` reaches every string
+  leaf of an object or array state; the module is imported by no file under
+  `hooks/` or `projections/` nor by `core/fold.ts`, `core/atomic.ts`,
+  `core/log.ts`, `cli/fast*.ts` or `cli/statusline*.ts` (pinned by test).
+- **Cloud judge provider (typed-judge 2.3):** `resolveJudgeProvider` returns
+  no provider and no reason unless `judge.provider` is exactly `"cloud"`
+  (absent, misspelled, flat-keyed and unreadable configs are all
+  deterministic); opted in, an unlinked repo, a missing credential, a
+  plain-http non-loopback api_url and a corrupt remote.json each give no
+  provider and an `unavailable` reason, never a throw. A judge call through
+  it sends exactly one `POST /v1/repos/<repo_id>/judge` with
+  `Bearer <token>` and a JSON body holding only the questions the rules
+  abstained on, with no secret surviving in the state; a request every rule
+  decides sends nothing. The server's model string is carried onto every
+  model answer, its confidence is recomputed, and `usage` keeps only the
+  two counts. 402, 403, 429 and 500 each leave every forwarded question
+  abstained with `fell_back` naming the status, after exactly one request;
+  a body with no model, an over-long model, an array of answers or non-JSON
+  is `malformed response`; a server that never answers is abstained at the
+  timeout and its connection closed; a refused connection is abstained.
+- **Write-time decision judge (typed-judge 3.1):** a decision whose chose
+  restates an earlier decision's rejected over near-verbatim is still
+  logged, and returns one warning naming that D<k>, its over and
+  `near-verbatim match`, with no provider configured. One sharing only its
+  subject's words (two terms), a paraphrase, or a rejection of two terms
+  warns nothing on the free path. Candidates exclude retired decisions and
+  any the draft supersedes or cites in `because`. Contradiction candidates
+  carry a `rule`. Past 8 of a kind, the BM25 hit is kept even when it is the
+  oldest and the newest fill the rest. A provider is sent only the
+  questions the rule left open. A provider noul of 0.95 on a contradiction
+  warns with the rule verbatim and `judged p 0.95 by <model>`; 0.85 does
+  not. A D<k> both contradicted and re-proposed yields one line. At most 3
+  lines render, strongest first. A provider that throws leaves the rule's
+  lines and never fails the tool. sofar_end_session judges its batched
+  decisions the same way, and skips a batched decision's target when that
+  decision cites it.
+- **Write-back judge (typed-judge 3.2):** with no provider configured,
+  sofar_end_session whose next_action is only continuation words ("continue",
+  "keep going", "n") still ends the session and returns one warning naming
+  the plan's next task id; one carrying a task id, a backtick, a path or any
+  other term warns nothing, and a plan with no open task asks nothing. A
+  summary sentence choosing one thing over another, citing no `D<n>`, in a
+  session that logged no decision, warns with that sentence; a decision
+  logged since the session started, a cited handle, a code span or "over"
+  without a choice verb silences it. The summary is judged against this
+  session's decisions plus the BM25 hit among older ones (8 in all) and only
+  unsuperseded memories. A provider is sent only the questions the rules
+  left open; P(level 0) 0.95 on the next action and p 0.93 on a noul each
+  warn with `judged … by <model>`, 0.85 does not. A provider that throws
+  leaves the rules' lines and never fails the tool.
+- **Filing judge (typed-judge 3.3):** with no provider configured,
+  sofar_update_task `done` with no note, or a note of completion words only
+  ("done", "LGTM, works"), still appends and returns one warning naming the
+  task id; `active`, and `done` with a note naming a check ("suite 12
+  passed"), return the bare `{ok, event_id}`. sofar_add_note and
+  sofar_remember whose text chooses one thing over another, citing no
+  `D<n>`, append and warn naming `This note` or `<slug> M<n>`; other text
+  returns bare. A decision is never flagged without a provider. The state is
+  the entry alone. A provider is sent only what the rules left open; a kind
+  other than the one filed at P 0.95 warns with `judged P(<kind>) 0.95 by
+  <model>`, 0.85 or the filed kind does not; evidence at p 0.05 warns, 0.2
+  does not. A provider that throws leaves the rules' lines. sofar_end_session
+  judges its batched memories, notes and done tasks the same way, filing
+  lines before evidence lines; three note-less dones in one write-back
+  yield one line naming all three.
+- **Driver progress judge (typed-judge 4.1):** in a driven run with a
+  provider judging not done at p 0.05, the handoff is still `task_done`, two
+  `judgement_recorded` events (task_done, outcome) land on session `cli`
+  with subject the task id and producer `sofar-cloud`, the fold reports no
+  warning, and the progress stream carries the disagreement line. The state
+  sent holds `pending → done` and `no change to the tree outside the record`,
+  and never the fold's reason. A `needs_user` handoff sends only `task_done`
+  and stores only it. A `verify_failed` one is not done by rule. A provider
+  that throws yields no verdict. Without a provider the run writes no
+  judgement. `diffStatSince` counts commits, edits and untracked files since
+  the launch head and ignores `.sofar/`.
+- **Driver pre-flight and fencing (typed-judge 4.1–4.3):** with a provider
+  judging a task underspecified at p 0.05, the run still launches it, prints
+  the warning, and files the pre-flight's `judgement_recorded` before the
+  session's `session_started`. Three answers are stored per launch, each
+  validating. A route hint names `effort high` for complexity 2 and a
+  `standard` model when both fields are open. It is absent for pinned or
+  unhonoured fields, `no_preference`, or tier P 0.5. Without a provider,
+  nothing is stored. A provider that throws yields no verdict. A takeover
+  landing during the pre-flight wait launches no session and appends no
+  judgement. One landing during the progress judge's wait appends no
+  judgement, and the driver steps down with DriveFenced.
+- **Stored relevance (typed-judge 5.1):** `about` validates as `task:<id>` or
+  `file:<repo-relative path>` (an absolute path, an empty target or any other
+  prefix fails) and appears in the fingerprinted fields line. The write-back
+  candidates skip a superseded decision and a superseded memory, qualify
+  memories as `<slug> M<n>` and notes by event id, cap at 8 per kind keeping
+  the BM25 hit, and yield nothing without a next task. Without a provider no
+  row is written. With one, each answer lands about `task:<id>` and validates,
+  and a provider that throws writes none. The index keeps the latest row per
+  subject, qualifies a bare `D<n>`, ignores other questions, extends from its
+  cursor, scopes `task:` rows to their initiative and unions `file:` rows, and
+  never returns a retired handle. `rankByRelevance` keeps a candidate at p
+  0.05, adds a stranger at 0.85 and not at 0.7. `RELEVANCE_CARRY` equals
+  THRESHOLDS.relevance_carry, and index-relevance imports no judge module.
+- **Stored judgements (typed-judge 2.4):** `judgement_recorded` validates
+  producer, model, question and subject as non-empty strings and `answer` by
+  its type (noul in [0,1]; choice naming one of 2+ probability keys with
+  confidence in [0,1]; score non-negative over 2+ levels); folding one appends
+  no warning, changes no state field, leaves `events_since_writeback` and
+  every freshness count unchanged, and advances the cursor; an unknown answer
+  type is rejected with a typed error.
 - **Agent picker (r1-fixes 7.1):** `sofar init --agents claude-code` writes
   no `.cursor/` and no AGENTS.md; `--agents cursor` writes no `.claude/`,
   CLAUDE.md or `.mcp.json`, its shims executable under
-  `.cursor/hooks/sofar/`; `--agents codex` writes only AGENTS.md beside the
-  shared files. Each is byte-idempotent, and a Cursor-only init round-trips
-  byte-clean through `uninit --purge`. Adding Cursor to a Claude Code repo
+  `.cursor/hooks/sofar/`; `--agents codex` writes only `.codex/hooks.json`,
+  `.codex/config.toml`, its five executable shims under `.codex/hooks/sofar/`, and AGENTS.md beside
+  the shared files. Each is byte-idempotent, and a Cursor-only or Codex-only
+  init round-trips byte-clean through `uninit --purge`; adding Codex to a
+  Claude Code and Cursor repo changes none of their bytes. Adding Cursor to a Claude Code repo
   leaves `.claude/settings.json`, `.mcp.json` and CLAUDE.md byte-identical;
   adding Claude Code to a Cursor repo leaves every Cursor event with exactly
   the settings.json command, removes `.cursor/hooks/`, and a following
@@ -5507,6 +7385,120 @@ stay the underlying derivation's, and exit codes are styling-independent.
   exits 1 with nothing written; an unknown `--agents` name exits 1. doctor on
   a Cursor-only repo passes with no `.claude/settings.json` line and names
   Claude Code as not set up.
+- **Codex hooks (agents-parity 2.1):** `.codex/hooks.json` uses only keys and
+  events codex 0.154.0 parses (contract fixture `config_shape`). On the 0.154.0
+  payload fixtures dispatched with `--host codex`:
+  - session-start prints SessionStart output valid against the embedded schema,
+    carrying the Session line
+  - Bash appends command_run with no `ok`, including after a non-zero exit, and
+    registers the session as `codex`
+  - the fixture apply_patch appends five file_touched (edit, write, delete,
+    delete, write) resolved against `cwd`
+  - an MCP call appends nothing
+  - Stop holds an indebted session with exit 2 once, and `stop_hook_active`
+    releases it
+  - SessionEnd appends session_closed `{reason: "other"}`
+
+  The same Bash payload without `--host` registers `claude-code`. The hot path
+  accepts `--host codex` and `--host=codex` beside `--root` and leaves any other
+  host to commander. Run by their hooks.json command from a subdirectory through
+  the built CLI, the shims put the digest in schema-valid context and the edits
+  in the repo root's record as `codex`. init merges beside a user's own
+  hooks.json entries and `.codex/hooks/` files, and uninit removes only
+  sofar's.
+- **Codex MCP (agents-parity 2.2):** the `[mcp_servers.sofar]` table init
+  writes uses the file, table and `RawMcpServerConfig` keys of the 0.154.0
+  contract fixture and registers `.mcp.json`'s command and args. The scanner
+  reads sofar as registered in every form (table, sub-table, inline under
+  `[mcp_servers]`, dotted, inline `mcp_servers`), and never inside a comment,
+  basic, literal or multi-line string. It reads inline, dotted and
+  array-of-tables `mcp_servers` as blocked, and an unterminated string or
+  header as unreadable. init creates the file, or appends after a user's
+  config with every earlier byte kept, and a second run changes nothing.
+  `uninit --purge` gives a user's file back byte for byte and deletes a file
+  that held only the table, with `.codex/`. A user's own sofar server is left
+  by init. A blocked or unreadable file is left byte-identical, with
+  `codex mcp add sofar -- sofar mcp` printed on each run until the user config
+  registers sofar. uninit leaves a non-table sofar or an unreadable file with
+  a warning and exits 0. doctor passes on the project table or the user
+  config, and otherwise fails naming `sofar init --agents codex` or the
+  user-level step. A repo whose only Codex file is the table counts as wired
+  for Codex.
+- **Codex write-back gate and protocol text (agents-parity 2.3):** the contract
+  fixture shows no loop key among codex 0.154.0's handler keys, Stop run per
+  turn, and `stop_hook_active` defined per turn. With a session registered by
+  the SessionStart fixture and indebted by the apply_patch fixture, Stop
+  dispatched with `--host codex`:
+  - holds with exit 2, empty stdout and a non-empty stderr
+  - releases the same turn once `stop_hook_active` is true
+  - holds the next turn again
+  - releases every turn after `sofar event append --type session_ended` with
+    no `--session`, which lands on the hook's session
+  - or after `sofar_start_session` and `sofar_end_session` with that id
+
+  A session with no debt is never held. Every release is exit 0 with empty
+  output. sofar's Codex hooks wire no SubagentStop. The AGENTS.md block names
+  Codex in INJECTED and MCP TOOLS and says the Stop hook blocks a session that
+  ends without writing back. Its CLI loop names no MCP tool, and it fits
+  `project_doc_max_bytes`. With those lines undone it is r1-fixes 6.7's block,
+  the last ledger entry. On a Codex repo carrying that block, doctor reports it
+  as stale and init refreshes it.
+- **Codex live proof (agents-parity 3.2, D10):** checked LIVE with the
+  operator's consent (D3), never by a driven session, on codex-cli 0.154.0.
+  The scratch repo is set up by `sofar init` through the picker with only
+  Codex selected, and sofar is pinned by absolute path to a logging wrapper
+  around the build under test. The wrapper's trace (stdin, stdout, stderr,
+  exit, PATH, `CODEX_THREAD_ID`, `SOFAR_DRIVE_NUDGE`) is the evidence, filed
+  as a record note. Done when:
+  - Tree. The picker writes only Codex's files and the shared ones, and
+    doctor's wiring axis passes for Codex. After the operator trusts the project and the five hooks
+    and relaunches, SessionStart's stdout is `hookSpecificOutput` carrying
+    the digest and its Session line.
+  - Orient. The model states the seeded code word and that Session id with
+    no command run and no file read. It never runs `sofar status`.
+  - Hold. One turn that creates a file and runs a command appends
+    file_touched and command_run with no `ok`, all on that session, which
+    registers as `codex`. Its Stop receives `stop_hook_active` false and
+    exits 2 with a non-empty stderr.
+  - Release. The continuation's Stop receives `stop_hook_active` true. The
+    session wrote back through `sofar_start_session` with that id and one
+    `sofar_end_session`, and that Stop exits 0 with empty stdout. Quitting
+    appends session_closed `{reason: "other"}`.
+  - Exec. One `codex exec --json` shows `thread.started.thread_id` equal to
+    its hooks' `session_id`. Its trace answers whether exec runs the
+    project's hooks and MCP server and fires Stop, and whether
+    `SOFAR_DRIVE_NUDGE` reaches a hook command.
+  - Drive. `sofar drive --agent codex --bin <0.154.0>` on a one-task plan
+    hands off `task_done` naming the thread id, and `sofar status` shows it
+    on the `Driven:` line.
+  - Filed. Every (unverified) mark the run settles is rewritten to what it
+    showed, whichever way it went, in §Codex host and in §Driver. The tier
+    sentence in §Host tiers loses "rests on the wiring and its tests" or
+    names what did not reach Codex.
+- **Cursor live proof (r1-fixes 6.3/6.5/6.7/6.9):** checked LIVE with the
+  operator's consent, on a scratch repo, with sofar's shims and MCP entry
+  pinned by absolute path to a logging wrapper around the build under test
+  (Cursor runs the login shell's `sofar` otherwise, r1-fixes M6). The
+  wrapper's per-hook stdin, stdout and exit, and each launch's argv and
+  stream, are the evidence, filed as a record note. Done when:
+  - Orient (print mode). sessionStart returns `additional_context` carrying
+    the digest and its Session line, and the model states the seeded code
+    word and that Session id with no command run and no file read. It
+    registers and writes back through the MCP tools as tool `cursor`.
+  - Hold (interactive). sessionStart, beforeSubmitPrompt, postToolUse and
+    stop each fire exactly once for one turn. Stop arrives with `loop_count`
+    0 and returns `followup_message`, the follow-up turn writes
+    session_ended, and no second stop fires.
+  - Protocol. With both blocks loaded, no session runs `sofar status` or
+    mints its own id.
+  - Drive. On a tree from `sofar init --agents cursor` with the sofar server
+    approved once, `sofar drive --agent cursor` on a 3-task plan hands off 3
+    `task_done` with 0 stalls and stops `closed`. Each launch's
+    `system/init.session_id` equals its sessionStart hook's `session_id` and
+    its handoff's session, and each launch registers one session.
+  - Filed. What the run settles is written into §Cursor host and §Driver,
+    whichever way it went. It settled: print mode's hook set, the chat id's
+    identity across stream and hooks, and `inputTokens` excluding cache reads.
 - **Rule fidelity (memory-lead 1.2):** decision_logged accepts `quote` with a
   `rule` up to 300 chars and rejects it without one, empty, or longer. The
   round-1 pair (rule "…reject anything else with 4xx.", quote "Reject
@@ -5573,3 +7565,93 @@ stay the underlying derivation's, and exit codes are styling-independent.
   chars. The SessionStart hook drops the `sofar init` stub preamble from
   repo.md and omits a stub-only file; dropMemoryCopies removes only
   top-level bullets naming a rendered `<slug> M<n>`.
+- **Read-time surfacing (memory-lead 2.1):** a Read of a file another record
+  guards returns `sofar: <path> is governed by [<slug> D<n>], a standing rule:
+  "<rule>" (guard: …). Work against it needs a decision that supersedes <slug>
+  D<n>.` and appends nothing, not even a session. An unruled decision whose
+  chose or over names the file renders `sofar: [<handle>] <date> names <path>:
+  chose <head>[ over <head>].`; a ruled one renders `… names <path>. Its
+  standing rule: "<rule>"` with the operator's quote clause, and never says
+  "governed". A token names a path only by its tail at a `/` boundary;
+  directory tokens and `because` never do. A superseded decision is silent
+  unless `SOFAR_RETIRE=off`, a rule-less superseder leaves a rule standing, an
+  until-scoped decision is never a candidate, and a superseded guard is silent
+  at the edit too. Guards lead ruled mentions, which lead unruled ones; within
+  a tier the deeper tail, then the newest. At most 3 decisions and one
+  overflow line naming the initiatives and `sofar find <path>`, all within
+  1,500 chars. A second read of the same file in a session is silent, overflow
+  included; a read then an edit tells once; another path or another session is
+  told again; SessionStart `compact` and a lost told set re-tell; a hook with
+  no session keeps no set. Bash operands that name a regular file are read,
+  while a missing file and a heredoc body are not; `.sofar/` paths are never
+  subjects; Grep's file path and its `filenames` are read; Cursor's live Read
+  payload (fixture, cursor-agent 2026.09.18) returns `additional_context`
+  through the D34 conversion; a read on an
+  unbound branch surfaces with qualified handles and creates no quick lane.
+  Stored relevance reorders within a tier and never lifts a mention over a
+  guard. The scope tier's supersession marks and retired set equal the fold's,
+  and heads rendered from its 120-char prefix equal heads of the whole text.
+  `sofar init` writes `Edit|Write|MultiEdit|Bash|Read|Grep` (Cursor:
+  `Shell|Write|Read`), widens our pre-2.1 matcher in place, and keeps a
+  user's. Tests: test/read-surfacing.test.ts, test/guard-point-of-use.test.ts,
+  test/init.test.ts.
+- **Repo-wide rules and cross-record reversal (memory-lead 2.2):** with a
+  rule in bucket-list, SessionStart and sofar_get_state for trips render
+  `Repo-wide rules from other records (1 of 1, most relevant first):` and
+  `- [bucket-list D1] <rule>` after trips' own rules and before Read-back; a
+  one-record repo renders no such block, and an empty list renders the same
+  bytes as none. Own rules keep their budget first: other records' entries
+  total ≤1,200 chars with `- …and K more in other records (their
+  decisions.md)`, and when own rules fill 2,000 the block is `- …and N more
+  from other records (their decisions.md)`; with no focus overlap the newest
+  leads; a quote renders as §Rule fidelity renders it; two records' identical
+  rule renders once under both handles and one equal to an own rule not at
+  all. The scope tier holds a
+  rule that guards and names nothing, and repoRules drops a rule a later rule
+  of its own record replaced, keeps one a rule-less decision named, and
+  shows both under `SOFAR_RETIRE=off`. The labels tier keeps standing
+  label-sized decisions only (a 601-char clause and an until-scoped decision
+  never enter; a superseded one leaves on the next refresh). Round 1's
+  cursor-sofar/r1 pair — trips "Hard delete trips (trip_days cascade)
+  without undo" over "Soft delete like bucket items" against bucket-list
+  "soft delete via deleted_at column plus deletion_log table for undo" over
+  "hard delete or tombstone-only without audit" — is a reversal in either
+  scope, while r3's chat-undo pair (a quarter each way, no shared subject)
+  is not and "MySQL over Postgres" still reverses "Postgres over MySQL".
+  sofar_log_decision on trips is refused naming `bucket-list D1` and
+  appends nothing; `because` citing `bucket-list D1` passes and a bare `D1`
+  or `my-bucket-list D1` does not; the replacement logged with `initiative:
+  "bucket-list", supersedes: "D1"` retires D1 there, after which trips
+  logs the same choice. `sofar event append` refuses and accepts alike, and
+  a write-back batch is refused whole naming `decisions[0]` and
+  sofar_log_decision as the route. Tests: test/repo-scope.test.ts,
+  test/reversal.test.ts.
+- **Decision checks (memory-lead 2.3):** decision_logged `check` without
+  `rule` is refused, as are an empty or 501-char cmd, a 301-char hint, a
+  timeout_ms of 0 or 600,001 and an unknown key; verification_recorded
+  `decision` must be qualified. sofar_log_decision carries a check through.
+  The fold keeps the check on the decision, and a check run lands in
+  task.checks (latest per decision) and run.verifications with `decision`
+  while task.verification keeps the task's own. The scope tier names a
+  check's script as a mention; a check falls with its rule; a `path:`
+  guard scopes it and no guard applies it to any change.
+  Approval is per exact command. It is shared by a clone's worktrees and
+  lives under XDG_STATE_HOME. `--approve` without a terminal refuses with
+  "an agent cannot approve its own command". `sofar check` on a changed
+  guarded file prints the failure line with rule and fix, and names an
+  unapproved check without running it (its side effect never happens);
+  `--strict` exits 1. `--staged` warns ("the commit goes ahead") until
+  `--block-commits on`, then exits 10 ("commit refused"). With no record
+  or no git it exits 0 silently. The pre-commit shim refuses a real `git
+  commit` on 10 and lets one through on 1 (silently) and 0 (its output shown). A session owing its
+  write-back gets the failure and unapproved lines on the Stop block (exit 2,
+  as before). A written-back session is not held, and its check never runs.
+  Under drive, another record's check reopens the task
+  (`verify_failed`, detail with the fix) and the next prompt carries it; a
+  pass accepts it with task.verification absent. An unapproved check
+  outside the surface is recorded `refused` and the task is accepted
+  without it running. An operator-approved check runs outside the surface,
+  and a scoped check the work never touched records nothing. init creates
+  `.git/hooks/pre-commit` and uninit removes only its own. The tool surface
+  stays ≤8,000 chars. Tests: test/decision-checks.test.ts,
+  test/uninit.test.ts, test/init.test.ts.

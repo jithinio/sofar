@@ -1,5 +1,6 @@
 import { resolve } from 'node:path'
 import { mirror, readStdin, SUBCOMMANDS } from './event'
+import { isDeclaredHost, type DeclaredHost } from './host'
 import { PLAIN_CAPS, runStatusline, STATUSLINE_FORCED_CAPS } from './statusline'
 import { readAllStdin } from './shared'
 
@@ -23,7 +24,7 @@ import { readAllStdin } from './shared'
  * were. The fast path is an optimization, never a second implementation.
  */
 
-/** `--root <dir>`, the only option the shims may pass. Null = shape we don't own. */
+/** `--root <dir>`, the one option every command here may take. Null = shape we don't own. */
 function parseRoot(rest: readonly string[]): { root: string; extra: string[] } | null {
   const extra: string[] = []
   let root: string | undefined
@@ -45,6 +46,25 @@ function parseRoot(rest: readonly string[]): { root: string; extra: string[] } |
 }
 
 /**
+ * A hook's flags: `--root`, plus the `--host <id>` a Codex shim passes (D5).
+ * Null for any other shape, an unknown host included, so commander reports it.
+ */
+export function parseHookFlags(flags: readonly string[]): { root: string; host?: DeclaredHost } | null {
+  const parsed = parseRoot(flags)
+  if (parsed === null) return null
+  const { root, extra } = parsed
+  if (extra.length === 0) return { root }
+  const [flag = '', value] = extra
+  const host =
+    extra.length === 2 && flag === '--host'
+      ? value
+      : extra.length === 1 && flag.startsWith('--host=')
+        ? flag.slice('--host='.length)
+        : undefined
+  return host !== undefined && isDeclaredHost(host) ? { root, host } : null
+}
+
+/**
  * Run argv on the fast path. Returns false when this entry does not own the
  * shape — the caller must then load the full CLI, which owns every command,
  * every flag, --help and --version.
@@ -56,9 +76,9 @@ export async function runFast(argv: readonly string[]): Promise<boolean> {
     const [name, ...flags] = rest
     const sub = SUBCOMMANDS.find((s) => s.name === name)
     if (sub === undefined) return false // `append`, an unknown hook, or bare `event`
-    const parsed = parseRoot(flags)
-    if (parsed === null || parsed.extra.length > 0) return false
-    mirror(sub.handler(parsed.root, await readStdin()))
+    const parsed = parseHookFlags(flags)
+    if (parsed === null) return false
+    mirror(sub.handler(parsed.root, await readStdin(), parsed.host))
     return true
   }
 

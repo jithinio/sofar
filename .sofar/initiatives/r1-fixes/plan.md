@@ -4,7 +4,7 @@
 
 Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
 
-Progress: 32 done, 6 dropped, 5 remaining
+Progress: 35 done, 6 dropped, 3 remaining
 
 ## Phase 1 — Wave 1: correctness and quick wins [done] — 6/6 done
 
@@ -15,7 +15,9 @@ Progress: 32 done, 6 dropped, 5 remaining
 - [x] 1.5 stdin/file input for `sofar remember` and `sofar event --payload`, quoted-heredoc examples, `remember --supersedes`. PREDICT: shell-mangling corrections → 0.
 - [x] 1.6 Drive diagnostics: carry the adapter's stderr tail, failure or spawn error into the stall note (drive.ts:776, adapter exit record). PREDICT: every launch failure names its cause.
 
-## Phase 2 — Wave 2: less bookkeeping, leaner context [active] — 7/7 done
+## Phase 2 — Wave 2: less bookkeeping, leaner context [done] — 7/7 done
+
+> All tasks done; closed 2026-09-21 at the rc.2 cut (cf8c117).
 
 - [x] 2.1 Next D/M ids in the digest; drop the standing-constraint echo from update_task responses; batch task updates into end_session; MCP server instructions to load core tools in one ToolSearch. PREDICT: sofar share of tool calls 32–38% → ≤20%, −3 to −5 turns per session.
 - [x] 2.2 Deduplicate the digest (rejected approaches vs decision `over` text; constraints vs rules), index-first ≤6k chars with details on demand. PREDICT: S2+ digest −25% chars, no C2/C3 loss.
@@ -25,13 +27,15 @@ Progress: 32 done, 6 dropped, 5 remaining
 - [x] 2.6 Quick-work lane: ad-hoc fixes land in a standing per-repo maintenance record with no `sofar new`/plan ceremony, auto-captured by hooks, plus one line of why only when a decision was made; promote to an initiative when it grows. PREDICT: overhead ratio on 1–3 minute fixes ≤ 15% of task tokens with the fix recalled later.
 - [x] 2.7 Single fold per append: appending hooks and tools fold the log TWICE (handler, then regenerateProjections) — cache the fold in the process and apply the appended event incrementally, exactly, so the second fold is a finalize, not a replay (rust-core 1.3 finding, routed here by the run owner 2026-09-16). PREDICT: post-tool and session-end hook fold time p50 −40% or better on a ~10 MB record; projection bytes unchanged.
 
-## Phase 3 — Wave 3: new capabilities [pending] — 3/3 done
+## Phase 3 — Wave 3: new capabilities [done] — 3/3 done
+
+> All tasks done; closed 2026-09-21 at the rc.2 cut (cf8c117).
 
 - [x] 3.1 Verification-gated drive: run the task's acceptance command before accepting task_done; failures go into the next handoff. PREDICT: drive final pass rate +5 pts over round-1 drive.
 - [x] 3.2 Decision counters plus supersession/valid_until so stale decisions leave the digest without a model. PREDICT: C3 no worse at −10% digest.
 - [x] 3.3 Relevant-lessons injection: keyword/BM25 match of rejected approaches and past failures at UserPromptSubmit, no model. PREDICT: C3 +5 pts.
 
-## Phase 4 — Release [active] — 6/9 done
+## Phase 4 — Release [active] — 7/10 done
 
 - [ ] 4.1 Fold in round 1's own loss-study rows (bench-refresh 4.1) as added tasks, each with a predicted gain (active)
 - [x] 4.2 Release candidate: full test suite and SPEC acceptance criteria; the D18 read-path gate (`npm run bench:read-paths`) passes on BOTH pinned fixtures (real record and synthetic 10 MB) against the pinned 0.32.0 as-shipped baseline, both tables recorded in this task's note as RC evidence together with the `SOFAR_LESSONS=off` ablation switch for the round-2 addendum; published ONLY as a local pinned build or the npm `next` tag — no stable publish (bench-refresh D20)
@@ -42,13 +46,18 @@ Progress: 32 done, 6 dropped, 5 remaining
 - [x] 4.1.3 L09: hooks write the live session id to a gitignored per-worktree pointer; CLI appends without --session adopt it; the CLI block says to omit --session (extends 1.2, whose lock does not stop an agent minting a second id). PREDICT: launches with more than 1 session id in Cursor cells = 0; hook sessions without session_ended = 0.
 - [x] 4.1.4 L10: an unbound `sofar status` prints the most recently active initiative's digest plus the initiative list, and exits 0. PREDICT: failed first `sofar status` in Codex cells = 0; −1 tool call per Codex session.
 - [x] 4.1.5 L11 (only if cheap, per the ruling): accept a phase by number or unique case-insensitive name on phase updates, and list phase ids in the digest. PREDICT: phase-update invalid_input = 0.
+- [x] 4.5 Fold: O(1) files_touched membership, not in rc.2 (the next RC). applyEvent's file_touched arm runs `state.files_touched.includes(path)` on every event, so the fold is O(file events × distinct paths). On rust-core 1.5's team100 corpus (95.6 MB bound log, 60,686 paths in 67,901 file events) that is ~70% of the fold: replayOne self time 2.9 of 4.2 s, and the Rust core's mirror shows the same. Keep an insertion-ordered Set beside the array. It is behaviour-identical (order and first occurrence kept, no golden moves). Predicted: the team100 fold 3.6 s → ~1.1 s, every hook there −60%, ~−40% at 19 MB. rust-core mirrors it after it lands (rust-core D1).
 
-## Phase 5 — Next release (after the RC; round 2 measures 179b8fd exactly) [pending] — 2/2 done
+## Phase 5 — Next release (after the RC; round 2 measures 179b8fd exactly) [done] — 2/2 done
+
+> All tasks done; closed 2026-09-21 at the rc.2 cut (cf8c117).
 
 - [x] 5.1 Public incremental fold API on sofar.sh/engine (run-owner approval via peer sofar-4c, 2026-09-16; rust-core D14 mirrors it): `fold(snapshot, events)` over a VERSIONED serialisable snapshot with a cursor — the 2.7 FoldCheckpoint promoted — plus since-cursor reads that never fold the whole stream; derived state only, never committed or synced, version mismatch forces a full refold; one shared parity suite with rust-core (snapshot+tail === full fold, order independence); no wall-clock or env input; semver-stable for sofar-cloud ingest and the Mac app. PREDICT: a 1-event tail on a 10 MB log folds in ≤5 ms vs 79 ms full (the Mac app's 300–400 ms per-repo spawn becomes an in-process call); since-cursor reads cost O(tail bytes).
 - [x] 5.2 Sort every shared-surface path, slug, session id and term by UTF-16 code units, never localeCompare (rust-core D6, flagged by peer sofar-rust-core-90 2026-09-16): one comparator in core/order.ts behind fold.ts openSessionFileConflicts, cross-conflicts, index-tier0/1, listing, lexicon, graph, index-reach, doctor, event.ts. PREDICT: zero byte change on every existing golden and on the real record (all lowercase ASCII); a mixed-case conflict set (README.md beside readme.md in two open sessions) orders identically in both implementations.
 
-## Phase 6 — Cursor compatibility (user ruling 2026-09-17: sofar must be fully compatible with Cursor, not only Claude Code) [active] — 7/9 done
+## Phase 6 — Cursor compatibility (user ruling 2026-09-17: sofar must be fully compatible with Cursor, not only Claude Code) [done] — 9/9 done
+
+> 6.1–6.9 done. Cursor is served by init, hooks, MCP, the protocol blocks and drive, each proven live (6.3/6.5/6.7 on 2026-09-17, drive 6.9 on 2026-09-21). D33 is met for Cursor.
 
 - [x] 6.1 Contract capture: pin Cursor's hook (.cursor/hooks.json events, stdin fields, outputs), third-party Claude-hook translation, MCP config, rules loading and cursor-agent headless contracts against cursor-agent 2026.09.10 and the docs; record them as a note and SPEC text, with captured stdin payloads as test fixtures. Enabler for 6.2–6.9: every later task tests against these fixtures, never against guessed shapes.
 - [x] 6.2 G1 MCP: `sofar init` merges the sofar server into .cursor/mcp.json (merge, never clobber; unparseable JSON aborts), `sofar uninit` strips it, `sofar doctor` reports it missing or stale. PREDICT: sofar MCP calls in Cursor sofar cells 0 → ≥1 per session; `sofar event append` shell failures in Cursor cells → 0.
@@ -57,8 +66,8 @@ Progress: 32 done, 6 dropped, 5 remaining
 - [x] 6.5 G5 write-back gate: a Cursor session that owes a write-back is held at stop (exit-2 translation or native stop `followup_message`, per 6.1), loop-capped like stop_hook_active. PREDICT: Cursor sessions ending with record debt and no session_ended → 0.
 - [x] 6.6 One firing per event: when Cursor loads both native .cursor/hooks.json and third-party .claude/settings.json hooks, each hook event records and injects exactly once. PREDICT: duplicate file_touched/command_run per tool call and doubled digests in Cursor sessions = 0.
 - [x] 6.7 Protocol text: Cursor always reads AGENTS.md and reads CLAUDE.md only with third-party extensibility on, so the two blocks must agree when both load (MCP loop where Cursor has MCP, CLI loop otherwise); `sofar doctor` flags a repo whose AGENTS.md lacks the block (the user's Next.js repo, where create-next-app's AGENTS.md carried no sofar block). PREDICT: Cursor sessions that skip session registration or write-back because the protocol never loaded → 0.
-- [ ] 6.8 G4 drive adapter: `sofar drive --agent cursor` launches `cursor-agent -p` through the launch/usage/wait contract, declaring what it cannot do (usage, nudge, permission rules, cost) per session-driver D9, with transport shapes captured without spending inference where possible. PREDICT: a 3-task fixture drives to 3 task_done with 0 stalls.
-- [ ] 6.9 Proof: a live Cursor end-to-end on a scratch repo (init → oriented session → MCP writes → write-back gate → drive run) with the operator's consent for the usage it spends, plus SPEC updates (§Hooks, §CLI, §Driver) and acceptance criteria covering Cursor alongside Claude Code.
+- [x] 6.8 G4 drive adapter: `sofar drive --agent cursor` launches `cursor-agent -p` through the launch/usage/wait contract, declaring what it cannot do (usage, nudge, permission rules, cost) per session-driver D9, with transport shapes captured without spending inference where possible. PREDICT: a 3-task fixture drives to 3 task_done with 0 stalls.
+- [x] 6.9 Proof: a live Cursor end-to-end on a scratch repo (init → oriented session → MCP writes → write-back gate → drive run) with the operator's consent for the usage it spends, plus SPEC updates (§Hooks, §CLI, §Driver) and acceptance criteria covering Cursor alongside Claude Code.
 
 ## Phase 7 — Agent picker and Codex compatibility (user ruling 2026-09-17: fully compatible with Claude Code, Cursor and Codex; init installs only the agents selected) [pending] — 1/7 (6 dropped) done
 
@@ -70,6 +79,6 @@ Progress: 32 done, 6 dropped, 5 remaining
 - [-] 7.6 Codex drive adapter: revise the D9 capability declarations for what hooks now give a driven Codex session (session identity from the hook, nudge channel), keeping every inert option stated. PREDICT: codex-drive stalls from unknown session identity → 0. (dropped)
 - [-] 7.7 Proof: a live Codex end-to-end on a scratch repo (init with the picker → oriented session → MCP writes → write-back gate → drive run) with the operator's consent for the usage it spends, plus SPEC updates (§Host tiers moves Codex out of Tier 3, §Hooks, §CLI, §Driver) and acceptance criteria. (dropped)
 
-Active phase: Phase 2 — Wave 2: less bookkeeping, leaner context
-Next action: Before the 2026-09-22 cut, r1-fixes takes rc.2-scope commits only. After tag v0.33.0-rc.2, build 6.8 (cursor-agent drive adapter) and 6.9's drive part on branch agents-parity. Diagnose the reach-index 3.5 flake if it reds the cut's full suite. Open for the operator: one optional live Cursor session to check ZDOTDIR passthrough.
-Blocked on: task 4.3: ROUND-2 HANDOFF PACKET, delivered 2026-09-16 (this note + peer relay to the live bench-refresh session). Blocked until bench-refresh confirms the addendum chain is frozen and round 2 starts on 179b8fd; at 08:22Z round 1 is still running on all three runners. ARTEFACT: sha 179b8fd = sofar.sh 0.33.0-rc.1, @sofar/schema 0.10.0; local pinned build ~/.bench/sofar-0.33.0-rc.1 (`node ~/.bench/sofar-0.33.0-rc.1/node_modules/sofar.sh/dist/cli.js --version` → 0.33.0-rc.1, re-verified today); baseline ~/.bench/sofar-0.32.0 (→ 0.32.0). No npm publish. Nothing after 179b8fd (a088a8c evidence, 0572b3f fold API) is in the RC. ARMS: (1) 0.32.0, the round-1 install untouched; (2) RC, default env; (3) RC with SOFAR_LESSONS=off in the agent's hook environment — prices 3.3 alone, the RC's only switch (D23). Every other lever: its own pre-registered observable, never summed. OBSERVABLES to read from round-2 outputs (PREDICT lines in the plan): 1.1 Claude S1 −3..−4 turns, no split sessions; 1.2 session_started per session id = 1 in Cursor cells; 1.3 Codex S1 −13 tool calls, project initiative WITH plan in ≥2/3 Codex and Cursor reps; 1.4 edits to biome.json/.mcp.json = 0; 1.5 shell-mangling corrections = 0; 1.6 every launch failure's stall note names its cause; 2.1 sofar share of tool calls ≤20%; 2.2 S2+ SessionStart digest −25% chars with no C2/C3 loss; 2.3 cache-creation tokens per session −15%; 2.4 tools/list schema bytes ≤8k; 2.7 gated by D18 already, not a round-2 metric; 3.1 drive final pass rate +5 pts; 3.3 C3 +5 pts, arm 2 vs arm 3. DRIVE CELLS (C4): the RC's driver accepts task_done only on a recorded verification pass (D19). For the gate to act, the chain's plan tasks carry `verify` {cmd, cwd?, timeout_ms?} OR the cell launches `sofar drive <slug> --verify "<test cmd>"`; a plan-level verify runs only if it matches the run's --allow surface (`Bash(<prefix>:*)`), otherwise it records `refused`. Read verification_recorded events and `verify_failed` handoffs for the pass rate; --max-verify-attempts defaults to 3. QUICK-WORK ADDENDUM CHAIN — bench-refresh authors and freezes it BEFORE round 2; to price 2.6 it must exercise: (a) N ad-hoc 1–3 minute fixes on the workload repo on a branch bound to NOTHING in .sofar/bindings.json, hooks installed via `sofar init`, no `sofar new` — the lane self-creates .sofar/initiatives/quick/ on the first captured edit, and a bound branch never exercises it; (b) at least one fix that carries a decision (the lane's only ask: start_session + log_decision); (c) a later fresh-context session asked "why did X change", answered from quick's file_touched, decisions and `Sofar-Initiative: quick` commit trailers via `sofar find`/the graph; (d) one fix that grows into `sofar new <slug>` mid-lane — zero split sessions. MEASURE: overhead ratio = sofar tool-call + hook tokens ÷ task tokens ≤15%; sofar tool calls on a no-decision fix = 0; lane block ≤2,500 chars; recall hit rate. Addendum arms: 0.32.0 (no lane: record whether each fix paid `sofar new` ceremony or went unrecorded) vs RC; competitor arms (Beads, PROJECTMEM, Letta) are bench-refresh's call under its D14/D15. NOT IN THE RC: 2.5, 3.2, 4.1, 5.1. Intentional projection changes vs 0.32.0 goldens: 4.2's note.
+Active phase: Phase 4 — Release
+Next action: 4.3: hand rc.2 to bench-refresh round 2 once its addendum chain is frozen
+Blocked on: task 4.3: ROUND-2 HANDOFF PACKET re-issued 2026-09-21 for rc.2. It supersedes the 2026-09-16 packet's artifact. ARTIFACT: sha cf8c117, tag v0.33.0-rc.2 = sofar.sh 0.33.0-rc.2 with @sofar/schema 0.10.0; local pinned build at ~/.bench/sofar-0.33.0-rc.2 (node ~/.bench/sofar-0.33.0-rc.2/node_modules/sofar.sh/dist/cli.js). D18 gate passed on both fixtures (see the rc.2 cut note). Still blocked until bench-refresh 5.0 freezes PRE-REGISTRATION-R2 with this sha, with the quick-work addendum chain frozen, and round 2 starts. Round 1's remainder is still running (resumed 2026-09-21).

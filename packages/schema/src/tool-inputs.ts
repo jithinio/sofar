@@ -16,6 +16,7 @@ import {
   REVIEW_SCOPES,
   REVIEW_VERDICTS,
   validatePayload,
+  type DecisionCheck,
   type PhaseStatus,
   type PlanStructure,
   type ReviewScope,
@@ -140,7 +141,11 @@ export interface EndSessionTaskChange {
   task_id: string
   status: TaskStatus
   note?: string
-  /** Adds the task when the plan lacks `task_id` (memory-lead D3); ignored for a task that exists. */
+  /**
+   * Adds the task when the plan lacks `task_id` (memory-lead D3). For a task
+   * that exists it must match the held title (phase-lifecycle D7); a
+   * different one is refused as an id collision.
+   */
   title?: string
   /** Phase an added task joins — name or number; default the active phase. */
   phase?: string
@@ -157,6 +162,15 @@ export interface UpdateTaskArgs {
   task_id: string
   status: TaskStatus
   note?: string
+  /**
+   * Adds the task when the plan lacks `task_id` (phase-lifecycle D7) — the
+   * shape EndSessionTaskChange already takes, so adding one task never needs
+   * sofar_update_plan's full replace. For a task that exists it must match
+   * the held title; a different one is refused as an id collision.
+   */
+  title?: string
+  /** Phase an added task joins — name or number; default the active phase. */
+  phase?: string
 }
 /**
  * Phases are addressed by their NAME — plan_updated carries no phase ids, so
@@ -185,6 +199,8 @@ export interface LogDecisionArgs {
   supersedes?: string
   /** Task id this decision is in force until; never with `rule` (r1-fixes 3.2, D25). */
   until?: string
+  /** Executable half of `rule` (memory-lead 2.3, D9): a command whose exit 0 means it holds. */
+  check?: DecisionCheck
 }
 export interface UpdatePlanArgs {
   initiative?: string
@@ -223,6 +239,13 @@ export interface ToolArgs {
 export interface ToolOkResult {
   ok: true
   event_id: string
+  /**
+   * Advisory lines, absent in the common case. Any write tool's result can
+   * carry the write guard's line (branch-visibility 3.4): the copy written to
+   * lacks events another worktree's copy holds. The append has already
+   * happened either way.
+   */
+  warnings?: string[]
 }
 
 /**
@@ -230,8 +253,20 @@ export interface ToolOkResult {
  * standing constraints ride along — a reminder at the point of use, where
  * salience is highest, instead of only at session start where it decays.
  */
-/** Bare since r1-fixes 2.1 (D10): the standing-constraint echo on `active` is gone. */
-export type UpdateTaskResult = ToolOkResult
+/**
+ * A write tool's result with advisory lines (typed-judge 3.3, D7): `warnings`
+ * is present only when a filing or evidence line renders, so the common case
+ * stays the bare {ok, event_id}. The append has already happened.
+ */
+export interface WarnedOkResult extends ToolOkResult {
+  warnings?: string[]
+}
+
+/**
+ * Bare since r1-fixes 2.1 (D10): the standing-constraint echo on `active` is
+ * gone. A `done` may carry the evidence judge's line (typed-judge D7).
+ */
+export type UpdateTaskResult = WarnedOkResult
 
 /**
  * log_decision result (memory-lead 1.2, D2): `warnings` names what the rule
@@ -255,6 +290,8 @@ export interface UpdatePhaseResult {
   /** Task counts for the phase, so the caller can see what it just resolved. */
   tasks_done: number
   tasks_total: number
+  /** The write guard's line, as on every write result (branch-visibility 3.4). */
+  warnings?: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -425,6 +462,8 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
         type: 'string',
         description: 'Why; required for dropped. Cite the deciding entry (e.g. "D3").',
       },
+      title: { type: 'string', description: 'Adds the task if the plan lacks it.' },
+      phase: { type: 'string', description: 'Its phase; default active.' },
     },
     required: ['task_id', 'status'],
     additionalProperties: false,
@@ -469,13 +508,14 @@ export const TOOL_INPUT_SCHEMAS: Record<ToolName, ToolInputSchema> = {
       guard: {
         type: 'string',
         minLength: 1,
-        description:
-          'Machine-checkable half of `rule` (requires it): "path:<globs>" against edited paths or "cmd:<globs>" against commands; comma-separated, leading "!" exempts. Warns, never blocks. Omit unless the rule is these files or commands.',
+        description: 'Globs `rule` governs (needs rule): "path:<globs>" or "cmd:<globs>", comma-separated, "!" exempts. Warns only.',
       },
       // Shape is enforced by the payload validator (D25); the schema stays
       // terse because the whole tool surface is budgeted (2.4, D13).
       supersedes: { type: 'string', description: 'Earlier decision this replaces (`D<n>`); a rule only by a rule.' },
       until: { type: 'string', description: 'Task id this holds until it resolves; never with `rule`.' },
+      // Shape is the payload validator's (D9), like guard's; the surface is budgeted.
+      check: { type: 'object', description: 'Command proving `rule` holds (needs rule): {cmd, hint?}; hint = the fix.' },
     },
     required: ['chose', 'over', 'because'],
     additionalProperties: false,
@@ -551,7 +591,7 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   {
     name: 'sofar_update_plan',
     description:
-      'Replace the whole plan (goal + phases with tasks) — a full replace, not a merge: an omitted status means `pending`, so restate every status you keep.',
+      'Replace the whole plan (goal + phases with tasks) — a full replace, not a merge: an omitted status means `pending`, so restate every status you keep. To add one task, sofar_update_task with title.',
     inputSchema: TOOL_INPUT_SCHEMAS.sofar_update_plan,
   },
   {
@@ -629,6 +669,8 @@ const toolValidators: Record<ToolName, (a: Obj, e: string[]) => void> = {
       e.push(`status: must be one of ${TASK_STATUSES.join('|')}`)
     }
     if (!optStr(a.note)) e.push('note: must be a string')
+    if (!optStr(a.title)) e.push('title: must be a string')
+    if (!optStr(a.phase)) e.push('phase: must be a string')
     // A drop is the one status that closes a task without delivering it
     // (task-drop-state D3). Unexplained, it is indistinguishable from work
     // that was quietly forgotten — and unlike a wrong `pending`, nothing

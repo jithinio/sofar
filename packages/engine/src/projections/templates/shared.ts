@@ -1,13 +1,17 @@
 import {
   standingRules,
+  stopRequestsInForce,
   type DecisionState,
   type FreshnessState,
   type RunState,
   type SessionActivity,
 } from '../../core/fold'
 import type { TestOutcome } from '../../core/adjacency'
+import type { RepoRule } from '../../core/index-tier1'
 import { lexicalCounts } from '../../core/lexicon'
+import { byCodeUnit } from '../../core/order'
 import { renderRule } from '../../core/rule-fidelity'
+import type { RunLiveness } from '../../core/run-lock'
 
 /**
  * Shared template pieces. Projections are generated files — the header
@@ -48,8 +52,14 @@ export function describeActivity(activity: SessionActivity): string {
  * is still going. Shared by the digest (budgeted) and the uncapped status so
  * both surfaces describe the same run the same way. Reason order is log
  * order — first seen first — so the line is a pure function of the events.
+ *
+ * `liveness` is what the run lock said about an UNSTOPPED run
+ * (drive-visibility 2.3), and only `sofar status` passes it: a lock is not in
+ * the record, so no generated file may render it. Held keeps the record's
+ * `running`; free and absent replace it, since "running" is exactly the claim
+ * a dead driver's run cannot back.
  */
-export function describeRun(run: RunState): string {
+export function describeRun(run: RunState, liveness?: RunLiveness): string {
   const policy =
     run.policy === 'threshold'
       ? `threshold ${run.threshold_pct ?? '?'}%${run.context_window !== undefined ? ` of ${run.context_window}` : ''}`
@@ -64,13 +74,70 @@ export function describeRun(run: RunState): string {
   const checks =
     run.verifications.length > 0 ? `, ${passes}/${run.verifications.length} verification${run.verifications.length === 1 ? '' : 's'} passed` : ''
   const handoffs = `${n} handoff${n === 1 ? '' : 's'}${breakdown.length > 0 ? ` (${breakdown})` : ''}${checks}`
+  // Only the requests the owner must honour (drive-visibility 2.2): one left
+  // for a driver that died is not a stop the resumed run is ignoring.
+  const requests = stopRequestsInForce(run).length
+  const asked = `stop requested${requests > 1 ? ` ${requests} times` : ''}`
   const fate =
     run.stop_reason !== undefined
       ? `stopped: ${run.stop_reason}${run.stop_note !== undefined ? ` — ${run.stop_note}` : ''}`
-      : run.stop_requests.length > 0
-        ? `running — stop requested${run.stop_requests.length > 1 ? ` ${run.stop_requests.length} times` : ''}, not yet stopped`
-        : 'running'
-  return `run ${run.id} via ${run.adapter}, ${policy} — ${handoffs}; ${fate}`
+      : liveness === 'free'
+        ? `driver gone — no stop recorded and the run lock on this machine is free${requests > 0 ? `; ${asked}, never acknowledged` : ''}; --resume picks it up`
+        : liveness === 'absent'
+          ? `liveness unknown — no stop recorded and no run lock for it on this machine${requests > 0 ? `; ${asked}, not yet stopped` : ''}`
+          : requests > 0
+            ? `running — ${asked}, not yet stopped`
+            : 'running'
+  // A resumed run says so, and at which epoch; one never resumed renders as before.
+  const resumed = run.owner.epoch > 1 ? `, resumed (epoch ${run.owner.epoch})` : ''
+  return `run ${run.id} via ${run.adapter}, ${policy}${resumed} — ${handoffs}; ${fate}`
+}
+
+/**
+ * What `sofar status` lists under a run's line: its permission surface in
+ * full and its handoffs and adoptions on one timeline. Shared by the plain
+ * and the styled status (drive-visibility 2.3), so the two list the same run
+ * the same way.
+ */
+export function runDetailLines(run: RunState): string[] {
+  const lines: string[] = []
+  // The surface in FULL, and only here (session-driver 2.4, D8). The
+  // digest's Driven line is budgeted and this is the question nobody asks
+  // until months later — what were those unattended sessions allowed to
+  // do? — so it belongs on the surface that answers questions, not the one
+  // that fits in a header. Rules are listed whole: a truncated allow-list
+  // is worse than none, because it reads as complete.
+  if (run.surface !== undefined) {
+    const s = run.surface
+    const pinned = [
+      s.model !== undefined ? `model ${s.model}` : undefined,
+      s.effort !== undefined ? `effort ${s.effort}` : undefined,
+    ].filter((p): p is string => p !== undefined)
+    lines.push(`  permissions: ${s.permission_mode}${pinned.length > 0 ? `, ${pinned.join(', ')}` : ''}`)
+    for (const rule of s.allow) lines.push(`    allow ${rule}`)
+    for (const rule of s.deny ?? []) lines.push(`    deny ${rule}`)
+  }
+  // Handoffs and takeovers on one timeline (drive-visibility 2.2), by
+  // time; the sort is stable, so a record with no adoption lists its
+  // handoffs exactly as before.
+  const timeline: { ts: string; line: string }[] = []
+  for (const h of run.handoffs) {
+    const task = h.task !== undefined ? `, task ${h.task}` : ''
+    const tokens = h.tokens !== undefined ? `, ${h.tokens} tokens` : ''
+    const detail = h.detail !== undefined ? ` (${h.detail})` : ''
+    timeline.push({ ts: h.ts, line: `  - ${h.ts} session ${h.session_id} — ${h.reason}${task}${tokens}${detail}` })
+  }
+  // An adoption that did not outrank every one before it never held the
+  // run — a race another driver won — and says so.
+  let highest = 1
+  for (const a of run.adoptions) {
+    const lost = a.epoch <= highest ? ', outranked — never in force' : ''
+    highest = Math.max(highest, a.epoch)
+    timeline.push({ ts: a.ts, line: `  - ${a.ts} resumed — epoch ${a.epoch}${lost}` })
+  }
+  timeline.sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0))
+  for (const entry of timeline) lines.push(entry.line)
+  return lines
 }
 
 /**
@@ -144,6 +211,62 @@ export function standingConstraintLines(
     lines.push(`- …and ${standing.length - shown} more (see decisions.md)`)
   }
   return lines
+}
+
+/**
+ * Other records' standing rules (memory-lead 2.2, D8), rendered after this
+ * record's own inside the constraints block. A rule is the operator's choice
+ * for the whole project, and round 1 lost one to the record boundary: filed
+ * in bucket-list, it never reached the session homed on trips that reversed
+ * it. Own rules keep their budget first; these take `budget` — what own rules
+ * left, capped by the caller — most relevant to the focus first, then newest
+ * (by ts: ordinals of different records do not compare), whole entries only.
+ * With no room for one entry the block is a single pointer line, so a record
+ * whose own rules fill the budget still learns the others exist.
+ *
+ * The same words are one rule: records that restated a rule (the same
+ * operator ruling filed twice) render it once under every handle, newest
+ * handle last, and a rule this record already renders (`own`, its in-force
+ * rules) is not repeated. Counts are of distinct rules.
+ */
+export function repoRuleLines(
+  rules: readonly RepoRule[],
+  budget: number,
+  focus: ReadonlySet<string>,
+  own: readonly DecisionState[] = [],
+): string[] {
+  const key = (rule: string, quote: string | undefined): string => `${rule.replace(/\s+/g, ' ').trim()}\u0000${(quote ?? '').replace(/\s+/g, ' ').trim()}`
+  const mine = new Set(own.filter((d) => d.rule !== undefined).map((d) => key(d.rule!, d.quote)))
+  const merged = new Map<string, { r: RepoRule; handles: string[] }>()
+  for (const r of [...rules].sort((a, b) => (a.ts === b.ts ? byCodeUnit(`${a.initiative} D${a.ordinal}`, `${b.initiative} D${b.ordinal}`) : a.ts < b.ts ? -1 : 1))) {
+    const k = key(r.rule, r.quote)
+    if (mine.has(k)) continue
+    const seen = merged.get(k)
+    if (seen === undefined) merged.set(k, { r, handles: [`${r.initiative} D${r.ordinal}`] })
+    else {
+      seen.handles.push(`${r.initiative} D${r.ordinal}`)
+      seen.r = r // the newest restatement dates the rule
+    }
+  }
+  if (merged.size === 0) return []
+  const ranked = [...merged.values()]
+    .map((m) => ({ ...m, handle: m.handles.join(', '), score: relevanceScore(`${m.r.rule} ${m.r.quote ?? ''}`, focus) }))
+    .sort((a, b) => b.score - a.score || (a.r.ts === b.r.ts ? byCodeUnit(a.handle, b.handle) : a.r.ts < b.r.ts ? 1 : -1))
+  const entries: string[] = []
+  let used = 0
+  for (const { r, handle } of ranked) {
+    const line = `- [${handle}] ${renderRule(r.rule, r.quote)}`
+    if (used + line.length + 1 > budget) break
+    entries.push(line)
+    used += line.length + 1
+  }
+  const rest = ranked.length - entries.length
+  if (entries.length === 0) return [`- …and ${rest} more from other records (their decisions.md)`]
+  return [
+    `Repo-wide rules from other records (${entries.length} of ${ranked.length}, most relevant first):`,
+    ...entries,
+    ...(rest > 0 ? [`- …and ${rest} more in other records (their decisions.md)`] : []),
+  ]
 }
 
 /**

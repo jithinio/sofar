@@ -21,6 +21,17 @@ import { retiredOrdinals } from './retire'
  * Only label-sized clauses are compared. A chose or over longer than
  * REVERSAL_MAX_TERMS terms is prose — a contract, not a choice between two
  * named options — and shared domain vocabulary there would read as inversion.
+ *
+ * ACROSS RECORDS (memory-lead 2.2, D8). Round 1's other reversal crossed a
+ * record boundary: the operator's "for the whole app" soft delete was filed in
+ * bucket-list, and a session homed on trips logged hard delete over it three
+ * minutes later. The same test now runs against every other record's standing
+ * decisions, which the writers read from the labels tier (core/index-tier1),
+ * and a second, weaker arm catches that pair: overlap of a quarter, provided
+ * both decisions are ABOUT the same thing — they share a subject term, one in
+ * both clauses of each. "Hard delete trips … without undo" over "Soft delete
+ * like bucket items" crosses "soft delete via deleted_at …" over "hard delete
+ * or tombstone-only …" on one term each way, and both are about `delete`.
  */
 
 /** A clause with more terms than this is prose and is never compared. */
@@ -35,11 +46,30 @@ export const REVERSAL_MAX_TERMS = 24
  * 1/2 first contracted in D31 missed the very case L08 cites.
  */
 export const REVERSAL_MIN_SHARE: readonly [number, number] = [1, 3]
+/**
+ * The subject arm (D8): overlap this large in both directions reverses too,
+ * when the two decisions share a subject term. Scanned over 4,928 decisions in
+ * 75 local repos, a quarter WITHOUT the subject condition refused 4 unrelated
+ * cross-record pairs, and a fifth 8; with it, the only new refusal was the
+ * round-1 pair above.
+ */
+export const REVERSAL_SUBJECT_SHARE: readonly [number, number] = [1, 4]
 
 export interface Reversal {
   /** 1-based `D<n>` ordinal of the standing decision the new one inverts. */
   ordinal: number
   decision: DecisionState
+}
+
+/** A standing decision of ANOTHER record, as the labels tier keeps it (D8). */
+export interface ForeignDecision {
+  initiative: string
+  ordinal: number
+  ts: string
+  chose: string
+  over: string
+  /** True when it carries a rule — replaced only by a rule (r1-fixes D25). */
+  ruled: boolean
 }
 
 export interface DecisionDraft {
@@ -55,70 +85,131 @@ function minus(a: Set<string>, b: Set<string>): Set<string> {
   return new Set([...a].filter((t) => !b.has(t)))
 }
 
-/** |a∩b| ÷ min(|a|,|b|) ≥ REVERSAL_MIN_SHARE, in integers. */
-function lands(a: Set<string>, b: Set<string>): boolean {
+/** |a∩b| ÷ min(|a|,|b|) ≥ share, in integers. */
+function lands(a: Set<string>, b: Set<string>, [num, den]: readonly [number, number]): boolean {
   if (a.size === 0 || b.size === 0) return false
   let common = 0
   for (const t of a) if (b.has(t)) common++
-  const [num, den] = REVERSAL_MIN_SHARE
   return common > 0 && common * den >= num * Math.min(a.size, b.size)
 }
 
-/** Distinguishing terms of a decision, or null when either clause is prose-sized. */
-function sides(chose: string, over: string): { chose: Set<string>; over: Set<string> } | null {
+/** A decision's terms by clause: distinguishing on each side, and the subject both sides share. */
+export interface Sides {
+  chose: Set<string>
+  over: Set<string>
+  /** Terms in both chose and over — what the decision is about, not which way it went. */
+  subject: Set<string>
+}
+
+/** Distinguishing terms of a decision, or null when either clause is prose-sized. Shared with core/decision-judge.ts. */
+export function sides(chose: string, over: string): Sides | null {
   const c = terms(chose)
   const o = terms(over)
   if (c.size > REVERSAL_MAX_TERMS || o.size > REVERSAL_MAX_TERMS) return null
-  return { chose: minus(c, o), over: minus(o, c) }
+  return { chose: minus(c, o), over: minus(o, c), subject: new Set([...c].filter((t) => o.has(t))) }
+}
+
+/** Does `next` invert `prior`? The inversion arm, or the subject arm (D8). */
+function inverts(next: Sides, prior: Sides): boolean {
+  if (lands(next.chose, prior.over, REVERSAL_MIN_SHARE) && lands(next.over, prior.chose, REVERSAL_MIN_SHARE)) return true
+  return (
+    [...next.subject].some((t) => prior.subject.has(t)) &&
+    lands(next.chose, prior.over, REVERSAL_SUBJECT_SHARE) &&
+    lands(next.over, prior.chose, REVERSAL_SUBJECT_SHARE)
+  )
+}
+
+/** The draft's sides, or null when it cannot reverse anything. */
+function draftSides(draft: DecisionDraft): Sides | null {
+  const next = sides(draft.chose, draft.over)
+  return next === null || next.chose.size === 0 || next.over.size === 0 ? null : next
 }
 
 /** Every standing decision in this record that `draft` inverts, oldest first. */
 export function reversedDecisions(state: InitiativeState, draft: DecisionDraft): Reversal[] {
-  const next = sides(draft.chose, draft.over)
-  if (next === null || next.chose.size === 0 || next.over.size === 0) return []
+  const next = draftSides(draft)
+  if (next === null) return []
   const retired = retiredOrdinals(state)
   const out: Reversal[] = []
   state.decisions.forEach((decision, i) => {
     if (retired.has(i + 1)) return
     const prior = sides(decision.chose, decision.over)
     if (prior === null) return
-    if (lands(next.chose, prior.over) && lands(next.over, prior.chose)) {
-      out.push({ ordinal: i + 1, decision })
-    }
+    if (inverts(next, prior)) out.push({ ordinal: i + 1, decision })
   })
   return out
+}
+
+/**
+ * Every standing decision of ANOTHER record that `draft` inverts (D8), in the
+ * order given. `home` is the record the draft is logged to: its own
+ * decisions come from its fold, never from here.
+ */
+export function reversedForeign(foreign: readonly ForeignDecision[], home: string, draft: DecisionDraft): ForeignDecision[] {
+  const next = draftSides(draft)
+  if (next === null) return []
+  return foreign.filter((d) => {
+    if (d.initiative === home) return false
+    const prior = sides(d.chose, d.over)
+    return prior !== null && inverts(next, prior)
+  })
 }
 
 /** Why a draft is refused: the typed error's message and one line per reversed decision. */
 export interface ReversalRefusal {
   message: string
   errors: string[]
+  /** Qualified handles of the reversed decisions another record holds (D8). */
+  elsewhere: string[]
 }
 
 /**
  * The refusal for a draft that reverses a standing decision without saying
  * so, or null when it may be logged. A reversal is said by `supersedes:
  * "D<n>"` (it replaces D<n>) or by citing `D<n>` in `because` (a narrower
- * exception while D<n> still stands). The writers throw it as invalid_input
- * before appending — core stays free of the MCP error type.
+ * exception while D<n> still stands). Another record's decision (D8) is said
+ * only by its QUALIFIED handle `<slug> D<n>` in `because` — a bare D<n> names
+ * this record's — or replaced from its own record, where the fold that holds
+ * it can retire it. The writers throw it as invalid_input before appending —
+ * core stays free of the MCP error type.
  */
-export function silentReversal(state: InitiativeState, draft: DecisionDraft): ReversalRefusal | null {
+export function silentReversal(
+  state: InitiativeState,
+  draft: DecisionDraft,
+  foreign?: { home: string; decisions: readonly ForeignDecision[] },
+): ReversalRefusal | null {
   const unsaid = reversedDecisions(state, draft).filter(
     ({ ordinal }) => draft.supersedes !== `D${ordinal}` && !new RegExp(`\\bD${ordinal}\\b`).test(draft.because),
   )
-  if (unsaid.length === 0) return null
-  const handles = unsaid.map(({ ordinal }) => `D${ordinal}`)
-  const first = handles[0]!
-  const rule = unsaid.some(({ decision }) => decision.rule !== undefined)
-  return {
-    message:
-      `this decision reverses standing ${handles.join(', ')} — nothing was logged. Follow ${handles.length > 1 ? 'them' : first}; ` +
+  const cited = (d: ForeignDecision): boolean => new RegExp(`(^|[^a-z0-9-])${d.initiative} D${d.ordinal}\\b`).test(draft.because)
+  const elsewhere = foreign === undefined ? [] : reversedForeign(foreign.decisions, foreign.home, draft).filter((d) => !cited(d))
+  if (unsaid.length === 0 && elsewhere.length === 0) return null
+  const handles = [...unsaid.map(({ ordinal }) => `D${ordinal}`), ...elsewhere.map((d) => `${d.initiative} D${d.ordinal}`)]
+  const them = handles.length > 1 ? 'them' : handles[0]!
+  const ways: string[] = []
+  if (unsaid.length > 0) {
+    const first = `D${unsaid[0]!.ordinal}`
+    const rule = unsaid.some(({ decision }) => decision.rule !== undefined)
+    ways.push(
       `if the operator changed it, log this again with "supersedes":"${first}"${rule ? ' and a "rule" (a rule is replaced only by a rule)' : ''}; ` +
-      `for a narrower exception while ${first} still stands, cite ${first} in "because".`,
-    errors: unsaid.map(
-      ({ ordinal, decision }) =>
-        `D${ordinal} (${decision.ts.slice(0, 10)}): chose "${clip(decision.chose)}" over "${clip(decision.over)}"`,
-    ),
+        `for a narrower exception while ${first} still stands, cite ${first} in "because"`,
+    )
+  }
+  if (elsewhere.length > 0) {
+    const d = elsewhere[0]!
+    ways.push(
+      `${d.initiative} D${d.ordinal} is another record's: if the operator changed it, log the replacement in that record ` +
+        `("initiative":"${d.initiative}", "supersedes":"D${d.ordinal}"${d.ruled ? ', and a "rule"' : ''}); ` +
+        `for a narrower exception, cite ${d.initiative} D${d.ordinal} in "because"`,
+    )
+  }
+  return {
+    message: `this decision reverses standing ${handles.join(', ')} — nothing was logged. Follow ${them}; ${ways.join('. ')}.`,
+    errors: [
+      ...unsaid.map(({ ordinal, decision }) => `D${ordinal} (${decision.ts.slice(0, 10)}): chose "${clip(decision.chose)}" over "${clip(decision.over)}"`),
+      ...elsewhere.map((d) => `${d.initiative} D${d.ordinal} (${d.ts.slice(0, 10)}): chose "${clip(d.chose)}" over "${clip(d.over)}"`),
+    ],
+    elsewhere: elsewhere.map((d) => `${d.initiative} D${d.ordinal}`),
   }
 }
 

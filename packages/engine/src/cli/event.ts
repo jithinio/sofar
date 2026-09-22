@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
 import { readBindingsFile } from '../core/bindings'
 import { currentBranch } from '../core/git'
@@ -7,7 +8,7 @@ import { QUICK_LANE, QUICK_LANE_GOAL } from '../core/lane'
 import { lessonsEnabled, relevantLessons, type Lesson } from '../core/lessons'
 import { withFileLock } from '../core/lock'
 import { silentReversal } from '../core/reversal'
-import { ruleFidelityWarning } from '../core/rule-fidelity'
+import { quoteClause, ruleFidelityWarning } from '../core/rule-fidelity'
 import { clearSessionPointer, readSessionPointer, writeSessionPointer } from '../core/session-pointer'
 import type { Command } from 'commander'
 import { ulid } from 'ulid'
@@ -34,6 +35,8 @@ import {
 import { commitsByTask, readAttribution, readShippingFrom, type CommitAttribution } from '../core/attribution'
 import { activityEnabled } from '../core/derived'
 import { retireEnabled } from '../core/retire'
+import { applicableChecks, checkFailureLine, checksInForce, isApproved, runChecks, unapprovedLine } from '../core/checks'
+import { runVerification } from '../driver/verify'
 import { readGitState, type GitState } from '../core/git'
 import { noteEngine, noteUpstream } from '../core/shipwatch'
 import { version as ENGINE_VERSION } from '../../package.json'
@@ -45,14 +48,21 @@ const SHIPPING_WINDOW = 30
 const COMMIT_SUBJECT_BUDGET = 72
 import { refreshTier0, refreshTier0Known } from '../core/index-tier0'
 import {
-  guardsForSubject,
+  foreignDecisions,
   lastTouch,
   refreshFiles,
   refreshGuards,
   refreshNeighbours,
-  type GuardedDecision,
+  repoRules,
+  scopeHitsForSubject,
+  type FileIndex,
+  type GuardIndex,
   type NeighbourRecord,
+  type RepoRule,
+  type ScopedDecision,
 } from '../core/index-tier1'
+import { rankByRelevance, refreshRelevance, relevance, type RelevanceRow } from '../core/index-relevance'
+import { addTold, clearTold, readTold, toldKey } from '../core/told'
 import { resolvePeers, type Peer } from '../core/peers'
 import { nudgeLine, readNudge } from '../driver/nudge'
 import { resolvePhaseOrThrow } from '../mcp/update-phase'
@@ -60,6 +70,9 @@ import { redactCommand } from '../core/redact'
 import { recordDiagnostic } from '../core/diagnostics'
 import { clipDiagnosticText, DIAGNOSTIC_HEAD_CLIP } from '@sofar/schema/diagnostics'
 import { newestEvent } from '../core/warmth'
+import { worktreeLeads } from '../core/record-copies'
+import { worktreeLeadsNotice } from '../projections/templates/copies'
+import { copyLagGuard } from '../mcp/copy-lag'
 import {
   createToolContext,
   homeInitiative,
@@ -71,9 +84,23 @@ import {
   type ResolvedVia,
   type ToolContext,
 } from '../mcp/context'
-import { enforceStatusLimit, renderStatus, sessionIdLine } from '../projections/templates/status'
+import {
+  enforceStatusLimit,
+  hasRealAlternative,
+  minutiaeHead,
+  renderStatus,
+  sessionIdLine,
+} from '../projections/templates/status'
 import { REPO_MD_STUB, readInput } from './shared'
-import { forHost, hookHost, type HookHost } from './host'
+import {
+  DECLARED_HOSTS,
+  forHost,
+  hookHost,
+  patchedFiles,
+  postToolProvesSuccess,
+  type DeclaredHost,
+  type HookHost,
+} from './host'
 
 /**
  * `sofar event <subcommand>` — the internal surface hook shims call
@@ -573,6 +600,21 @@ function agoLabel(ms: number): string {
  * nothing. Silence is the correct failure mode for a line whose whole claim is
  * that the record cannot be sure.
  */
+/**
+ * Events of this record that other worktrees hold and this checkout lacks
+ * (branch-visibility 3.3). Files only, no subprocess, so it fits the hook
+ * budget. The quick lane is skipped: each checkout's lane is its own
+ * unplanned work, and another lane's events are not this one's backlog.
+ */
+export function otherWorktreesNotice(rootDir: string, slug: string, logPath: string): string | null {
+  if (slug === QUICK_LANE) return null
+  try {
+    return worktreeLeadsNotice(worktreeLeads(rootDir, slug, logPath), homedir())
+  } catch {
+    return null
+  }
+}
+
 export function recentWorkElsewhereNotice(
   sofarDir: string,
   slug: string,
@@ -685,17 +727,27 @@ export const CLOSED_BANNER_MAX_FINDINGS = 3
  * line is the least load-bearing thing in the block and must never be what
  * takes SessionStart down.
  */
-function adjacentRecords(sofarDir: string, slug: string): NeighbourRecord[] {
+function adjacentRecords(sofarDir: string, slug: string, declared: GuardIndex | null): NeighbourRecord[] {
   try {
-    return refreshNeighbours(sofarDir, slug)
+    return refreshNeighbours(sofarDir, slug, declared ?? undefined)
   } catch {
     return []
   }
 }
 
-export function handleSessionStart(rootDir: string, input: string): HookResult {
+/** The scope tier, refreshed once per SessionStart for neighbours and rules; null when unreadable. */
+function declaredIndex(sofarDir: string): GuardIndex | null {
+  try {
+    return refreshGuards(sofarDir)
+  } catch {
+    return null
+  }
+}
+
+export function handleSessionStart(rootDir: string, input: string, declared?: HookHost): HookResult {
   try {
     const hook = parseHook(input)
+    const host = declared ?? hookHost(hook)
     const sessionId = strField(hook, 'session_id')
     // Hand the host's id to CLI appends that omit --session (r1-fixes 4.1.3, D29)
     // — before resolution, because an unbound session's appends name a slug.
@@ -703,6 +755,10 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     const bound = resolveBound(rootDir, sessionId)
     if (bound === null) return { ...OK, stdout: unboundNotice(rootDir, sessionId) }
     const { ctx, slug, via } = bound
+    // The context that held this session's read-time notices is gone, so what
+    // it was told must be told again (memory-lead 2.1, D6).
+    const source = strField(hook, 'source')
+    if (sessionId !== null && (source === 'compact' || source === 'clear')) clearTold(ctx.sofarDir, sessionId)
 
     // The gap is measured to the prior session's last event; with lazy
     // registration this hook writes nothing, so no bookkeeping of ours can
@@ -730,7 +786,11 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     // The one fact in the block that no single log holds (record-index 3.3):
     // which OTHER records have worked these files. Derived here rather than in
     // renderStatus, which is handed a folded state and cannot reach the index.
-    const neighbours = adjacentRecords(ctx.sofarDir, slug)
+    const scope = declaredIndex(ctx.sofarDir)
+    const neighbours = adjacentRecords(ctx.sofarDir, slug, scope)
+    // Every other record's standing rules (memory-lead 2.2, D8): the other
+    // fact no single log holds, from the same refresh.
+    const rules: RepoRule[] = scope === null ? [] : repoRules(scope, slug, retireEnabled())
     // The per-session notices — recent work elsewhere, the closed banner, the
     // cold-resume advisory, shipping — once led the output as a preface. Since
     // r1-fixes 2.3 (D12) they ride INTO renderStatus as `notices` and land in
@@ -747,6 +807,7 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
     const activity = activityEnabled()
     const notices = [
       recentWorkElsewhereNotice(ctx.sofarDir, slug, via),
+      otherWorktreesNotice(rootDir, slug, ctx.eventsPath(slug)),
       closedBanner(state),
       advisory,
       shippingNotice(rootDir, slug, commits),
@@ -759,6 +820,7 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
       ...(sessionId !== null ? { sessionId } : {}),
       ...(git !== null ? { git } : {}),
       ...(neighbours.length > 0 ? { neighbours } : {}),
+      ...(rules.length > 0 ? { repoRules: rules } : {}),
       ...(notices.length > 0 ? { notices } : {}),
       ...(slug === QUICK_LANE ? { lane: true } : {}),
       ...(activity ? {} : { activity: false }),
@@ -772,7 +834,7 @@ export function handleSessionStart(rootDir: string, input: string): HookResult {
       kind: 'injection',
       initiative: slug,
       session: sessionId ?? 'cli',
-      host: hookHost(hook),
+      host,
       data: {
         hook: 'SessionStart',
         bytes: status.length,
@@ -809,25 +871,43 @@ interface ClassifiedCall {
  * that by appending nothing — a read appends nothing either. Not reading
  * would leave `cmd:*git push*`-shaped rules permanently unenforceable, since
  * no event about a push is ever written for the fold to test.
+ *
+ * One call can touch several files: Codex's `apply_patch` carries a whole
+ * multi-file patch (agents-parity 2.1), so the result is every classified
+ * subject, in order, and empty for a call that is not ours.
  */
-function classifyToolCall(hook: Obj): ClassifiedCall | null {
+function classifyToolCall(hook: Obj): ClassifiedCall[] {
   const toolName = strField(hook, 'tool_name')
   const toolInput = isObj(hook.tool_input) ? hook.tool_input : {}
   if (toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'Write') {
     const path = strField(toolInput, 'file_path')
-    if (path === null) return null
-    return {
+    if (path === null) return []
+    return [
+      {
+        toolName,
+        type: 'file_touched',
+        payload: { path, op: toolName === 'Write' ? 'write' : 'edit' },
+        domain: 'path',
+        subject: path,
+        exempt: false,
+      },
+    ]
+  }
+  if (toolName === 'apply_patch') {
+    const patch = strField(toolInput, 'command')
+    if (patch === null) return []
+    return patchedFiles(patch, strField(hook, 'cwd')).map(({ path, op }) => ({
       toolName,
-      type: 'file_touched',
-      payload: { path, op: toolName === 'Write' ? 'write' : 'edit' },
-      domain: 'path',
+      type: 'file_touched' as const,
+      payload: { path, op },
+      domain: 'path' as const,
       subject: path,
       exempt: false,
-    }
+    }))
   }
   if (toolName === 'Bash') {
     const cmd = strField(toolInput, 'command')
-    if (cmd === null) return null
+    if (cmd === null) return []
     // Redact BEFORE the append, because there is no after: the log is
     // append-only and committed, so a credential that lands here is a
     // credential in everyone's clone forever (security-hardening 3.1).
@@ -835,19 +915,21 @@ function classifyToolCall(hook: Obj): ClassifiedCall | null {
     // commands are considered self-recording.
     const redacted = redactCommand(cmd)
     const head = cmd.trimStart().split(/\s+/, 1)[0] ?? ''
-    return {
-      toolName,
-      type: 'command_run',
-      payload: { cmd: redacted },
-      domain: 'cmd',
-      // The guard matches what the record HOLDS, not what was typed, so the
-      // hook and the fold can never disagree about whether a rule fired.
-      subject: redacted,
-      exempt: isSelfRecordingCommand(cmd),
-      ...(head.length > 0 ? { head: head.slice(0, DIAGNOSTIC_HEAD_CLIP) } : {}),
-    }
+    return [
+      {
+        toolName,
+        type: 'command_run',
+        payload: { cmd: redacted },
+        domain: 'cmd',
+        // The guard matches what the record HOLDS, not what was typed, so the
+        // hook and the fold can never disagree about whether a rule fired.
+        subject: redacted,
+        exempt: isSelfRecordingCommand(cmd),
+        ...(head.length > 0 ? { head: head.slice(0, DIAGNOSTIC_HEAD_CLIP) } : {}),
+      },
+    ]
   }
-  return null
+  return []
 }
 
 /**
@@ -877,9 +959,10 @@ function registerLazily(ctx: ToolContext, slug: string, session: string, host: H
  * because the store is outside the tree. No guard notice here: the notice
  * comments on an edit just made, and this call did not make one.
  */
-export function handlePostToolFailure(rootDir: string, input: string): HookResult {
+export function handlePostToolFailure(rootDir: string, input: string, declared?: HookHost): HookResult {
   try {
     const hook = parseHook(input)
+    const host = declared ?? hookHost(hook)
     const session = strField(hook, 'session_id') ?? 'cli'
     if (session !== 'cli') writeSessionPointer(rootDir, session, 'hook') // D29
     // Same routing as the success path (r1-fixes 2.6, D14): nothing resolves
@@ -889,18 +972,21 @@ export function handlePostToolFailure(rootDir: string, input: string): HookResul
     if (bound === null) return { ...OK }
     const { ctx, slug } = bound
 
-    const call = classifyToolCall(hook)
-    if (call === null) return { ...OK }
-    const { type, exempt, head } = call
+    const calls = classifyToolCall(hook)
+    const [call] = calls
+    if (call === undefined) return { ...OK }
+    const { head } = call
+    const exempt = calls.every((c) => c.exempt)
 
     const exit = typeof hook.exit_code === 'number' ? hook.exit_code : null
     const interrupt = typeof hook.is_interrupt === 'boolean' ? hook.is_interrupt : null
-    if (!exempt) {
-      registerLazily(ctx, slug, session, hookHost(hook))
+    if (!exempt) registerLazily(ctx, slug, session, host)
+    for (const { type, payload, exempt: self } of calls) {
+      if (self) continue
       ctx.appendAndProject(
         slug,
         type,
-        { ...call.payload, ok: false, ...(type === 'command_run' && exit !== null ? { exit } : {}) },
+        { ...payload, ok: false, ...(type === 'command_run' && exit !== null ? { exit } : {}) },
         { session, source: 'hook' },
       )
     }
@@ -914,7 +1000,7 @@ export function handlePostToolFailure(rootDir: string, input: string): HookResul
       kind: 'tool_failure',
       initiative: slug,
       session,
-      host: hookHost(hook),
+      host,
       data: {
         tool: call.toolName,
         ...(head !== undefined ? { head } : {}),
@@ -931,7 +1017,8 @@ export function handlePostToolFailure(rootDir: string, input: string): HookResul
 
 /**
  * PostToolUse (task 3.3) — mechanical file_touched / command_run events.
- * Edit|MultiEdit → {op:'edit'}, Write → {op:'write'}, Bash → command_run;
+ * Edit|MultiEdit → {op:'edit'}, Write → {op:'write'}, Bash → command_run,
+ * apply_patch → one file_touched per file it names (agents-parity 2.1);
  * any other tool_name (or missing fields) appends nothing.
  *
  * Two record-hygiene rules apply here (D1/D2):
@@ -941,14 +1028,17 @@ export function handlePostToolFailure(rootDir: string, input: string): HookResul
  *    so a session enters the log immediately before its first real event.
  *    Sessions that only read and exit never register at all.
  *
- * It also READS (record-index 3.2): the same edit is tested against every
- * guarded decision in the repo, and a match returns the rule verbatim as
- * PostToolUse additionalContext. See guardNotice for why this hook and not the
- * prompt line, and why the read runs before the append.
+ * It also READS (record-index 3.2, memory-lead 2.1): every path the call edits
+ * or reads, and the command it runs, is tested against every decision in the
+ * repo that guards or names it, and what matches returns as PostToolUse
+ * additionalContext. A read (Read, Grep, a shell command's file operands)
+ * appends nothing. See scopeNotice for why this hook and not the prompt line,
+ * and why the read runs before the append.
  */
-export function handlePostTool(rootDir: string, input: string): HookResult {
+export function handlePostTool(rootDir: string, input: string, declared?: HookHost): HookResult {
   try {
     const hook = parseHook(input)
+    const host = declared ?? hookHost(hook)
     const session = strField(hook, 'session_id') ?? 'cli'
     // The first shell call (`sofar status`) lands here before the agent's own
     // session_started, so a host with no SessionStart still hands its id over (D29).
@@ -962,50 +1052,77 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
     const nudge = readNudge()
     const driven = nudge === null ? [] : [nudgeLine(nudge)]
 
-    // Nothing resolves → the quick lane (r1-fixes 2.6, D14), created here on
-    // the first captured edit. Resolution is re-run rather than assumed: the
-    // lane is a FALLBACK inside resolveInitiative, and this hook must route
-    // exactly as every other surface does.
-    let bound = resolveBound(rootDir, session)
-    if (bound === null && ensureLane(rootDir)) bound = resolveBound(rootDir, session)
-    if (bound === null) return driven.length === 0 ? { ...OK } : { ...OK, stdout: postToolContext(driven) }
-    const { ctx, slug } = bound
-
     const injected = (lines: readonly string[]): HookResult =>
       lines.length === 0 ? { ...OK } : { ...OK, stdout: postToolContext(lines) }
 
-    const call = classifyToolCall(hook)
-    if (call === null) return injected(driven)
-    const { type, domain, subject, exempt, head } = call
+    const calls = classifyToolCall(hook)
+    // Reads are subjects too (memory-lead 2.1, D6), and append nothing.
+    const edited = new Set(calls.filter((c) => c.domain === 'path').map((c) => resolve(rootDir, c.subject)))
+    const reads = readPaths(hook, rootDir).filter((p) => !edited.has(p))
+    const readSubjects = reads.map((p) => ({ domain: 'path' as const, subject: p, edit: false }))
 
-    // The host fired PostToolUse, which it does only for a call that
-    // succeeded — so `ok` is what the host said, not an inference from output
-    // (self-improve D2). `exit` rides along only when the host hands a number.
+    // Nothing resolves → the quick lane (r1-fixes 2.6, D14), created here on
+    // the first captured edit. Resolution is re-run rather than assumed: the
+    // lane is a FALLBACK inside resolveInitiative, and this hook must route
+    // exactly as every other surface does. A READ never creates it: creating
+    // a record is an append, and a read appends nothing (memory-lead 2.1).
+    let bound = resolveBound(rootDir, session)
+    if (bound === null && calls.length > 0 && ensureLane(rootDir)) bound = resolveBound(rootDir, session)
+    if (bound === null) {
+      // No record to append to, yet the repo's decisions still bear on what was
+      // read. No record is "this" one here, so every handle is qualified.
+      const sofarDir = join(rootDir, '.sofar')
+      const readOnly = calls.length === 0 && existsSync(join(sofarDir, 'initiatives'))
+      return injected([...driven, ...(readOnly ? scopeNotice(sofarDir, rootDir, '', session, readSubjects) : [])])
+    }
+    const { ctx, slug } = bound
+
+    // Before the append, never after: the notice asks what this session has
+    // already been told, and the current edit is not yet part of that history.
+    const notice = scopeNotice(ctx.sofarDir, rootDir, slug, session, [
+      ...calls.map((c) => ({ domain: c.domain, subject: c.subject, edit: c.type === 'file_touched' })),
+      ...readSubjects,
+    ])
+    const [call] = calls
+    if (call === undefined) return injected([...driven, ...notice])
+    const { head } = call
+    const exempt = calls.every((c) => c.exempt)
+
+    // A host that fires PostToolUse only for a call that succeeded makes `ok`
+    // what the host said, not an inference from output (self-improve D2).
+    // Codex fires it after a failing command too, so there `ok` is unknown
+    // and left off unless the host reports an interruption. `exit` rides
+    // along only when the host hands a number.
     const response = isObj(hook.tool_response) ? hook.tool_response : null
     const interrupted =
       response !== null && (response.interrupted === true || response.timed_out === true)
     const exit = response !== null && typeof response.exit_code === 'number' ? response.exit_code : null
-    const ok = !interrupted
-    const payload: Obj = {
-      ...call.payload,
-      ok,
-      ...(type === 'command_run' && exit !== null ? { exit } : {}),
-    }
+    const ok = interrupted ? false : postToolProvesSuccess(host) ? true : undefined
 
-    // Before the append, never after: the notice asks what this session has
-    // already been told, and the current edit is not yet part of that history.
-    const notice = guardNotice(ctx.sofarDir, rootDir, slug, session, domain, subject)
-
-    if (!exempt) {
-      // Lazy registration: one fold to see whether this session is already in
-      // the log — the same read the Stop and UserPromptSubmit shims already do
-      // on every invocation, and it only precedes an append that folds anyway.
-      // A new session re-checks under a lock (r1-fixes 1.2): hosts that fire
-      // hooks in parallel (Cursor) otherwise registered it once per process.
-      // "cli" is never a session identity (the fold skips it), so it is never
-      // registered.
-      registerLazily(ctx, slug, session, hookHost(hook))
-      ctx.appendAndProject(slug, type, payload, { session, source: 'hook' })
+    let registered = false
+    for (const { type, payload, exempt: self } of calls) {
+      if (self) continue
+      if (!registered) {
+        // Lazy registration: one fold to see whether this session is already in
+        // the log — the same read the Stop and UserPromptSubmit shims already do
+        // on every invocation, and it only precedes an append that folds anyway.
+        // A new session re-checks under a lock (r1-fixes 1.2): hosts that fire
+        // hooks in parallel (Cursor) otherwise registered it once per process.
+        // "cli" is never a session identity (the fold skips it), so it is never
+        // registered.
+        registerLazily(ctx, slug, session, host)
+        registered = true
+      }
+      ctx.appendAndProject(
+        slug,
+        type,
+        {
+          ...payload,
+          ...(ok !== undefined ? { ok } : {}),
+          ...(type === 'command_run' && exit !== null ? { exit } : {}),
+        },
+        { session, source: 'hook' },
+      )
     }
 
     // The private row (self-improve D3): written for EVERY classified call,
@@ -1021,10 +1138,10 @@ export function handlePostTool(rootDir: string, input: string): HookResult {
       kind: 'tool_outcome',
       initiative: slug,
       session,
-      host: hookHost(hook),
+      host,
       data: {
         tool: call.toolName,
-        ok,
+        ok: ok ?? null,
         exit,
         ...(head !== undefined ? { head } : {}),
         ...(exempt ? { exempt: true } : {}),
@@ -1114,13 +1231,47 @@ export function handleStop(
       sessionGuardViolations(state, sessionId, session.ended),
       rootDir,
     )
+    // Decision checks ride the same block (memory-lead 2.3, D9/D10): they run
+    // only here, where the gate already holds the session, so a failing check
+    // is read before the write-back and can never be what stops a turn.
+    const checks = stopCheckLines(rootDir, ctx.sofarDir, session)
     return {
       exitCode: 2,
       stdout: '',
-      stderr: [STOP_BLOCK_MESSAGE, ...crossings].join('\n'),
+      stderr: [STOP_BLOCK_MESSAGE, ...crossings, ...checks].join('\n'),
     }
   } catch {
     return { ...OK }
+  }
+}
+
+/** Stop's bound on decision checks (D9): the whole pass, and any one check. */
+export const STOP_CHECK_BUDGET_MS = 45_000
+export const STOP_CHECK_MAX_MS = 30_000
+
+/**
+ * The decision checks bearing on what this session touched, run and reported
+ * for the write-back block (D9). Only approved commands run; the rest are
+ * named with the approval command. A session whose file list overflowed its
+ * cap touched too much to scope, so every check applies. Never throws: a
+ * check that cannot be read is one that says nothing.
+ */
+function stopCheckLines(rootDir: string, sofarDir: string, session: SessionState): string[] {
+  try {
+    const checks = checksInForce(refreshGuards(sofarDir))
+    if (checks.length === 0) return []
+    const files = session.activity?.files ?? []
+    const overflow = files.some((f) => f.startsWith('+'))
+    const applicable = overflow ? checks : applicableChecks(checks, files)
+    const approved = applicable.filter((c) => isApproved(rootDir, c.check.cmd))
+    const { ran, skipped } = runChecks(approved, rootDir, runVerification, { perCheckMs: STOP_CHECK_MAX_MS, budgetMs: STOP_CHECK_BUDGET_MS })
+    const lines = ran.filter((r) => r.outcome.result !== 'pass').map((r) => checkFailureLine(r.check, r.outcome))
+    const unapproved = unapprovedLine(applicable.filter((c) => !approved.includes(c)))
+    if (unapproved !== null) lines.push(unapproved)
+    if (skipped.length > 0) lines.push(`sofar: ${skipped.length} decision check(s) did not run — Stop's ${STOP_CHECK_BUDGET_MS / 1000}s budget was spent; \`sofar check\` runs them all`)
+    return lines
+  } catch {
+    return []
   }
 }
 
@@ -1665,126 +1816,284 @@ export function guardViolationLines(
 }
 
 /**
- * The same rule, un-scoped and moved to the point of use (record-index 3.2).
+ * The same rule, un-scoped and moved to the point of use (record-index 3.2),
+ * then moved earlier, to the READ, and widened from guarded rules to every
+ * decision that names the file (memory-lead 2.1, D6; SPEC §Read-time surfacing (memory-lead 2.1, D6)).
  *
  * The surfaces above read `state.guard_violations`, which the fold builds while
  * replaying ONE initiative's log against THAT initiative's decisions. That is
  * the whole of the mechanical tier's reach, and it has a hole in the middle of
  * it: the work is appended wherever the branch is bound, so a rule declared in
  * `security-hardening` has never once been tested against an edit made on the
- * `record-index` branch. Not "rarely" — structurally never. A user who writes a
- * standing rule reasonably believes it governs the repo; it governed one log.
+ * `record-index` branch. Tier 1 closes it by materializing every decision that
+ * guards or names a file into one list, so asking "does ANY decision anywhere
+ * bear on this path" costs O(scope) instead of folding every log.
  *
- * Tier 1 closes it by materializing every guarded decision in the repo into one
- * list (this record: 6 of 208 decisions), so asking "does ANY decision anywhere
- * guard this path" costs O(guards) instead of folding every log.
+ * PostToolUse, because it fires when the path is first known. A read is that
+ * moment, and it comes before the edit: the prompt line reports at the next
+ * turn, and the Stop message only when the session is already blocked (D3).
  *
- * PostToolUse rather than the prompt line, because this is the surface where
- * the mechanical tier arrives while the edit is still the current thought. The
- * prompt line reports at the next turn, and the Stop message only when the
- * session is already being blocked for something else (D3) — both are after the
- * fact by construction.
+ * THREE TIERS, by who declared the relevance (record-index D2). A guard is
+ * relevance its author declared, so it is asserted: the path "is governed by"
+ * the rule. A mention is only a fact about the decision's text, so it says the
+ * decision "names" the file and never that it governs it. Both are worded as
+ * facts, not commands: Claude Code's hook docs warn that out-of-band
+ * imperatives can trip its prompt-injection defenses.
  *
- * D2 of this initiative governs the wording: a guard is relevance its author
- * DECLARED, so it is asserted — "obey it verbatim" — not offered as worth
- * reading. Only adjacency gets hedged.
- *
- * OTHER initiatives lead. Under the cap the rule to keep is the one the agent
- * cannot already see: its own record's standing constraints render verbatim and
- * un-clipped in the SessionStart digest, while a rule from a record it has
+ * OTHER initiatives lead among guards. Under the cap the rule to keep is the
+ * one the agent cannot already see: its own record's standing constraints
+ * render verbatim in the SessionStart digest, while a rule from a record it has
  * never opened appears nowhere else in its context.
  *
- * The rule renders VERBATIM and is never clipped (drift-hardening D2) — the
- * subject and the overflow pointer absorb the budget instead.
+ * The rule renders VERBATIM and is never clipped (drift-hardening D2): the cap
+ * counts decisions, and the overflow line absorbs the rest.
  */
-export function guardNoticeLines(
-  hits: readonly GuardedDecision[],
-  domain: GuardDomain,
-  subject: string,
-  slug: string,
-  rootDir: string,
-): string[] {
-  if (hits.length === 0) return []
+export const SCOPE_DECISIONS_MAX = 3
+export const SCOPE_NOTICE_BUDGET = 1500
+const SCOPE_CHOSE_HEAD = 90
+const SCOPE_OVER_HEAD = 70
 
-  const ordered = [...hits].sort((a, b) => {
-    if ((a.initiative === slug) !== (b.initiative === slug)) return a.initiative === slug ? 1 : -1
-    return a.initiative === b.initiative ? a.ordinal - b.ordinal : byCodeUnit(a.initiative, b.initiative)
-  })
+/** One thing a PostToolUse call acted on: a command, or a path it edited or read. */
+export interface NoticeSubject {
+  domain: GuardDomain
+  /** An absolute path, or the redacted command the record holds. */
+  subject: string
+  /** Edits keep the lastTouch suppression; reads have no touch to compare. */
+  edit: boolean
+}
 
-  const rendered = renderSubject(domain, subject, rootDir)
-  const lines = ordered.slice(0, GUARD_RULES_MAX).map((d) => {
-    // `D<n>` is initiative-scoped, so a handle from elsewhere has to carry its
-    // record — and carrying it is also what makes the un-scoping visible.
-    const handle = d.initiative === slug ? `D${d.ordinal}` : `${d.initiative} D${d.ordinal}`
+/** A decision to tell, and why: 0 guard, 1 ruled mention, 2 unruled mention. */
+interface ScopeNotice {
+  tier: 0 | 1 | 2
+  decision: ScopedDecision
+  depth: number
+  rendered: string
+  domain: GuardDomain
+}
+
+function scopeHandle(d: ScopedDecision, slug: string): string {
+  // `D<n>` is initiative-scoped, so a handle from elsewhere carries its record.
+  return d.initiative === slug ? `D${d.ordinal}` : `${d.initiative} D${d.ordinal}`
+}
+
+function scopeRuleText(d: ScopedDecision): string {
+  const rule = (d.rule ?? '').replace(/\s+/g, ' ').trim()
+  return d.quote === undefined ? `"${rule}"` : `"${rule}" — ${quoteClause(d.rule ?? '', d.quote)}`
+}
+
+/** The line for one notice, worded as a fact (SPEC §Read-time surfacing (memory-lead 2.1, D6)). */
+export function scopeNoticeLine(n: ScopeNotice, slug: string): string {
+  const d = n.decision
+  const handle = scopeHandle(d, slug)
+  if (n.tier === 0) {
     return (
-      `sofar: [${handle}] standing rule guards ${rendered} — "${d.rule}" ` +
-      `(guard: ${d.guard}) — obey it verbatim, or log a decision that supersedes it.`
-    )
-  })
-
-  const dropped = ordered.slice(GUARD_RULES_MAX)
-  if (dropped.length > 0) {
-    // Not a pointer at `sofar doctor`: doctor audits ONE initiative, and the
-    // rules dropped here are exactly the ones that may live in another.
-    const where = [...new Set(dropped.map((d) => d.initiative))].join(', ')
-    lines.push(
-      `sofar: …and ${dropped.length} more standing rule(s) guard this, in ${where} — read their decisions.md.`,
+      `sofar: ${n.rendered} is governed by [${handle}], a standing rule: ${scopeRuleText(d)} ` +
+      `(guard: ${d.guard}). Work against it needs a decision that supersedes ${handle}.`
     )
   }
-  return lines
+  if (n.tier === 1) return `sofar: [${handle}] names ${n.rendered}. Its standing rule: ${scopeRuleText(d)}.`
+  const over = hasRealAlternative(d.over) ? ` over ${minutiaeHead(d.over, SCOPE_OVER_HEAD)}` : ''
+  return `sofar: [${handle}] ${d.ts.slice(0, 10)} names ${n.rendered}: chose ${minutiaeHead(d.chose, SCOPE_CHOSE_HEAD)}${over}.`
 }
 
 /**
- * Resolve the notice for one just-made edit, suppressing what has already been
- * said.
- *
- * REFRESHED, not merely read, for the reason 2.2 established: an index nobody
- * maintains reports no guards, and "no guards" is indistinguishable from "no
- * rule applies" — D1 forbids absence costing correctness.
- *
- * Refreshed BEFORE the caller appends, which is semantics rather than
- * convenience: the question is whether this session has ALREADY been told, and
- * an index that already contained the current edit would answer about itself.
- *
- * Non-retroactivity comes free here, where the fold has to arrange it: every
- * decision in the index was logged before an edit that is happening now, so a
- * guard still cannot flag the work that motivated it.
- *
- * Commands are not suppressed — Tier 1 keys touches by path and has no command
- * history to suppress against, and each run of a guarded command is a separate
- * act with separate consequences, unlike re-editing a file already reported.
- *
- * TWO REFRESHES, ordered by what they cost. The declared half is sized by the
- * repo's guarded decisions and is refreshed on every edit; the derived half is
- * sized by the repo's whole touch history (31.8ms at 1000 initiatives) and is
- * refreshed only once a rule has actually matched — which is what a hot path
- * can afford to be exact about, and rare enough that being exact is cheap.
+ * Order notices tier by tier (D6 (c)). Guards: other initiatives first, then
+ * initiative, then ordinal. Mentions: the longer matched tail, then the newest.
+ * Stored relevance (typed-judge D10) then reranks WITHIN each tier only, so a
+ * high p never lifts a mention over a guard. Strangers the judge would add are
+ * not rendered here: no writer of `file:` rows exists yet, and a judged
+ * relevance is not a mention, so its wording belongs to that writer's task.
  */
-function guardNotice(
+function orderNotices(notices: readonly ScopeNotice[], slug: string, rows: readonly RelevanceRow[]): ScopeNotice[] {
+  const byTier: ScopeNotice[][] = [[], [], []]
+  for (const n of notices) byTier[n.tier]!.push(n)
+  byTier[0]!.sort((a, b) => {
+    const [x, y] = [a.decision, b.decision]
+    if ((x.initiative === slug) !== (y.initiative === slug)) return x.initiative === slug ? 1 : -1
+    return x.initiative === y.initiative ? x.ordinal - y.ordinal : byCodeUnit(x.initiative, y.initiative)
+  })
+  for (const tier of [byTier[1]!, byTier[2]!]) {
+    tier.sort((a, b) => b.depth - a.depth || byCodeUnit(b.decision.ts, a.decision.ts) || byCodeUnit(a.decision.id, b.decision.id))
+  }
+  const ordered: ScopeNotice[] = []
+  for (const tier of byTier) {
+    if (rows.length === 0 || tier.length < 2) {
+      ordered.push(...tier)
+      continue
+    }
+    const byHandle = new Map(tier.map((n) => [`${n.decision.initiative} D${n.decision.ordinal}`, n]))
+    for (const handle of rankByRelevance([...byHandle.keys()], rows)) {
+      const n = byHandle.get(handle)
+      if (n !== undefined) ordered.push(n)
+    }
+  }
+  return ordered
+}
+
+/**
+ * Resolve the notice for one PostToolUse call, suppressing what this session
+ * has already been told.
+ *
+ * REFRESHED, not merely read, for the reason record-index 2.2 established: an
+ * index nobody maintains reports no decisions, and "none" is
+ * indistinguishable from "nothing applies". Refreshed BEFORE the caller
+ * appends: the question is whether this session has ALREADY been told, and an
+ * index that already held the current edit would answer about itself.
+ *
+ * Suppression. A path pair (decision, subject) is told once per session, on a
+ * read or an edit (core/told). An edit also keeps the lastTouch test: a
+ * decision logged at or before my last touch of this path was already told on
+ * that touch. The derived half it needs is sized by the repo's whole touch
+ * history, so it is refreshed only once something has matched. Commands are
+ * never suppressed: each run of a guarded command is its own act.
+ */
+function scopeNotice(
   sofarDir: string,
   rootDir: string,
   slug: string,
   session: string,
-  domain: GuardDomain,
-  subject: string,
+  subjects: readonly NoticeSubject[],
 ): string[] {
   try {
-    const declared = refreshGuards(sofarDir)
-    if (declared.guards.length === 0) return []
+    const index = refreshGuards(sofarDir)
+    if (index.scoped.length === 0 || subjects.length === 0) return []
+    const retire = retireEnabled()
+    const told = readTold(sofarDir, session)
+    let files: FileIndex | null = null
 
-    let hits = guardsForSubject(declared, domain, subject)
-    if (hits.length === 0) return []
-
-    if (domain === 'path' && session !== 'cli') {
-      const since = lastTouch(refreshFiles(sofarDir), subject, session)
-      // A rule logged at or before my last touch of this path already fired on
-      // that touch. One logged after it has never been tested against this path
-      // and still has its first warning to give.
-      if (since !== null) hits = hits.filter((d) => d.ts > since)
+    const notices: ScopeNotice[] = []
+    const shown = new Set<string>()
+    const tell: string[] = []
+    for (const { domain, subject, edit } of subjects) {
+      let hits = scopeHitsForSubject(index, domain, subject).filter(
+        // An until-scoped decision is never a candidate (task resolution is not
+        // indexed); a superseded one is out while retirement is on.
+        ({ decision: d }) => d.until === undefined && !(retire && d.superseded_by !== undefined),
+      )
+      if (hits.length === 0) continue
+      const rendered = renderSubject(domain, subject, rootDir)
+      if (domain === 'path' && session !== 'cli') {
+        hits = hits.filter(({ decision }) => !told.has(toldKey(decision.id, rendered)))
+        if (edit && hits.length > 0) {
+          files ??= refreshFiles(sofarDir)
+          const since = lastTouch(files, subject, session)
+          if (since !== null) hits = hits.filter(({ decision }) => decision.ts > since)
+        }
+        for (const { decision } of hits) tell.push(toldKey(decision.id, rendered))
+      }
+      for (const { decision, guarded, depth } of hits) {
+        if (shown.has(decision.id)) continue
+        shown.add(decision.id)
+        notices.push({ tier: guarded ? 0 : decision.rule !== undefined ? 1 : 2, decision, depth, rendered, domain })
+      }
     }
-    return guardNoticeLines(hits, domain, subject, slug, rootDir)
+    if (notices.length === 0) return []
+
+    const ordered = orderNotices(notices, slug, storedRelevance(sofarDir, index, notices))
+    const rendered = ordered.slice(0, SCOPE_DECISIONS_MAX).map((n) => scopeNoticeLine(n, slug))
+    // The budget counts the overflow line too. A decision that does not fit
+    // joins the count rather than being cut, and the first line always renders
+    // whole: a rule is never clipped (drift-hardening D2).
+    let kept = rendered.length
+    const lengthOf = (k: number): number => {
+      const over = overflowLine(ordered.slice(k))
+      return rendered.slice(0, k).reduce((sum, line) => sum + line.length + 1, 0) + (over === null ? 0 : over.length)
+    }
+    while (kept > 1 && lengthOf(kept) > SCOPE_NOTICE_BUDGET) kept -= 1
+    const over = overflowLine(ordered.slice(kept))
+    addTold(sofarDir, session, tell)
+    return over === null ? rendered.slice(0, kept) : [...rendered.slice(0, kept), over]
   } catch {
     return []
+  }
+}
+
+/** The one line for what did not render, or null when everything did. */
+function overflowLine(dropped: readonly ScopeNotice[]): string | null {
+  if (dropped.length === 0) return null
+  const first = dropped[0]!
+  const where = [...new Set(dropped.map((n) => n.decision.initiative))].join(', ')
+  // Not a pointer at `sofar doctor`: doctor audits ONE initiative, and the
+  // decisions dropped here may live in several.
+  const pointer = first.domain === 'path' ? `sofar find ${first.rendered}` : 'read their decisions.md'
+  return `sofar: …and ${dropped.length} more decision(s) on ${first.rendered} (in ${where}) — ${pointer}.`
+}
+
+/**
+ * Stored relevance for the paths these notices name (typed-judge D10), read
+ * only when some tier has two notices to order, so a call with one candidate
+ * pays nothing. Rows for retired decisions are never returned.
+ */
+function storedRelevance(sofarDir: string, index: GuardIndex, notices: readonly ScopeNotice[]): RelevanceRow[] {
+  const counts = [0, 0, 0]
+  for (const n of notices) counts[n.tier]! += 1
+  if (counts.every((c) => c < 2)) return []
+  const relevanceIndex = refreshRelevance(sofarDir)
+  const abouts = [...new Set(notices.filter((n) => n.domain === 'path').map((n) => `file:${n.rendered}`))]
+  return abouts.flatMap((about) => relevance(relevanceIndex, { about, retired: index.retired }))
+}
+
+/** Every path a call READ (memory-lead 2.1, D6), as absolute paths, at most READ_SUBJECTS_MAX. */
+export const READ_SUBJECTS_MAX = 5
+const SHELL_TOKENS_MAX = 40
+const SHELL_SCAN_CLIP = 2000
+
+export function readPaths(hook: Obj, rootDir: string): string[] {
+  const toolName = strField(hook, 'tool_name')
+  const toolInput = isObj(hook.tool_input) ? hook.tool_input : {}
+  const cwd = strField(hook, 'cwd') ?? rootDir
+  let candidates: string[] = []
+  if (toolName === 'Read') {
+    // `file_path` on both hosts: Claude Code documents it, and Cursor sends it
+    // too (live on cursor-agent 2026.09.18, with no `cwd` beside it).
+    const path = strField(toolInput, 'file_path')
+    if (path !== null) candidates = [path]
+  } else if (toolName === 'Grep') {
+    const path = strField(toolInput, 'path')
+    if (path !== null && isRegularFile(resolve(cwd, path))) candidates.push(path)
+    const response = isObj(hook.tool_response) ? hook.tool_response : null
+    if (response !== null && Array.isArray(response.filenames)) {
+      candidates.push(...response.filenames.filter((f): f is string => typeof f === 'string').slice(0, READ_SUBJECTS_MAX))
+    }
+  } else if (toolName === 'Bash') {
+    const cmd = strField(toolInput, 'command')
+    if (cmd !== null) candidates = shellOperands(cmd, cwd)
+  }
+  const out: string[] = []
+  for (const candidate of candidates) {
+    const abs = resolve(cwd, candidate)
+    if (abs.split('/').includes('.sofar') || out.includes(abs)) continue
+    out.push(abs)
+    if (out.length >= READ_SUBJECTS_MAX) break
+  }
+  return out
+}
+
+/**
+ * The operands of a shell command that name an existing regular file: what a
+ * `cat`, `sed -n`, `grep` or `head` read, on every host (Codex reads only this
+ * way). Taken before any heredoc, flags and expansions skipped, one stat each.
+ * A write through the shell is caught the same way, which is fine: the
+ * surface is the same fact about the file either way.
+ */
+function shellOperands(cmd: string, cwd: string): string[] {
+  const head = cmd.split('<<')[0]!.slice(0, SHELL_SCAN_CLIP)
+  const found: string[] = []
+  let seen = 0
+  for (const raw of head.split(/[\s;&|()<>]+/)) {
+    if (seen++ >= SHELL_TOKENS_MAX || found.length >= READ_SUBJECTS_MAX) break
+    const token = raw.replace(/^['"`]+|['"`]+$/g, '')
+    if (token.length === 0 || token.startsWith('-') || /[=$*?]/.test(token)) continue
+    if (!found.includes(token) && isRegularFile(resolve(cwd, token))) found.push(token)
+  }
+  return found
+}
+
+function isRegularFile(path: string): boolean {
+  try {
+    return statSync(path).isFile()
+  } catch {
+    return false
   }
 }
 
@@ -2152,7 +2461,7 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
       const { chose, over, because, supersedes } = payload
       if (typeof chose === 'string' && typeof over === 'string' && typeof because === 'string') {
         const draft = { chose, over, because, ...(typeof supersedes === 'string' ? { supersedes } : {}) }
-        const refusal = silentReversal(ctx.foldState(slug), draft)
+        const refusal = silentReversal(ctx.foldState(slug), draft, foreignDecisions(ctx.sofarDir, slug))
         if (refusal !== null) throw new ToolError('invalid_input', refusal.message, refusal.errors)
       }
       // What the rule adds to the operator's words (memory-lead 1.2, D2), the
@@ -2165,6 +2474,21 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
     // is refused rather than minting a phantom phase (r1-fixes 4.1.5, D32).
     if (args.type === 'phase_status_changed' && typeof payload.phase === 'string') {
       payload.phase = resolvePhaseOrThrow(ctx.foldState(slug).phases, payload.phase, slug).name
+    }
+    // The same for an added task's phase, and an id the plan already holds is
+    // refused rather than appended for the fold to skip (phase-lifecycle D7).
+    if (args.type === 'task_added' && typeof payload.phase === 'string') {
+      const state = ctx.foldState(slug)
+      payload.phase = resolvePhaseOrThrow(state.phases, payload.phase, slug).name
+      // Looked up here, not through mcp/update-task: this module is on the hook
+      // and statusline path, which must never load the judge (typed-judge D1).
+      const held = state.phases.flatMap((p) => p.tasks).find((t) => t.id === payload.id)
+      if (held !== undefined) {
+        throw new ToolError(
+          'invalid_input',
+          `task "${payload.id as string}" is already in the plan as "${held.title}" — pick an unused id, or append task_status_changed to change it`,
+        )
+      }
     }
     const session = args.session ?? adoptSession(ctx, rootDir, slug, args.type)
     // The id is only news when sofar chose it.
@@ -2181,7 +2505,7 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
       })
       const body =
         appended !== null
-          ? { ok: true, event_id: appended.id, ...named }
+          ? { ok: true, event_id: appended.id, ...named, ...lagWarnings(ctx, slug, args.type, []) }
           : {
               ok: true,
               event_id: registrationIn(ctx.eventsPath(slug), session)?.id ?? null,
@@ -2197,7 +2521,7 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
       source,
       actor: args.actor as Actor,
     })
-    const warnings = fidelity !== null ? { warnings: [fidelity] } : {}
+    const warnings = lagWarnings(ctx, slug, args.type, fidelity !== null ? [fidelity] : [])
     return { exitCode: 0, stdout: `${JSON.stringify({ ok: true, event_id: event.id, ...named, ...warnings })}\n`, stderr: '' }
   } catch (err) {
     const shape =
@@ -2206,6 +2530,28 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
         : { code: 'io_error', message: err instanceof Error ? err.message : String(err) }
     return { exitCode: 1, stdout: '', stderr: `${JSON.stringify(shape)}\n` }
   }
+}
+
+/**
+ * The write guard in the CLI dialect (branch-visibility 3.4). Each append is
+ * its own process, so the MCP server's once-per-process memory does not
+ * exist here, and a line on every append would repeat 400 characters per
+ * call. It speaks where a stale copy costs most: the session's first write,
+ * its write-back, and a decision, whose D handle is numbered from this copy.
+ */
+const LAG_GUARDED_TYPES: ReadonlySet<string> = new Set(['session_started', 'session_ended', 'decision_logged'])
+
+function lagWarnings(ctx: ToolContext, slug: string, type: string, prior: string[]): { warnings?: string[] } {
+  let line: string | null = null
+  if (LAG_GUARDED_TYPES.has(type)) {
+    try {
+      line = copyLagGuard(ctx, slug)
+    } catch {
+      line = null // advisory: never fails an append that landed
+    }
+  }
+  const warnings = line === null ? prior : [...prior, line]
+  return warnings.length > 0 ? { warnings } : {}
 }
 
 /**
@@ -2312,11 +2658,12 @@ export async function readStdin(): Promise<string> {
  * so a hook can never exist on one path and not the other. Every handler is
  * served through forHost (r1-fixes 6.3–6.6, D34): the handlers speak Claude
  * Code's hook dialect, and a Cursor invocation is converted on both sides.
+ * The third argument is the host a shim declares with `--host` (Codex, D5).
  */
 export const SUBCOMMANDS: ReadonlyArray<{
   name: string
   description: string
-  handler: (rootDir: string, input: string) => HookResult
+  handler: (rootDir: string, input: string, host?: DeclaredHost) => HookResult
 }> = [
   {
     name: 'session-start',
@@ -2327,7 +2674,7 @@ export const SUBCOMMANDS: ReadonlyArray<{
   {
     name: 'post-tool',
     description:
-      'PostToolUse hook: append mechanical file_touched (Edit|Write|MultiEdit) / command_run (Bash) events, and surface any repo-wide guarded rule the subject crosses',
+      'PostToolUse hook: append mechanical file_touched (Edit|Write|MultiEdit|apply_patch) / command_run (Bash) events, and surface every repo-wide decision that guards or names what the call edited, read or ran',
     handler: forHost('post-tool', handlePostTool),
   },
   {
@@ -2422,13 +2769,20 @@ export function registerEventCommand(program: Command): void {
     })
 
   for (const { name, description, handler } of SUBCOMMANDS) {
-    event
-      .command(name)
+    const hook = event.command(name)
+    // createOption, not `new Option`: commander stays a type-only import here,
+    // so the hot-path bundle never carries it (cli/fast.ts).
+    hook
       .description(description)
       .option('--root <dir>', 'repo root containing .sofar/ (default: current directory)')
-      .action(async (opts: { root?: string }) => {
+      .addOption(
+        hook
+          .createOption('--host <tool>', 'the agent firing the hook, for hosts whose payload does not name one')
+          .choices(DECLARED_HOSTS),
+      )
+      .action(async (opts: { root?: string; host?: DeclaredHost }) => {
         const input = await readStdin()
-        mirror(handler(resolve(opts.root ?? process.cwd()), input))
+        mirror(handler(resolve(opts.root ?? process.cwd()), input, opts.host))
       })
   }
 }

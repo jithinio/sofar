@@ -1,5 +1,6 @@
 import {
   freshnessTotal,
+  latestRun,
   openSessionFileConflicts,
   staleActivePhases,
   type InitiativeState,
@@ -10,10 +11,15 @@ import {
 import {
   clipDetect,
   describeFreshness,
+  describeRun,
   phaseFraction,
   progressCompact,
+  runDetailLines,
   taskProgress,
 } from '../../projections/templates/shared'
+import type { RecordProvenance } from '../../core/record-copies'
+import type { RunLiveness } from '../../core/run-lock'
+import { copyLabel, hereText, provenanceSummary } from '../../projections/templates/copies'
 import type { Style } from './style'
 import { pieFor, type Symbols } from './symbols'
 import { sanitizeProse, truncatePlain, visibleWidth } from './text'
@@ -48,6 +54,19 @@ export interface LayoutOptions {
    * when a live process alternates frames.
    */
   pulse?: boolean
+  /**
+   * Where the record's events live when other copies hold some this checkout
+   * lacks (branch-visibility D1); the state rendered is then their union.
+   * Absent or null renders exactly as before.
+   */
+  provenance?: RecordProvenance | null
+  /** Home directory, so worktree paths print as `~/…`. */
+  home?: string
+  /**
+   * What the run lock says about the latest run when it has no stop
+   * (drive-visibility 2.3). Absent renders the record's own words.
+   */
+  liveness?: RunLiveness
 }
 
 /** Render one initiative at the requested zoom. Lines, no trailing newline. */
@@ -76,6 +95,16 @@ function fullZoom(state: InitiativeState, options: LayoutOptions): string[] {
       s.dim(` · ${phaseCount} phase${phaseCount === 1 ? '' : 's'}`),
   )
   lines.push(s.muted(oneLine(state.goal) || '(none recorded)'))
+
+  const provenance = options.provenance
+  if (provenance != null) {
+    lines.push('')
+    lines.push(`${s.warn(`${sym.warn} Across branches`)} ${s.dim('— progress folds every copy; --here for this checkout alone')}`)
+    lines.push(`  ${s.dim(sym.elbow)} ${oneLine(hereText(provenance))} ${s.dim(`— ${provenance.unseen} event(s) not on this checkout`)}`)
+    for (const c of provenance.copies) {
+      lines.push(`  ${s.dim(sym.elbow)} ${oneLine(copyLabel(c.copy, options.home))} ${s.dim(`+${c.unseen}`)}`)
+    }
+  }
 
   const staleNames = new Set(staleActivePhases(state).map((p) => p.name))
   if (state.phases.length > 0) {
@@ -128,6 +157,27 @@ function fullZoom(state: InitiativeState, options: LayoutOptions): string[] {
     lines.push(s.dim(oneLine(`Last session (${last.tool}, ended ${last.ended ?? '?'})`)))
     // the summary block keeps its author's line breaks; escapes still degrade
     lines.push(`  ${sanitizeProse(last.summary!)}`)
+  }
+
+  if (state.runs.length > 0) {
+    lines.push('')
+    lines.push(`${s.bold('Driven')} ${s.dim(`(${state.runs.length} run${state.runs.length === 1 ? '' : 's'})`)}`)
+    const latest = latestRun(state)
+    for (const run of state.runs) {
+      const liveness = run === latest && run.stopped === undefined ? options.liveness : undefined
+      // The glyph carries the run's state without color: done, gone, unknown, live.
+      const glyph =
+        run.stopped !== undefined
+          ? s.dim(sym.ok)
+          : liveness === 'free'
+            ? s.error(sym.fail)
+            : liveness === 'absent'
+              ? s.dim(sym.circle)
+              : s.warn(sym.bullet)
+      const line = oneLine(describeRun(run, liveness))
+      lines.push(`${glyph} ${run.stopped !== undefined ? s.dim(line) : line}`)
+      for (const detail of runDetailLines(run)) lines.push(`${/^ */.exec(detail)![0]}${s.dim(oneLine(detail))}`)
+    }
   }
 
   if (state.files_touched.length > 0) {
@@ -217,7 +267,7 @@ function stalenessItems(state: InitiativeState): string[] {
 
 function portfolioZoom(
   state: InitiativeState,
-  { style: s, symbols: sym, columns }: LayoutOptions,
+  { style: s, symbols: sym, columns, provenance }: LayoutOptions,
 ): string[] {
   const lines: string[] = []
   const p = taskProgress(state.phases)
@@ -257,6 +307,11 @@ function portfolioZoom(
   const drift = freshnessTotal(state.freshness)
   if (drift > 0 && state.freshness.last_writeback_ts !== null) {
     const text = `next action may be stale: ${drift} event${drift === 1 ? '' : 's'} since write-back`
+    lines.push(`  ${s.warn(`${sym.warn} ${fit(text, columns, sym.warn, sym.ellipsis)}`)}`)
+  }
+
+  if (provenance != null) {
+    const text = provenanceSummary(provenance)
     lines.push(`  ${s.warn(`${sym.warn} ${fit(text, columns, sym.warn, sym.ellipsis)}`)}`)
   }
 

@@ -1,8 +1,13 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
+import { runInit } from '../src/cli/init'
+import { runNew } from '../src/cli/new'
+import { nudgeLine } from '../src/driver/nudge'
+import { checkSchema, type Json } from './helpers/codex'
 import {
   CodexAdapter,
   CODEX_CAPABILITIES,
@@ -29,7 +34,9 @@ import type { LaunchRequest } from '../src/driver/adapter'
  *
  * What these pin is the contract holding for an agent it was not designed
  * from: everything codex CANNOT do is declared, and the driver's derivations
- * work on an adapter that shows no record session id of its own.
+ * work whether or not its hooks ever showed the record a session id — the
+ * last suite drives it with the project's real Codex hooks in play
+ * (agents-parity 3.1).
  */
 
 const roots: string[] = []
@@ -98,13 +105,15 @@ function withStream(c: Cell, lines: unknown[]): string {
 }
 
 describe('what codex cannot do, declared', () => {
-  it('reports no live gauge and cannot be nudged, so the threshold policy is refused on it', () => {
+  it('reports no live gauge, so the threshold policy is refused on it — the nudge alone is a lever with no gauge', () => {
     expect(CODEX_CAPABILITIES.usage).toBe(false)
-    expect(CODEX_CAPABILITIES.nudge).toBe(false)
+    // Its hooks carry the nudge now (agents-parity 3.1)…
+    expect(CODEX_CAPABILITIES.nudge).toBe(true)
     expect(policyUnavailable(CODEX_CAPABILITIES, 'task')).toBeNull()
+    // …so the refusal names the one half still missing, and only that one.
     const why = policyUnavailable(CODEX_CAPABILITIES, 'threshold')
     expect(why).toContain('does not report usage')
-    expect(why).toContain('cannot nudge')
+    expect(why).not.toContain('cannot nudge')
   })
 
   it('has no per-tool rules and no cost, and the driver says what that makes inert', () => {
@@ -182,30 +191,79 @@ describe('argv and the pin line', () => {
     expect(args.at(-1)).toContain('\n\ngo')
   })
 
-  it('hands over the assigned session id and the CLI dialect, because codex has no sofar MCP', () => {
+  it('settles ONE session id: the hook’s Session line first, the assigned id only when none arrived', () => {
     const line = codexPinLine('session-driver', 'S-123')
-    expect(line).toContain('Your session id is S-123')
-    expect(line).toContain('sofar event append session-driver --session S-123 --source codex --type')
+    expect(line).toContain('"Session: <id>" line')
+    expect(line).toContain('use the id the driver assigned: S-123')
+    expect(line).toContain('Never use both.')
+    // The assigned id appears once, as the fallback. A command spelling it
+    // would be copied by a hooked session, splitting the launch in two (D30).
+    expect(line.split('S-123')).toHaveLength(2)
+    expect(line).toContain('sofar event append session-driver --session <id> --source codex --type')
     expect(line).toContain('session_started')
     expect(line).toContain('session_ended')
     // The tool name is load-bearing: the driver finds its session by it.
     expect(line).toContain('{"tool":"codex"}')
+    expect(line).toContain('tool "codex"')
     expect(codexPinLine('demo', 'S1', '/usr/local/bin/sofar')).toContain('/usr/local/bin/sofar event append')
+  })
+
+  it('spells the MCP loop for a session that has sofar’s tools, and the CLI for one that does not', () => {
+    const line = codexPinLine('demo', 'S1')
+    for (const tool of ['sofar_start_session', 'sofar_log_decision', 'sofar_update_task', 'sofar_end_session']) {
+      expect(line).toContain(tool)
+    }
+    expect(line).toContain('initiative "demo"')
+    expect(line).toContain('If you have no sofar MCP tools')
+    // 2.2 registers the server, so the old flat denial would now be false.
+    expect(line).not.toContain('You have no sofar MCP tools')
   })
 })
 
 describe('the stream', () => {
-  it('keeps codex’s thread id for diagnostics and reports the ASSIGNED session id', async () => {
+  it('reports the thread id its hooks register as the shown id, and the assigned id beside it', async () => {
     const c = cell('thread')
     const session = new CodexAdapter().launch(
       c.request({ env: { STUB_STREAM: withStream(c, [THREAD, TURN_STARTED, ITEM, TURN_DONE]) } }),
     )
     const exit = await session.wait()
     expect(session.threadId).toBe(THREAD.thread_id)
-    // Codex's own id is NOT the record's, and the exit never carries it.
-    expect(exit.session_id).toBe(session.sessionId)
-    expect(exit.session_id).not.toBe(THREAD.thread_id)
+    expect(exit.session_id).toBe(THREAD.thread_id)
+    expect(exit.assigned_session_id).toBe(session.assignedSessionId)
+    expect(exit.assigned_session_id).not.toBe(THREAD.thread_id)
+    // The id the pin line handed over is the one reported.
+    expect(readFileSync(join(c.out, 'argv'), 'utf8')).toContain(`use the id the driver assigned: ${session.assignedSessionId}`)
     expect(exit.code).toBe(0)
+  })
+
+  it('shows no id it never saw: without thread.started the exit carries the assigned id alone', async () => {
+    const c = cell('nothread')
+    const session = new CodexAdapter().launch(c.request({ env: { STUB_STREAM: withStream(c, [TURN_FAILED]) } }))
+    const exit = await session.wait()
+    expect(exit.session_id).toBeUndefined()
+    expect(exit.assigned_session_id).toBe(session.assignedSessionId)
+  })
+
+  it('hands the child a nudge file, which nudge() creates and the run cleans up', async () => {
+    const c = cell('nudge')
+    const script = join(c.root, 'bin', 'codex')
+    // Wait for the nudge, then report what the child's env named and found.
+    writeFileSync(
+      script,
+      `#!/bin/sh
+i=0
+while [ ! -e "$SOFAR_DRIVE_NUDGE" ] && [ $i -lt 200 ]; do sleep 0.02; i=$((i+1)); done
+printf '%s' "$SOFAR_DRIVE_NUDGE" > "$STUB_OUT/nudge-path"
+cat "$SOFAR_DRIVE_NUDGE" > "$STUB_OUT/nudge"
+`,
+      { mode: 0o755 },
+    )
+    const session = new CodexAdapter().launch(c.request())
+    session.nudge({ pct: 81, tokens: 810_000 })
+    await session.wait()
+    expect(readFileSync(join(c.out, 'nudge-path'), 'utf8')).toBe(session.nudgePath)
+    expect(JSON.parse(readFileSync(join(c.out, 'nudge'), 'utf8'))).toMatchObject({ pct: 81, tokens: 810_000 })
+    expect(existsSync(session.sessionDir)).toBe(false)
   })
 
   it('reads the final usage from turn.completed, and usage() stays undefined throughout', async () => {
@@ -313,6 +371,37 @@ describe('the driver’s derivations still hold on it (D3)', () => {
         'codex',
       ),
     ).toEqual({ kind: 'none' })
+  })
+
+  it('the launch’s own two ids answer exactly, even beside a parallel codex session (3.1)', () => {
+    const at = '2026-08-30T00:00:00.000Z'
+    const later = '2026-08-30T00:00:01.000Z'
+    const exit = { code: 0, session_id: 'T-thread', assigned_session_id: 'S-assigned' }
+    const parallel = { id: 'S-operator', tool: 'codex', started: later }
+    const hooked = { id: 'T-thread', tool: 'codex', started: later }
+    const unhooked = { id: 'S-assigned', tool: 'codex', started: later }
+    // The diff alone cannot tell them apart — the stall 3.1 predicts away.
+    expect(resolveLaunchedSession(state([hooked, parallel]), { code: 0 }, at, 'codex').kind).toBe('ambiguous')
+    // Hooks ran: the thread id they registered.
+    expect(resolveLaunchedSession(state([hooked, parallel]), exit, at, 'codex')).toMatchObject({
+      kind: 'found',
+      session: { id: 'T-thread' },
+    })
+    // Hooks never ran: the assigned id the session used instead.
+    expect(resolveLaunchedSession(state([unhooked, parallel]), exit, at, 'codex')).toMatchObject({
+      kind: 'found',
+      session: { id: 'S-assigned' },
+    })
+    // Split across both: the one that wrote back, else the shown one.
+    const wrote = { ...unhooked, summary: 'did it' }
+    expect(resolveLaunchedSession(state([hooked, wrote, parallel]), exit, at, 'codex')).toMatchObject({
+      kind: 'found',
+      session: { id: 'S-assigned' },
+    })
+    expect(resolveLaunchedSession(state([hooked, unhooked, parallel]), exit, at, 'codex')).toMatchObject({
+      kind: 'found',
+      session: { id: 'T-thread' },
+    })
   })
 })
 
@@ -451,4 +540,159 @@ exit 0
     // The run stopped on the SECOND task remaining, not on an exit code.
     expect(outcome.stop.note).toContain('1.1 is blocked')
   })
+})
+
+describe('what sofar’s Codex hooks give a driven session (agents-parity 3.1)', () => {
+  /**
+   * The same drive, with the project's hooks in play: `sofar init --agents
+   * codex` wires the real shims, and a stub `codex` fires them through the
+   * built CLI the way Codex does, then follows the pin line. Codex itself is
+   * the only fake (D3): that it hands its hooks this thread id and this env is
+   * what 3.2 checks live.
+   */
+  const bundle = join(__dirname, '..', 'dist', 'cli.js')
+  const helper = fileURLToPath(new URL('./helpers/codex-hooked-session.cjs', import.meta.url))
+  const payloads = fileURLToPath(new URL('./fixtures/codex/hook-payloads.codex-0.154.0.json', import.meta.url))
+  const plain = { color: false, unicode: true, animate: false }
+
+  function hookedRepo(name: string): { root: string; bin: string; out: string; log: string } {
+    const root = mkdtempSync(join(tmpdir(), `sofar-cx-${name}-`))
+    roots.push(root)
+    const git = (...args: string[]): void => {
+      execFileSync('git', args, { cwd: root, stdio: 'ignore' })
+    }
+    git('init', '-b', 'main')
+    git('config', 'user.email', 'test@example.com')
+    git('config', 'user.name', 'test')
+    writeFileSync(join(root, 'README.md'), 'x\n')
+    git('add', '-A')
+    git('commit', '-m', 'init')
+    runInit(root, { agents: ['codex'] }, plain, plain)
+    runNew(root, 'demo', { bind: true, goal: 'g' }, plain, plain)
+    const log = join(root, '.sofar', 'initiatives', 'demo', 'events.jsonl')
+    appendEvent(
+      log,
+      makeEvent({
+        initiative: 'demo',
+        session: 'cli',
+        type: 'plan_updated',
+        payload: {
+          plan: {
+            goal: 'g',
+            phases: [{ name: 'P1', status: 'active', tasks: [{ id: '1.1', title: 'first', status: 'pending' }] }],
+          },
+        },
+        source: 'cli',
+        actor: 'agent',
+      }),
+    )
+    const bin = join(root, 'bin')
+    const out = join(root, 'out')
+    for (const d of [bin, out]) mkdirSync(d)
+    // `sofar` on PATH is this build, as it would be for an installed sofar.
+    writeFileSync(join(bin, 'sofar'), `#!/bin/sh\nexec "${process.execPath}" "${bundle}" "$@"\n`, { mode: 0o755 })
+    return { root, bin, out, log }
+  }
+
+  /** Codex's transport around the helper: the thread id first, usage last. */
+  const stub = (mode: string): string => `#!/bin/sh
+printf '%s\\n' "$@" > "$STUB_OUT/argv"
+printf '%s\\n' '${JSON.stringify(THREAD)}'
+node "$STUB_HELPER" ${mode} "$STUB_OUT/argv" >&2
+printf '%s\\n' '${JSON.stringify(TURN_DONE)}'
+`
+
+  /** Everything the stub reads, minus any SOFAR_ variable of the run this suite executes in. */
+  function stubEnv(repo: ReturnType<typeof hookedRepo>, extra: Record<string, string> = {}): Record<string, string> {
+    const env: Record<string, string> = {}
+    for (const [key, value] of Object.entries(process.env)) {
+      if (!key.startsWith('SOFAR_') && value !== undefined) env[key] = value
+    }
+    return {
+      ...env,
+      PATH: `${repo.bin}:${process.env.PATH ?? ''}`,
+      STUB_OUT: repo.out,
+      STUB_ROOT: repo.root,
+      STUB_THREAD: THREAD.thread_id,
+      STUB_PAYLOADS: payloads,
+      STUB_HELPER: helper,
+      ...extra,
+    }
+  }
+
+  async function driveHooked(name: string, extra: Record<string, string>) {
+    const repo = hookedRepo(name)
+    writeFileSync(join(repo.bin, 'codex'), stub('session'), { mode: 0o755 })
+    // The loop builds its own LaunchRequest and passes no env, so the stub is
+    // reached through the process environment, as in the proof above.
+    const saved = process.env
+    process.env = stubEnv(repo, extra)
+    const progress: string[] = []
+    try {
+      const outcome = await drive(repo.root, 'demo', {
+        adapter: new CodexAdapter({ bin: join(repo.bin, 'codex') }),
+        maxSessions: 1,
+        onProgress: (l) => progress.push(l),
+      })
+      return { outcome, repo, progress }
+    } finally {
+      process.env = saved
+    }
+  }
+
+  it('hooks ran: the handoff names the thread id the hooks registered, beside a parallel codex session', async () => {
+    const { outcome, repo, progress } = await driveHooked('hooked', { STUB_PARALLEL: 'S-operator' })
+    // The model took the Session line's id, which is the transport's thread id.
+    expect(readFileSync(join(repo.out, 'id'), 'utf8')).toBe(THREAD.thread_id)
+    expect(outcome.handoffs).toHaveLength(1)
+    expect(outcome.handoffs[0]).toMatchObject({ reason: 'task_done', session_id: THREAD.thread_id })
+    expect(progress.filter((l) => l.includes('unresolved'))).toEqual([])
+
+    // One session for the launch — the hooks' edits and the write-back share
+    // it — beside the operator's own.
+    const codex = foldLog(repo.log)
+      .state.sessions.filter((s) => s.tool === 'codex')
+      .map((s) => s.id)
+    expect(codex.sort()).toEqual(['S-operator', THREAD.thread_id].sort())
+    const touched = readFileSync(repo.log, 'utf8')
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as { type: string; session: string })
+      .filter((e) => e.type === 'file_touched')
+    expect(touched.length).toBeGreaterThan(0)
+    expect(touched.every((e) => e.session === THREAD.thread_id)).toBe(true)
+    // And the write-back gate holds, then releases, that same session.
+    expect(JSON.parse(readFileSync(join(repo.out, 'stop'), 'utf8'))).toEqual({ held: 2, released: 0 })
+  }, 60_000)
+
+  it('hooks untrusted: the handoff names the assigned id the session used instead, beside a parallel codex session', async () => {
+    const { outcome, repo, progress } = await driveHooked('untrusted', {
+      STUB_HOOKS: 'untrusted',
+      STUB_PARALLEL: 'S-operator',
+    })
+    const used = readFileSync(join(repo.out, 'id'), 'utf8')
+    expect(used).not.toBe(THREAD.thread_id)
+    expect(readFileSync(join(repo.out, 'argv'), 'utf8')).toContain(`use the id the driver assigned: ${used}`)
+    expect(outcome.handoffs).toHaveLength(1)
+    expect(outcome.handoffs[0]).toMatchObject({ reason: 'task_done', session_id: used })
+    expect(progress.filter((l) => l.includes('unresolved'))).toEqual([])
+  }, 60_000)
+
+  it('the nudge reaches the session through Codex’s PostToolUse shim, in the shape Codex’s schema accepts', async () => {
+    const repo = hookedRepo('nudge')
+    writeFileSync(join(repo.bin, 'codex'), stub('nudge'), { mode: 0o755 })
+    const session = new CodexAdapter({ bin: join(repo.bin, 'codex') }).launch({
+      cwd: repo.root,
+      initiative: 'demo',
+      prompt: 'go',
+      env: stubEnv(repo),
+    })
+    session.nudge({ pct: 81, tokens: 810_000 })
+    expect((await session.wait()).code).toBe(0)
+    const decoded = JSON.parse(readFileSync(join(repo.out, 'post-tool'), 'utf8')) as Json
+    expect(checkSchema('post-tool-use.command.output', decoded)).toEqual([])
+    expect(decoded).toMatchObject({
+      hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: expect.stringContaining(nudgeLine({ pct: 81, tokens: 810_000 })) },
+    })
+  }, 60_000)
 })

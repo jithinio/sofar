@@ -49,6 +49,12 @@ Three consequences run through every design decision in the codebase:
 | `core/atomic.ts` | `writeFileAtomic` — temp + rename, so readers never see a torn file. |
 | `core/lock.ts` | `withFileLock` — exclusive-create mutex for short check-then-append sections (session registration). Degrades to unlocked rather than blocking a hook; lock files live in the self-ignoring `.index/`. |
 | `core/redact.ts` | Secret redaction on captured commands before they reach the log. |
+| `core/judge.ts` | Judge seam (typed-judge 2.1/2.2, SPEC §Judge): typed noul/choice/score questions over a bounded state; rules decide first with confidence 1, only abstentions go to a non-deterministic provider in one request, provider failure leaves abstentions and never throws; confidence recomputed from probabilities; state redacted before any provider; never imported by hooks, projections, the fold or the fast/statusline CLI (pinned by test). |
+| `core/decision-judge.ts` | Write-time decision judge (typed-judge 3.1, catalogue A2/A3): after sofar_log_decision or end_session appends a decision, asks one noul per candidate. A2: does it re-propose an earlier decision's rejected `over`? A3: does it break a standing rule? Candidates are this initiative's in-force, unacknowledged decisions, BM25-selected then newest, 8 per kind. The free-path rule decides only near-verbatim re-proposals; everything else goes to the cloud provider when the operator opted in. Output is warning lines at p ≥ 0.9 (provisional); it never refuses. |
+| `core/writeback-judge.ts` | Write-back judge (typed-judge 3.2, catalogue A1): after sofar_end_session appends, scores `next_action` on four described levels against the plan's next task, and asks two nouls over the summary (a decision the record does not hold; an operational fact for repo memory) against this session's and the BM25-related decisions and live memories. Free-path rules decide only a next action made of continuation words and an unlogged "chose X over Y" sentence in a session that logged no decision; the rest goes to the cloud provider when the operator opted in. Warning lines at level 0 / p ≥ 0.9 (provisional); never refuses. |
+| `core/filing-judge.ts` | Filing judge (typed-judge 3.3, catalogue A4/A5): after a decision, memory or note is written (its own tool or a write-back batch), a choice over the entry alone: decision, operational fact or note; and after a task is marked done, a noul: does the note cite evidence? Free-path rules decide only a memory or note holding an uncited "chose X over Y" sentence, and a done task with no note or completion words only; the rest goes to the cloud provider when the operator opted in. Warning lines at P ≥ 0.9 / p ≤ 0.1 (provisional); update_task, add_note and remember stay bare unless one renders (D7). |
+| `core/relevance-judge.ts` | Write-back relevance pass (typed-judge 5.1, D10/D11, catalogue C1): after sofar_end_session, only with a cloud provider, one noul per candidate (in-force decisions, live memories, notes; 8 per kind, BM25 against the next task): would a session doing the next task need it? Model answers become `judgement_recorded {question: relevance, about: task:<id>}`; no result line. |
+| `core/index-relevance.ts` | Stored-relevance index tier (typed-judge 5.1, D10): latest `relevance` judgement per (about, subject) from its own cursor, bare `D<n>` qualified. `relevance(index, {about, initiative?, retired})` never returns a retired handle (the caller supplies them); `rankByRelevance` keeps every deterministic candidate and adds a stranger only at p ≥ 0.8. Read by hooks, so it never imports a judge module. |
 | `core/lane.ts` | The quick-work lane's constants (r1-fixes 2.6, D14): the reserved slug `quick` an unbound branch falls back to, its fixed goal, and the block's recent-session cap. A fallback, never a binding and never a home. |
 | `core/snapshot.ts` | The public incremental fold (r1-fixes 5.1, D20–D22): `foldAll`/`foldFile` retain the replay as a versioned, serialisable snapshot with a byte-defined prefix; `fold`/`foldFileSince` apply a tail or refuse with a closed reason; `stateOf` finalizes on a clone; `canonicalJSON` is the golden form. Derived state only — never committed, exported or synced. |
 | `core/identity.ts` | Optional `user` stamp from git config. `identity.browser.ts` is the browser build. |
@@ -62,8 +68,10 @@ Three consequences run through every design decision in the codebase:
 | `core/graph.ts` | The cross-record adjacency graph — facts that outlive one log. **Never on the hot path**: it reads N logs where a shim can afford one. |
 | `core/citations.ts` | The citation grammar — scan handles from prose (lexical, permanent), bind them to initiatives (current, because `sofar new` changes the answer). Below `graph.ts` so the index can reach it. |
 | `core/warmth.ts` | Has a log grown recently? Read from the log's own newest event, never filesystem mtime — `git checkout` rewrites mtime on every file. |
+| `core/checks.ts` | Decision checks (memory-lead 2.3, D9): the in-force checks from the scope tier, which ones bear on a set of changed paths, the per-clone trust file (approved commands and the pre-commit opt-in), and the failure line with its fix hint. Runs nothing itself; the Stop hook, `sofar check` and drive's gate pass in the runner. |
 | `core/cross-conflicts.ts` | Files under concurrent edit by sessions in *different* initiatives. Gated on the hot path, exhaustive in `doctor`. |
 | `core/listing.ts` | `initiativeSlugs` and the portfolio listing behind `sofar list`. |
+| `core/record-copies.ts` | Every OTHER copy of the record (branch-visibility D1): other worktrees' working files (read as files), unmerged local branches not checked out (one `git cat-file --batch`), remotes opt-in; and `unionFold`, which folds this checkout's log with theirs, dedupes by id, and says which copies hold what this one lacks. Read-side only, never writes a copy. The scan spawns git, so it stays OUT of `git.ts` and off the hot path. Two parts are files only: `copyWatch`, the paths and filter `status --watch` watches to rescan on change (3.2), and `worktreeLeads`, which counts what other worktrees hold for the SessionStart hint and the write guard, proving an older-prefix copy with a stat and a 4 KB tail probe (3.3). |
 | `core/bindings.ts` | `.sofar/bindings.json` — which branch serves which initiative. |
 | `core/git.ts` | Branch, HEAD, upstream — read from `.git` files, no subprocess. |
 | `core/attribution.ts` | Commit → initiative from `Sofar-Initiative:` trailers (D4). Spawns `git log`, so it is kept OUT of `git.ts` to preserve that file's no-subprocess guarantee; every walk is bounded and gated on a ref having moved (D6). Falls back to the INDENTED trailer a squash merge leaves in the body, and only when the real trailer block is empty (2.3). |
@@ -71,7 +79,8 @@ Three consequences run through every design decision in the codebase:
 | `core/closeout.ts` | The mechanical audit run at close (5.1) — outstanding tasks, unresolved phases, done tasks with no file evidence, unaddressed guard crossings, drift since the write-back, unreviewed phases. Refuses nothing: the findings ride on the close event so an override is recorded rather than prevented (5.2). |
 | `core/cursor.ts` | Export/import cursors: the entire sync interface. |
 | `core/session-pointer.ts` | The live-session pointer (r1-fixes 4.1.3, D30): `.sofar/.index/session.json` names the session hooks registered (or a hookless `session_started` minted), so a CLI append with no `--session` joins it instead of splitting the launch into two ids. Derived and per-worktree; whether that session ended is read from the record. |
-| `core/state-dir.ts` | Per-clone state OUTSIDE the repo: `$XDG_STATE_HOME/sofar`, keyed by a hash of the clone's real path. Shared by sync cursors and the diagnostics store. |
+| `core/state-dir.ts` | Per-clone state OUTSIDE the repo: `$XDG_STATE_HOME/sofar`, keyed by a hash of the clone's real path. Shared by sync cursors and the diagnostics store; `resolvesInside` is the one refusal of a state dir under the clone. |
+| `core/run-lock.ts` | The run lock (drive-visibility D2, D3): an empty flock-semantics file lock at `<state base>/runs/<run id>.lock` a driver holds for its life — macOS `O_EXLOCK` descriptor, Linux `flock(1)` child on a pipe. `probeRunLock` reads held / free / absent with a shared non-blocking lock; never a pid, never unlinked. |
 | `core/diagnostics.ts` | The private diagnostics store (self-improve D3): append-only rows per initiative under the clone's state dir, 90-day retention, byte cap, best-effort writes that never recurse, refused outright if the path would land inside the repo. A third class — not truth, not derived. |
 | `core/signals.ts` | The signal availability map (self-improve 1.3): every signal the improvement loop may consume, with its ceiling (capturable / partial / unavailable), the blind spot behind it, and what the clone must have wired for it — a consumer prints UNKNOWN for anything else. |
 | `core/tune.ts` | `sofar tune --dry-run` detectors (self-improve 2.1): pure over raw events + diagnostics rows + the availability map; runs only what the map allows, cites event ids and row hashes, states coverage, names no cause, proposes nothing. |
@@ -89,12 +98,14 @@ synced, and any absence, staleness, or corruption falls back to reading the logs
 | `core/index-tail.ts` | Reads only what a log grew by. The cursor stores the byte offset where its event's line *starts*, so the seek is self-corroborating. |
 | `core/index-pass.ts` | The one incremental pass every tier shares. Holds the four cases where resuming would be unsound, each falling back to a full read. |
 | `core/index-tier0.ts` | **Hot tier.** Open sessions and the files they hold. Byte-sized, so the shim can read it. Faithful to the fold's caps rather than better than them. |
-| `core/index-tier1.ts` | **Keyed tier.** Declared relevance (which decisions guard this path) and derived relevance (who else touched it, from which initiative). |
+| `core/index-tier1.ts` | **Keyed tier.** The decision-scope half (memory-lead 2.1, D6): every decision that guards or names a file or carries a rule (2.2, D8 — the digest's repo-wide rules), with supersession mirrored from the fold. The labels tier (D8): every standing label-sized decision, for the writers' cross-record reversal check. Also derived relevance: who else touched a path, and from which initiative. |
+| `core/file-mentions.ts` | File mentions (memory-lead 2.1, D6): the file tokens a decision's chose, over and rule name, and whether a token names a path (its tail at a `/` boundary). Directory tokens are not mentions. Pure, no model. |
+| `core/told.ts` | The per-session told set of read-time surfacing (memory-lead 2.1, D6): which (decision, subject) pairs a notice already named. Lives in the derived index; losing it re-tells, never silences. |
 | `core/index-reach.ts` | **Reach tier.** What `sofar find` traverses: decisions, notes, files, sessions and citation edges, each carrying the event id that produced it. Read only when asked, so it can afford prose the hot tiers cannot. |
 | `core/lexicon.ts` | Turns a question into seeds when nothing denotes it: tokenize, fold plurals and tenses, rank by IDF. No model, and every match returns the words that carried it. |
 | `core/lessons.ts` | Relevant lessons at the prompt (r1-fixes 3.3, D16): BM25-ranks the prompt against this initiative's decisions and stall handoffs with the lexicon's ranker, in-process from the fold — no model, no file read, two lines at most; bounded to the last 60 decisions and switchable off with `SOFAR_LESSONS=off` (D18). |
 | `core/derived.ts` | Derived activity (r1-fixes 2.5, D24): the closed test-command recognizer the fold uses to mark test-shaped `command_run` events, the `SOFAR_ACTIVITY` switch, and the "log only why" sentences the MCP server appends to two tool descriptions. Pure — the fold never reads the env. |
-| `core/reversal.ts` | The reversal check (r1-fixes 4.1.2, D31): a new decision whose distinguishing chose/over terms land on a standing decision's over/chose is refused by sofar_log_decision and `event append` unless `supersedes` names it or `because` cites it. Lexical, label-sized clauses only, same record, no model. |
+| `core/reversal.ts` | The reversal check (r1-fixes 4.1.2, D31): a new decision whose distinguishing chose/over terms land on a standing decision's over/chose is refused by sofar_log_decision, the write-back batch and `event append` unless `supersedes` names it or `because` cites it. Every record since memory-lead 2.2 (D8): others come from the labels tier, are excused only by a qualified `<slug> D<n>`, and are replaced from their own record; a quarter-overlap arm fires when both decisions share a subject term. Lexical, label-sized clauses only, no model. |
 | `core/retire.ts` | Decision retirement (r1-fixes 3.2, D25): which decisions have left the digest — superseded by a later one (`superseded_by`, set by the fold) or scoped by `until` to a task that resolved — derived from the record, never a clock; plus the `SOFAR_RETIRE` switch the renderers read. |
 | `core/rule-fidelity.ts` | Rule fidelity (memory-lead 1.2, D2): the status codes, paths and values a standing rule states that the operator's `quote` does not — rendered beside the rule on every rule surface and returned as a warning by sofar_log_decision and `event append`. Pure token classification, no model. |
 | `core/order.ts` | One string order for every shared surface (r1-fixes 5.2, rust-core D6): `byCodeUnit`, UTF-16 code-unit comparison behind every sort of a path, slug, id or term — what Rust's `str` orders by; `localeCompare` is ICU collation and diverges on case and punctuation. |
@@ -114,6 +125,7 @@ Regenerated on every append. Never hand-edited.
 | `projections/templates/review.ts` | The review evidence packet — diff range, tasks claimed done, standing constraints, rejected approaches. Text only; the judging is the reviewing session's, never sofar's. |
 | `projections/templates/next.ts` | The single next action. |
 | `projections/templates/list.ts` | The portfolio view. |
+| `projections/templates/copies.ts` | Where a record's events live when other branches hold some this checkout lacks — the `sofar status` block and the `sofar list` summary (branch-visibility D1). Rendered only then, so every other record prints byte-identically. |
 | `projections/templates/shared.ts` | Shared rendering helpers. |
 
 ### 5. Surfaces — how agents and humans reach the record
@@ -129,7 +141,7 @@ silence, never a broken session.
 | UserPromptSubmit | Crossed guards and the lessons the prompt re-proposes first (D16), then live hazards: file conflicts, reachable peers, parallel wrap-ups, git state, drift nudge. |
 | PostToolUse | Captures file touches and commands as events (`ok: true`). The point-of-use guard fires here. On an unbound branch it creates the quick lane (`quick`) on the first edit and captures there (D14). A `tool_outcome` diagnostics row goes to the private store — including for the self-recording commands the record exempts. Outcomes (`ok`/`exit`) fold into per-session failed counts and per-task test outcomes (D24). |
 | PostToolUseFailure | The failed half: the same mechanical event with `ok: false` (and `exit` when the host gives one), and a `tool_failure` row carrying the redacted, clipped error text the record must never hold. Routes like PostToolUse, quick lane included. |
-| Stop | Blocks a session that owes a write-back — never in the quick lane, which has no write-back. |
+| Stop | Blocks a session that owes a write-back — never in the quick lane, which has no write-back. Guard crossings and failed decision checks (memory-lead 2.3) ride that block; neither ever causes one. |
 | SessionEnd | Closes the session. |
 
 A seventh shim, `hooks/prepare-commit-msg.sh`, is a **git** hook rather than a
@@ -139,6 +151,13 @@ file. It stamps `Sofar-Initiative:` onto the commit message (D5). It cannot
 binary existing and exits 0 unconditionally — a hook that can abort a commit is
 worse than no attribution.
 
+An eighth, `hooks/pre-commit.sh` (memory-lead 2.3, D9), runs `sofar check
+--staged`: the decision checks that bear on the staged paths. It is installed
+and removed like prepare-commit-msg. It refuses a commit only on exit 10, which
+the CLI returns only when the operator opted the clone in and an approved check
+failed. Any other status passes, so an older sofar without `check` never blocks
+a commit.
+
 | module | surface |
 | --- | --- |
 | `cli/index.ts` | Command registration. |
@@ -147,7 +166,8 @@ worse than no attribution.
 | `cli/fold.ts` | `sofar fold` (hidden) — the black-box face of the incremental fold for the shared fold-parity suite: fold raw lines, or apply a file tail to a serialized snapshot, print canonical state JSON. |
 | `cli/review.ts` | `sofar review` — prints the evidence packet (read half); the packet ends with the `sofar event append --type review_recorded` command that records the verdict (write half; r1-fixes 2.4, D13). |
 | `cli/commit-trailer.ts` | `sofar commit-trailer` — the prepare-commit-msg worker that stamps `Sofar-Initiative:` from the session that made the commit (D5). Session-only resolution; never fails a commit. |
-| `cli/init.ts` | `sofar init` — for the agents picked, hooks (`.claude/settings.json` and `.cursor/hooks.json`), MCP wiring (`.mcp.json` and `.cursor/mcp.json`) and protocol blocks; `.gitattributes` for all. Decides where the shims live and which agents a repo is already wired for (r1-fixes 7.1, D36). Owns the protocol-block ledger. |
+| `cli/init.ts` | `sofar init` — for the agents picked, hooks (`.claude/settings.json`, `.cursor/hooks.json`, `.codex/hooks.json`), MCP wiring (`.mcp.json`, `.cursor/mcp.json`, `.codex/config.toml`) and protocol blocks; `.gitattributes` for all. Decides where the shims live and which agents a repo is already wired for (r1-fixes 7.1, D36). Owns the protocol-block ledger. |
+| `cli/codex-config.ts` | sofar's MCP server in Codex's config.toml (agents-parity 2.2, D7): a structure-only TOML scanner (no dependency) that tells whether a `[mcp_servers.sofar]` table is there or may be appended, appends it and cuts it out byte-exactly, plus the user-level `codex mcp add` step and config path. |
 | `cli/agents.ts` | The agents `sofar init` can set up (Claude Code, Cursor, Codex): the `--agents` grammar, which agents this machine has, and the terminal multi-select picker (r1-fixes 7.1, D36). Writes no file. |
 | `cli/uninit.ts` | `sofar uninit` — removes what init wrote. |
 | `cli/new.ts` | `sofar new` — create an initiative, bind the branch. |
@@ -157,6 +177,7 @@ worse than no attribution.
 | `cli/list.ts` | `sofar list` — the portfolio. |
 | `cli/doctor.ts` | `sofar doctor` — the audit: records, lifecycle, split sessions, concurrency, guards, repo memory, scanners, formatters. |
 | `cli/drive.ts` | `sofar drive` — the CLI skin on the driver loop: builds the adapter, streams progress to stderr, and mirrors the run back through `describeRun`. Exit 0 for every stop the record can explain; 1 for `error` and for a preflight that refused to start. `--detach` re-spawns the command detached and answers its caller over IPC once the run is certain to start; `--stop` appends `run_stop_requested` and watches for the stop (in-session-drive D1/D2). |
+| `cli/check.ts` | `sofar check` — run the checks that bear on your changes, `--approve` one (terminal only), `--block-commits on\|off`; `--staged` is the pre-commit hook. |
 | `cli/graph.ts` | `sofar graph` — cross-record queries. |
 | `cli/find.ts` | `sofar find` — traverse from a seed within a hop budget. Offers adjacency, never asserts relevance; every row cites its event. |
 | `cli/remember.ts` | `sofar remember` — promote an operational fact. |
@@ -189,6 +210,7 @@ worse than no attribution.
 | `mcp/add-note.ts` | `sofar_add_note`. |
 | `mcp/remember.ts` | `sofar_remember`. |
 | `mcp/get-state.ts` | `sofar_get_state`. |
+| `mcp/copy-lag.ts` | The write guard (branch-visibility 3.4): after any write tool, or a guarded `sofar event append`, one `warnings` line when another worktree's copy of that record holds events this one lacks. Once per server process per lagging worktree. Warns only, never redirects the write. |
 | `mcp/close-initiative.ts` | `applyClose` — the two-step close behind `sofar close` and `sofar new --supersedes` (the MCP tool left in r1-fixes 2.4, D13). |
 
 **Library** — importable entry points, side-effect free.
@@ -205,7 +227,7 @@ The engine ships the **client only**. No service code lives here.
 
 | module | role |
 | --- | --- |
-| `client/config.ts` | API URL precedence, credential and cursor stores. |
+| `client/config.ts` | API URL precedence, credential and cursor stores; the user-preference file's path (`~/.config/sofar/config.json`). |
 | `client/device.ts` | RFC-8628 device flow for `sofar login`. |
 | `client/http.ts` | Authed fetch, typed errors, retry honouring `Retry-After`. |
 | `client/repos.ts` | `sofar link` — bind a clone to a remote record. |
@@ -213,6 +235,7 @@ The engine ships the **client only**. No service code lives here.
 | `client/pull.ts` | Since-cursor paging, dedupe-by-id import, projection regen. |
 | `client/doorbell.ts` | SSE doorbell — pull on every ring. |
 | `client/url.ts` | URL normalization. |
+| `client/judge.ts` | The `cloud` judge provider (typed-judge 2.3, SPEC §Judge): one POST to the repo-scoped judge endpoint under the sync credential, no retry, every failure (402/403 included) thrown for the seam to turn into abstentions; `resolveJudgeProvider` picks it only when `judge.provider` is `"cloud"`, the repo is linked and the operator is logged in. |
 
 `core/types.d.ts` holds ambient type declarations.
 
@@ -226,13 +249,17 @@ three-call adapter and the driver never becomes an agent loop of its own.
 
 | module | role |
 | --- | --- |
-| `driver/adapter.ts` | The adapter contract: `launch` → handle with `usage`/`nudge`/`kill`/`wait`, capabilities declared up front. Driver-side derivations that an adapter must never answer itself: `wroteBack` and `resolveLaunchedSession` read the fold, `policyUnavailable` refuses a threshold policy on an adapter that cannot measure or nudge. `launchEnv` builds every launch's environment without the calling agent's session-scoped variables (in-session-drive D3). |
+| `driver/adapter.ts` | The adapter contract: `launch` → handle with `usage`/`nudge`/`kill`/`wait`, capabilities declared up front. Driver-side derivations that an adapter must never answer itself: `wroteBack` and `resolveLaunchedSession` read the fold, `policyUnavailable` refuses a threshold policy on an adapter that cannot measure or nudge. `launchEnv` builds every launch's environment without the calling agent's session-scoped variables (in-session-drive D3). `drivenPinLine` is the preamble for an agent whose hooks may not run (codex, cursor): the injected Session line's id first, an assigned fallback id otherwise, and both the MCP and CLI dialects. |
 | `driver/claude-code.ts` | The Claude Code adapter: `claude -p --output-format stream-json --verbose`, session id from the init line, context from the latest turn's input + cache tokens, output summed per message id, cost from the result line. Initiative pinned through the prompt; nudge delivered as a file whose path rides in `SOFAR_DRIVE_NUDGE`; the session's permission surface written to a per-session settings file and verified before the spawn, with the mode on `--permission-mode` where no settings source can outrank it. |
-| `driver/codex.ts` | The codex adapter (3.1): `codex exec --json`, thread/turn/item events, usage only on `turn.completed`. Declares what it cannot do — no live gauge, no nudge, no per-tool permission rules, no cost — maps the surface's mode to a sandbox plus `approval_policy=never`, assigns the session id it writes into the pin line, and hands the session the CLI dialect because codex carries no sofar MCP server. |
+| `driver/codex.ts` | The codex adapter (3.1): `codex exec --json`, thread/turn/item events, usage only on `turn.completed`. Declares what it cannot do — no live gauge, no nudge, no per-tool permission rules, no cost — maps the surface's mode to a sandbox plus `approval_policy=never`, assigns the session id it writes into the pin line, and hands the session both dialects through `drivenPinLine`; nudge and session identity come from sofar's Codex hooks (agents-parity 3.1). |
+| `driver/cursor.ts` | The cursor adapter (r1-fixes 6.8, D38): `cursor-agent -p --output-format stream-json --trust`, chat id from `system/init` (the id Cursor's hooks register), usage only on the `result` line. Declares what it cannot do — no live gauge, no nudge, no effort, no per-tool permission rules, no cost — maps the surface's mode to `--force` / `--sandbox disabled` / `--mode plan`, never passes `--approve-mcps`, and pins the session with `drivenPinLine`. |
 | `driver/permissions.ts` | The permission surface a driven session runs under (2.4, D8): the default `acceptEdits` mode and the allow-list floor — sofar's own MCP tools, `sofar`, and the local git verbs the prompt orders — plus `buildSurface`, `sameSurface` for the resume comparison, and `writeVerifiedSettings`, which writes a settings file and reads it back before any launch is allowed to happen. |
 | `driver/nudge.ts` | The threshold nudge file: the env var carrying its path, the write, the tolerant read, and the line the hook injects. Dependency-free because it sits on the PostToolUse hot path — existence is the signal, contents are detail. |
 | `driver/verify.ts` | The verification gate (r1-fixes 3.1, D19): which acceptance command applies to a task, whether the run's surface lets the driver run it, the tree fingerprint (HEAD plus tracked diff and untracked blobs, `.sofar/` excluded), running the command with a bounded redacted tail, and whether a recorded pass still covers the tree. |
 | `driver/routing.ts` | Per-task routing (3.2, D10): a task's `route {agent, model, effort}` resolved against the run. The run's pins win and an overridden hint is stated rather than dropped; `route.agent` is refused outright when the run cannot reach that adapter or when the adapter cannot run the run's policy, so no route ever falls back to the default agent silently. `previewRoutes` runs the whole queue through it before `run_started`. |
+| `driver/preflight-judge.ts` | Driver pre-flight (typed-judge 4.2/4.3, D12, catalogue B3/B4): before each launch, only with a cloud judge provider, a `specified` noul, a `complexity` score (→ effort) and a `model` tier choice over the task alone. Advisory by the user's ruling: the launch is unchanged. Model answers become `judgement_recorded`, plus a pre-flight line, a warning for an underspecified task, and a route hint only for fields the route left open. |
+| `driver/progress-judge.ts` | Driver progress judge (typed-judge 4.1, D8, catalogue B1/B2): after each resolved handoff, and only with a cloud judge provider configured, a `task_done` noul and an `outcome` choice (task_done, partial, stalled, blocked_on_user, wrong_task, scope_creep, unclear) over the task, status before → after, write-back, diff stat since launch and the check line, never the fold's reason. Model answers become `judgement_recorded` (producer sofar-cloud) and a progress line, plus a warning when they disagree with the fold. The handoff reason stays the fold's (session-driver D5). |
+| `driver/keep-awake.ts` | Keeping the Mac awake for a run (drive-visibility D5): `caffeinate -i -w <driver pid>` from the moment the run is taken, so the assertion ends with the driver by any path and no pid is stored. The run's flag wins, else the saved `drive.keep_awake`, which a flagless run reads again before every launch; unset is off and stated as a warning in the opening lines, never prompted for here. Inert, and said so, elsewhere than macOS. |
 | `driver/drive.ts` | The `sofar drive` loop: fold → next task (active-first, then plan order) → launch → wait → handoff, until a stop rule fires. Reasons are read from the record (D5) — `needs_user` is the named task in `blocked`, `task_done` needs a write-back plus a resolved task, everything else stalls. One launch directory per run, verified by realpath to serve the same log (D6). A stop request is honoured before each launch from the fold and during a session by `watchStopRequests`, which reads only appended bytes (in-session-drive D2). |
 
 ---

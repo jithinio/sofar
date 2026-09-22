@@ -4,12 +4,11 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
-  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { join } from 'node:path'
 import {
   validateDiagnosticRow,
   type DiagnosticDataByKind,
@@ -19,7 +18,7 @@ import {
 } from '@sofar/schema/diagnostics'
 import { version as ENGINE_VERSION } from '../../package.json'
 import { writeFileAtomic } from './atomic'
-import { cloneKey, cloneRealPath, stateBase, type StateEnv } from './state-dir'
+import { cloneKey, resolvesInside, stateBase, type StateEnv } from './state-dir'
 
 /**
  * The private diagnostics store (self-improve D3, SPEC §Diagnostics store).
@@ -65,34 +64,7 @@ export interface DiagnosticsMeta {
  */
 export function diagnosticsDir(rootDir: string, env: StateEnv = process.env): string | null {
   const dir = join(stateBase(env), 'diagnostics', cloneKey(rootDir))
-  // Both sides are compared as typed AND with symlinks resolved: on macOS a
-  // temp dir is `/var/…` while its real path is `/private/var/…`, and a
-  // containment test that resolved only one side would let the other through.
-  const roots = [resolve(rootDir), cloneRealPath(rootDir)]
-  const dirs = [resolve(dir), realpathOfNearestAncestor(dir)]
-  for (const root of roots) for (const candidate of dirs) if (isInside(candidate, root)) return null
-  return dir
-}
-
-/** Real path of `path`, resolving through its deepest EXISTING ancestor when it does not exist yet. */
-function realpathOfNearestAncestor(path: string): string {
-  let probe = resolve(path)
-  const tail: string[] = []
-  for (;;) {
-    try {
-      return join(realpathSync(probe), ...tail.reverse())
-    } catch {
-      const parent = dirname(probe)
-      if (parent === probe) return resolve(path)
-      tail.push(basename(probe))
-      probe = parent
-    }
-  }
-}
-
-function isInside(path: string, root: string): boolean {
-  const rel = relative(root, path)
-  return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel))
+  return resolvesInside(dir, rootDir) ? null : dir
 }
 
 /** Path of one initiative's row file, or null when the store is refused. */

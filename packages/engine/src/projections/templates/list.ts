@@ -1,5 +1,6 @@
 import type { InitiativeListEntry, InitiativeListing } from '../../core/listing'
 import { isClosedInitiativeStatus } from '@sofar/schema'
+import { provenanceSummary } from './copies'
 import { clip, pct } from './shared'
 
 /**
@@ -17,7 +18,14 @@ import { clip, pct } from './shared'
  */
 
 export const MAX_LIST_ENTRIES = 20
-const LIST_LINE_BUDGET = 220
+export const LIST_LINE_BUDGET = 220
+/**
+ * Extra room a budgeted line gets for its across-branches part (branch-
+ * visibility 3.1). That part sits before the next action, so without it a
+ * union listing would clip the action off exactly the entries whose work is
+ * spread across branches. Capped: a copy's branch name has no length bound.
+ */
+export const PROVENANCE_LINE_BUDGET = 100
 
 export const EMPTY_LISTING = '(no initiatives — create one with `sofar new <slug>`)'
 
@@ -35,6 +43,9 @@ function entryLine(entry: InitiativeListEntry): string {
     `${entry.slug} [${tag}]`,
     `${entry.tasks_done}/${entry.tasks_total} tasks (${pct(entry.tasks_done, entry.tasks_total)})`,
   ]
+  // Only on a union listing, and only when another copy adds events: the
+  // figure above then folds every branch, and this says what it is made of.
+  if (entry.elsewhere !== undefined) parts.push(provenanceSummary(entry.elsewhere))
   if (entry.active_phase !== null && !closed) parts.push(`active: ${entry.active_phase}`)
   // What this record took over, named on the live side too: the successor is
   // where a reader lands, and the predecessors are where its history is.
@@ -50,6 +61,12 @@ function entryLine(entry: InitiativeListEntry): string {
   return `- ${parts.join(' — ')}`
 }
 
+function lineBudget(entry: InitiativeListEntry): number {
+  if (entry.elsewhere === undefined) return LIST_LINE_BUDGET
+  const part = ` — ${provenanceSummary(entry.elsewhere)}`
+  return LIST_LINE_BUDGET + Math.min(part.length, PROVENANCE_LINE_BUDGET)
+}
+
 /** Budgeted listing for the MCP surface (get_state view:"initiatives"). */
 export function renderInitiativeList(listing: InitiativeListing): string {
   const lines: string[] = [`# Sofar initiatives (${listing.entries.length})`, '']
@@ -57,7 +74,7 @@ export function renderInitiativeList(listing: InitiativeListing): string {
     lines.push(EMPTY_LISTING)
   } else {
     for (const entry of listing.entries.slice(0, MAX_LIST_ENTRIES)) {
-      lines.push(clip(entryLine(entry), LIST_LINE_BUDGET))
+      lines.push(clip(entryLine(entry), lineBudget(entry)))
     }
     if (listing.entries.length > MAX_LIST_ENTRIES) {
       lines.push(`- …and ${listing.entries.length - MAX_LIST_ENTRIES} more (run sofar list)`)

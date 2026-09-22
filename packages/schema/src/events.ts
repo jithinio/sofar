@@ -217,6 +217,25 @@ export interface DecisionLoggedPayload {
    * constraint never ages out. An id the plan never names never retires.
    */
   until?: string
+  /**
+   * `check` (memory-lead 2.3, D9): the executable half of the SAME clause — a
+   * shell command whose exit 0 means the decision holds. Valid only alongside
+   * `rule`, like `guard`: a failure has to cite the clause it enforces. It is
+   * text an agent wrote into a shared record, so nothing runs it until the
+   * operator approved that exact command on their clone, or, under `sofar
+   * drive`, the run's permission surface covers it. It WARNS everywhere, and
+   * blocks only at drive's task acceptance and, opted in, at pre-commit.
+   */
+  check?: DecisionCheck
+}
+/** The command that checks a decision still holds, and the fix to show when it does not (D9). */
+export interface DecisionCheck {
+  /** ≤ CHECK_CMD_MAX chars; run from the repo root; exit 0 = the decision holds. */
+  cmd: string
+  /** The remediation a failure shows, ≤ CHECK_HINT_MAX chars; absent, the rule and its quote stand in. */
+  hint?: string
+  /** @asType integer */
+  timeout_ms?: number
 }
 export interface SessionStartedPayload { tool: string; model?: string }
 export interface SessionEndedPayload { session_id?: string; summary: string; next_action: string }
@@ -273,6 +292,56 @@ export const MEMORY_HANDLE_RE = /^([a-z0-9-]+) M([1-9][0-9]*)$/
 export const DECISION_HANDLE_RE = /^D([1-9][0-9]*)$/
 /** Longest operator quote a rule may carry (memory-lead D2): the sentence, not the message. */
 export const RULE_QUOTE_MAX = 300
+/** A decision handle qualified by its record: `<slug> D<n>` (memory-lead 2.2, D8). */
+export const QUALIFIED_DECISION_HANDLE_RE = /^([a-z0-9-]+) D([1-9][0-9]*)$/
+/** Longest check command a decision may carry (memory-lead D9). */
+export const CHECK_CMD_MAX = 500
+/** Longest fix hint a check may carry (memory-lead D9). */
+export const CHECK_HINT_MAX = 300
+/** Longest a check may run, in ms (memory-lead D9) — the driver's verify ceiling. */
+export const CHECK_TIMEOUT_MAX_MS = 600_000
+
+/**
+ * A stored judgement (typed-judge 2.4, SPEC §Judge "Stored judgements"): what
+ * a Judge provider answered about one subject of the record, kept so a later
+ * reader — the index, the next SessionStart — can use it without asking again.
+ * ENRICHMENT, not fact: the fold ignores it for state and drift, and it is
+ * always attributable to the exact `model` version that produced it, so a
+ * newer model's answers can be told apart from an older one's. `answer` is the
+ * wire shape without the derivable `legend`; `state_hash` (sha256 of the
+ * redacted state judged) lets a reader tell whether the material changed.
+ */
+export const JUDGEMENT_ANSWER_TYPES = ['noul', 'choice', 'score'] as const
+export type JudgementAnswerType = (typeof JUDGEMENT_ANSWER_TYPES)[number]
+export type JudgementAnswer =
+  | { type: 'noul'; noul: number }
+  | { type: 'choice'; choice: string; probabilities: Record<string, number>; confidence: number }
+  | { type: 'score'; score: number; probabilities: Record<string, number>; confidence: number }
+export interface JudgementRecordedPayload {
+  /** Who ran the judge: `sofar-cloud`, `deterministic`, `agent`, … */
+  producer: string
+  /** Exact model version (never an alias), or `deterministic`. */
+  model: string
+  /** The question id, as the seam names it (`relevance`, `progress`, …). */
+  question: string
+  /**
+   * What it is about: an event id, a task id of this initiative, or a record
+   * handle qualified per the citation grammar — a bare `D12` is the envelope's
+   * own initiative, anything else `<slug> D12` / `<slug> M3` (typed-judge D10).
+   */
+  subject: string
+  /**
+   * What `subject` was judged AGAINST, for a relevance judgement (typed-judge
+   * D10): `task:<id>` (a task of the envelope's initiative) or
+   * `file:<repo-relative path>`. Absent for a judgement about the subject alone.
+   */
+  about?: string
+  answer: JudgementAnswer
+  state_hash?: string
+}
+
+/** `task:<id>` or `file:<repo-relative path>` (typed-judge D10). */
+export const JUDGEMENT_ABOUT_RE = /^(task:\S+|file:[^/\s].*)$/
 
 /** What a review concluded. `blocked` means it could not be performed at all. */
 export const REVIEW_VERDICTS = ['pass', 'findings', 'blocked'] as const
@@ -459,6 +528,12 @@ export interface VerificationRecordedPayload {
   timeout_ms: number
   /** ≤1,024 chars: ANSI-stripped, redacted tail of stdout and stderr. */
   diagnostics?: string
+  /**
+   * The decision whose `check` this was, as `<slug> D<n>` (memory-lead 2.3,
+   * D9). Absent: the task's own acceptance command. The fold keeps the two
+   * apart, so a check never displaces the task's verify pass.
+   */
+  decision?: string
 }
 
 export interface RunStoppedPayload {
@@ -475,6 +550,20 @@ export interface RunStoppedPayload {
  */
 export interface RunStopRequestedPayload {
   run: string
+}
+
+/**
+ * A driver took over a run that has no stop (drive-visibility 2.2): `sofar
+ * drive --resume` appends one before its first launch, at one more than the
+ * run's highest epoch — `run_started` is epoch 1, so an adoption is never
+ * below 2. The fencing token for a record that syncs: the fold's owner is the
+ * highest epoch (the first-sorting id on a tie), and a driver that finds it
+ * is no longer the owner steps down. One event per takeover, never a heartbeat.
+ */
+export interface RunAdoptedPayload {
+  run: string
+  /** @asType integer */
+  epoch: number
 }
 
 /**
@@ -536,11 +625,13 @@ export interface KnownEventPayloads {
   command_run: CommandRunPayload
   note_added: NoteAddedPayload
   memory_promoted: MemoryPromotedPayload
+  judgement_recorded: JudgementRecordedPayload
   review_recorded: ReviewRecordedPayload
   run_started: RunStartedPayload
   handoff: HandoffPayload
   run_stopped: RunStoppedPayload
   run_stop_requested: RunStopRequestedPayload
+  run_adopted: RunAdoptedPayload
   verification_recorded: VerificationRecordedPayload
   correction: CorrectionPayload
   suggestion_proposed: SuggestionProposedPayload
@@ -574,11 +665,13 @@ export const EVENT_TYPES = [
   'command_run',
   'note_added',
   'memory_promoted',
+  'judgement_recorded',
   'review_recorded',
   'run_started',
   'handoff',
   'run_stopped',
   'run_stop_requested',
+  'run_adopted',
   'verification_recorded',
   'correction',
   'suggestion_proposed',
@@ -607,6 +700,21 @@ function optStr(v: unknown): boolean {
 /** Optional, but non-empty when present — an empty rule would render an empty constraint. */
 function optNonEmptyStr(v: unknown): boolean {
   return v === undefined || str(v)
+}
+/** Shape errors of a decision's `check` (memory-lead D9); [] when valid. Shared with the MCP input validator. */
+export function checkSpecErrors(v: unknown): string[] {
+  if (!isObj(v)) return ['check: must be {cmd, hint?, timeout_ms?}']
+  const e: string[] = []
+  if (!str(v.cmd) || v.cmd.trim().length === 0) e.push('check.cmd: must be a non-empty shell command')
+  else if (v.cmd.length > CHECK_CMD_MAX) e.push(`check.cmd: at most ${CHECK_CMD_MAX} chars — point it at a script if it is longer`)
+  if (v.hint !== undefined && (!str(v.hint) || v.hint.length > CHECK_HINT_MAX)) {
+    e.push(`check.hint: must be a non-empty string of at most ${CHECK_HINT_MAX} chars when present`)
+  }
+  if (v.timeout_ms !== undefined && !(Number.isInteger(v.timeout_ms) && (v.timeout_ms as number) >= 1 && (v.timeout_ms as number) <= CHECK_TIMEOUT_MAX_MS)) {
+    e.push(`check.timeout_ms: must be an integer from 1 to ${CHECK_TIMEOUT_MAX_MS} when present`)
+  }
+  for (const key of Object.keys(v)) if (key !== 'cmd' && key !== 'hint' && key !== 'timeout_ms') e.push(`check.${key}: unknown field`)
+  return e
 }
 function taskStatus(v: unknown): v is TaskStatus {
   return typeof v === 'string' && (TASK_STATUSES as readonly string[]).includes(v)
@@ -823,6 +931,12 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
       // that names it (`supersedes`) instead of scheduling its expiry.
       if (str(p.rule)) e.push('until: not allowed with `rule` — a standing constraint never ages out; supersede it with a new rule instead')
     }
+    if (p.check !== undefined) {
+      // The executable half of a rule (memory-lead D9), as `guard` is the
+      // matchable half: a failure has to name the clause it enforces.
+      if (!str(p.rule)) e.push('check: requires `rule` — a failing check has to cite the clause it enforces')
+      e.push(...checkSpecErrors(p.check))
+    }
   },
   session_started(p, e) {
     if (!str(p.tool)) e.push('tool: must be a non-empty string')
@@ -855,6 +969,42 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (!str(p.text)) e.push('text: must be a non-empty string')
     if (p.supersedes !== undefined && !(str(p.supersedes) && MEMORY_HANDLE_RE.test(p.supersedes as string))) {
       e.push('supersedes: must be a qualified memory handle `<slug> M<n>` when present')
+    }
+  },
+  judgement_recorded(p, e) {
+    if (!str(p.producer)) e.push('producer: must be a non-empty string')
+    if (!str(p.model)) e.push('model: must be a non-empty string')
+    if (!str(p.question)) e.push('question: must be a non-empty string')
+    if (!str(p.subject)) e.push('subject: must be a non-empty string')
+    if (p.state_hash !== undefined && !str(p.state_hash)) e.push('state_hash: must be a non-empty string when present')
+    if (p.about !== undefined && !(str(p.about) && JUDGEMENT_ABOUT_RE.test(p.about as string))) {
+      e.push('about: must be `task:<id>` or `file:<repo-relative path>` when present')
+    }
+    const a = p.answer as Record<string, unknown> | undefined
+    if (typeof a !== 'object' || a === null) {
+      e.push('answer: must be an object')
+      return
+    }
+    const unit = (v: unknown): boolean => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1
+    const dist = (v: unknown): boolean =>
+      typeof v === 'object' && v !== null && Object.values(v as Record<string, unknown>).length >= 2 && Object.values(v as Record<string, unknown>).every(unit)
+    switch (a.type) {
+      case 'noul':
+        if (!unit(a.noul)) e.push('answer.noul: must be a number in [0, 1]')
+        break
+      case 'choice':
+        if (!str(a.choice)) e.push('answer.choice: must be a non-empty string')
+        if (!dist(a.probabilities)) e.push('answer.probabilities: must map 2+ keys to numbers in [0, 1]')
+        else if (!(a.choice as string in (a.probabilities as Record<string, unknown>))) e.push('answer.choice: must be one of answer.probabilities')
+        if (!unit(a.confidence)) e.push('answer.confidence: must be a number in [0, 1]')
+        break
+      case 'score':
+        if (!(typeof a.score === 'number' && Number.isFinite(a.score) && a.score >= 0)) e.push('answer.score: must be a non-negative number')
+        if (!dist(a.probabilities)) e.push('answer.probabilities: must map 2+ levels to numbers in [0, 1]')
+        if (!unit(a.confidence)) e.push('answer.confidence: must be a number in [0, 1]')
+        break
+      default:
+        e.push(`answer.type: must be one of ${JUDGEMENT_ANSWER_TYPES.join('|')}`)
     }
   },
   review_recorded(p, e) {
@@ -964,6 +1114,9 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
     if (p.diagnostics !== undefined && (!str(p.diagnostics) || (p.diagnostics as string).length > 1024)) {
       e.push('diagnostics: must be a non-empty string of at most 1,024 chars when present')
     }
+    if (p.decision !== undefined && !(str(p.decision) && QUALIFIED_DECISION_HANDLE_RE.test(p.decision as string))) {
+      e.push('decision: must be a qualified handle `<slug> D<n>` when present')
+    }
   },
   run_stopped(p, e) {
     if (!str(p.run)) e.push('run: must be a non-empty string')
@@ -979,6 +1132,14 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
   },
   run_stop_requested(p, e) {
     if (!str(p.run)) e.push('run: must be a non-empty string')
+  },
+  run_adopted(p, e) {
+    if (!str(p.run)) e.push('run: must be a non-empty string')
+    // Epoch 1 is run_started's: an adoption at or below it could never
+    // outrank the driver that started the run, so it fences nobody.
+    if (!(Number.isInteger(p.epoch) && (p.epoch as number) >= 2)) {
+      e.push('epoch: must be an integer of at least 2 — run_started is epoch 1')
+    }
   },
   correction(p, e) {
     if (!str(p.ref)) e.push('ref: must be a non-empty string (target event id)')
@@ -1117,10 +1278,10 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
   decision_logged: {
     writer: 'agent',
     summary: 'a design decision: what was chosen, over what, and why',
-    fields: 'chose, over, because, rule? (one imperative every later session must obey), quote? (the operator\'s exact words the rule came from; only with rule), guard? (path:<globs> or cmd:<globs>; only with rule), supersedes? (D<n> of the earlier decision this one replaces), until? (task id — in force until it resolves; never with rule)',
+    fields: 'chose, over, because, rule? (one imperative every later session must obey), quote? (the operator\'s exact words the rule came from; only with rule), guard? (path:<globs> or cmd:<globs>; only with rule), supersedes? (D<n> of the earlier decision this one replaces), until? (task id — in force until it resolves; never with rule), check? ({cmd, hint?, timeout_ms?}: a command whose exit 0 means the rule holds; only with rule)',
     // The condition rides `via` (printed as `note:`), not `fields`: fields is
     // hashed into the schema fingerprint both implementations embed (D22).
-    via: 'add rule when the operator states the choice for the whole project — every later `sofar status` shows it as a standing constraint; omit it for a one-off choice. Word the rule as the operator did (no status code, path or value they did not state) and put their exact words in quote. A decision that reverses a standing one is refused unless supersedes names it (or because cites it, for a narrower exception)',
+    via: 'add rule when the operator states the choice for the whole project — every later session sees it as a standing constraint, whichever record it works in; omit it for a one-off choice. Word the rule as the operator did (no status code, path or value they did not state) and put their exact words in quote. A decision that reverses a standing one in ANY record is refused unless supersedes names it or because cites it (a narrower exception); another record\'s is cited as `<slug> D<n>` and replaced from its own record (--initiative <slug>, supersedes D<n>)',
     example: {
       chose: 'SQLite via better-sqlite3',
       over: 'Postgres',
@@ -1193,8 +1354,8 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
   },
   verification_recorded: {
     writer: 'driver',
-    summary: "the driver ran a task's acceptance command before accepting it as done",
-    fields: `run, task, attempt, command, cwd, checked: {head, tree}, validator, result: ${VERIFICATION_RESULTS.join('|')}, exit_code?, signal?, duration_ms, timeout_ms, diagnostics? (≤1,024 chars)`,
+    summary: "the driver ran a task's acceptance command, or a decision's check, before accepting it as done",
+    fields: `run, task, attempt, command, cwd, checked: {head, tree}, validator, result: ${VERIFICATION_RESULTS.join('|')}, exit_code?, signal?, duration_ms, timeout_ms, diagnostics? (≤1,024 chars), decision? (<slug> D<n> whose check this was)`,
     example: {
       run: '01J00000000000000000000000',
       task: '1.1',
@@ -1221,6 +1382,12 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
     summary: 'a request for a running drive to stop',
     fields: 'run',
     example: { run: '01J00000000000000000000000' },
+  },
+  run_adopted: {
+    writer: 'driver',
+    summary: 'a sofar drive --resume took over a run that had no stop',
+    fields: 'run, epoch (integer ≥2; run_started is epoch 1 — the owner is the highest)',
+    example: { run: '01J00000000000000000000000', epoch: 2 },
   },
   correction: {
     writer: 'agent',
@@ -1263,6 +1430,12 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
     summary: 'an approval withdrawn, append-only — proposed, approved and reverted all stay in the log',
     fields: 'candidate, reason? (the command requires it)',
     example: { candidate: 'c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00', reason: 'evidence set moved' },
+  },
+  judgement_recorded: {
+    writer: 'driver',
+    summary: "a stored judge answer (typed-judge 2.4) — enrichment the fold ignores for state and drift; appended by the driver's progress judge (4.1) and the write-back relevance pass (5.1), never by hand",
+    fields: `producer, model (the exact version), question, subject (an event id, task id or qualified record handle), about? (task:<id> | file:<repo-relative path>), answer {type: ${JUDGEMENT_ANSWER_TYPES.join('|')}, …}, state_hash?`,
+    example: { producer: 'sofar-cloud', model: 'jev-1.13.0', question: 'task_done', subject: '1.1', answer: { type: 'noul', noul: 0.92 } },
   },
 }
 

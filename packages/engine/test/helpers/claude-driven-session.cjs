@@ -12,6 +12,7 @@
  *
  * Environment:
  *   STUB_OUT     directory; the session's environment is dumped to env-<session id>
+ *                and its pid to pid-<session id>
  *   STUB_LINGER  "1": after writing back, stay alive until signalled — the
  *                shape a stop request has to interrupt
  */
@@ -28,6 +29,7 @@ const log = path.join(process.cwd(), '.sofar', 'initiatives', initiative, 'event
 
 if (process.env.STUB_OUT) {
   fs.writeFileSync(path.join(process.env.STUB_OUT, `env-${sessionId}`), Object.keys(process.env).sort().map((k) => `${k}=${process.env[k]}`).join('\n'))
+  fs.writeFileSync(path.join(process.env.STUB_OUT, `pid-${sessionId}`), String(process.pid))
 }
 
 const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'

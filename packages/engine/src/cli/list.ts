@@ -1,9 +1,11 @@
 import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { isClosedInitiativeStatus } from '@sofar/schema'
 import { join } from 'node:path'
 import { emptyState, foldLog, type InitiativeState } from '../core/fold'
 import {
-  listInitiatives,
+  listAcrossCopies,
+  type CopyOptions,
   type InitiativeListEntry,
   type InitiativeListing,
 } from '../core/listing'
@@ -43,12 +45,19 @@ import {
 /** Block gutter: pointer + space marks the current-branch initiative. */
 const GUTTER = 2
 
+export type { CopyOptions }
+
 export function runList(
   rootDir: string,
   caps: Caps = stdoutCaps(),
   columns: number = columnsOf(process.stdout),
+  options: CopyOptions = {},
 ): CmdResult {
-  const listing = listInitiatives(rootDir)
+  return listResult(rootDir, listAcrossCopies(rootDir, options), caps, columns)
+}
+
+/** Render a listing already derived, for a caller that also reads it (unbound `sofar status`). */
+export function listResult(rootDir: string, listing: InitiativeListing, caps: Caps, columns: number): CmdResult {
   const stdout = caps.color
     ? renderStyledList(rootDir, listing, caps, columns)
     : renderFullInitiativeList(listing)
@@ -73,12 +82,15 @@ function renderStyledList(
   }
   const branch = currentBranch(rootDir)
   const inner = Math.max(0, columns - GUTTER)
+  const home = homedir()
   for (const entry of listing.entries) {
-    const block = renderInitiative(stateOf(rootDir, entry), {
+    const block = renderInitiative(listing.states?.get(entry.slug) ?? stateOf(rootDir, entry), {
       zoom: 'portfolio',
       style: s,
       symbols: sym,
       columns: inner,
+      provenance: entry.elsewhere,
+      home,
     })
     const current = branch !== null && entry.branches.includes(branch)
     const marker = current ? `${s.accent(sym.pointer)} ` : '  '

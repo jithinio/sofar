@@ -17,6 +17,7 @@ import {
   AGENTS_PROTOCOL_BLOCK_V3,
   AGENTS_PROTOCOL_BLOCK_V4,
   classifyProtocolBlock,
+  CODEX_TRUST_HINT,
   CURSOR_HOOKS,
   CURSOR_MCP_HINT,
   GITATTRIBUTES_LINE,
@@ -133,7 +134,7 @@ describe('sofar init on a fresh repo', () => {
       ],
       PostToolUse: [
         {
-          matcher: 'Edit|Write|MultiEdit|Bash',
+          matcher: 'Edit|Write|MultiEdit|Bash|Read|Grep',
           hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use.sh' }],
         },
       ],
@@ -514,7 +515,7 @@ describe('confirmation styling (cli-ui 2.5)', () => {
     expect(result.exitCode).toBe(0)
     // The report block ends at the blank line before the (unstyled) hint.
     const lines = (result.stdout.split('\n\n')[0] ?? '').split('\n')
-    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (16 changes)')
+    expect(lines.at(-1)).toBe('\x1b[32m✓\x1b[39m sofar init: done (24 changes)')
     expect(lines[0]).toBe('\x1b[2m  └ created .sofar/repo.md\x1b[22m')
     for (const line of lines.slice(0, -1)) {
       expect(line.startsWith('\x1b[2m  └ ')).toBe(true)
@@ -535,18 +536,28 @@ describe('confirmation styling (cli-ui 2.5)', () => {
         'created .claude/hooks/post-tool-use-failure.sh',
         'created .claude/hooks/stop.sh',
         'created .claude/hooks/session-end.sh',
+        'created .codex/hooks/sofar/session-start.sh',
+        'created .codex/hooks/sofar/user-prompt-submit.sh',
+        'created .codex/hooks/sofar/post-tool-use.sh',
+        'created .codex/hooks/sofar/stop.sh',
+        'created .codex/hooks/sofar/session-end.sh',
         'created .git/hooks/prepare-commit-msg',
+        'created .git/hooks/pre-commit',
         'created .claude/settings.json',
         'created .mcp.json',
         'created .cursor/hooks.json',
         'created .cursor/mcp.json',
+        'created .codex/hooks.json',
+        'created .codex/config.toml',
         'created CLAUDE.md (sofar protocol block)',
         'created AGENTS.md (sofar protocol block)',
-        'sofar init: done (16 changes)',
+        'sofar init: done (24 changes)',
         '',
         STATUSLINE_HINT,
         '',
         CURSOR_MCP_HINT,
+        '',
+        CODEX_TRUST_HINT,
         '',
       ].join('\n'),
     )
@@ -729,7 +740,7 @@ describe('Cursor wiring (r1-fixes 6.2/6.6, D34)', () => {
       expect(entry?.loop_limit).toBe(spec.loop_limit)
     }
     expect(cursor.hooks.stop?.[0]?.loop_limit).toBe(1)
-    expect(cursor.hooks.postToolUse?.[0]?.matcher).toBe('Shell|Write')
+    expect(cursor.hooks.postToolUse?.[0]?.matcher).toBe('Shell|Write|Read')
   })
 
   it('registers the same sofar server in .cursor/mcp.json as in .mcp.json', () => {
@@ -776,5 +787,54 @@ describe('Cursor wiring (r1-fixes 6.2/6.6, D34)', () => {
     expect(result.exitCode).toBe(1)
     expect(result.stderr).toContain('.cursor/hooks.json is not valid JSON')
     expect(readFileSync(join(root, '.cursor', 'hooks.json'), 'utf8')).toBe('{ not json')
+  })
+})
+
+describe('re-init widens a matcher sofar shipped earlier (memory-lead 2.1, D6)', () => {
+  const POST = '$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use.sh'
+
+  function settingsWith(root: string, matcher: string): void {
+    mkdirSync(join(root, '.claude'), { recursive: true })
+    writeFileSync(
+      join(root, '.claude', 'settings.json'),
+      JSON.stringify({ hooks: { PostToolUse: [{ matcher, hooks: [{ type: 'command', command: POST }] }] } }),
+    )
+  }
+
+  function postMatchers(root: string): unknown[] {
+    const settings = readJSON(join(root, '.claude', 'settings.json')) as {
+      hooks: { PostToolUse: Array<{ matcher?: string }> }
+    }
+    return settings.hooks.PostToolUse.map((e) => e.matcher)
+  }
+
+  it('an entry of ours with the pre-2.1 matcher gains Read and Grep, in place', () => {
+    const root = freshRepo()
+    settingsWith(root, 'Edit|Write|MultiEdit|Bash')
+    expect(runInit(root).exitCode).toBe(0)
+    // Widened, not duplicated: an entry is still ours, one per event.
+    expect(postMatchers(root)).toEqual(['Edit|Write|MultiEdit|Bash|Read|Grep'])
+  })
+
+  it('a matcher the user wrote is theirs, and is kept', () => {
+    const root = freshRepo()
+    settingsWith(root, 'Edit|Write')
+    runInit(root)
+    expect(postMatchers(root)).toEqual(['Edit|Write'])
+  })
+
+  it('Cursor: our postToolUse entry with the pre-2.1 matcher gains Read', () => {
+    const root = freshRepo()
+    runInit(root)
+    const path = join(root, '.cursor', 'hooks.json')
+    const cursor = readJSON(path) as { hooks: Record<string, Array<Record<string, unknown>>> }
+    cursor.hooks.postToolUse![0]!.matcher = 'Shell|Write'
+    writeFileSync(path, JSON.stringify(cursor))
+
+    runInit(root)
+    const after = readJSON(path) as { hooks: Record<string, Array<Record<string, unknown>>> }
+    expect(after.hooks.postToolUse?.map((e) => e.matcher)).toEqual(['Shell|Write|Read'])
+    // The failure hook's matcher did not change in 2.1, so nothing touches it.
+    expect(after.hooks.postToolUseFailure?.[0]?.matcher).toBe('Shell|Write')
   })
 })

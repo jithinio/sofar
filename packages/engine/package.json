@@ -1,6 +1,6 @@
 {
   "name": "sofar.sh",
-  "version": "0.33.0-rc.2",
+  "version": "0.33.0-rc.2+trunk",
   "description": "Sofar v1 engine — event log core, MCP server, CLI, hooks",
   "type": "module",
   "engines": {
@@ -48,12 +48,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jithinio/sofar.git",
+    "url": "git+https://github.com/usesofar/sofar.git",
     "directory": "packages/engine"
   },
   "homepage": "https://sofar.sh",
   "bugs": {
-    "url": "https://github.com/jithinio/sofar/issues"
+    "url": "https://github.com/usesofar/sofar/issues"
   },
   "keywords": [
     "agents",
@@ -68,10 +68,10 @@
     "access": "public"
   },
   "optionalDependencies": {
-    "sofar-core-darwin-arm64": "0.33.0-rc.2",
-    "sofar-core-darwin-x64": "0.33.0-rc.2",
-    "sofar-core-linux-x64": "0.33.0-rc.2",
-    "sofar-core-linux-arm64": "0.33.0-rc.2",
-    "sofar-core-win32-x64": "0.33.0-rc.2"
+    "sofar-core-darwin-arm64": "0.33.0-rc.2+trunk",
+    "sofar-core-darwin-x64": "0.33.0-rc.2+trunk",
+    "sofar-core-linux-x64": "0.33.0-rc.2+trunk",
+    "sofar-core-linux-arm64": "0.33.0-rc.2+trunk",
+    "sofar-core-win32-x64": "0.33.0-rc.2+trunk"
   }
 }

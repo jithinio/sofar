@@ -22,6 +22,7 @@ import {
   type CorrectionPayload,
   type GuardDomain,
   DECISION_HANDLE_RE,
+  type DecisionCheck,
   type DecisionLoggedPayload,
   type HandoffPayload,
   type HandoffReason,
@@ -35,6 +36,7 @@ import {
   type VerificationRecordedPayload,
   type VerificationResult,
   type RunStopRequestedPayload,
+  type RunAdoptedPayload,
   type ReviewRecordedPayload,
   type ReviewScope,
   type ReviewVerdict,
@@ -87,6 +89,18 @@ export interface TaskState {
    * one that would run now — the driver re-fingerprints before trusting it.
    */
   verification?: TaskVerification
+  /**
+   * The latest check run per decision (memory-lead 2.3, D9), oldest decision
+   * first: verification_recorded carrying `decision`. Kept apart from
+   * `verification` so a decision's check never displaces the task's own pass.
+   */
+  checks?: CheckVerification[]
+}
+
+/** A decision's check as the driver ran it for one task (D9). */
+export interface CheckVerification extends TaskVerification {
+  /** `<slug> D<n>` whose check this was. */
+  decision: string
 }
 
 /** One `verification_recorded`, as the task and the run keep it (D19). */
@@ -141,6 +155,8 @@ export interface DecisionState {
   supersedes?: string
   /** Task id this decision is in force until, as recorded (D25); never present with `rule`. */
   until?: string
+  /** The executable half of `rule` (memory-lead 2.3, D9), as recorded; only alongside `rule`. */
+  check?: DecisionCheck
   /**
    * Ordinal of the decision that replaced this one (D25) — set by the fold
    * when a later decision's `supersedes` resolves here and is permitted (a
@@ -262,6 +278,13 @@ export interface RunHandoff {
   detail?: string
 }
 
+/** A `--resume` taking the run over (drive-visibility 2.2). */
+export interface RunAdoption {
+  id: string
+  ts: string
+  epoch: number
+}
+
 /**
  * One `sofar drive` run (session-driver 1.2, D2): the driver's ENTIRE state,
  * folded from run_started / handoff / run_stopped. A driver holds nothing
@@ -290,7 +313,7 @@ export interface RunState {
   /** Log order. */
   handoffs: RunHandoff[]
   /** Every verification this run recorded, log order (D19). */
-  verifications: { ts: string; task: string; attempt: number; result: VerificationResult }[]
+  verifications: { ts: string; task: string; attempt: number; result: VerificationResult; decision?: string }[]
   /**
    * Tasks that reached `done` while this run was open, log order, deduplicated
    * (D19). What a resumed driver checks for a missing verification: a crash
@@ -299,10 +322,21 @@ export interface RunState {
    */
   done_tasks: string[]
   /**
-   * When `sofar drive --stop` asked this run's driver to end it (in-session-drive
-   * D2), log order. Envelope timestamps, because a driver honours only the
-   * requests made after it took the run — one left behind for a driver that
-   * died must not stop the `--resume` that follows it.
+   * Takeovers by `--resume` (drive-visibility 2.2), replay order. `run_started`
+   * is epoch 1 and is not listed.
+   */
+  adoptions: RunAdoption[]
+  /**
+   * The driver in force: the highest epoch, the first-sorting id on a tie —
+   * `run_started`'s own id at epoch 1 until an adoption outranks it. A driver
+   * whose adoption is not this one steps down (drive-visibility D2's fence).
+   */
+  owner: { id: string; epoch: number }
+  /**
+   * Event ids of every `sofar drive --stop` for this run (in-session-drive D2),
+   * log order. Ids rather than timestamps (drive-visibility 2.2): only the
+   * requests sorting after the owner's adoption are in force — see
+   * `stopRequestsInForce` — and every reader compares the same bytes.
    */
   stop_requests: string[]
   stopped?: string
@@ -676,6 +710,15 @@ export function latestRun(state: InitiativeState): RunState | undefined {
   return state.runs.length > 0 ? state.runs[state.runs.length - 1] : undefined
 }
 
+/**
+ * The stop requests the run's owner must honour (drive-visibility 2.2): those
+ * whose id sorts after the owner's adoption. One left behind for a driver that
+ * died cannot stop the `--resume` that followed it.
+ */
+export function stopRequestsInForce(run: RunState): string[] {
+  return run.stop_requests.filter((id) => id > run.owner.id)
+}
+
 function emptyFreshness(): FreshnessState {
   return {
     events_since_writeback: {
@@ -1002,6 +1045,29 @@ function sessionById(sessions: SessionState[], id: string): SessionState | undef
   return index.byId.get(id)
 }
 
+const fileIndexes = new WeakMap<string[], { indexed: number; seen: Set<string> }>()
+
+/**
+ * What `files.includes(path)` answers, in O(1) (r1-fixes 4.5). The
+ * file_touched arm asks once per file event, so the scan made the fold
+ * O(file events × distinct paths): ~70% of the fold on rust-core 1.5's
+ * team100 (60,686 paths in 67,901 file events).
+ *
+ * Exact for the same reason as sessionById: a fold only PUSHES to
+ * state.files_touched, so indexing the array's new tail on each call sees
+ * every path `includes` would, and the array keeps its order and first
+ * occurrences. Keyed by the array, so a restored checkpoint indexes afresh.
+ */
+function hasFile(files: string[], path: string): boolean {
+  let index = fileIndexes.get(files)
+  if (index === undefined) {
+    index = { indexed: 0, seen: new Set() }
+    fileIndexes.set(files, index)
+  }
+  for (; index.indexed < files.length; index.indexed++) index.seen.add(files[index.indexed]!)
+  return index.seen.has(path)
+}
+
 // ---------------------------------------------------------------------------
 // Fold-time freshness (staleness-detection 1.1).
 // ---------------------------------------------------------------------------
@@ -1053,6 +1119,7 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
     case 'handoff':
     case 'run_stopped':
     case 'run_stop_requested':
+    case 'run_adopted':
     case 'verification_recorded':
       // Driver events are EXCLUDED from drift, deliberately (commit-attribution
       // D18 requires the class decided here). Drift asks whether the recorded
@@ -1094,6 +1161,14 @@ function recordFreshness(state: InitiativeState, event: EventEnvelope): void {
       break
     case 'review_recorded':
       mutation(() => (counts.reviews += 1))
+      break
+    case 'judgement_recorded':
+      // Stored judgements are EXCLUDED from drift, deliberately (commit-
+      // attribution D18 requires the class decided here). A judgement is
+      // ENRICHMENT derived from the record — a score, a verdict, a rank — and
+      // changes nothing the plan says (typed-judge 2.4); it owes no write-back
+      // and cannot stale a next_action. Counting it would make every
+      // write-time relevance pass read as drift the moment it ran.
       break
   }
 }
@@ -1403,6 +1478,15 @@ function droppedResolvedStatuses(state: InitiativeState, payload: PlanUpdatedPay
   return dropped
 }
 
+/** A decision's check as recorded, known keys only — absent stays absent (D9). */
+function decisionCheck(check: DecisionCheck): DecisionCheck {
+  return {
+    cmd: check.cmd,
+    ...(check.hint !== undefined ? { hint: check.hint } : {}),
+    ...(check.timeout_ms !== undefined ? { timeout_ms: check.timeout_ms } : {}),
+  }
+}
+
 function findTask(state: InitiativeState, id: string): TaskState | undefined {
   for (const phase of state.phases) {
     const task = phase.tasks.find((t) => t.id === id)
@@ -1533,6 +1617,7 @@ function applyEvent(
         ...(p.guard !== undefined ? { guard: p.guard } : {}),
         ...(p.supersedes !== undefined ? { supersedes: p.supersedes } : {}),
         ...(p.until !== undefined ? { until: p.until } : {}),
+        ...(p.check !== undefined ? { check: decisionCheck(p.check) } : {}),
       })
       // Supersession (r1-fixes 3.2, D25): resolve `D<n>` against the
       // decisions already folded — the log alone, no clock, no env. Inert
@@ -1574,6 +1659,11 @@ function applyEvent(
       }
       break
     }
+    case 'judgement_recorded':
+      // Enrichment, never state (typed-judge 2.4): replay stays a pure
+      // function of the recorded FACTS, and a judgement is an opinion about
+      // them. The index reads these from the raw log; the fold does not.
+      break
     case 'review_recorded': {
       const p = event.payload as unknown as ReviewRecordedPayload
       state.reviews.push({
@@ -1606,6 +1696,8 @@ function applyEvent(
         handoffs: [],
         verifications: [],
         done_tasks: [],
+        adoptions: [],
+        owner: { id: event.id, epoch: 1 },
         stop_requests: [],
       })
       break
@@ -1619,13 +1711,13 @@ function applyEvent(
         warnings.push(`line ${lineNo}: verification for run "${p.run}" that never started — skipped`)
         break
       }
-      run.verifications.push({ ts: event.ts, task: p.task, attempt: p.attempt, result: p.result })
+      run.verifications.push({ ts: event.ts, task: p.task, attempt: p.attempt, result: p.result, ...(p.decision !== undefined ? { decision: p.decision } : {}) })
       const task = findTask(state, p.task)
       if (!task) {
         warnings.push(`line ${lineNo}: verification for task "${p.task}" not in the plan — kept on the run only`)
         break
       }
-      task.verification = {
+      const verification: TaskVerification = {
         run: p.run,
         attempt: p.attempt,
         ts: event.ts,
@@ -1639,6 +1731,18 @@ function applyEvent(
         duration_ms: p.duration_ms,
         timeout_ms: p.timeout_ms,
         ...(p.diagnostics !== undefined ? { diagnostics: p.diagnostics } : {}),
+      }
+      // A decision's check (memory-lead 2.3, D9) keeps its own latest, in the
+      // order decisions were first checked; the task's own verify stays put.
+      if (p.decision !== undefined) {
+        const checks = task.checks ?? []
+        const at = checks.findIndex((c) => c.decision === p.decision)
+        const entry: CheckVerification = { ...verification, decision: p.decision }
+        if (at >= 0) checks[at] = entry
+        else checks.push(entry)
+        task.checks = checks
+      } else {
+        task.verification = verification
       }
       break
     }
@@ -1703,7 +1807,22 @@ function applyEvent(
         warnings.push(`line ${lineNo}: stop requested for run "${p.run}" that never started — skipped`)
         break
       }
-      run.stop_requests.push(event.ts)
+      run.stop_requests.push(event.id)
+      break
+    }
+    case 'run_adopted': {
+      // No stub, as for a handoff: `--resume` adopts a run it found in this
+      // fold. The validator has already refused an epoch below 2.
+      const p = event.payload as unknown as RunAdoptedPayload
+      const run = state.runs.find((r) => r.id === p.run)
+      if (!run) {
+        warnings.push(`line ${lineNo}: adoption of run "${p.run}" that never started — skipped`)
+        break
+      }
+      run.adoptions.push({ id: event.id, ts: event.ts, epoch: p.epoch })
+      // Replay is in id order, so on a tie the adoption already in force
+      // sorts first and keeps the run: only a HIGHER epoch takes it.
+      if (p.epoch > run.owner.epoch) run.owner = { id: event.id, epoch: p.epoch }
       break
     }
     case 'session_started': {
@@ -1759,7 +1878,7 @@ function applyEvent(
     }
     case 'file_touched': {
       const p = event.payload as unknown as FileTouchedPayload
-      if (!state.files_touched.includes(p.path)) state.files_touched.push(p.path)
+      if (!hasFile(state.files_touched, p.path)) state.files_touched.push(p.path)
       break
     }
     case 'command_run':

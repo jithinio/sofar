@@ -8,7 +8,14 @@ import { defineConfig, type Plugin } from 'vitest/config'
 // dir there. Without this, hook and CLI tests leave one dir per fixture clone
 // in the developer's real ~/.local/state/sofar (1,100 found 2026-09-15). A
 // test that needs a specific state dir still stubs its own.
-const testState = { XDG_STATE_HOME: mkdtempSync(join(tmpdir(), 'sofar-vitest-state-')) }
+//
+// XDG_CONFIG_HOME for the same reason, the other way round: a driver reads
+// the developer's real ~/.config/sofar/config.json (drive.keep_awake, D5),
+// so a test run would start caffeinate or not depending on whose Mac ran it.
+const testState = {
+  XDG_STATE_HOME: mkdtempSync(join(tmpdir(), 'sofar-vitest-state-')),
+  XDG_CONFIG_HOME: mkdtempSync(join(tmpdir(), 'sofar-vitest-config-')),
+}
 
 // Mirror of esbuild's `loader: { '.sh': 'text' }` (packages/engine/
 // build.mjs): tests import engine src directly, so vitest must resolve

@@ -20,13 +20,14 @@ import { createToolContext, ToolError, type ActiveSession, type ToolContext } fr
 import { recordDiagnostic } from '../core/diagnostics'
 import { getState } from './get-state'
 import { adoptHostSession, startSession } from './start-session'
-import { endSession } from './end-session'
-import { updateTask } from './update-task'
+import { endSessionJudged } from './end-session'
+import { updateTaskJudged } from './update-task'
 import { updatePhase } from './update-phase'
-import { logDecision } from './log-decision'
+import { logDecisionJudged } from './log-decision'
 import { updatePlan } from './update-plan'
-import { addNote } from './add-note'
-import { remember } from './remember'
+import { addNoteJudged } from './add-note'
+import { rememberJudged } from './remember'
+import { withCopyLag } from './copy-lag'
 
 /**
  * Sofar MCP server (SPEC §MCP tools) — low-level SDK API on purpose (BD12):
@@ -82,13 +83,29 @@ export const SERVER_INSTRUCTIONS = serverInstructions(false)
 const handlers: { [K in ToolName]: (ctx: ToolContext, args: ToolArgs[K]) => unknown } = {
   sofar_get_state: getState,
   sofar_start_session: startSession,
-  sofar_end_session: endSession,
-  sofar_update_task: updateTask,
+  sofar_end_session: endSessionJudged,
+  sofar_update_task: updateTaskJudged,
   sofar_update_phase: updatePhase,
-  sofar_log_decision: logDecision,
+  sofar_log_decision: logDecisionJudged,
   sofar_update_plan: updatePlan,
-  sofar_add_note: addNote,
-  sofar_remember: remember,
+  sofar_add_note: addNoteJudged,
+  sofar_remember: rememberJudged,
+}
+
+/**
+ * The initiative a write tool is about to append to, for the write guard
+ * (branch-visibility 3.4): the same resolution the tool runs. Null for the
+ * read tool, and when resolution fails, since the tool then fails typed too.
+ * start_session is resolved after the call, from the session it started.
+ */
+function writeTarget(context: ToolContext, name: ToolName, args: unknown): string | null {
+  if (name === 'sofar_get_state' || name === 'sofar_start_session') return null
+  const explicit = (args as { initiative?: unknown }).initiative
+  try {
+    return context.resolveWriteInitiative(typeof explicit === 'string' ? explicit : undefined)
+  } catch {
+    return null
+  }
 }
 
 function okResult(value: unknown): CallToolResult {
@@ -207,7 +224,11 @@ export function createSofarServer(options: CreateSofarServerOptions = {}): Sofar
       // Runtime-validated above; the registry's per-tool arg types are
       // narrower than `unknown`, hence the cast.
       const handler = handlers[name] as (ctx: ToolContext, a: unknown) => unknown
-      const result = okResult(handler(context, args))
+      let target = writeTarget(context, name, args)
+      // Awaited: the two write tools finish with the write-time judge (typed-judge 3.1).
+      const value = await handler(context, args)
+      if (name === 'sofar_start_session') target = context.session.get()?.initiative ?? null
+      const result = okResult(withCopyLag(context, target, value))
       recordCall(context, name, { ok: true, ms: Date.now() - started })
       return result
     } catch (err) {

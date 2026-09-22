@@ -4,9 +4,9 @@
 
 Goal: Benchmark sofar in rounds to make it far superior AND to publish credible launch claims for every segment (solo devs, engineering teams, enterprises; seat-based). The workload is the Boopada planner (travel-planner). The matrix is agent × memory across Claude Code, Codex, Cursor and OpenCode: native memory vs sofar vs sofar + drive (where an adapter exists) vs bare (D6, D10, D11); CLAUDE.md, Obsidian and Notion arms plus one subagent-orchestrator arm on Claude Code (D12). Claims C1–C8 plus a per-plan savings cut. Every round produces a loss study of every gap, fallback and failure, with ranked, pre-predicted fixes (D5, D10). Public numbers come only from the held-out chain. Budget: half the user's weekly Claude limit (D9). Runs are unattended (D13).
 
-Progress: 2/22 tasks done (9%)
+Progress: 3/25 tasks done (12%)
 
-## Phase 1 — Claim + round design [active] — 1/5 done
+## Phase 1 — Claim + round design [active] — 1/6 done
 
 - [ ] 1.1 Fix each claim's wording and metric.
 - C1: billed tokens per completed task, task-only and total (D8), plus the D11 per-plan cut.
@@ -27,8 +27,11 @@ Progress: 2/22 tasks done (9%)
 - [ ] 1.3 Workload: the Boopada planner authored in initiative travel-planner (skeleton, fixtures, chains A and B, hidden tests)
 - [x] 1.4 Settle the round-1 engine version: decide whether to trim tool schemas (~3.5k tokens every turn) and the digest first, then pin the exact release under test
 - [ ] 1.5 Calibration run (D9): one Claude Code arm, two sessions of chain A. Read each plan's meter before and after, derive reps per arm within half the weekly limit, and pick the Claude model (Opus 5 vs Sonnet 5) and the Grok model. Reconcile C3 with drift-certification scenario 4. (active)
+- [ ] 1.6 Decide whether to widen D12's single orchestrator arm to Claude Code ultracode, Codex multi_agent and Cursor subagents, each paired with sofar drive on the same agent and model (note 01M2QWV2).
+- Codex and Cursor pairs need their drive adapters (agents-parity branch, after rc.2).
+- Unverified: whether headless runs wait for an ultracode workflow, and whether sub-agent tokens reach each tool's usage output.
 
-## Phase 2 — Pre-registration + harness [pending] — 1/4 done
+## Phase 2 — Pre-registration + harness [pending] — 2/5 done
 
 - [ ] 2.1 Freeze predictions (including the 30–50% savings hypothesis), metrics and the analysis plan before run 1. C5 is tested two-sided. Losses are published as losses. The user approves the freeze. (active)
 - [ ] 2.2 One-command public harness, ported from handoff-bench.
@@ -39,14 +42,20 @@ Progress: 2/22 tasks done (9%)
 - Resumable cell ledger and weekly budget ledger.
 - launchd job plus caffeinate; per-cell isolated clone and timeout.
 - Failure rows on hang; a notification at each human gate. (active)
+- [x] 2.5 Lossless efficiency (D33): cut only spend that yields no scored number.
+- Drive tokens from child transcripts; per-task scores for drive and subagents; `run.ts fork` checkpoint forks; `run.ts tier0` overhead meter; analysis/orchestration_spend.py; recursive tests hash.
+- handoff-bench 1ae97c6 and 2f2aa87; PRE-REGISTRATION-R2 §3.5, §4.12–§4.16 and §8b.
 
 ## Phase 3 — Round 1 runs (chain A, tuning) [pending] — 0/6 done
 
 - [ ] 3.1 Chain A across all arms with n reps. Backs C1, C2, C3, C5, the added-work score and the plan-savings cut.
 - [ ] 3.2 C6: resume chain A mid-way with a different agent and a fresh checkout
+- Round 2: measured on chain B by forking claude-sofar and claude-automemory after S5 onto Cursor (PRE-REGISTRATION-R2 §8b, D33).
 - [ ] 3.3 C4: sofar+drive arms vs the built-in subagent orchestrator vs harness-launched sofar on chain A, unattended. Record every stall, needs_user, timeout and adapter incapacity.
 - [ ] 3.4 C7: N concurrent sessions on one repo, compared across arms
+- When it runs, it starts from a round-2 checkpoint fork rather than a fresh chain prefix (D33).
 - [ ] 3.5 C8: blind why-question set answered from chain A outputs, per arm
+- Round 2: CHAIN-C8 (one session, six questions, what and why graded separately) on forks of every chain-B sessions cell after S10 (PRE-REGISTRATION-R2 §8b, D33).
 - [ ] 3.6 Cheap proofs: install-to-first-resume time, zero-egress network trace, overhead footprint
 
 ## Phase 4 — Loss study + improvements [pending] — 0/2 done
@@ -54,8 +63,11 @@ Progress: 2/22 tasks done (9%)
 - [ ] 4.1 Loss-study report: every score gap, fallback and failure, classified with evidence and ranked by expected gain × frequency ÷ effort. Name the top big-win fixes, each with a PREDICTED gain (D10). (active)
 - [ ] 4.2 User picks which big-win fixes to build. Open an initiative per fix; build, test and release between rounds (the user runs npm publish).
 
-## Phase 5 — Round 2 [pending] — 0/2 done
+## Phase 5 — Round 2 [pending] — 0/3 done
 
+- [ ] 5.0 Freeze PRE-REGISTRATION-R2; the user approves.
+- Chain B's side is closed (note 01M2R0AG).
+- Open: rc.2 tag and pin (09-22); Claude Code and cursor-agent pins; 6.3/6.5/6.7 proof; trimmed round 1 and the 4.1 report; real-agent smokes (per arm, L21, D33); Tier 0 at the tag; R2-P11–P13 and §3.5 set by the user; L19 meter check; user approval of §2–§8. (active)
 - [ ] 5.1 Re-run chain A on the fixed release. Check each fix's predicted gain against its measured gain, and publish misses as misses.
 - [ ] 5.2 Run chain B (held-out) on the same release. It is the only source of public numbers.
 
@@ -66,4 +78,4 @@ Progress: 2/22 tasks done (9%)
 - [ ] 6.3 Replace stale public claims: one-pager R04 figures, install name @alignlabs/sofar, "adds nothing to your bill" next to --cost-cap
 
 Active phase: Phase 1 — Claim + round design
-Next action: Start an r1-fixes session to build Wave A, then cut rc.2
+Next action: When codex-drive/r1 finishes: run the analysis rescores and write the bench-refresh 4.1 final loss report.

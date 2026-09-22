@@ -6,17 +6,23 @@ Goal: Author the public benchmark workload for bench-refresh, a travel itinerary
 
 Progress: 7/9 tasks done (77%)
 
-## Phase 1 — Spec [active] — 2/2 done
+## Phase 1 — Spec [done] — 2/2 done
+
+> All tasks done; closed in the 2026-09-21 cleanup.
 
 - [x] 1.1 Draft PRODUCT-SPEC.md: feature inventory from the user's idea, domain model, the determinism boundary (provider interfaces, rules advisor), the chain split, candidate planted decisions. User reviews.
 - [x] 1.2 User review of the spec: working name, stack, fixture destinations, anything cut or added
 
-## Phase 2 — Skeleton + fixtures [pending] — 2/2 done
+## Phase 2 — Skeleton + fixtures [done] — 2/2 done
+
+> All tasks done; closed in the 2026-09-21 cleanup.
 
 - [x] 2.1 Create the MIT skeleton repo: app shell, lint, test runner, NO memory tooling of any kind (arms add their own)
 - [x] 2.2 Provider interfaces plus deterministic fixture data: flights, hotels, climate/weather, FX, advisories, places/cafes/specialties, transport prices, language; a simulated clock for arrival-triggered features. The interfaces must be shaped so live providers can replace the fixtures later (D1).
 
-## Phase 3 — Chained tasks + hidden tests [pending] — 3/3 done
+## Phase 3 — Chained tasks + hidden tests [done] — 3/3 done
+
+> All tasks done; closed in the 2026-09-21 cleanup. Phase 4 (product candidate) follows the bench rounds by design.
 
 - [x] 3.1 Chain A (tuning): task prompts in session order, with operator-stated decisions planted in early sessions and exercised later; the shared initiative clause from bench-refresh D8
 - [x] 3.2 Chain B (held-out): a disjoint task chain from the same skeleton, sealed from anyone tuning the engine
@@ -27,5 +33,4 @@ Progress: 7/9 tasks done (77%)
 - [ ] 4.1 Pick the best final repo by score (hidden-test quality plus blind review of added work), never by arm
 - [ ] 4.2 Product track: swap in live providers (licensed flight, hotel, FX, weather and advisory APIs) and an LLM Advisor behind the same interfaces; user decides on release
 
-Active phase: Phase 1 — Spec
 Next action: Run owner: close 3.3 (chain A and chain B tests both validated against sealed references); chain B enters the harness only at round-2 pre-registration

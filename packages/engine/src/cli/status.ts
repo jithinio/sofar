@@ -1,14 +1,23 @@
-import { existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { watch } from 'chokidar'
 import { isClosedInitiativeStatus } from '@sofar/schema'
 import { readBindingsFile } from '../core/bindings'
 import { currentBranch } from '../core/git'
-import { listInitiatives } from '../core/listing'
+import { listAcrossCopies } from '../core/listing'
 import { createToolContext, ToolError, type ToolContext } from '../mcp/context'
-import { emptyState, foldLog, type InitiativeState } from '../core/fold'
+import { emptyState, foldLog, latestRun, type InitiativeState } from '../core/fold'
+import { probeRunLock, type RunLiveness, type RunLockOptions } from '../core/run-lock'
+import {
+  copyWatch,
+  scanRecordCopies,
+  unionFold,
+  type CopyScan,
+  type RecordProvenance,
+} from '../core/record-copies'
 import { renderFullStatus } from '../projections/templates/status'
-import { runList } from './list'
+import { listResult, type CopyOptions } from './list'
 import { errMessage, fail, ok, type CmdResult } from './shared'
 import {
   columnsOf,
@@ -19,6 +28,11 @@ import {
   terminalRows,
   type Caps,
 } from './ui'
+
+export interface StatusCliOptions extends CopyOptions {
+  /** Test seam: where and with which primitive the run lock is probed (drive-visibility 2.3). */
+  lock?: RunLockOptions
+}
 
 /**
  * `sofar status [slug]` (task 4.3, SPEC §CLI) — fold and print goal,
@@ -39,6 +53,7 @@ export function runStatus(
   slug?: string,
   caps: Caps = stdoutCaps(),
   columns: number = columnsOf(process.stdout),
+  options: StatusCliOptions = {},
 ): CmdResult {
   const ctx = createToolContext(rootDir)
 
@@ -46,16 +61,63 @@ export function runStatus(
   try {
     resolved = ctx.resolveInitiative(slug)
   } catch (err) {
+    // An initiative that exists only on another branch still has a status
+    // (branch-visibility D1): look for it there before giving up.
+    const scan = err instanceof ToolError ? heldElsewhere(rootDir, slug, options) : null
+    if (scan !== null) return statusOf(ctx, slug!, caps, columns, options, scan)
     if (err instanceof ToolError) {
       if (slug === undefined && err.code === 'unknown_initiative') {
-        const oriented = unboundStatus(ctx, rootDir, caps, columns)
+        const oriented = unboundStatus(ctx, rootDir, caps, columns, options)
         if (oriented !== null) return oriented
       }
       return fail(`sofar status: ${err.message} (usage: sofar status [slug])`)
     }
     return fail(`sofar status: ${errMessage(err)}`)
   }
-  return statusOf(ctx, resolved, caps, columns)
+  return statusOf(ctx, resolved, caps, columns, options)
+}
+
+/** Slug shape, checked before an explicit slug is looked up on another copy. */
+const SLUG = /^[a-z0-9-]+$/
+
+/**
+ * The scan that finds an explicit slug this checkout lacks on another copy,
+ * or null when no copy holds it (or `--here` rules the other copies out).
+ */
+function heldElsewhere(rootDir: string, slug: string | undefined, options: CopyOptions): CopyScan | null {
+  if (slug === undefined || !SLUG.test(slug) || options.here === true) return null
+  const scan = scanRecordCopies(rootDir, { slugs: [slug], remotes: options.remotes === true })
+  return (scan.logs.get(slug)?.length ?? 0) > 0 ? scan : null
+}
+
+/** One initiative folded for display, with where its events live. */
+export interface StatusView {
+  state: InitiativeState
+  warnings: string[]
+  /** Null unless another copy adds an event (branch-visibility D1). */
+  provenance: RecordProvenance | null
+}
+
+/**
+ * Fold one initiative from this checkout's log and, when given, the other
+ * copies' logs. Throws only when this checkout's log exists but cannot be read.
+ */
+function foldView(ctx: ToolContext, resolved: string, copies: CopyScan | undefined): StatusView {
+  const logPath = ctx.eventsPath(resolved)
+  const foreign = copies?.logs.get(resolved) ?? []
+  let view: StatusView
+  if (foreign.length > 0) {
+    const localText = existsSync(logPath) ? readFileSync(logPath, 'utf8') : null
+    const union = unionFold(resolved, localText, foreign, currentBranch(ctx.rootDir))
+    view = { state: union.state, warnings: union.warnings, provenance: union.provenance }
+  } else if (existsSync(logPath)) {
+    const { state, warnings } = foldLog(logPath)
+    view = { state, warnings, provenance: null }
+  } else {
+    view = { state: emptyState(), warnings: [], provenance: null } // created-but-unwritten still has a status
+  }
+  if (view.state.slug === '') view.state.slug = resolved
+  return view
 }
 
 /**
@@ -70,7 +132,13 @@ export function runStatus(
  * branch), or bindings.json cannot be read. Read-only: binding is `sofar
  * switch`'s job, never a status side effect.
  */
-function unboundStatus(ctx: ToolContext, rootDir: string, caps: Caps, columns: number): CmdResult | null {
+function unboundStatus(
+  ctx: ToolContext,
+  rootDir: string,
+  caps: Caps,
+  columns: number,
+  options: StatusCliOptions,
+): CmdResult | null {
   if (!existsSync(join(rootDir, '.sofar'))) return null
   const branch = currentBranch(rootDir)
   if (branch !== null) {
@@ -81,8 +149,11 @@ function unboundStatus(ctx: ToolContext, rootDir: string, caps: Caps, columns: n
     }
   }
   const why = branch !== null ? `No initiative is bound to branch "${branch}"` : 'No current git branch'
-  const recent = listInitiatives(rootDir).entries.find((e) => !isClosedInitiativeStatus(e.status))
-  const list = runList(rootDir, caps, columns)
+  // One listing, read across copies, for both the pick and the list under it:
+  // the record named first must be the one the list puts first.
+  const listing = listAcrossCopies(rootDir, options)
+  const recent = listing.entries.find((e) => !isClosedInitiativeStatus(e.status))
+  const list = listResult(rootDir, listing, caps, columns)
   if (recent === undefined) {
     const head = `${why}, and no open initiative exists — create one: sofar new <slug> --goal "<one line>"\n\n`
     return ok(`${head}${list.stdout}`, list.stderr)
@@ -90,38 +161,68 @@ function unboundStatus(ctx: ToolContext, rootDir: string, caps: Caps, columns: n
   const head =
     `${why} — showing the most recently active initiative, ${recent.slug}. ` +
     `Pass it explicitly: sofar status ${recent.slug}, sofar event append ${recent.slug} …\n\n`
-  const shown = statusOf(ctx, recent.slug, caps, columns)
+  const shown = statusOf(ctx, recent.slug, caps, columns, options)
   if (shown.exitCode !== 0) return shown
   const stderr = [shown.stderr, list.stderr].filter((s) => s !== '').join('\n')
   return ok(`${head}${shown.stdout}\n${list.stdout}`, stderr)
 }
 
-/** One initiative's status, already resolved to an existing slug. */
-function statusOf(ctx: ToolContext, resolved: string, caps: Caps, columns: number): CmdResult {
-  const logPath = ctx.eventsPath(resolved)
-  let state: InitiativeState
-  let warnings: string[] = []
-  if (existsSync(logPath)) {
-    try {
-      const result = foldLog(logPath)
-      state = result.state
-      warnings = result.warnings
-    } catch (err) {
-      return fail(`sofar status: failed to read ${logPath}: ${errMessage(err)}`)
-    }
-  } else {
-    state = emptyState() // a created-but-unwritten initiative still has a status
-  }
-  if (state.slug === '') state.slug = resolved
+/**
+ * What the run lock says about the latest run, when it has no stop
+ * (drive-visibility 2.3, SPEC §Driver, "One driver per run"). Undefined when
+ * there is no such run, so a record no driver is running probes nothing. The
+ * lock is per user, not per clone, so a run driven from another worktree on
+ * this machine reads the same.
+ */
+export function latestRunLiveness(
+  rootDir: string,
+  state: InitiativeState,
+  lock: RunLockOptions = {},
+): RunLiveness | undefined {
+  const run = latestRun(state)
+  return run !== undefined && run.stopped === undefined ? probeRunLock(rootDir, run.id, lock) : undefined
+}
 
+/**
+ * One initiative's status, already resolved to a slug this checkout or
+ * another copy holds. Folded across the other copies of the record unless
+ * `--here` (branch-visibility D1); `scan` is passed when resolution already
+ * had to look for the slug elsewhere.
+ */
+function statusOf(
+  ctx: ToolContext,
+  resolved: string,
+  caps: Caps,
+  columns: number,
+  options: StatusCliOptions = {},
+  scan?: CopyScan,
+): CmdResult {
+  const copies =
+    scan ??
+    (options.here === true
+      ? undefined
+      : scanRecordCopies(ctx.rootDir, { slugs: [resolved], remotes: options.remotes === true }))
+  let view: StatusView
+  try {
+    view = foldView(ctx, resolved, copies)
+  } catch (err) {
+    return fail(`sofar status: failed to read ${ctx.eventsPath(resolved)}: ${errMessage(err)}`)
+  }
+  const { state, warnings, provenance } = view
+  const liveness = latestRunLiveness(ctx.rootDir, state, options.lock)
+
+  const home = homedir()
   const stdout = caps.color
     ? `${renderInitiative(state, {
         zoom: 'full',
         style: createStyle(true),
         symbols: symbolsFor(caps.unicode),
         columns,
+        provenance,
+        home,
+        liveness,
       }).join('\n')}\n`
-    : renderFullStatus(state)
+    : renderFullStatus(state, provenance, home, liveness)
 
   return ok(stdout, warnings.map((w) => `warning: ${w}`).join('\n'))
 }
@@ -130,12 +231,119 @@ function statusOf(ctx: ToolContext, resolved: string, caps: Caps, columns: numbe
 const PULSE_MS = 600
 
 /**
+ * Git writes a ref as a lock file renamed into place, and a checkout touches
+ * HEAD and several refs in one burst: one rescan per burst, not per path.
+ */
+const RESCAN_DEBOUNCE_MS = 150
+
+/**
+ * The live view's state, apart from the terminal (branch-visibility 3.2).
+ * Reading is cheap and scanning is not: a scan of the other copies spawns
+ * git, so it runs only when something that decides them changed. A pulse
+ * re-renders the cached view and never reads anything.
+ */
+export interface StatusWatchModel {
+  /** The folded view a render shows. */
+  readonly view: StatusView
+  /** What the run lock said at the last look (drive-visibility 2.3). */
+  readonly liveness: RunLiveness | undefined
+  /** Scans of the other copies so far — the start's included. */
+  readonly scans: number
+  /** This checkout's log changed: re-fold against the copies already scanned. */
+  localChanged(): void
+  /** Something that decides the other copies changed: rescan, then re-fold. */
+  copiesChanged(): void
+  /**
+   * A pulse's backstop for a missed watcher event on this checkout's log: one
+   * stat, and a re-fold only when its size or mtime moved. True when it did.
+   */
+  pollLocal(): boolean
+  /**
+   * A pulse's look at the run lock: a driver dies without touching the
+   * record, so no watcher event says so. True when the answer changed.
+   */
+  pollLiveness(): boolean
+}
+
+export function createStatusWatchModel(
+  ctx: ToolContext,
+  resolved: string,
+  options: StatusCliOptions = {},
+  initial?: CopyScan,
+): StatusWatchModel {
+  const logPath = ctx.eventsPath(resolved)
+  let scans = 0
+  const scan = (): CopyScan | undefined => {
+    if (options.here === true) return undefined
+    scans += 1
+    return scanRecordCopies(ctx.rootDir, { slugs: [resolved], remotes: options.remotes === true })
+  }
+  const stamp = (): string => {
+    try {
+      const st = statSync(logPath)
+      return `${st.size}:${st.mtimeMs}`
+    } catch {
+      return 'absent'
+    }
+  }
+  let copies = initial ?? scan()
+  let seen = stamp()
+  let view: StatusView = { state: emptyState(), warnings: [], provenance: null }
+  view.state.slug = resolved
+  let liveness: RunLiveness | undefined
+  const probe = (): boolean => {
+    const next = latestRunLiveness(ctx.rootDir, view.state, options.lock)
+    const changed = next !== liveness
+    liveness = next
+    return changed
+  }
+  const refold = (): void => {
+    seen = stamp()
+    try {
+      view = foldView(ctx, resolved, copies)
+    } catch {
+      // a read error never kills the watch: keep the last view, the next event may heal
+    }
+    probe()
+  }
+  refold()
+  return {
+    get view() {
+      return view
+    },
+    get liveness() {
+      return liveness
+    },
+    get scans() {
+      return scans
+    },
+    localChanged: refold,
+    copiesChanged() {
+      copies = scan()
+      refold()
+    },
+    pollLocal() {
+      if (stamp() === seen) return false
+      refold()
+      return true
+    },
+    pollLiveness: probe,
+  }
+}
+
+/**
  * `sofar status --watch` (cli-ui 4.3) — a live status: re-renders on
- * every record change (chokidar on the initiative dir, the serve
- * precedent) and pulses the active-task marker warn↔dim on a 600 ms
- * beat. The ONLY live surface a one-shot CLI ships: animation cannot
+ * every record change and pulses the active-task marker warn↔dim on a
+ * 600 ms beat. The ONLY live surface a one-shot CLI ships: animation cannot
  * outlive a print-and-exit process, so the static `sofar status` stays
  * static and --watch holds the process open instead.
+ *
+ * It folds every copy of the record like the one-shot status (branch-
+ * visibility 3.2) and rescans them only when something that decides them
+ * changes: another checkout's log for this initiative, a HEAD, a ref, or a
+ * worktree coming or going (core/record-copies.ts copyWatch). The watched
+ * set is re-derived after each rescan, so a worktree added mid-watch is
+ * picked up.
  *
  * TTY-gated by caps.animate: piped/CI/dumb terminals fall back to the
  * one-shot runStatus result (returned for the caller to emit). On the
@@ -147,41 +355,45 @@ export function runStatusWatch(
   rootDir: string,
   slug?: string,
   caps: Caps = stdoutCaps(),
+  options: StatusCliOptions = {},
 ): CmdResult | undefined {
-  if (!caps.animate) return runStatus(rootDir, slug, caps)
+  if (!caps.animate) return runStatus(rootDir, slug, caps, undefined, options)
 
   const ctx = createToolContext(rootDir)
   let resolved: string
+  let initial: CopyScan | undefined
   try {
     resolved = ctx.resolveInitiative(slug)
   } catch (err) {
-    if (err instanceof ToolError) {
-      return fail(`sofar status: ${err.message} (usage: sofar status --watch [slug])`)
+    const scan = err instanceof ToolError ? heldElsewhere(rootDir, slug, options) : null
+    if (scan === null) {
+      if (err instanceof ToolError) {
+        return fail(`sofar status: ${err.message} (usage: sofar status --watch [slug])`)
+      }
+      return fail(`sofar status: ${errMessage(err)}`)
     }
-    return fail(`sofar status: ${errMessage(err)}`)
+    resolved = slug!
+    initial = scan
   }
 
-  const logPath = ctx.eventsPath(resolved)
+  const model = createStatusWatchModel(ctx, resolved, options, initial)
   const style = createStyle(caps.color)
   const symbols = symbolsFor(caps.unicode)
+  const home = homedir()
   let pulse = false
   let prevRows = 0
 
   const render = (): void => {
-    let state: InitiativeState
-    try {
-      state = existsSync(logPath) ? foldLog(logPath).state : emptyState()
-    } catch {
-      state = emptyState() // fold errors never kill the watch; next event may heal
-    }
-    if (state.slug === '') state.slug = resolved
     const columns = columnsOf(process.stdout)
-    const lines = renderInitiative(state, {
+    const lines = renderInitiative(model.view.state, {
       zoom: 'full',
       style,
       symbols,
       columns,
       pulse,
+      provenance: model.view.provenance,
+      home,
+      liveness: model.liveness,
     })
     lines.push('', style.dim('watching — ^C to exit'))
     const rewind = prevRows > 0 ? `\x1b[${prevRows}A\x1b[0J` : ''
@@ -193,13 +405,44 @@ export function runStatusWatch(
   render()
   const timer = setInterval(() => {
     pulse = !pulse
+    // A refold re-probes; only an unchanged log needs a look of its own.
+    if (!model.pollLocal()) model.pollLiveness()
     render()
   }, PULSE_MS)
-  const watcher = watch(dirname(logPath), { ignoreInitial: true, depth: 0 }).on('all', () =>
-    render(),
-  )
+
+  // This checkout's record: the initiatives dir, filtered to this slug, so a
+  // slug held only on another copy is picked up the moment it lands here.
+  // Its filter covers this tree too. With --here the other copies go unwatched.
+  const local = join(rootDir, '.sofar', 'initiatives')
+  const remotes = options.remotes === true
+  const targets = copyWatch(rootDir, resolved, { remotes })
+  let watched = new Set(options.here === true ? [] : targets.paths)
+  const watcher = watch([local, ...watched], { ignoreInitial: true, ignored: targets.ignored })
+
+  let pending: NodeJS.Timeout | undefined
+  const rescan = (): void => {
+    pending = undefined
+    model.copiesChanged()
+    const next = new Set(copyWatch(rootDir, resolved, { remotes }).paths)
+    const added = [...next].filter((p) => !watched.has(p))
+    const gone = [...watched].filter((p) => !next.has(p))
+    if (added.length > 0) watcher.add(added)
+    if (gone.length > 0) watcher.unwatch(gone)
+    watched = next
+    render()
+  }
+  watcher.on('all', (_event, path) => {
+    if (path === local || path.startsWith(`${local}/`)) {
+      model.localChanged()
+      render()
+      return
+    }
+    if (pending !== undefined) clearTimeout(pending)
+    pending = setTimeout(rescan, RESCAN_DEBOUNCE_MS)
+  })
   process.once('SIGINT', () => {
     clearInterval(timer)
+    if (pending !== undefined) clearTimeout(pending)
     void watcher.close()
     process.stdout.write('\x1b[?25h')
     process.kill(process.pid, 'SIGINT') // re-raise: default disposition exits

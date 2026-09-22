@@ -1,8 +1,10 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { isClosedInitiativeStatus, type InitiativeStatus } from '@sofar/schema'
-import { foldLog, freshnessTotal } from './fold'
+import { foldLog, freshnessTotal, type InitiativeState } from './fold'
+import { currentBranch } from './git'
 import { byCodeUnit } from './order'
+import { scanRecordCopies, unionFold, type CopyScan, type RecordProvenance } from './record-copies'
 
 /**
  * Initiative listing (initiative-list 1.2): the portfolio derivation behind
@@ -51,11 +53,41 @@ export interface InitiativeListEntry {
    * their status events, never recorded here (initiative-supersession D1).
    */
   supersedes: string[]
+  /**
+   * Where this record's events live when other copies hold some this
+   * checkout lacks (branch-visibility D1). Present only on a union listing,
+   * and only for an initiative another copy actually adds to.
+   */
+  elsewhere?: RecordProvenance
 }
 
 export interface InitiativeListing {
   entries: InitiativeListEntry[]
   warnings: string[]
+  /**
+   * The folded state behind each entry, on a union listing only — the styled
+   * render needs more than the entry carries, and re-folding one copy there
+   * would show exactly the stale view the union exists to replace.
+   */
+  states?: Map<string, InitiativeState>
+}
+
+export interface ListOptions {
+  /**
+   * Other copies of the record (core/record-copies.ts). Given, the listing
+   * folds each initiative across all of them and includes initiatives that
+   * exist only on another copy; omitted, it reads this checkout alone.
+   * Surfaces reach it through listAcrossCopies, which scans for them.
+   */
+  copies?: CopyScan
+}
+
+/** Which copies of the record a portfolio surface folds (branch-visibility D1). */
+export interface CopyOptions {
+  /** This checkout's copy alone — the pre-union view. */
+  here?: boolean
+  /** Also fold remote-tracking refs (opt-in). */
+  remotes?: boolean
 }
 
 function errMessage(err: unknown): string {
@@ -105,11 +137,35 @@ export function initiativeSlugs(sofarDir: string): string[] {
   }
 }
 
-export function listInitiatives(rootDir: string): InitiativeListing {
+function applyState(entry: InitiativeListEntry, state: InitiativeState): void {
+  entry.goal = state.goal
+  for (const phase of state.phases) {
+    for (const task of phase.tasks) {
+      entry.tasks_total += 1
+      if (task.status === 'done') entry.tasks_done += 1
+    }
+  }
+  entry.active_phase = state.current.active_phase
+  entry.next_action = state.current.next_action
+  if (state.freshness.last_writeback_ts !== null) {
+    entry.drift_events = freshnessTotal(state.freshness)
+  }
+  entry.last_event_id = state.cursor
+  entry.status = state.status
+  entry.status_note = state.status_note
+  entry.status_ts = state.status_ts
+  entry.successor = state.successor
+}
+
+export function listInitiatives(rootDir: string, options: ListOptions = {}): InitiativeListing {
   const warnings: string[] = []
   const entries: InitiativeListEntry[] = []
   const initiativesDir = join(rootDir, '.sofar', 'initiatives')
-  if (!existsSync(initiativesDir)) return { entries, warnings } // not sofar-initialized — empty listing
+  const copies = options.copies
+  // A checkout with no record of its own still lists what its other copies hold.
+  if (!existsSync(initiativesDir) && (copies === undefined || copies.logs.size === 0)) {
+    return { entries, warnings } // not sofar-initialized — empty listing
+  }
 
   const branchesOf = new Map<string, string[]>()
   const bindings = readBindingsTolerant(join(rootDir, '.sofar', 'bindings.json'), warnings)
@@ -119,15 +175,23 @@ export function listInitiatives(rootDir: string): InitiativeListing {
     branchesOf.set(slug, branches)
   }
 
-  let slugs: string[]
-  try {
-    slugs = readdirSync(initiativesDir, { withFileTypes: true })
-      .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
-      .map((d) => d.name)
-  } catch (err) {
-    warnings.push(`cannot read ${initiativesDir}: ${errMessage(err)}`)
-    return { entries, warnings }
+  let slugs: string[] = []
+  if (existsSync(initiativesDir)) {
+    try {
+      slugs = readdirSync(initiativesDir, { withFileTypes: true })
+        .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+        .map((d) => d.name)
+    } catch (err) {
+      warnings.push(`cannot read ${initiativesDir}: ${errMessage(err)}`)
+      return { entries, warnings }
+    }
   }
+  const states = copies === undefined ? undefined : new Map<string, InitiativeState>()
+  if (copies !== undefined) {
+    const local = new Set(slugs)
+    for (const slug of copies.logs.keys()) if (!local.has(slug)) slugs.push(slug)
+  }
+  const branch = copies === undefined ? null : currentBranch(rootDir)
 
   for (const slug of slugs) {
     const entry: InitiativeListEntry = {
@@ -147,27 +211,24 @@ export function listInitiatives(rootDir: string): InitiativeListing {
       supersedes: [],
     }
     const logPath = join(initiativesDir, slug, 'events.jsonl')
-    if (existsSync(logPath)) {
+    if (copies !== undefined) {
+      let localText: string | null = null
+      try {
+        if (existsSync(logPath)) localText = readFileSync(logPath, 'utf8')
+      } catch (err) {
+        warnings.push(`${slug}: failed to read events.jsonl — other copies only (${errMessage(err)})`)
+      }
+      const union = unionFold(slug, localText, copies.logs.get(slug) ?? [], branch)
+      warnings.push(...union.warnings.map((w) => `${slug}: ${w}`))
+      applyState(entry, union.state)
+      if (union.provenance !== null) entry.elsewhere = union.provenance
+      union.state.slug = slug
+      states!.set(slug, union.state)
+    } else if (existsSync(logPath)) {
       try {
         const { state, warnings: foldWarnings } = foldLog(logPath)
         warnings.push(...foldWarnings.map((w) => `${slug}: ${w}`))
-        entry.goal = state.goal
-        for (const phase of state.phases) {
-          for (const task of phase.tasks) {
-            entry.tasks_total += 1
-            if (task.status === 'done') entry.tasks_done += 1
-          }
-        }
-        entry.active_phase = state.current.active_phase
-        entry.next_action = state.current.next_action
-        if (state.freshness.last_writeback_ts !== null) {
-          entry.drift_events = freshnessTotal(state.freshness)
-        }
-        entry.last_event_id = state.cursor
-        entry.status = state.status
-        entry.status_note = state.status_note
-        entry.status_ts = state.status_ts
-        entry.successor = state.successor
+        applyState(entry, state)
       } catch (err) {
         warnings.push(`${slug}: failed to read events.jsonl — listed without detail (${errMessage(err)})`)
       }
@@ -200,5 +261,17 @@ export function listInitiatives(rootDir: string): InitiativeListing {
     return byCodeUnit(a.slug, b.slug)
   })
 
-  return { entries, warnings }
+  return states === undefined ? { entries, warnings } : { entries, warnings, states }
+}
+
+/**
+ * The listing every portfolio surface reads — `sofar list`, `sofar next`,
+ * get_state view:"initiatives" — folded across the other copies of the
+ * record, so no surface lists a branch's work as it stood when that branch
+ * forked (branch-visibility D1). With no other copy there is nothing to add
+ * and the single-copy path runs, byte for byte.
+ */
+export function listAcrossCopies(rootDir: string, options: CopyOptions = {}): InitiativeListing {
+  const scan = options.here === true ? null : scanRecordCopies(rootDir, { remotes: options.remotes === true })
+  return listInitiatives(rootDir, scan !== null && scan.logs.size > 0 ? { copies: scan } : {})
 }

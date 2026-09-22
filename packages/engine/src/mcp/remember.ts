@@ -1,7 +1,10 @@
 import { existsSync } from 'node:fs'
-import type { RememberArgs, ToolOkResult } from '@sofar/schema/tool-inputs'
+import type { RememberArgs, ToolOkResult, WarnedOkResult } from '@sofar/schema/tool-inputs'
 import type { EventEnvelope } from '../core/envelope'
+import { filingWarnings } from '../core/filing-judge'
+import type { JudgeOptions } from '../core/judge'
 import { ToolError, type AppendOptions, type ToolContext } from './context'
+import { judgeOptionsFor } from './log-decision'
 
 /**
  * sofar_remember — appends memory_promoted {text, supersedes?}.
@@ -17,9 +20,25 @@ import { ToolError, type AppendOptions, type ToolContext } from './context'
  * history: the old memory keeps its handle and is retired by the new one.
  */
 export function remember(ctx: ToolContext, args: RememberArgs): ToolOkResult {
+  return rememberFiled(ctx, args).result
+}
+
+function rememberFiled(ctx: ToolContext, args: RememberArgs): { result: ToolOkResult; slug: string } {
   const slug = ctx.resolveWriteInitiative(args.initiative)
   const event = promoteMemory(ctx, slug, args.text, args.supersedes)
-  return { ok: true, event_id: event.id }
+  return { result: { ok: true, event_id: event.id }, slug }
+}
+
+/**
+ * What the MCP server runs: remember, then the filing judge (typed-judge 3.3,
+ * A4) over the text, naming the memory by the handle it took. Bare unless a
+ * line renders (typed-judge D7).
+ */
+export async function rememberJudged(ctx: ToolContext, args: RememberArgs, judgeOpts?: JudgeOptions): Promise<WarnedOkResult> {
+  const { result, slug } = rememberFiled(ctx, args)
+  const label = `${slug} M${ctx.foldState(slug).memories.length}`
+  const lines = await filingWarnings([{ kind: 'memory', label, text: args.text }], judgeOpts ?? judgeOptionsFor(ctx))
+  return lines.length === 0 ? result : { ...result, warnings: lines }
 }
 
 /** `M<n>` (resolved against `slug`) or the qualified `<slug> M<n>`. */

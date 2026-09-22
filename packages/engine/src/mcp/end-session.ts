@@ -2,12 +2,21 @@ import { isClosedInitiativeStatus, validatePayload } from '@sofar/schema'
 import { validateToolInput, type EndSessionArgs, type ToolOkResult } from '@sofar/schema/tool-inputs'
 import { readBindingsFile, writeBinding } from '../core/bindings'
 import { overlappingWritebacks, type DecisionState, type InitiativeState, type ParallelWriteback } from '../core/fold'
+import { decisionJudgeWarnings, type DecisionDraft } from '../core/decision-judge'
 import { currentBranch } from '../core/git'
+import type { JudgeOptions } from '../core/judge'
+import { writebackJudgeWarnings } from '../core/writeback-judge'
+import { evidenceWarnings, filingWarnings, type DoneTask, type FiledEntry } from '../core/filing-judge'
+import { readSince } from '../core/index-tail'
+import { foreignDecisions } from '../core/index-tier1'
+import { relevanceJudgements, type NoteCandidate } from '../core/relevance-judge'
 import { resolvePeers } from '../core/peers'
 import { silentReversal } from '../core/reversal'
 import { ruleFidelityWarning } from '../core/rule-fidelity'
 import { homeInitiative, ToolError, type ToolContext } from './context'
+import { judgeOptionsFor } from './log-decision'
 import { resolvePhaseOrThrow } from './update-phase'
+import { heldTasks, planTaskChange } from './update-task'
 
 /**
  * A colliding write-back, plus how to reach the session that wrote it
@@ -56,7 +65,10 @@ export interface EndSessionResult extends ToolOkResult {
   decisions?: string[]
   /** Handles the batched `memories` took, in order (`<slug> M<n>`). */
   memories?: string[]
-  /** Rule-fidelity warnings for the batched decisions (memory-lead D2); never a refusal. */
+  /**
+   * Rule-fidelity warnings for the batched decisions (memory-lead D2), then the
+   * write-time judges' lines (typed-judge 3.1, 3.3, 3.2); never a refusal.
+   */
   warnings?: string[]
 }
 
@@ -65,6 +77,9 @@ interface PlannedBatch {
   decisions: string[]
   memories: string[]
   warnings: string[]
+  /** The fold the batch was planned against, and its decisions as the judge reads them (typed-judge 3.1). */
+  before: InitiativeState
+  drafts: DecisionDraft[]
 }
 
 /**
@@ -72,10 +87,12 @@ interface PlannedBatch {
  * D3) — nothing here appends. Every refusal names its entry, and each entry
  * obeys the contract of the tool it stands in for:
  *
- *  - tasks: a task the plan has → task_status_changed. One it lacks WITH a
- *    `title` → task_added into `phase` (name or number, default the active
- *    phase); WITHOUT one it is refused — the fold would skip the change with a
- *    warning, a status silently lost at the one moment nobody is watching.
+ *  - tasks: planTaskChange, exactly as sofar_update_task — a task the plan
+ *    has → task_status_changed (a `title` naming a different task is an id
+ *    collision, refused); one it lacks WITH a `title` → task_added into
+ *    `phase` (name or number, default the active phase); WITHOUT one it is
+ *    refused — the fold would skip the change with a warning, a status
+ *    silently lost at the one moment nobody is watching.
  *  - phases: resolved like sofar_update_phase (D32); an unchanged status and
  *    note files nothing, as there.
  *  - decisions: sofar_log_decision's argument contract, then the payload's,
@@ -95,24 +112,14 @@ function planBatch(ctx: ToolContext, slug: string, args: EndSessionArgs): Planne
     appends.push({ type, payload })
   }
 
-  const known = new Set(state.phases.flatMap((p) => p.tasks.map((t) => t.id)))
-  const activePhase = state.phases.find((p) => p.name === state.current.active_phase)
+  // sofar_update_task's planner (phase-lifecycle D7); a task this batch adds
+  // is held for the entries after it.
+  const held = heldTasks(state)
   ;(args.tasks ?? []).forEach((t, i) => {
-    const where = `tasks[${i}] (${t.task_id})`
-    const note = t.note !== undefined ? { note: t.note } : {}
-    if (known.has(t.task_id)) {
-      check(where, 'task_status_changed', { id: t.task_id, status: t.status, ...note })
-      return
-    }
-    if (t.title === undefined || t.title.trim().length === 0) {
-      refuse(where, ['not in the plan — give it a `title` (and `phase`) to add it'])
-    }
-    const phase =
-      t.phase !== undefined ? resolvePhaseOrThrow(state.phases, t.phase, slug) : activePhase ?? refuse(where, ['no active phase — name the `phase` to add it to'])
-    check(where, 'task_added', { phase: phase.name, id: t.task_id, title: t.title!, status: t.status })
-    // task_added carries no note; the reason rides a status change of its own.
-    if (t.note !== undefined) check(where, 'task_status_changed', { id: t.task_id, status: t.status, ...note })
-    known.add(t.task_id)
+    const planned = planTaskChange(state, slug, t, held)
+    if (!planned.ok) return refuse(`tasks[${i}] (${t.task_id})`, planned.errors)
+    appends.push(...planned.appends)
+    if (!held.has(t.task_id)) held.set(t.task_id, t.title!)
   })
 
   ;(args.phases ?? []).forEach((ph, i) => {
@@ -125,22 +132,37 @@ function planBatch(ctx: ToolContext, slug: string, args: EndSessionArgs): Planne
 
   const decisions: string[] = []
   const warnings: string[] = []
+  const drafts: DecisionDraft[] = []
   const seen: DecisionState[] = [...state.decisions]
+  const foreign = (args.decisions ?? []).length > 0 ? foreignDecisions(ctx.sofarDir, slug) : undefined
   ;(args.decisions ?? []).forEach((d, i) => {
     const where = `decisions[${i}]`
     const input = validateToolInput('sofar_log_decision', d)
     if (!input.ok) refuse(where, input.errors)
     if ((d as { initiative?: unknown }).initiative !== undefined) refuse(where, ['initiative: not allowed — a write-back files in its session\'s record'])
     const payload: Record<string, unknown> = { chose: d.chose, over: d.over, because: d.because }
-    for (const key of ['rule', 'quote', 'guard', 'supersedes', 'until'] as const) {
+    for (const key of ['rule', 'quote', 'guard', 'supersedes', 'until', 'check'] as const) {
       if (d[key] !== undefined) payload[key] = d[key]
     }
-    const reversal = silentReversal({ ...state, decisions: seen } as InitiativeState, d)
-    if (reversal !== null) refuse(where, [reversal.message, ...reversal.errors])
+    const reversal = silentReversal({ ...state, decisions: seen } as InitiativeState, d, foreign)
+    if (reversal !== null) {
+      // A replacement for another record's decision lands in THAT record,
+      // which a write-back cannot address (D8): name the call that can.
+      const route = reversal.elsewhere.length > 0 ? [`a replacement for ${reversal.elsewhere[0]} is filed with sofar_log_decision, not a write-back`] : []
+      refuse(where, [reversal.message, ...reversal.errors, ...route])
+    }
     check(where, 'decision_logged', payload)
     const ordinal = seen.length + 1
     seen.push({ id: `batch-${i}`, ts: new Date().toISOString(), chose: d.chose, over: d.over, because: d.because, ...(d.rule !== undefined ? { rule: d.rule } : {}) })
     decisions.push(`D${ordinal}`)
+    drafts.push({
+      ordinal,
+      chose: d.chose,
+      over: d.over,
+      because: d.because,
+      ...(d.rule !== undefined ? { rule: d.rule } : {}),
+      ...(d.supersedes !== undefined ? { supersedes: d.supersedes } : {}),
+    })
     if (d.rule !== undefined) {
       const warning = ruleFidelityWarning(ordinal, d.rule, d.quote)
       if (warning !== null) warnings.push(warning)
@@ -153,7 +175,7 @@ function planBatch(ctx: ToolContext, slug: string, args: EndSessionArgs): Planne
   })
   ;(args.notes ?? []).forEach((text, i) => check(`notes[${i}]`, 'note_added', { text }))
 
-  return { appends, decisions, memories, warnings }
+  return { appends, decisions, memories, warnings, before: state, drafts }
 }
 
 /**
@@ -293,6 +315,57 @@ function resolveWriteBackHome(ctx: ToolContext, sessionId: string): string {
  * a write-back is the moment the record learns where the work actually was.
  */
 export function endSession(ctx: ToolContext, args: EndSessionArgs): EndSessionResult {
+  return endSessionFiled(ctx, args).result
+}
+
+/**
+ * What the MCP server runs: endSession, then the write-time judges. The
+ * decision judge (typed-judge 3.1) reads the batched decisions against the
+ * fold the batch was planned on. The filing judge (3.3) reads each batched
+ * decision, memory and note, and the evidence judge (3.3) each task the batch
+ * marked done, exactly as their own tools would. The write-back judge (3.2)
+ * reads the summary and next action against the fold that holds them. The
+ * session has already ended; the lines only add to `warnings`, in that order.
+ * Last, with a cloud provider only, the relevance pass (5.1, D10) stores the
+ * model's relevance of this record's entries to the next task, as
+ * judgement_recorded; it adds no line.
+ */
+export async function endSessionJudged(
+  ctx: ToolContext,
+  args: EndSessionArgs,
+  judgeOpts?: JudgeOptions,
+): Promise<EndSessionResult> {
+  const { result, batch, after, sessionId } = endSessionFiled(ctx, args)
+  const opts = judgeOpts ?? judgeOptionsFor(ctx)
+  const filed: FiledEntry[] = [
+    ...batch.drafts.map((d): FiledEntry => ({ kind: 'decision', label: `D${d.ordinal}`, text: { chose: d.chose, over: d.over, because: d.because } })),
+    ...(args.memories ?? []).map((text, i): FiledEntry => ({ kind: 'memory', label: batch.memories[i]!, text })),
+    ...(args.notes ?? []).map((text, i): FiledEntry => ({ kind: 'note', label: `notes[${i}]`, text })),
+  ]
+  const titles = new Map(after.phases.flatMap((p) => p.tasks.map((t) => [t.id, t.title] as const)))
+  const done: DoneTask[] = (args.tasks ?? [])
+    .filter((t) => t.status === 'done')
+    .map((t) => ({ id: t.task_id, title: titles.get(t.task_id) ?? t.title ?? '', ...(t.note !== undefined ? { note: t.note } : {}) }))
+  const [decided, misfiled, unproven, written] = await Promise.all([
+    batch.drafts.length === 0 ? [] : decisionJudgeWarnings(batch.before, batch.drafts, opts),
+    filingWarnings(filed, opts),
+    evidenceWarnings(done, opts),
+    writebackJudgeWarnings(after, { session_id: sessionId, summary: args.summary, next_action: args.next_action }, opts),
+  ])
+  const judged = [...decided, ...misfiled, ...unproven, ...written]
+  if (opts.provider !== undefined) {
+    for (const payload of await relevanceJudgements(after, notesOf(ctx, after.slug), opts)) {
+      ctx.appendAndProject(after.slug, 'judgement_recorded', payload as unknown as Record<string, unknown>, { project: false })
+    }
+  }
+  if (judged.length === 0) return result
+  return { ...result, warnings: [...(result.warnings ?? []), ...judged] }
+}
+
+function endSessionFiled(
+  ctx: ToolContext,
+  args: EndSessionArgs,
+): { result: EndSessionResult; batch: PlannedBatch; after: InitiativeState; sessionId: string } {
   const active = ctx.session.get()
   // Omitted id = the active session (memory-lead D3): on Claude Code the
   // server adopted it from CLAUDE_CODE_SESSION_ID before this call ran.
@@ -347,7 +420,7 @@ export function endSession(ctx: ToolContext, args: EndSessionArgs): EndSessionRe
   const bound = rebound === undefined ? {} : { rebound }
 
   const parallel = overlappingWritebacks(state, sessionId)
-  if (parallel.length === 0) return { ok: true, event_id: event.id, ...applied, ...bound }
+  if (parallel.length === 0) return { result: { ok: true, event_id: event.id, ...applied, ...bound }, batch, after: state, sessionId }
 
   // Reconciling used to mean leaving a note and hoping the other session read
   // it at its next orientation. Where the host knows the colliding session as
@@ -361,5 +434,16 @@ export function endSession(ctx: ToolContext, args: EndSessionArgs): EndSessionRe
     if (peer === undefined) return p
     return peer.ambiguous ? { ...p, peer: peer.name, peer_cwd: peer.cwd } : { ...p, peer: peer.name }
   })
-  return { ok: true, event_id: event.id, ...applied, parallel_writebacks: withPeers, ...bound }
+  return { result: { ok: true, event_id: event.id, ...applied, parallel_writebacks: withPeers, ...bound }, batch, after: state, sessionId }
+}
+
+/** This record's notes with their event ids, for the relevance pass (5.1): the fold keeps only un-absorbed ones, without ids. */
+function notesOf(ctx: ToolContext, slug: string): NoteCandidate[] {
+  try {
+    return readSince(ctx.eventsPath(slug), null)
+      .events.filter((e) => e.type === 'note_added' && typeof e.payload.text === 'string')
+      .map((e) => ({ id: e.id, ts: e.ts, text: e.payload.text as string }))
+  } catch {
+    return []
+  }
 }

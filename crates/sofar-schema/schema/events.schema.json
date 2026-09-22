@@ -47,6 +47,9 @@
         "memory_promoted": {
           "$ref": "#/definitions/MemoryPromotedPayload"
         },
+        "judgement_recorded": {
+          "$ref": "#/definitions/JudgementRecordedPayload"
+        },
         "review_recorded": {
           "$ref": "#/definitions/ReviewRecordedPayload"
         },
@@ -61,6 +64,9 @@
         },
         "run_stop_requested": {
           "$ref": "#/definitions/RunStopRequestedPayload"
+        },
+        "run_adopted": {
+          "$ref": "#/definitions/RunAdoptedPayload"
         },
         "verification_recorded": {
           "$ref": "#/definitions/VerificationRecordedPayload"
@@ -96,11 +102,13 @@
         "command_run",
         "note_added",
         "memory_promoted",
+        "judgement_recorded",
         "review_recorded",
         "run_started",
         "handoff",
         "run_stopped",
         "run_stop_requested",
+        "run_adopted",
         "verification_recorded",
         "correction",
         "suggestion_proposed",
@@ -378,6 +386,10 @@
         "until": {
           "type": "string",
           "description": "`until` (r1-fixes 3.2, D25): the id of a task in this record. The decision is in force until that task RESOLVES (done or dropped, as replayed) and then leaves the digest — validity derives from recorded events, never from a clock. REJECTED alongside `rule`: a standing constraint never ages out. An id the plan never names never retires."
+        },
+        "check": {
+          "$ref": "#/definitions/DecisionCheck",
+          "description": "`check` (memory-lead 2.3, D9): the executable half of the SAME clause — a shell command whose exit 0 means the decision holds. Valid only alongside `rule`, like `guard`: a failure has to cite the clause it enforces. It is text an agent wrote into a shared record, so nothing runs it until the operator approved that exact command on their clone, or, under `sofar drive`, the run's permission surface covers it. It WARNS everywhere, and blocks only at drive's task acceptance and, opted in, at pre-commit."
         }
       },
       "required": [
@@ -386,6 +398,26 @@
         "because"
       ],
       "description": "`rule` (drift-hardening D1): optional standing-constraint clause — one short imperative every future session must obey. Its presence is what makes a decision a standing constraint; there is no separate flag. Render contract: verbatim on every surface, never clipped, never aged out — the C-abl ablation showed decisions are the load-bearing resume field, and clipped normative text is how dead ends recur."
+    },
+    "DecisionCheck": {
+      "type": "object",
+      "properties": {
+        "cmd": {
+          "type": "string",
+          "description": "≤ CHECK_CMD_MAX chars; run from the repo root; exit 0 = the decision holds."
+        },
+        "hint": {
+          "type": "string",
+          "description": "The remediation a failure shows, ≤ CHECK_HINT_MAX chars; absent, the rule and its quote stand in."
+        },
+        "timeout_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cmd"
+      ],
+      "description": "The command that checks a decision still holds, and the fix to show when it does not (D9)."
     },
     "SessionStartedPayload": {
       "type": "object",
@@ -493,6 +525,118 @@
         "text"
       ],
       "description": "A fact its author declares repo memory — operational knowledge that is not a decision (a release command, a failure mode) and so can never be observed as repo-general from citation behaviour, because nothing derives a fact that was never written down (repo-memory-capture D1)."
+    },
+    "JudgementRecordedPayload": {
+      "type": "object",
+      "properties": {
+        "producer": {
+          "type": "string",
+          "description": "Who ran the judge: `sofar-cloud`, `deterministic`, `agent`, …"
+        },
+        "model": {
+          "type": "string",
+          "description": "Exact model version (never an alias), or `deterministic`."
+        },
+        "question": {
+          "type": "string",
+          "description": "The question id, as the seam names it (`relevance`, `progress`, …)."
+        },
+        "subject": {
+          "type": "string",
+          "description": "What it is about: an event id, a task id of this initiative, or a record handle qualified per the citation grammar — a bare `D12` is the envelope's own initiative, anything else `<slug> D12` / `<slug> M3` (typed-judge D10)."
+        },
+        "about": {
+          "type": "string",
+          "description": "What `subject` was judged AGAINST, for a relevance judgement (typed-judge D10): `task:<id>` (a task of the envelope's initiative) or `file:<repo-relative path>`. Absent for a judgement about the subject alone."
+        },
+        "answer": {
+          "$ref": "#/definitions/JudgementAnswer"
+        },
+        "state_hash": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "producer",
+        "model",
+        "question",
+        "subject",
+        "answer"
+      ]
+    },
+    "JudgementAnswer": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "noul"
+            },
+            "noul": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "noul"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "choice"
+            },
+            "choice": {
+              "type": "string"
+            },
+            "probabilities": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number"
+              }
+            },
+            "confidence": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "choice",
+            "probabilities",
+            "confidence"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "score"
+            },
+            "score": {
+              "type": "number"
+            },
+            "probabilities": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number"
+              }
+            },
+            "confidence": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "score",
+            "probabilities",
+            "confidence"
+          ]
+        }
+      ]
     },
     "ReviewRecordedPayload": {
       "type": "object",
@@ -702,6 +846,22 @@
       ],
       "description": "An operator asking the driver of `run` to end it from OUTSIDE the driver (in-session-drive D2) — `sofar drive --stop`, for a detached driver no ^C can reach. A request, never a stop: only the driver writes `run_stopped`, after reading the handoff of the session it signalled."
     },
+    "RunAdoptedPayload": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string"
+        },
+        "epoch": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "run",
+        "epoch"
+      ],
+      "description": "A driver took over a run that has no stop (drive-visibility 2.2): `sofar drive --resume` appends one before its first launch, at one more than the run's highest epoch — `run_started` is epoch 1, so an adoption is never below 2. The fencing token for a record that syncs: the fold's owner is the highest epoch (the first-sorting id on a tie), and a driver that finds it is no longer the owner steps down. One event per takeover, never a heartbeat."
+    },
     "VerificationRecordedPayload": {
       "type": "object",
       "properties": {
@@ -759,6 +919,10 @@
         "diagnostics": {
           "type": "string",
           "description": "≤1,024 chars: ANSI-stripped, redacted tail of stdout and stderr."
+        },
+        "decision": {
+          "type": "string",
+          "description": "The decision whose `check` this was, as `<slug> D<n>` (memory-lead 2.3, D9). Absent: the task's own acceptance command. The fold keeps the two apart, so a check never displaces the task's verify pass."
         }
       },
       "required": [

@@ -10,9 +10,12 @@ import {
   type TaskState,
 } from '../../core/fold'
 import type { GitState } from '../../core/git'
-import type { NeighbourRecord } from '../../core/index-tier1'
+import type { NeighbourRecord, RepoRule } from '../../core/index-tier1'
 import { LANE_RECENT_SESSIONS, QUICK_LANE } from '../../core/lane'
+import type { RecordProvenance } from '../../core/record-copies'
+import type { RunLiveness } from '../../core/run-lock'
 import { retireEnabled, retiredOrdinals } from '../../core/retire'
+import { renderProvenanceBlock } from './copies'
 import {
   clip,
   clipBlockDetect,
@@ -24,6 +27,8 @@ import {
   progressText,
   rankByRelevance,
   relevanceScore,
+  repoRuleLines,
+  runDetailLines,
   standingConstraintLines,
   taskProgress, testOutcomeLine } from './shared'
 import { lexicalCounts } from '../../core/lexicon'
@@ -107,6 +112,11 @@ const PROTOCOL_TAIL_RESERVE = 400
 // rule. Section renders near the top, so the enforceStatusLimit tail cut can
 // never take it before the clippable sections below.
 const STANDING_LEDGER_BUDGET = 2_000
+// Other records' rules (memory-lead 2.2, D8) take what this record's own rules
+// leave of STANDING_LEDGER_BUDGET, and never more than this: a repo holds far
+// more rules than one block can carry (139 on this one), and the cap bounds
+// what a record with few rules of its own pays for everyone else's.
+const REPO_RULES_BUDGET = 1_200
 // Concurrent-edit surfacing (task 11.4, D-P11) — rendered only when open
 // sessions share files, so it costs nothing in the common single-session case.
 const CONFLICT_LINE_BUDGET = 200
@@ -199,7 +209,7 @@ export function unwrittenSessions(sessions: readonly SessionState[]): SessionSta
  * A decision recorded a real rejected alternative — vs the placeholder
  * "(no alternative recorded)" logged when nothing was weighed.
  */
-function hasRealAlternative(over: string | undefined): boolean {
+export function hasRealAlternative(over: string | undefined): boolean {
   if (over === undefined) return false
   const t = over.trim()
   return t.length > 0 && !/^\(\s*(no alternative|none)/i.test(t)
@@ -210,7 +220,12 @@ function hasRealAlternative(over: string | undefined): boolean {
  * data as renderStatus but UNCAPPED with a per-task phase tree: the 10k cap
  * is a SessionStart context budget (BD3), not a terminal constraint.
  */
-export function renderFullStatus(state: InitiativeState): string {
+export function renderFullStatus(
+  state: InitiativeState,
+  provenance?: RecordProvenance | null,
+  home?: string,
+  liveness?: RunLiveness,
+): string {
   const lines: string[] = []
   lines.push(`# ${state.slug || '(unnamed initiative)'}`, '')
   // A closed record says so before anything else (initiative-lifecycle 4.2):
@@ -246,6 +261,9 @@ export function renderFullStatus(state: InitiativeState): string {
   lines.push(
     `Progress: ${progressText(taskProgress(state.phases))} across ${state.phases.length} phase(s)`,
   )
+  // Other copies of the record hold events this checkout lacks
+  // (branch-visibility D1): say what the figure above is made of.
+  if (provenance != null) lines.push(...renderProvenanceBlock(provenance, home))
   lines.push('')
 
   const stalePhases = staleActivePhases(state)
@@ -339,30 +357,10 @@ export function renderFullStatus(state: InitiativeState): string {
   if (state.runs.length > 0) {
     lines.push('')
     lines.push(`Driven (${plural(state.runs.length, 'run')}):`)
+    const latest = latestRun(state)
     for (const run of state.runs) {
-      lines.push(`- ${describeRun(run)}`)
-      // The surface in FULL, and only here (session-driver 2.4, D8). The
-      // digest's Driven line is budgeted and this is the question nobody asks
-      // until months later — what were those unattended sessions allowed to
-      // do? — so it belongs on the surface that answers questions, not the one
-      // that fits in a header. Rules are listed whole: a truncated allow-list
-      // is worse than none, because it reads as complete.
-      if (run.surface !== undefined) {
-        const s = run.surface
-        const pinned = [
-          s.model !== undefined ? `model ${s.model}` : undefined,
-          s.effort !== undefined ? `effort ${s.effort}` : undefined,
-        ].filter((p): p is string => p !== undefined)
-        lines.push(`  permissions: ${s.permission_mode}${pinned.length > 0 ? `, ${pinned.join(', ')}` : ''}`)
-        for (const rule of s.allow) lines.push(`    allow ${rule}`)
-        for (const rule of s.deny ?? []) lines.push(`    deny ${rule}`)
-      }
-      for (const h of run.handoffs) {
-        const task = h.task !== undefined ? `, task ${h.task}` : ''
-        const tokens = h.tokens !== undefined ? `, ${h.tokens} tokens` : ''
-        const detail = h.detail !== undefined ? ` (${h.detail})` : ''
-        lines.push(`  - ${h.ts} session ${h.session_id} — ${h.reason}${task}${tokens}${detail}`)
-      }
+      lines.push(`- ${describeRun(run, run === latest ? liveness : undefined)}`)
+      lines.push(...runDetailLines(run))
     }
   }
 
@@ -428,6 +426,13 @@ export interface StatusOptions {
    * to before this existed.
    */
   neighbours?: readonly NeighbourRecord[]
+  /**
+   * Every OTHER record's standing rules (memory-lead 2.2, D8), from the scope
+   * tier, retirement already applied — like `neighbours`, a fact no single
+   * log holds, so the caller derives it. Omitted when the index is unreadable
+   * or no other record holds a rule: a one-record repo renders as before.
+   */
+  repoRules?: readonly RepoRule[]
   /**
    * Per-session notices the SessionStart hook used to compose as a preface
    * (r1-fixes 2.3, D12): recent work elsewhere, the closed banner, the
@@ -826,14 +831,22 @@ export function renderStatus(state: InitiativeState, options?: StatusOptions): s
   // Hook notices (r1-fixes D12) — each already budgeted by its builder.
   for (const notice of (options?.notices ?? []).filter((n) => n.trim().length > 0)) fixed([notice, ''])
 
-  // (10) Standing constraints LAST (D4), most relevant to the focus first.
+  // (10) Standing constraints LAST (D4), most relevant to the focus first,
+  // then the other records' rules in what this record's own left (D8).
   const protect = (lines: string[]): void => {
     if (lines.length > 0) blocks.push({ lines, protected: true })
   }
-  if (rules.length > 0) protect([...rules, ''])
+  const ownUsed = rules.reduce((n, line) => n + line.length + 1, 0)
+  const elsewhere = repoRuleLines(
+    options?.repoRules ?? [],
+    Math.min(REPO_RULES_BUDGET, STANDING_LEDGER_BUDGET - ownUsed),
+    focusTerms,
+    state.decisions.filter((_, i) => !retired.has(i + 1)),
+  )
+  if (rules.length > 0 || elsewhere.length > 0) protect([...rules, ...elsewhere, ''])
 
   // (11) Read-back (drift-hardening 3.1) — the last content line.
-  if (!lane && (state.current.next_action !== null || rules.length > 0)) {
+  if (!lane && (state.current.next_action !== null || rules.length > 0 || elsewhere.length > 0)) {
     protect([
       'Read-back: before acting, restate goal, next action, and standing constraints in one sentence each — if your restatement disagrees with this block, trust the block and say so.',
       '',

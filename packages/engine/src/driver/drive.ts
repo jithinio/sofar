@@ -10,7 +10,12 @@ import {
   type TaskRoute,
 } from '@sofar/schema'
 import type { InitiativeState, PhaseState } from '../core/fold'
-import { latestRun } from '../core/fold'
+import { latestRun, stopRequestsInForce, type TaskState } from '../core/fold'
+import { TASK_FILES_CAP } from '../core/adjacency'
+import { applicableChecks, changedPaths, checkFailureLine, checksInForce, isApproved, type InForceCheck } from '../core/checks'
+import { refreshGuards } from '../core/index-tier1'
+import { claimRunLock, probeRunLock, type RunLockOptions } from '../core/run-lock'
+import { createKeepAwake, type KeepAwakeOptions } from './keep-awake'
 import { createToolContext, ToolError } from '../mcp/context'
 import type { NudgeDetail } from './nudge'
 import { describeSurface, sameSurface, type PermissionSurface } from './permissions'
@@ -26,11 +31,14 @@ import {
 import { previewRoutes, resolveRoute, RouteError, type RoutingOptions } from './routing'
 import {
   attemptsSoFar,
+  failuresSoFar,
   commandAllowed,
   DEFAULT_MAX_VERIFY_ATTEMPTS,
   DEFAULT_VERIFY_TIMEOUT_MS,
   describeVerification,
+  diffStatSince,
   fingerprintTree,
+  headOf,
   resolveVerify,
   runVerification,
   verificationCovers,
@@ -38,6 +46,10 @@ import {
   type VerificationOutcome,
 } from './verify'
 import { version as ENGINE_VERSION } from '../../package.json'
+import { resolveJudgeProvider } from '../client/judge'
+import type { JudgeOptions } from '../core/judge'
+import { judgePreflight } from './preflight-judge'
+import { judgeProgress } from './progress-judge'
 
 /**
  * `sofar drive <initiative>` (session-driver 2.2, D2): the loop, and nothing
@@ -116,42 +128,41 @@ export const NUDGE_POLL_MS = 2_000
 
 /**
  * How often a driver waiting on a session looks for `sofar drive --stop`
- * (in-session-drive D2). A request is an operator who has already decided, so
+ * (in-session-drive D2) and for another driver's adoption of its run
+ * (drive-visibility 2.2). Either is someone who has already decided, so
  * seconds matter more than they do for the gauge, and a tick is a stat.
  */
 export const STOP_POLL_MS = 2_000
 
-/** The bytes a stop request's line must contain — the byte scan's only question. */
-const STOP_REQUEST_MARKER = '"run_stop_requested"'
+/**
+ * The bytes a line must contain for the byte scan to fold: a stop request, or
+ * an adoption that may have taken the run from this driver. Nothing else a
+ * session appends can change what the driver does next while it waits.
+ */
+const RUN_EVENT_MARKERS = ['"run_stop_requested"', '"run_adopted"'] as const
 
 /**
- * Watch the log for a stop request while a session runs (in-session-drive D2).
- *
- * Cheap by construction: a tick stats the log, reads only the bytes appended
- * since the last one, and calls `onRequest` only when those bytes name a stop
- * request. Driven sessions write on every tool call, so a fold per tick would
- * cost more than the session being watched. The scan decides nothing — the
- * caller folds and counts — it only says when the fold is worth asking.
+ * A scan of the bytes appended to a log since the last call: true when they
+ * name one of `markers`. It stats the log and reads only what is new, so a
+ * caller that ticks every few seconds for hours costs a stat per tick, and
+ * folds only when the new bytes are worth it. It decides nothing — the caller
+ * folds and reads — it only says when the fold is worth asking.
  */
-export function watchStopRequests(
-  path: string,
-  from: number,
-  onRequest: () => void,
-  intervalMs: number = STOP_POLL_MS,
-): () => void {
+export function appendedBytesScan(path: string, from: number, markers: readonly string[]): () => boolean {
   let offset = from
-  // The marker can straddle two reads; carrying its length back covers that.
+  // A marker can straddle two reads; carrying the longest one's length back covers that.
+  const carryLength = Math.max(...markers.map((m) => m.length))
   let carry = ''
-  const tick = (): void => {
+  return () => {
     let size: number
     try {
       size = statSync(path).size
     } catch {
-      return
+      return false
     }
     if (size <= offset) {
       offset = size
-      return
+      return false
     }
     const fd = openSync(path, 'r')
     let text: string
@@ -163,16 +174,50 @@ export function watchStopRequests(
       closeSync(fd)
     }
     offset = size
-    carry = text.slice(-STOP_REQUEST_MARKER.length)
-    if (text.includes(STOP_REQUEST_MARKER)) onRequest()
+    carry = text.slice(-carryLength)
+    return markers.some((marker) => text.includes(marker))
   }
-  const timer = setInterval(tick, intervalMs)
+}
+
+/**
+ * Watch the log for a stop request or an adoption while a session runs
+ * (in-session-drive D2, drive-visibility 2.2). Driven sessions write on every
+ * tool call, so a fold per tick would cost more than the session being
+ * watched; the byte scan says when one is worth it.
+ */
+export function watchRunEvents(
+  path: string,
+  from: number,
+  onMatch: () => void,
+  intervalMs: number = STOP_POLL_MS,
+): () => void {
+  const scan = appendedBytesScan(path, from, RUN_EVENT_MARKERS)
+  const timer = setInterval(() => {
+    if (scan()) onMatch()
+  }, intervalMs)
   timer.unref()
   return () => clearInterval(timer)
 }
 
 /** What an interrupted run's stop says when a request, not a signal, ended it. */
 export const STOP_REQUEST_NOTE = 'stop requested with `sofar drive --stop`'
+
+/**
+ * A driver whose run another driver adopted at a higher epoch (drive-visibility
+ * 2.2). It has stepped down: launched nothing more, filed no handoff and no
+ * stop — the run is the new owner's — and the CLI exits 1 on it.
+ */
+export class DriveFenced extends Error {
+  constructor(
+    readonly run: string,
+    readonly epoch: number,
+  ) {
+    super(
+      `sofar drive: run ${run} was adopted at epoch ${epoch} by another driver — this one stepped down, filing no handoff and no stop; the run is that driver's now`,
+    )
+    this.name = 'DriveFenced'
+  }
+}
 
 /** How long a signalled session gets to exit on its own before SIGKILL. */
 export const KILL_GRACE_MS = 10_000
@@ -332,6 +377,14 @@ export interface DriveOptions {
   resume?: boolean
   /** Test seam: how often a waiting driver looks for a stop request (default STOP_POLL_MS). */
   stopPollMs?: number
+  /** Test seam: where and with which primitive the run lock is taken (drive-visibility 2.1). */
+  lock?: RunLockOptions
+  /**
+   * Keeping the Mac awake for the run (drive-visibility D5). Absent means the
+   * driver neither blocks sleep nor says anything about it — the CLI always
+   * passes it; a library caller that wants it states it.
+   */
+  keepAwake?: KeepAwakeOptions
   /**
    * Called once the run is CERTAIN to start — after run_started (or the
    * adoption of a resumed run) and after every opening line has been
@@ -340,6 +393,12 @@ export interface DriveOptions {
   onStarted?: (run: string) => void
   /** Progress lines in order, as they happen — the CLI prints them to stderr. */
   onProgress?: (line: string) => void
+  /**
+   * Test seam for the progress judge (typed-judge 4.1): the provider to judge
+   * each handoff with. Absent means the repo's own (`resolveJudgeProvider`),
+   * which is none unless the operator opted in.
+   */
+  judge?: JudgeOptions
 }
 
 export interface DriveHandoff {
@@ -526,11 +585,36 @@ export function renderPrompt(
  * to be unwound); once `run_started` is in the log every ending — including an
  * unexpected one — leaves a `run_stopped` behind it, because a run with no
  * stop is a run the next driver has to ask the operator about.
+ *
+ * The run lock (drive-visibility D2) is released HERE, after the loop has
+ * returned or thrown: the loop appends `run_stopped` before it returns, so no
+ * reader ever sees the lock free on a run that is still open. A driver that
+ * dies instead lets the kernel release it. The keep-awake assertion (D5) is
+ * held and let go the same way, `caffeinate -w` standing in for the kernel.
  */
 export async function drive(
   rootDir: string,
   slug: string | undefined,
   options: DriveOptions,
+): Promise<DriveOutcome> {
+  const held: { release(): void }[] = []
+  try {
+    return await driveHolding(rootDir, slug, options, held)
+  } finally {
+    for (const lock of held) lock.release()
+  }
+}
+
+/** The refusal while another driver on this machine holds the run — it names the two moves that act on it. */
+function heldRefusal(initiative: string, runId: string): string {
+  return `sofar drive: run ${runId} on "${initiative}" is being driven right now — a driver on this machine holds its run lock. \`sofar status ${initiative}\` shows how far it has got; \`sofar drive ${initiative} --stop\` ends it.`
+}
+
+async function driveHolding(
+  rootDir: string,
+  slug: string | undefined,
+  options: DriveOptions,
+  held: { release(): void }[],
 ): Promise<DriveOutcome> {
   const ctx = createToolContext(rootDir)
   const initiative = ctx.resolveInitiative(slug)
@@ -585,10 +669,18 @@ export async function drive(
   // then declined to start would have been told about a run that never was.
   const opening: string[] = []
   if (resuming) {
+    // What the record cannot tell, the run lock can — on the machine that ran
+    // it (drive-visibility D2). Held refuses even --resume: a second driver
+    // on one run is the thing the lock exists to prevent. Absent keeps the
+    // record's own words, since it means liveness is unknown, never gone.
+    const liveness = probeRunLock(rootDir, last.id, options.lock)
+    if (liveness === 'held') throw new ToolError('invalid_input', heldRefusal(initiative, last.id))
     if (options.resume !== true) {
       throw new ToolError(
         'invalid_input',
-        `sofar drive: run ${last.id} on "${initiative}" has no stop — either a driver is still running it or one died mid-run, and the record cannot tell which. Re-run with --resume to pick it up.`,
+        liveness === 'free'
+          ? `sofar drive: run ${last.id} on "${initiative}" has no stop and its driver is gone — the run lock on this machine is free. Re-run with --resume to pick it up.`
+          : `sofar drive: run ${last.id} on "${initiative}" has no stop — either a driver is still running it or one died mid-run, and the record cannot tell which. Re-run with --resume to pick it up.`,
       )
     }
     priorSessions = last.handoffs.length
@@ -639,9 +731,6 @@ export async function drive(
     }
   }
   const runId = resuming ? last.id : ulid()
-  // Requests older than this belong to a driver that is gone (in-session-drive
-  // D2): one left for a driver that died must not stop the --resume after it.
-  const adoptedAt = new Date().toISOString()
   if (!resuming) {
     opening.push(`run ${runId} — ${adapter.name}, ${policy} policy, in ${cwd}`)
     if (surface !== undefined) opening.push(`  permissions: ${describeSurface(surface)}`)
@@ -690,8 +779,45 @@ export async function drive(
     throw err
   }
 
-  if (!resuming) {
-    ctx.appendAndProject(
+  // The run lock (drive-visibility D2), after every other refusal and before
+  // run_started, so no reader sees this run without it. On a resume the claim
+  // is also the fence: two `--resume`s that both probed a free lock race here,
+  // and the loser is refused before it records anything.
+  const claim = await claimRunLock(rootDir, runId, options.lock)
+  if (claim.kind === 'held') throw new ToolError('invalid_input', heldRefusal(initiative, runId))
+  if (claim.kind === 'claimed') {
+    held.push(claim.lock)
+  } else {
+    opening.push(
+      `warning: liveness unavailable for this run — ${claim.why}. \`sofar status\` will say liveness unknown, and nothing on this machine refuses a second driver on it`,
+    )
+  }
+  // Keep-awake (D5): the answer as it stands, said with the opening lines;
+  // the assertion itself is taken once the run is recorded, below.
+  const awake = options.keepAwake !== undefined ? createKeepAwake(options.keepAwake) : undefined
+  if (awake !== undefined) {
+    held.push(awake)
+    opening.push(...awake.opening())
+  }
+
+  // Who this driver is in the fold (drive-visibility 2.2): run_started's own
+  // id at epoch 1 for a fresh run; for a resumed one, the adoption it appends
+  // at one more than the run's highest epoch, read AFTER the claim so a
+  // takeover that landed while this driver was preflighting is outranked.
+  let mine: { id: string; epoch: number }
+  if (resuming) {
+    const current = ctx.foldState(initiative).runs.find((r) => r.id === runId) ?? last
+    const epoch = current.owner.epoch + 1
+    const adopted = ctx.appendAndProject(
+      initiative,
+      'run_adopted',
+      { run: runId, epoch },
+      { session: 'cli', source: 'cli', actor: 'human' },
+    )
+    mine = { id: adopted.id, epoch }
+    opening.push(`  adopted at epoch ${epoch} — a driver still holding an earlier epoch steps down when it sees this`)
+  } else {
+    const started = ctx.appendAndProject(
       initiative,
       'run_started',
       {
@@ -706,8 +832,10 @@ export async function drive(
       },
       { session: 'cli', source: 'cli', actor: 'human' },
     )
+    mine = { id: started.id, epoch: 1 }
   }
   for (const line of opening) progress(line)
+  awake?.start(progress)
 
   // ---------------------------------------------------------------------
   // The verification gate (r1-fixes 3.1, D19). `gate` runs the task's
@@ -726,6 +854,30 @@ export async function drive(
     const task = folded.phases.flatMap((p) => p.tasks).find((t) => t.id === taskId)
     const run = folded.runs.find((r) => r.id === runId)
     if (task === undefined || run === undefined || task.status !== 'done') return { applies: false }
+    const verified = verifyGate(task, run)
+    if (verified.applies && !verified.passed) return verified
+    // Decision checks (memory-lead 2.3, D9/D10) — only once the task's own
+    // command passed or none applies, since a reopened task is checked again
+    // anyway. A failure blocks acceptance exactly as a failed verify does:
+    // an unattended run has no one to read a warning.
+    const checked = checkGate(folded, task, run)
+    if (!checked.applies) return verified
+    if (!checked.passed) return checked
+    const line = [verified.applies ? verified.line : '', checked.line].filter((l) => l.length > 0).join('; ')
+    return { applies: true, passed: true, attempt: checked.attempt, line, exhausted: false }
+  }
+  /** A recorded check failure, worded as the gate worded it — with its rule and fix while the decision is in force. */
+  const checkFailureFor = (handle: string, outcome: VerificationOutcome & { command: string; attempt: number }): string => {
+    try {
+      const c = checksInForce(refreshGuards(ctx.sofarDir)).find((x) => x.handle === handle)
+      if (c !== undefined) return checkFailureLine(c, outcome)
+    } catch {
+      // the index is disposable; the record's own words still say what failed
+    }
+    return `${describeVerification(outcome.command, outcome.attempt, outcome)} (the check of ${handle})`
+  }
+  const verifyGate = (task: TaskState, run: InitiativeState['runs'][number]): Gate => {
+    const taskId = task.id
     const which = resolveVerify(task, runVerify, verifyTimeoutMs)
     if (which === undefined) return { applies: false }
     const dirs = verifyDirs(cwd, which.cwd)
@@ -775,8 +927,83 @@ export async function drive(
       { session: 'cli', source: 'cli', actor: 'human' },
     )
     progress(`  ${line} — task reopened`)
-    return { applies: true, passed: false, attempt, line, exhausted: attempt >= maxVerifyAttempts }
+    // "Once one task has FAILED N times" (D19): this failure plus the earlier.
+    return { applies: true, passed: false, attempt, line, exhausted: failuresSoFar(run, taskId) + 1 >= maxVerifyAttempts }
   }
+  const checkGate = (folded: InitiativeState, task: TaskState, run: InitiativeState['runs'][number]): Gate => {
+    let checks: InForceCheck[]
+    try {
+      checks = checksInForce(refreshGuards(ctx.sofarDir))
+    } catch {
+      return { applies: false }
+    }
+    if (checks.length === 0) return { applies: false }
+    // What the task changed: the files touched while it was active, and
+    // whatever the tree still holds uncommitted. A list at its cap has lost
+    // its oldest paths, so every check applies rather than a guessed few.
+    const touched = folded.task_files[task.id] ?? []
+    const applicable =
+      touched.length >= TASK_FILES_CAP ? checks : applicableChecks(checks, [...new Set([...touched, ...(changedPaths(cwd, 'worktree') ?? [])])])
+    if (applicable.length === 0) return { applies: false }
+    const fingerprint = fingerprintTree(cwd)
+    let attempt = attemptsSoFar(run, task.id)
+    const failures = failuresSoFar(run, task.id)
+    for (const c of applicable) {
+      // A pass on this tree, for this exact command, still covers (D19).
+      if (verificationCovers(task.checks?.find((v) => v.decision === c.handle), c.check.cmd, fingerprint)) continue
+      attempt += 1
+      const approved = isApproved(rootDir, c.check.cmd) || commandAllowed(c.check.cmd, surface)
+      const timeoutMs = c.check.timeout_ms ?? verifyTimeoutMs
+      progress(`  checking ${task.id} against [${c.handle}]: ${c.check.cmd}${approved ? '' : ' — refused, neither approved on this clone nor inside the run\'s permission surface'}`)
+      const outcome: VerificationOutcome = approved
+        ? runVerification(c.check.cmd, cwd, timeoutMs)
+        : { result: 'refused', duration_ms: 0, diagnostics: 'decision check is neither approved on this clone nor covered by the run\'s allow rules; nothing was run' }
+      ctx.appendAndProject(
+        initiative,
+        'verification_recorded',
+        {
+          run: runId,
+          task: task.id,
+          attempt,
+          command: c.check.cmd,
+          cwd: '.',
+          checked: fingerprint ?? { head: 'none', tree: 'none' },
+          validator: ENGINE_VERSION,
+          result: outcome.result,
+          ...(outcome.exit_code !== undefined ? { exit_code: outcome.exit_code } : {}),
+          ...(outcome.signal !== undefined ? { signal: outcome.signal } : {}),
+          duration_ms: outcome.duration_ms,
+          timeout_ms: timeoutMs,
+          ...(outcome.diagnostics !== undefined ? { diagnostics: outcome.diagnostics } : {}),
+          decision: c.handle,
+        },
+        { session: 'cli', source: 'cli', actor: 'human' },
+      )
+      // Refused never blocks: nothing ran, and nothing an agent controls
+      // decides whether a check is approved.
+      if (outcome.result === 'refused' || outcome.result === 'pass') continue
+      const line = checkFailureLine(c, outcome)
+      ctx.appendAndProject(
+        initiative,
+        'task_status_changed',
+        { id: task.id, status: 'active', note: `reopened by the driver — ${line}` },
+        { session: 'cli', source: 'cli', actor: 'human' },
+      )
+      progress(`  ${line} — task reopened`)
+      return { applies: true, passed: false, attempt, line, exhausted: failures + 1 >= maxVerifyAttempts }
+    }
+    return { applies: true, passed: true, attempt, line: '', exhausted: false }
+  }
+
+  // The progress judge (typed-judge 4.1, D8): only with a configured provider,
+  // since without one the fold already says all the rules could. An operator
+  // who opted in but cannot reach it is told once, here.
+  const judging: JudgeOptions = (() => {
+    if (options.judge !== undefined) return options.judge
+    const resolved = resolveJudgeProvider(rootDir)
+    if (resolved.unavailable !== undefined) progress(`warning: progress judge: ${resolved.unavailable}`)
+    return resolved.provider !== undefined ? { provider: resolved.provider } : {}
+  })()
 
   options.onStarted?.(runId)
 
@@ -821,10 +1048,29 @@ export async function drive(
     }
   }
   const onSignal = (): void => interrupt('signal')
+  /**
+   * The epoch that took this run from this driver, once one has (drive-
+   * visibility 2.2). Set, never cleared: a driver that has lost its run does
+   * not win it back, and from then on it only waits for its live session.
+   */
+  let fenced: number | undefined
+  const checkOwner = (folded: InitiativeState): void => {
+    if (fenced !== undefined) return
+    const owner = folded.runs.find((r) => r.id === runId)?.owner
+    if (owner === undefined || owner.id === mine.id) return
+    fenced = owner.epoch
+    // Nothing is signalled: a live session is real work whose write-back the
+    // new owner resumes from.
+    progress(
+      `fenced: run ${runId} was adopted at epoch ${owner.epoch} — ${live !== undefined ? 'waiting for the live session to exit, then ' : ''}launching nothing more`,
+    )
+  }
   /** Honour every request the fold shows for this run since this driver took it. */
   const takeRequests = (folded: InitiativeState): void => {
     const run = folded.runs.find((r) => r.id === runId)
-    const count = run?.stop_requests.filter((ts) => ts >= adoptedAt).length ?? 0
+    // In force = sorting after the owner's adoption, which is this driver's
+    // own while checkOwner has not fenced it (drive-visibility 2.2).
+    const count = run !== undefined ? stopRequestsInForce(run).length : 0
     for (; honoured < count; honoured += 1) interrupt('request')
   }
   const interruptedStop = (why?: string): { reason: RunStopReason; note?: string } => {
@@ -841,6 +1087,8 @@ export async function drive(
       // request landing between the two is seen by both, and counted once.
       const watchFrom = existsSync(eventsPath) ? statSync(eventsPath).size : 0
       const state = ctx.foldState(initiative)
+      checkOwner(state)
+      if (fenced !== undefined) break
       takeRequests(state)
       if (interrupted) {
         stop = interruptedStop()
@@ -858,7 +1106,9 @@ export async function drive(
       const thisRun = state.runs.find((r) => r.id === runId)
       for (const doneId of thisRun?.done_tasks ?? []) {
         const task = state.phases.flatMap((p) => p.tasks).find((t) => t.id === doneId)
-        if (task === undefined || task.status !== 'done' || task.verification !== undefined) continue
+        // A recorded decision check (memory-lead D9) is a check behind it too:
+        // the gate ran, and the closing sweep re-checks what it accepted.
+        if (task === undefined || task.status !== 'done' || task.verification !== undefined || (task.checks?.length ?? 0) > 0) continue
         const g = gate(state, doneId)
         if (g.applies && !g.passed) {
           reopened = true
@@ -899,11 +1149,18 @@ export async function drive(
         break
       }
 
+      // The setting is read again before every launch (D5), so an answer the
+      // operator gave mid-run takes effect from this session on.
+      const awakeChanged = awake?.beforeLaunch()
+      if (awakeChanged !== undefined) progress(awakeChanged)
+
       const beforeStatuses = taskStatuses(state)
       // Who was in the record BEFORE the launch: the exact half of session
       // resolution (below), where a millisecond timestamp is only the coarse one.
       const knownSessions = new Set(state.sessions.map((s) => s.id))
       const launchedAt = new Date().toISOString()
+      // The progress judge's diff base; not read at all when nobody will judge.
+      const headBefore = judging.provider !== undefined ? headOf(cwd) : null
       // Where this task runs (3.2): the run's pins first, the task's route for
       // what the run left open. A route the run cannot reach THROWS, and the
       // catch below stops the run with that sentence rather than launching the
@@ -919,12 +1176,43 @@ export async function drive(
       progress(
         `session ${launched + 1}: ${task.id} — ${task.title}${routed !== adapter ? ` via ${routed.name}` : ''}`,
       )
-      // What the last check said about this task, if it was reopened (D19).
-      const lastCheck = state.phases.flatMap((p) => p.tasks).find((t) => t.id === task.id)?.verification
+      // What the last check said about this task, if it was reopened (D19):
+      // its acceptance command, or a decision's check (memory-lead D9), with
+      // the rule and the fix. A refused check never reopened anything.
+      const folded = state.phases.flatMap((p) => p.tasks).find((t) => t.id === task.id)
+      const lastCheck = [folded?.verification, ...(folded?.checks ?? [])]
+        .filter((v): v is NonNullable<typeof v> => v !== undefined && !('decision' in v && v.result === 'refused'))
+        .sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0))
+        .pop()
       const failure =
-        lastCheck !== undefined && lastCheck.result !== 'pass'
-          ? describeVerification(lastCheck.command, lastCheck.attempt, lastCheck)
-          : undefined
+        lastCheck === undefined || lastCheck.result === 'pass'
+          ? undefined
+          : 'decision' in lastCheck && typeof lastCheck.decision === 'string'
+            ? checkFailureFor(lastCheck.decision, lastCheck)
+            : describeVerification(lastCheck.command, lastCheck.attempt, lastCheck)
+      // Pre-flight (typed-judge 4.2/4.3, D12): advisory, so the launch below
+      // goes ahead as routed whatever it says. The judge is a network wait, so
+      // ownership, stop requests and signals are re-read before anything is
+      // appended or launched (drive-visibility 2.2).
+      if (judging.provider !== undefined) {
+        const verdict = await judgePreflight(
+          { task: { id: task.id, title: task.title, phase: task.phase }, ...(failure !== undefined ? { failure } : {}) },
+          { effort: route.effort === undefined && routed.capabilities.effort, model: route.model === undefined && routed.capabilities.model },
+          judging,
+        )
+        const folded = ctx.foldState(initiative)
+        checkOwner(folded)
+        if (fenced !== undefined) break
+        takeRequests(folded)
+        if (interrupted) {
+          stop = interruptedStop()
+          break
+        }
+        for (const judgement of verdict.judgements) {
+          ctx.appendAndProject(initiative, 'judgement_recorded', judgement, { session: 'cli', source: 'cli', actor: 'human' })
+        }
+        for (const line of verdict.lines) progress(line)
+      }
       const session = routed.launch({
         cwd,
         initiative,
@@ -935,10 +1223,15 @@ export async function drive(
         ...(surface !== undefined ? { surface } : {}),
       })
       live = session
-      const unwatch = watchStopRequests(
+      const unwatch = watchRunEvents(
         eventsPath,
         watchFrom,
-        () => takeRequests(ctx.foldState(initiative)),
+        () => {
+          const folded = ctx.foldState(initiative)
+          checkOwner(folded)
+          // A fenced driver's requests are the new owner's to honour.
+          if (fenced === undefined) takeRequests(folded)
+        },
         options.stopPollMs,
       )
       const gauge =
@@ -961,6 +1254,10 @@ export async function drive(
       cost += exit.usage?.cost_usd ?? 0
 
       const after = ctx.foldState(initiative)
+      // An adoption that landed after the last scan tick is caught here, before
+      // anything is filed: a fenced driver files no handoff for the new owner's run.
+      checkOwner(after)
+      if (fenced !== undefined) break
       const resolved = resolveLaunchedSession(after, exit, launchedAt, routed.name, knownSessions)
       if (resolved.kind !== 'found') {
         // No session to name, so no handoff to file (D3). It still counts as a
@@ -994,8 +1291,10 @@ export async function drive(
       // The gate (D19): a task_done is accepted only on a recorded pass. A
       // dropped task is never verified — it resolved, it was not tested.
       let exhausted: string | undefined
+      let checked: string | undefined
       if (reason === 'task_done' || reason === 'threshold') {
         const g = gate(after, task.id)
+        if (g.applies) checked = g.line.length > 0 ? g.line : 'passed: an earlier check still covers this tree'
         if (g.applies && !g.passed) {
           reason = 'verify_failed'
           detail = g.line
@@ -1025,6 +1324,31 @@ export async function drive(
       progress(
         `  ${reason} — session ${sessionId}${tokens !== undefined ? `, ${tokens} ctx tokens` : ''}${detail !== undefined ? ` (${detail})` : ''}`,
       )
+      if (judging.provider !== undefined && !interrupted) {
+        const ended = after.sessions.find((s) => s.id === sessionId)
+        const diff = headBefore !== null ? diffStatSince(cwd, headBefore) : null
+        const verdict = await judgeProgress(
+          {
+            task: { id: task.id, title: task.title },
+            reason,
+            status_before: beforeStatuses.get(task.id) ?? 'pending',
+            status_after: taskStatuses(after).get(task.id) ?? 'pending',
+            ...(ended?.summary !== undefined ? { writeback: { summary: ended.summary, next_action: ended.next_action ?? '' } } : {}),
+            ...(diff !== null ? { diff } : {}),
+            ...(checked !== undefined ? { test: checked } : {}),
+          },
+          sessionId,
+          judging,
+        )
+        // The judge is a network wait, and a takeover can land during it
+        // (drive-visibility 2.2): a driver fenced meanwhile appends nothing.
+        checkOwner(ctx.foldState(initiative))
+        if (fenced !== undefined) break
+        for (const judgement of verdict.judgements) {
+          ctx.appendAndProject(initiative, 'judgement_recorded', judgement, { session: 'cli', source: 'cli', actor: 'human' })
+        }
+        for (const line of verdict.lines) progress(line)
+      }
       stalls = reason === 'stall' ? stalls + 1 : 0
       lastStall = reason === 'stall' ? `session ${sessionId} — ${describeExit(exit)}` : undefined
 
@@ -1054,6 +1378,10 @@ export async function drive(
     process.removeListener('SIGINT', onSignal)
     process.removeListener('SIGTERM', onSignal)
   }
+
+  // Stepped down (drive-visibility 2.2): no run_stopped, since the run is the
+  // new owner's and a stop filed here would end it under that driver.
+  if (fenced !== undefined) throw new DriveFenced(runId, fenced)
 
   const ended = stop ?? { reason: 'error' as RunStopReason, note: 'the loop ended without a stop rule' }
   ctx.appendAndProject(

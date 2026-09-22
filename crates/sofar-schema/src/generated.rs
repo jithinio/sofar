@@ -19,10 +19,24 @@ pub struct CorrectionPayload {
     #[serde(rename = "ref")]
     pub ref_: ::std::string::String,
 }
+#[doc = "The command that checks a decision still holds, and the fix to show when it does not (D9)."]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
+pub struct DecisionCheck {
+    #[doc = "≤ CHECK_CMD_MAX chars; run from the repo root; exit 0 = the decision holds."]
+    pub cmd: ::std::string::String,
+    #[doc = "The remediation a failure shows, ≤ CHECK_HINT_MAX chars; absent, the rule and its quote stand in."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub hint: ::std::option::Option<::std::string::String>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub timeout_ms: ::std::option::Option<i64>,
+}
 #[doc = "`rule` (drift-hardening D1): optional standing-constraint clause — one short imperative every future session must obey. Its presence is what makes a decision a standing constraint; there is no separate flag. Render contract: verbatim on every surface, never clipped, never aged out — the C-abl ablation showed decisions are the load-bearing resume field, and clipped normative text is how dead ends recur."]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct DecisionLoggedPayload {
     pub because: ::std::string::String,
+    #[doc = "`check` (memory-lead 2.3, D9): the executable half of the SAME clause — a shell command whose exit 0 means the decision holds. Valid only alongside `rule`, like `guard`: a failure has to cite the clause it enforces. It is text an agent wrote into a shared record, so nothing runs it until the operator approved that exact command on their clone, or, under `sofar drive`, the run's permission surface covers it. It WARNS everywhere, and blocks only at drive's task acceptance and, opted in, at pre-commit."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub check: ::std::option::Option<DecisionCheck>,
     pub chose: ::std::string::String,
     #[doc = "`guard` (drift-hardening D3): the mechanical half of the SAME clause — a `path:`/`cmd:` glob list (src/guards.ts) the fold matches against file_touched / command_run events logged after this decision. Valid only alongside `rule`: a guard with no clause has nothing to cite when it fires, and what it produces is a WARNING that never changes an exit code."]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -205,6 +219,43 @@ pub struct InitiativeStatusChangedPayload {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub successor: ::std::option::Option<::std::string::String>,
 }
+#[doc = "`JudgementAnswer`"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
+#[serde(tag = "type")]
+pub enum JudgementAnswer {
+    #[serde(rename = "noul")]
+    Noul { noul: f64 },
+    #[serde(rename = "choice")]
+    Choice {
+        choice: ::std::string::String,
+        confidence: f64,
+        probabilities: ::std::collections::HashMap<::std::string::String, f64>,
+    },
+    #[serde(rename = "score")]
+    Score {
+        confidence: f64,
+        probabilities: ::std::collections::HashMap<::std::string::String, f64>,
+        score: f64,
+    },
+}
+#[doc = "`JudgementRecordedPayload`"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
+pub struct JudgementRecordedPayload {
+    #[doc = "What `subject` was judged AGAINST, for a relevance judgement (typed-judge D10): `task:<id>` (a task of the envelope's initiative) or `file:<repo-relative path>`. Absent for a judgement about the subject alone."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub about: ::std::option::Option<::std::string::String>,
+    pub answer: JudgementAnswer,
+    #[doc = "Exact model version (never an alias), or `deterministic`."]
+    pub model: ::std::string::String,
+    #[doc = "Who ran the judge: `sofar-cloud`, `deterministic`, `agent`, …"]
+    pub producer: ::std::string::String,
+    #[doc = "The question id, as the seam names it (`relevance`, `progress`, …)."]
+    pub question: ::std::string::String,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub state_hash: ::std::option::Option<::std::string::String>,
+    #[doc = "What it is about: an event id, a task id of this initiative, or a record handle qualified per the citation grammar — a bare `D12` is the envelope's own initiative, anything else `<slug> D12` / `<slug> M3` (typed-judge D10)."]
+    pub subject: ::std::string::String,
+}
 #[doc = "`KnownEventPayloads`"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct KnownEventPayloads {
@@ -215,11 +266,13 @@ pub struct KnownEventPayloads {
     pub handoff: HandoffPayload,
     pub initiative_created: InitiativeCreatedPayload,
     pub initiative_status_changed: InitiativeStatusChangedPayload,
+    pub judgement_recorded: JudgementRecordedPayload,
     pub memory_promoted: MemoryPromotedPayload,
     pub note_added: NoteAddedPayload,
     pub phase_status_changed: PhaseStatusChangedPayload,
     pub plan_updated: PlanUpdatedPayload,
     pub review_recorded: ReviewRecordedPayload,
+    pub run_adopted: RunAdoptedPayload,
     pub run_started: RunStartedPayload,
     pub run_stop_requested: RunStopRequestedPayload,
     pub run_stopped: RunStoppedPayload,
@@ -469,6 +522,12 @@ impl ::std::convert::TryFrom<::std::string::String> for ReviewVerdict {
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
+}
+#[doc = "A driver took over a run that has no stop (drive-visibility 2.2): `sofar drive --resume` appends one before its first launch, at one more than the run's highest epoch — `run_started` is epoch 1, so an adoption is never below 2. The fencing token for a record that syncs: the fold's owner is the highest epoch (the first-sorting id on a tie), and a driver that finds it is no longer the owner steps down. One event per takeover, never a heartbeat."]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
+pub struct RunAdoptedPayload {
+    pub epoch: i64,
+    pub run: ::std::string::String,
 }
 #[doc = "`RunPolicy`"]
 #[derive(
@@ -805,6 +864,9 @@ pub struct VerificationRecordedPayload {
     pub command: ::std::string::String,
     #[doc = "Relative to the launch directory; `.` for the launch directory itself."]
     pub cwd: ::std::string::String,
+    #[doc = "The decision whose `check` this was, as `<slug> D<n>` (memory-lead 2.3, D9). Absent: the task's own acceptance command. The fold keeps the two apart, so a check never displaces the task's verify pass."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub decision: ::std::option::Option<::std::string::String>,
     #[doc = "≤1,024 chars: ANSI-stripped, redacted tail of stdout and stderr."]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub diagnostics: ::std::option::Option<::std::string::String>,

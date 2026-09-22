@@ -82,6 +82,7 @@
     "runs": [
       {
         "adapter": "claude-code",
+        "adoptions": [],
         "done_tasks": [
           "1.1"
         ],
@@ -95,11 +96,15 @@
           }
         ],
         "id": "01J00000000000000000000000",
+        "owner": {
+          "epoch": 1,
+          "id": "01KDVDNCXRPXRQA1CVY50ZJ9M3"
+        },
         "policy": "task",
         "stop_note": "stop requested",
         "stop_reason": "interrupted",
         "stop_requests": [
-          "2026-01-01T00:00:10.000Z"
+          "01KDVDNKRG1CVY50ZJ9M36D87T"
         ],
         "stopped": "2026-01-01T00:00:11.000Z",
         "surface": {

@@ -156,7 +156,8 @@ describe('batched write-back', () => {
       tasks_applied: 4,
       decisions: ['D1', 'D2'],
       memories: ['demo M1'],
-      warnings: [expect.stringContaining("D1's rule states 4xx")],
+      // Rule fidelity first, then the evidence judge (typed-judge 3.3): three note-less dones, one line.
+      warnings: [expect.stringContaining("D1's rule states 4xx"), expect.stringContaining('1.1, 1.2 and 1.3 marked done without cited evidence (no note)')],
     })
 
     const filed = lines(f.eventsPath).slice(before)

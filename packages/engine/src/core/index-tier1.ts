@@ -1,10 +1,12 @@
-import { parseGuard, type GuardDomain } from '@sofar/schema'
+import { DECISION_HANDLE_RE, parseGuard, type DecisionCheck, type GuardDomain } from '@sofar/schema'
 import type { DecisionLoggedPayload, FileTouchedPayload } from '@sofar/schema'
 import { GRAPH_RESULT_CAP, matchRecordedPaths } from './adjacency'
+import { fileMentions, mentionDepth } from './file-mentions'
 import { passOverRecord } from './index-pass'
 import { INDEX_SCHEMA_VERSION, readIndexFile, writeIndexFile } from './index-store'
 import { type IndexedEvent } from './index-tail'
 import { byCodeUnit } from './order'
+import type { ForeignDecision } from './reversal'
 
 /**
  * Tier 1: the record graph, materialized and KEYED for lookup (record-index 3.1).
@@ -67,6 +69,10 @@ const GUARDS_FILE = 'guards.json'
 const GUARDS_META = 'meta-guards.json'
 const FILES_FILE = 'graph.json'
 const FILES_META = 'meta-graph.json'
+// The third file (memory-lead 2.2, D8): what a writer compares a new decision
+// against. Read by the three writers only, so it never rides a hook.
+const LABELS_FILE = 'labels.json'
+const LABELS_META = 'meta-labels.json'
 
 /** A decision that declared which work it governs (rule + guard). */
 export interface GuardedDecision {
@@ -81,6 +87,38 @@ export interface GuardedDecision {
   /** The machine-checkable half: `path:<globs>` or `cmd:<globs>`. */
   guard: string
   chose: string
+  /** The ordinal of the later decision that superseded this one, marked as the fold marks it. */
+  superseded_by?: number
+}
+
+/**
+ * A decision in the decision-scope tier (memory-lead 2.1, D6): one that
+ * declares the work it governs (rule + guard), names a file in its chose,
+ * over or rule, or carries a rule at all — a rule is the operator's choice for
+ * the whole project, so every record's digest renders it (memory-lead 2.2,
+ * D8). Its fields are what a notice renders, so a hook never folds.
+ */
+export interface ScopedDecision {
+  id: string
+  initiative: string
+  ordinal: number
+  ts: string
+  chose: string
+  over: string
+  rule?: string
+  quote?: string
+  /** Only alongside `rule`, as the fold requires. */
+  guard?: string
+  /** Only alongside `rule` (memory-lead 2.3, D9): what `sofar check`, Stop, pre-commit and drive run. */
+  check?: DecisionCheck
+  until?: string
+  superseded_by?: number
+  /**
+   * File tokens of chose, over, rule and the check's command (core/file-mentions)
+   * — the command's, so a read or edit of the check's own script surfaces the
+   * decision it enforces (D9: agents edit tests to pass them).
+   */
+  mentions: string[]
 }
 
 /** One session's touches of one path, as the graph's `touched` edge records it. */
@@ -109,7 +147,17 @@ export interface PathTouchers {
 interface SlugGuardState {
   /** decision_logged events applied so far — the `D<n>` base. */
   decisions: number
-  guards: GuardedDecision[]
+  /**
+   * '1' where that ordinal carries a rule, else '0', for EVERY decision:
+   * supersession retires a ruled target only for a ruled superseder, and the
+   * target need not be in scope for the question to be asked.
+   */
+  ruled: string
+  /** Ordinals a later decision superseded (the fold's rule), ascending. */
+  superseded: number[]
+  /** Ordinals scoped by `until`. */
+  until: number[]
+  entries: ScopedDecision[]
 }
 
 interface SlugFileState {
@@ -123,7 +171,16 @@ interface TierDisk<S> {
 }
 
 export interface Tier1Index {
+  /** The entries that carry rule + guard, superseded ones included and marked. */
   guards: GuardedDecision[]
+  /** Every entry of the decision-scope tier, repo-wide. */
+  scoped: ScopedDecision[]
+  /**
+   * Qualified handles (`<slug> D<n>`) of every superseded or until-scoped
+   * decision: what a surface must not speak for, and the relevance reader's
+   * required `retired` set (typed-judge D10).
+   */
+  retired: Set<string>
   /**
    * initiative → how many decisions it holds. Already maintained as the `D<n>`
    * base, and independently the answer to "how much reasoning is in that
@@ -135,7 +192,7 @@ export interface Tier1Index {
 }
 
 /** The declared half alone — what a hot path asks for. */
-export type GuardIndex = Pick<Tier1Index, 'guards' | 'decisions'>
+export type GuardIndex = Pick<Tier1Index, 'guards' | 'scoped' | 'retired' | 'decisions'>
 /** The derived half alone. */
 export type FileIndex = Pick<Tier1Index, 'files'>
 
@@ -145,10 +202,16 @@ function isTierDisk<S>(v: unknown): v is TierDisk<S> {
   return r.version === INDEX_SCHEMA_VERSION && typeof r.initiatives === 'object' && r.initiatives !== null
 }
 
-const emptyGuards = (): SlugGuardState => ({ decisions: 0, guards: [] })
+const emptyGuards = (): SlugGuardState => ({ decisions: 0, ruled: '', superseded: [], until: [], entries: [] })
 
 function cloneGuards(state: SlugGuardState): SlugGuardState {
-  return { decisions: state.decisions, guards: state.guards.map((g) => ({ ...g })) }
+  return {
+    decisions: state.decisions,
+    ruled: state.ruled,
+    superseded: [...state.superseded],
+    until: [...state.until],
+    entries: state.entries.map((e) => ({ ...e, mentions: [...e.mentions] })),
+  }
 }
 
 const emptyFiles = (): SlugFileState => ({ files: {} })
@@ -163,22 +226,72 @@ function cloneFiles(state: SlugFileState): SlugFileState {
   return { files }
 }
 
-/** Apply one event to the declared half, mirroring the fold's own bookkeeping. */
+/**
+ * How much of a decision's chose and over the tier keeps: what their rendered
+ * heads need and no more. A notice renders minutiaeHead(text, ≤90), which cuts
+ * at the first clause boundary and then clips, so it depends only on the
+ * first 90 characters and on whether the text runs past them. Any prefix
+ * longer than the widest head therefore renders the same bytes. On this repo
+ * the full text was 188 KB of a 246 KB file that every Read parses. Rules and
+ * quotes are never cut (drift-hardening D2).
+ */
+export const SCOPE_HEAD_SOURCE = 120
+
+function headSource(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().slice(0, SCOPE_HEAD_SOURCE)
+}
+
+/**
+ * Apply one event to the decision-scope half, mirroring the fold's own
+ * bookkeeping: the same ordinals, and the same supersession marks
+ * (core/fold.ts, decision_logged).
+ */
 function applyGuard(state: SlugGuardState, event: IndexedEvent, slug: string): void {
   if (event.type !== 'decision_logged') return
   const p = event.payload as unknown as DecisionLoggedPayload
-  // Counted BEFORE the guard test: `D<n>` is a position among all decisions,
-  // and skipping the unguarded ones would renumber the record.
+  // Counted BEFORE the scope test: `D<n>` is a position among all decisions,
+  // and skipping the out-of-scope ones would renumber the record.
   state.decisions += 1
-  if (typeof p.rule !== 'string' || typeof p.guard !== 'string') return
-  state.guards.push({
+  const ordinal = state.decisions
+  const ruled = typeof p.rule === 'string'
+  state.ruled += ruled ? '1' : '0'
+
+  // Supersession, exactly as the fold resolves it: inert when it points
+  // forward or at itself, or when a rule-less decision names a rule. The last
+  // superseder wins the mark, as it does in the fold.
+  if (typeof p.supersedes === 'string') {
+    const m = DECISION_HANDLE_RE.exec(p.supersedes)
+    const n = m === null ? NaN : Number(m[1])
+    if (Number.isInteger(n) && n >= 1 && n < ordinal && (state.ruled[n - 1] !== '1' || ruled)) {
+      if (!state.superseded.includes(n)) {
+        state.superseded.push(n)
+        state.superseded.sort((a, b) => a - b)
+      }
+      const target = state.entries.find((e) => e.ordinal === n)
+      if (target !== undefined) target.superseded_by = ordinal
+    }
+  }
+  if (typeof p.until === 'string') state.until.push(ordinal)
+
+  const guard = ruled && typeof p.guard === 'string' ? p.guard : undefined
+  const check = ruled && typeof p.check?.cmd === 'string' ? p.check : undefined
+  const mentions = fileMentions([p.chose, p.over, p.rule ?? '', check?.cmd ?? ''].join('\n'))
+  if (!ruled && mentions.length === 0) return
+  state.entries.push({
     id: event.id,
     initiative: slug,
-    ordinal: state.decisions,
+    ordinal,
     ts: event.ts,
-    rule: p.rule,
-    guard: p.guard,
-    chose: p.chose,
+    chose: headSource(p.chose),
+    over: headSource(p.over),
+    ...(ruled ? { rule: p.rule } : {}),
+    ...(ruled && typeof p.quote === 'string' ? { quote: p.quote } : {}),
+    ...(guard !== undefined ? { guard } : {}),
+    ...(check !== undefined
+      ? { check: { cmd: check.cmd, ...(check.hint !== undefined ? { hint: check.hint } : {}), ...(check.timeout_ms !== undefined ? { timeout_ms: check.timeout_ms } : {}) } }
+      : {}),
+    ...(typeof p.until === 'string' ? { until: p.until } : {}),
+    mentions,
   })
 }
 
@@ -203,6 +316,60 @@ function applyFile(state: SlugFileState, event: IndexedEvent): void {
   state.files[path] = sessions
 }
 
+/**
+ * A decision the reversal check can compare (memory-lead 2.2, D8): both
+ * clauses short enough to be labels. The cut is a length, not core/reversal's
+ * term count, so the file never depends on the lexicon: 600 chars is well past
+ * the longest label-sized clause on record (345, over 7,494 decisions), and
+ * sides() still decides at query time.
+ */
+export const LABEL_CLAUSE_MAX = 600
+
+interface LabelEntry {
+  ordinal: number
+  ts: string
+  chose: string
+  over: string
+  ruled: boolean
+}
+
+interface SlugLabelState {
+  /** decision_logged events applied so far — the `D<n>` base. */
+  decisions: number
+  /** In force only: a superseded entry leaves, an until-scoped one never enters. */
+  entries: LabelEntry[]
+}
+
+const emptyLabels = (): SlugLabelState => ({ decisions: 0, entries: [] })
+
+function cloneLabels(state: SlugLabelState): SlugLabelState {
+  return { decisions: state.decisions, entries: state.entries.map((e) => ({ ...e })) }
+}
+
+/**
+ * Apply one event to the labels half. Supersession is the fold's rule
+ * (core/fold.ts, decision_logged): backward only, and a ruled target falls
+ * only to a ruled superseder. An until-scoped decision is out from the start:
+ * whether its task has resolved is not indexed, and a refusal must never rest
+ * on a decision that may have expired.
+ */
+function applyLabel(state: SlugLabelState, event: IndexedEvent): void {
+  if (event.type !== 'decision_logged') return
+  const p = event.payload as unknown as DecisionLoggedPayload
+  state.decisions += 1
+  const ordinal = state.decisions
+  const ruled = typeof p.rule === 'string'
+  if (typeof p.supersedes === 'string') {
+    const m = DECISION_HANDLE_RE.exec(p.supersedes)
+    const n = m === null ? NaN : Number(m[1])
+    const at = Number.isInteger(n) && n < ordinal ? state.entries.findIndex((e) => e.ordinal === n) : -1
+    if (at >= 0 && (!state.entries[at]!.ruled || ruled)) state.entries.splice(at, 1)
+  }
+  if (typeof p.until === 'string' || typeof p.chose !== 'string' || typeof p.over !== 'string') return
+  if (p.chose.length > LABEL_CLAUSE_MAX || p.over.length > LABEL_CLAUSE_MAX) return
+  state.entries.push({ ordinal, ts: event.ts, chose: p.chose, over: p.over, ruled })
+}
+
 function refreshHalf<S>(
   sofarDir: string,
   file: string,
@@ -221,11 +388,13 @@ function refreshHalf<S>(
 }
 
 /**
- * Bring the DECLARED half up to date — every guarded decision in the repo.
+ * Bring the DECLARED half up to date — every decision in the repo that guards
+ * or names a file (memory-lead 2.1, D6).
  *
- * The one call PostToolUse makes on every edit, and the reason the halves have
- * separate cursors: this reads and writes a file sized by the number of guarded
- * decisions (6 of 208 on this record), never by the repo's touch history.
+ * The one call PostToolUse makes on every read and edit, and the reason the
+ * halves have separate cursors: this reads and writes a file sized by the
+ * decisions in scope (92 in-force on this repo in 2026-09), never by the
+ * repo's touch history.
  */
 export function refreshGuards(sofarDir: string): GuardIndex {
   return declaredView(refreshHalf(sofarDir, GUARDS_FILE, GUARDS_META, {
@@ -244,6 +413,64 @@ export function refreshFiles(sofarDir: string): FileIndex {
   })) }
 }
 
+/**
+ * Bring the labels tier up to date and return every standing, label-sized
+ * decision in the repo, by initiative then ordinal (memory-lead 2.2, D8) —
+ * what the writers' reversal check reads for the records it does not fold.
+ */
+export function refreshLabels(sofarDir: string): ForeignDecision[] {
+  const states = refreshHalf(sofarDir, LABELS_FILE, LABELS_META, {
+    empty: emptyLabels,
+    clone: cloneLabels,
+    apply: (state: SlugLabelState, event: IndexedEvent) => applyLabel(state, event),
+  })
+  const out: ForeignDecision[] = []
+  for (const slug of Object.keys(states).sort(byCodeUnit)) {
+    for (const e of states[slug]?.entries ?? []) out.push({ initiative: slug, ...e })
+  }
+  return out
+}
+
+/**
+ * What a writer passes to silentReversal for the records it does not fold
+ * (D8). An index that cannot be refreshed yields none: the write still gets
+ * its own record's check, and a lost refusal is the lesser failure than a
+ * write that cannot land.
+ */
+export function foreignDecisions(sofarDir: string, home: string): { home: string; decisions: ForeignDecision[] } {
+  try {
+    return { home, decisions: refreshLabels(sofarDir).filter((d) => d.initiative !== home) }
+  } catch {
+    return { home, decisions: [] }
+  }
+}
+
+/** One other record's standing rule, as the digest renders it (memory-lead 2.2, D8). */
+export interface RepoRule {
+  initiative: string
+  ordinal: number
+  ts: string
+  rule: string
+  quote?: string
+}
+
+/**
+ * Every other record's standing rules (D8): the ruled entries of the scope
+ * tier outside `slug`, minus those a later rule of their own record replaced
+ * — unless `retire` is off (SOFAR_RETIRE, r1-fixes D25), as for a record's
+ * own. Closing a record retires nothing. By initiative, then ordinal; the
+ * digest ranks them.
+ */
+export function repoRules(index: GuardIndex, slug: string, retire = true): RepoRule[] {
+  const out: RepoRule[] = []
+  for (const d of index.scoped) {
+    if (d.rule === undefined || d.initiative === slug) continue
+    if (retire && d.superseded_by !== undefined) continue
+    out.push({ initiative: d.initiative, ordinal: d.ordinal, ts: d.ts, rule: d.rule, ...(d.quote !== undefined ? { quote: d.quote } : {}) })
+  }
+  return out
+}
+
 /** Bring both halves up to date and return the repo-wide keyed views. */
 export function refreshTier1(sofarDir: string): Tier1Index {
   return { ...refreshGuards(sofarDir), ...refreshFiles(sofarDir) }
@@ -255,7 +482,9 @@ export function readTier1(sofarDir: string): Tier1Index | null {
   const files = readIndexFile<TierDisk<SlugFileState>>(sofarDir, FILES_FILE, isTierDisk)
   if (guards === null && files === null) return null
   return {
-    ...(guards === null ? { guards: [], decisions: {} } : declaredView(guards.initiatives)),
+    ...(guards === null
+      ? { guards: [], scoped: [], retired: new Set<string>(), decisions: {} }
+      : declaredView(guards.initiatives)),
     files: files === null ? new Map() : unionFiles(files.initiatives),
   }
 }
@@ -270,13 +499,63 @@ export function readTier1(sofarDir: string): Tier1Index | null {
  */
 function declaredView(states: Record<string, SlugGuardState>): GuardIndex {
   const guards: GuardedDecision[] = []
+  const scoped: ScopedDecision[] = []
+  const retired = new Set<string>()
   const decisions: Record<string, number> = {}
   for (const slug of Object.keys(states).sort()) {
-    guards.push(...(states[slug]?.guards ?? []).map((g) => ({ ...g })))
-    decisions[slug] = states[slug]?.decisions ?? 0
+    const state = states[slug]
+    decisions[slug] = state?.decisions ?? 0
+    for (const n of [...(state?.superseded ?? []), ...(state?.until ?? [])]) retired.add(`${slug} D${n}`)
+    for (const entry of state?.entries ?? []) {
+      scoped.push({ ...entry, mentions: [...entry.mentions] })
+      if (entry.rule === undefined || entry.guard === undefined) continue
+      guards.push({
+        id: entry.id,
+        initiative: entry.initiative,
+        ordinal: entry.ordinal,
+        ts: entry.ts,
+        rule: entry.rule,
+        guard: entry.guard,
+        chose: entry.chose,
+        ...(entry.superseded_by !== undefined ? { superseded_by: entry.superseded_by } : {}),
+      })
+    }
   }
-  guards.sort((a, b) => (a.initiative === b.initiative ? a.ordinal - b.ordinal : byCodeUnit(a.initiative, b.initiative)))
-  return { guards, decisions }
+  const order = (a: { initiative: string; ordinal: number }, b: { initiative: string; ordinal: number }): number =>
+    a.initiative === b.initiative ? a.ordinal - b.ordinal : byCodeUnit(a.initiative, b.initiative)
+  guards.sort(order)
+  scoped.sort(order)
+  return { guards, scoped, retired, decisions }
+}
+
+/** How one in-scope decision bears on one subject. */
+export interface ScopeHit {
+  decision: ScopedDecision
+  /** Its guard matches the subject: relevance the author DECLARED (record-index D2). */
+  guarded: boolean
+  /** Segments of the path the decision's best file token names; 0 when none does. */
+  depth: number
+}
+
+/**
+ * Every in-scope decision that guards or names this subject (memory-lead 2.1,
+ * D6). A path subject is matched against guards and file mentions, a command
+ * against `cmd:` guards only. Retirement is the caller's to apply at render
+ * time, as the digest applies it, so this stays faithful to the fold.
+ */
+export function scopeHitsForSubject(index: GuardIndex, domain: GuardDomain, subject: string): ScopeHit[] {
+  const hits: ScopeHit[] = []
+  for (const decision of index.scoped) {
+    let guarded = false
+    if (decision.guard !== undefined) {
+      const compiled = parseGuard(decision.guard)
+      guarded = compiled !== null && compiled.domain === domain && guardHits(compiled.patterns, subject)
+    }
+    let depth = 0
+    if (domain === 'path') for (const token of decision.mentions) depth = Math.max(depth, mentionDepth(token, subject))
+    if (guarded || depth > 0) hits.push({ decision, guarded, depth })
+  }
+  return hits
 }
 
 function unionFiles(states: Record<string, SlugFileState>): Tier1Index['files'] {
@@ -453,8 +732,7 @@ export interface NeighbourRecord {
  * reading and never asserted. Nothing in the record says these decisions are
  * ABOUT your files — only that the work happened in the same places.
  */
-export function refreshNeighbours(sofarDir: string, slug: string): NeighbourRecord[] {
-  const declared = refreshGuards(sofarDir)
+export function refreshNeighbours(sofarDir: string, slug: string, declared: GuardIndex = refreshGuards(sofarDir)): NeighbourRecord[] {
   const states = refreshHalf(sofarDir, FILES_FILE, FILES_META, {
     empty: emptyFiles,
     clone: cloneFiles,

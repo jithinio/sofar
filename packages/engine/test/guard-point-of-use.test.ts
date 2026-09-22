@@ -30,7 +30,7 @@ afterAll(() => {
   for (const r of roots) rmSync(r, { recursive: true, force: true })
 })
 
-const MARK = 'standing rule guards'
+const MARK = 'is governed by'
 
 function fx(): Fixture {
   const fixture = makeRepoFixture()
@@ -181,14 +181,19 @@ describe('3.2 a rule declared elsewhere reaches the edit', () => {
     const f = fx()
     rule(f.root, 'security', { rule: 'R', guard: 'path:src/**' })
     const out = context(edit(f.root, 'S', join(f.root, 'src/deep/mod.ts')))
-    expect(out).toContain('guards src/deep/mod.ts —')
+    expect(out).toContain('sofar: src/deep/mod.ts is governed by')
     expect(out).not.toContain(f.root)
   })
 
-  it('asserts rather than offers — declared relevance, per D2', () => {
+  it('asserts a guard, worded as a fact rather than a command (record-index D2, memory-lead 2.1)', () => {
     const f = fx()
     rule(f.root, 'security', { rule: 'R', guard: 'path:**/*.ts' })
-    expect(context(edit(f.root, 'S', join(f.root, 'a.ts')))).toContain('obey it verbatim')
+    const out = context(edit(f.root, 'S', join(f.root, 'a.ts')))
+    expect(out).toBe(
+      'sofar: a.ts is governed by [security D1], a standing rule: "R" (guard: path:**/*.ts). ' +
+        'Work against it needs a decision that supersedes security D1.',
+    )
+    expect(out).not.toContain('obey')
   })
 })
 
@@ -339,9 +344,8 @@ describe('3.2 more rules than the line can carry', () => {
     rule(f.root, 'delta', { rule: 'D', guard: 'path:**/*.ts' })
 
     const lines = context(edit(f.root, 'S', join(f.root, 'a.ts'))).split('\n')
-    expect(lines).toHaveLength(3)
-    expect(lines[2]).toContain('2 more standing rule(s) guard this, in delta, gamma')
-    expect(lines[2]).toContain('decisions.md')
+    expect(lines).toHaveLength(4)
+    expect(lines[3]).toBe('sofar: …and 1 more decision(s) on a.ts (in gamma) — sofar find a.ts.')
   })
 
   it('drops THIS record’s rule first — the digest already carries it verbatim', () => {
@@ -349,12 +353,14 @@ describe('3.2 more rules than the line can carry', () => {
     rule(f.root, 'demo', { rule: 'MINE', guard: 'path:**/*.ts' })
     rule(f.root, 'alpha', { rule: 'THEIRS-A', guard: 'path:**/*.ts' })
     rule(f.root, 'beta', { rule: 'THEIRS-B', guard: 'path:**/*.ts' })
+    rule(f.root, 'gamma', { rule: 'THEIRS-C', guard: 'path:**/*.ts' })
 
     const out = context(edit(f.root, 'S', join(f.root, 'a.ts')))
     expect(out).toContain('THEIRS-A')
     expect(out).toContain('THEIRS-B')
+    expect(out).toContain('THEIRS-C')
     expect(out).not.toContain('"MINE"')
-    expect(out).toContain('1 more standing rule(s) guard this, in demo')
+    expect(out).toContain('1 more decision(s) on a.ts (in demo)')
   })
 })
 
