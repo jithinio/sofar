@@ -1452,7 +1452,8 @@ export const SHIMS: readonly ShimSpec[] = [
     file: 'post-tool-use.sh',
     event: 'PostToolUse',
     hook: 'post-tool',
-    matcher: 'Edit|Write|MultiEdit|Bash',
+    // Read and Grep are subjects too: read-time surfacing (memory-lead 2.1, D6).
+    matcher: 'Edit|Write|MultiEdit|Bash|Read|Grep',
     text: postToolUseShim,
   },
   {
@@ -1823,6 +1824,28 @@ function hasCommand(entries: unknown[], command: string): boolean {
   )
 }
 
+/**
+ * Matchers an earlier sofar shipped for an event, before the current one. On
+ * re-init an entry of OURS still carrying one is widened in place: an entry is
+ * otherwise left exactly as found, so a new matcher would never reach a repo
+ * that was initialized before it (memory-lead 2.1, D6 added Read and Grep).
+ * Any other matcher is the user's, and is kept.
+ */
+const SHIPPED_MATCHERS: Partial<Record<ShimSpec['event'], readonly string[]>> = {
+  PostToolUse: ['Edit|Write|MultiEdit|Bash'],
+}
+const SHIPPED_CURSOR_MATCHERS: Partial<Record<ShimSpec['event'], readonly string[]>> = {
+  PostToolUse: ['Shell|Write'],
+}
+
+/** Widen a shipped matcher on `entry` to `current`; true when it changed. */
+function widenMatcher(entry: Obj, current: string | undefined, shipped: readonly string[] | undefined): boolean {
+  if (current === undefined || typeof entry.matcher !== 'string' || entry.matcher === current) return false
+  if (!(shipped ?? []).includes(entry.matcher)) return false
+  entry.matcher = current
+  return true
+}
+
 function mergeSettings(
   rootDir: string,
   statusline: boolean,
@@ -1837,6 +1860,7 @@ function mergeSettings(
   const hooks: Obj = isObj(settings.hooks) ? settings.hooks : {}
 
   let added = 0
+  let widened = 0
   for (const shim of SHIMS) {
     const existing = hooks[shim.event]
     if (existing !== undefined && !Array.isArray(existing)) {
@@ -1846,6 +1870,10 @@ function mergeSettings(
     }
     const entries: unknown[] = Array.isArray(existing) ? existing : []
     const command = hookCommand(shim.file)
+    for (const entry of entries) {
+      const ours = isObj(entry) && Array.isArray(entry.hooks) && entry.hooks.some((h) => isObj(h) && h.command === command)
+      if (ours && widenMatcher(entry, shim.matcher, SHIPPED_MATCHERS[shim.event])) widened++
+    }
     if (!hasCommand(entries, command)) {
       entries.push({
         ...(shim.matcher !== undefined ? { matcher: shim.matcher } : {}),
@@ -1873,7 +1901,7 @@ function mergeSettings(
   }
   const statuslineAbsent = settings.statusLine === undefined
 
-  if (added === 0 && !statuslineWiredNow && existsSync(path)) {
+  if (added === 0 && widened === 0 && !statuslineWiredNow && existsSync(path)) {
     report.push(`unchanged .claude/settings.json${statuslineNote}`)
     return { statuslineAbsent }
   }
@@ -1926,7 +1954,7 @@ export const CURSOR_HOOKS: Readonly<
 > = {
   SessionStart: { event: 'sessionStart' },
   UserPromptSubmit: { event: 'beforeSubmitPrompt' },
-  PostToolUse: { event: 'postToolUse', matcher: 'Shell|Write' },
+  PostToolUse: { event: 'postToolUse', matcher: 'Shell|Write|Read' },
   PostToolUseFailure: { event: 'postToolUseFailure', matcher: 'Shell|Write' },
   Stop: { event: 'stop', loop_limit: 1 },
   SessionEnd: { event: 'sessionEnd' },
@@ -1957,6 +1985,7 @@ function mergeCursorHooks(rootDir: string, home: ShimHome, add: boolean, report:
 
   let added = 0
   let moved = 0
+  let widened = 0
   for (const shim of SHIMS) {
     const { event, matcher, loop_limit } = CURSOR_HOOKS[shim.event]
     const existing = hooks[event]
@@ -1974,6 +2003,9 @@ function mergeCursorHooks(rootDir: string, home: ShimHome, add: boolean, report:
         }
       }
     }
+    for (const entry of entries) {
+      if (isObj(entry) && entry.command === command && widenMatcher(entry, matcher, SHIPPED_CURSOR_MATCHERS[shim.event])) widened++
+    }
     if (add && !entries.some((entry) => isObj(entry) && entry.command === command)) {
       entries.push({
         command,
@@ -1985,7 +2017,7 @@ function mergeCursorHooks(rootDir: string, home: ShimHome, add: boolean, report:
     if (entries.length > 0) hooks[event] = entries
   }
 
-  if (added === 0 && moved === 0 && existsSync(path)) {
+  if (added === 0 && moved === 0 && widened === 0 && existsSync(path)) {
     report.push(`unchanged ${rel}`)
     return
   }
