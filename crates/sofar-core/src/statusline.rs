@@ -8,13 +8,14 @@ use std::path::Path;
 
 use crate::append::fold_state;
 use crate::date::js_round;
+use crate::fold::InitiativeState;
 use crate::home::{ResolvedVia, resolve_session_first};
 use crate::hook::parse_hook;
 use crate::json::{Json, Object, number_to_string};
 use crate::layout::{Layout, initiative_slugs};
-use crate::projections::{TaskProgress, phase_fraction, task_progress};
+use crate::projections::{RunLiveness, TaskProgress, phase_fraction, task_progress};
 use crate::status::{QUICK_LANE, is_closed_initiative_status};
-use crate::text::{is_js_whitespace, js_trim};
+use crate::text::{cmp_utf16, is_js_whitespace, js_trim};
 use crate::ui::{Style, pie_for};
 use crate::update_cache::{UpdateNotice, notice_from, read_update_cache};
 use crate::version::engine_version;
@@ -143,9 +144,84 @@ enum RecordSegment {
         slug: String,
         progress: TaskProgress,
         status: String,
+        drive: Option<DriveSegment>,
     },
     Lane,
     Unbound,
+}
+
+/// The drive segment (drive-visibility 3.3, `DriveSegment`): how the
+/// record's latest run stands, after its progress.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DriveSegment {
+    /// No stop recorded; the lock held here, or no lock for it on this machine.
+    Live {
+        task: Option<String>,
+        liveness: RunLiveness,
+    },
+    /// No stop recorded and the lock free: the driver died.
+    Gone,
+    /// A stop since this session began.
+    Stopped { reason: String },
+}
+
+/// `driveSegmentOf`: the lock is probed only while a run is open; a run that
+/// stopped before the session began is not news on its bar.
+pub fn drive_segment_of(
+    state: &InitiativeState,
+    session_started: Option<&str>,
+    probe: impl Fn(&str) -> RunLiveness,
+) -> Option<DriveSegment> {
+    let run = state.runs.last()?;
+    if let Some(stopped) = &run.stopped {
+        let started = session_started?;
+        if cmp_utf16(stopped, started).is_lt() {
+            return None;
+        }
+        return Some(DriveSegment::Stopped {
+            reason: run.stop_reason.clone()?,
+        });
+    }
+    match probe(&run.id) {
+        RunLiveness::Free => Some(DriveSegment::Gone),
+        liveness => Some(DriveSegment::Live {
+            task: crate::drive_queue::next_task(state).map(|t| t.id.clone()),
+            liveness,
+        }),
+    }
+}
+
+/// `driveText`: the constant `drive` label dim, the value toned (D13).
+fn drive_text(drive: &DriveSegment, style: Style) -> String {
+    let label = style.dim("drive");
+    match drive {
+        DriveSegment::Gone => format!("{label} {}", style.error("gone")),
+        DriveSegment::Stopped { reason } => {
+            let toned = match reason.as_str() {
+                "needs_user" => style.warn(reason),
+                "error" | "stall" => style.error(reason),
+                "closed" => style.success(reason),
+                _ => style.dim(reason),
+            };
+            format!("{label} {toned}")
+        }
+        DriveSegment::Live {
+            task,
+            liveness: RunLiveness::Absent,
+        } => format!(
+            "{label} {}{}",
+            task.as_deref()
+                .map(|t| format!("{} ", style.info(t)))
+                .unwrap_or_default(),
+            style.dim("liveness unknown")
+        ),
+        DriveSegment::Live { task, .. } => {
+            format!(
+                "{label} {}",
+                style.info(task.as_deref().unwrap_or("running"))
+            )
+        }
+    }
 }
 
 /// `recordSegment`: the first candidate root that resolves.
@@ -168,10 +244,21 @@ fn record_segment(root: &Path, hook: &Object) -> Option<RecordSegment> {
                 return Some(RecordSegment::Lane);
             }
             let state = fold_state(&layout, &slug);
+            let started = session_id.and_then(|sid| {
+                state
+                    .sessions
+                    .iter()
+                    .find(|s| s.id == sid)
+                    .map(|s| s.started.clone())
+            });
+            let drive = drive_segment_of(&state, started.as_deref(), |run| {
+                crate::run_lock::probe_run_lock(Path::new(&candidate), run)
+            });
             return Some(RecordSegment::Record {
                 slug,
                 progress: task_progress(&state.phases),
                 status: state.status,
+                drive,
             });
         }
         if !saw_record && !initiative_slugs(&layout).is_empty() {
@@ -285,6 +372,7 @@ pub fn run_statusline(root: &Path, input: &str, styled: bool) -> String {
             slug,
             progress,
             status,
+            drive,
         }) => {
             let closed = is_closed_initiative_status(&status);
             let slug = if closed {
@@ -317,6 +405,9 @@ pub fn run_statusline(root: &Path, input: &str, styled: bool) -> String {
             } else {
                 body
             });
+            if let Some(drive) = &drive {
+                segments.push(drive_text(drive, style));
+            }
         }
         None => {}
     }

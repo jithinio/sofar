@@ -433,6 +433,7 @@ export const CASES: ConformanceCase[] = [
     steps: [
       s('prompt: the drive line, no lock on this machine', ['event', 'user-prompt'], prompt({ session_id: 'sess-d' })),
       s('prompt again: nothing moved, no line', ['event', 'user-prompt'], prompt({ session_id: 'sess-d' })),
+      s('statusline: drive task, liveness unknown', ['statusline'], statusline({ session_id: 'sess-d' })),
       s('status: resumed, liveness unknown, one stop request in force', ['status']),
       s('status with the run lock free: driver gone', ['status'], undefined, {
         before: (m) => {
@@ -442,6 +443,8 @@ export const CASES: ConformanceCase[] = [
         },
       }),
       s('prompt: only the liveness moved, no line', ['event', 'user-prompt'], prompt({ session_id: 'sess-d' })),
+      s('statusline: drive gone', ['statusline'], statusline({ session_id: 'sess-d' })),
+      s('statusline --no-color: drive gone', ['statusline', '--no-color'], statusline({ session_id: 'sess-d' })),
       s('a handoff lands', ['event', 'append', '--type', 'handoff', '--session', 'sess-run-2', '--payload', '{"run":"01K0DRV0000000000000000RUN","session_id":"sess-run-2","reason":"task_done","task":"1.2"}']),
       s('task 1.2 done', ['event', 'append', '--type', 'task_status_changed', '--payload', '{"id":"1.2","status":"done"}']),
       s('prompt: the run moved', ['event', 'user-prompt'], prompt({ session_id: 'sess-d' })),
@@ -450,6 +453,14 @@ export const CASES: ConformanceCase[] = [
         env: { SOFAR_DRIVE_NUDGE: '/nonexistent/sofar-nudge.json' },
       }),
       s('prompt: stopped', ['event', 'user-prompt'], prompt({ session_id: 'sess-d' })),
+      s('statusline: the stop since the session began', ['statusline'], statusline({ session_id: 'sess-d' })),
+      s('statusline for a session that began after the stop: no segment', ['statusline', '--no-color'], statusline({ session_id: 'sess-late' }), {
+        before: (m) => {
+          const log = join(m.root, '.sofar', 'initiatives', 'drv', 'events.jsonl')
+          const line = JSON.stringify({ v: 1, id: '01K5ZZZZ000000000000000001', ts: '2030-01-01T00:00:00.000Z', initiative: 'drv', session: 'sess-late', source: 'hook', actor: 'agent', type: 'session_started', payload: { tool: 'claude-code' } })
+          writeFileSync(log, `${readFileSync(log, 'utf8')}${line}\n`)
+        },
+      }),
     ],
   },
   {

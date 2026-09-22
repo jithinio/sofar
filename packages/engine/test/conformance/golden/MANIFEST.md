@@ -1,5 +1,12 @@
 # Golden manifest (rust-core D11)
 
+Re-pinned to **main ce2f9f2** (rust-core merge 47d5a44: drive-visibility
+3.3). `syn.driven` gained five statusline steps, re-recorded from the
+TypeScript reference: the drive segment with no lock (`drive 1.2 liveness
+unknown`), a free lock (`drive gone`, styled and plain), a stop since the
+session began (`drive closed`), and none for a session that began after the
+stop. Every other golden is byte-identical.
+
 Still at **main a4f270a**: two more cases ADDED, recorded from the
 TypeScript reference (rust-core D29), with no existing golden moved:
 `syn.driven` (synthetic fixture `driven`: drive-visibility 3.2's prompt
