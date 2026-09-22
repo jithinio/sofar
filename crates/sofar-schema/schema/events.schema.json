@@ -527,6 +527,10 @@
         "supersedes_id": {
           "type": "string",
           "description": "The event id of the memory `supersedes` named when it was written (memory-lead 2.8, D12), stamped by the writer — `M<n>` moves on a merge, the id does not. Only alongside `supersedes`."
+        },
+        "origin": {
+          "type": "string",
+          "description": "Where the words came from when they are not the author's own (memory-lead 2.4, D13/D14): `claude-memory:<file>@<16 hex>` — a Claude Code auto-memory topic file the operator approved importing, and the first 16 hex of that file's sha256 at import. Every surface marks such a memory as native memory's words; a changed file is a new digest, so an import is offered again as an update."
         }
       },
       "required": [

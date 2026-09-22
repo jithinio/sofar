@@ -32,6 +32,7 @@ import { runCheck } from './check'
 import { runFind } from './find'
 import { REACH_DEFAULT_HOPS, REACH_MAX_HOPS } from '../core/index-reach'
 import { runRemember } from './remember'
+import { runNativeImport } from './native-import'
 import { registerStatuslineCommand } from './statusline'
 import { startServer, renderServeBanner, DEFAULT_PORT } from './serve'
 import { runExport, runImport } from './transfer'
@@ -308,9 +309,38 @@ program
     'promote an operational fact to repo memory — a release command, a failure mode, a convention future sessions must know; recorded as <slug> M<n> for .sofar/repo.md to name. Text inline, `-` for stdin (quoted heredoc), or @<file>',
   )
   .option('--supersedes <handle>', 'the memory this fact replaces — `M<n>` in the target initiative or the qualified `<slug> M<n>`; the old one is retired, never edited')
+  .option('--from-native', "import Claude Code auto-memory entries instead (memory-lead D13): project and reference entries only, each shown for the operator's yes or no on a terminal, marked as Claude memory's words")
+  .option('--dir <path>', 'with --from-native: the auto-memory directory (default: as Claude Code resolves it for this repo)')
   .option('--initiative <slug>', 'initiative to record it under (default: the branch-bound one)')
   .option('--root <dir>', 'repo root (default: current directory)')
-  .action(async (text: string | undefined, opts: { supersedes?: string; initiative?: string; root?: string }) => {
+  .action(async (text: string | undefined, opts: { supersedes?: string; fromNative?: boolean; dir?: string; initiative?: string; root?: string }) => {
+    if (opts.fromNative === true) {
+      if (text !== undefined || opts.supersedes !== undefined) {
+        emit(fail('sofar remember --from-native: takes no text and no --supersedes — each entry comes from Claude memory, and a changed one supersedes its earlier import itself'))
+        return
+      }
+      // The operator's act, never the agent's (D13): asked only on a real
+      // terminal, never under CI, never from a piped agent shell.
+      const terminal = process.stdin.isTTY === true && process.stderr.isTTY === true && process.env.CI === undefined
+      const { createInterface } = await import('node:readline/promises')
+      const rl = terminal ? createInterface({ input: process.stdin, output: process.stderr }) : null
+      try {
+        emit(
+          await runNativeImport(
+            rootOf(opts),
+            { ...(opts.dir !== undefined ? { dir: opts.dir } : {}), ...(opts.initiative !== undefined ? { initiative: opts.initiative } : {}) },
+            { ask: rl !== null ? (question: string) => rl.question(question) : null },
+          ),
+        )
+      } finally {
+        rl?.close()
+      }
+      return
+    }
+    if (opts.dir !== undefined) {
+      emit(fail('sofar remember: --dir applies only with --from-native'))
+      return
+    }
     const input = await readInput(text, 'the text')
     if (!input.ok) {
       emit(fail(`sofar remember: ${input.error}`))

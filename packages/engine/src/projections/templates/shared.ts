@@ -417,3 +417,12 @@ export function testOutcomeLine(test: TestOutcome): string {
   const exit = !test.ok && test.exit !== undefined ? ` (exit ${test.exit})` : ''
   return `${test.ok ? 'pass' : 'fail'}${exit} — ${test.cmd}`
 }
+
+/**
+ * The mark every surface puts on a memory whose words are native memory's,
+ * imported with the operator's approval (memory-lead D13/D14) — so no reader
+ * takes a model's note for the operator's instruction. Empty for the rest.
+ */
+export function nativeOriginMark(origin: string | undefined): string {
+  return origin !== undefined && origin.startsWith('claude-memory:') ? "(from Claude memory, not the operator's words) " : ''
+}

@@ -298,7 +298,19 @@ export interface MemoryPromotedPayload {
    * the id does not. Only alongside `supersedes`.
    */
   supersedes_id?: string
+  /**
+   * Where the words came from when they are not the author's own (memory-lead
+   * 2.4, D13/D14): `claude-memory:<file>@<16 hex>` — a Claude Code auto-memory
+   * topic file the operator approved importing, and the first 16 hex of that
+   * file's sha256 at import. Every surface marks such a memory as native
+   * memory's words; a changed file is a new digest, so an import is offered
+   * again as an update.
+   */
+  origin?: string
 }
+
+/** An imported memory's origin (memory-lead D14): `claude-memory:<file>@<16 hex>`. */
+export const NATIVE_ORIGIN_RE = /^claude-memory:([^@/\\\n]+)@([0-9a-f]{16})$/
 
 /** A qualified memory handle: `<slug> M<n>`. */
 export const MEMORY_HANDLE_RE = /^([a-z0-9-]+) M([1-9][0-9]*)$/
@@ -992,6 +1004,9 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
       if (!str(p.supersedes_id)) e.push('supersedes_id: must be a non-empty string (target event id) when present')
       if (p.supersedes === undefined) e.push('supersedes_id: requires `supersedes` — it is the id of the memory that handle named')
     }
+    if (p.origin !== undefined && !(str(p.origin) && NATIVE_ORIGIN_RE.test(p.origin as string))) {
+      e.push('origin: must be `claude-memory:<file>@<16 hex>` when present — set by `sofar remember --from-native`')
+    }
   },
   judgement_recorded(p, e) {
     if (!str(p.producer)) e.push('producer: must be a non-empty string')
@@ -1352,7 +1367,7 @@ export const EVENT_TYPE_REFERENCE: Record<KnownEventType, EventTypeReference> = 
     writer: 'command',
     via: 'sofar remember "<fact>" [--supersedes "<slug> M<n>"] [--initiative <slug>]  (or `sofar remember -` with the text on stdin, `sofar remember @<file>`)',
     summary: 'an operational fact for repo memory (a release command, a failure mode) — not a decision',
-    fields: 'text, supersedes? (qualified handle `<slug> M<n>` of the fact this one replaces), supersedes_id? (that fact\'s event id; stamped by the writer, never passed)',
+    fields: 'text, supersedes? (qualified handle `<slug> M<n>` of the fact this one replaces), supersedes_id? (that fact\'s event id; stamped by the writer, never passed), origin? (claude-memory:<file>@<16 hex>; set only by an operator-approved native-memory import)',
     example: { text: 'Run `bun test` from the repo root; per-package runs miss the setup file.' },
   },
   review_recorded: {

@@ -293,6 +293,9 @@ pub struct KnownEventPayloads {
 #[doc = "A fact its author declares repo memory — operational knowledge that is not a decision (a release command, a failure mode) and so can never be observed as repo-general from citation behaviour, because nothing derives a fact that was never written down (repo-memory-capture D1)."]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct MemoryPromotedPayload {
+    #[doc = "Where the words came from when they are not the author's own (memory-lead 2.4, D13/D14): `claude-memory:<file>@<16 hex>` — a Claude Code auto-memory topic file the operator approved importing, and the first 16 hex of that file's sha256 at import. Every surface marks such a memory as native memory's words; a changed file is a new digest, so an import is offered again as an update."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub origin: ::std::option::Option<::std::string::String>,
     #[doc = "The QUALIFIED handle `<slug> M<n>` of the memory this one replaces (r1-fixes 1.5, D8). Facts go stale; the record is append-only, so the replacement is a new promotion that names the old one, and readers (memory.md, doctor's repo-memory axis) retire the old handle."]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub supersedes: ::std::option::Option<::std::string::String>,

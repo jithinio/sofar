@@ -6,19 +6,19 @@
 - Tool: claude-code
 - Model: claude-opus-5
 - Started: 2026-09-22T14:09:02.639Z
-- Ended: 2026-09-22T14:36:32.431Z
+- Ended: 2026-09-22T16:56:13.740Z
 
 ## Summary
 
-4.1 done (MOAT.md, D11). Found and fixed 2.8 (D12, 9c01da6 on main): supersedes retargeted across merges. 4.2 blocked on the vault.
+2.4 done per operator ruling D13 (contract D14): sofar remember --from-native, 719b78a on main. Added 2.10.
 
 ## Next action
 
-Operator: rule on 2.4 privacy and apply MOAT R1–R5 to the vault; rust-core: mirror 2.5–2.7 and 2.9.
+Operator: apply MOAT R1–R5 to the vault (4.2); rust-core: mark 2.5–2.7, 2.9 and build 2.10.
 
 ## Activity (derived from mechanical events)
 
-- Derived: 9 files (/private/tmp/claude-501/-Users-jins-IO-sofar/bf1a4cdf-f918-4cbe-9de3-7acbf3df42cc/scratchpad/xmerge.sh, /Users/jins/IO/handoff-bench/scenario5-launch-bench/analysis/memory-gap-2026-09-16/MOAT.md, /private/tmp/claude-501/-Users-jins-IO-sofar/bf1a4cdf-f918-4cbe-9de3-7acbf3df42cc/scratchpad/commit-moat.txt, /Users/jins/IO/sofar-merge-stable/packages/schema/src/events.ts, /Users/jins/IO/sofar-merge-stable/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar-merge-stable/packages/engine/src/mcp/context.ts, /Users/jins/IO/sofar-merge-stable/packages/engine/src/cli/doctor.ts, /Users/jins/IO/sofar-merge-stable/packages/engine/test/merge-stable.test.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/bf1a4cdf-f918-4cbe-9de3-7acbf3df42cc/scratchpad/commit-2.8.txt), 121 commands, task changes: 4.1 → active, 4.1 → done, 2.8 → active, 2.8 → done, 4.2 → blocked
+- Derived: 14 files (/private/tmp/claude-501/-Users-jins-IO-sofar/bf1a4cdf-f918-4cbe-9de3-7acbf3df42cc/scratchpad/xmerge.sh, /Users/jins/IO/handoff-bench/scenario5-launch-bench/analysis/memory-gap-2026-09-16/MOAT.md, /private/tmp/claude-501/-Users-jins-IO-sofar/bf1a4cdf-f918-4cbe-9de3-7acbf3df42cc/scratchpad/commit-moat.txt, /Users/jins/IO/sofar-merge-stable/packages/schema/src/events.ts, /Users/jins/IO/sofar-merge-stable/packages/engine/src/core/fold.ts, /Users/jins/IO/sofar-merge-stable/packages/engine/src/mcp/context.ts, /Users/jins/IO/sofar-merge-stable/packages/engine/src/cli/doctor.ts, /Users/jins/IO/sofar-merge-stable/packages/engine/test/merge-stable.test.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/bf1a4cdf-f918-4cbe-9de3-7acbf3df42cc/scratchpad/commit-2.8.txt, /private/tmp/claude-501/-Users-jins-IO-sofar/bf1a4cdf-f918-4cbe-9de3-7acbf3df42cc/scratchpad/d-contract.json, /Users/jins/IO/sofar-merge-stable/packages/engine/src/core/native-memory.ts, /Users/jins/IO/sofar-merge-stable/packages/engine/src/cli/native-import.ts, /Users/jins/IO/sofar-merge-stable/packages/engine/test/native-import.test.ts, /private/tmp/claude-501/-Users-jins-IO-sofar/bf1a4cdf-f918-4cbe-9de3-7acbf3df42cc/scratchpad/commit-2.4.txt), 154 commands, task changes: 4.1 → active, 4.1 → done, 2.8 → active, 2.8 → done, 4.2 → blocked, 2.4 → active, 2.4 → done
 - Files:
   - /private/tmp/claude-501/-Users-jins-IO-sofar/bf1a4cdf-f918-4cbe-9de3-7acbf3df42cc/scratchpad/xmerge.sh
   - /Users/jins/IO/handoff-bench/scenario5-launch-bench/analysis/memory-gap-2026-09-16/MOAT.md
@@ -29,10 +29,17 @@ Operator: rule on 2.4 privacy and apply MOAT R1–R5 to the vault; rust-core: mi
   - /Users/jins/IO/sofar-merge-stable/packages/engine/src/cli/doctor.ts
   - /Users/jins/IO/sofar-merge-stable/packages/engine/test/merge-stable.test.ts
   - /private/tmp/claude-501/-Users-jins-IO-sofar/bf1a4cdf-f918-4cbe-9de3-7acbf3df42cc/scratchpad/commit-2.8.txt
-- Commands run: 121
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/bf1a4cdf-f918-4cbe-9de3-7acbf3df42cc/scratchpad/d-contract.json
+  - /Users/jins/IO/sofar-merge-stable/packages/engine/src/core/native-memory.ts
+  - /Users/jins/IO/sofar-merge-stable/packages/engine/src/cli/native-import.ts
+  - /Users/jins/IO/sofar-merge-stable/packages/engine/test/native-import.test.ts
+  - /private/tmp/claude-501/-Users-jins-IO-sofar/bf1a4cdf-f918-4cbe-9de3-7acbf3df42cc/scratchpad/commit-2.4.txt
+- Commands run: 154
 - Task changes:
   - 4.1 → active
   - 4.1 → done
   - 2.8 → active
   - 2.8 → done
   - 4.2 → blocked
+  - 2.4 → active
+  - 2.4 → done

@@ -185,7 +185,9 @@ memory_promoted (text, supersedes? — a fact its author declares repo memory,
 addressable as `<slug> M<n>`; `supersedes` names the qualified handle of the
 fact it replaces, r1-fixes D8; repo-memory-capture D1 — supersedes_id? — that
 fact's event id, stamped by the writer, valid ONLY alongside `supersedes`;
-memory-lead 2.8, D12) ·
+memory-lead 2.8, D12 — origin? — `claude-memory:<file>@<16 hex>` when the
+words are a Claude Code auto-memory entry the operator approved importing,
+set only by `sofar remember --from-native`; memory-lead 2.4, D13/D14) ·
 judgement_recorded (producer, model — the exact version, never an alias —
 question, subject — an event id, a task id or a record handle qualified per
 the citation grammar — about? — `task:<id>` or `file:<repo-relative path>`,
@@ -897,7 +899,9 @@ one blank line):
    memory.md):`, ranked by RELEVANCE to the focus; the first two that share a
    term with it as `- [M<n>] <text ≤280>`, then every other one as `- [M<n>]
    <text ≤80>` while they fit (a 40-char overflow reserve held), then
-   `- …and N more in memory.md`.
+   `- …and N more in memory.md`. A memory carrying `origin` renders
+   `- [M<n>] (from Claude memory, not the operator's words) <text>`, and
+   memory.md marks it the same way (memory-lead D14).
 7. REPO MEMORY (YIELDING, precedence 2, preferred 600; omitted under 300):
    `Repo memory (.sofar/repo.md):` and the text clipped with the truncation
    marker. The SessionStart hook strips the `sofar init` stub preamble before
@@ -5515,6 +5519,41 @@ Shims contain no logic — they invoke the sofar CLI.
   (`M<n>` against the target initiative, or qualified), fails before any
   append when the handle names nothing or an already-superseded memory, and
   the confirmation names the retired handle.
+- `sofar remember --from-native [--dir <path>] [--initiative <slug>]`
+  (memory-lead 2.4; the operator's ruling D13, contract D14) imports Claude
+  Code auto-memory entries into repo memory, ONLY as the operator approves
+  them. It is import-only: nothing ever writes native memory. It runs nothing
+  unless the operator runs it.
+  - SOURCE. The directory is `--dir`, else `autoMemoryDirectory` from
+    `.claude/settings.local.json` or `<config>/settings.json` (`~/` expanded).
+    It is never read from the checked-in `.claude/settings.json`, which
+    Claude ignores for this key. Otherwise it is
+    `<config>/projects/<slug>/memory`, where `<config>` is
+    `CLAUDE_CONFIG_DIR` or `~/.claude`. `<slug>` is the main worktree's real
+    path with every non-alphanumeric character as `-`, cut at 200 characters
+    with a base-36 Java string hash appended past that, as Claude Code names
+    it.
+  - ENTRIES. Only topic files directly in the directory count; MEMORY.md and
+    subdirectories (`team/`) do not. Only `project` and `reference` entries
+    are offered, by frontmatter `type` or `metadata.type`. User, feedback and
+    untyped entries are counted in the report and never shown. So Codex
+    memory, which carries no type, is not importable.
+  - FILTERING. An entry is not offered when its exact digest (the first 16
+    hex of the file's sha256) was imported before anywhere in the repo, or
+    was declined before on this clone. An entry whose file changed while its
+    earlier import is in force is offered as an update that supersedes that
+    import.
+  - REVIEW. Only on a terminal: stdin and stderr are TTYs, and CI is unset.
+    Each candidate shows its file, type, name and text. Lines that look like
+    secrets are flagged; sofar has no secret scanner. The operator answers
+    `y` (import), `n` (decline, remembered in
+    `<state>/native-memory/<clone key>.json`, never in the record), `s` or
+    Enter (skip for now), or `q` (stop). Without a terminal it appends
+    nothing, exits 1, and names how many entries wait.
+  - WRITE. An approved entry appends memory_promoted with text (the
+    description, a blank line, then the body), `origin` and actor `human`.
+    The report lists the new handles, declines, skips and what was not
+    offered. It takes no text and no `--supersedes`.
 - `sofar statusline` (felt-cost 3.1/3.2, D4; identity segments D6; styling
   D7/D8) — the rent-meter, wired as Claude Code's statusLine command. Reads
   statusline JSON from stdin, prints ONE line: `<model> · <dir> ·
@@ -6131,6 +6170,20 @@ stay the underlying derivation's, and exit codes are styling-independent.
   sharing `readme.md`, `Zed.ts` and `README.md` list their conflicts in that
   code-unit order; every projection golden and fold-parity golden is
   byte-unchanged (all lowercase ASCII, where the orders agree).
+- **Native-memory import (memory-lead 2.4, D13/D14):**
+  `sofar remember --from-native` without a terminal appends nothing and names
+  the waiting count. On a terminal it shows only project and reference
+  entries, never user, feedback, untyped, MEMORY.md or `team/` ones, and
+  appends only the approved ones, as memory_promoted carrying
+  `origin: claude-memory:<file>@<16 hex>`. A declined entry is remembered in
+  the per-clone state dir and not offered again. An imported digest is not
+  offered again. A changed file is offered as an update superseding its
+  earlier import. `q` stops at once. A secret-looking line is flagged in the
+  review. The directory resolves from `--dir`, then the local, then the user
+  `autoMemoryDirectory`, never the checked-in settings, else Claude's own
+  project slug. The digest and memory.md mark an imported memory
+  `(from Claude memory, not the operator's words)`, and an origin that is not
+  the claude-memory form fails validation (test/native-import.test.ts).
 - **Repo memory capture:** `sofar remember <text>` and `sofar_remember`
   append memory_promoted and report the `<slug> M<n>` handle; ordinals follow
   log order; `memory.md` appears only once something is promoted; empty text
