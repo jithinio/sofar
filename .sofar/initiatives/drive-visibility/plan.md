@@ -39,4 +39,4 @@ Progress: 11/17 tasks done (64%)
 - [ ] 5.2 README + release staged for the user to publish.
 
 Active phase: Phase 3 — Progress in the session
-Next action: 3.5 waits for the operator's go; plan in the latest note.
+Next action: 3.5 waits for the operator's go; plan in the 3.5 note.
