@@ -265,15 +265,19 @@ describe('guidance and the switch (D24 (5), (6))', () => {
   it('both protocol blocks carry the clause and their predecessors are in the ledger', () => {
     expect(PROTOCOL_BLOCK).toContain('A note or summary is WHY')
     expect(AGENTS_PROTOCOL_BLOCK).toContain('Payload prose is WHY')
+    // Look ledger entries up by VERSION, never by distance from the end: the
+    // ledger is append-only and oldest first, so Vn is entry n-1 forever, while
+    // every later append shifts `length - k` (it broke when drive-visibility
+    // D17 ledgered V10).
+    const version = (ledger: readonly string[], n: number): string => ledger[n - 1]!
     // memory-lead 1.1 (D3) superseded the D24 CLAUDE.md block as V8; the
-    // clause diff is pinned between V8 and the V7 before it. drive-visibility
-    // 3.6 then ledgered memory-lead's own block as V9, after them.
-    const d24Claude = SHIPPED_PROTOCOL_BLOCKS[SHIPPED_PROTOCOL_BLOCKS.length - 2]!
-    const prevClaude = SHIPPED_PROTOCOL_BLOCKS[SHIPPED_PROTOCOL_BLOCKS.length - 3]!
+    // clause diff is pinned between V8 and the V7 before it.
+    const d24Claude = version(SHIPPED_PROTOCOL_BLOCKS, 8)
+    const prevClaude = version(SHIPPED_PROTOCOL_BLOCKS, 7)
     // agents-parity 2.3 (D8) superseded the D24 AGENTS.md block as V8 in the
     // same way; the clause diff is pinned between V8 and V7.
-    const d24Agents = SHIPPED_AGENTS_PROTOCOL_BLOCKS[SHIPPED_AGENTS_PROTOCOL_BLOCKS.length - 1]!
-    const prevAgents = SHIPPED_AGENTS_PROTOCOL_BLOCKS[SHIPPED_AGENTS_PROTOCOL_BLOCKS.length - 2]!
+    const d24Agents = version(SHIPPED_AGENTS_PROTOCOL_BLOCKS, 8)
+    const prevAgents = version(SHIPPED_AGENTS_PROTOCOL_BLOCKS, 7)
     expect(d24Agents).toContain('Payload prose is WHY')
     expect(prevClaude).not.toContain('is WHY')
     expect(prevAgents).not.toContain('is WHY')

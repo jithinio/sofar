@@ -265,7 +265,7 @@ describe('the write-back gate on Codex (agents-parity 2.3, D8)', () => {
 
 describe('the AGENTS.md block a Codex session reads (agents-parity 2.3, D8)', () => {
   const [preamble = '', cliLoop] = AGENTS_PROTOCOL_BLOCK.split('Session loop on the CLI:')
-  const v8 = SHIPPED_AGENTS_PROTOCOL_BLOCKS[SHIPPED_AGENTS_PROTOCOL_BLOCKS.length - 1]!
+  const v8 = SHIPPED_AGENTS_PROTOCOL_BLOCKS[7]! // V8 by version: the ledger is append-only, oldest first
 
   it('names Codex among the hooked and MCP-equipped hosts, and states the Stop gate', () => {
     expect(preamble).toContain("sofar's hooks loaded the record (Cursor, Codex,\n  Claude Code)")

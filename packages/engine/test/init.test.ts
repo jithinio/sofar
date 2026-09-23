@@ -688,6 +688,8 @@ describe('re-homing instruction (session-orientation 1.1)', () => {
     expect(AGENTS_PROTOCOL_BLOCK).not.toContain('sofar event append --type')
   })
 
+  const driving = (b: string): string => /- DRIVING:[\s\S]*?(?=\n- BEFORE FINISHING)/.exec(b)![0]
+
   it('tells a driving agent to settle keep-awake and watch the run with --await (drive-visibility 3.6)', () => {
     const flat = (b: string): string => b.replace(/\s+/g, ' ')
     for (const block of [PROTOCOL_BLOCK, AGENTS_PROTOCOL_BLOCK].map(flat)) {
@@ -698,10 +700,10 @@ describe('re-homing instruction (session-orientation 1.1)', () => {
     expect(flat(PROTOCOL_BLOCK)).toContain('`sofar drive <slug> --await` in a background shell')
     // A host with no background shell is pointed at what every host can reach.
     expect(flat(AGENTS_PROTOCOL_BLOCK)).toContain('If it cannot, tell the operator the run shows in `sofar status`')
-    // Only DRIVING changed: the shipped block before it is this one minus the new sentences.
-    const before = SHIPPED_PROTOCOL_BLOCKS[SHIPPED_PROTOCOL_BLOCKS.length - 1]!
-    const driving = (b: string): string => /- DRIVING:[\s\S]*?(?=\n- BEFORE FINISHING)/.exec(b)![0]
-    expect(PROTOCOL_BLOCK.replace(driving(PROTOCOL_BLOCK), driving(before))).toBe(before)
+    // Only DRIVING changed: 3.6's block (V10, rc.1) is V9 plus the new sentences.
+    // Ledger entries are looked up by version: Vn is entry n-1 forever.
+    const [v9, v10] = [SHIPPED_PROTOCOL_BLOCKS[8]!, SHIPPED_PROTOCOL_BLOCKS[9]!]
+    expect(v10.replace(driving(v10), driving(v9))).toBe(v9)
   })
 
   it('leaves watching to the rewake hook, with --await only as its fallback (drive-visibility D17)', () => {
@@ -715,7 +717,9 @@ describe('re-homing instruction (session-orientation 1.1)', () => {
     // AGENTS.md hosts get no rewake hook, so --await stays their watcher.
     expect(flat(AGENTS_PROTOCOL_BLOCK)).not.toContain('rewake')
     // rc.1's block is in the ledger, so init refreshes it and doctor calls it stale.
-    const v10 = SHIPPED_PROTOCOL_BLOCKS.at(-1)!
+    const v10 = SHIPPED_PROTOCOL_BLOCKS[9]! // V10, by version
+    // D17 changed DRIVING alone.
+    expect(PROTOCOL_BLOCK.replace(driving(PROTOCOL_BLOCK), driving(v10))).toBe(v10)
     expect(flat(v10)).toContain('Then run `sofar drive <slug> --await` in a background shell: silent until the run stops')
     expect(classifyProtocolBlock(v10, PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS)).toBe('stale')
   })
