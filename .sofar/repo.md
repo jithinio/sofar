@@ -217,6 +217,11 @@
   the copies union. Phase notes survive a plan replace from the release
   that carries phase-lifecycle 6.1 (a0bc2e7) onward; until the installed
   sofar has it, snapshot plan.md and diff it around the call (self-improve M10).
+- Never `rm -rf` a computed path in a scratch script without quoting it
+  and guarding its prefix (rust-core M21). zsh does not word-split `$var`
+  but a bash script it calls does, so a two-path string deletes both. On
+  2026-09-23 that deleted a whole worktree. Prefer a Node or Python driver
+  whose only deletes are asserted to sit under the scratch path.
 - Hangs in CI and in the perf harness (rust-core M1, rust-core M3). A vitest
   job that runs to the 6 h CI limit is a file that never finished: diff the
   files the log reported against `git ls-files '*.test.ts'`. Never put an
