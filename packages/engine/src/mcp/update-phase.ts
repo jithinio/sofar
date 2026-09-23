@@ -60,7 +60,10 @@ export function updatePhase(ctx: ToolContext, args: UpdatePhaseArgs): UpdatePhas
  * names that were right in all but case or dash. Accepted, in order:
  *  1. the exact name;
  *  2. the name in any case, whitespace collapsed — when exactly one matches;
- *  3. `3` or `Phase 3` (any case) — the one phase LABELLED `Phase 3` (then a
+ *  3. the same, with a leading ordinal (`7. `, `7 `, `7)`) stripped from
+ *     both sides — `Suggestions` for "7. Suggestions" (phase-lifecycle 6.1,
+ *     D8), when exactly one matches;
+ *  4. `3` or `Phase 3` (any case) — the one phase LABELLED `Phase 3` (then a
  *     non-digit or the end); when no phase carries a `Phase <digits>` label,
  *     the third phase by position.
  * Never a substring or prefix: `wave 3` is ambiguous on real plans.
@@ -71,6 +74,9 @@ export function resolvePhase<P extends { name: string }>(phases: readonly P[], r
   const fold = (s: string): string => s.trim().replace(/\s+/g, ' ').toLowerCase()
   const folded = phases.filter((p) => fold(p.name) === fold(ref))
   if (folded.length === 1) return folded[0]
+  const bare = (s: string): string => fold(s).replace(/^\d+(?:[.)]\s*|\s+)/, '')
+  const stripped = phases.filter((p) => bare(p.name) === bare(ref))
+  if (stripped.length === 1) return stripped[0]
   const number = /^(?:phase\s*)?(\d+)$/i.exec(ref.trim())?.[1]
   if (number === undefined) return undefined
   const labelled = (p: P, n: string): boolean => new RegExp(`^phase\\s*${n}(?!\\d)`, 'i').test(p.name.trim())
@@ -92,6 +98,6 @@ export function resolvePhaseOrThrow<P extends { name: string }>(phases: readonly
     'invalid_input',
     names.length === 0
       ? `initiative "${slug}" has no phases yet — record a plan first (sofar_update_plan, or a plan_updated append)`
-      : `phase "${ref}" not in the plan for "${slug}" — name it exactly, in any case, or by number ("3", "Phase 3"); this plan has ${listed}${more}`,
+      : `phase "${ref}" not in the plan for "${slug}" — tried the exact name, any case, without a leading ordinal ("7. "), and by number ("3", "Phase 3"); this plan has ${listed}${more}`,
   )
 }

@@ -327,7 +327,78 @@ describe('a phase named by number or in any case (r1-fixes 4.1.5, L11, D32)', ()
 
     const miss = append('Phase 1 - Settle')
     expect(miss.exitCode).toBe(1)
-    expect(JSON.parse(miss.stderr).message).toContain('or by number ("3", "Phase 3")')
+    expect(JSON.parse(miss.stderr).message).toContain('by number ("3", "Phase 3")')
     expect(foldLog(f.eventsPath).state.phases).toHaveLength(3)
+  })
+})
+
+describe('silent discards in the plan and phase write path (phase-lifecycle 6.1, D8, D9)', () => {
+  const NUMBERED = {
+    phases: [
+      { name: '6. Detectors', tasks: [{ id: '6.1', title: 'detect' }] },
+      { name: '7. Suggestions & transport', tasks: [{ id: '7.1', title: 'suggest' }] },
+      { name: '8) Ship', tasks: [{ id: '8.1', title: 'ship' }] },
+      { name: '9 Retro', tasks: [{ id: '9.1', title: 'look back' }] },
+    ],
+  }
+
+  it('accepts a bare name for a numbered phase — L11, the refusal that preceded the S9 wipe', () => {
+    expect(resolvePhase(NUMBERED.phases, 'Suggestions & transport')?.name).toBe('7. Suggestions & transport')
+    expect(resolvePhase(NUMBERED.phases, '  suggestions &   TRANSPORT')?.name).toBe('7. Suggestions & transport')
+    expect(resolvePhase(NUMBERED.phases, 'ship')?.name).toBe('8) Ship')
+    expect(resolvePhase(NUMBERED.phases, 'Retro')?.name).toBe('9 Retro')
+    expect(resolvePhase(NUMBERED.phases, '7 Suggestions & transport')?.name).toBe('7. Suggestions & transport')
+    expect(resolvePhase(NUMBERED.phases, '2')?.name).toBe('7. Suggestions & transport') // position, unchanged
+    expect(resolvePhase([{ name: '1. Build' }, { name: '2. Build' }], 'Build')).toBeUndefined() // ambiguous
+
+    const f = fx()
+    updatePlan(f.ctx, { plan: NUMBERED })
+    updatePhase(f.ctx, { phase: 'Suggestions & transport', status: 'active' })
+    expect(f.events().at(-1)!.payload.phase).toBe('7. Suggestions & transport')
+  })
+
+  it('a genuinely unknown name still typed-errors and names what it tried', () => {
+    const f = fx()
+    updatePlan(f.ctx, { plan: NUMBERED })
+    let thrown: ToolError | undefined
+    try {
+      updatePhase(f.ctx, { phase: 'Transport', status: 'done' })
+    } catch (err) {
+      thrown = err as ToolError
+    }
+    expect(thrown?.code).toBe('invalid_input')
+    expect(thrown?.message).toContain('without a leading ordinal')
+    expect(thrown?.message).toContain('"7. Suggestions & transport"')
+  })
+
+  it('a replace that omits notes preserves them, and says nothing when nothing was lost', () => {
+    const f = fx()
+    updatePhase(f.ctx, { phase: '1', status: 'done', note: 'settled on day one' })
+    updatePhase(f.ctx, { phase: '2', status: 'active', note: 'building now' })
+    const settled = { ...PLAN.phases[0]!, status: 'done' as const }
+    const building = { ...PLAN.phases[1]!, status: 'active' as const }
+    const result = updatePlan(f.ctx, {
+      plan: { ...PLAN, phases: [settled, building, PLAN.phases[2]!, { name: 'Phase 4 — New', tasks: [] }] },
+    })
+
+    expect(result.warnings).toBeUndefined()
+    expect(phaseOf(f, 'Phase 1 — Settle')?.note).toBe('settled on day one')
+    expect(phaseOf(f, 'Phase 2 — Build')?.note).toBe('building now')
+    expect(readFileSync(f.planPath, 'utf8')).toContain('settled on day one')
+  })
+
+  it('a replace that renames a phase, or moves its status, says what happened to its note', () => {
+    const f = fx()
+    updatePhase(f.ctx, { phase: '1', status: 'done', note: 'settled on day one' })
+    updatePhase(f.ctx, { phase: '2', status: 'active', note: 'building now' })
+    const renamed = { ...PLAN.phases[0]!, name: 'Phase 1 — Decide', status: 'done' as const }
+    const result = updatePlan(f.ctx, { plan: { ...PLAN, phases: [renamed, PLAN.phases[1]!, PLAN.phases[2]!] } })
+
+    expect(result.warnings).toHaveLength(2)
+    expect(result.warnings![0]).toContain('"Phase 1 — Settle" is not in the new plan')
+    expect(result.warnings![0]).toContain('settled on day one')
+    expect(result.warnings![1]).toContain('"Phase 2 — Build" moved active → pending')
+    expect(phaseOf(f, 'Phase 1 — Decide')?.note).toBeUndefined()
+    expect(phaseOf(f, 'Phase 2 — Build')?.note).toBeUndefined()
   })
 })
