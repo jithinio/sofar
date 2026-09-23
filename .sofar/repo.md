@@ -92,6 +92,14 @@
   damage. Once PUSHED, a correction is a NEW tag, never a move: no
   `git tag -f`, no delete-and-repush. The rule is "never rewrite what
   someone else has seen", not "never move a tag".
+- PUBLISH FROM THE STAGED WORKTREE, never from a checkout on main
+  (drive-visibility M11): npm discards semver build metadata, so publishing
+  from main (0.33.0-rc.2+trunk) silently ships plain 0.33.0-rc.2 — a tree
+  nobody gated — and it TAKES the dist-tag. Happened 2026-09-23. Check
+  first: `node -p "require('./packages/engine/package.json').version"` in
+  the CWD must equal the version you mean to ship. Recovery is publish the
+  correct artifact, then `npm deprecate` the accidental one naming its
+  replacement — never unpublish.
 - Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare
   `npm publish` from inside packages/engine) — always run by the USER (OTP
   + permission classifier), agent stages everything up to it. Bare
