@@ -35,7 +35,7 @@ export function startSession(ctx: ToolContext, args: StartSessionArgs): { sessio
     if (home !== null) slug = home
   }
 
-  return pinSession(ctx, slug, args)
+  return pinSession(ctx, slug, args, args.initiative !== undefined)
 }
 
 /**
@@ -64,7 +64,7 @@ export function adoptHostSession(ctx: ToolContext, sessionId: string): boolean {
     const home = homeInitiative(ctx.sofarDir, sessionId, branchSlug)
     const slug = home !== null ? ctx.resolveInitiative(home) : branchSlug
     if (slug === null) return false
-    pinSession(ctx, slug, { tool: HOST_TOOL, session_id: sessionId })
+    pinSession(ctx, slug, { tool: HOST_TOOL, session_id: sessionId }, false)
     return true
   } catch {
     return false
@@ -74,11 +74,26 @@ export function adoptHostSession(ctx: ToolContext, sessionId: string): boolean {
 /** The tool an adopted session is recorded under: the env var is Claude Code's. */
 export const HOST_TOOL = 'claude-code'
 
-/** Adopt a known id (pin only) or register an unknown or omitted one, then pin it. */
-function pinSession(ctx: ToolContext, slug: string, args: StartSessionArgs): { session_id: string } {
+/**
+ * Adopt a known id (pin only) or register an unknown or omitted one, then pin it.
+ *
+ * `rehoming`: the caller NAMED this initiative. When the session is already
+ * registered here but its home has since moved elsewhere (X → Y, now back to
+ * X), pinning alone left the hooks, the injected digest and the Stop gate on
+ * Y for the rest of the session — they follow the home, and the home is the
+ * log with the latest registration (binding-follows-session D5; observed as
+ * note 01M37HYJ, 24 hook events leaking into a blind record). So a re-home
+ * appends a `rehome` session_started here, and the home moves with it.
+ */
+function pinSession(ctx: ToolContext, slug: string, args: StartSessionArgs, rehoming: boolean): { session_id: string } {
   if (args.session_id !== undefined) {
     const existing = ctx.foldState(slug).sessions.find((s) => s.id === args.session_id)
     if (existing !== undefined) {
+      if (rehoming && homeInitiative(ctx.sofarDir, existing.id, slug) !== slug) {
+        const payload: Record<string, unknown> = { tool: args.tool, rehome: true }
+        if (args.model !== undefined) payload.model = args.model
+        ctx.appendAndProject(slug, 'session_started', payload, { session: existing.id, source: toSource(args.tool) })
+      }
       // An ENDED session is adopted too (record-integrity 5.1). Refusing it
       // was meant to stop a finished identity being resumed silently, but
       // adopt-by-id already requires naming the exact id — which the harness

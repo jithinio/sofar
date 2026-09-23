@@ -101,7 +101,9 @@ export function toSource(tool: string | undefined): Source {
 export { initiativeSlugs }
 
 /**
- * This log's first session_started for `sessionId` ({id, ts}), or null. The
+ * This log's LATEST session_started for `sessionId` ({id, ts}), or null — the
+ * latest, so a deliberate re-home back into this log (a `rehome` repeat,
+ * binding-follows-session D5) moves the session's home here again. The
  * substring pre-filter matters: the overwhelmingly common answer is "not
  * here", and it is reached without parsing a single line.
  */
@@ -113,6 +115,7 @@ export function registrationIn(logPath: string, sessionId: string): { id: string
     return null // no log yet, or unreadable — indistinguishable and both "no"
   }
   if (!text.includes(sessionId)) return null
+  let found: { id: string; ts: string } | null = null
   for (const line of text.split('\n')) {
     if (line.length === 0 || !line.includes(sessionId)) continue
     try {
@@ -124,13 +127,13 @@ export function registrationIn(logPath: string, sessionId: string): { id: string
         (event as Record<string, unknown>).session === sessionId
       ) {
         const { id, ts } = event as Record<string, unknown>
-        if (typeof id === 'string' && typeof ts === 'string') return { id, ts }
+        if (typeof id === 'string' && typeof ts === 'string') found = { id, ts }
       }
     } catch {
       // torn/corrupt line — same tolerance as the fold, never fatal
     }
   }
-  return null
+  return found
 }
 
 /** registrationIn through the per-log cache (rust-core 4.4, D35): the same answer, reading only the log's tail. */

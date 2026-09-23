@@ -722,11 +722,13 @@ pub struct SessionEndedPayload {
     pub session_id: ::std::option::Option<::std::string::String>,
     pub summary: ::std::string::String,
 }
-#[doc = "`SessionStartedPayload`"]
+#[doc = "`rehome` (binding-follows-session 3.1, D5): this is a DELIBERATE re-home — sofar_start_session naming this initiative for a session already registered here but homed elsewhere since. The session's home is the log holding its LATEST session_started, so without a new line a session could never return to a record it had left. The fold accepts the repeat silently; a repeat WITHOUT it is still the racing double-registration it warns about."]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug, PartialEq)]
 pub struct SessionStartedPayload {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub model: ::std::option::Option<::std::string::String>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub rehome: ::std::option::Option<bool>,
     pub tool: ::std::string::String,
 }
 #[doc = "A LOSS ROW proposed from a trusted detector — never a cause, never a fix (self-improve 2.3). `candidate` is sha256 over {version, signal, scope, sorted evidence}, so new evidence is a new candidate and approval binds to the exact one."]

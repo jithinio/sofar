@@ -24,4 +24,4 @@ Progress: 6 done, 1 dropped, 0 remaining
 - [-] 3.1 OPTIONAL, decide first: have the recent-work notice prefer a candidate whose newest event is a session_ended over one mid-flight, so it points at concluded work rather than a peer's live edit. Offered to the user and not yet accepted — decide before building, and drop it if the rebind alone makes the notice quiet enough. (dropped)
 - [x] 3.2 Cut the release carrying this plus the two already-unreleased commits (cbcb391, 32a48d9). Peer obligation from plan-carry-forward: re-run sofar doctor from the INSTALLED build and diff byte-for-byte against 0.28.0 across every record — that comparison is what proves their fold change safe. The user runs npm publish themselves.
 
-Next action: Hand the user `! npm publish -w sofar.sh` — they run it (OTP plus the permission classifier). Then verify the installed version reports 0.29.0 and confirm in brillo that a fresh session opens on the record its predecessor finished in, which is the whole claim. Nothing is outstanding to any peer.
+Next action: Ship D5 in the next RC; rust-core merges trunk for parity.

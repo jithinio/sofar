@@ -1,0 +1,10 @@
+{
+  "tail_at": 3,
+  "seeds": [
+    47,
+    48,
+    49
+  ],
+  "order_independence": true,
+  "note": "binding-follows-session D5: a rehome session_started for a session already registered here folds silently (tool and started unchanged); a plain repeat still warns; rehome false is an invalid line; a rehome for an unknown session registers it. The tail starts at the rehome line"
+}
