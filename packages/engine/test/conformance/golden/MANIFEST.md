@@ -1,5 +1,13 @@
 # Golden manifest (rust-core D11)
 
+Re-recorded on **release/0.34.0-rc.2** (from main 8c97a22, carrying the
+rust-core merge eaf5d10) from the TypeScript reference. The version bump is
+the whole diff: two goldens changed, each by one string. `argv.fast-path`
+(`--version` is now `0.34.0-rc.2`) and `open.O2-update-segment` (`you have
+0.34.0-rc.2`), both previously `0.33.0-rc.2+trunk`. Every other golden is
+byte-identical, and the entries below keep the versions they were recorded
+against, which is what makes them history.
+
 Re-recorded for **drive-visibility 3.7** (the rewake hook): `argv.fast-path`
 gains four lines, the `sofar event drive-await` entry in the hook help. No
 other golden changed — the hook is wired by `sofar init`, which the goldens
