@@ -67,6 +67,12 @@
   version equal to the new one, exactly five sofar-core deps pinned to it —
   and run the packaging and conformance suites, which catch (3) and (4).
   Never `npm install --package-lock-only`: it can reach the network.
+- D18 numbers have an n-dependent RESOLUTION FLOOR (drive-visibility M9):
+  n=25 swung ±4.4% between runs an hour apart; n=50's widest of eight was
+  1.2%. Gate a RELEASE at n=50, and never quote a signed sub-5% delta from
+  n=25 as a measurement — say "within budget, no measurable regression".
+  Measure on AC with the lid open (bench-refresh M16): on battery this Mac
+  takes Maintenance Sleeps, and a sleep mid-measure is a timed-out run.
 - A vitest file that fails to LOAD reads as "not run", never as a failure
   (drive-visibility M7): the suite still says PASSED while covering less.
   Compare test COUNTS against the base whenever the environment differs —
