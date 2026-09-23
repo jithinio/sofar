@@ -78,6 +78,7 @@ pub mod snapshot;
 pub mod status;
 pub mod status_cli;
 pub mod statusline;
+pub mod statusline_facts;
 pub mod text;
 pub mod told;
 pub mod ui;
