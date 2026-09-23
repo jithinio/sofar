@@ -15,6 +15,46 @@ use crate::text::{is_js_whitespace, js_trim};
 /// Bound on the command text a test outcome keeps (`TEST_CMD_CLIP`), in UTF-16 units.
 pub const TEST_CMD_CLIP: usize = 120;
 
+/// Every first word `PKG_TEST`, `RUNNER` or `TOOL_TEST` can start with.
+const HEADS: &[&str] = &[
+    // PKG_TEST, and RUNNER's optional prefixes
+    "npm",
+    "pnpm",
+    "yarn",
+    "bun",
+    "npx",
+    "bunx",
+    "poetry",
+    "uv",
+    "bundle",
+    // RUNNER's runners (`cypress run`, `playwright test`, `node --test` by first word)
+    "vitest",
+    "jest",
+    "mocha",
+    "ava",
+    "tap",
+    "pytest",
+    "py.test",
+    "rspec",
+    "phpunit",
+    "cypress",
+    "playwright",
+    "node",
+    // TOOL_TEST
+    "cargo",
+    "go",
+    "dotnet",
+    "swift",
+    "mix",
+    "gradle",
+    "./gradlew",
+    "gradlew",
+    "mvn",
+    "make",
+    "deno",
+    "zig",
+];
+
 /// The first shell segment of `cmd` that runs a test suite, or `None`
 /// (`testShapedCommand`). What the command DID is `ok`, never this.
 #[must_use]
@@ -22,6 +62,13 @@ pub fn test_shaped_command(cmd: &str) -> Option<String> {
     for raw in split_segments(cmd) {
         let seg = js_trim(strip_env_assignments(&raw));
         if seg.is_empty() {
+            continue;
+        }
+        // Every pattern is anchored on a closed set of first words, each ended
+        // by whitespace or the end: a segment whose first word is none of them
+        // cannot match, and most commands are rejected here without a copy.
+        let head = seg.split(is_js_whitespace).next().unwrap_or("");
+        if !HEADS.contains(&head) {
             continue;
         }
         let chars: Vec<char> = seg.chars().collect();
