@@ -4,7 +4,7 @@
 
 Goal: A small, trustworthy improvement process whose every change has inspectable benefit, cost, evidence and reversal path (self-improve D1). Developer-side first: benchmark → loss study → bounded fix → held-out proof, beating an equal-budget direct-fix baseline net of full cost. In-product local adaptation only after repeated wins; private diagnostics never enter events.jsonl, git, export or sync.
 
-Progress: 10/16 tasks done (62%)
+Progress: 11/16 tasks done (68%)
 
 ## Phase 1 — Evidence contracts and capture [done] — 3/3 done
 
@@ -38,11 +38,11 @@ Progress: 10/16 tasks done (62%)
 - [ ] 4.3 Public standing snapshot (downloads, stars, listings) reported separately and never used as a technical gate
 - [ ] 4.4 Expand autonomy, including any in-product local adaptation, only after 3 consecutive cycles beat the direct-fix baseline on unseen work
 
-## Phase 5 — Evaluator harness hygiene (the inherited round-1 losses) [pending] — 0/2 done
+## Phase 5 — Evaluator harness hygiene (the inherited round-1 losses) [pending] — 1/2 done
 
 > Task ids 3.5 and 3.6 are KEPT although they now live in Phase 5 — do not "tidy" them to 5.1 and 5.2. An id is a handle, not a location: renumbering would silently invalidate every citation in this record, in phase-lifecycle, and in bench-refresh's and rust-core's notes, which is a far worse cost than the cosmetic oddity. The same reasoning CLAUDE.md gives for citing tasks and phases by id and never with § — a heading is a projection, the id underneath is truth.
 
-- [ ] 3.5 Evaluator sweeps a cell's listening strays after every session and at run end, the way round 2's runner does (lib/strays.ts killListeningStrays, from round-1 loss row L23): processes whose cwd is inside the cell and hold a listening socket, killed by exact PID and recorded in the result, never by pattern — cycle-L11b left 18 orphans holding 8 ports across all three eval cells
+- [x] 3.5 Evaluator sweeps a cell's listening strays after every session and at run end, the way round 2's runner does (lib/strays.ts killListeningStrays, from round-1 loss row L23): processes whose cwd is inside the cell and hold a listening socket, killed by exact PID and recorded in the result, never by pattern — cycle-L11b left 18 orphans holding 8 ports across all three eval cells
 - [ ] 3.6 Close the inherited round-1 losses that reach the GUARD column in the evaluator's OWN code, never by moving the pin (D21): eval cells read-deny every sibling run as fix cells already do (L25), a cell's shell PATH is pinned so a Bash `sofar` call cannot reach the global install (L21, round 2's ZDOTDIR), an agent stopped from outside is distinguishable from one that finished (L24, the pinned agents.ts has no stoppedFromOutside), and a run refuses or marks itself invalid when the host slept during it (L22). RECORD THE REGIME PER SESSION, not just the pin: the agent's system-prompt hash and its steer flags, because neither a version pin nor a frozen binary fixes the prompt — round 1 saw the auto_mode steer ON 2.1.273 cells that tonight's 30 lacked, and two sessions on one pinned 2.1.278 thirty minutes apart had different prompt hashes (note 01M35N82X0). Today's regime is handoff-bench c628b557fd8f43ba6ec73f6ceffb04cb2588400c, pin hash 3b02d4088a6b: when the pin moves, cycles either side are different regimes and guard numbers do not cross that boundary. Full enumeration against L01–L28 in note 01M35MJ0B7
 
-Next action: 3.5: evaluator sweeps listening strays per session, run end.
+Next action: 3.6: close the inherited L21/L22/L24/L25 guard losses.
