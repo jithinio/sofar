@@ -26,6 +26,7 @@ import { ensureIndexDir } from '../core/index-store'
 import { QUICK_LANE } from '../core/lane'
 import { initiativeSlugs } from '../core/listing'
 import { withFileLock } from '../core/lock'
+import { cachedRegistrationIn } from '../core/registrations'
 import { regenerateProjections } from '../projections/generator'
 
 // Branch → initiative resolution reads git; the reader itself lives in core/
@@ -132,8 +133,9 @@ export function registrationIn(logPath: string, sessionId: string): { id: string
   return null
 }
 
-function registeredAt(logPath: string, sessionId: string): string | null {
-  return registrationIn(logPath, sessionId)?.ts ?? null
+/** registrationIn through the per-log cache (rust-core 4.4, D35): the same answer, reading only the log's tail. */
+function registeredAt(sofarDir: string, slug: string, logPath: string, sessionId: string): string | null {
+  return cachedRegistrationIn(sofarDir, slug, logPath, sessionId, registrationIn)?.ts ?? null
 }
 
 /**
@@ -207,7 +209,7 @@ export function homeInitiative(
   let home: string | null = null
   let latest = ''
   if (preferred != null) {
-    const ts = registeredAt(eventsPathFor(preferred), sessionId)
+    const ts = registeredAt(sofarDir, preferred, eventsPathFor(preferred), sessionId)
     if (ts !== null) {
       home = preferred
       latest = ts
@@ -229,7 +231,7 @@ export function homeInitiative(
     // Only a STRICTLY later registration can displace the candidate, so a log
     // that cannot hold one is never opened.
     if (latest !== '' && !modifiedAfter(path, latest)) continue
-    const ts = registeredAt(path, sessionId)
+    const ts = registeredAt(sofarDir, slug, path, sessionId)
     if (ts !== null && ts > latest) {
       latest = ts
       home = slug
