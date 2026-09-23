@@ -10,8 +10,13 @@ const MIN_TERM: usize = 2;
 const K1: f64 = 1.2;
 const B: f64 = 0.75;
 
+/// The stopword set, built once per process: a scan of the 150-word list per
+/// token was the tier build's dominant cost (rust-core 2.11 cold D18).
 fn is_stopword(w: &str) -> bool {
-    STOPWORDS.split(' ').any(|s| s == w)
+    static SET: std::sync::OnceLock<std::collections::HashSet<&'static str>> =
+        std::sync::OnceLock::new();
+    SET.get_or_init(|| STOPWORDS.split(' ').collect())
+        .contains(w)
 }
 
 fn word_start(c: char) -> bool {
@@ -114,13 +119,12 @@ fn has_punct(word: &str) -> bool {
 /// `lexicalCounts`: term → count, sorted by term.
 #[must_use]
 pub fn lexical_counts(text: &str) -> Vec<(String, f64)> {
-    let mut counts: Vec<(String, f64)> = Vec::new();
+    // Keyed, then sorted once: a linear find per token is quadratic in a
+    // doc's distinct terms.
+    let mut tallies: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
     let mut tally = |word: &str| {
         if let Some(folded) = admit(word) {
-            match counts.iter_mut().find(|(t, _)| *t == folded) {
-                Some(slot) => slot.1 += 1.0,
-                None => counts.push((folded, 1.0)),
-            }
+            *tallies.entry(folded).or_insert(0.0) += 1.0;
         }
     };
     for raw in words(text) {
@@ -132,6 +136,7 @@ pub fn lexical_counts(text: &str) -> Vec<(String, f64)> {
             }
         }
     }
+    let mut counts: Vec<(String, f64)> = tallies.into_iter().collect();
     counts.sort_by(|a, b| cmp_utf16(&a.0, &b.0));
     counts
 }
