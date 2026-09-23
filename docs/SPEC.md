@@ -4052,15 +4052,18 @@ sofar_start_session.`
   `phase` is the phase NAME, matched against the folded plan:
   plan_updated carries no phase ids, so the name is the only handle there is.
   Since r1-fixes D32 it resolves, in order: the exact name; the name in any
-  case with whitespace collapsed, when unique; a bare number or `Phase <n>`
+  case with whitespace collapsed, when unique; the same with a leading
+  ordinal (`7. `, `7 `, `7)`) stripped from both sides, when unique — so
+  `Suggestions` names "7. Suggestions" (phase-lifecycle 6.1, D8, round-1
+  loss row L11); a bare number or `Phase <n>`
   to the one phase labelled `Phase <n>` (position only when no phase name
   carries such a label). The plan's own name is what gets recorded. The same
   resolution guards `sofar event append --type phase_status_changed`, whose
   miss is now refused the same way instead of minting a phase, and
   `--type task_added` (phase-lifecycle D7), which also refuses an id the
   plan already holds rather than appending a line the fold would skip.
-  A name that matches nothing is an invalid_input error naming the phases
-  that do exist — NEVER the fold's create-on-miss, which is correct for a
+  A name that matches nothing is an invalid_input error naming the forms it
+  tried and the phases that do exist — NEVER the fold's create-on-miss, which is correct for a
   fold (never lose a logged fact) and wrong for a tool (a typo would mint a
   phantom phase that renders in the plan forever). Idempotent: already at
   this status AND this note appends nothing and returns event_id null (the
@@ -4103,9 +4106,18 @@ sofar_start_session.`
   # gains a line per earlier decision this one may re-propose or contradict,
   # then a filing line when it reads as a fact or a note (typed-judge 3.3).
   # Advisory; the decision is already in the log.
-- sofar_update_plan({initiative?, plan}) → ok   # full-structure replace;
+- sofar_update_plan({initiative?, plan}) → ok, warnings?   # full-structure replace;
   an omitted status means `pending`, NOT unchanged — restate every status
   you intend to keep, and expect a fold warning if a resolved one is dropped.
+  PHASE NOTES (phase-lifecycle 6.1, D8, D9): the plan has no slot for a
+  note and the fold's plan_updated rebuilds phases without one, so the TOOL
+  carries them: after the plan_updated it appends one phase_status_changed
+  (same status, the note verbatim) for each noted phase whose exact name
+  AND status the new plan keeps. A noted phase that is renamed, removed, or
+  given another status loses its note, since a note is the reason for the
+  status it explained, and `warnings` names each such phase and quotes the
+  note. The fold's plan_updated is unchanged, so replay of past events is
+  too.
   The description ends by naming sofar_update_task with `title` as the way
   to add ONE task (phase-lifecycle D7): a replace drops every task the
   writer's copy has not seen.
@@ -7124,6 +7136,17 @@ stay the underlying derivation's, and exit codes are styling-independent.
   closes phases still owes a write-back; and replay stays deterministic.
   Closing a phase clears it from doctor's stale-phase axis and from the close
   audit's phases_unresolved finding — the same one fact, read by both.
+- **Phase names past an ordinal (phase-lifecycle 6.1, D8):**
+  sofar_update_phase resolves a bare name to the one phase whose
+  name matches once a leading ordinal (`7. `, `7 `, `7)`) is stripped, and
+  records the plan's own name; an ambiguous or unknown name is still
+  invalid_input naming the forms tried and the phases that exist.
+- **Phase notes survive a plan replace (phase-lifecycle 6.1, D8, D9):** a
+  sofar_update_plan that restates a noted phase with the same name and
+  status leaves that note on the folded phase and in plan.md, with no
+  `warnings`; one that renames, removes, or re-statuses a noted phase
+  returns a `warnings` line per phase naming it and quoting the dropped
+  note.
 - **Adding a task (phase-lifecycle 3.3–3.5, D7):** sofar_update_task with a
   `title` and a task_id the plan lacks appends exactly one task_added into
   the active phase, or into `phase` named by number or in any case with the
