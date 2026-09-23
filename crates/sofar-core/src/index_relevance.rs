@@ -151,8 +151,9 @@ impl SlugReducer for RelevanceReducer {
 #[must_use]
 pub fn refresh_relevance(layout: &Layout) -> Vec<(String, SlugRelevanceState)> {
     let prior = read_half(layout, RELEVANCE_FILE, SlugRelevanceState::from_json);
-    let PassResult { states, changed } =
-        pass_over_record(layout, RELEVANCE_META, prior.as_deref(), &RelevanceReducer);
+    let PassResult {
+        states, changed, ..
+    } = pass_over_record(layout, RELEVANCE_META, prior.as_deref(), &RelevanceReducer);
     if changed {
         write_half(layout, RELEVANCE_FILE, &states, SlugRelevanceState::to_json);
     }

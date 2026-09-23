@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { FixtureSpec, Materialized, Step } from './harness'
 
@@ -112,6 +112,80 @@ const s = (title: string, argv: string[], stdin?: Step['stdin'], rest: Partial<S
 // ---------------------------------------------------------------------------
 // The catalogue.
 // ---------------------------------------------------------------------------
+
+
+// ---------------------------------------------------------------------------
+// The lexicon tier (memory-lead 3.1, D15; rust-core 2.11).
+// ---------------------------------------------------------------------------
+
+/**
+ * The tier's bytes, compactly: each `lexicon*.json` as a sha256 prefix and a
+ * size, with the random `gen` masked, plus whether every part carries the
+ * same gen. `.index/` is outside the record delta (a derived cache), but the
+ * tier is shared by both implementations, so its bytes are a contract.
+ */
+function lexiconDigest(m: Materialized): string {
+  const dir = join(m.root, '.sofar', '.index')
+  if (!existsSync(dir)) return 'no .index\n'
+  const files = readdirSync(dir).filter((f) => /^lexicon.*\.json$/.test(f)).sort()
+  const gens = new Set<string>()
+  const lines = files.map((f) => {
+    const text = readFileSync(join(dir, f), 'utf8')
+    const gen = /"gen":"([^"]*)"/.exec(text)?.[1]
+    if (gen !== undefined) gens.add(gen)
+    const masked = text.replace(/"gen":"[^"]*"/, '"gen":"<GEN>"')
+    return `${f} ${createHash('sha256').update(masked).digest('hex').slice(0, 16)} ${Buffer.byteLength(masked)}`
+  })
+  if (!files.includes('lexicon.json')) lines.push('lexicon.json absent')
+  lines.push(`gens: ${gens.size === 0 ? 'none' : gens.size === 1 ? 'one' : 'several'}`)
+  const told = join(dir, 'told')
+  for (const f of existsSync(told) ? readdirSync(told).sort() : []) lines.push(`told/${f} ${readFileSync(join(told, f), 'utf8').trim()}`)
+  return `${lines.join('\n')}\n`
+}
+
+/** Every shard's gen rewritten — the table no longer matches any of them. */
+function staleShards(m: Materialized): void {
+  const dir = join(m.root, '.sofar', '.index')
+  for (const f of readdirSync(dir).filter((f) => /^lexicon-(p\d\d|h)\.json$/.test(f))) {
+    const path = join(dir, f)
+    writeFileSync(path, readFileSync(path, 'utf8').replace(/"gen":"[^"]*"/, '"gen":"stale"'))
+  }
+}
+
+/**
+ * A second record whose docs put one decision EXACTLY on the lessons cuts.
+ * The baseline record holds 3 docs of 15 tokens; four 5-token notes and one
+ * 5-token decision make N = 8 with an average length of exactly 5. For
+ * "zanzibar quokka" the decision's two terms are each unique (df = 1, tf =
+ * 1) in a doc of average length, so each weighs exactly idf = ln 6, the score
+ * is exactly 2·ln 6 — the corpus floor (lessons.ts indexFloor) — and the
+ * over-share is exactly 0.5 (LESSON_OVER_SHARE). An ulp in Math.log, or a
+ * `<` for a `<=`, moves the line.
+ */
+function cutoffRecord(m: Materialized): void {
+  const dir = join(m.root, '.sofar', 'initiatives', 'cutoff')
+  mkdirSync(dir, { recursive: true })
+  const env = (n: number, type: string, payload: Record<string, unknown>) =>
+    JSON.stringify({
+      v: 1,
+      id: `01M1E7ZZ0000000000000000${n.toString().padStart(2, '0')}`,
+      ts: `2026-09-02T10:${n.toString().padStart(2, '0')}:00.000Z`,
+      initiative: 'cutoff',
+      session: 'cli',
+      source: 'cli',
+      actor: 'agent',
+      user: 'fixture@example.invalid',
+      type,
+      payload,
+    })
+  const notes = ['copper kettle violet orchard pebble', 'saffron glacier walnut beacon tundra', 'marble falcon cobalt thicket harpoon', 'juniper anvil velvet canyon ember']
+  const lines = [
+    env(1, 'initiative_created', { goal: 'docs placed on the lessons cuts', slug: 'cutoff' }),
+    ...notes.map((text, i) => env(2 + i, 'note_added', { text })),
+    env(6, 'decision_logged', { chose: 'zanzibar harbor', over: 'quokka meadow', because: 'lantern' }),
+  ]
+  writeFileSync(join(dir, 'events.jsonl'), `${lines.join('\n')}\n`)
+}
 
 export const CASES: ConformanceCase[] = [
   // ---- this repo's record ------------------------------------------------
@@ -703,6 +777,52 @@ export const CASES: ConformanceCase[] = [
         artifact: (m) => readFileSync(join(m.root, 'msg-5'), 'utf8'),
       }),
       s('missing message file', ['commit-trailer', '<ROOT>/msg-none'], undefined, { env: { CLAUDE_CODE_SESSION_ID: 'sess-open' } }),
+    ],
+  },
+  {
+    // rust-core 2.11: the repo-wide lessons line over the real record (every
+    // wording, another record's handles, told once per session) and the tier's
+    // bytes, which both implementations read and extend.
+    name: 'repo.lessons',
+    fixture: REPO,
+    steps: [
+      s('the subject: decided before', ['event', 'user-prompt'], prompt({ session_id: RUST_CORE_SESSION, prompt: 'adopt Rust for the hot path incrementally, run owner said yes' }), {
+        artifact: lexiconDigest,
+      }),
+      s('the same prompt: told once, nothing', ['event', 'user-prompt'], prompt({ session_id: RUST_CORE_SESSION, prompt: 'adopt Rust for the hot path incrementally, run owner said yes' })),
+      s('a rejected approach: ruled out before', ['event', 'user-prompt'], prompt({ session_id: RUST_CORE_SESSION, prompt: 'use ryu number formatting and char lengths in the rust port' })),
+      s('again: the runner-up, another record’s note', ['event', 'user-prompt'], prompt({ session_id: RUST_CORE_SESSION, prompt: 'use ryu number formatting and char lengths in the rust port' })),
+      s('the fold path (SOFAR_LESSONS=fold): no told set', ['event', 'user-prompt'], prompt({ session_id: RUST_CORE_SESSION, prompt: 'use ryu number formatting and char lengths in the rust port' }), {
+        env: { SOFAR_LESSONS: 'fold' },
+      }),
+      s('SOFAR_LESSONS=off: no line', ['event', 'user-prompt'], prompt({ session_id: RUST_CORE_SESSION, prompt: 'use ryu number formatting and char lengths in the rust port' }), {
+        env: { SOFAR_LESSONS: 'off' },
+      }),
+      s('a note: noted before', ['event', 'user-prompt'], prompt({ session_id: RUST_CORE_SESSION, prompt: 'port it with localeCompare and Intl collation for sorting slugs' }), {
+        artifact: lexiconDigest,
+      }),
+    ],
+  },
+  {
+    // rust-core 2.11: one decision exactly on the floor and the over-share cut
+    // (cutoffRecord), then a stale shard: the fold answers and the table goes,
+    // and the next prompt rebuilds the tier to the same bytes.
+    name: 'syn.lessons-cut',
+    fixture: synthetic('baseline'),
+    steps: [
+      s('exactly on the floor and the over-share: ruled out, from another record', ['event', 'user-prompt'], prompt({ session_id: 'sess-open', prompt: 'zanzibar quokka' }), {
+        before: cutoffRecord,
+        artifact: lexiconDigest,
+      }),
+      s('the subject outweighs the over: decided before', ['event', 'user-prompt'], prompt({ session_id: 'sess-done', prompt: 'zanzibar harbor quokka' })),
+      s('one rare term is not a lesson', ['event', 'user-prompt'], prompt({ session_id: 'sess-done', prompt: 'quokka' })),
+      s('a stale shard: the fold answers and the table is dropped', ['event', 'user-prompt'], prompt({ session_id: 'sess-open', prompt: 'zanzibar quokka' }), {
+        before: staleShards,
+        artifact: lexiconDigest,
+      }),
+      s('the next prompt rebuilds every part', ['event', 'user-prompt'], prompt({ session_id: 'sess-open', prompt: 'copper kettle violet' }), {
+        artifact: lexiconDigest,
+      }),
     ],
   },
 ]

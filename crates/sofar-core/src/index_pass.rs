@@ -13,6 +13,12 @@ pub trait SlugReducer {
     type State: Clone;
     fn empty(&self) -> Self::State;
     fn apply(&self, state: &mut Self::State, event: &IndexedEvent, slug: &str);
+    /// Whether an event can change this state at all (`relevant`, memory-lead
+    /// 3.1, D15). A batch with none that can is quiet: prior's state carries
+    /// over and `state_changed` stays false. The default: every event can.
+    fn relevant(&self, _event: &IndexedEvent) -> bool {
+        true
+    }
 }
 
 #[derive(Debug)]
@@ -21,6 +27,10 @@ pub struct PassResult<S> {
     pub states: Vec<(String, S)>,
     /// False when nothing moved.
     pub changed: bool,
+    /// False when no state differs from `prior` — the cursors may still have
+    /// moved (`changed`). Only a reducer overriding `relevant` can make the
+    /// two differ.
+    pub state_changed: bool,
 }
 
 fn voided_ref(event: &IndexedEvent) -> Option<&str> {
@@ -67,6 +77,7 @@ pub fn pass_over_record<R: SlugReducer>(
     let mut meta = read_index_meta(layout, meta_file).unwrap_or_default();
     let mut states: Vec<(String, R::State)> = Vec::new();
     let mut changed = prior.is_none();
+    let mut state_changed = prior.is_none();
 
     for slug in initiative_slugs(layout) {
         let log = layout.events_path(&slug);
@@ -104,6 +115,8 @@ pub fn pass_over_record<R: SlugReducer>(
             events.sort_by(|a, b| cmp_utf16(&a.id, &b.id));
         }
 
+        // A batch nothing in which can move this state is quiet (`relevant`).
+        let quiet = events.is_empty() || !events.iter().any(|e| reducer.relevant(e));
         let mut state = if rebuilt {
             reducer.empty()
         } else {
@@ -116,11 +129,16 @@ pub fn pass_over_record<R: SlugReducer>(
                 voided.push(r.to_owned());
             }
         }
-        for event in &events {
+        // A quiet batch applies nothing: its state is prior's.
+        let apply_from = if rebuilt || !quiet { 0 } else { events.len() };
+        for event in &events[apply_from..] {
             if voided.contains(&event.id) {
                 continue;
             }
             reducer.apply(&mut state, event, &slug);
+        }
+        if rebuilt || !quiet {
+            state_changed = true;
         }
 
         if !events.is_empty() || prior_state.is_none() || (read.full && read.cursor.is_some()) {
@@ -167,11 +185,16 @@ pub fn pass_over_record<R: SlugReducer>(
             .any(|(s, _)| !states.iter().any(|(t, _)| t == s))
     {
         changed = true;
+        state_changed = true;
     }
     if changed {
         write_index_meta(layout, &meta, meta_file);
     }
-    PassResult { states, changed }
+    PassResult {
+        states,
+        changed,
+        state_changed,
+    }
 }
 
 /// The meta cursors as they stand, for tests and diagnostics.

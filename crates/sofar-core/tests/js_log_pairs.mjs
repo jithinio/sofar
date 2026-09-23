@@ -1,0 +1,41 @@
+// Pairs for tests/js_log_crosscheck.rs: `<x bits> <fdlibmLog(x) bits>` per
+// line, hex, from the TypeScript engine's own logarithm (core/fdlibm.ts,
+// rust-core D33). JavaScript never contracts arithmetic, so the pairs are the
+// same on every Node; CI still generates them on each target, beside the
+// Rust build it checks. `--math` writes V8's Math.log instead, for comparing
+// a Node build against fdlibm. Needs Node >= 22.18 (type stripping).
+// Deterministic: the inputs are BM25's own shapes plus a seeded sweep.
+//   node crates/sofar-core/tests/js_log_pairs.mjs > pairs.txt
+import { fdlibmLog } from '../../../packages/engine/src/core/fdlibm.ts'
+
+const log = process.argv.includes('--math') ? Math.log : fdlibmLog
+const f64 = new Float64Array(1)
+const u64 = new BigUint64Array(f64.buffer)
+const bits = (x) => {
+  f64[0] = x
+  return u64[0].toString(16)
+}
+const lines = []
+const push = (x) => lines.push(`${bits(x)} ${bits(log(x))}`)
+// idf: 1 + (n - df + 0.5) / (df + 0.5), as core/lexicon.ts and core/index-lexicon.ts compute it.
+for (let n = 1; n <= 3000; n++) for (let df = 1; df <= n; df += Math.max(1, Math.floor(n / 50))) push(1 + (n - df + 0.5) / (df + 0.5))
+// The lessons floor: 1 + (N - 0.5) / 1.5 (core/lessons.ts indexFloor).
+for (let n = 1; n <= 100_000; n++) push(1 + (n - 0.5) / 1.5)
+// A seeded sweep (xorshift64*): [1, 2), then wide magnitudes, then edges.
+let s = 0x9e3779b97f4a7c15n
+const next = () => {
+  s ^= s >> 12n
+  s ^= (s << 25n) & 0xffffffffffffffffn
+  s ^= s >> 27n
+  return ((s * 0x2545f4914f6cdd1dn) & 0xffffffffffffffffn) >> 11n
+}
+for (let i = 0; i < 100_000; i++) push(1 + Number(next()) / 2 ** 53)
+for (let i = 0; i < 100_000; i++) push((Number(next()) / 2 ** 53) * 10 ** ((i % 40) - 20))
+// fdlibm's |f| < 2**-20 branch: within ~1e-6 of a power of two, both sides.
+for (let k = -8; k <= 8; k++) for (let i = 0; i < 2_000; i++) {
+  const e = (Number(next()) / 2 ** 53) * 2 ** -(20 + (i % 40))
+  push(2 ** k * (1 + e))
+  push(2 ** k * (1 - e / 2))
+}
+for (const x of [0, -0, -1, 1, Infinity, NaN, 5e-324, 2.2250738585072014e-308, Number.MAX_VALUE, Math.E, 2, 0.5]) push(x)
+process.stdout.write(`${lines.join('\n')}\n`)

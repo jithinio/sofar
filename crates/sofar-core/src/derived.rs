@@ -15,22 +15,98 @@ use crate::text::{is_js_whitespace, js_trim};
 /// Bound on the command text a test outcome keeps (`TEST_CMD_CLIP`), in UTF-16 units.
 pub const TEST_CMD_CLIP: usize = 120;
 
+/// Every first word `PKG_TEST`, `RUNNER` or `TOOL_TEST` can start with.
+const HEADS: &[&str] = &[
+    // PKG_TEST, and RUNNER's optional prefixes
+    "npm",
+    "pnpm",
+    "yarn",
+    "bun",
+    "npx",
+    "bunx",
+    "poetry",
+    "uv",
+    "bundle",
+    // RUNNER's runners (`cypress run`, `playwright test`, `node --test` by first word)
+    "vitest",
+    "jest",
+    "mocha",
+    "ava",
+    "tap",
+    "pytest",
+    "py.test",
+    "rspec",
+    "phpunit",
+    "cypress",
+    "playwright",
+    "node",
+    // TOOL_TEST
+    "cargo",
+    "go",
+    "dotnet",
+    "swift",
+    "mix",
+    "gradle",
+    "./gradlew",
+    "gradlew",
+    "mvn",
+    "make",
+    "deno",
+    "zig",
+];
+
 /// The first shell segment of `cmd` that runs a test suite, or `None`
 /// (`testShapedCommand`). What the command DID is `ok`, never this.
 #[must_use]
 pub fn test_shaped_command(cmd: &str) -> Option<String> {
     for raw in split_segments(cmd) {
-        let seg = js_trim(strip_env_assignments(&raw));
+        let seg = js_trim(strip_env_assignments(raw));
         if seg.is_empty() {
             continue;
         }
-        let chars: Vec<char> = seg.chars().collect();
+        // Every pattern is anchored on a closed set of first words, each ended
+        // by whitespace or the end: a segment whose first word is none of them
+        // cannot match, and most commands are rejected here without a copy.
+        let head = seg.split(is_js_whitespace).next().unwrap_or("");
+        if !HEADS.contains(&head) {
+            continue;
+        }
+        let chars = match_window(seg);
         if pkg_test(&chars) || runner(&chars) || tool_test(&chars) {
             return Some(clip_utf16(seg, TEST_CMD_CLIP));
         }
     }
     None
 }
+
+/// The chars the three patterns can read: the first [`MAX_TOKENS`]
+/// whitespace-delimited words and the whitespace run after them. Each
+/// pattern is a chain of at most four words joined by `\s+` (`[\w-]+`
+/// never crosses whitespace) and ends on `(?:\s|$)`, so it reads nothing
+/// past the whitespace that ends its fourth word, and that whitespace is
+/// kept. A segment of four words or fewer is kept whole. Whether a pattern
+/// matches is therefore the same on the window as on the segment; the
+/// window only spares copying the rest of a long command.
+fn match_window(seg: &str) -> Vec<char> {
+    let mut out = Vec::new();
+    let mut words = 0;
+    let mut in_word = false;
+    for c in seg.chars() {
+        let ws = is_js_whitespace(c);
+        if !ws && !in_word {
+            words += 1;
+            if words > MAX_TOKENS {
+                break;
+            }
+        }
+        in_word = !ws;
+        out.push(c);
+    }
+    out
+}
+
+/// The most words any of the three patterns chains (`poetry run` + `cypress run`).
+const MAX_TOKENS: usize = 4;
 
 /// `s.slice(0, n)` in UTF-16 units; a pair cut in half becomes U+FFFD (D13).
 fn clip_utf16(s: &str, n: usize) -> String {
@@ -93,47 +169,50 @@ fn strip_env_assignments(seg: &str) -> &str {
 }
 
 /// Quote-aware split on the shell's sequencing operators (`splitSegments`).
-fn split_segments(cmd: &str) -> Vec<String> {
-    let chars: Vec<char> = cmd.chars().collect();
+/// Every character that is not an operator lands in the current segment in
+/// order, so each segment is a contiguous slice of `cmd` and none is copied.
+fn split_segments(cmd: &str) -> Vec<&str> {
+    let b = cmd.as_bytes();
     let mut out = Vec::new();
-    let mut cur = String::new();
-    let mut quote: Option<char> = None;
+    let mut start = 0;
+    let mut quote: Option<u8> = None;
     let mut i = 0;
-    while i < chars.len() {
-        let ch = chars[i];
+    // Every byte tested below is ASCII, so a byte index never lands inside a
+    // multi-byte character: skipping one "character" after a backslash is
+    // skipping to the next char boundary.
+    let next_char =
+        |at: usize| -> usize { cmd[at..].chars().next().map_or(at, |c| at + c.len_utf8()) };
+    while i < b.len() {
+        let ch = b[i];
         if let Some(q) = quote {
-            cur.push(ch);
             if ch == q {
                 quote = None;
-            } else if ch == '\\' && q == '"' {
-                if let Some(next) = chars.get(i + 1) {
-                    cur.push(*next);
-                }
-                i += 1;
+            } else if ch == b'\\' && q == b'"' && i + 1 < b.len() {
+                i = next_char(i + 1);
+                continue;
             }
             i += 1;
             continue;
         }
-        if ch == '"' || ch == '\'' {
+        if ch == b'"' || ch == b'\'' {
             quote = Some(ch);
-            cur.push(ch);
-        } else if ch == '\\' {
-            cur.push(ch);
-            if let Some(next) = chars.get(i + 1) {
-                cur.push(*next);
+        } else if ch == b'\\' {
+            if i + 1 < b.len() {
+                i = next_char(i + 1);
+                continue;
             }
-            i += 1;
-        } else if (ch == '&' || ch == '|') && chars.get(i + 1) == Some(&ch) {
-            out.push(std::mem::take(&mut cur));
-            i += 1;
-        } else if ch == ';' || ch == '|' || ch == '\n' {
-            out.push(std::mem::take(&mut cur));
-        } else {
-            cur.push(ch);
+        } else if (ch == b'&' || ch == b'|') && b.get(i + 1) == Some(&ch) {
+            out.push(&cmd[start..i]);
+            i += 2;
+            start = i;
+            continue;
+        } else if ch == b';' || ch == b'|' || ch == b'\n' {
+            out.push(&cmd[start..i]);
+            start = i + 1;
         }
         i += 1;
     }
-    out.push(cur);
+    out.push(&cmd[start..]);
     out
 }
 
@@ -143,11 +222,11 @@ type Ends = Vec<usize>;
 
 /// A literal word at each start.
 fn lit(s: &[char], starts: &Ends, word: &str) -> Ends {
-    let w: Vec<char> = word.chars().collect();
+    let n = word.chars().count();
     starts
         .iter()
-        .filter(|&&at| s.len() >= at + w.len() && s[at..at + w.len()] == w[..])
-        .map(|&at| at + w.len())
+        .filter(|&&at| s.len() >= at + n && s[at..at + n].iter().copied().eq(word.chars()))
+        .map(|&at| at + n)
         .collect()
 }
 
@@ -333,5 +412,43 @@ mod tests {
         assert_eq!(split_segments("a \"x && y\" && b"), ["a \"x && y\" ", " b"]);
         assert_eq!(split_segments("a \\&& b"), ["a \\&& b"]);
         assert_eq!(split_segments("\"a \\\" && b\""), ["\"a \\\" && b\""]);
+        // A backslash escapes a whole multi-byte character, and a trailing one
+        // stays in the segment, as the char-by-char TypeScript split has it.
+        assert_eq!(split_segments("é\\é;ü && x\\"), ["é\\é", "ü ", " x\\"]);
+        assert_eq!(split_segments("'😀;' ; b"), ["'😀;' ", " b"]);
+        assert_eq!(split_segments("\"\\😀\";c"), ["\"\\😀\"", "c"]);
+    }
+
+    #[test]
+    fn the_match_window_decides_as_the_whole_segment_does() {
+        let full = |s: &str| {
+            let c: Vec<char> = s.chars().collect();
+            (pkg_test(&c), runner(&c), tool_test(&c))
+        };
+        let window = |s: &str| {
+            let c = match_window(s);
+            (pkg_test(&c), runner(&c), tool_test(&c))
+        };
+        let tail = " x".repeat(50);
+        for head in [
+            "poetry run cypress run",
+            "poetry \t run  cypress\u{a0}run",
+            "bundle exec playwright test",
+            "uv run node --test",
+            "uv run node --testx",
+            "poetry run cypress",
+            "npm run test:unit-2",
+            "yarn t",
+            "cargo test",
+            "make  tests",
+            "npx vitest",
+            "bunx vitest\u{2028}",
+            "echo npm test",
+        ] {
+            for s in [head.to_owned(), format!("{head}{tail}"), format!("{head} ")] {
+                assert_eq!(window(&s), full(&s), "{s:?}");
+            }
+        }
+        assert_eq!(match_window("a b  c d   e f").len(), "a b  c d   ".len());
     }
 }

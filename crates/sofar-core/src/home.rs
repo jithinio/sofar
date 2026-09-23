@@ -51,8 +51,17 @@ pub fn registration_in(log_path: &Path, session_id: &str) -> Option<(String, Str
     None
 }
 
-fn registered_at(log_path: &Path, session_id: &str) -> Option<String> {
-    registration_in(log_path, session_id).map(|(_, ts)| ts)
+/// `registeredAt`: [`registration_in`] through the per-log cache (rust-core
+/// 4.4, D35) — the same answer, reading only the log's tail.
+fn registered_at(layout: &Layout, slug: &str, session_id: &str) -> Option<String> {
+    crate::registrations::cached_registration_in(
+        layout,
+        slug,
+        &layout.events_path(slug),
+        session_id,
+        registration_in,
+    )
+    .map(|(_, ts)| ts)
 }
 
 /// `modifiedAfter`: mtime ≥ ts; any doubt keeps the log.
@@ -77,7 +86,7 @@ pub fn home_initiative(
     let mut home: Option<String> = None;
     let mut latest = String::new();
     if let Some(p) = preferred
-        && let Some(ts) = registered_at(&layout.events_path(p), session_id)
+        && let Some(ts) = registered_at(layout, p, session_id)
     {
         home = Some(p.to_owned());
         latest = ts;
@@ -94,7 +103,7 @@ pub fn home_initiative(
         if !latest.is_empty() && !modified_after(&path, &latest) {
             continue;
         }
-        if let Some(ts) = registered_at(&path, session_id)
+        if let Some(ts) = registered_at(layout, &slug, session_id)
             && cmp_utf16(&ts, &latest).is_gt()
         {
             latest = ts;

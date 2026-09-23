@@ -6,6 +6,7 @@ import { nextTask } from '../core/drive-queue'
 import { latestRun, type InitiativeState } from '../core/fold'
 import { QUICK_LANE } from '../core/lane'
 import { probeRunLock, type RunLiveness } from '../core/run-lock'
+import { startedOf, statuslineFacts, type StatuslineFacts } from '../core/statusline-facts'
 import { createToolContext, initiativeSlugs, resolveSessionFirst } from '../mcp/context'
 import {
   installStatusline,
@@ -15,7 +16,6 @@ import {
 } from './init'
 import {
   phaseFraction,
-  taskProgress,
   type TaskProgress,
 } from '../projections/templates/shared'
 import { emit, errMessage, fail, ok, readAllStdin, type CmdResult } from './shared'
@@ -216,14 +216,29 @@ export function driveSegmentOf(
   probe: (run: string) => RunLiveness,
 ): DriveSegment | null {
   const run = latestRun(state)
-  if (run === undefined) return null
-  if (run.stopped !== undefined) {
-    if (sessionStarted === null || run.stopped < sessionStarted || run.stop_reason === undefined) return null
+  return driveSegmentFrom(
+    run === undefined ? null : { id: run.id, stopped: run.stopped ?? null, stop_reason: run.stop_reason ?? null },
+    () => nextTask(state)?.id ?? null,
+    sessionStarted,
+    probe,
+  )
+}
+
+/** driveSegmentOf on the cached facts (rust-core 4.4): the same decision, no fold. */
+export function driveSegmentFrom(
+  run: StatuslineFacts['run'],
+  next: () => string | null,
+  sessionStarted: string | null,
+  probe: (run: string) => RunLiveness,
+): DriveSegment | null {
+  if (run === null) return null
+  if (run.stopped !== null) {
+    if (sessionStarted === null || run.stopped < sessionStarted || run.stop_reason === null) return null
     return { kind: 'stopped', reason: run.stop_reason }
   }
   const liveness = probe(run.id)
   if (liveness === 'free') return { kind: 'gone' }
-  return { kind: 'live', task: nextTask(state)?.id ?? null, liveness }
+  return { kind: 'live', task: next(), liveness }
 }
 
 /**
@@ -270,14 +285,21 @@ function recordSegment(rootDir: string, hook: Obj): RecordSegment {
         // Caught by the quick lane (r1-fixes 2.6, D14): no plan to gauge, so
         // the slug alone, dim — recorded, but not a project's record.
         if (resolved.via === 'lane') return { kind: 'lane' }
-        const state = ctx.foldState(resolved.slug)
-        const me = sessionId === null ? undefined : state.sessions.find((s) => s.id === sessionId)
+        // The fold's few facts, cached per record by the log's size and mtime
+        // (rust-core 4.4): at team scale the fold is the whole cost of the line.
+        const slug = resolved.slug
+        const facts = statuslineFacts(ctx.sofarDir, slug, ctx.eventsPath(slug), () => ctx.foldState(slug))
         return {
           kind: 'record',
-          slug: resolved.slug,
-          progress: taskProgress(state.phases),
-          status: state.status,
-          drive: driveSegmentOf(state, me?.started ?? null, (run) => probeRunLock(root, run)),
+          slug,
+          progress: facts.progress,
+          status: facts.status,
+          drive: driveSegmentFrom(
+            facts.run,
+            () => facts.next_task,
+            startedOf(facts, sessionId),
+            (run) => probeRunLock(root, run),
+          ),
         }
       }
       // Nothing resolved HERE — but if the repo carries initiatives, this is

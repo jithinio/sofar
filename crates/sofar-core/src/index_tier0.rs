@@ -114,8 +114,9 @@ fn refresh_disk(layout: &Layout) -> Vec<(String, SessionFiles)> {
                     .collect(),
             )
         });
-    let PassResult { states, changed } =
-        pass_over_record(layout, DEFAULT_META_FILE, prior.as_deref(), &Tier0Reducer);
+    let PassResult {
+        states, changed, ..
+    } = pass_over_record(layout, DEFAULT_META_FILE, prior.as_deref(), &Tier0Reducer);
     if changed {
         let mut initiatives = Object::with_capacity(states.len());
         for (slug, state) in &states {

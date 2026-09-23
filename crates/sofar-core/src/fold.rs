@@ -677,13 +677,7 @@ pub fn append_to_checkpoint(cp: &mut FoldCheckpoint, line: &str) -> bool {
 /// the final plan, the unregistered-session list.
 #[must_use]
 pub fn finalize_fold(cp: &FoldCheckpoint) -> FoldResult {
-    let mut state = cp.state.clone();
-    let warnings = cp.warnings.clone();
-    let edges = cp.edges.clone();
-    state.task_files = task_files_from_edges(&edges);
-    state.task_tests = task_tests_from_edges(&edges);
-    attach_activity(&mut state, activity_from_edges(&edges));
-    derive_current(&mut state, &cp.block_notes);
+    let state = finalize_state(cp);
     let orphans: Vec<OrphanTaskEvent> = cp
         .orphan_candidates
         .iter()
@@ -699,11 +693,32 @@ pub fn finalize_fold(cp: &FoldCheckpoint) -> FoldResult {
     unregistered.sort_by(|a, b| cmp_utf16(a, b));
     FoldResult {
         state,
-        warnings,
+        warnings: cp.warnings.clone(),
         orphan_task_events: orphans,
-        edges,
+        edges: cp.edges.clone(),
         unregistered_sessions: unregistered,
     }
+}
+
+/// [`finalize_fold`]'s `state` alone, reading the edges in place: a caller
+/// that wants only the state (every hook's `fold_state`) no longer clones the
+/// edge list and the warnings to drop them — on team100's bound log that
+/// clone and its drop were ~20% of a read hook.
+#[must_use]
+pub fn finalize_state(cp: &FoldCheckpoint) -> InitiativeState {
+    let mut state = cp.state.clone();
+    state.task_files = task_files_from_edges(&cp.edges);
+    state.task_tests = task_tests_from_edges(&cp.edges);
+    attach_activity(&mut state, activity_from_edges(&cp.edges));
+    derive_current(&mut state, &cp.block_notes);
+    state
+}
+
+/// Whether `id` is in the finalized `state.sessions`, without finalizing:
+/// finalize only rewrites fields of sessions (activity), never which ids
+/// are there, so the replayed list answers it.
+pub fn has_session(cp: &mut FoldCheckpoint, id: &str) -> bool {
+    cp.session_index.position(&cp.state.sessions, id).is_some()
 }
 
 fn active_task_ids(state: &InitiativeState) -> Vec<String> {
@@ -1552,7 +1567,11 @@ struct ActivityAcc {
 /// The accumulator for a `session:<id>` node, created on first sight.
 fn of<'a>(acc: &'a mut HashMap<String, ActivityAcc>, node: &str) -> &'a mut ActivityAcc {
     let id = node.strip_prefix("session:").unwrap_or(node);
-    acc.entry(id.to_owned()).or_default()
+    // Look up before allocating: every edge of a known session is a hit.
+    if !acc.contains_key(id) {
+        acc.insert(id.to_owned(), ActivityAcc::default());
+    }
+    acc.get_mut(id).expect("inserted above")
 }
 
 /// Activity per session id, in edge order (`activityFromEdges`).
@@ -1563,9 +1582,10 @@ fn activity_from_edges(edges: &[GraphEdge]) -> HashMap<String, SessionActivity> 
             "touched" => {
                 let a = of(&mut acc, &edge.from);
                 let path = path_of_node_id(&edge.to);
-                if !a.seen.insert(path.to_owned()) {
+                if a.seen.contains(path) {
                     continue; // dedupe — first touch wins the slot
                 }
+                a.seen.insert(path.to_owned());
                 if a.files.len() < ACTIVITY_LIST_CAP {
                     a.files.push(path.to_owned());
                 } else {

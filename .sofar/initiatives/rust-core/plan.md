@@ -4,7 +4,7 @@
 
 Goal: Move sofar's hot path to a native Rust core incrementally (rust-core D1): contract first, then sofar-core in Rust behind the same CLI and hook contract, integrated with TypeScript fallback, shipped as prebuilt binaries, and proven as its own benchmark arm that shrinks no held-out lead margin (bench-refresh D19). After parity, new hot-path code is Rust-only.
 
-Progress: 16/23 tasks done (69%)
+Progress: 18/25 tasks done (72%)
 
 ## Phase 1 — Contract [done] — 7/7 done
 
@@ -18,7 +18,7 @@ Progress: 16/23 tasks done (69%)
 - [x] 1.6 Order-independence and merge conformance: a property test that the same event SET folds to an identical state under any arrival order (shuffle N times; duplicate ids, out-of-order session_started/ended, corrections; proptest shapes fine), and a union-merge test where N branches append to the SAME initiative's events.jsonl (merge=union .gitattributes path) plus across-initiative merges, asserting the merged fold equals the fold of the union and measuring merged-log fold time
 - [x] 1.7 Catch up with trunk (rust-core D29): merge main and mirror every hot-path change since rc.2 with conformance, fold and render parity on the trunk commit merged
 
-## Phase 2 — Rust core [done] — 6/6 done
+## Phase 2 — Rust core [done] — 7/7 done
 
 > All six tasks landed and proved by the 3.1–3.3 black-box runs.
 
@@ -28,6 +28,7 @@ Progress: 16/23 tasks done (69%)
 - [x] 2.4 Digest/status render byte-identical to the projection templates (golden tests), including the 10k char cap behaviour
 - [x] 2.5 Hook handlers (session-start, user-prompt-submit, post-tool-use, stop, session-end) with conformance parity, including r1-fixes wave 1–2 behaviour
 - [x] 2.6 Statusline command parity
+- [x] 2.11 Mirror memory-lead 3.1 (memory-lead 3.4): the BM25 lexicon tier (lexicon.json, lexicon-p00..31.json FNV-1a/5-bit shards, lexicon-h.json, one gen) and its prompt line, plus index-pass SlugReducer.relevant / PassResult.stateChanged, with conformance parity incl. a score-at-threshold case (memory-lead D15; notes 01M352R1, 01M352S1). TS reference 3ee5e98 is unverified until its D18 read-path bench passes — plan against it, do not build on it as settled
 
 ## Phase 3 — Integration and distribution [done] — 3/3 done
 
@@ -37,18 +38,19 @@ Progress: 16/23 tasks done (69%)
 - [x] 3.2 Prebuilt binaries per platform (darwin arm64/x64, linux x64/arm64, win32 x64) via npm optionalDependencies, plus a CI build matrix
 - [x] 3.3 Gate green: 100% conformance on both implementations and perf targets beaten
 
-## Phase 4 — Prove and switch [pending] — 0/3 done
+## Phase 4 — Prove and switch [pending] — 0/4 done
 
 - [ ] 4.1 Benchmark arm sofar-rust-core vs sofar-ts under a frozen addendum; must shrink no D19 lead margin
 - [ ] 4.2 Release after benchmark evidence (never before, per bench-refresh D20)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
+- [ ] 4.4 memory-lead 3.2 (reassigned to this lane 2026-09-22): read-time hook under 20 ms at 50+ initiatives and team100 scale, proven with npm run perf on a quiet host (D5, D12) (active)
 
-## Phase 5 — Bindings (carried over from engine-core) [pending] — 0/4 done
+## Phase 5 — Bindings (carried over from engine-core) [pending] — 1/4 done
 
 - [ ] 5.1 Real-log parity gate: the Rust fold deep-equals the TypeScript fold on EVERY real events.jsonl in this repo and in sofar-cloud, run in CI. No surface in 5.2–5.4 switches until it is green, and the TypeScript fold retires last (engine-core 1.1, 4.1) (blocked)
 - [ ] 5.2 UniFFI bindings to a Swift package consumed by sofar-cloud desktop-v2 (engine-core 3.1; engine-core D1: the Swift app folds through the Rust core from its first record window, with the sofar CLI bridge only as a fallback behind desktop-v2's RecordSource protocol while 5.1 is not green). A separate crate, so the hook binary's crate set (D9) is unchanged
 - [ ] 5.3 wasm build of the fold for the sofar-cloud webapp and the Bun API, replacing the browser-aliased TypeScript fold (engine-core 3.2). A separate crate, so the hook binary's crate set (D9) is unchanged
-- [ ] 5.4 The TypeScript CLI wraps the core with foldLines keeping its signature (engine-core 3.3): confirm that 3.1's dispatch with TypeScript fallback covers it, then close
+- [x] 5.4 The TypeScript CLI wraps the core with foldLines keeping its signature (engine-core 3.3): confirm that 3.1's dispatch with TypeScript fallback covers it, then close
 
 Next action: On operator ff/rerun: ff main to 57b933c
 Blocked on: task 5.1: Gate built and green: the sofar leg is in CI (core-conformance, run 35748230717, every branch), and sofar-cloud is green locally (20 logs, private mode). Blocked on the operator for the sofar-cloud CI leg. sofar-cloud (usesofar/sofar-app) is private and this repo's Actions logs are public, so the job belongs in sofar-cloud's own CI. See the 5.1 note for the steps. It needs no token, since sofar is public.

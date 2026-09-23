@@ -217,6 +217,12 @@
   the copies union. Phase notes survive a plan replace from the release
   that carries phase-lifecycle 6.1 (a0bc2e7) onward; until the installed
   sofar has it, snapshot plan.md and diff it around the call (self-improve M10).
+- Read-path gates on user-prompt work need `--session <registered id>`
+  (rust-core M20). On the repo fixture, bench/read-paths.mjs defaults to an
+  unregistered session, so user-prompt returns before lessons, told,
+  conflicts or the drive line run, and the gate passes having measured
+  nothing. Before trusting the number, check that a lesson printed or
+  `.index/told` was written.
 - Never `rm -rf` a computed path in a scratch script without quoting it
   and guarding its prefix (rust-core M21). zsh does not word-split `$var`
   but a bash script it calls does, so a two-path string deletes both. On

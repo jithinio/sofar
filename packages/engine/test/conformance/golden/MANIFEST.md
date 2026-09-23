@@ -5,6 +5,24 @@ gains four lines, the `sofar event drive-await` entry in the hook help. No
 other golden changed — the hook is wired by `sofar init`, which the goldens
 do not run.
 
+Re-pinned to **main 23243e8** (rust-core merge 74011d7: memory-lead 3.1,
+the repo-wide BM25 lexicon tier, 3ee5e98). No existing golden moved:
+every existing prompt is `continue`, which reaches no lesson on either
+path. Two cases were ADDED and recorded from the TypeScript reference
+(rust-core 2.11, D29):
+- `repo.lessons` (fixture `records/repo`) covers the lessons line over the
+  real record. It shows decided, ruled out and noted before, another
+  record's `<slug> note <date>` handle, told once per session with the
+  runner-up taking the slot, and the `SOFAR_LESSONS=fold` and `=off` arms.
+  Its two artifacts hash every `lexicon*.json` with the gen masked, plus
+  the told set, so the tier's bytes are pinned too.
+- `syn.lessons-cut` (fixture `baseline` plus a `cutoff` record written by
+  the step) puts one decision exactly on the corpus floor, 2·ln 6, and
+  exactly on LESSON_OVER_SHARE, 0.5. That covers ruled out versus decided
+  at the cut, and one rare term not counting as a lesson. It also covers a
+  stale shard: the fold answers and the table is dropped, and the next
+  prompt rebuilds all three parts.
+
 Re-pinned to **main ce2f9f2** (rust-core merge 47d5a44: drive-visibility
 3.3). `syn.driven` gained five statusline steps, re-recorded from the
 TypeScript reference: the drive segment with no lock (`drive 1.2 liveness

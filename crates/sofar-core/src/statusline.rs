@@ -6,15 +6,15 @@
 
 use std::path::Path;
 
-use crate::append::fold_state;
 use crate::date::js_round;
 use crate::fold::InitiativeState;
 use crate::home::{ResolvedVia, resolve_session_first};
 use crate::hook::parse_hook;
 use crate::json::{Json, Object, number_to_string};
 use crate::layout::{Layout, initiative_slugs};
-use crate::projections::{RunLiveness, TaskProgress, phase_fraction, task_progress};
+use crate::projections::{RunLiveness, TaskProgress, phase_fraction};
 use crate::status::{QUICK_LANE, is_closed_initiative_status};
+use crate::statusline_facts::{FactsRun, statusline_facts};
 use crate::text::{cmp_utf16, is_js_whitespace, js_trim};
 use crate::ui::{Style, pie_for};
 use crate::update_cache::{UpdateNotice, notice_from, read_update_cache};
@@ -172,7 +172,28 @@ pub fn drive_segment_of(
     session_started: Option<&str>,
     probe: impl Fn(&str) -> RunLiveness,
 ) -> Option<DriveSegment> {
-    let run = state.runs.last()?;
+    let run = state.runs.last().map(|r| FactsRun {
+        id: r.id.clone(),
+        stopped: r.stopped.clone(),
+        stop_reason: r.stop_reason.clone(),
+    });
+    drive_segment_from(
+        run.as_ref(),
+        || crate::drive_queue::next_task(state).map(|t| t.id.clone()),
+        session_started,
+        probe,
+    )
+}
+
+/// `driveSegmentFrom`: [`drive_segment_of`] on the cached facts (rust-core
+/// 4.4, D34) — the same decision, no fold.
+pub fn drive_segment_from(
+    run: Option<&FactsRun>,
+    next: impl FnOnce() -> Option<String>,
+    session_started: Option<&str>,
+    probe: impl Fn(&str) -> RunLiveness,
+) -> Option<DriveSegment> {
+    let run = run?;
     if let Some(stopped) = &run.stopped {
         let started = session_started?;
         if cmp_utf16(stopped, started).is_lt() {
@@ -185,7 +206,7 @@ pub fn drive_segment_of(
     match probe(&run.id) {
         RunLiveness::Free => Some(DriveSegment::Gone),
         liveness => Some(DriveSegment::Live {
-            task: crate::drive_queue::next_task(state).map(|t| t.id.clone()),
+            task: next(),
             liveness,
         }),
     }
@@ -243,21 +264,20 @@ fn record_segment(root: &Path, hook: &Object) -> Option<RecordSegment> {
             if via == ResolvedVia::Lane {
                 return Some(RecordSegment::Lane);
             }
-            let state = fold_state(&layout, &slug);
-            let started = session_id.and_then(|sid| {
-                state
-                    .sessions
-                    .iter()
-                    .find(|s| s.id == sid)
-                    .map(|s| s.started.clone())
-            });
-            let drive = drive_segment_of(&state, started.as_deref(), |run| {
-                crate::run_lock::probe_run_lock(Path::new(&candidate), run)
-            });
+            // The fold's few facts, cached per record by the log's size and
+            // mtime (rust-core 4.4, D34): at team scale the fold is the whole
+            // cost of the line.
+            let facts = statusline_facts(&layout, &slug);
+            let drive = drive_segment_from(
+                facts.run.as_ref(),
+                || facts.next_task.clone(),
+                facts.started_of(session_id),
+                |run| crate::run_lock::probe_run_lock(Path::new(&candidate), run),
+            );
             return Some(RecordSegment::Record {
                 slug,
-                progress: task_progress(&state.phases),
-                status: state.status,
+                progress: facts.progress,
+                status: facts.status.clone(),
                 drive,
             });
         }
