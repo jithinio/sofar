@@ -79,4 +79,4 @@ Progress: 15/26 tasks done (57%)
 - [ ] 6.3 Replace stale public claims: one-pager R04 figures, install name @alignlabs/sofar, "adds nothing to your bill" next to --cost-cap
 
 Active phase: Phase 5 — Round 2
-Next action: Check the re-run: no CouldntReadCurrentDirectory, drive verify completes, gate passes; then hand the freeze to the operator and stop.
+Next action: When smoke-patched-0923 lands, run scratchpad/check-patched.py, then hand the freeze to the operator and stop.
