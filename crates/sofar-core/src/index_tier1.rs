@@ -1051,6 +1051,36 @@ mod neighbours_cache_tests {
     }
 
     #[test]
+    fn concurrent_writers_leave_one_valid_file() {
+        // A read-time hook now writes: eight racing writers on a quiet record
+        // with no cache must leave one valid file (atomic temp + rename).
+        let layout = real_record();
+        let slug = crate::layout::initiative_slugs(&layout)
+            .into_iter()
+            .find(|s| !neighbour_overlaps(&layout, s).is_empty())
+            .unwrap();
+        let want = full(&layout, &slug);
+        let dir = layout.index_dir().join(NEIGHBOURS_DIR);
+        std::fs::remove_dir_all(&dir).unwrap();
+        std::thread::scope(|scope| {
+            for _ in 0..8 {
+                scope.spawn(|| assert_eq!(neighbour_overlaps(&layout, &slug), want));
+            }
+        });
+        let names: Vec<String> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            names,
+            vec![format!("{slug}.json")],
+            "one file, no temp left"
+        );
+        assert!(read_neighbours_cache(&layout, &slug).is_some(), "valid");
+        assert_eq!(neighbour_overlaps(&layout, &slug), want);
+    }
+
+    #[test]
     fn a_missing_or_corrupt_cache_falls_back() {
         let layout = real_record();
         let slug = crate::layout::initiative_slugs(&layout)

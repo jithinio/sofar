@@ -2,6 +2,7 @@ import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ulid } from 'ulid'
+import { execFileSync, spawn } from 'node:child_process'
 import { afterAll, describe, expect, it } from 'vitest'
 import { neighbourRecords, refreshNeighbours, refreshTier1 } from '../src/core/index-tier1'
 import { indexDir } from '../src/core/index-store'
@@ -152,4 +153,38 @@ describe('neighbours cache (record-index 01M37PM7)', () => {
       expect(refreshNeighbours(sofar, slug!)).toEqual(want)
     }
   })
+
+  it('concurrent writers leave one valid file (atomic temp + rename)', async () => {
+    // A read-time hook now writes, so racing SessionStarts must leave one
+    // valid file. Eight TypeScript processes, and eight sofar-core ones when a
+    // release core is built, all find no cache on a quiet record, so all eight
+    // (or sixteen) take the write path at once.
+    const sofar = syntheticRecord()
+    const root = join(sofar, '..')
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root })
+    const bound = 'team-bound'
+    const want = reference(sofar, bound) // brings the index current: the record is quiet
+    const dir = join(indexDir(sofar), 'neighbours')
+    rmSync(dir, { recursive: true, force: true })
+    const bundle = join(__dirname, '..', 'dist', 'cli.js')
+    const core = join(__dirname, '..', '..', '..', 'target', 'release', 'sofar-core')
+    const input = JSON.stringify({ session_id: 'nb-race', hook_event_name: 'SessionStart', source: 'startup' })
+    const run = (cmd: string, args: string[], env: Record<string, string>) =>
+      new Promise<void>((resolve, reject) => {
+        const child = spawn(cmd, args, { cwd: root, env: { ...process.env, SOFAR_NO_UPDATE_CHECK: '1', ...env }, stdio: ['pipe', 'ignore', 'ignore'] })
+        child.on('error', reject)
+        child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`${cmd} exit ${code}`))))
+        child.stdin.end(input)
+      })
+    const writers = Array.from({ length: 8 }, () => run(process.execPath, [bundle, 'event', 'session-start'], { SOFAR_CORE: '0' }))
+    if (existsSync(core)) writers.push(...Array.from({ length: 8 }, () => run(core, ['event', 'session-start'], {})))
+    await Promise.all(writers)
+    // One file, parseable, the right answer, and no temp file left behind.
+    expect(readdirSync(dir)).toEqual([`${bound}.json`])
+    const file = JSON.parse(readFileSync(join(dir, `${bound}.json`), 'utf8')) as { overlaps: Array<[string, number]> }
+    const byName = (x: { initiative: string }, y: { initiative: string }) => (x.initiative < y.initiative ? -1 : 1)
+    const cached = file.overlaps.map(([initiative, paths]) => ({ initiative, paths })).sort(byName)
+    expect(cached).toEqual(want.map(({ initiative, paths }) => ({ initiative, paths })).sort(byName))
+    expect(refreshNeighbours(sofar, bound)).toEqual(want)
+  }, 120_000)
 })
