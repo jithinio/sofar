@@ -57,7 +57,7 @@ Progress: 15/26 tasks done (57%)
 
 - [ ] 5.0 Freeze PRE-REGISTRATION-R2; the user approves.
 - Done: chain B's side (note 01M2R0AG); rc.2 cut at cf8c117, tag v0.33.0-rc.2 (09-21); 6.3/6.5/6.7 proven live (note 01M2QEB1) and in the cut; trimmed round 1 and the 4.1 report (handoff-bench 4e4ac2c).
-- Open, per PRE-REGISTRATION-R2 §9: write the rc.2 sha into §2 and tick the finished boxes; Claude Code and cursor-agent pins; real-agent smokes (per arm; L21, L25, L24–L26, D33); Tier 0 at the tag; R2-P11–P13 and §3.5 set by the user; L19 meter check; 1.6 ruled or deferred; user approval of §2–§8; then confirm the pin to r1-fixes 4.3. (active)
+- Open, per PRE-REGISTRATION-R2 §9: write the rc.2 sha into §2 and tick the finished boxes; Claude Code and cursor-agent pins; real-agent smokes (per arm; L21, L25, L24–L26, D33); Tier 0 at the tag; R2-P11–P13 and §3.5 set by the user; L19 meter check; 1.6 ruled or deferred; user approval of §2–§8; then confirm the pin to r1-fixes 4.3. (blocked)
 - [x] 1.6 Decide whether to widen D12's single orchestrator arm to Claude Code ultracode, Codex multi_agent and Cursor subagents, each paired with sofar drive on the same agent and model (note 01M2QWV2). Rule it before the 5.0 freeze, or defer it to round 3.
 - Drive adapters exist for all three agents: Codex since 0.32.0; Cursor since r1-fixes 6.8 (e0ae4de, on main, not in rc.2).
 - Unverified: whether headless runs wait for an ultracode workflow, and whether sub-agent tokens reach each tool's usage output.
@@ -79,4 +79,5 @@ Progress: 15/26 tasks done (57%)
 - [ ] 6.3 Replace stale public claims: one-pager R04 figures, install name @alignlabs/sofar, "adds nothing to your bill" next to --cost-cap
 
 Active phase: Phase 5 — Round 2
-Next action: When smoke-patched-0923 lands, run scratchpad/check-patched.py, then hand the freeze to the operator and stop.
+Next action: Run owner: approve §2–§8 to freeze, then send the r1-fixes confirmation naming cf8c117 and start round 2 on AC power.
+Blocked on: task 5.0: Every harness blocker in PRE-REGISTRATION-R2 §9 is now ticked with evidence (handoff-bench ceee959): real-agent smokes on all three families, L21 per family plus the Cursor hook-shim trace, L25 denials with a clean crosscell scan, the D33 fork at 32/32, and L19 read by the run owner. Two boxes remain and BOTH are the run owner's own acts, which is why this is blocked rather than done: "Run owner approves §2–§8", and the freeze-time confirmation to r1-fixes naming 0.33.0-rc.2 with sha cf8c117, which unblocks r1-fixes 4.3. They ruled on 2026-09-23 (01M36NM9) to stop before round 2 and freeze themselves after seeing the re-run pass — it passed (note 01M36PTG).
