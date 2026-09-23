@@ -5,6 +5,7 @@ import { foldLines, type InitiativeState } from '../src/core/fold'
 import { digestState } from '../src/projections/templates/digest-state'
 import { renderStatus, type StatusOptions } from '../src/projections/templates/status'
 import { initiativeText, shapes, type CorpusSpec } from './conformance/perf/corpus'
+import { sortKeysDeep } from '../src/core/snapshot'
 
 /**
  * rust-core 4.4 (session-start B): renderStatus(digestState(s), o) must equal
@@ -68,10 +69,13 @@ describe('digestState renders exactly what the full state renders (rust-core 4.4
       const cut = digestState(state)
       // The cache stores JSON: the round trip is what a hit renders from.
       const cached = JSON.parse(JSON.stringify(cut)) as InitiativeState
+      // What the digest cache writes: compact JSON with every key sorted.
+      const sorted = JSON.parse(JSON.stringify(sortKeysDeep(cut))) as InitiativeState
       for (const [label, options] of optionsMatrix()) {
         const want = renderStatus(state, options)
         expect(renderStatus(cut, options), `${name} / ${label}`).toBe(want)
         expect(renderStatus(cached, options), `${name} / ${label} (JSON)`).toBe(want)
+        expect(renderStatus(sorted, options), `${name} / ${label} (sorted JSON)`).toBe(want)
       }
     })
   }

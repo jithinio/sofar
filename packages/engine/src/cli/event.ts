@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
+import { cachedDigestState } from '../core/digest-cache'
 import { readBindingsFile } from '../core/bindings'
 import { currentBranch } from '../core/git'
 import { ensureIndexDir } from '../core/index-store'
@@ -771,7 +772,10 @@ export function handleSessionStart(rootDir: string, input: string, declared?: Ho
     // registration this hook writes nothing, so no bookkeeping of ours can
     // ever mask a cold record.
     const advisory = coldResumeAdvisory(hook, ctx.eventsPath(slug))
-    const state = ctx.foldState(slug)
+    // The digest's cut of the fold, cached per record by the log's size and
+    // mtime (rust-core 4.4): it renders the same block (test/digest-state),
+    // and at team scale the fold was most of this hook.
+    const state = cachedDigestState(ctx.sofarDir, slug, ctx.eventsPath(slug), () => ctx.foldState(slug))
     const repoMemory = readRepoMemory(rootDir)
     // ≤10,000 chars (BD3/BD24) — repo memory has its own budget (BD40); the
     // session id line (7.1, BD43) tells the agent what to pass to
