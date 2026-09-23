@@ -4,7 +4,7 @@
 
 Goal: Make phase status writable at the same tier as task status. SHIPPED 2026-08-13: sofar_update_phase is the twelfth MCP tool, phase status is written and never derived (D2), and phase_status_changed now counts as drift (D3). Remaining: the 35 stale phases across 16 initiatives, which D5 rules a one-off append-only repair — and the mechanism for writing across 16 records without tearing the session doing it is the open question. Settled up front on measurement: MCP-only, no CLI sibling (D1).
 
-Progress: 18 done, 1 dropped, 1 remaining
+Progress: 18 done, 1 dropped, 3 remaining
 
 ## Phase 1 — Settle the write path (blocks everything else) [done] — 3/3 done
 
@@ -44,6 +44,11 @@ Progress: 18 done, 1 dropped, 1 remaining
 - [x] 5.2 Tests: one event per call, idempotent re-issue appends nothing, session pin survives a parallel branch rebind, unknown phase errors typed, and replay stays deterministic.
 - [x] 5.3 Dogfood: close THIS initiative's own phases with the new tool as each completes, then re-run doctor and confirm the stale-phase count falls. The dogfood IS the acceptance evidence.
 - [x] 5.4 Release 0.27.0. Until it is published AND installed, this repo's own sessions cannot use the tool: .mcp.json runs the `sofar` on PATH, which is the installed bundle, so every session here still sees eleven tools. The user runs `npm publish -w sofar.sh` (classifier + OTP).
+
+## Phase 6 — Silent discards in the plan and phase write path (operator ruling 2026-09-23) [pending] — 0/2 done
+
+- [ ] 6.1 ONE change, ONE set of tests, for both halves of D8's family. (a) sofar_update_phase accepts a phase name that matches after a leading ordinal is stripped ("7. ", "7 ", "7)"), beside the number and the case-insensitive full name — round-1 loss row L11, whose refusal in claude-sofar/r3 S7 and S8 preceded the S9 full-replace that wiped phases 6–8. (b) sofar_update_plan stops discarding phase NOTES: carry the note of any phase whose name is unchanged, or take an optional note per phase, or refuse a replace that would drop one unless it is restated. Tests: bare name accepted for a numbered phase, a genuinely unknown name still typed-errors and names what it tried, a replace that omits notes preserves them, and a replace that renames a phase says what happened to its note.
+- [ ] 6.2 Contract: docs/SPEC.md §MCP tools for both tools and a §Acceptance criteria bullet each, then retire the workaround memories that the fix makes obsolete (self-improve M8, and the last sentence of rust-core M2's repo.md paragraph, which rust-core is splitting so the worktree guidance survives).
 
 Active phase: Phase 3 — sofar_add_task
 Next action: 3.6: operator publishes the next RC so installed sessions get the add path.
