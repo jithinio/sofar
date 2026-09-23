@@ -4,7 +4,7 @@
 
 Goal: An operator always knows whether a drive run is alive and how far it has got — in the calling session, on the status bar, and in the sofar apps — without asking an agent or opening another terminal, and one run can never be driven by two drivers at once. Liveness is decided by a machine-local lock the OS releases on exit, never by a heartbeat or a record event; a heartbeat exists only to show presence to remote viewers.
 
-Progress: 13/18 tasks done (72%)
+Progress: 15/18 tasks done (83%)
 
 ## Phase 1 — Contract and rulings [done] — 2/2 done
 
@@ -18,7 +18,9 @@ Progress: 13/18 tasks done (72%)
 - [x] 2.3 `sofar status` (one-shot and --watch) shows a run as running, driver gone (no run_stopped, lock free) or stopped wherever the lock is visible; `sofar drive --stop` against a gone driver says so at once instead of waiting 30s. Tests.
 - [x] 2.4 Keep-awake per the 1.1(e) ruling: macOS `caffeinate -i -w <own pid>` spawned by the driver for the run's life; setting in ~/.config/sofar/config.json; terminal prompt once when unset; detached runs state the unset setting in the preflight lines; per-run flags override; the opening lines say idle sleep is blocked but lid-close sleep is not. Tests.
 
-## Phase 3 — Progress in the session [active] — 6/7 done
+## Phase 3 — Progress in the session [done] — 7/7 done
+
+> All seven tasks done and verified on origin (42c633f): --await (3.1), the prompt drive line (3.2), the statusline segment (3.3), --follow (3.4), the asyncRewake measurement and verdict (3.5), the protocol block (3.6), and the rewake hook shipped through init (3.7). The phase's own proof is 5.1, which exercised every surface live.
 
 - [x] 3.1 `sofar drive <slug> --await`: blocks at zero cost and exits with one line on needs_user, run_stopped or driver gone (lock free); built for an agent's background shell. Tests.
 - [x] 3.2 UserPromptSubmit drive line, printed only when the run changed since the session's last prompt (handoffs, task done, now on); within the hook shim's budget; install Codex hooks.json so Codex gets it too. Tests.
@@ -26,7 +28,7 @@ Progress: 13/18 tasks done (72%)
 - [x] 3.4 `sofar drive <slug> --follow` for a terminal or opt-in narration: one line per handoff, task change and warning; exits on run_stopped or driver gone. Tests.
 - [x] 3.5 Prototype an asyncRewake PostToolUse hook on Bash(sofar drive *) that runs --await and wakes an idle Claude Code session; measure whether a multi-hour hook timeout holds. Keep it only if it does; log the result.
 - [x] 3.6 Protocol block (CLAUDE.md + AGENTS.md): before --detach, ask the operator about keep-awake when the preflight says it is unset; after --detach, start `sofar drive <slug> --await` in the background shell (or rely on the 3.5 hook) and relay what it prints; hosts without a background shell point the operator at the prompt line, statusline or `sofar status`. Previous block kept as a shipped version.
-- [ ] 3.7 Ship the --await rewake hook through `sofar init` (Claude Code only, per the 3.5 decision): a drive-await shim, a PostToolUse settings entry with asyncRewake and an explicit long timeout, a wrapper that self-deadlines before that timeout and wakes with a still-running line, uninit removal and doctor coverage, SPEC, and tests.
+- [x] 3.7 Ship the --await rewake hook through `sofar init` (Claude Code only, per the 3.5 decision): a drive-await shim, a PostToolUse settings entry with asyncRewake and an explicit long timeout, a wrapper that self-deadlines before that timeout and wakes with a still-running line, uninit removal and doctor coverage, SPEC, and tests.
 
 ## Phase 4 — Sync, presence and app contract (paid) [blocked] — 0/3 done
 
@@ -36,11 +38,10 @@ Progress: 13/18 tasks done (72%)
 - [ ] 4.2 Paid, per 1.1(c) and (f), cloud-linked repos only: presence ping at start, handoff, stop and every 30s ±10% jitter; immediately on wake (local 5s tick detects a wall-clock jump); 10s timeout; failures and entitlement refusals dropped, never queued, never affecting the run; seq and boot nonce; never a record event. Tests.
 - [ ] 4.3 Contract handed to sofar-cloud (built there, paid apps): entitlement check on the push and presence endpoints and the status it returns; presence lease row computed at read with a 90s TTL, designed for a 100-person repo first (enterprise D1); UX states Running / Not responding (last seen, never 'offline since') / Stopped / viewer feed stale; how an app on the same Mac probes the run lock and reads runs from the record; SSE catch-up-then-live. Notifications, APNs and Live Activities are sofar-cloud's own design (push-notifications Decision).
 
-## Phase 5 — Proof [pending] — 1/2 done
+## Phase 5 — Proof [pending] — 2/2 done
 
 - [x] 5.1 Proof from a live Claude Code session on a throwaway initiative: --detach from inside the sandbox; --await wakes the session on needs_user and on stop; prompt line and statusline update; a second --resume is refused while the driver lives; kill -9 the driver and status shows driver gone, --await exits, --resume succeeds and fences via run_adopted; keep-awake holds an assertion (pmset -g assertions) for the run's life; check whether ending the calling session kills the detached driver. Record the numbers.
-- [ ] 5.2 README + release staged for the user to publish. (active)
+- [x] 5.2 README + release staged for the user to publish.
 
-Active phase: Phase 3 — Progress in the session
-Next action: Build 3.7; run 5.2's heavy half once L11b and 3ee5e98 clear.
+Next action: Answer: does 0.34.0-rc.1 carry 3.7? Then re-cut the tag and publish.
 Blocked on: phase Phase 4 — Sync, presence and app contract (paid)

@@ -33,6 +33,10 @@ Commands:
                                mechanical event with ok:false (and exit when the
                                host gives one); the error text goes to the
                                private diagnostics store, never the record
+  drive-await [options]        PostToolUse hook (Claude Code, asyncRewake):
+                               after a Bash call that started a detached run,
+                               wait on it and wake this session with one line
+                               when it stops or its driver is gone
   user-prompt [options]        UserPromptSubmit hook: nudge an in-flow
                                write-back (one additionalContext line) when
                                drift since the last session_ended ≥5 events

@@ -2004,6 +2004,20 @@ answer every host can reach (see the Host tiers section).
   `stall` red, `closed` green, a limit or an interrupt dim. The lock is
   probed only while a run is open. The Claude desktop app does not render
   statusLine (claude-code#41456).
+- The REWAKE HOOK (drive-visibility 3.7) wakes an idle Claude Code session
+  without it asking. `sofar init` wires `drive-await.sh` as a PostToolUse
+  hook on `Bash` with `asyncRewake: true`, which runs it in the background
+  and delivers its exit 2 to the model. It exits 0 at once unless the Bash
+  call started a DETACHED run; otherwise it waits as `--await` does and
+  exits 2 with the same one line, so the session hears the stop (with the
+  blocked task's question) or the dead driver. Claude Code ONLY: `asyncRewake`
+  is its field, and Cursor and Codex receive neither the shim nor the entry.
+  A host KILLS a hook at its timeout and wakes NOBODY — measured at the 600 s
+  default and at an explicit 300 s — so the entry states a long timeout and
+  the watch stops itself before it, exiting 2 with a line saying the watch
+  stopped and the run did not. The Stop hook's decision-check caps and this
+  timeout are coupled and asserted in tests, since raising those caps
+  silently is what would make the Stop hook die at its own timeout.
 - The protocol block (drive-visibility 3.6) tells an agent, after
   `--detach`, to ask the operator when the opening lines say keep-awake is
   unset and save the answer with `sofar drive --keep-awake-setting on|off`,

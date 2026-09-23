@@ -28,7 +28,10 @@ function fx(): Fixture {
 function run(name: HookName, root: string, payload: Record<string, unknown>): HookResult {
   const sub = SUBCOMMANDS.find((s) => s.name === name)
   if (sub === undefined) throw new Error(`no hook ${name}`)
-  return sub.handler(root, JSON.stringify(payload))
+  const out = sub.handler(root, JSON.stringify(payload))
+  // Only the rewake hook is async, and it is not driven through this helper.
+  if (out instanceof Promise) throw new Error(`hook ${name} is async`)
+  return out
 }
 
 function logEvents(path: string): EventEnvelope[] {

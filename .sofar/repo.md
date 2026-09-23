@@ -55,14 +55,37 @@
   whatever anyone has staged. Staging by explicit path is not enough.
   Use `git commit -F <msgfile> -- <paths>`. Observed 2026-09-22: typed-judge's
   4.2/4.3 code landed in drive-visibility's record commit d0ebec9.
-- Version bumps touch SIX pins per file (drive-visibility M5): packages/engine/
-  package.json carries `version` plus five sofar-core optional deps
-  (darwin-arm64, darwin-x64, linux-x64, linux-arm64, win32-x64), and
-  package-lock.json repeats all six. Replace the version string GLOBALLY in
-  both, then self-check before committing — parses as JSON, zero occurrences
-  of the old string left, engine version equal to the new one, exactly five
-  sofar-core deps pinned to it. Never `npm install --package-lock-only`: it
-  can reach the network.
+- Version bumps touch FOUR places (drive-visibility M5, corrected by M6):
+  (1) packages/engine/package.json — `version` plus five sofar-core optional
+  deps (darwin-arm64, darwin-x64, linux-x64, linux-arm64, win32-x64);
+  (2) package-lock.json — the same six; (3) packaging/npm/sofar-core-*/
+  package.json — each platform package's own `version`, which packaging.test
+  asserts equals the engine's; (4) two conformance goldens that embed it,
+  re-recorded with SOFAR_CONFORMANCE_RECORD=1 (append to golden/MANIFEST.md,
+  never rewrite its older entries). Replace globally, then self-check before
+  committing — parses as JSON, zero occurrences of the old string, engine
+  version equal to the new one, exactly five sofar-core deps pinned to it —
+  and run the packaging and conformance suites, which catch (3) and (4).
+  Never `npm install --package-lock-only`: it can reach the network.
+- D18 numbers have an n-dependent RESOLUTION FLOOR (drive-visibility M9):
+  n=25 swung ±4.4% between runs an hour apart; n=50's widest of eight was
+  1.2%. Gate a RELEASE at n=50, and never quote a signed sub-5% delta from
+  n=25 as a measurement — say "within budget, no measurable regression".
+  Measure on AC with the lid open (bench-refresh M16): on battery this Mac
+  takes Maintenance Sleeps, and a sleep mid-measure is a timed-out run.
+- A vitest file that fails to LOAD reads as "not run", never as a failure
+  (drive-visibility M7): the suite still says PASSED while covering less.
+  Compare test COUNTS against the base whenever the environment differs —
+  a release gated on a suite that quietly skipped a file is not gated.
+- A release branch in a git WORKTREE needs its own node_modules (M6): a
+  symlink to the main checkout's carries npm's workspace links, which point
+  at the MAIN tree, so the packaging test reads main's version and fails.
+  Link `sofar.sh` and `@sofar/schema` into the worktree itself.
+- Tags: an UNPUSHED tag may be deleted and re-cut (drive-visibility M8) —
+  nobody has seen it, and shipping notes known to be wrong is the real
+  damage. Once PUSHED, a correction is a NEW tag, never a move: no
+  `git tag -f`, no delete-and-repush. The rule is "never rewrite what
+  someone else has seen", not "never move a tag".
 - Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare
   `npm publish` from inside packages/engine) — always run by the USER (OTP
   + permission classifier), agent stages everything up to it. Bare

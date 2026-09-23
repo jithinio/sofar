@@ -46,6 +46,8 @@ import postToolUseShim from '../hooks/post-tool-use.sh'
 import postToolUseFailureShim from '../hooks/post-tool-use-failure.sh'
 import stopShim from '../hooks/stop.sh'
 import sessionEndShim from '../hooks/session-end.sh'
+import driveAwaitShim from '../hooks/drive-await.sh'
+import { AWAIT_HOOK_TIMEOUT_SEC } from '../core/run-await'
 import prepareCommitMsgShim from '../hooks/prepare-commit-msg.sh'
 import preCommitShim from '../hooks/pre-commit.sh'
 
@@ -1541,6 +1543,23 @@ interface ShimSpec {
   hook: HookName
   matcher?: string
   text: string
+  /**
+   * Claude Code ONLY (drive-visibility 3.7): the rewake hook is wired with
+   * `asyncRewake`, which is Claude Code's own field — Cursor and Codex have
+   * no equivalent, so they never receive this shim or its entry.
+   */
+  claudeOnly?: true
+  /** Extra keys on the settings.json entry's hook object, Claude Code's schema. */
+  entry?: { asyncRewake?: true; timeout?: number }
+}
+
+/**
+ * The shims a host receives: Claude Code gets all of them, every other host
+ * gets the rest (3.7). Codex asks by name rather than by shim home, since its
+ * shims live in their own directory whichever other agents are wired.
+ */
+export function shimsFor(host: ShimHome | 'codex'): readonly ShimSpec[] {
+  return host === 'claude' ? SHIMS : SHIMS.filter((shim) => shim.claudeOnly !== true)
 }
 
 /** Order here is the order entries land in settings.json. */
@@ -1554,6 +1573,20 @@ export const SHIMS: readonly ShimSpec[] = [
     // Read and Grep are subjects too: read-time surfacing (memory-lead 2.1, D6).
     matcher: 'Edit|Write|MultiEdit|Bash|Read|Grep',
     text: postToolUseShim,
+  },
+  {
+    file: 'drive-await.sh',
+    event: 'PostToolUse',
+    hook: 'drive-await',
+    // Bash alone: the only call that can start a run is a shell command, and
+    // the handler exits at once for any that did not (3.7).
+    matcher: 'Bash',
+    text: driveAwaitShim,
+    claudeOnly: true,
+    // asyncRewake runs it in the background and wakes the model on exit 2.
+    // The timeout is explicit because the DEFAULT is 600 s and a hook killed
+    // at its timeout wakes nobody; the watch stops itself before this (D-3.5).
+    entry: { asyncRewake: true, timeout: AWAIT_HOOK_TIMEOUT_SEC },
   },
   {
     file: 'post-tool-use-failure.sh',
@@ -1614,9 +1647,9 @@ function codexShim(shim: ShimSpec): string {
   ].join('\n')
 }
 
-export const CODEX_SHIMS: readonly ShimSpec[] = SHIMS.filter((shim) => CODEX_HOOKS[shim.event] !== undefined).map(
-  (shim) => ({ ...shim, text: codexShim(shim) }),
-)
+export const CODEX_SHIMS: readonly ShimSpec[] = shimsFor('codex')
+  .filter((shim) => CODEX_HOOKS[shim.event] !== undefined)
+  .map((shim) => ({ ...shim, text: codexShim(shim) }))
 
 /**
  * The command .codex/hooks.json runs a shim by: from the git root, the form
@@ -1978,7 +2011,7 @@ function mergeSettings(
     if (!hasCommand(entries, command)) {
       entries.push({
         ...(shim.matcher !== undefined ? { matcher: shim.matcher } : {}),
-        hooks: [{ type: 'command', command }],
+        hooks: [{ type: 'command', command, ...(shim.entry ?? {}) }],
       })
       added++
     }
@@ -2087,7 +2120,7 @@ function mergeCursorHooks(rootDir: string, home: ShimHome, add: boolean, report:
   let added = 0
   let moved = 0
   let widened = 0
-  for (const shim of SHIMS) {
+  for (const shim of shimsFor('cursor')) {
     const { event, matcher, loop_limit } = CURSOR_HOOKS[shim.event]
     const existing = hooks[event]
     if (existing !== undefined && !Array.isArray(existing)) {
@@ -2408,7 +2441,7 @@ export function runInit(
     const home = shimHomeFor(rootDir, picked)
     const cursorOnOwnShims =
       home === 'claude' && runsShimFrom(readText(join(rootDir, '.cursor', 'hooks.json')), 'cursor')
-    if (claude || cursor || cursorOnOwnShims) installShims(rootDir, SHIM_HOMES[home].dir, SHIMS, report)
+    if (claude || cursor || cursorOnOwnShims) installShims(rootDir, SHIM_HOMES[home].dir, shimsFor(home), report)
     if (codex) installShims(rootDir, CODEX_SHIM_DIR, CODEX_SHIMS, report)
     installGitHook(rootDir, report)
     if (claude) {

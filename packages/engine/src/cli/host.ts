@@ -38,7 +38,15 @@ import type { HookResult } from './event'
 type Obj = Record<string, unknown>
 
 /** The hook subcommand names (event.ts SUBCOMMANDS) — the unit a conversion is chosen by. */
-export type HookName = 'session-start' | 'post-tool' | 'post-tool-failure' | 'user-prompt' | 'stop' | 'session-end'
+export type HookName =
+  | 'session-start'
+  | 'post-tool'
+  | 'post-tool-failure'
+  | 'user-prompt'
+  | 'stop'
+  | 'session-end'
+  /** Claude Code only (drive-visibility 3.7): the asyncRewake watch on a detached run. */
+  | 'drive-await'
 
 /** Which agent fired a hook — recorded on session registration and diagnostics rows. */
 export interface HookHost {

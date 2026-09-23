@@ -83,6 +83,8 @@ Three consequences run through every design decision in the codebase:
 | `core/state-dir.ts` | Per-clone state OUTSIDE the repo: `$XDG_STATE_HOME/sofar`, keyed by a hash of the clone's real path. Shared by sync cursors and the diagnostics store; `resolvesInside` is the one refusal of a state dir under the clone. |
 | `core/run-lock.ts` | The run lock (drive-visibility D2, D3): an empty flock-semantics file lock at `<state base>/runs/<run id>.lock` a driver holds for its life — macOS `O_EXLOCK` descriptor, Linux `flock(1)` child on a pipe. `probeRunLock` reads held / free / absent with a shared non-blocking lock; never a pid, never unlinked. |
 | `core/drive-queue.ts` | The driver's task queue — `nextTask` / `queuedTasks`, active phase first, active task before pending — kept apart from `driver/drive.ts` (which re-exports it) so the hot-path surfaces that watch a run name the task in flight by the driver's own rule without bundling the driver (drive-visibility 3.2). |
+| `core/log-scan.ts` | Reading a log's newly appended bytes without folding it: `appendedBytesScan` plus the 2 s tick both watchers use. In core/ so the hot-path readers reach it without importing the driver, which re-exports it. |
+| `core/run-await.ts` | Waiting on a run — the loop behind `sofar drive --await` and the PostToolUse rewake hook (3.1, 3.7). Probes the lock, then reads only new bytes, folding when they name a `run_stopped` or the lock falls; carries an optional deadline, because a hook killed at its host's timeout wakes nobody. Also `blockedQuestion`, the operator's question behind a `needs_user` stop. |
 | `core/drive-seen.ts` | Per-session marks of what each session last saw of its initiative's run, in per-clone state (`<state base>/drive-seen/<clone key>.json`). The gate on the prompt's drive line (drive-visibility 3.2). A mark that is lost or unwritable repeats the line and never silences it. |
 | `core/diagnostics.ts` | The private diagnostics store (self-improve D3): append-only rows per initiative under the clone's state dir, 90-day retention, byte cap, best-effort writes that never recurse, refused outright if the path would land inside the repo. A third class — not truth, not derived. |
 | `core/signals.ts` | The signal availability map (self-improve 1.3): every signal the improvement loop may consume, with its ceiling (capturable / partial / unavailable), the blind spot behind it, and what the clone must have wired for it — a consumer prints UNKNOWN for anything else. |
@@ -135,9 +137,9 @@ Regenerated on every append. Never hand-edited.
 ### 5. Surfaces — how agents and humans reach the record
 
 **Hooks** — installed by `sofar init` as shims in `.claude/hooks/`. Each is
-four lines; the CLI owns behaviour. All six run on the user's critical path
-under a **100ms end-to-end budget**, and all are best-effort: a failure is
-silence, never a broken session.
+four lines; the CLI owns behaviour. The six below run on the user's critical
+path under a **100ms end-to-end budget**, and all are best-effort: a failure
+is silence, never a broken session.
 
 | hook | what it does |
 | --- | --- |
@@ -148,7 +150,16 @@ silence, never a broken session.
 | Stop | Blocks a session that owes a write-back — never in the quick lane, which has no write-back. Guard crossings and failed decision checks (memory-lead 2.3) ride that block; neither ever causes one. |
 | SessionEnd | Closes the session. |
 
-A seventh shim, `hooks/prepare-commit-msg.sh`, is a **git** hook rather than a
+A seventh Claude Code shim, `hooks/drive-await.sh`, is the one that does NOT
+run on the critical path and is not bounded by that budget: wired with
+`asyncRewake` on `Bash`, it waits on a run a Bash call just detached and wakes
+the session with one line when the run stops or its driver dies
+(drive-visibility 3.7). Claude Code only — `asyncRewake` is its field, so
+Cursor and Codex never receive the shim or its entry. The host KILLS a hook at
+its timeout and wakes nobody, so the entry sets an explicit one (the default is
+600 s) and the watch stops itself before that and says the run continues.
+
+An eighth shim, `hooks/prepare-commit-msg.sh`, is a **git** hook rather than a
 Claude Code one — installed into `.git/hooks/` and never clobbering an existing
 file. It stamps `Sofar-Initiative:` onto the commit message (D5). It cannot
 `exec` like the six above: it runs inside `git commit`, so it guards on the
