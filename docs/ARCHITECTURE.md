@@ -131,6 +131,7 @@ Regenerated on every append. Never hand-edited.
 | `projections/templates/session.ts` | `sessions/<id>.md` — one file per session. |
 | `projections/templates/memory.ts` | `memory.md` — promoted operational facts. |
 | `projections/templates/status.ts` | The status digest — what SessionStart injects. |
+| `projections/templates/digest-state.ts` | The part of a folded state the digest can reach (rust-core 4.4): files_touched dropped; summary, activity and next_action kept only where a reader renders them (elsewhere a placeholder that keeps each presence test true). `renderStatus(digestState(s), o) === renderStatus(s, o)` is pinned by test/digest-state.test.ts. |
 | `projections/templates/review.ts` | The review evidence packet — diff range, tasks claimed done, standing constraints, rejected approaches. Text only; the judging is the reviewing session's, never sofar's. |
 | `projections/templates/next.ts` | The single next action. |
 | `projections/templates/list.ts` | The portfolio view. |
