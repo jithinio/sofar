@@ -2028,6 +2028,13 @@ answer every host can reach (see the Host tiers section).
   one 0.33.0-rc.2 wrote, is in the ledger as V9, so init refreshes it and
   doctor reports it stale. The AGENTS.md block was edited in place, since
   no cut build carries it.
+- The CLAUDE.md block does NOT start a watcher (drive-visibility D17): init
+  writes CLAUDE.md only for Claude Code, which always gets the rewake hook,
+  so a background `--await` beside it woke the session twice with the same
+  line. The block tells the agent the hook wakes it, and keeps `--await` in
+  a background shell only for a repo where `.claude/hooks/drive-await.sh` is
+  absent. The block 0.34.0-rc.1 wrote is in the ledger as V10. The AGENTS.md
+  block keeps `--await`, since its hosts get no rewake hook.
 
 **Sync and presence during a run (drive-visibility D4, D6 — paid).** For a
 LINKED repo (`.sofar/remote.json` plus a credential for its api_url), the

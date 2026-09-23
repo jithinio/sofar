@@ -43,7 +43,7 @@ Progress: 18/25 tasks done (72%)
 - [ ] 4.1 Benchmark arm sofar-rust-core vs sofar-ts under a frozen addendum; must shrink no D19 lead margin
 - [ ] 4.2 Release after benchmark evidence (never before, per bench-refresh D20)
 - [ ] 4.3 Switch the rule: new hot-path features are Rust-only; decide whether to port the remaining TypeScript surfaces
-- [ ] 4.4 memory-lead 3.2 (reassigned to this lane 2026-09-22): read-time hook under 20 ms at 50+ initiatives and team100 scale, proven with npm run perf on a quiet host (D5, D12)
+- [ ] 4.4 memory-lead 3.2 (reassigned to this lane 2026-09-22): read-time hook under 20 ms at 50+ initiatives and team100 scale, proven with npm run perf on a quiet host (D5, D12) (active)
 
 ## Phase 5 — Bindings (carried over from engine-core) [pending] — 1/4 done
 
@@ -52,5 +52,5 @@ Progress: 18/25 tasks done (72%)
 - [ ] 5.3 wasm build of the fold for the sofar-cloud webapp and the Bun API, replacing the browser-aliased TypeScript fold (engine-core 3.2). A separate crate, so the hook binary's crate set (D9) is unchanged
 - [x] 5.4 The TypeScript CLI wraps the core with foldLines keeping its signature (engine-core 3.3): confirm that 3.1's dispatch with TypeScript fallback covers it, then close
 
-Next action: 4.4: design a cheap registration check + shared finalize at team100 (TS-first where shared), then read-time hook <20ms work.
+Next action: Operator rules 4.4 A/B/C (note 01M37CPW)
 Blocked on: task 5.1: Gate built and green: the sofar leg is in CI (core-conformance, run 35748230717, every branch), and sofar-cloud is green locally (20 logs, private mode). Blocked on the operator for the sofar-cloud CI leg. sofar-cloud (usesofar/sofar-app) is private and this repo's Actions logs are public, so the job belongs in sofar-cloud's own CI. See the 5.1 note for the steps. It needs no token, since sofar is public.
