@@ -199,6 +199,12 @@
   a full replace, and the plan schema has no field for a phase note. Copy
   plan.md aside before the call, diff it after, and restore any lost note
   with sofar_update_phase.
+- Read-path gates on user-prompt work need `--session <registered id>`
+  (rust-core M20). On the repo fixture, bench/read-paths.mjs defaults to an
+  unregistered session, so user-prompt returns before lessons, told,
+  conflicts or the drive line run, and the gate passes having measured
+  nothing. Before trusting the number, check that a lesson printed or
+  `.index/told` was written.
 - Hangs in CI and in the perf harness (rust-core M1, rust-core M3). A vitest
   job that runs to the 6 h CI limit is a file that never finished: diff the
   files the log reported against `git ls-files '*.test.ts'`. Never put an
