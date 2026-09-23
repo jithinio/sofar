@@ -150,12 +150,21 @@ pub fn facts_of(state: &InitiativeState) -> StatuslineFacts {
 }
 
 fn facts_file(layout: &Layout, slug: &str) -> std::path::PathBuf {
-    layout.index_dir().join(FACTS_DIR).join(format!("{slug}.json"))
+    layout
+        .index_dir()
+        .join(FACTS_DIR)
+        .join(format!("{slug}.json"))
 }
 
-#[allow(clippy::float_cmp, reason = "exact equality of a stored stat IS the contract")]
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality of a stored stat IS the contract"
+)]
 fn key_matches(o: &Object, engine: &str, schema: &str, stat: LogStat) -> bool {
-    #[allow(clippy::cast_precision_loss, reason = "log sizes fit f64 exactly below 2^53")]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "log sizes fit f64 exactly below 2^53"
+    )]
     let size = stat.size as f64;
     o.get("v").and_then(Json::as_f64) == Some(STATUSLINE_FACTS_VERSION)
         && o.get("engine").and_then(Json::as_str) == Some(engine)
@@ -185,7 +194,14 @@ pub fn statusline_facts(layout: &Layout, slug: &str) -> StatuslineFacts {
     // Re-stat after the fold: a write that landed while it ran must not be
     // cached under the key of bytes the fold never saw.
     if log_stat(&log) == Some(stat) {
-        let _ = write_facts(layout, &path, &version.engine, &version.schema, stat, &facts);
+        let _ = write_facts(
+            layout,
+            &path,
+            &version.engine,
+            &version.schema,
+            stat,
+            &facts,
+        );
     }
     facts
 }
@@ -202,7 +218,10 @@ fn write_facts(
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
-    #[allow(clippy::cast_precision_loss, reason = "log sizes fit f64 exactly below 2^53")]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "log sizes fit f64 exactly below 2^53"
+    )]
     let size = stat.size as f64;
     let mut o = Object::with_capacity(6);
     o.insert("v", Json::Num(STATUSLINE_FACTS_VERSION));
@@ -223,7 +242,10 @@ mod tests {
     fn sample() -> StatuslineFacts {
         let mut started = Object::new();
         started.push_unique("s-1".into(), Json::Str("2026-09-23T00:00:00.000Z".into()));
-        started.push_unique("__proto__".into(), Json::Str("2026-09-23T00:00:01.000Z".into()));
+        started.push_unique(
+            "__proto__".into(),
+            Json::Str("2026-09-23T00:00:01.000Z".into()),
+        );
         StatuslineFacts {
             progress: TaskProgress {
                 done: 1,
@@ -252,7 +274,10 @@ mod tests {
         );
         let back = StatuslineFacts::from_json(&json::parse(&text).unwrap()).unwrap();
         assert_eq!(back, facts);
-        assert_eq!(back.started_of(Some("__proto__")), Some("2026-09-23T00:00:01.000Z"));
+        assert_eq!(
+            back.started_of(Some("__proto__")),
+            Some("2026-09-23T00:00:01.000Z")
+        );
         assert_eq!(back.started_of(Some("toString")), None);
         assert_eq!(back.started_of(None), None);
     }
@@ -267,7 +292,10 @@ mod tests {
             good.replace(r#""next_task":"1.3""#, r#""next_task":1"#),
             good.replace(r#","next_task":"1.3""#, ""),
             good.replace(r#""stopped":null"#, r#""stopped":false"#),
-            good.replace(r#""run":{"id":"r1","stopped":null,"stop_reason":null}"#, r#""run":[]"#),
+            good.replace(
+                r#""run":{"id":"r1","stopped":null,"stop_reason":null}"#,
+                r#""run":[]"#,
+            ),
             good.replace(r#""s-1":"2026-09-23T00:00:00.000Z""#, r#""s-1":0"#),
         ] {
             assert_ne!(bad, good, "the replacement must bite");

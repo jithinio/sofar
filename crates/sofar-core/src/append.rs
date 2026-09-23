@@ -10,8 +10,7 @@ use std::time::SystemTime;
 
 use crate::envelope::{Envelope, MakeEventInput, make_event, serialize_event};
 use crate::fold::{
-    FoldCheckpoint, append_to_checkpoint, empty_state, finalize_state, has_session,
-    replay_decoded,
+    FoldCheckpoint, append_to_checkpoint, empty_state, finalize_state, has_session, replay_decoded,
 };
 use crate::home::{LaneAvailability, lane_availability};
 use crate::json::{Json, Object};

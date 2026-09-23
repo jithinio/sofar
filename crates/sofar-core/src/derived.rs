@@ -180,9 +180,8 @@ fn split_segments(cmd: &str) -> Vec<&str> {
     // Every byte tested below is ASCII, so a byte index never lands inside a
     // multi-byte character: skipping one "character" after a backslash is
     // skipping to the next char boundary.
-    let next_char = |at: usize| -> usize {
-        cmd[at..].chars().next().map_or(at, |c| at + c.len_utf8())
-    };
+    let next_char =
+        |at: usize| -> usize { cmd[at..].chars().next().map_or(at, |c| at + c.len_utf8()) };
     while i < b.len() {
         let ch = b[i];
         if let Some(q) = quote {
