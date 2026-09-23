@@ -67,6 +67,18 @@
   version equal to the new one, exactly five sofar-core deps pinned to it —
   and run the packaging and conformance suites, which catch (3) and (4).
   Never `npm install --package-lock-only`: it can reach the network.
+- A D18 gate MUST pass `--session <registered id>` (drive-visibility M10,
+  rust-core M20): the bench's default session is unregistered, so
+  UserPromptSubmit returns before any per-session work and the number
+  measures an early return. Unregistered read sub-1% where registered read
+  +5% on the same build. Confirm the hook PRINTED something (a lesson line,
+  or a fresh .sofar/.index/told entry) before trusting the run.
+- D18 numbers have an n-dependent RESOLUTION FLOOR (drive-visibility M9):
+  n=25 swung ±4.4% between runs an hour apart; n=50's widest of eight was
+  1.2%. Gate a RELEASE at n=50, and never quote a signed sub-5% delta from
+  n=25 as a measurement — say "within budget, no measurable regression".
+  Measure on AC with the lid open (bench-refresh M16): on battery this Mac
+  takes Maintenance Sleeps, and a sleep mid-measure is a timed-out run.
 - A vitest file that fails to LOAD reads as "not run", never as a failure
   (drive-visibility M7): the suite still says PASSED while covering less.
   Compare test COUNTS against the base whenever the environment differs —
@@ -80,6 +92,14 @@
   damage. Once PUSHED, a correction is a NEW tag, never a move: no
   `git tag -f`, no delete-and-repush. The rule is "never rewrite what
   someone else has seen", not "never move a tag".
+- PUBLISH FROM THE STAGED WORKTREE, never from a checkout on main
+  (drive-visibility M11): npm discards semver build metadata, so publishing
+  from main (0.33.0-rc.2+trunk) silently ships plain 0.33.0-rc.2 — a tree
+  nobody gated — and it TAKES the dist-tag. Happened 2026-09-23. Check
+  first: `node -p "require('./packages/engine/package.json').version"` in
+  the CWD must equal the version you mean to ship. Recovery is publish the
+  correct artifact, then `npm deprecate` the accidental one naming its
+  replacement — never unpublish.
 - Release command (repo-memory-capture M1): `npm publish -w sofar.sh` from the repo root (or bare
   `npm publish` from inside packages/engine) — always run by the USER (OTP
   + permission classifier), agent stages everything up to it. Bare
