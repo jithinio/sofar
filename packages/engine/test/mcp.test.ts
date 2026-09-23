@@ -526,8 +526,9 @@ describe('less bookkeeping (r1-fixes 2.1, D10)', () => {
     expect(PROTOCOL_BLOCK).not.toContain('sofar_update_task')
     expect(PROTOCOL_BLOCK).not.toContain('sofar_remember')
     expect(PROTOCOL_BLOCK).toContain('next D/M ids')
-    // V8, the block memory-lead replaced; V9 after it is memory-lead's own (drive-visibility 3.6).
-    expect(SHIPPED_PROTOCOL_BLOCKS.at(-2)).toContain('Do still call `sofar_start_session`')
-    expect(SHIPPED_PROTOCOL_BLOCKS.at(-1)).not.toContain('Do still call `sofar_start_session`')
+    // V8, the block memory-lead replaced; V9 after it is memory-lead's own
+    // (drive-visibility 3.6), and V10 is 3.6's, which D17 replaced.
+    expect(SHIPPED_PROTOCOL_BLOCKS[7]).toContain('Do still call `sofar_start_session`')
+    for (const later of SHIPPED_PROTOCOL_BLOCKS.slice(8)) expect(later).not.toContain('Do still call `sofar_start_session`')
   })
 })

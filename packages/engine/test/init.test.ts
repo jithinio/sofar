@@ -704,6 +704,22 @@ describe('re-homing instruction (session-orientation 1.1)', () => {
     expect(PROTOCOL_BLOCK.replace(driving(PROTOCOL_BLOCK), driving(before))).toBe(before)
   })
 
+  it('leaves watching to the rewake hook, with --await only as its fallback (drive-visibility D17)', () => {
+    const flat = (b: string): string => b.replace(/\s+/g, ' ')
+    // init writes CLAUDE.md only for Claude Code, which always gets the hook:
+    // a block that also told the agent to --await woke the session twice.
+    expect(flat(PROTOCOL_BLOCK)).toContain('Do not start a watcher: sofar\'s rewake hook watches the run you detached')
+    expect(flat(PROTOCOL_BLOCK)).toContain('Only when `.claude/hooks/drive-await.sh` is absent, run `sofar drive <slug> --await` in a background shell instead')
+    // The fallback names the shim init actually installs.
+    expect(SHIMS.map((s) => s.file)).toContain('drive-await.sh')
+    // AGENTS.md hosts get no rewake hook, so --await stays their watcher.
+    expect(flat(AGENTS_PROTOCOL_BLOCK)).not.toContain('rewake')
+    // rc.1's block is in the ledger, so init refreshes it and doctor calls it stale.
+    const v10 = SHIPPED_PROTOCOL_BLOCKS.at(-1)!
+    expect(flat(v10)).toContain('Then run `sofar drive <slug> --await` in a background shell: silent until the run stops')
+    expect(classifyProtocolBlock(v10, PROTOCOL_BLOCK, SHIPPED_PROTOCOL_BLOCKS)).toBe('stale')
+  })
+
   it('keeps every block sofar ever shipped classifiable as stale, in both dialects', () => {
     // The ledger is the whole delivery mechanism (speed-2 T6): a predecessor
     // that stops byte-matching silently becomes "customized", and the repo
