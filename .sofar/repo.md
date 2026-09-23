@@ -67,6 +67,12 @@
   version equal to the new one, exactly five sofar-core deps pinned to it —
   and run the packaging and conformance suites, which catch (3) and (4).
   Never `npm install --package-lock-only`: it can reach the network.
+- A D18 gate MUST pass `--session <registered id>` (drive-visibility M10,
+  rust-core M20): the bench's default session is unregistered, so
+  UserPromptSubmit returns before any per-session work and the number
+  measures an early return. Unregistered read sub-1% where registered read
+  +5% on the same build. Confirm the hook PRINTED something (a lesson line,
+  or a fresh .sofar/.index/told entry) before trusting the run.
 - D18 numbers have an n-dependent RESOLUTION FLOOR (drive-visibility M9):
   n=25 swung ±4.4% between runs an hour apart; n=50's widest of eight was
   1.2%. Gate a RELEASE at n=50, and never quote a signed sub-5% delta from
