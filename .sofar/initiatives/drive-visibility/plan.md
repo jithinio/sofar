@@ -45,5 +45,5 @@ Progress: 15/18 tasks done (83%)
 - [x] 5.1 Proof from a live Claude Code session on a throwaway initiative: --detach from inside the sandbox; --await wakes the session on needs_user and on stop; prompt line and statusline update; a second --resume is refused while the driver lives; kill -9 the driver and status shows driver gone, --await exits, --resume succeeds and fences via run_adopted; keep-awake holds an assertion (pmset -g assertions) for the run's life; check whether ending the calling session kills the detached driver. Record the numbers.
 - [x] 5.2 README + release staged for the user to publish.
 
-Next action: Ship D17 in the next release cut (operator); smoke the refresh then.
+Next action: Ship D17 in the next release cut (operator); smoke after round 2.
 Blocked on: phase Phase 4 — Sync, presence and app contract (paid)
