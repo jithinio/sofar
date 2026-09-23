@@ -677,13 +677,7 @@ pub fn append_to_checkpoint(cp: &mut FoldCheckpoint, line: &str) -> bool {
 /// the final plan, the unregistered-session list.
 #[must_use]
 pub fn finalize_fold(cp: &FoldCheckpoint) -> FoldResult {
-    let mut state = cp.state.clone();
-    let warnings = cp.warnings.clone();
-    let edges = cp.edges.clone();
-    state.task_files = task_files_from_edges(&edges);
-    state.task_tests = task_tests_from_edges(&edges);
-    attach_activity(&mut state, activity_from_edges(&edges));
-    derive_current(&mut state, &cp.block_notes);
+    let state = finalize_state(cp);
     let orphans: Vec<OrphanTaskEvent> = cp
         .orphan_candidates
         .iter()
@@ -699,11 +693,32 @@ pub fn finalize_fold(cp: &FoldCheckpoint) -> FoldResult {
     unregistered.sort_by(|a, b| cmp_utf16(a, b));
     FoldResult {
         state,
-        warnings,
+        warnings: cp.warnings.clone(),
         orphan_task_events: orphans,
-        edges,
+        edges: cp.edges.clone(),
         unregistered_sessions: unregistered,
     }
+}
+
+/// [`finalize_fold`]'s `state` alone, reading the edges in place: a caller
+/// that wants only the state (every hook's `fold_state`) no longer clones the
+/// edge list and the warnings to drop them — on team100's bound log that
+/// clone and its drop were ~20% of a read hook.
+#[must_use]
+pub fn finalize_state(cp: &FoldCheckpoint) -> InitiativeState {
+    let mut state = cp.state.clone();
+    state.task_files = task_files_from_edges(&cp.edges);
+    state.task_tests = task_tests_from_edges(&cp.edges);
+    attach_activity(&mut state, activity_from_edges(&cp.edges));
+    derive_current(&mut state, &cp.block_notes);
+    state
+}
+
+/// Whether `id` is in the finalized `state.sessions`, without finalizing:
+/// finalize only rewrites fields of sessions (activity), never which ids
+/// are there, so the replayed list answers it.
+pub fn has_session(cp: &mut FoldCheckpoint, id: &str) -> bool {
+    cp.session_index.position(&cp.state.sessions, id).is_some()
 }
 
 fn active_task_ids(state: &InitiativeState) -> Vec<String> {

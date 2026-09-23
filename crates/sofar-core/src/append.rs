@@ -10,7 +10,8 @@ use std::time::SystemTime;
 
 use crate::envelope::{Envelope, MakeEventInput, make_event, serialize_event};
 use crate::fold::{
-    FoldCheckpoint, append_to_checkpoint, empty_state, finalize_fold, replay_decoded,
+    FoldCheckpoint, append_to_checkpoint, empty_state, finalize_state, has_session,
+    replay_decoded,
 };
 use crate::home::{LaneAvailability, lane_availability};
 use crate::json::{Json, Object};
@@ -68,41 +69,46 @@ pub fn forget_folds() {
     with_folds(Vec::clear);
 }
 
+/// Run `f` on the cached checkpoint of `slug`'s log, replaying the log first
+/// on a miss; `None` when the log is missing or unreadable.
+fn with_checkpoint<R>(
+    layout: &Layout,
+    slug: &str,
+    f: impl FnOnce(&mut FoldCheckpoint) -> R,
+) -> Option<R> {
+    let log = layout.events_path(slug);
+    let Some((size, mtime)) = stat_log(&log) else {
+        with_folds(|folds| folds.retain(|(p, _)| p != &log));
+        return None;
+    };
+    with_folds(|folds| {
+        if let Some((_, hit)) = folds.iter_mut().find(|(p, _)| p == &log)
+            && hit.size == size
+            && hit.mtime == mtime
+        {
+            return Some(f(&mut hit.cp));
+        }
+        let bytes = std::fs::read(&log).ok()?;
+        let text = String::from_utf8_lossy(&bytes);
+        let lines: Vec<&str> = text.split('\n').collect();
+        let count = if lines.last() == Some(&"") {
+            lines.len() - 1
+        } else {
+            lines.len()
+        };
+        let mut cp = replay_decoded(decode_lines(lines.iter().copied()), slug, count);
+        let out = f(&mut cp);
+        remember_fold(folds, &log, CachedFold { size, mtime, cp });
+        Some(out)
+    })
+}
+
 /// The folded state of one record, a missing log folding to the empty state
 /// with its slug (`foldState`).
 #[must_use]
 pub fn fold_state(layout: &Layout, slug: &str) -> crate::fold::InitiativeState {
-    let log = layout.events_path(slug);
-    let mut state = match stat_log(&log) {
-        None => {
-            with_folds(|folds| folds.retain(|(p, _)| p != &log));
-            empty_state()
-        }
-        Some((size, mtime)) => with_folds(|folds| {
-            if let Some((_, hit)) = folds.iter().find(|(p, _)| p == &log)
-                && hit.size == size
-                && hit.mtime == mtime
-            {
-                return finalize_fold(&hit.cp).state;
-            }
-            match std::fs::read(&log) {
-                Ok(bytes) => {
-                    let text = String::from_utf8_lossy(&bytes);
-                    let lines: Vec<&str> = text.split('\n').collect();
-                    let count = if lines.last() == Some(&"") {
-                        lines.len() - 1
-                    } else {
-                        lines.len()
-                    };
-                    let cp = replay_decoded(decode_lines(lines.iter().copied()), slug, count);
-                    let state = finalize_fold(&cp).state;
-                    remember_fold(folds, &log, CachedFold { size, mtime, cp });
-                    state
-                }
-                Err(_) => empty_state(),
-            }
-        }),
-    };
+    let mut state =
+        with_checkpoint(layout, slug, |cp| finalize_state(cp)).unwrap_or_else(empty_state);
     if state.slug.is_empty() {
         slug.clone_into(&mut state.slug);
     }
@@ -175,11 +181,11 @@ pub fn append_and_project(
     Ok(event)
 }
 
+/// Whether the fold lists `session_id`, answered from the replayed
+/// checkpoint: finalize never changes which sessions there are, so the check
+/// skips it (on team100's bound log, a third of registration).
 fn registered(layout: &Layout, slug: &str, session_id: &str) -> bool {
-    fold_state(layout, slug)
-        .sessions
-        .iter()
-        .any(|s| s.id == session_id)
+    with_checkpoint(layout, slug, |cp| has_session(cp, session_id)).unwrap_or(false)
 }
 
 /// `registerSession`: append `session_started` once per (initiative, session),
