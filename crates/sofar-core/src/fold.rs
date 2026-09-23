@@ -1567,7 +1567,11 @@ struct ActivityAcc {
 /// The accumulator for a `session:<id>` node, created on first sight.
 fn of<'a>(acc: &'a mut HashMap<String, ActivityAcc>, node: &str) -> &'a mut ActivityAcc {
     let id = node.strip_prefix("session:").unwrap_or(node);
-    acc.entry(id.to_owned()).or_default()
+    // Look up before allocating: every edge of a known session is a hit.
+    if !acc.contains_key(id) {
+        acc.insert(id.to_owned(), ActivityAcc::default());
+    }
+    acc.get_mut(id).expect("inserted above")
 }
 
 /// Activity per session id, in edge order (`activityFromEdges`).
@@ -1578,9 +1582,10 @@ fn activity_from_edges(edges: &[GraphEdge]) -> HashMap<String, SessionActivity> 
             "touched" => {
                 let a = of(&mut acc, &edge.from);
                 let path = path_of_node_id(&edge.to);
-                if !a.seen.insert(path.to_owned()) {
+                if a.seen.contains(path) {
                     continue; // dedupe — first touch wins the slot
                 }
+                a.seen.insert(path.to_owned());
                 if a.files.len() < ACTIVITY_LIST_CAP {
                     a.files.push(path.to_owned());
                 } else {

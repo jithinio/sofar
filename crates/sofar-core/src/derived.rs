@@ -71,13 +71,42 @@ pub fn test_shaped_command(cmd: &str) -> Option<String> {
         if !HEADS.contains(&head) {
             continue;
         }
-        let chars: Vec<char> = seg.chars().collect();
+        let chars = match_window(seg);
         if pkg_test(&chars) || runner(&chars) || tool_test(&chars) {
             return Some(clip_utf16(seg, TEST_CMD_CLIP));
         }
     }
     None
 }
+
+/// The chars the three patterns can read: the first [`MAX_TOKENS`]
+/// whitespace-delimited words and the whitespace run after them. Each
+/// pattern is a chain of at most four words joined by `\s+` (`[\w-]+`
+/// never crosses whitespace) and ends on `(?:\s|$)`, so it reads nothing
+/// past the whitespace that ends its fourth word, and that whitespace is
+/// kept. A segment of four words or fewer is kept whole. Whether a pattern
+/// matches is therefore the same on the window as on the segment; the
+/// window only spares copying the rest of a long command.
+fn match_window(seg: &str) -> Vec<char> {
+    let mut out = Vec::new();
+    let mut words = 0;
+    let mut in_word = false;
+    for c in seg.chars() {
+        let ws = is_js_whitespace(c);
+        if !ws && !in_word {
+            words += 1;
+            if words > MAX_TOKENS {
+                break;
+            }
+        }
+        in_word = !ws;
+        out.push(c);
+    }
+    out
+}
+
+/// The most words any of the three patterns chains (`poetry run` + `cypress run`).
+const MAX_TOKENS: usize = 4;
 
 /// `s.slice(0, n)` in UTF-16 units; a pair cut in half becomes U+FFFD (D13).
 fn clip_utf16(s: &str, n: usize) -> String {
@@ -389,5 +418,38 @@ mod tests {
         assert_eq!(split_segments("é\\é;ü && x\\"), ["é\\é", "ü ", " x\\"]);
         assert_eq!(split_segments("'😀;' ; b"), ["'😀;' ", " b"]);
         assert_eq!(split_segments("\"\\😀\";c"), ["\"\\😀\"", "c"]);
+    }
+
+    #[test]
+    fn the_match_window_decides_as_the_whole_segment_does() {
+        let full = |s: &str| {
+            let c: Vec<char> = s.chars().collect();
+            (pkg_test(&c), runner(&c), tool_test(&c))
+        };
+        let window = |s: &str| {
+            let c = match_window(s);
+            (pkg_test(&c), runner(&c), tool_test(&c))
+        };
+        let tail = " x".repeat(50);
+        for head in [
+            "poetry run cypress run",
+            "poetry \t run  cypress\u{a0}run",
+            "bundle exec playwright test",
+            "uv run node --test",
+            "uv run node --testx",
+            "poetry run cypress",
+            "npm run test:unit-2",
+            "yarn t",
+            "cargo test",
+            "make  tests",
+            "npx vitest",
+            "bunx vitest\u{2028}",
+            "echo npm test",
+        ] {
+            for s in [head.to_owned(), format!("{head}{tail}"), format!("{head} ")] {
+                assert_eq!(window(&s), full(&s), "{s:?}");
+            }
+        }
+        assert_eq!(match_window("a b  c d   e f").len(), "a b  c d   ".len());
     }
 }
