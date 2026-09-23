@@ -23,7 +23,8 @@ pub enum ResolvedVia {
     Lane,
 }
 
-/// `registrationIn`: the `session_started` for this id in one log.
+/// `registrationIn`: the LATEST `session_started` for this id in one log
+/// (binding-follows-session D5: a `rehome` repeat moves the home back here).
 #[must_use]
 pub fn registration_in(log_path: &Path, session_id: &str) -> Option<(String, String)> {
     let bytes = fs::read(log_path).ok()?;
@@ -31,6 +32,7 @@ pub fn registration_in(log_path: &Path, session_id: &str) -> Option<(String, Str
     if !text.contains(session_id) {
         return None;
     }
+    let mut found = None;
     for line in text.split('\n') {
         if line.is_empty() || !line.contains(session_id) {
             continue;
@@ -45,10 +47,10 @@ pub fn registration_in(log_path: &Path, session_id: &str) -> Option<(String, Str
                 event.get("ts").and_then(Json::as_str),
             )
         {
-            return Some((id.to_owned(), ts.to_owned()));
+            found = Some((id.to_owned(), ts.to_owned()));
         }
     }
-    None
+    found
 }
 
 /// `registeredAt`: [`registration_in`] through the per-log cache (rust-core

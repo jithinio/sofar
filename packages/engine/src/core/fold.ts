@@ -1878,6 +1878,10 @@ function applyEvent(
     case 'session_started': {
       const p = event.payload as unknown as SessionStartedPayload
       if (sessionById(state.sessions, event.session) !== undefined) {
+        // A deliberate re-home back into this record (binding-follows-session
+        // D5) moves the session's home, not its state: nothing to fold, nothing
+        // to warn about. A repeat without the flag is still a racing duplicate.
+        if (p.rehome === true) break
         warnings.push(`line ${lineNo}: session "${event.session}" already started — skipped`)
         break
       }

@@ -17,6 +17,7 @@ import { runDoctor } from '../src/cli/doctor'
 import { readGitState } from '../src/core/git'
 import { unwrittenSessions } from '../src/projections/templates/status'
 import { homeInitiative } from '../src/mcp/context'
+import { validatePayload } from '@sofar/schema'
 import {
   callTool,
   connectServer,
@@ -477,6 +478,103 @@ describe('start_session honours the session home (1.4)', () => {
     }
 
     expect(logEvents(betaLog).filter((e) => e.type === 'session_started')).toHaveLength(1)
+  })
+})
+
+/**
+ * binding-follows-session 3.1 (D5), from note 01M37HYJ: a SECOND re-home did
+ * not move hook routing. The session started in one record, re-homed to a
+ * second, then re-homed BACK — the return appended nothing (the session was
+ * already registered there), the home stayed on the second record, and 24
+ * hook events plus the Stop gate went on landing there, a blind record.
+ */
+describe('re-homing more than once moves the hooks every time (binding-follows-session D5)', () => {
+  const tick = () => new Promise((r) => setTimeout(r, 5)) // distinct ms: homes compare by ts
+
+  async function startIn(root: string, initiative?: string): Promise<void> {
+    const { client, handle } = await connectServer(root)
+    try {
+      const r = await callTool(client, 'sofar_start_session', {
+        tool: 'claude-code',
+        session_id: 'sess-1',
+        ...(initiative !== undefined ? { initiative } : {}),
+      })
+      expect(r.isError).toBe(false)
+    } finally {
+      await client.close()
+      await handle.server.close()
+    }
+    await tick()
+  }
+  const touched = (log: string) => logEvents(log).filter((e) => e.type === 'file_touched').length
+  const starts = (log: string) => logEvents(log).filter((e) => e.type === 'session_started')
+
+  it('X → Y → Z: hooks and the Stop gate follow to Z', async () => {
+    const f = fx({ slug: 'alpha' })
+    const beta = addInitiative(f.root, 'beta')
+    const gamma = addInitiative(f.root, 'gamma')
+    handlePostTool(f.root, bashStdin('sess-1', 'npm test')) // lazy registration on alpha
+    await tick()
+    await startIn(f.root, 'beta')
+    await startIn(f.root, 'gamma')
+
+    handlePostTool(f.root, editStdin('sess-1', 'src/z.ts'))
+    expect([touched(f.eventsPath), touched(beta), touched(gamma)]).toEqual([0, 0, 1])
+    expect(handleStop(f.root, JSON.stringify({ session_id: 'sess-1', cwd: '/tmp' })).exitCode).toBe(2)
+    endSession(f.root, 'gamma', 'sess-1')
+    expect(handleStop(f.root, JSON.stringify({ session_id: 'sess-1', cwd: '/tmp' })).exitCode).toBe(0)
+  })
+
+  it('X → Y → X: the return appends a rehome registration and the hooks come back', async () => {
+    const f = fx({ slug: 'alpha' })
+    const beta = addInitiative(f.root, 'beta')
+    handlePostTool(f.root, bashStdin('sess-1', 'npm test'))
+    await tick()
+    await startIn(f.root, 'beta')
+    handlePostTool(f.root, editStdin('sess-1', 'src/y.ts'))
+    expect(touched(beta)).toBe(1)
+
+    await startIn(f.root, 'alpha') // the call that used to change nothing
+    const back = starts(f.eventsPath)
+    expect(back).toHaveLength(2)
+    expect(back[1]!.payload).toEqual({ tool: 'claude-code', rehome: true })
+    expect(homeInitiative(join(f.root, '.sofar'), 'sess-1', 'alpha')).toBe('alpha')
+
+    handlePostTool(f.root, editStdin('sess-1', 'src/x.ts'))
+    expect([touched(f.eventsPath), touched(beta)]).toEqual([1, 1])
+    // The fold takes the deliberate repeat silently; the session is still one session.
+    const folded = foldLog(f.eventsPath)
+    expect(folded.warnings.filter((w) => w.includes('already started'))).toEqual([])
+    expect(folded.state.sessions.filter((s) => s.id === 'sess-1')).toHaveLength(1)
+    // …and the gate measures the record the session is now in.
+    expect(handleStop(f.root, JSON.stringify({ session_id: 'sess-1', cwd: '/tmp' })).exitCode).toBe(2)
+    endSession(f.root, 'alpha', 'sess-1')
+    expect(handleStop(f.root, JSON.stringify({ session_id: 'sess-1', cwd: '/tmp' })).exitCode).toBe(0)
+  })
+
+  it('X → Y → X → Y → X: every return works, and re-naming the current home appends nothing', async () => {
+    const f = fx({ slug: 'alpha' })
+    const beta = addInitiative(f.root, 'beta')
+    handlePostTool(f.root, bashStdin('sess-1', 'npm test'))
+    await tick()
+    for (const [to, log] of [['beta', beta], ['alpha', f.eventsPath], ['beta', beta], ['alpha', f.eventsPath]] as const) {
+      await startIn(f.root, to)
+      handlePostTool(f.root, editStdin('sess-1', `src/${to}.ts`))
+      expect(logEvents(log).at(-1)!.type).toBe('file_touched')
+    }
+    const before = starts(f.eventsPath).length
+    await startIn(f.root, 'alpha') // already home: pin only
+    await startIn(f.root) // no initiative: the home wins, nothing appended
+    expect(starts(f.eventsPath)).toHaveLength(before)
+  })
+
+  it('a plain duplicate registration still warns; rehome must be literally true', () => {
+    const f = fx({ slug: 'alpha' })
+    register(f.root, 'alpha', 'sess-1')
+    register(f.root, 'alpha', 'sess-1')
+    expect(foldLog(f.eventsPath).warnings.some((w) => w.includes('already started'))).toBe(true)
+    expect(validatePayload('session_started', { tool: 't', rehome: false }).ok).toBe(false)
+    expect(validatePayload('session_started', { tool: 't', rehome: true }).ok).toBe(true)
   })
 })
 

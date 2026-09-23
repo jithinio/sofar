@@ -1,5 +1,6 @@
-//! Each session's FIRST registration per log (`core/registrations.ts`,
-//! rust-core 4.4, D35), kept current by reading only what the log grew by:
+//! Each session's LATEST registration per log (`core/registrations.ts`,
+//! rust-core 4.4, D35; latest since binding-follows-session D5, so a `rehome`
+//! repeat moves the session's home back), kept current by reading only what the log grew by:
 //! exactly [`crate::home::registration_in`]'s answer, re-checked against the
 //! log on every read (size and mtimeMs; when grown, the first `HEAD_BYTES`
 //! and the last consumed line hashing the same) and rescanned on any doubt.
@@ -18,7 +19,7 @@ use crate::layout::Layout;
 use crate::sha256::hex_digest;
 
 const REG_DIR: &str = "registrations";
-const REGISTRATIONS_VERSION: f64 = 1.0;
+const REGISTRATIONS_VERSION: f64 = 2.0;
 /// How much of the log's head a grown log must still match.
 const HEAD_BYTES: u64 = 4096;
 
@@ -32,8 +33,8 @@ struct RegFile {
     offset: u64,
     last: Option<(u64, String)>,
     head: String,
-    /// Session → registration, in first-seen order (the TypeScript Map's).
-    first: Object,
+    /// Session → its latest registration, keys in first-seen order (the TypeScript Map's).
+    latest: Object,
     seen: HashSet<String>,
 }
 
@@ -65,13 +66,16 @@ fn registration_of(line: &str) -> Option<(String, Registration)> {
 
 fn scan_into(file: &mut RegFile, text: &str) {
     for line in text.split('\n') {
-        if let Some((session, (id, ts))) = registration_of(line)
-            && file.seen.insert(session.clone())
-        {
+        if let Some((session, (id, ts))) = registration_of(line) {
             let mut r = Object::with_capacity(2);
             r.insert("id", Json::Str(id));
             r.insert("ts", Json::Str(ts));
-            file.first.push_unique(session, Json::Obj(r));
+            if file.seen.insert(session.clone()) {
+                file.latest.push_unique(session, Json::Obj(r));
+            } else {
+                // A later registration overwrites in place, as a Map.set does.
+                file.latest.insert(session, Json::Obj(r));
+            }
         }
     }
 }
@@ -125,9 +129,9 @@ fn parse_reg_file(text: &str) -> Option<RegFile> {
         _ => return None,
     };
     let head = raw.get("head")?.as_str()?.to_owned();
-    let first = raw.get("first")?.as_obj()?.clone();
+    let latest = raw.get("latest")?.as_obj()?.clone();
     let mut seen = HashSet::new();
-    for (k, r) in first.iter() {
+    for (k, r) in latest.iter() {
         let r = r.as_obj()?;
         r.get("id")?.as_str()?;
         r.get("ts")?.as_str()?;
@@ -139,7 +143,7 @@ fn parse_reg_file(text: &str) -> Option<RegFile> {
         offset,
         last,
         head,
-        first,
+        latest,
         seen,
     })
 }
@@ -165,7 +169,7 @@ fn to_text(f: &RegFile) -> String {
         }),
     );
     o.insert("head", Json::Str(f.head.clone()));
-    o.insert("first", Json::Obj(f.first.clone()));
+    o.insert("latest", Json::Obj(f.latest.clone()));
     let mut text = json::stringify(&Json::Obj(o));
     text.push('\n');
     text
@@ -251,7 +255,7 @@ pub fn cached_registration_in(
                 offset: 0,
                 last: None,
                 head: String::new(),
-                first: Object::new(),
+                latest: Object::new(),
                 seen: HashSet::new(),
             });
             let rest = consume(&mut file, &buf, from);
@@ -277,16 +281,18 @@ pub fn cached_registration_in(
         });
     }
 
-    if let Some(r) = file.first.get(session_id).and_then(Json::as_obj) {
-        return Some((
-            r.get("id")?.as_str()?.to_owned(),
-            r.get("ts")?.as_str()?.to_owned(),
-        ));
+    // The unterminated last line, scanned live exactly as registration_in would —
+    // and it is the latest line of all, so it wins over the cached answer.
+    if let Some((_, r)) =
+        registration_of(&String::from_utf8_lossy(&rest)).filter(|(s, _)| s == session_id)
+    {
+        return Some(r);
     }
-    // The unterminated last line, scanned live exactly as registration_in would.
-    registration_of(&String::from_utf8_lossy(&rest))
-        .filter(|(s, _)| s == session_id)
-        .map(|(_, r)| r)
+    let r = file.latest.get(session_id).and_then(Json::as_obj)?;
+    Some((
+        r.get("id")?.as_str()?.to_owned(),
+        r.get("ts")?.as_str()?.to_owned(),
+    ))
 }
 
 #[cfg(test)]
@@ -411,7 +417,8 @@ mod tests {
         let good = std::fs::read_to_string(&cache).unwrap();
         for bad in [
             "nope".to_owned(),
-            good.replace("\"v\":1", "\"v\":2"),
+            good.replace("\"v\":2", "\"v\":3"),
+            good.replace("\"latest\":", "\"first\":"),
             good.replace("\"offset\":", "\"offset\":1000000000,\"x\":"),
             good.replace("\"id\":\"A\"", "\"id\":1"),
             good.replace("\"head\":", "\"head\":1,\"y\":"),
@@ -424,5 +431,43 @@ mod tests {
                 "{bad}"
             );
         }
+    }
+
+    /// binding-follows-session D5: a later registration in the same log wins,
+    /// through the cache and the plain scan alike, cached or live.
+    #[test]
+    fn the_latest_registration_wins() {
+        let (layout, log) = repo("reg-latest");
+        append(
+            &log,
+            "{\"id\":\"A\",\"ts\":\"t1\",\"type\":\"session_started\",\"session\":\"s-1\"}\n",
+        );
+        let first = Some(("A".to_owned(), "t1".to_owned()));
+        assert_eq!(
+            cached_registration_in(&layout, "x", &log, "s-1", registration_in),
+            first
+        );
+        // A rehome repeat, still unterminated: the live line wins over the cache.
+        append(
+            &log,
+            "{\"id\":\"B\",\"ts\":\"t3\",\"type\":\"session_started\",\"session\":\"s-1\",\"payload\":{\"tool\":\"t\",\"rehome\":true}}",
+        );
+        let later = Some(("B".to_owned(), "t3".to_owned()));
+        assert_eq!(registration_in(&log, "s-1"), later);
+        assert_eq!(
+            cached_registration_in(&layout, "x", &log, "s-1", registration_in),
+            later
+        );
+        // Terminated and consumed into the cache: still the latest.
+        append(&log, "\n");
+        assert_eq!(
+            cached_registration_in(&layout, "x", &log, "s-1", registration_in),
+            later
+        );
+        assert!(
+            std::fs::read_to_string(reg_path(&layout, "x"))
+                .unwrap()
+                .contains("\"latest\":{\"s-1\":{\"id\":\"B\"")
+        );
     }
 }

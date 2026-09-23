@@ -2649,7 +2649,9 @@ export function runAppend(rootDir: string, args: AppendArgs): HookResult {
     // one Cursor session registered 4 times. Same {ok, event_id} contract,
     // naming the registration that already stands, plus a flag that says the
     // call changed nothing so the agent does not retry.
-    if (args.type === 'session_started' && session !== 'cli') {
+    // A `rehome` registration is deliberately NOT idempotent: it exists to put
+    // a later session_started in a log that already has one (binding-follows-session D5).
+    if (args.type === 'session_started' && session !== 'cli' && payload.rehome !== true) {
       const appended = ctx.registerSession(slug, session, payload, {
         source,
         actor: args.actor as Actor,

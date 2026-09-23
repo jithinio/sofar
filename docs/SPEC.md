@@ -172,7 +172,9 @@ replaces — supersedes_id? — that decision's event id, stamped by the writer
 and never passed by an agent, valid ONLY alongside `supersedes`; memory-lead
 2.8, D12 — until? — a task id this decision is in force until; never with
 `rule`; r1-fixes 3.2, D25) ·
-session_started (tool, model?) · session_ended (summary, next_action) ·
+session_started (tool, model?, rehome? — `true` only: a deliberate re-home
+back into a log that already registered this session, folded silently;
+binding-follows-session D5) · session_ended (summary, next_action) ·
 session_closed (reason — mechanical close from the SessionEnd hook; never
 carries summary/next_action, added Phase 3, BD21) ·
 file_touched (path, op, ok?) · command_run (cmd, ok?, exit?) — `ok` is what the
@@ -4204,7 +4206,15 @@ RE-HOMING IS THE SUPPORTED WAY TO MOVE A SESSION (session-orientation 1.1,
 start_session again with an explicit `initiative` appends a session_started
 into that log, and because a home is the LATEST such registration
 (record-integrity D9) every surface follows at once — statusline, hook
-writes, the SessionStart digest on resume, and the Stop gate. Passing
+writes, the SessionStart digest on resume, and the Stop gate. That holds on
+the SECOND re-home too (binding-follows-session D5): a session returning to
+a record it already registered in (X → Y → X) gets a `rehome: true`
+session_started there — appended only when its home is elsewhere, so naming
+the current home appends nothing — and each log's registration time is its
+LATEST session_started, not its first. Before D5 the return appended
+nothing, the home stayed on Y, and hooks and the Stop gate followed Y for
+the rest of the session. The CLI dialect may append the same repeat with
+`--type session_started` and a `rehome: true` payload. Passing
 `initiative` to any other write tool routes ONE write; re-homing moves the
 SESSION. That distinction is load-bearing because end_session takes NO
 `initiative` and never will: a write-back belongs where the session lives,
@@ -4838,7 +4848,9 @@ fires, and a Codex session is Tier 3 (§Host tiers).
   source plus `write` on the destination. Paths are resolved against the
   payload's `cwd`. The session registers once per call.
   REGISTRATION IS IDEMPOTENT PER (initiative, session) (r1-fixes 1.2): a
-  log holds at most one session_started per session, whichever path
+  log holds at most one session_started per session — the one exception
+  being a deliberate `rehome: true` repeat (binding-follows-session D5),
+  which is not a registration race but a return — whichever path
   registers it — this hook, sofar_start_session's unknown-id branch, or
   `sofar event append --type session_started`. A session that looks
   unregistered is re-checked by a fresh fold under a cross-process lock in
@@ -7147,6 +7159,16 @@ stay the underlying derivation's, and exit codes are styling-independent.
   `warnings`; one that renames, removes, or re-statuses a noted phase
   returns a `warnings` line per phase naming it and quoting the dropped
   note.
+- **Re-homing more than once (binding-follows-session D5):** a session
+  that re-homes X → Y → Z, or X → Y → X, through sofar_start_session with an
+  explicit `initiative` has its next PostToolUse event and its Stop gate in
+  the last-named record. A return to X appends exactly one session_started
+  there carrying `rehome: true`, which the fold takes without a warning and
+  without a second session; naming the current home, or no initiative,
+  appends nothing. A plain repeat session_started still warns, and `rehome`
+  other than true fails validation. Both implementations agree on
+  fold-parity case FP-16-session-rehome, and the registrations cache (now
+  version 2, keyed `latest`) answers each log's LATEST registration.
 - **Adding a task (phase-lifecycle 3.3–3.5, D7):** sofar_update_task with a
   `title` and a task_id the plan lacks appends exactly one task_added into
   the active phase, or into `phase` named by number or in any case with the

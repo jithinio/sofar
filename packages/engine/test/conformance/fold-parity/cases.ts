@@ -350,6 +350,23 @@ export function buildCases(): FoldParityCase[] {
     l.ev('memory_promoted', { text: 'upper hex', origin: 'claude-memory:x.md@0123456789ABCDEF' }, { session: 'A' }) // invalid
     cases.push({ id: 'FP-15-native-memory-origin', lines: l.lines, sidecar: { tail_at: 5, seeds: [43, 44, 45], order_independence: true, note: 'memory-lead 2.4 (D13/D14): memory_promoted origin claude-memory:<file>@<16 lowercase hex> is kept in state (a superseding import too); a short digest, a path, another scheme, a second @ or upper-case hex fail validation. The tail starts at the replacement' } })
   }
+  {
+    // binding-follows-session D5: a deliberate re-home back into a record the
+    // session already registered in is a `rehome` session_started — folded
+    // silently, the session still one session. A plain repeat still warns,
+    // and `rehome` other than true fails validation.
+    const l = new Log('demo')
+    l.ev('initiative_created', { slug: 'demo', goal: 'g' })
+    l.ev('session_started', { tool: 'claude-code', model: 'opus' }, { session: 'S1' })
+    l.ev('command_run', { cmd: 'npm test', ok: true }, { session: 'S1', source: 'hook' })
+    l.ev('session_started', { tool: 'claude-code', rehome: true }, { session: 'S1' }) // back from another record: silent
+    l.ev('file_touched', { path: 'src/a.ts', op: 'edit' }, { session: 'S1', source: 'hook' })
+    l.ev('session_started', { tool: 'claude-code' }, { session: 'S1' }) // a racing duplicate: still warns
+    l.ev('session_started', { tool: 'claude-code', rehome: false }, { session: 'S2' }) // invalid: rehome must be true
+    l.ev('session_started', { tool: 'codex', rehome: true }, { session: 'S3' }) // rehome into a record it never left: registers
+    l.ev('session_ended', { session_id: 'S1', summary: 's', next_action: 'n' }, { session: 'S1' })
+    cases.push({ id: 'FP-16-session-rehome', lines: l.lines, sidecar: { tail_at: 3, seeds: [47, 48, 49], order_independence: true, note: 'binding-follows-session D5: a rehome session_started for a session already registered here folds silently (tool and started unchanged); a plain repeat still warns; rehome false is an invalid line; a rehome for an unknown session registers it. The tail starts at the rehome line' } })
+  }
   return cases
 }
 

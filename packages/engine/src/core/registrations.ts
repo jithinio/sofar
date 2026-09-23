@@ -5,12 +5,18 @@ import { writeFileAtomic } from './atomic'
 import { ensureIndexDir, indexDir, logStat } from './index-store'
 
 /**
- * Each session's FIRST registration in one log, kept current by reading only
+ * Each session's LATEST registration in one log, kept current by reading only
  * what the log grew by (rust-core 4.4, D35). Session resolution asks every
- * log "where did this session register?", and at team scale scanning the
- * whole log per call was the entire cost of a cached statusline.
+ * log "when did this session last register here?", and at team scale scanning
+ * the whole log per call was the entire cost of a cached statusline.
  *
- * The answer is exactly `registrationIn`'s: the first line in file order that
+ * LATEST, not first, since binding-follows-session D5: the home is the log
+ * with the latest registration, and a session re-homing BACK to a record it
+ * left appends a `rehome` session_started there. Keyed on the first one, that
+ * record's answer never moved, and the session could never return (v1 files
+ * are rescanned: the version bump is the invalidation).
+ *
+ * The answer is exactly `registrationIn`'s: the LAST line in file order that
  * parses as an object with type `session_started` and string `session`, `id`
  * and `ts`, and whose raw text contains that session id (registrationIn's
  * pre-filter, kept so the two can never disagree).
@@ -29,7 +35,7 @@ import { ensureIndexDir, indexDir, logStat } from './index-store'
  */
 
 const REG_DIR = 'registrations'
-export const REGISTRATIONS_VERSION = 1
+export const REGISTRATIONS_VERSION = 2
 
 export interface Registration {
   id: string
@@ -46,7 +52,8 @@ interface RegFile {
   last: { start: number; sha256: string } | null
   /** sha256 of the first min(HEAD_BYTES, offset) bytes. */
   head: string
-  first: Record<string, Registration>
+  /** Session → its latest registration, keys in first-seen order (a JS Map's). */
+  latest: Record<string, Registration>
 }
 
 /** How much of the log's head a grown log must still match. */
@@ -78,11 +85,11 @@ function registrationOf(line: string): { session: string; reg: Registration } | 
   return { session: e.session, reg: { id: e.id, ts: e.ts } }
 }
 
-/** Fold complete lines into `first`, keeping each session's earliest. */
-function scanInto(first: Map<string, Registration>, text: string): void {
+/** Fold complete lines into `latest`, keeping each session's last. */
+function scanInto(latest: Map<string, Registration>, text: string): void {
   for (const line of text.split('\n')) {
     const found = registrationOf(line)
-    if (found !== null && !first.has(found.session)) first.set(found.session, found.reg)
+    if (found !== null) latest.set(found.session, found.reg)
   }
 }
 
@@ -120,8 +127,8 @@ function parseRegFile(text: string): RegFile | null {
   if (!isOffset(raw.size) || typeof raw.mtimeMs !== 'number' || !isOffset(raw.offset) || raw.offset > raw.size) return null
   const last = raw.last
   if (last !== null && !(isRecord(last) && isOffset(last.start) && last.start < (raw.offset as number) && typeof last.sha256 === 'string')) return null
-  if (typeof raw.head !== 'string' || !isRecord(raw.first)) return null
-  for (const r of Object.values(raw.first)) {
+  if (typeof raw.head !== 'string' || !isRecord(raw.latest)) return null
+  for (const r of Object.values(raw.latest)) {
     if (!isRecord(r) || typeof r.id !== 'string' || typeof r.ts !== 'string') return null
   }
   return raw as unknown as RegFile
@@ -137,14 +144,14 @@ function regFile(sofarDir: string, slug: string): string {
  * remainder is left for the caller.
  */
 function consume(
-  first: Map<string, Registration>,
+  latest: Map<string, Registration>,
   buf: Buffer,
   base: number,
   prev: RegFile['last'],
 ): { offset: number; last: RegFile['last']; rest: Buffer } {
   const end = buf.lastIndexOf(0x0a)
   if (end < 0) return { offset: base, last: prev, rest: buf }
-  scanInto(first, buf.subarray(0, end).toString('utf8'))
+  scanInto(latest, buf.subarray(0, end).toString('utf8'))
   // A negative byteOffset would count from the END in Node, so a buffer whose
   // only newline is its first byte is anchored at its start explicitly.
   const lineStart = end === 0 ? 0 : buf.lastIndexOf(0x0a, end - 1) + 1
@@ -199,8 +206,8 @@ export function cachedRegistrationIn(
     const from = base?.offset ?? 0
     const buf = readRange(logPath, from, stat.size)
     if (buf === null) return scan(logPath, sessionId)
-    const first = new Map<string, Registration>(base === null ? [] : Object.entries(base.first))
-    const step = consume(first, buf, from, base?.last ?? null)
+    const latest = new Map<string, Registration>(base === null ? [] : Object.entries(base.latest))
+    const step = consume(latest, buf, from, base?.last ?? null)
     const headLen = Math.min(HEAD_BYTES, step.offset)
     const head =
       base !== null && Math.min(HEAD_BYTES, base.offset) === headLen
@@ -213,7 +220,7 @@ export function cachedRegistrationIn(
       offset: step.offset,
       last: step.last,
       head,
-      first: Object.fromEntries(first),
+      latest: Object.fromEntries(latest),
     }
     rest = step.rest
   }
@@ -234,8 +241,9 @@ export function cachedRegistrationIn(
     }
   }
 
-  if (Object.hasOwn(file.first, sessionId)) return file.first[sessionId] ?? null
-  // The unterminated last line, scanned live exactly as registrationIn would.
+  // The unterminated last line, scanned live exactly as registrationIn would —
+  // and it is the latest line of all, so it wins over the cached answer.
   const found = registrationOf(rest.toString('utf8'))
-  return found !== null && found.session === sessionId ? found.reg : null
+  if (found !== null && found.session === sessionId) return found.reg
+  return Object.hasOwn(file.latest, sessionId) ? (file.latest[sessionId] ?? null) : null
 }

@@ -1200,6 +1200,11 @@ fn apply_event(
                 .position(&state.sessions, &event.session)
                 .is_some()
             {
+                // A deliberate re-home back into this record (binding-follows-session
+                // D5) moves the home, not the state: nothing to fold, nothing to warn.
+                if matches!(p.get("rehome"), Some(Json::Bool(true))) {
+                    return;
+                }
                 warnings.push(format!(
                     "line {line_no}: session \"{}\" already started — skipped",
                     event.session

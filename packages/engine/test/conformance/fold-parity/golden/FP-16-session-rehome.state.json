@@ -1,0 +1,75 @@
+{
+  "state": {
+    "current": {
+      "active_phase": null,
+      "next_action": "n"
+    },
+    "cursor": "01KDVDNJS84KPXRQA1CVY50ZJ9",
+    "decisions": [],
+    "drop_notes": {},
+    "files_touched": [
+      "src/a.ts"
+    ],
+    "freshness": {
+      "events_since_writeback": {
+        "commands": 0,
+        "decisions": 0,
+        "files": 0,
+        "memories": 0,
+        "notes": 0,
+        "phases": 0,
+        "reviews": 0,
+        "tasks": 0
+      },
+      "last_writeback_ts": "2026-01-01T00:00:09.000Z",
+      "notes": [],
+      "unattributed_mutations": 0
+    },
+    "goal": "g",
+    "guard_violations": [],
+    "memories": [],
+    "phases": [],
+    "reviews": [],
+    "runs": [],
+    "sessions": [
+      {
+        "activity": {
+          "commands": 1,
+          "files": [
+            "src/a.ts"
+          ],
+          "last_test": {
+            "cmd": "npm test",
+            "ok": true
+          },
+          "task_changes": []
+        },
+        "ended": "2026-01-01T00:00:09.000Z",
+        "id": "S1",
+        "model": "opus",
+        "next_action": "n",
+        "started": "2026-01-01T00:00:02.000Z",
+        "summary": "s",
+        "tool": "claude-code",
+        "unwritten": 0
+      },
+      {
+        "id": "S3",
+        "started": "2026-01-01T00:00:08.000Z",
+        "tool": "codex",
+        "unwritten": 0
+      }
+    ],
+    "slug": "demo",
+    "status": "active",
+    "status_note": null,
+    "status_overrides": [],
+    "status_ts": null,
+    "successor": null,
+    "task_files": {}
+  },
+  "warnings": [
+    "line 6: session \"S1\" already started — skipped",
+    "line 7: invalid session_started payload (rehome: must be true when present) — skipped"
+  ]
+}

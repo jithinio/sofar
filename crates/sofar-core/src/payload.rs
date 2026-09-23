@@ -816,6 +816,12 @@ fn validate_known(event_type: &str, p: &Object, e: &mut Vec<String>) {
         "session_started" => {
             must(e, str(p.get("tool")), "tool: must be a non-empty string");
             must(e, opt_str(p.get("model")), "model: must be a string");
+            must(
+                e,
+                p.get("rehome")
+                    .is_none_or(|v| matches!(v, Json::Bool(true))),
+                "rehome: must be true when present",
+            );
         }
         "session_ended" => {
             must(

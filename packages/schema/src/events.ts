@@ -245,7 +245,15 @@ export interface DecisionCheck {
   /** @asType integer */
   timeout_ms?: number
 }
-export interface SessionStartedPayload { tool: string; model?: string }
+/**
+ * `rehome` (binding-follows-session 3.1, D5): this is a DELIBERATE re-home —
+ * sofar_start_session naming this initiative for a session already registered
+ * here but homed elsewhere since. The session's home is the log holding its
+ * LATEST session_started, so without a new line a session could never return
+ * to a record it had left. The fold accepts the repeat silently; a repeat
+ * WITHOUT it is still the racing double-registration it warns about.
+ */
+export interface SessionStartedPayload { tool: string; model?: string; rehome?: true }
 export interface SessionEndedPayload { session_id?: string; summary: string; next_action: string }
 /**
  * Mechanical session close (SessionEnd hook fallback). Deliberately has no
@@ -971,6 +979,7 @@ const validators: Record<KnownEventType, (p: Obj, errors: string[]) => void> = {
   session_started(p, e) {
     if (!str(p.tool)) e.push('tool: must be a non-empty string')
     if (!optStr(p.model)) e.push('model: must be a string')
+    if (p.rehome !== undefined && p.rehome !== true) e.push('rehome: must be true when present')
   },
   session_ended(p, e) {
     if (!optStr(p.session_id)) e.push('session_id: must be a string')
