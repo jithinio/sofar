@@ -66,6 +66,7 @@ pub mod post_tool;
 pub mod projections;
 pub mod record_copies;
 pub mod redact;
+pub mod registrations;
 pub mod resolve;
 pub mod rule_fidelity;
 pub mod run_lock;
