@@ -32,6 +32,7 @@ pub mod cross_conflicts;
 pub mod date;
 pub mod derived;
 pub mod diagnostics;
+pub mod digest_cache;
 pub mod digest_state;
 pub mod drive_queue;
 pub mod drive_seen;

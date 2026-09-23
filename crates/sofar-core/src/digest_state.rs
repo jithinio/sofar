@@ -219,11 +219,22 @@ mod tests {
 
     fn assert_parity(name: &str, state: &InitiativeState) {
         let cut = digest_state(state);
+        // What the digest cache writes and reads back: canonical JSON.
+        let text = crate::json::stringify_canonical(&cut.to_json());
+        let cached = crate::json::parse(&text)
+            .ok()
+            .and_then(|j| j.as_obj().and_then(InitiativeState::from_json))
+            .expect("the digest state parses back");
         for (label, options) in options_matrix() {
             assert_eq!(
                 render_status(&cut, &options),
                 render_status(state, &options),
                 "{name} / {label}"
+            );
+            assert_eq!(
+                render_status(&cached, &options),
+                render_status(state, &options),
+                "{name} / {label} (JSON)"
             );
         }
     }
