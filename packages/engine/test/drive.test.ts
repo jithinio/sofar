@@ -853,6 +853,36 @@ describe('the permission surface (2.4, D8) — a run property, a session artifac
     expect(adapter.sessions[0]?.request.effort).toBeUndefined()
   })
 
+  it('a resumed run that pinned nothing stays ambient, not the new driver flags', async () => {
+    const root = repo('surface-resume-ambient')
+    const open = '01JZ8B3V0N5B4W8XK2M9QF7TSG'
+    appendEvent(
+      logPath(root),
+      makeEvent({
+        initiative: 'demo',
+        session: 'cli',
+        type: 'run_started',
+        payload: { run: open, adapter: 'fake', policy: 'task' },
+        source: 'cli',
+        actor: 'human',
+      }),
+    )
+    const adapter = new FakeAdapter([worker(root, 'S1')])
+    const progress: string[] = []
+    await drive(root, 'demo', {
+      adapter,
+      resume: true,
+      model: 'flag-model',
+      surface: { ...SURFACE, model: 'flag-model' },
+      maxSessions: 1,
+      onProgress: (line) => progress.push(line),
+    })
+
+    expect(progress.some((l) => l.includes('keeping run') && l.includes('ambient'))).toBe(true)
+    expect(adapter.sessions[0]?.request.surface).toBeUndefined()
+    expect(adapter.sessions[0]?.request.model).toBeUndefined()
+  })
+
   it('takes model and effort from the surface, so a resumed run is not half one model', async () => {
     const root = repo('surface-routing')
     const adapter = new FakeAdapter([worker(root, 'S1')])

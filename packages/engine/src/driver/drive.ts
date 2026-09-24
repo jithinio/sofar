@@ -593,12 +593,16 @@ async function driveHolding(
     // The run's own surface wins, for the reason its threshold does (D8): a
     // run whose first half could run `npm test` and whose second half could
     // not is two runs wearing one id, and the record shows only the first.
-    if (last.surface !== undefined && !sameSurface(last.surface, surface)) {
+    // A run that recorded NO surface pinned nothing, and ambient is a fact
+    // the record carries by omission — so it stays ambient, rather than
+    // adopting this driver's flags as a surface the record never names.
+    if (!sameSurface(last.surface, surface)) {
+      const recorded = last.surface === undefined ? 'none pinned — ambient settings' : describeSurface(last.surface)
       opening.push(
-        `keeping run ${last.id}'s recorded surface (${describeSurface(last.surface)}) over this driver's flags — start a new run to change it`,
+        `keeping run ${last.id}'s recorded surface (${recorded}) over this driver's flags — start a new run to change it`,
       )
     }
-    surface = last.surface ?? surface
+    surface = last.surface
     // The run's own acceptance command wins on resume for the same reason its
     // surface does (D19): half a run verified and half unverified is two runs.
     if (last.verify !== undefined && options.verify !== undefined && last.verify !== options.verify) {
