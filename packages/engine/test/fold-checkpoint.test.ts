@@ -1,207 +1,237 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import { execFileSync, spawn } from 'node:child_process'
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { makeEvent, type EventEnvelope } from '../src/core/envelope'
-import { appendEvent, serializeEvent } from '../src/core/log'
-import {
-  appendToCheckpoint,
-  countLines,
-  decodeLines,
-  finalizeFold,
-  foldLines,
-  replayDecoded,
-} from '../src/core/fold'
+import { makeEvent } from '../src/core/envelope'
+import { foldLines, finalizeFrom, type InitiativeState } from '../src/core/fold'
+import { resumeFoldCheckpoint } from '../src/core/fold-checkpoint'
+import { serializeEvent } from '../src/core/log'
+import { cloneKey, stateBase } from '../src/core/state-dir'
 import { createToolContext } from '../src/mcp/context'
-import { makeRepoFixture } from './helpers/mcp'
+import { writeCorpus, BOUND, type CorpusSpec } from './conformance/perf/corpus'
 
 /**
- * r1-fixes 2.7 (D17) — one replay per log per process.
- *
- * Every appending hook and tool folded the log twice: once in the handler,
- * once in regenerateProjections. The checkpoint keeps the replay and applies
- * the appended event to it; finalize derives on a clone. PREDICTED: post-tool
- * and session-end fold time p50 −40% or better on a ~10 MB record, projection
- * bytes unchanged — which is what the equivalence below pins.
+ * rust-core 4.4, decision 01M39ED9: the edge-free checkpoint is derived only.
+ * A resumed state equals a full refold of the same log, and anything the fast
+ * path cannot prove exact (a correction, an out-of-order id, a version or
+ * cursor mismatch) refolds.
  */
 
 const roots: string[] = []
 afterAll(() => {
-  for (const r of roots) rmSync(r, { recursive: true, force: true })
+  for (const root of roots) rmSync(root, { recursive: true, force: true })
 })
 
-let clock = Date.parse('2026-09-16T00:00:00Z')
-function ev(type: string, payload: Record<string, unknown>, session = 's1'): EventEnvelope {
-  clock += 1000
-  const e = makeEvent({ initiative: 'demo', session, source: 'hook', actor: 'agent', type, payload })
-  return { ...e, ts: new Date(clock).toISOString() }
+function tempRoot(): string {
+  const root = mkdtempSync(join(tmpdir(), 'sofar-ckpt-'))
+  roots.push(root)
+  mkdirSync(join(root, '.sofar', 'initiatives'), { recursive: true })
+  return root
 }
 
-/** A log that exercises every side table: plan, tasks, decisions with guards, sessions, corrections, orphans. */
-function story(): EventEnvelope[] {
-  const events: EventEnvelope[] = []
-  events.push(ev('initiative_created', { slug: 'demo', goal: 'the goal' }, 'cli'))
-  events.push(ev('session_started', { tool: 'claude-code' }))
-  events.push(
-    ev('plan_updated', {
-      goal: 'the goal',
-      phases: [
-        { name: 'Phase 1', status: 'active', tasks: [{ id: '1.1', title: 'first' }, { id: '1.2', title: 'second' }] },
-        { name: 'Phase 2', tasks: [{ id: '2.1', title: 'third' }] },
-      ],
-    }),
-  )
-  events.push(ev('task_status_changed', { id: '1.1', status: 'active' }))
-  events.push(ev('file_touched', { path: 'src/a.ts', op: 'edit' }))
-  events.push(
-    ev('decision_logged', {
-      chose: 'keep schema in packages/schema',
-      over: 'shapes in the engine',
-      because: 'one home',
-      rule: 'Never put shapes in the engine.',
-      guard: 'path:packages/engine/src/shapes/**',
-    }),
-  )
-  events.push(ev('file_touched', { path: 'packages/engine/src/shapes/x.ts', op: 'write' })) // crosses the guard
-  events.push(ev('command_run', { cmd: 'npm test' }))
-  events.push(ev('task_status_changed', { id: '9.9', status: 'done' })) // orphan — not in the plan
-  events.push(ev('task_status_changed', { id: '1.2', status: 'blocked', note: 'waiting on 1.1' }))
-  events.push(ev('session_started', { tool: 'codex' }, 's2'))
-  events.push(ev('file_touched', { path: 'src/a.ts', op: 'edit' }, 's2'))
-  events.push(ev('note_added', { text: 'a note' }, 's2'))
-  events.push(ev('command_run', { cmd: 'git status' }, 'ghost')) // unregistered session
-  events.push(ev('memory_promoted', { text: 'the test command is npm test' }))
-  events.push(ev('task_status_changed', { id: '1.1', status: 'done' }))
-  events.push(ev('session_ended', { summary: 'did 1.1', next_action: 'do 1.2' }))
-  events.push(ev('session_closed', { reason: 'other' }, 's2'))
-  return events
+const logOf = (root: string, slug: string) => join(root, '.sofar', 'initiatives', slug, 'events.jsonl')
+const ckptOf = (root: string, slug: string) => join(stateBase(), 'folds', cloneKey(root), `${slug}.ts.json`)
+const refold = (root: string, slug: string): InitiativeState => ({
+  ...foldLines(readFileSync(logOf(root, slug), 'utf8').split('\n'), slug).state,
+  slug,
+})
+/** A fresh process's view: a new context, so only the on-disk checkpoint carries over. */
+const fold = (root: string, slug: string) => createToolContext(root).foldState(slug)
+
+/** The resume path alone, finalized: proves the checkpoint (not a refold) answered. */
+function resumed(root: string, slug: string): InitiativeState | null {
+  const r = resumeFoldCheckpoint(root, slug, logOf(root, slug))
+  if (r === null) return null
+  r.acc.add(r.cp.edges)
+  r.cp.edges = []
+  return { ...finalizeFrom(r.cp, r.acc).state, slug }
 }
 
-const linesOf = (events: readonly EventEnvelope[]): string[] => [...events.map(serializeEvent), '']
+/** Write `lines` minus the last `k`, checkpoint them, then append the last `k`. */
+function splitAt(root: string, slug: string, text: string, k: number): string[] {
+  const all = text.split('\n')
+  if (all[all.length - 1] === '') all.pop()
+  const head = all.slice(0, all.length - k)
+  const tail = all.slice(all.length - k)
+  mkdirSync(join(root, '.sofar', 'initiatives', slug), { recursive: true })
+  writeFileSync(logOf(root, slug), head.length > 0 ? `${head.join('\n')}\n` : '')
+  fold(root, slug) // full fold: writes the checkpoint
+  if (tail.length > 0) appendFileSync(logOf(root, slug), `${tail.join('\n')}\n`)
+  return tail
+}
 
-describe('checkpoint append ≡ fresh fold (D17)', () => {
-  it('for every prefix of a story, appending the next line matches folding the whole', () => {
-    const events = story()
-    const all = linesOf(events)
-    for (let n = 1; n <= events.length; n++) {
-      const prefix = linesOf(events.slice(0, n - 1))
-      const cp = replayDecoded(decodeLines(prefix), 'demo', countLines(prefix))
-      const advanced = appendToCheckpoint(cp, all[n - 1]!)
-      expect(advanced, `event ${n} (${events[n - 1]!.type})`).not.toBeNull()
-      const fresh = foldLines(linesOf(events.slice(0, n)), 'demo')
-      expect(finalizeFold(advanced!)).toEqual(fresh)
+function realLogs(): Array<[string, string]> {
+  const dir = join(__dirname, '..', '..', '..', '.sofar', 'initiatives')
+  return readdirSync(dir)
+    .filter((slug) => existsSync(join(dir, slug, 'events.jsonl')))
+    .map((slug) => [slug, readFileSync(join(dir, slug, 'events.jsonl'), 'utf8')])
+}
+
+describe('edge-free fold checkpoint (rust-core 4.4, 01M39ED9)', () => {
+  it('real logs: checkpoint + tail equals a full refold, or refuses (never differs)', () => {
+    let resumedCount = 0
+    let refused = 0
+    for (const [slug, text] of realLogs()) {
+      if (text.length === 0) continue
+      for (const k of [0, 1, 25]) {
+        const root = tempRoot()
+        splitAt(root, slug, text, k)
+        const want = refold(root, slug)
+        const got = resumed(root, slug)
+        if (got === null) refused += 1
+        else {
+          resumedCount += 1
+          expect(got, `${slug} tail ${k}`).toEqual(want)
+        }
+        expect(fold(root, slug), `${slug} tail ${k} (foldState)`).toEqual(want)
+      }
+    }
+    expect(resumedCount).toBeGreaterThan(100)
+    expect(refused).toBeLessThan(resumedCount / 10)
+  }, 300_000)
+
+  it('a team-shaped record resumes exactly at several tail lengths', () => {
+    const src = tempRoot()
+    const spec: CorpusSpec = { name: 'ckpt', initiatives: 2, writers: 20, events: 15_000, humanShare: 0.3, tail: 1, seed: 21 }
+    writeCorpus(src, spec)
+    const text = readFileSync(logOf(src, BOUND), 'utf8')
+    for (const k of [1, 5, 25, 200]) {
+      const root = tempRoot()
+      splitAt(root, BOUND, text, k)
+      const want = refold(root, BOUND)
+      expect(resumed(root, BOUND), `tail ${k}`).toEqual(want)
+      expect(fold(root, BOUND)).toEqual(want)
+    }
+  }, 120_000)
+
+  describe('refuses, and foldState still answers from the log', () => {
+    function seeded(): { root: string; slug: string; base: string[] } {
+      const root = tempRoot()
+      const slug = 'demo'
+      const ev = (type: string, payload: Record<string, unknown>) =>
+        makeEvent({ initiative: slug, session: 's-1', source: 'hook', actor: 'agent', type, payload })
+      const base = [
+        ev('session_started', { tool: 't' }),
+        ev('file_touched', { path: 'a.ts', op: 'edit' }),
+        ev('note_added', { text: 'n' }),
+      ].map(serializeEvent)
+      mkdirSync(join(root, '.sofar', 'initiatives', slug), { recursive: true })
+      writeFileSync(logOf(root, slug), `${base.join('\n')}\n`)
+      fold(root, slug)
+      expect(existsSync(ckptOf(root, slug))).toBe(true)
+      expect(resumed(root, slug)).toEqual(refold(root, slug))
+      return { root, slug, base }
+    }
+    const ev = (slug: string, type: string, payload: Record<string, unknown>, id?: string) => {
+      const e = makeEvent({ initiative: slug, session: 's-1', source: 'hook', actor: 'agent', type, payload })
+      return serializeEvent(id === undefined ? e : { ...e, id })
+    }
+
+    const cases: Array<[string, (s: ReturnType<typeof seeded>) => void]> = [
+      ['a correction in the tail', ({ root, slug, base }) => {
+        const target = JSON.parse(base[2]!).id as string
+        appendFileSync(logOf(root, slug), `${ev(slug, 'correction', { ref: target })}\n`)
+      }],
+      ['an id below the last replayed one', ({ root, slug }) => {
+        appendFileSync(logOf(root, slug), `${ev(slug, 'note_added', { text: 'old' }, '00000000000000000000000000')}\n`)
+      }],
+      ['a blank line', ({ root, slug }) => appendFileSync(logOf(root, slug), '\n')],
+      ['a torn (unterminated) tail', ({ root, slug }) => appendFileSync(logOf(root, slug), ev(slug, 'note_added', { text: 'torn' }))],
+      ['an undecodable line', ({ root, slug }) => appendFileSync(logOf(root, slug), 'not json\n')],
+      ['a rewritten head (same length)', ({ root, slug }) => {
+        const text = readFileSync(logOf(root, slug), 'utf8')
+        writeFileSync(logOf(root, slug), text.replace('a.ts', 'b.ts'))
+      }],
+      ['a rewritten last line (then growth)', ({ root, slug, base }) => {
+        const lines = [...base]
+        lines[2] = lines[2]!.replace('"n"', '"m"')
+        writeFileSync(logOf(root, slug), `${lines.join('\n')}\n${ev(slug, 'note_added', { text: 'x' })}\n`)
+      }],
+      ['a stray byte after a complete event (torn, no newline)', ({ root, slug }) => {
+        // Minus its last byte this IS a valid event, so only the torn-tail
+        // guard can refuse it; a fresh fold reads the whole line as corrupt.
+        appendFileSync(logOf(root, slug), `${ev(slug, 'note_added', { text: 'x' })}x`)
+      }],
+      ['a truncated log', ({ root, slug, base }) => writeFileSync(logOf(root, slug), `${base.slice(0, 2).join('\n')}\n`)],
+      ['another engine version', ({ root, slug }) => {
+        const f = ckptOf(root, slug)
+        const raw = JSON.parse(readFileSync(f, 'utf8'))
+        writeFileSync(f, JSON.stringify({ ...raw, engine: '0.0.0' }))
+      }],
+      ['another slug', ({ root, slug }) => {
+        const f = ckptOf(root, slug)
+        const raw = JSON.parse(readFileSync(f, 'utf8'))
+        writeFileSync(f, JSON.stringify({ ...raw, slug: 'other' }))
+      }],
+      ['a corrupt file', ({ root, slug }) => writeFileSync(ckptOf(root, slug), '{"v":1,')],
+    ]
+    for (const [name, mutate] of cases) {
+      it(name, () => {
+        const s = seeded()
+        mutate(s)
+        expect(resumed(s.root, s.slug)).toBeNull()
+        expect(fold(s.root, s.slug)).toEqual(refold(s.root, s.slug))
+      })
     }
   })
 
-  it('a checkpoint advanced many times equals one fresh fold, and finalizing twice changes nothing', () => {
-    const events = story()
-    const cp = replayDecoded(decodeLines(['']), 'demo', 0)
-    for (const line of linesOf(events).slice(0, -1)) expect(appendToCheckpoint(cp, line)).not.toBeNull()
-    const first = finalizeFold(cp)
-    const second = finalizeFold(cp)
-    expect(first).toEqual(foldLines(linesOf(events), 'demo'))
-    expect(second).toEqual(first)
-    // The clone is the caller's: mutating it leaves the checkpoint untouched.
-    first.state.goal = 'mutated'
-    first.edges.length = 0
-    expect(finalizeFold(cp)).toEqual(second)
+  it('a log past 4 KB whose last consumed line changed refuses (the head alone cannot see it)', () => {
+    const root = tempRoot()
+    const slug = 'demo'
+    const line = (text: string) =>
+      serializeEvent(makeEvent({ initiative: slug, session: 's-1', source: 'hook', actor: 'agent', type: 'note_added', payload: { text } }))
+    const lines = Array.from({ length: 40 }, (_, i) => line(`note ${i} ${'x'.repeat(100)}`))
+    mkdirSync(join(root, '.sofar', 'initiatives', slug), { recursive: true })
+    writeFileSync(logOf(root, slug), `${lines.join('\n')}\n`)
+    expect(statSync(logOf(root, slug)).size).toBeGreaterThan(8192)
+    fold(root, slug)
+    lines[39] = lines[39]!.replace('note 39', 'note 3X')
+    writeFileSync(logOf(root, slug), `${lines.join('\n')}\n${line('grown')}\n`)
+    expect(resumed(root, slug)).toBeNull()
+    expect(fold(root, slug)).toEqual(refold(root, slug))
   })
 
-  it('refuses what it cannot prove: a correction, an out-of-order id, a rejected line', () => {
-    const events = story()
-    const lines = linesOf(events)
-    const cp = () => replayDecoded(decodeLines(lines), 'demo', countLines(lines))
-    const correction = serializeEvent(ev('correction', { ref: events[4]!.id, reason: 'wrong file' }))
-    expect(appendToCheckpoint(cp(), correction)).toBeNull()
-    const early = { ...ev('command_run', { cmd: 'ls' }), id: '00000000000000000000000000' }
-    expect(appendToCheckpoint(cp(), serializeEvent(early))).toBeNull()
-    expect(appendToCheckpoint(cp(), 'not json{{{')).toBeNull()
-    expect(appendToCheckpoint(cp(), JSON.stringify({ v: 1, id: 'x' }))).toBeNull()
-    // The fresh fold of the same appends is still the reference, and still works.
-    expect(foldLines([...lines.slice(0, -1), correction, ''], 'demo').state.sessions[0]!.activity!.files).not.toContain('src/a.ts')
+  it('rewrites only once the tail passes its bound', () => {
+    const root = tempRoot()
+    const slug = 'demo'
+    const line = (i: number) =>
+      serializeEvent(makeEvent({ initiative: slug, session: 's-1', source: 'hook', actor: 'agent', type: 'note_added', payload: { text: `n${i}` } }))
+    mkdirSync(join(root, '.sofar', 'initiatives', slug), { recursive: true })
+    writeFileSync(logOf(root, slug), `${line(0)}\n`)
+    fold(root, slug)
+    const bytes = () => JSON.parse(readFileSync(ckptOf(root, slug), 'utf8')).prefix.bytes as number
+    const first = bytes()
+    appendFileSync(logOf(root, slug), `${Array.from({ length: 10 }, (_, i) => line(i + 1)).join('\n')}\n`)
+    fold(root, slug)
+    expect(bytes()).toBe(first) // a short tail is applied, not rewritten
+    appendFileSync(logOf(root, slug), `${Array.from({ length: 70 }, (_, i) => line(i + 20)).join('\n')}\n`)
+    expect(fold(root, slug)).toEqual(refold(root, slug))
+    expect(bytes()).toBe(statSync(logOf(root, slug)).size) // past the bound: rewritten to the whole log
+    expect(resumed(root, slug)).toEqual(refold(root, slug))
   })
 
-  it('an appended line gets the line number a fresh read gives it (warnings agree)', () => {
-    const events = story()
-    const lines = linesOf(events)
-    const cp = replayDecoded(decodeLines(lines), 'demo', countLines(lines))
-    // A plan that drops a resolved task's status warns with the line number.
-    const plan = serializeEvent(
-      ev('plan_updated', { goal: 'g', phases: [{ name: 'Phase 1', tasks: [{ id: '1.1', title: 'first' }] }] }),
-    )
-    const advanced = appendToCheckpoint(cp, plan)!
-    const fresh = foldLines([...lines.slice(0, -1), plan, ''], 'demo')
-    expect(finalizeFold(advanced).warnings).toEqual(fresh.warnings)
-    expect(fresh.warnings.some((w) => w.startsWith(`line ${events.length + 1}:`))).toBe(true)
-  })
-})
-
-describe('ToolContext fold cache (D17)', () => {
-  function repo() {
-    const f = makeRepoFixture()
-    roots.push(f.root)
-    return f
-  }
-
-  it('appendAndProject folds once per append: the state after equals a fresh fold, projections byte-identical', () => {
-    const f = repo()
-    const ctx = createToolContext(f.root)
-    ctx.appendAndProject(f.slug, 'initiative_created', { slug: f.slug, goal: 'g' }, { session: 'cli', source: 'cli', actor: 'human' })
-    ctx.registerSession(f.slug, 's1', { tool: 'claude-code' }, { source: 'hook' })
-    for (let i = 0; i < 5; i++) ctx.appendAndProject(f.slug, 'file_touched', { path: `src/${i}.ts`, op: 'edit' }, { session: 's1', source: 'hook' })
-    ctx.appendAndProject(f.slug, 'decision_logged', { chose: 'a', over: 'b', because: 'c' }, { session: 's1' })
-    const cached = ctx.foldState(f.slug)
-    const fresh = foldLines(readFileSync(f.eventsPath, 'utf8').split('\n'), f.slug).state
-    expect(cached).toEqual(fresh)
-    // A second context regenerating from disk writes the same bytes.
-    const plan = readFileSync(join(f.initiativeDir, 'plan.md'), 'utf8')
-    const decisions = readFileSync(join(f.initiativeDir, 'decisions.md'), 'utf8')
-    const other = createToolContext(f.root)
-    other.appendAndProject(f.slug, 'note_added', { text: 'n' }, { session: 's1' })
-    ctx.appendAndProject(f.slug, 'note_added', { text: 'm' }, { session: 's1' }) // after a foreign append: miss, refold
-    expect(ctx.foldState(f.slug)).toEqual(foldLines(readFileSync(f.eventsPath, 'utf8').split('\n'), f.slug).state)
-    expect(readFileSync(join(f.initiativeDir, 'plan.md'), 'utf8')).toBe(plan)
-    expect(readFileSync(join(f.initiativeDir, 'decisions.md'), 'utf8')).toBe(decisions)
-  })
-
-  it('sees writes it did not make: a direct append, a rewrite, a deleted log', () => {
-    const f = repo()
-    const ctx = createToolContext(f.root)
-    ctx.appendAndProject(f.slug, 'initiative_created', { slug: f.slug, goal: 'g' }, { session: 'cli', source: 'cli', actor: 'human' })
-    expect(ctx.foldState(f.slug).decisions).toHaveLength(0)
-    appendEvent(f.eventsPath, ev('decision_logged', { chose: 'x', over: 'y', because: 'z' }, 'cli'))
-    expect(ctx.foldState(f.slug).decisions).toHaveLength(1)
-    // Same size, different content, different mtime: the log was rewritten.
-    const text = readFileSync(f.eventsPath, 'utf8')
-    writeFileSync(f.eventsPath, text.replace('"chose":"x"', '"chose":"q"'))
-    const st = statSync(f.eventsPath)
-    utimesSync(f.eventsPath, st.atime, new Date(st.mtimeMs + 5000))
-    expect(ctx.foldState(f.slug).decisions[0]!.chose).toBe('q')
-    rmSync(f.eventsPath)
-    expect(ctx.foldState(f.slug).decisions).toHaveLength(0)
-  })
-
-  it('a correction appended through the context refolds rather than misapplies', () => {
-    const f = repo()
-    const ctx = createToolContext(f.root)
-    ctx.appendAndProject(f.slug, 'initiative_created', { slug: f.slug, goal: 'g' }, { session: 'cli', source: 'cli', actor: 'human' })
-    const bad = ctx.appendAndProject(f.slug, 'decision_logged', { chose: 'x', over: 'y', because: 'z' }, { session: 'cli' })
-    expect(ctx.foldState(f.slug).decisions).toHaveLength(1)
-    ctx.appendAndProject(f.slug, 'correction', { ref: bad.id, reason: 'wrong' }, { session: 'cli' })
-    expect(ctx.foldState(f.slug).decisions).toHaveLength(0)
-    expect(ctx.foldState(f.slug)).toEqual(foldLines(readFileSync(f.eventsPath, 'utf8').split('\n'), f.slug).state)
-  })
-
-  it('the cache is bounded and a missing log dir never throws', () => {
-    const root = mkdtempSync(join(tmpdir(), 'sofar-foldcache-'))
-    roots.push(root)
-    mkdirSync(join(root, '.sofar', 'initiatives'), { recursive: true })
-    const ctx = createToolContext(root)
-    for (let i = 0; i < 12; i++) {
-      mkdirSync(ctx.initiativeDir(`i${i}`), { recursive: true })
-      ctx.appendAndProject(`i${i}`, 'initiative_created', { slug: `i${i}`, goal: 'g' }, { session: 'cli', source: 'cli', actor: 'human' })
-    }
-    for (let i = 0; i < 12; i++) expect(ctx.foldState(`i${i}`).goal).toBe('g')
-    expect(ctx.foldState('never').slug).toBe('never')
-  })
+  it('concurrent writers leave one valid checkpoint (atomic temp + rename)', async () => {
+    const root = tempRoot()
+    const spec: CorpusSpec = { name: 'ckpt-race', initiatives: 2, writers: 10, events: 6_000, humanShare: 0.3, tail: 1, seed: 5 }
+    writeCorpus(root, spec)
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root })
+    const bundle = join(__dirname, '..', 'dist', 'cli.js')
+    const input = JSON.stringify({ session_id: 'race', hook_event_name: 'SessionStart', source: 'startup' })
+    const run = () =>
+      new Promise<void>((resolve, reject) => {
+        const child = spawn(process.execPath, [bundle, 'event', 'session-start'], {
+          cwd: root,
+          env: { ...process.env, SOFAR_CORE: '0', SOFAR_NO_UPDATE_CHECK: '1' },
+          stdio: ['pipe', 'ignore', 'ignore'],
+        })
+        child.on('error', reject)
+        child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`exit ${code}`))))
+        child.stdin.end(input)
+      })
+    await Promise.all(Array.from({ length: 8 }, run))
+    const dir = join(stateBase(), 'folds', cloneKey(root))
+    expect(readdirSync(dir).filter((f) => f.startsWith(BOUND))).toEqual([`${BOUND}.ts.json`])
+    expect(resumed(root, BOUND)).toEqual(refold(root, BOUND))
+  }, 120_000)
 })

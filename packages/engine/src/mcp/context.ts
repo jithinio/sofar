@@ -17,6 +17,7 @@ import {
   decodeLines,
   emptyState,
   finalizeFold,
+  finalizeFrom,
   replayDecoded,
   type FoldCheckpoint,
   type InitiativeState,
@@ -26,6 +27,8 @@ import { ensureIndexDir } from '../core/index-store'
 import { QUICK_LANE } from '../core/lane'
 import { initiativeSlugs } from '../core/listing'
 import { withFileLock } from '../core/lock'
+import { EdgeAccumulator } from '../core/adjacency'
+import { extendPrefix, prefixOf, resumeFoldCheckpoint, saveFoldCheckpoint } from '../core/fold-checkpoint'
 import { cachedRegistrationIn } from '../core/registrations'
 import { regenerateProjections } from '../projections/generator'
 
@@ -512,9 +515,20 @@ export function createToolContext(rootDir: string): ToolContext {
   // (appendAndProject below). Every hit returns finalizeFold's clone, so a
   // caller may mutate what it gets. Bounded: the newest few slugs only.
   const FOLD_CACHE_MAX = 8
-  const folds = new Map<string, { size: number; mtimeMs: number; cp: FoldCheckpoint }>()
+  // An entry resumed from an edge-free checkpoint (01M39ED9) carries `acc`: its
+  // cp then holds only the edges added SINCE, which finalizeEntry folds into
+  // acc exactly once. An entry without acc holds every edge, as before.
+  type FoldEntry = { size: number; mtimeMs: number; cp: FoldCheckpoint; acc?: EdgeAccumulator }
+  const folds = new Map<string, FoldEntry>()
 
-  function rememberFold(slug: string, entry: { size: number; mtimeMs: number; cp: FoldCheckpoint }): void {
+  function finalizeEntry(entry: FoldEntry): InitiativeState {
+    if (entry.acc === undefined) return finalizeFold(entry.cp).state
+    entry.acc.add(entry.cp.edges)
+    entry.cp.edges = []
+    return finalizeFrom(entry.cp, entry.acc).state
+  }
+
+  function rememberFold(slug: string, entry: FoldEntry): void {
     folds.delete(slug)
     folds.set(slug, entry)
     while (folds.size > FOLD_CACHE_MAX) folds.delete(folds.keys().next().value as string)
@@ -531,12 +545,35 @@ export function createToolContext(rootDir: string): ToolContext {
         const st = statSync(logPath)
         const hit = folds.get(slug)
         if (hit !== undefined && hit.size === st.size && hit.mtimeMs === st.mtimeMs) {
-          state = finalizeFold(hit.cp).state
+          state = finalizeEntry(hit)
         } else {
-          const lines = readFileSync(logPath, 'utf8').split('\n')
-          const cp = replayDecoded(decodeLines(lines), slug, countLines(lines))
-          rememberFold(slug, { size: st.size, mtimeMs: st.mtimeMs, cp })
-          state = finalizeFold(cp).state
+          // Another process's replay, retained on disk (01M39ED9): only the
+          // tail is applied. Anything it cannot prove exact is null: refold.
+          const resumed = resumeFoldCheckpoint(rootDir, slug, logPath)
+          if (resumed !== null) {
+            const entry: FoldEntry = { size: resumed.size, mtimeMs: resumed.mtimeMs, cp: resumed.cp, acc: resumed.acc }
+            rememberFold(slug, entry)
+            state = finalizeEntry(entry)
+            if (resumed.rewrite) {
+              const prefix = extendPrefix(logPath, resumed.prefix, resumed.size, entry.cp.lineCount)
+              if (prefix !== null) saveFoldCheckpoint(rootDir, slug, entry.cp, entry.acc!, prefix)
+            }
+          } else {
+            const buf = readFileSync(logPath)
+            const lines = buf.toString('utf8').split('\n')
+            const cp = replayDecoded(decodeLines(lines), slug, countLines(lines))
+            rememberFold(slug, { size: st.size, mtimeMs: st.mtimeMs, cp })
+            state = finalizeFold(cp).state
+            // The whole log was read at this stat: checkpoint it for the next
+            // process, unless it moved while it was read.
+            const prefix = prefixOf(buf, cp.lineCount)
+            const after = statSync(logPath)
+            if (prefix !== null && buf.length === st.size && after.size === st.size && after.mtimeMs === st.mtimeMs) {
+              const acc = new EdgeAccumulator()
+              acc.add(cp.edges)
+              saveFoldCheckpoint(rootDir, slug, cp, acc, prefix)
+            }
+          }
         }
       } catch (err) {
         throw new ToolError('io_error', `failed to read ${logPath}: ${errMessage(err)}`)
@@ -618,7 +655,7 @@ export function createToolContext(rootDir: string): ToolContext {
         const line = serializeEvent(event)
         const st = statSync(logPath)
         if (st.size === hit.size + Buffer.byteLength(line, 'utf8') + 1 && appendToCheckpoint(hit.cp, line) !== null) {
-          rememberFold(slug, { size: st.size, mtimeMs: st.mtimeMs, cp: hit.cp })
+          rememberFold(slug, { ...hit, size: st.size, mtimeMs: st.mtimeMs })
         } else {
           folds.delete(slug)
         }
