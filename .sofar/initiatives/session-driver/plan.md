@@ -35,4 +35,4 @@ Progress: 11/11 tasks done (100%)
 - [x] 4.1 Drive one real initiative end to end unattended; publish sessions, handoffs by reason, tokens versus the manual baseline, and operator minutes
 - [x] 4.2 Release sofar.sh with sofar drive; SPEC §Acceptance criteria extended for the driver
 
-Next action: Run the close review: `sofar review session-driver --final`, work the packet (note it warns its commit walk hit the 200-commit ceiling, so review in smaller ranges with a watermark part-way rather than trusting the listed range to be complete), record the verdict, then `sofar close session-driver`. Weigh two open items in it: the record-index reach flake, which needs its own initiative, and D14's deferred budgets-in-the-record.
+Next action: Run the session-driver close review in smaller commit ranges; include the --resume liveness notes; record the verdict, close.

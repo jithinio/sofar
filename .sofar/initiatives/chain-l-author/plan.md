@@ -7,3 +7,5 @@ Goal: (goal not recorded yet — set one with sofar_update_plan)
 Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
+
+Next action: None from this session. The operator decides whether the stray events matter for blindness.

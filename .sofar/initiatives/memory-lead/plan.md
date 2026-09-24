@@ -4,7 +4,7 @@
 
 Goal: Make sofar measurably the best work memory for AI coding agents: never below any agent's native memory on any rep, bookkeeping at or below native overhead, and a lead of at least 25-30% (target 2x) on held-out long-horizon, cross-agent, decision-churn work. The lead must survive a native memory that syncs across machines and teammates, so it may never rest on native memory being machine-local.
 
-Progress: 17/24 tasks done (70%)
+Progress: 19/24 tasks done (79%)
 
 ## Phase 1 — Wave A: parity at native overhead (ships in 0.33.0-rc.2) [done] — 4/4 done
 
@@ -26,25 +26,25 @@ Progress: 17/24 tasks done (70%)
 - [x] 2.9 rust-core mirrors 2.8 (merge-stable references): the fold resolves supersedes and verification decision by stamped event id when present, with conformance parity, as 2.5 does for 2.1
 - [x] 2.10 rust-core mirrors 2.4 (memory-lead D14): memory_promoted origin (schema fingerprint), MemoryState.origin in the fold, and the digest memory mark, with conformance parity
 
-## Phase 3 — Wave C: scale (Rust core, cloud) [active] — 1/4 done
+## Phase 3 — Wave C: scale (Rust core, cloud) [active] — 2/4 done
 
 - [x] 3.1 Local BM25 index over decisions, rejected approaches and notes, served at prompt time; no embeddings without a Decision. TypeScript reference first; rust-core mirrors it (3.4)
 - [ ] 3.2 [rust-core lane — reassigned 2026-09-22 by the operator: that lane owns the hot path and the perf harness; no latency work while the smokes run] Read-time hook under 20 ms at 50+ initiatives and team100 scale (Rust core)
 - [ ] 3.3 [parked until the operator rules on the no-sync-service guard-rail] Team decision sync with merge semantics and conflict surfacing through sofar-cloud (fold snapshot contract)
-- [ ] 3.4 rust-core mirrors 3.1 (the BM25 index and its prompt-time line) with conformance parity, as 2.5 does for 2.1
+- [x] 3.4 rust-core mirrors 3.1 (the BM25 index and its prompt-time line) with conformance parity, as 2.5 does for 2.1
 
 ## Phase 4 — Moat against a cloud-synced native memory [pending] — 1/2 done
 
 - [x] 4.1 Moat spec: assume Claude Code (and others) ship shared cloud memory; list the advantages that survive: vendor-neutral cross-agent memory, branch- and PR-aware records that merge with the code, typed decisions with supersession and provenance to commits and tests, executable enforcement, deterministic zero-model capture, team governance of rules. Each maps to a benchmark claim with a falsifier.
 - [ ] 4.2 Retire any public claim or roadmap item whose advantage rests only on native memory being machine-local (blocked)
 
-## Phase 5 — Proof: held-out Chain L (round 3) [pending] — 1/4 done
+## Phase 5 — Proof: held-out Chain L (round 3) [pending] — 2/4 done
 
 - [x] 5.1 Chain L design and budget: ~30 sessions, ~24 planted decisions (guarded, superseded once or twice, why-only), segments across Claude, Codex, fresh clone, concurrent worktrees and a forced compaction. Arms MUST include a native-memory-SYNCED arm (memory dir carried across machines, clones and teammates; Codex idle gate 0) standing in for future cloud memory. Scoped to the D17 cap before authoring.
-- [ ] 5.2 Author Chain L, hidden tests and a sealed reference by an author blind to fix-building; mutation-validate every planted decision — waits for a blind author in a fresh session (operator, 2026-09-22) (active)
-- [ ] 5.3 Round-3 pre-registration frozen with lead predictions (≥25–30%, target 2×) against the synced native arm
+- [x] 5.2 Author Chain L, hidden tests and a sealed reference by an author blind to fix-building; mutation-validate every planted decision — waits for a blind author in a fresh session (operator, 2026-09-22)
+- [ ] 5.3 Round-3 pre-registration frozen with lead predictions (≥25–30%, target 2×) against the synced native arm (active)
 - [ ] 5.4 Run round 3, report per claim with per-rep values; publish only what clears the pre-registered margin
 
 Active phase: Phase 3 — Wave C: scale (Rust core, cloud)
-Next action: After host quiet (~04:30 IST), run the full npm test in a clean worktree, then hand the 3.1 commit to sofar-c3 to push.
+Next action: Build the H5 runner side (K=15 by runner turn count) and H1–H6; operator rules the two open flags.
 Blocked on: task 4.2: Repo audited, nothing to retire. The strategy vault (product doc/) is outside the repo boundary (repo.md), so the operator applies MOAT.md R1–R5 there.

@@ -2,4 +2,4 @@
 
 # Decisions: chain-l-author
 
-(no decisions logged yet)
+- 2026-09-23T16:45:50.288Z — rule: **Never give a blind author chain-l-author; start each blind author on a fresh record.** — chose **Retire chain-l-author for blind use (operator, 2026-09-23). It stays as the history of memory-lead 5.2's sealed authoring, but no blind author reads or writes it again. main's copy, which holds sofar-ec's misrouted hook events (binding-follows-session note 01M37HYJ), is never merged into the chain-l branch.** over Reusing chain-l-author for a later blind author; rewriting the log to drop the misrouted events (the log is never rewritten) because After a re-home, sofar-ec's hook events kept landing here, and they carry fix-building context. 5.2's author worked from the chain-l worktree's clean copy and has finished, so the seal is unaffected. A future blind author needs a record nobody else has touched.

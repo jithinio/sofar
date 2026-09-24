@@ -8,4 +8,4 @@ Progress: 0/0 tasks done (0%)
 
 (no plan recorded yet — call sofar_update_plan)
 
-Next action: After cycle-L11b, verify 3ee5e98 in a clean worktree including the D18 bench, then release the held push.
+Next action: Confirm sofar-ec re-homed to chain-l-author.
