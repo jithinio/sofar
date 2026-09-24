@@ -819,6 +819,40 @@ describe('the permission surface (2.4, D8) — a run property, a session artifac
     expect(progress.some((l) => l.includes("keeping run") && l.includes('acceptEdits'))).toBe(true)
   })
 
+  it('a resumed run whose surface left model and effort open launches with neither, not the new flags', async () => {
+    const root = repo('surface-resume-model')
+    const open = '01JZ8B3V0N5B4W8XK2M9QF7TSF'
+    appendEvent(
+      logPath(root),
+      makeEvent({
+        initiative: 'demo',
+        session: 'cli',
+        type: 'run_started',
+        payload: { run: open, adapter: 'fake', policy: 'task', surface: SURFACE },
+        source: 'cli',
+        actor: 'human',
+      }),
+    )
+    const adapter = new FakeAdapter([worker(root, 'S1')])
+    const progress: string[] = []
+    // As the CLI passes them: the flags ride both the surface and the options.
+    await drive(root, 'demo', {
+      adapter,
+      resume: true,
+      model: 'flag-model',
+      effort: 'low',
+      surface: { ...SURFACE, model: 'flag-model', effort: 'low' },
+      maxSessions: 1,
+      onProgress: (line) => progress.push(line),
+    })
+
+    // D8: the driver said the recorded surface wins, and the record names no
+    // model or effort — so no launch may carry one.
+    expect(progress.some((l) => l.includes('keeping run'))).toBe(true)
+    expect(adapter.sessions[0]?.request.model).toBeUndefined()
+    expect(adapter.sessions[0]?.request.effort).toBeUndefined()
+  })
+
   it('takes model and effort from the surface, so a resumed run is not half one model', async () => {
     const root = repo('surface-routing')
     const adapter = new FakeAdapter([worker(root, 'S1')])

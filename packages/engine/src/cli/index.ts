@@ -562,7 +562,7 @@ program
     '--context-window <tokens>',
     "the window that percentage is OF; REQUIRED for --policy threshold — state your model's, sofar never guesses it",
   )
-  .option('--max-sessions <n>', 'stop before launching more than n sessions in this run')
+  .option('--max-sessions <n>', 'stop before launching more than n sessions; bounds ONE driver, not the run — a resumed run counts only its recorded handoffs')
   .option('--max-stalls <n>', 'stop after n consecutive sessions with no task change (default 2)')
   .option('--cost-cap <usd>', 'stop before the next launch once the adapter has reported this much cost')
   .option(

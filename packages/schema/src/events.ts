@@ -432,8 +432,9 @@ export type RunPolicy = (typeof RUN_POLICIES)[number]
 
 /**
  * Why a driven session ended and the next one starts. `stall` is a session
- * that ended with no task change; `needs_user` is a write-back whose next
- * action names a decision only the operator can take; `verify_failed`
+ * that ended with no task change; `needs_user` is the task the session was
+ * launched for, left in status `blocked` — read from the fold, never from the
+ * write-back's prose (session-driver D5); `verify_failed`
  * (r1-fixes 3.1, D19) is a task the session marked done that the acceptance
  * command then rejected — the driver reopened it, and the next session gets
  * the failure.

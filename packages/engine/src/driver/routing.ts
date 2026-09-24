@@ -179,6 +179,8 @@ export function previewRoutes(tasks: readonly RoutableTask[], options: RoutingOp
     for (const line of inertOptions(entry.adapter.capabilities, {
       ...(options.surface !== undefined ? { surface: options.surface } : {}),
       ...(options.costCapUsd !== undefined ? { costCapUsd: options.costCapUsd } : {}),
+      ...(options.model !== undefined ? { model: options.model } : {}),
+      ...(options.effort !== undefined ? { effort: options.effort } : {}),
     })) {
       lines.push(`task ${entry.tasks.join(', ')} routed to ${name}: ${line}`)
     }
