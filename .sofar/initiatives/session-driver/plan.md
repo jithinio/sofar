@@ -35,4 +35,4 @@ Progress: 11/11 tasks done (100%)
 - [x] 4.1 Drive one real initiative end to end unattended; publish sessions, handoffs by reason, tokens versus the manual baseline, and operator minutes
 - [x] 4.2 Release sofar.sh with sofar drive; SPEC §Acceptance criteria extended for the driver
 
-Next action: Run the session-driver close review in smaller commit ranges; include the --resume liveness notes; record the verdict, close.
+Next action: Fix the D8 resume defect from review 01M3AE9D plus the --max-sessions help text, then close.
