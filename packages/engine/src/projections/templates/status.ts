@@ -490,8 +490,18 @@ function taskTestsLine(state: InitiativeState, task: TaskState): string | null {
 export function sessionIdLine(sessionId: string | null | undefined): string | null {
   const id = sessionId?.trim() ?? ''
   if (id.length === 0) return null
-  return `Session: ${clip(id, SESSION_ID_BUDGET)} — adopted on Claude Code; else pass to sofar_start_session.`
+  return `Session: ${clip(id, SESSION_ID_BUDGET)}${SESSION_ADOPT_TAIL}`
 }
+
+/** The Session line's tail as every host but Codex reads it. */
+export const SESSION_ADOPT_TAIL = ' — adopted on Claude Code; else pass to sofar_start_session.'
+
+/**
+ * The tail a Codex session reads instead (agents-parity 3.3): the id is its own
+ * thread id, and a CLI append joins it. No longer than SESSION_ADOPT_TAIL, so
+ * the swap can never push a digest past its budget.
+ */
+export const CODEX_SESSION_TAIL = ' — Codex thread: sofar_start_session takes it; appends join.'
 
 export function renderStatus(state: InitiativeState, options?: StatusOptions): string {
   // Composition (memory-lead 1.3, D4), replacing r1-fixes D12's volatility

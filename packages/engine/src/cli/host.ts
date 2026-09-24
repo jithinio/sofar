@@ -1,4 +1,5 @@
 import { resolve } from 'node:path'
+import { CODEX_SESSION_TAIL, SESSION_ADOPT_TAIL } from '../projections/templates/status'
 import type { HookResult } from './event'
 
 /**
@@ -197,9 +198,27 @@ const CODEX_CONTEXT_EVENTS: Readonly<Partial<Record<HookName, string>>> = {
 export function toCodex(name: HookName, result: HookResult): HookResult {
   const event = CODEX_CONTEXT_EVENTS[name]
   if (event === undefined) return result
-  const context = contextOf(name, result.stdout)
-  if (context === null) return { ...result, stdout: '' }
+  const raw = contextOf(name, result.stdout)
+  if (raw === null) return { ...result, stdout: '' }
+  const context = name === 'session-start' ? codexSessionLine(raw) : raw
   return { ...result, stdout: json({ hookSpecificOutput: { hookEventName: event, additionalContext: context } }) }
+}
+
+/**
+ * The digest's Session line as a Codex session reads it (agents-parity 3.3).
+ * The shared tail says "adopted on Claude Code", which live 3.2 flagged in a
+ * Codex session. Only a whole `Session: …` line ending in that tail changes,
+ * and the Codex tail is never longer, so the digest's budget still holds.
+ */
+function codexSessionLine(context: string): string {
+  return context
+    .split('\n')
+    .map((line) =>
+      line.startsWith('Session: ') && line.endsWith(SESSION_ADOPT_TAIL)
+        ? `${line.slice(0, -SESSION_ADOPT_TAIL.length)}${CODEX_SESSION_TAIL}`
+        : line,
+    )
+    .join('\n')
 }
 
 /**
