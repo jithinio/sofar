@@ -271,19 +271,9 @@ export const GRAPH_RESULT_CAP = 20
  * SessionStart injection pin depends on.
  */
 export function taskFilesFromEdges(edges: readonly GraphEdge[]): Record<string, string[]> {
-  const out: Record<string, string[]> = {}
-  for (const edge of edges) {
-    if (edge.kind !== 'worked') continue
-    const taskId = taskIdOf(edge.from)
-    const path = pathOfNodeId(edge.to)
-    const files = out[taskId] ?? []
-    const existing = files.indexOf(path)
-    if (existing !== -1) files.splice(existing, 1)
-    files.unshift(path)
-    if (files.length > TASK_FILES_CAP) files.pop()
-    out[taskId] = files
-  }
-  return out
+  const acc = new EdgeAccumulator()
+  acc.add(edges)
+  return acc.taskFiles()
 }
 
 /**
@@ -334,18 +324,15 @@ function outcomeOf(attrs: NonNullable<GraphEdge['attrs']>): TestOutcome | null {
  * carries no outcome fields.
  */
 export function taskTestsFromEdges(edges: readonly GraphEdge[]): Record<string, TaskTestOutcome> {
-  const out: Record<string, TaskTestOutcome> = {}
-  for (const edge of edges) {
-    if (edge.kind !== 'tested' || edge.attrs === undefined) continue
-    const outcome = outcomeOf(edge.attrs)
-    if (outcome === null) continue
-    out[taskIdOf(edge.from)] = { ...outcome, ts: edge.ts ?? '', event_id: edge.event_id ?? '' }
-  }
-  return out
+  const acc = new EdgeAccumulator()
+  acc.add(edges)
+  return acc.taskTests()
 }
 
-interface ActivityAcc {
+/** One session's running activity: the left fold activityFromEdges finishes. */
+export interface ActivityAcc {
   files: string[]
+  /** Every path this session touched, past the cap too: a re-touch never counts twice. */
   seen: Set<string>
   filesOverflow: number
   commands: number
@@ -356,6 +343,123 @@ interface ActivityAcc {
 }
 
 /**
+ * The three finalize reducers (task_files, task_tests, per-session activity)
+ * as ONE incremental left fold over edges in replay order (rust-core 4.4,
+ * 01M39ED9). Each is a pure left fold, so adding a log's edges in batches
+ * reaches the state one pass over all of them reaches. That is what lets a
+ * fold checkpoint keep these accumulators instead of the edges themselves.
+ * taskFilesFromEdges, taskTestsFromEdges and activityFromEdges are this
+ * class over one batch: there is a single definition.
+ */
+export class EdgeAccumulator {
+  /** Task id → paths, most-recent-first, capped (speed T4). */
+  readonly files: Record<string, string[]>
+  /** Task id → latest test outcome (D24). */
+  readonly tests: Record<string, TaskTestOutcome>
+  /** Session id → running activity, in first-seen order. */
+  readonly sessions: Map<string, ActivityAcc>
+
+  constructor(
+    files: Record<string, string[]> = {},
+    tests: Record<string, TaskTestOutcome> = {},
+    sessions: Map<string, ActivityAcc> = new Map(),
+  ) {
+    this.files = files
+    this.tests = tests
+    this.sessions = sessions
+  }
+
+  add(edges: readonly GraphEdge[]): void {
+    for (const edge of edges) {
+      switch (edge.kind) {
+        case 'worked': {
+          const taskId = taskIdOf(edge.from)
+          const path = pathOfNodeId(edge.to)
+          const files = this.files[taskId] ?? []
+          const existing = files.indexOf(path)
+          if (existing !== -1) files.splice(existing, 1)
+          files.unshift(path)
+          if (files.length > TASK_FILES_CAP) files.pop()
+          this.files[taskId] = files
+          break
+        }
+        case 'tested': {
+          if (edge.attrs === undefined) break
+          const outcome = outcomeOf(edge.attrs)
+          if (outcome === null) break
+          this.tests[taskIdOf(edge.from)] = { ...outcome, ts: edge.ts ?? '', event_id: edge.event_id ?? '' }
+          break
+        }
+        case 'touched': {
+          const a = this.session(edge.from)
+          const path = pathOfNodeId(edge.to)
+          if (a.seen.has(path)) break // dedupe — first touch wins the slot
+          a.seen.add(path)
+          if (a.files.length < ACTIVITY_LIST_CAP) a.files.push(path)
+          else a.filesOverflow += 1
+          break
+        }
+        case 'ran': {
+          const a = this.session(edge.from)
+          a.commands += 1
+          if (edge.attrs !== undefined) {
+            if (edge.attrs.ok === false) a.failed += 1
+            const outcome = outcomeOf(edge.attrs)
+            if (outcome !== null) a.lastTest = outcome
+          }
+          break
+        }
+        case 'changed': {
+          const a = this.session(edge.from)
+          if (a.taskChanges.length < ACTIVITY_LIST_CAP) {
+            a.taskChanges.push(`${taskIdOf(edge.to)} → ${edge.attrs?.status ?? ''}`)
+          } else a.taskChangesOverflow += 1
+          break
+        }
+      }
+    }
+  }
+
+  private session(sessionNode: string): ActivityAcc {
+    const id = sessionNode.slice('session:'.length)
+    let a = this.sessions.get(id)
+    if (a === undefined) {
+      a = { files: [], seen: new Set(), filesOverflow: 0, commands: 0, failed: 0, taskChanges: [], taskChangesOverflow: 0 }
+      this.sessions.set(id, a)
+    }
+    return a
+  }
+
+  /** task_files as finalize writes it: a copy, so a later add never aliases a finished state. */
+  taskFiles(): Record<string, string[]> {
+    const out: Record<string, string[]> = {}
+    for (const [taskId, files] of Object.entries(this.files)) out[taskId] = [...files]
+    return out
+  }
+
+  taskTests(): Record<string, TaskTestOutcome> {
+    const out: Record<string, TaskTestOutcome> = {}
+    for (const [taskId, t] of Object.entries(this.tests)) out[taskId] = { ...t }
+    return out
+  }
+
+  activity(): Map<string, SessionActivity> {
+    const out = new Map<string, SessionActivity>()
+    for (const [id, a] of this.sessions) {
+      out.set(id, {
+        files: a.filesOverflow > 0 ? [...a.files, `+${a.filesOverflow} more`] : [...a.files],
+        commands: a.commands,
+        ...(a.failed > 0 ? { failed: a.failed } : {}),
+        ...(a.lastTest !== undefined ? { last_test: { ...a.lastTest } } : {}),
+        task_changes:
+          a.taskChangesOverflow > 0 ? [...a.taskChanges, `+${a.taskChangesOverflow} more`] : [...a.taskChanges],
+      })
+    }
+    return out
+  }
+}
+
+/**
  * Activity per session id, in edge order. The caller decides ATTACHMENT: the
  * fold attaches to sessions registered in THAT log only (the no-stub rule,
  * BD21/BD44), a per-log fact the repo-wide graph deliberately does not carry
@@ -363,58 +467,7 @@ interface ActivityAcc {
  * join.
  */
 export function activityFromEdges(edges: readonly GraphEdge[]): Map<string, SessionActivity> {
-  const acc = new Map<string, ActivityAcc>()
-  const of = (sessionNode: string): ActivityAcc => {
-    const id = sessionNode.slice('session:'.length)
-    let a = acc.get(id)
-    if (a === undefined) {
-      a = { files: [], seen: new Set(), filesOverflow: 0, commands: 0, failed: 0, taskChanges: [], taskChangesOverflow: 0 }
-      acc.set(id, a)
-    }
-    return a
-  }
-
-  for (const edge of edges) {
-    switch (edge.kind) {
-      case 'touched': {
-        const a = of(edge.from)
-        const path = pathOfNodeId(edge.to)
-        if (a.seen.has(path)) break // dedupe — first touch wins the slot
-        a.seen.add(path)
-        if (a.files.length < ACTIVITY_LIST_CAP) a.files.push(path)
-        else a.filesOverflow += 1
-        break
-      }
-      case 'ran': {
-        const a = of(edge.from)
-        a.commands += 1
-        if (edge.attrs !== undefined) {
-          if (edge.attrs.ok === false) a.failed += 1
-          const outcome = outcomeOf(edge.attrs)
-          if (outcome !== null) a.lastTest = outcome
-        }
-        break
-      }
-      case 'changed': {
-        const a = of(edge.from)
-        if (a.taskChanges.length < ACTIVITY_LIST_CAP) {
-          a.taskChanges.push(`${taskIdOf(edge.to)} → ${edge.attrs?.status ?? ''}`)
-        } else a.taskChangesOverflow += 1
-        break
-      }
-    }
-  }
-
-  const out = new Map<string, SessionActivity>()
-  for (const [id, a] of acc) {
-    out.set(id, {
-      files: a.filesOverflow > 0 ? [...a.files, `+${a.filesOverflow} more`] : a.files,
-      commands: a.commands,
-      ...(a.failed > 0 ? { failed: a.failed } : {}),
-      ...(a.lastTest !== undefined ? { last_test: a.lastTest } : {}),
-      task_changes:
-        a.taskChangesOverflow > 0 ? [...a.taskChanges, `+${a.taskChangesOverflow} more`] : a.taskChanges,
-    })
-  }
-  return out
+  const acc = new EdgeAccumulator()
+  acc.add(edges)
+  return acc.activity()
 }
