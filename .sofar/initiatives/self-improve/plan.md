@@ -36,7 +36,7 @@ Progress: 15/16 tasks done (93%)
 - [x] 4.1 Separate development feedback (tuning chain) from release evaluation (held-out chain); a held-out workload whose failures inform any fix is retired, and a fresh held-out chain is authored per release
 - [x] 4.2 Gate: gain on unseen work NET of the entire improvement cost, lead margin over the best current competitor per bench-refresh D19, at least 3 reps
 - [x] 4.3 Public standing snapshot (downloads, stars, listings) reported separately and never used as a technical gate
-- [ ] 4.4 Expand autonomy, including any in-product local adaptation, only after 3 consecutive cycles beat the direct-fix baseline on unseen work
+- [ ] 4.4 Expand autonomy, including any in-product local adaptation, only after 3 consecutive cycles beat the direct-fix baseline on unseen work (blocked)
 
 ## Phase 5 — Evaluator harness hygiene (the inherited round-1 losses) [done] — 2/2 done
 
@@ -45,4 +45,5 @@ Progress: 15/16 tasks done (93%)
 - [x] 3.5 Evaluator sweeps a cell's listening strays after every session and at run end, the way round 2's runner does (lib/strays.ts killListeningStrays, from round-1 loss row L23): processes whose cwd is inside the cell and hold a listening socket, killed by exact PID and recorded in the result, never by pattern — cycle-L11b left 18 orphans holding 8 ports across all three eval cells
 - [x] 3.6 Close the inherited round-1 losses that reach the GUARD column in the evaluator's OWN code, never by moving the pin (D21): eval cells read-deny every sibling run as fix cells already do (L25), a cell's shell PATH is pinned so a Bash `sofar` call cannot reach the global install (L21, round 2's ZDOTDIR), an agent stopped from outside is distinguishable from one that finished (L24, the pinned agents.ts has no stoppedFromOutside), and a run refuses or marks itself invalid when the host slept during it (L22). RECORD THE REGIME PER SESSION, not just the pin: the agent's system-prompt hash and its steer flags, because neither a version pin nor a frozen binary fixes the prompt — round 1 saw the auto_mode steer ON 2.1.273 cells that tonight's 30 lacked, and two sessions on one pinned 2.1.278 thirty minutes apart had different prompt hashes (note 01M35N82X0). Today's regime is handoff-bench c628b557fd8f43ba6ec73f6ceffb04cb2588400c, pin hash 3b02d4088a6b: when the pin moves, cycles either side are different regimes and guard numbers do not cross that boundary. Full enumeration against L01–L28 in note 01M35MJ0B7
 
-Next action: Operator: run 3 evaluator cycles at db77aad+ for 4.4.
+Next action: After round 2 finishes, the operator runs 4.4's evaluator cycles.
+Blocked on: task 4.4: Waits for round 2 to finish (operator ruling). Then the operator runs at least 3 consecutive fix cycles at db77aad or later, each beating the equal-budget direct-fix baseline on unseen work (D1).
