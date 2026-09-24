@@ -959,7 +959,9 @@ mod neighbours_cache_tests {
 
     #[test]
     fn a_quiet_record_never_opens_graph_json() {
-        use std::os::unix::fs::PermissionsExt as _;
+        // Portable (no chmod): graph.json becomes same-size garbage with its
+        // exact mtime restored, so its stat key is unchanged and only a READ
+        // could notice — which would answer wrongly or rebuild and rewrite it.
         let layout = real_record();
         let slug = crate::layout::initiative_slugs(&layout)
             .into_iter()
@@ -967,13 +969,25 @@ mod neighbours_cache_tests {
             .unwrap();
         let want = neighbour_overlaps(&layout, &slug);
         let graph = layout.index_dir().join(FILES_FILE);
+        let real = std::fs::read(&graph).unwrap();
+        let mtime = std::fs::metadata(&graph).unwrap().modified().unwrap();
         let before = log_stat(&graph);
-        std::fs::set_permissions(&graph, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let garbage = vec![b'x'; real.len()];
+        let restamp = |bytes: &[u8]| {
+            std::fs::write(&graph, bytes).unwrap();
+            let file = std::fs::File::options().write(true).open(&graph).unwrap();
+            file.set_modified(mtime).unwrap();
+        };
+        restamp(&garbage);
+        assert_eq!(log_stat(&graph), before, "the stat key must be unchanged");
         let got = neighbour_overlaps(&layout, &slug);
-        let after = log_stat(&graph);
-        std::fs::set_permissions(&graph, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let after = std::fs::read(&graph).unwrap();
+        restamp(&real);
         assert_eq!(got, want);
-        assert_eq!(after, before, "graph.json was rewritten: the full path ran");
+        assert!(
+            after == garbage,
+            "graph.json was rewritten: the full path ran"
+        );
     }
 
     #[test]
