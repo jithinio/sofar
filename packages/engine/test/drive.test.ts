@@ -853,6 +853,18 @@ describe('the permission surface (2.4, D8) — a run property, a session artifac
     expect(adapter.sessions[0]?.request.effort).toBeUndefined()
   })
 
+  it('a fresh run records its model and effort on the surface, and refuses them with no surface', async () => {
+    const root = repo('surface-fold-model')
+    const adapter = new FakeAdapter([worker(root, 'S1')])
+    await drive(root, 'demo', { adapter, maxSessions: 1, model: 'flag-model', effort: 'low', surface: SURFACE })
+    expect(state(root).runs.at(-1)?.surface).toEqual({ ...SURFACE, model: 'flag-model', effort: 'low' })
+    expect(adapter.sessions[0]?.request.model).toBe('flag-model')
+
+    const bare = repo('surface-fold-refused')
+    await expect(drive(bare, 'demo', { adapter: new FakeAdapter([worker(bare, 'S1')]), model: 'flag-model' })).rejects.toThrow(/recorded on the run surface/)
+    expect(readTypes(bare)).not.toContain('run_started')
+  })
+
   it('a resumed run that pinned nothing stays ambient, not the new driver flags', async () => {
     const root = repo('surface-resume-ambient')
     const open = '01JZ8B3V0N5B4W8XK2M9QF7TSG'

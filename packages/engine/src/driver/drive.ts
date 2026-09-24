@@ -290,10 +290,11 @@ export interface DriveOptions {
   /** Directory every session is launched in; default the repo root (D6). */
   cwd?: string
   /**
-   * Routing hints for the whole run. A `surface` carrying its own model/effort
-   * wins over these — on a resumed run those are the values the run recorded,
-   * and one run must not be half one model. Both outrank a task's own `route`
-   * (3.2, D10): what the run states, the task cannot take back.
+   * Routing hints for the whole run. A fresh run folds them into `surface`
+   * (which must be given) where it leaves them open, so run_started records
+   * them; a resumed run ignores them and keeps what it recorded — one run
+   * must not be half one model (D8). Both outrank a task's own `route` (3.2,
+   * D10): what the run states, the task cannot take back.
    */
   model?: string
   effort?: string
@@ -555,6 +556,23 @@ async function driveHolding(
   const before0 = ctx.foldState(initiative)
   const last = latestRun(before0)
   const resuming = last !== undefined && last.stopped === undefined
+  // A fresh run's model and effort are part of its surface, so they are
+  // recorded in run_started and a resume can keep them (D8) — as the CLI's
+  // buildSurface already folds them. With no surface to carry them they would
+  // launch a model the record never names, so that is refused up front.
+  if (!resuming && (options.model !== undefined || options.effort !== undefined)) {
+    if (surface === undefined) {
+      throw new ToolError(
+        'invalid_input',
+        'sofar drive: model and effort are recorded on the run surface — pass a surface (buildSurface) with them, or neither',
+      )
+    }
+    surface = {
+      ...surface,
+      ...(surface.model === undefined && options.model !== undefined ? { model: options.model } : {}),
+      ...(surface.effort === undefined && options.effort !== undefined ? { effort: options.effort } : {}),
+    }
+  }
   let priorSessions = 0
   let maxSessions = options.maxSessions
   // Progress lines held until the run is CERTAIN to start. Everything below
