@@ -10,7 +10,10 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use crate::git::current_branch;
+use crate::atomic::write_file_atomic;
+use crate::git::{current_branch, head_sha};
+use crate::json::{self, Json, Object};
+use crate::layout::Layout;
 use crate::text::{is_js_whitespace, js_trim};
 
 pub const TRAILER_KEY: &str = "Sofar-Initiative";
@@ -198,6 +201,110 @@ pub fn parse_attribution(out: &str) -> Vec<CommitAttribution> {
         });
     }
     commits
+}
+
+pub const ATTRIBUTION_CACHE_VERSION: f64 = 1.0;
+const ATTRIBUTION_FILE: &str = "attribution.json";
+
+/// `cachedAttribution` (rust-core 4.4, L1): the `SessionStart` walk keyed by
+/// the FULL sha HEAD names plus the bound, in `.sofar/.index/attribution.json`
+/// — derived only. Any mismatch, a corrupt file or a mis-shaped one re-walks
+/// and rewrites; the walk names the sha as its rev, so what is cached is
+/// exactly the key's history. No sha from files: the plain walk, uncached. A
+/// failed walk is never cached. The file is shared with the TypeScript engine
+/// byte for byte.
+#[must_use]
+pub fn cached_attribution(layout: &Layout, max_count: usize) -> Option<Vec<CommitAttribution>> {
+    let root = &layout.root;
+    let Some(head) = head_sha(root) else {
+        return read_attribution(root, max_count);
+    };
+    let path = layout.index_dir().join(ATTRIBUTION_FILE);
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "walk bounds are small integers, exact in f64"
+    )]
+    let bound = max_count as f64;
+    if let Ok(bytes) = std::fs::read(&path)
+        && let Ok(Json::Obj(raw)) = json::parse_bytes_fast(&bytes)
+        && raw.get("v").and_then(Json::as_f64) == Some(ATTRIBUTION_CACHE_VERSION)
+        && raw.get("head").and_then(Json::as_str) == Some(head.as_str())
+        && raw.get("maxCount").and_then(Json::as_f64) == Some(bound)
+        && let Some(commits) = raw.get("commits").and_then(commits_from_json)
+    {
+        return Some(commits);
+    }
+    let commits = read_attribution_query(
+        root,
+        &AttributionQuery {
+            range: Some(head.clone()),
+            max_count: Some(max_count),
+            first_push_of: None,
+        },
+    )?;
+    let _ = write_attribution(layout, &path, &head, bound, &commits);
+    Some(commits)
+}
+
+/// Trusted only in the shape the walk itself returns (`isCommitList`).
+fn commits_from_json(v: &Json) -> Option<Vec<CommitAttribution>> {
+    let Json::Arr(items) = v else { return None };
+    let mut out = Vec::with_capacity(items.len());
+    for item in items {
+        let o = item.as_obj()?;
+        let sha = o.get("sha")?.as_str().filter(|s| is_full_sha(s))?;
+        let Json::Arr(slugs) = o.get("initiatives")? else {
+            return None;
+        };
+        let initiatives = slugs
+            .iter()
+            .map(|s| s.as_str().filter(|s| is_slug(s)).map(str::to_owned))
+            .collect::<Option<Vec<_>>>()?;
+        let subject = match o.get("subject") {
+            None => None,
+            Some(Json::Str(s)) if !s.is_empty() => Some(s.clone()),
+            Some(_) => return None,
+        };
+        out.push(CommitAttribution {
+            sha: sha.to_owned(),
+            initiatives,
+            subject,
+        });
+    }
+    Some(out)
+}
+
+fn write_attribution(
+    layout: &Layout,
+    path: &Path,
+    head: &str,
+    bound: f64,
+    commits: &[CommitAttribution],
+) -> std::io::Result<()> {
+    layout.ensure_index_dir()?;
+    let list = commits
+        .iter()
+        .map(|c| {
+            let mut o = Object::with_capacity(3);
+            o.insert(
+                "initiatives",
+                Json::Arr(c.initiatives.iter().cloned().map(Json::Str).collect()),
+            );
+            o.insert("sha", Json::Str(c.sha.clone()));
+            if let Some(subject) = &c.subject {
+                o.insert("subject", Json::Str(subject.clone()));
+            }
+            Json::Obj(o)
+        })
+        .collect();
+    let mut o = Object::with_capacity(4);
+    o.insert("commits", Json::Arr(list));
+    o.insert("head", Json::Str(head.to_owned()));
+    o.insert("maxCount", Json::Num(bound));
+    o.insert("v", Json::Num(ATTRIBUTION_CACHE_VERSION));
+    let mut text = json::stringify_canonical(&Json::Obj(o));
+    text.push('\n');
+    write_file_atomic(path, text.as_bytes())
 }
 
 /// `readUnpushed`: shas of `<upstream>..HEAD`, or None when the ref is unanswerable.

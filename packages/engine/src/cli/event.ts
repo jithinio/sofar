@@ -35,7 +35,7 @@ import {
   type InitiativeState,
   type SessionState,
 } from '../core/fold'
-import { commitsByTask, readAttribution, readShippingFrom, type CommitAttribution } from '../core/attribution'
+import { cachedAttribution, commitsByTask, readAttribution, readShippingFrom, type CommitAttribution } from '../core/attribution'
 import { activityEnabled } from '../core/derived'
 import { retireEnabled } from '../core/retire'
 import { applicableChecks, checkFailureLine, checksInForce, isApproved, runChecks, unapprovedLine } from '../core/checks'
@@ -813,8 +813,9 @@ export function handleSessionStart(rootDir: string, input: string, declared?: Ho
     // appended after them, never interleaved.
     // ONE bounded attribution walk (SPEC §Commit attribution, D6) feeds both
     // the shipping notice and the commits-by-task line (r1-fixes 2.5, D24):
-    // the same window, read once, never a second spawn on the hook path.
-    const commits = readAttribution(rootDir, { maxCount: SHIPPING_WINDOW })
+    // the same window, read once, never a second spawn on the hook path —
+    // and none at all while HEAD has not moved (rust-core 4.4, L1).
+    const commits = cachedAttribution(rootDir, ctx.sofarDir, SHIPPING_WINDOW)
     const activity = activityEnabled()
     const notices = [
       recentWorkElsewhereNotice(ctx.sofarDir, slug, via),

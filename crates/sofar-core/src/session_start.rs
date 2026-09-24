@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use crate::attribution::{
-    CommitAttribution, commits_by_task, read_attribution, read_shipping_from,
+    CommitAttribution, cached_attribution, commits_by_task, read_shipping_from,
 };
 use crate::date::{js_date_parse, js_round, now_ms};
 use crate::diagnostics::{RowInput, record_diagnostic};
@@ -453,7 +453,8 @@ pub fn handle_session_start(root: &Path, input: &str) -> CmdResult {
     let scope = refresh_guards(&layout);
     let neighbours = refresh_neighbours(&layout, &slug, &scope);
     let repo_rules = repo_rules(&scope, &slug, retire_enabled());
-    let commits = read_attribution(root, SHIPPING_WINDOW);
+    // None at all while HEAD has not moved (rust-core 4.4, L1).
+    let commits = cached_attribution(&layout, SHIPPING_WINDOW);
     let activity = activity_enabled();
     let notices: Vec<String> = [
         recent_work_elsewhere_notice(&layout, &slug, via, now),

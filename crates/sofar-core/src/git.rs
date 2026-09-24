@@ -96,6 +96,34 @@ pub fn read_ref(dir: &Path, reference: &str) -> Option<String> {
     None
 }
 
+/// `headSha` (rust-core 4.4, L1): the full sha HEAD names, from files — a
+/// detached HEAD's own sha, or the tip of the `refs/heads/` branch it points
+/// at, resolved in the common dir. None for anything else (an unborn branch,
+/// a ref kept outside the files backend); the caller then asks git.
+#[must_use]
+pub fn head_sha(root: &Path) -> Option<String> {
+    let is_lower_hex40 =
+        |s: &str| s.len() == 40 && s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
+    let dir = git_dir(root)?;
+    let head = fs::read_to_string(dir.join("HEAD")).ok()?;
+    let head = js_trim(&head);
+    if is_lower_hex40(head) {
+        return Some(head.to_owned());
+    }
+    // `/^ref:\s*(refs\/heads\/.+)$/` — no `m` flag, so a second line fails it.
+    let reference = head
+        .strip_prefix("ref:")?
+        .trim_start_matches(is_js_whitespace);
+    if !reference.starts_with("refs/heads/")
+        || reference.len() == "refs/heads/".len()
+        || reference.contains(['\n', '\r', '\u{2028}', '\u{2029}'])
+    {
+        return None;
+    }
+    let sha = read_ref(&common_git_dir(root)?, reference)?;
+    is_lower_hex40(&sha).then_some(sha)
+}
+
 /// `GitState` (record-integrity 4.1): derived at render time, never stored.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitState {
@@ -130,6 +158,27 @@ pub fn read_git_state(root: &Path) -> Option<GitState> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn head_sha_is_the_detached_sha_or_the_branch_tip() {
+        let root = crate::testing::scratch_dir("git-head");
+        let git = root.join(".git");
+        fs::create_dir_all(git.join("refs/heads")).unwrap();
+        let sha = "0123456789abcdef0123456789abcdef01234567";
+        fs::write(git.join("HEAD"), "ref: refs/heads/main\n").unwrap();
+        assert_eq!(head_sha(&root), None, "unborn");
+        fs::write(git.join("packed-refs"), format!("{sha} refs/heads/main\n")).unwrap();
+        assert_eq!(head_sha(&root).as_deref(), Some(sha), "packed");
+        let loose = "89abcdef0123456789abcdef0123456789abcdef";
+        fs::write(git.join("refs/heads/main"), format!("{loose}\n")).unwrap();
+        assert_eq!(head_sha(&root).as_deref(), Some(loose), "loose wins");
+        fs::write(git.join("HEAD"), format!("{sha}\n")).unwrap();
+        assert_eq!(head_sha(&root).as_deref(), Some(sha), "detached");
+        fs::write(git.join("HEAD"), sha.to_uppercase()).unwrap();
+        assert_eq!(head_sha(&root), None, "not a sha git writes");
+        fs::write(git.join("HEAD"), "ref: refs/remotes/origin/main\n").unwrap();
+        assert_eq!(head_sha(&root), None, "only refs/heads");
+    }
 
     #[test]
     fn reads_branch_and_refs_from_files() {
