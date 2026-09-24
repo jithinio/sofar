@@ -167,7 +167,7 @@ impl IndexMeta {
 #[must_use]
 pub fn read_index_meta(layout: &Layout, file: &str) -> Option<IndexMeta> {
     let text = fs::read(layout.index_dir().join(file)).ok()?;
-    let Json::Obj(rec) = json::parse(&String::from_utf8_lossy(&text)).ok()? else {
+    let Json::Obj(rec) = json::parse_bytes_fast(&text).ok()? else {
         return None;
     };
     if rec.get("version") != Some(&Json::Num(INDEX_SCHEMA_VERSION)) {
@@ -199,7 +199,7 @@ pub fn write_index_meta(layout: &Layout, meta: &IndexMeta, file: &str) {
 #[must_use]
 pub fn read_index_file(layout: &Layout, name: &str) -> Option<Json> {
     let text = fs::read(layout.index_dir().join(name)).ok()?;
-    json::parse(&String::from_utf8_lossy(&text)).ok()
+    json::parse_bytes_fast(&text).ok()
 }
 
 /// `writeIndexFile`: `JSON.stringify(value) + '\n'`, atomic, silent on failure.

@@ -104,8 +104,8 @@ fn offset_of(v: Option<&Json>) -> Option<u64> {
 
 /// `parseRegFile`: trusted only in full shape.
 #[allow(clippy::float_cmp, reason = "the version is an exact integer")]
-fn parse_reg_file(text: &str) -> Option<RegFile> {
-    let Ok(Json::Obj(raw)) = json::parse(text) else {
+fn parse_reg_file(bytes: &[u8]) -> Option<RegFile> {
+    let Ok(Json::Obj(raw)) = json::parse_bytes_fast(bytes) else {
         return None;
     };
     if raw.get("v").and_then(Json::as_f64) != Some(REGISTRATIONS_VERSION) {
@@ -216,9 +216,7 @@ pub fn cached_registration_in(
         return scan(log, session_id);
     };
     let path = reg_path(layout, slug);
-    let cached = std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|t| parse_reg_file(&t));
+    let cached = std::fs::read(&path).ok().and_then(|b| parse_reg_file(&b));
 
     let (file, rest, changed) = match cached {
         Some(c) if c.size == stat.size && c.mtime_ms == stat.mtime_ms => {

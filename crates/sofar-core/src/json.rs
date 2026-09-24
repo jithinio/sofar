@@ -924,14 +924,34 @@ impl<'de> serde::Deserialize<'de> for Json {
                 Ok(Json::Arr(items))
             }
             fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Json, A::Error> {
+                // The parser's own insert: last duplicate wins in place, and a
+                // hash index past PARSE_INDEX_AT keys keeps large objects linear.
                 let mut o = Object::new();
+                let mut keys = None;
                 while let Some((k, v)) = map.next_entry::<String, Json>()? {
-                    o.insert(k, v);
+                    o.insert_parsed(&mut keys, k, v);
                 }
                 Ok(Json::Obj(o))
             }
         }
         d.deserialize_any(V)
+    }
+}
+
+/// `JSON.parse` of a derived file's bytes, fast (rust-core 4.4, L2): `serde_json`'s
+/// tokenizer builds the same [`Json`] the crate parser builds (the order and
+/// duplicate rules above), and ANY input it rejects falls back to [`parse`],
+/// so invalid UTF-8 and lone-surrogate escapes (D13) keep the crate
+/// semantics. Meant for the caches the engine writes itself (digest,
+/// registrations, index tiers). Their writers emit JS `JSON.stringify` text,
+/// which never contains `-0`, the one literal `serde_json` reads as +0.
+///
+/// # Errors
+/// What [`parse`] returns when both reject the input.
+pub fn parse_bytes_fast(bytes: &[u8]) -> Result<Json, ParseError> {
+    match serde_json::from_slice::<Json>(bytes) {
+        Ok(value) => Ok(value),
+        Err(_) => parse(&String::from_utf8_lossy(bytes)),
     }
 }
 
@@ -966,6 +986,82 @@ mod error_message_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// rust-core 4.4, L2: the fast path builds exactly what the crate parser
+    /// builds, value and property order, or it falls back to the parser.
+    fn same(bytes: &[u8]) {
+        let slow = parse(&String::from_utf8_lossy(bytes));
+        let fast = parse_bytes_fast(bytes);
+        match (&slow, &fast) {
+            (Ok(a), Ok(b)) => {
+                assert_eq!(a, b, "{}", String::from_utf8_lossy(bytes));
+                assert_eq!(stringify(a), stringify(b));
+            }
+            (Err(_), Err(_)) => {}
+            _ => panic!("one side failed: {}", String::from_utf8_lossy(bytes)),
+        }
+    }
+
+    #[test]
+    fn the_fast_parse_equals_the_parser() {
+        let many_keys = (0..40).fold(String::new(), |mut acc, i| {
+            let _ = write!(acc, "\"k{}\":{i},", i % 25);
+            acc
+        });
+        for case in [
+            r#"{"a":1,"b":2,"a":3}"#.to_owned(),
+            format!("{{{many_keys}\"z\":0}}"),
+            r#"{"10":1,"2":2,"x":3,"1":4}"#.to_owned(),
+            r#"["\u00e9","\ud83d\ude00","tab\there","q\"uote","sl\/ash"]"#.to_owned(),
+            r#"["\ud800","\udc00x"]"#.to_owned(),
+            r"[9007199254740993,18446744073709551616,1e400,-1.5e-7,0.1,123456789012345678901234567890]".to_owned(),
+            r"[-0,0.0,-0.0,1E2,1e-400,5e-324,2.2250738585072014e-308,1790177657980.5837,1790177657996.5073]".to_owned(),
+            r#"{"deep":{"a":[{"b":null,"c":true,"d":false}]}}"#.to_owned(),
+            "not json".to_owned(),
+            "[1,2,]".to_owned(),
+        ] {
+            same(case.as_bytes());
+        }
+        same(b"[\"\xff\xfe\"]");
+        // A sweep of mtime-shaped and short decimals: correctly-rounded parsing
+        // is what `float_roundtrip` buys, and a default serde_json misses it.
+        let mut x: u64 = 0x9e37_79b9_7f4a_7c15;
+        for _ in 0..20_000 {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            same(
+                format!(
+                    "[{}.{:04},0.{}]",
+                    1_700_000_000_000 + x % 100_000_000_000,
+                    x % 10_000,
+                    x % 1_000_000_007
+                )
+                .as_bytes(),
+            );
+        }
+        // Every line of every real log, and every derived index file present.
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.sofar");
+        let mut n = 0;
+        for entry in std::fs::read_dir(root.join("initiatives")).unwrap() {
+            let Ok(text) = std::fs::read(entry.unwrap().path().join("events.jsonl")) else {
+                continue;
+            };
+            for line in text.split(|&b| b == b'\n').filter(|l| !l.is_empty()) {
+                same(line);
+                n += 1;
+            }
+        }
+        if let Ok(dir) = std::fs::read_dir(root.join(".index")) {
+            for entry in dir {
+                let path = entry.unwrap().path();
+                if path.extension().is_some_and(|e| e == "json") {
+                    same(&std::fs::read(&path).unwrap());
+                }
+            }
+        }
+        assert!(n > 10_000, "{n} lines");
+    }
 
     fn num(text: &str) -> String {
         stringify(&parse(text).unwrap())

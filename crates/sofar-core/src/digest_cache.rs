@@ -53,8 +53,8 @@ pub fn cached_digest_state(layout: &Layout, slug: &str) -> InitiativeState {
     };
     let version = current_version();
     let path = digest_file(layout, slug);
-    if let Ok(text) = std::fs::read_to_string(&path)
-        && let Ok(Json::Obj(raw)) = json::parse(&text)
+    if let Ok(bytes) = std::fs::read(&path)
+        && let Ok(Json::Obj(raw)) = json::parse_bytes_fast(&bytes)
         && key_matches(&raw, &version.engine, &version.schema, stat)
         && let Some(state) = raw
             .get("state")
