@@ -40,6 +40,7 @@ pub mod entropy;
 pub mod envelope;
 pub mod file_mentions;
 pub mod fold;
+pub mod fold_checkpoint;
 pub mod fold_cli;
 pub mod git;
 pub mod guards;
