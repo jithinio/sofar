@@ -15,7 +15,6 @@ use crate::fold::{
     SessionState, TaskState, TestOutcome,
 };
 use crate::json::{Json, number_to_string};
-use crate::lexicon::lexical_counts;
 use crate::rule_fidelity::{quote_clause, render_rule};
 use crate::text::{js_trim, js_trim_end, one_line, utf16_len, utf16_prefix};
 
@@ -372,10 +371,18 @@ pub fn standing_rules(decisions: &[DecisionState], retire: bool) -> Vec<(usize, 
 /// `relevanceScore` (memory-lead D4): distinct lexicon stems `text` shares with `focus`.
 #[must_use]
 pub fn relevance_score(text: &str, focus: &[String]) -> usize {
-    lexical_counts(text)
-        .iter()
-        .filter(|(term, _)| focus.iter().any(|f| f == term))
-        .count()
+    // The distinct terms of `lexicalCounts(text)` that are in the focus,
+    // without building (or sorting) the counts; no focus scores nothing.
+    if focus.is_empty() {
+        return 0;
+    }
+    let mut hit = vec![false; focus.len()];
+    crate::lexicon::for_each_term(text, |term| {
+        if let Some(i) = focus.iter().position(|f| *f == term) {
+            hit[i] = true;
+        }
+    });
+    hit.iter().filter(|h| **h).count()
 }
 
 /// `rankByRelevance`: score descending, ties newest (highest ordinal) first — a
@@ -470,28 +477,33 @@ pub fn repo_rule_lines(
         .iter()
         .filter_map(|d| d.rule.as_deref().map(|rule| key(rule, d.quote.as_deref())))
         .collect();
-    let mut sorted: Vec<&crate::index_tier1::RepoRule> = rules.iter().collect();
-    sorted.sort_by(|a, b| {
+    // Each handle formatted once, not per comparison.
+    let mut sorted: Vec<(&crate::index_tier1::RepoRule, String)> =
+        rules.iter().map(|r| (r, handle_of(r))).collect();
+    sorted.sort_by(|(a, ha), (b, hb)| {
         if a.ts == b.ts {
-            cmp_utf16(&handle_of(a), &handle_of(b))
+            cmp_utf16(ha, hb)
         } else if cmp_utf16(&a.ts, &b.ts).is_lt() {
             std::cmp::Ordering::Less
         } else {
             std::cmp::Ordering::Greater
         }
     });
-    let mut merged: Vec<(String, &crate::index_tier1::RepoRule, Vec<String>)> = Vec::new();
-    for r in sorted {
+    // A Map in insertion order, as the TypeScript `Map` iterates.
+    let mut merged: Vec<(&crate::index_tier1::RepoRule, Vec<String>)> = Vec::new();
+    let mut at: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for (r, handle) in sorted {
         let k = key(&r.rule, r.quote.as_deref());
         if mine.contains(&k) {
             continue;
         }
-        match merged.iter_mut().find(|(mk, _, _)| *mk == k) {
-            Some((_, newest, handles)) => {
-                handles.push(handle_of(r));
-                *newest = r; // the newest restatement dates the rule
-            }
-            None => merged.push((k, r, vec![handle_of(r)])),
+        if let Some(&i) = at.get(&k) {
+            let (newest, handles) = &mut merged[i];
+            handles.push(handle);
+            *newest = r; // the newest restatement dates the rule
+        } else {
+            at.insert(k, merged.len());
+            merged.push((r, vec![handle]));
         }
     }
     if merged.is_empty() {
@@ -499,7 +511,7 @@ pub fn repo_rule_lines(
     }
     let mut ranked: Vec<(&crate::index_tier1::RepoRule, String, usize)> = merged
         .into_iter()
-        .map(|(_, r, handles)| {
+        .map(|(r, handles)| {
             let score = relevance_score(
                 &format!("{} {}", r.rule, r.quote.as_deref().unwrap_or("")),
                 focus,
@@ -1266,6 +1278,49 @@ fn regenerate_dirty_sessions(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// L4 (rust-core 4.4): the scorer that skips the counts equals the
+    /// `lexicalCounts` formula it replaced, on every real-log line.
+    #[test]
+    fn relevance_score_equals_the_counts_formula() {
+        let old = |text: &str, focus: &[String]| {
+            crate::lexicon::lexical_counts(text)
+                .iter()
+                .filter(|(t, _)| focus.iter().any(|f| f == t))
+                .count()
+        };
+        let root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.sofar/initiatives");
+        let mut texts: Vec<String> = Vec::new();
+        for entry in std::fs::read_dir(root).unwrap() {
+            if let Ok(t) = std::fs::read_to_string(entry.unwrap().path().join("events.jsonl")) {
+                texts.extend(t.lines().step_by(3).map(str::to_owned));
+            }
+        }
+        assert!(texts.len() > 3_000, "{}", texts.len());
+        let mut checked = 0;
+        for (i, text) in texts.iter().enumerate() {
+            let other: Vec<String> =
+                crate::lexicon::lexical_counts(&texts[(i * 7 + 3) % texts.len()])
+                    .into_iter()
+                    .map(|(t, _)| t)
+                    .collect();
+            let own: Vec<String> = crate::lexicon::lexical_counts(text)
+                .into_iter()
+                .map(|(t, _)| t)
+                .step_by(2)
+                .collect();
+            let mut dup = own.clone();
+            dup.extend(own.iter().cloned());
+            let mut mixed = other.clone();
+            mixed.extend(own.iter().take(3).cloned());
+            for focus in [Vec::new(), other, own, dup, mixed] {
+                assert_eq!(relevance_score(text, &focus), old(text, &focus), "{text}");
+                checked += 1;
+            }
+        }
+        assert!(checked > 15_000);
+    }
 
     #[test]
     fn clip_is_utf16_and_keeps_the_ellipsis_inside_the_budget() {
