@@ -1,7 +1,10 @@
-import { mkdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { createHash } from 'node:crypto'
+import { mkdirSync, readFileSync, statSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import { writeFileAtomic } from '../core/atomic'
-import type { InitiativeState } from '../core/fold'
+import type { InitiativeState, SessionState } from '../core/fold'
+import { indexDir } from '../core/index-store'
+import { currentVersion, sortKeysDeep } from '../core/snapshot'
 import { renderPlan } from './templates/plan'
 import { renderDecisions } from './templates/decisions'
 import { renderMemory } from './templates/memory'
@@ -21,6 +24,15 @@ import { renderSession } from './templates/session'
  * readers (serve's /state fold, a SessionStart fold, a human tailing
  * plan.md) never observe a half-written projection.
  */
+
+/**
+ * sha256 over this build's own template sources, injected by build.mjs
+ * (rust-core 4.4, decision 01M39M4B). Absent when running from source, which
+ * makes every session file dirty: exactly the pre-01M39M4B behaviour.
+ */
+declare const __SOFAR_PROJECTION_FINGERPRINT__: string | undefined
+const BUILD_FINGERPRINT: string | null =
+  typeof __SOFAR_PROJECTION_FINGERPRINT__ === 'string' ? __SOFAR_PROJECTION_FINGERPRINT__ : null
 
 /** Session ids come from outside (Claude Code) — never let one shape a path. */
 function sessionFileName(id: string): string {
@@ -52,12 +64,19 @@ function writeFileAtomicIfChanged(path: string, content: string): void {
   writeFileAtomic(path, content)
 }
 
-export function regenerateProjections(initiativeDir: string, state: InitiativeState): void {
+export interface RegenerateOptions {
+  /**
+   * The template fingerprint the manifest is keyed on; null makes every
+   * session dirty. Defaults to the build's own. Tests pass one to exercise
+   * the dirty path from source.
+   */
+  fingerprint?: string | null
+}
+
+export function regenerateProjections(initiativeDir: string, state: InitiativeState, options?: RegenerateOptions): void {
   mkdirSync(initiativeDir, { recursive: true })
   writeFileAtomicIfChanged(join(initiativeDir, 'plan.md'), renderPlan(state))
   writeFileAtomicIfChanged(join(initiativeDir, 'decisions.md'), renderDecisions(state))
-  // Only once something is promoted — an initiative that never promotes
-  // anything should not carry an empty file (the sessions-dir precedent).
   if (state.memories.length > 0) {
     writeFileAtomicIfChanged(join(initiativeDir, 'memory.md'), renderMemory(state))
   }
@@ -65,11 +84,119 @@ export function regenerateProjections(initiativeDir: string, state: InitiativeSt
   if (state.sessions.length > 0) {
     const sessionsDir = join(initiativeDir, 'sessions')
     mkdirSync(sessionsDir, { recursive: true })
-    for (const session of state.sessions) {
-      writeFileAtomicIfChanged(
-        join(sessionsDir, sessionFileName(session.id)),
-        renderSession(state, session),
-      )
+    const fingerprint = options?.fingerprint !== undefined ? options.fingerprint : BUILD_FINGERPRINT
+    if (fingerprint === null) {
+      for (const session of state.sessions) {
+        writeFileAtomicIfChanged(join(sessionsDir, sessionFileName(session.id)), renderSession(state, session))
+      }
+    } else {
+      regenerateDirtySessions(initiativeDir, sessionsDir, state, fingerprint)
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Dirty-only session files (rust-core 4.4, decision 01M39M4B). renderSession
+// reads state.slug and its own SessionState and nothing else (pinned by
+// test/projection-dirty.test.ts), so a session file needs writing only when
+// those inputs change, or when the template does. A derived manifest records,
+// per file, the inputs' hash and the size/mtime the file had when written. A
+// session is clean only when both still match and the manifest's key (engine,
+// schema, template fingerprint) is the current one. A clean session is
+// neither rendered nor read; a dirty one is rendered and written-if-changed
+// exactly as before. The output is byte-identical to a full regeneration,
+// and the event-by-event parity test gates that.
+// ---------------------------------------------------------------------------
+
+const MANIFEST_DIR = 'projections'
+export const PROJECTION_MANIFEST_VERSION = 1
+
+interface ManifestEntry {
+  fp: string
+  size: number
+  mtimeMs: number
+}
+
+interface Manifest {
+  v: number
+  engine: string
+  schema: string
+  fingerprint: string
+  entries: Record<string, ManifestEntry>
+}
+
+/** The inputs renderSession reads: slug and the finalized session. */
+export function sessionInputHash(slug: string, session: SessionState): string {
+  return createHash('sha256').update(JSON.stringify(sortKeysDeep({ slug, session }))).digest('hex')
+}
+
+function manifestPath(initiativeDir: string): string {
+  // <sofarDir>/initiatives/<slug> → <sofarDir>/.index/projections/<slug>.ts.json
+  const sofarDir = dirname(dirname(initiativeDir))
+  return join(indexDir(sofarDir), MANIFEST_DIR, `${basename(initiativeDir)}.ts.json`)
+}
+
+function readManifest(path: string, key: Omit<Manifest, 'v' | 'entries'>): Record<string, ManifestEntry> {
+  try {
+    const raw = JSON.parse(readFileSync(path, 'utf8')) as Partial<Manifest>
+    if (
+      raw.v !== PROJECTION_MANIFEST_VERSION ||
+      raw.engine !== key.engine ||
+      raw.schema !== key.schema ||
+      raw.fingerprint !== key.fingerprint ||
+      typeof raw.entries !== 'object' ||
+      raw.entries === null
+    ) {
+      return {}
+    }
+    const out: Record<string, ManifestEntry> = {}
+    for (const [name, e] of Object.entries(raw.entries)) {
+      if (typeof e?.fp === 'string' && typeof e.size === 'number' && typeof e.mtimeMs === 'number') out[name] = e
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+function statOf(path: string): { size: number; mtimeMs: number } | null {
+  try {
+    const st = statSync(path)
+    return { size: st.size, mtimeMs: st.mtimeMs }
+  } catch {
+    return null
+  }
+}
+
+function regenerateDirtySessions(initiativeDir: string, sessionsDir: string, state: InitiativeState, fingerprint: string): void {
+  const { engine, schema } = currentVersion()
+  const path = manifestPath(initiativeDir)
+  const prior = readManifest(path, { engine, schema, fingerprint })
+  const entries: Record<string, ManifestEntry> = Object.create(null) as Record<string, ManifestEntry>
+  let changed = false
+  for (const session of state.sessions) {
+    const name = sessionFileName(session.id)
+    const file = join(sessionsDir, name)
+    const fp = sessionInputHash(state.slug, session)
+    const before = Object.hasOwn(prior, name) ? prior[name] : undefined
+    if (before !== undefined && before.fp === fp) {
+      const st = statOf(file)
+      if (st !== null && st.size === before.size && st.mtimeMs === before.mtimeMs) {
+        entries[name] = before
+        continue
+      }
+    }
+    writeFileAtomicIfChanged(file, renderSession(state, session))
+    const st = statOf(file)
+    if (st !== null) entries[name] = { fp, ...st }
+    changed = true
+  }
+  if (!changed && Object.keys(entries).length === Object.keys(prior).length) return
+  try {
+    mkdirSync(dirname(path), { recursive: true })
+    const manifest: Manifest = { v: PROJECTION_MANIFEST_VERSION, engine, schema, fingerprint, entries: { ...entries } }
+    writeFileAtomic(path, `${JSON.stringify(manifest)}\n`)
+  } catch {
+    // derived: an unwritten manifest makes every session dirty next time
   }
 }

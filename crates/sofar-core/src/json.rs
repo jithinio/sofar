@@ -790,6 +790,68 @@ pub fn write_string(out: &mut String, s: &str) {
     out.push('"');
 }
 
+/// `Number::toString`'s tie rule (ECMA-262 6.1.6.1.20 step 5): among the
+/// shortest digit strings that round-trip, the one closest to the exact value
+/// wins, and when two are EXACTLY as close, the even one. Rust's `{:e}` breaks
+/// that tie the other way (…402.78125 → `7813` where JS prints `7812`). A tie
+/// needs the exact expansion to be `digits` then `5` then nothing: checked
+/// cheaply at 40 digits first, then on the full expansion; the even neighbour
+/// is taken only if it too parses back to `x`.
+fn tie_to_even(x: f64, digits: &mut String, exp: i32) {
+    let k = digits.len();
+    if !digits.ends_with(['1', '3', '5', '7', '9']) {
+        return;
+    }
+    let tail_is_half = |sci: &str| -> Option<String> {
+        let (m, e) = sci.split_once('e')?;
+        if e.parse::<i32>().ok()? != exp {
+            return None;
+        }
+        let all: String = m.chars().filter(|c| *c != '.').collect();
+        let (head, tail) = all.split_at_checked(k)?;
+        (tail.starts_with('5') && tail[1..].bytes().all(|b| b == b'0')).then(|| head.to_owned())
+    };
+    let Some(floor) = tail_is_half(&format!("{x:.40e}")) else {
+        return;
+    };
+    // The exact expansion of a double has at most 767 significant digits.
+    if tail_is_half(&format!("{x:.1100e}")).as_deref() != Some(floor.as_str()) {
+        return;
+    }
+    // `digits` is one of floor and floor + 1; the other is the even one.
+    let Some(up) = increment(&floor) else { return };
+    let candidate = if *digits == floor {
+        up
+    } else if *digits == up {
+        floor
+    } else {
+        return;
+    };
+    let text = if candidate.len() == 1 {
+        format!("{candidate}e{exp}")
+    } else {
+        format!("{}.{}e{exp}", &candidate[..1], &candidate[1..])
+    };
+    let parsed = text.parse::<f64>();
+    if parsed.ok() == Some(x) {
+        *digits = candidate;
+    }
+}
+
+/// A decimal digit string plus one, or None when it would gain a digit.
+fn increment(digits: &str) -> Option<String> {
+    let mut bytes = digits.as_bytes().to_vec();
+    for b in bytes.iter_mut().rev() {
+        if *b == b'9' {
+            *b = b'0';
+        } else {
+            *b += 1;
+            return String::from_utf8(bytes).ok();
+        }
+    }
+    None
+}
+
 /// `JSON.stringify(number)`: ECMAScript `Number::toString(10)` for finite
 /// values, `null` for NaN and ±Infinity, `0` for -0.
 pub fn write_number(out: &mut String, x: f64) {
@@ -815,6 +877,7 @@ pub fn write_number(out: &mut String, x: f64) {
     };
     let mut digits = String::with_capacity(mantissa.len());
     digits.extend(mantissa.chars().filter(|c| *c != '.'));
+    tie_to_even(x.abs(), &mut digits, exp);
     let k = i32::try_from(digits.len()).expect("at most 17 digits");
     let n = exp + 1;
     if neg {
@@ -846,6 +909,112 @@ pub fn write_number(out: &mut String, x: f64) {
         out.push('e');
         out.push(if e < 0 { '-' } else { '+' });
         let _ = write!(out, "{}", e.abs());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// serde (rust-core 4.4, 01M39ED9): the edge-free fold checkpoint persists
+// state that carries Json (task route/verify, decision checks, run surfaces)
+// through typed serde_json. A Json serializes as the JSON it is, object
+// entries in their order; it deserializes through a visitor that rebuilds the
+// same order, the last duplicate key winning in place as `insert` does.
+
+impl serde::Serialize for Json {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::{SerializeMap as _, SerializeSeq as _};
+        match self {
+            Json::Null => s.serialize_unit(),
+            Json::Bool(b) => s.serialize_bool(*b),
+            Json::Num(n) => s.serialize_f64(*n),
+            Json::Str(x) => s.serialize_str(x),
+            Json::Arr(items) => {
+                let mut seq = s.serialize_seq(Some(items.len()))?;
+                for item in items {
+                    seq.serialize_element(item)?;
+                }
+                seq.end()
+            }
+            Json::Obj(o) => {
+                let mut map = s.serialize_map(Some(o.len()))?;
+                for (k, v) in o.iter() {
+                    map.serialize_entry(k, v)?;
+                }
+                map.end()
+            }
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Json {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct V;
+        impl<'de> serde::de::Visitor<'de> for V {
+            type Value = Json;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a JSON value")
+            }
+            fn visit_unit<E>(self) -> Result<Json, E> {
+                Ok(Json::Null)
+            }
+            fn visit_none<E>(self) -> Result<Json, E> {
+                Ok(Json::Null)
+            }
+            fn visit_bool<E>(self, b: bool) -> Result<Json, E> {
+                Ok(Json::Bool(b))
+            }
+            #[allow(clippy::cast_precision_loss, reason = "JSON numbers are doubles")]
+            fn visit_i64<E>(self, n: i64) -> Result<Json, E> {
+                Ok(Json::Num(n as f64))
+            }
+            #[allow(clippy::cast_precision_loss, reason = "JSON numbers are doubles")]
+            fn visit_u64<E>(self, n: u64) -> Result<Json, E> {
+                Ok(Json::Num(n as f64))
+            }
+            fn visit_f64<E>(self, n: f64) -> Result<Json, E> {
+                Ok(Json::Num(n))
+            }
+            fn visit_str<E>(self, s: &str) -> Result<Json, E> {
+                Ok(Json::Str(s.to_owned()))
+            }
+            fn visit_string<E>(self, s: String) -> Result<Json, E> {
+                Ok(Json::Str(s))
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Json, A::Error> {
+                let mut items = Vec::new();
+                while let Some(item) = seq.next_element()? {
+                    items.push(item);
+                }
+                Ok(Json::Arr(items))
+            }
+            fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Json, A::Error> {
+                // The parser's own insert: last duplicate wins in place, and a
+                // hash index past PARSE_INDEX_AT keys keeps large objects linear.
+                let mut o = Object::new();
+                let mut keys = None;
+                while let Some((k, v)) = map.next_entry::<String, Json>()? {
+                    o.insert_parsed(&mut keys, k, v);
+                }
+                Ok(Json::Obj(o))
+            }
+        }
+        d.deserialize_any(V)
+    }
+}
+
+/// `JSON.parse` of a derived file's bytes, fast (rust-core 4.4, L2): `serde_json`'s
+/// tokenizer builds the same [`Json`] the crate parser builds (the order and
+/// duplicate rules above), and ANY input it rejects falls back to [`parse`],
+/// so invalid UTF-8 and lone-surrogate escapes (D13) keep the crate
+/// semantics. Meant for the caches the engine writes itself (digest,
+/// registrations, index tiers). Their writers emit JS `JSON.stringify` text,
+/// which never contains `-0`, the one literal `serde_json` reads as +0.
+///
+/// # Errors
+/// What [`parse`] returns when both reject the input.
+pub fn parse_bytes_fast(bytes: &[u8]) -> Result<Json, ParseError> {
+    match serde_json::from_slice::<Json>(bytes) {
+        Ok(value) => Ok(value),
+        Err(_) => parse(&String::from_utf8_lossy(bytes)),
     }
 }
 
@@ -881,6 +1050,82 @@ mod error_message_tests {
 mod tests {
     use super::*;
 
+    /// rust-core 4.4, L2: the fast path builds exactly what the crate parser
+    /// builds, value and property order, or it falls back to the parser.
+    fn same(bytes: &[u8]) {
+        let slow = parse(&String::from_utf8_lossy(bytes));
+        let fast = parse_bytes_fast(bytes);
+        match (&slow, &fast) {
+            (Ok(a), Ok(b)) => {
+                assert_eq!(a, b, "{}", String::from_utf8_lossy(bytes));
+                assert_eq!(stringify(a), stringify(b));
+            }
+            (Err(_), Err(_)) => {}
+            _ => panic!("one side failed: {}", String::from_utf8_lossy(bytes)),
+        }
+    }
+
+    #[test]
+    fn the_fast_parse_equals_the_parser() {
+        let many_keys = (0..40).fold(String::new(), |mut acc, i| {
+            let _ = write!(acc, "\"k{}\":{i},", i % 25);
+            acc
+        });
+        for case in [
+            r#"{"a":1,"b":2,"a":3}"#.to_owned(),
+            format!("{{{many_keys}\"z\":0}}"),
+            r#"{"10":1,"2":2,"x":3,"1":4}"#.to_owned(),
+            r#"["\u00e9","\ud83d\ude00","tab\there","q\"uote","sl\/ash"]"#.to_owned(),
+            r#"["\ud800","\udc00x"]"#.to_owned(),
+            r"[9007199254740993,18446744073709551616,1e400,-1.5e-7,0.1,123456789012345678901234567890]".to_owned(),
+            r"[-0,0.0,-0.0,1E2,1e-400,5e-324,2.2250738585072014e-308,1790177657980.5837,1790177657996.5073]".to_owned(),
+            r#"{"deep":{"a":[{"b":null,"c":true,"d":false}]}}"#.to_owned(),
+            "not json".to_owned(),
+            "[1,2,]".to_owned(),
+        ] {
+            same(case.as_bytes());
+        }
+        same(b"[\"\xff\xfe\"]");
+        // A sweep of mtime-shaped and short decimals: correctly-rounded parsing
+        // is what `float_roundtrip` buys, and a default serde_json misses it.
+        let mut x: u64 = 0x9e37_79b9_7f4a_7c15;
+        for _ in 0..20_000 {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            same(
+                format!(
+                    "[{}.{:04},0.{}]",
+                    1_700_000_000_000 + x % 100_000_000_000,
+                    x % 10_000,
+                    x % 1_000_000_007
+                )
+                .as_bytes(),
+            );
+        }
+        // Every line of every real log, and every derived index file present.
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.sofar");
+        let mut n = 0;
+        for entry in std::fs::read_dir(root.join("initiatives")).unwrap() {
+            let Ok(text) = std::fs::read(entry.unwrap().path().join("events.jsonl")) else {
+                continue;
+            };
+            for line in text.split(|&b| b == b'\n').filter(|l| !l.is_empty()) {
+                same(line);
+                n += 1;
+            }
+        }
+        if let Ok(dir) = std::fs::read_dir(root.join(".index")) {
+            for entry in dir {
+                let path = entry.unwrap().path();
+                if path.extension().is_some_and(|e| e == "json") {
+                    same(&std::fs::read(&path).unwrap());
+                }
+            }
+        }
+        assert!(n > 10_000, "{n} lines");
+    }
+
     fn num(text: &str) -> String {
         stringify(&parse(text).unwrap())
     }
@@ -908,7 +1153,10 @@ mod tests {
 
     #[test]
     fn node_number_fixture_matches() {
-        // 745 doubles (bit pattern → JSON.stringify text), generated by Node.
+        // 1746 doubles (bit pattern → JSON.stringify text), generated by Node:
+        // the original 745, plus 1001 around exact decimal ties (mtime-shaped,
+        // binary fractions, both signs), where Number::toString picks the even
+        // digit (D2/D13: 1790271792402.78125 prints …7812, never …7813).
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/js-numbers.txt");
         let text = std::fs::read_to_string(path).unwrap();
         let mut checked = 0;
@@ -920,7 +1168,7 @@ mod tests {
             assert_eq!(out, expected, "bits {bits}");
             checked += 1;
         }
-        assert!(checked > 700);
+        assert!(checked > 1700);
     }
 
     #[test]

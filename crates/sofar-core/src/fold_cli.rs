@@ -6,7 +6,14 @@
 //! ```text
 //! fold --events <jsonl> [--take <n>] [--write-snapshot <file>]
 //! fold --events <jsonl> --snapshot <file> [--since <n>] [--write-snapshot <file>]
+//! fold --events <jsonl> [--take <n>] --write-checkpoint <file>
+//! fold --events <jsonl> --checkpoint <file>
 //! ```
+//!
+//! The checkpoint pair (rust-core 4.4, 01M39ED9) drives the edge-free fold
+//! checkpoint: the write prints `{ok: true, written}`, the resume `{ok: true,
+//! resumed, state, warnings}`, with `resumed` false when the fast path refused
+//! and the whole log was refolded, as a hook does.
 //!
 //! Prints canonical JSON: on success `{ok: true, cursor, version, state,
 //! warnings}`; on a refusal `{ok: false, reason, detail}` or `{ok: false,
@@ -39,6 +46,8 @@ struct Options {
     snapshot: Option<PathBuf>,
     since: Option<String>,
     write_snapshot: Option<PathBuf>,
+    write_checkpoint: Option<PathBuf>,
+    checkpoint: Option<PathBuf>,
 }
 
 fn usage(message: &str) -> CmdResult {
@@ -79,6 +88,8 @@ fn parse_options(args: &[OsString]) -> Result<Options, CmdResult> {
             "--snapshot" => opts.snapshot = Some(PathBuf::from(value()?)),
             "--since" => opts.since = Some(value()?.to_string_lossy().into_owned()),
             "--write-snapshot" => opts.write_snapshot = Some(PathBuf::from(value()?)),
+            "--write-checkpoint" => opts.write_checkpoint = Some(PathBuf::from(value()?)),
+            "--checkpoint" => opts.checkpoint = Some(PathBuf::from(value()?)),
             other => return Err(usage(&format!("unknown option '{other}'"))),
         }
     }
@@ -136,6 +147,16 @@ pub fn run_fold(args: &[OsString]) -> CmdResult {
             None => return usage("--since must be a non-negative integer"),
         },
     };
+
+    if opts.write_checkpoint.is_some() || opts.checkpoint.is_some() {
+        if opts.snapshot.is_some() || opts.write_snapshot.is_some() || since.is_some() {
+            return usage("the checkpoint options do not combine with the snapshot ones");
+        }
+        return match opts.checkpoint {
+            Some(file) => resume_checkpoint(&events, &file, take),
+            None => write_checkpoint(&events, &opts.write_checkpoint.expect("checked"), take),
+        };
+    }
 
     let snapshot: Snapshot = if let Some(snapshot_path) = opts.snapshot {
         if take.is_some() {
@@ -204,6 +225,88 @@ pub fn run_fold(args: &[OsString]) -> CmdResult {
         ),
     );
     ok(format!("{}\n", canonical_json(&Json::Obj(o))))
+}
+
+/// `bytesOfLines`: the byte length of the first `n` lines, each with its newline.
+fn bytes_of_lines(buf: &[u8], n: usize) -> Option<usize> {
+    let mut at = 0;
+    for _ in 0..n {
+        at += buf[at..].iter().position(|&b| b == b'\n')? + 1;
+    }
+    Some(at)
+}
+
+fn count_of(lines: &[&str]) -> usize {
+    if lines.last() == Some(&"") {
+        lines.len() - 1
+    } else {
+        lines.len()
+    }
+}
+
+fn state_output(
+    extra: (&str, bool),
+    state: &crate::fold::InitiativeState,
+    warnings: &[String],
+) -> CmdResult {
+    let mut o = Object::with_capacity(4);
+    o.insert("ok", Json::Bool(true));
+    o.insert(extra.0, Json::Bool(extra.1));
+    o.insert("state", state.to_json());
+    o.insert(
+        "warnings",
+        Json::Arr(warnings.iter().map(|w| Json::Str(w.clone())).collect()),
+    );
+    ok(format!("{}\n", canonical_json(&Json::Obj(o))))
+}
+
+/// `writeCheckpoint`: fold the first `take` lines (or all) and write the checkpoint.
+fn write_checkpoint(events: &Path, file: &Path, take: Option<usize>) -> CmdResult {
+    let whole = match fs::read(events) {
+        Ok(bytes) => bytes,
+        Err(e) => return usage(&format!("cannot read {}: {e}", events.display())),
+    };
+    let text = String::from_utf8_lossy(&whole);
+    let all: Vec<&str> = text.split('\n').collect();
+    let n = take.unwrap_or_else(|| count_of(&all));
+    let Some(end) = bytes_of_lines(&whole, n) else {
+        return usage("--take is past the last complete line");
+    };
+    let buf = &whole[..end];
+    let head = String::from_utf8_lossy(buf);
+    let lines: Vec<&str> = head.split('\n').collect();
+    let cp = crate::fold::replay_decoded(
+        crate::log::decode_lines(lines.iter().copied()),
+        "",
+        count_of(&lines),
+    );
+    let prefix = crate::fold_checkpoint::prefix_of(buf, cp.line_count);
+    if let Some(prefix) = &prefix {
+        let mut acc = crate::fold::EdgeAccumulator::default();
+        acc.add(&cp.edges);
+        crate::fold_checkpoint::write_checkpoint_file(file, "", &cp, &acc, prefix);
+    }
+    let mut o = Object::with_capacity(2);
+    o.insert("ok", Json::Bool(true));
+    o.insert("written", Json::Bool(prefix.is_some()));
+    ok(format!("{}\n", canonical_json(&Json::Obj(o))))
+}
+
+/// `resumeCheckpoint`: resume the checkpoint over the file tail, refolding when it cannot.
+fn resume_checkpoint(events: &Path, file: &Path, take: Option<usize>) -> CmdResult {
+    if take.is_some() {
+        return usage("--take applies to --write-checkpoint, not to --checkpoint");
+    }
+    if let Some(r) = crate::fold_checkpoint::resume_file(file, "", events) {
+        let state = crate::fold::finalize_from(&r.cp, &r.acc);
+        return state_output(("resumed", true), &state, &r.cp.warnings);
+    }
+    let text = match fs::read(events) {
+        Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+        Err(e) => return usage(&format!("cannot read {}: {e}", events.display())),
+    };
+    let result = crate::fold::fold_text(&text, "");
+    state_output(("resumed", false), &result.state, &result.warnings)
 }
 
 fn write_snapshot(path: &Path, snapshot: &Snapshot) -> std::io::Result<()> {

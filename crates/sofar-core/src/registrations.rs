@@ -104,8 +104,8 @@ fn offset_of(v: Option<&Json>) -> Option<u64> {
 
 /// `parseRegFile`: trusted only in full shape.
 #[allow(clippy::float_cmp, reason = "the version is an exact integer")]
-fn parse_reg_file(text: &str) -> Option<RegFile> {
-    let Ok(Json::Obj(raw)) = json::parse(text) else {
+fn parse_reg_file(bytes: &[u8]) -> Option<RegFile> {
+    let Ok(Json::Obj(raw)) = json::parse_bytes_fast(bytes) else {
         return None;
     };
     if raw.get("v").and_then(Json::as_f64) != Some(REGISTRATIONS_VERSION) {
@@ -146,6 +146,400 @@ fn parse_reg_file(text: &str) -> Option<RegFile> {
         latest,
         seen,
     })
+}
+
+/// The quiet read (rust-core 4.4, 4b): [`parse_reg_file`]'s verdict and one
+/// session's entry, streamed from the bytes without building the `latest`
+/// tree. Every field is validated exactly as there — duplicate keys resolve
+/// last-wins, as `JSON.parse` does, so an invalid value a later duplicate
+/// replaces never counts — but only the asked session's `{id, ts}` is kept.
+mod quiet {
+    use std::borrow::Cow;
+    use std::collections::HashSet;
+
+    use serde::de::{DeserializeSeed, Deserializer, IgnoredAny, MapAccess, SeqAccess, Visitor};
+
+    use super::{REGISTRATIONS_VERSION, Registration};
+
+    /// A JSON value, classified: only what the checks read is kept.
+    enum Kind<'de> {
+        Num(f64),
+        Str(Cow<'de, str>),
+        Null,
+        Other,
+    }
+
+    struct KindV;
+    impl<'de> Visitor<'de> for KindV {
+        type Value = Kind<'de>;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("any JSON value")
+        }
+        fn visit_unit<E>(self) -> Result<Kind<'de>, E> {
+            Ok(Kind::Null)
+        }
+        fn visit_bool<E>(self, _: bool) -> Result<Kind<'de>, E> {
+            Ok(Kind::Other)
+        }
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "JSON numbers are doubles, as in json.rs"
+        )]
+        fn visit_i64<E>(self, n: i64) -> Result<Kind<'de>, E> {
+            Ok(Kind::Num(n as f64))
+        }
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "JSON numbers are doubles, as in json.rs"
+        )]
+        fn visit_u64<E>(self, n: u64) -> Result<Kind<'de>, E> {
+            Ok(Kind::Num(n as f64))
+        }
+        fn visit_f64<E>(self, n: f64) -> Result<Kind<'de>, E> {
+            Ok(Kind::Num(n))
+        }
+        fn visit_borrowed_str<E>(self, s: &'de str) -> Result<Kind<'de>, E> {
+            Ok(Kind::Str(Cow::Borrowed(s)))
+        }
+        fn visit_str<E>(self, s: &str) -> Result<Kind<'de>, E> {
+            Ok(Kind::Str(Cow::Owned(s.to_owned())))
+        }
+        fn visit_string<E>(self, s: String) -> Result<Kind<'de>, E> {
+            Ok(Kind::Str(Cow::Owned(s)))
+        }
+        fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Kind<'de>, A::Error> {
+            while seq.next_element::<IgnoredAny>()?.is_some() {}
+            Ok(Kind::Other)
+        }
+        fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Kind<'de>, A::Error> {
+            while map.next_entry::<IgnoredAny, IgnoredAny>()?.is_some() {}
+            Ok(Kind::Other)
+        }
+    }
+    struct AnyKind;
+    impl<'de> DeserializeSeed<'de> for AnyKind {
+        type Value = Kind<'de>;
+        fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<Kind<'de>, D::Error> {
+            d.deserialize_any(KindV)
+        }
+    }
+
+    /// An object key, borrowed when it holds no escape.
+    struct KeyV;
+    impl<'de> Visitor<'de> for KeyV {
+        type Value = Cow<'de, str>;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("a key")
+        }
+        fn visit_borrowed_str<E>(self, s: &'de str) -> Result<Cow<'de, str>, E> {
+            Ok(Cow::Borrowed(s))
+        }
+        fn visit_str<E>(self, s: &str) -> Result<Cow<'de, str>, E> {
+            Ok(Cow::Owned(s.to_owned()))
+        }
+        fn visit_string<E>(self, s: String) -> Result<Cow<'de, str>, E> {
+            Ok(Cow::Owned(s))
+        }
+    }
+    struct Key;
+    impl<'de> DeserializeSeed<'de> for Key {
+        type Value = Cow<'de, str>;
+        fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<Cow<'de, str>, D::Error> {
+            d.deserialize_str(KeyV)
+        }
+    }
+
+    /// An object whose named fields are classified, last duplicate winning;
+    /// None when the value is not an object.
+    struct Fields<const N: usize>(&'static [&'static str; N]);
+    struct FieldsV<const N: usize>(&'static [&'static str; N]);
+    impl<'de, const N: usize> Visitor<'de> for FieldsV<N> {
+        type Value = Option<[Option<Kind<'de>>; N]>;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("any JSON value")
+        }
+        fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+            let mut out: [Option<Kind<'de>>; N] = std::array::from_fn(|_| None);
+            while let Some(k) = map.next_key_seed(Key)? {
+                match self.0.iter().position(|n| *n == k) {
+                    Some(i) => out[i] = Some(map.next_value_seed(AnyKind)?),
+                    None => {
+                        map.next_value::<IgnoredAny>()?;
+                    }
+                }
+            }
+            Ok(Some(out))
+        }
+        fn visit_unit<E>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+        fn visit_bool<E>(self, _: bool) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+        fn visit_i64<E>(self, _: i64) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+        fn visit_u64<E>(self, _: u64) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+        fn visit_f64<E>(self, _: f64) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+        fn visit_str<E>(self, _: &str) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+        fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+            while seq.next_element::<IgnoredAny>()?.is_some() {}
+            Ok(None)
+        }
+    }
+    impl<'de, const N: usize> DeserializeSeed<'de> for Fields<N> {
+        type Value = Option<[Option<Kind<'de>>; N]>;
+        fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<Self::Value, D::Error> {
+            d.deserialize_any(FieldsV(self.0))
+        }
+    }
+
+    const ENTRY: &[&str; 2] = &["id", "ts"];
+    const LAST: &[&str; 2] = &["start", "sha256"];
+
+    /// `latest`: whether every FINAL entry is `{id: string, ts: string}`, and
+    /// the asked session's final entry. None when it is not an object.
+    struct Latest<'s>(&'s str);
+    struct LatestV<'s>(&'s str);
+    type LatestOut = Option<(bool, Option<Registration>)>;
+    impl<'de> Visitor<'de> for LatestV<'_> {
+        type Value = LatestOut;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("any JSON value")
+        }
+        fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<LatestOut, A::Error> {
+            // Keys whose latest value is invalid; a later valid duplicate clears one.
+            let mut bad: HashSet<Cow<'de, str>> = HashSet::new();
+            let mut found: Option<Registration> = None;
+            while let Some(k) = map.next_key_seed(Key)? {
+                let entry = map.next_value_seed(Fields(ENTRY))?;
+                let valid = if let Some([Some(Kind::Str(id)), Some(Kind::Str(ts))]) = entry {
+                    if k == self.0 {
+                        found = Some((id.into_owned(), ts.into_owned()));
+                    }
+                    true
+                } else {
+                    if k == self.0 {
+                        found = None;
+                    }
+                    false
+                };
+                if valid {
+                    if !bad.is_empty() {
+                        bad.remove(&k);
+                    }
+                } else {
+                    bad.insert(k);
+                }
+            }
+            Ok(Some((bad.is_empty(), found)))
+        }
+        fn visit_unit<E>(self) -> Result<LatestOut, E> {
+            Ok(None)
+        }
+        fn visit_bool<E>(self, _: bool) -> Result<LatestOut, E> {
+            Ok(None)
+        }
+        fn visit_i64<E>(self, _: i64) -> Result<LatestOut, E> {
+            Ok(None)
+        }
+        fn visit_u64<E>(self, _: u64) -> Result<LatestOut, E> {
+            Ok(None)
+        }
+        fn visit_f64<E>(self, _: f64) -> Result<LatestOut, E> {
+            Ok(None)
+        }
+        fn visit_str<E>(self, _: &str) -> Result<LatestOut, E> {
+            Ok(None)
+        }
+        fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<LatestOut, A::Error> {
+            while seq.next_element::<IgnoredAny>()?.is_some() {}
+            Ok(None)
+        }
+    }
+    impl<'de> DeserializeSeed<'de> for Latest<'_> {
+        type Value = LatestOut;
+        fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<LatestOut, D::Error> {
+            d.deserialize_any(LatestV(self.0))
+        }
+    }
+
+    /// The top-level fields, last duplicate winning.
+    #[derive(Default)]
+    struct Top<'de> {
+        v: Option<Kind<'de>>,
+        size: Option<Kind<'de>>,
+        mtime: Option<Kind<'de>>,
+        offset: Option<Kind<'de>>,
+        head: Option<Kind<'de>>,
+        last: Option<LastOut<'de>>,
+        latest: Option<LatestOut>,
+    }
+    struct TopV<'s>(&'s str);
+    impl<'de> Visitor<'de> for TopV<'_> {
+        type Value = Option<Top<'de>>;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("any JSON value")
+        }
+        fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+            let mut t = Top::default();
+            while let Some(k) = map.next_key_seed(Key)? {
+                match &*k {
+                    "v" => t.v = Some(map.next_value_seed(AnyKind)?),
+                    "size" => t.size = Some(map.next_value_seed(AnyKind)?),
+                    "mtimeMs" => t.mtime = Some(map.next_value_seed(AnyKind)?),
+                    "offset" => t.offset = Some(map.next_value_seed(AnyKind)?),
+                    "head" => t.head = Some(map.next_value_seed(AnyKind)?),
+                    "last" => t.last = Some(map.next_value_seed(LastSeed)?),
+                    "latest" => t.latest = Some(map.next_value_seed(Latest(self.0))?),
+                    _ => {
+                        map.next_value::<IgnoredAny>()?;
+                    }
+                }
+            }
+            Ok(Some(t))
+        }
+        fn visit_unit<E>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+        fn visit_bool<E>(self, _: bool) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+        fn visit_i64<E>(self, _: i64) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+        fn visit_u64<E>(self, _: u64) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+        fn visit_f64<E>(self, _: f64) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+        fn visit_str<E>(self, _: &str) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+        fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+            while seq.next_element::<IgnoredAny>()?.is_some() {}
+            Ok(None)
+        }
+    }
+
+    enum LastOut<'de> {
+        Null,
+        Obj([Option<Kind<'de>>; 2]),
+        Neither,
+    }
+    struct LastSeed;
+    impl<'de> DeserializeSeed<'de> for LastSeed {
+        type Value = LastOut<'de>;
+        fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<LastOut<'de>, D::Error> {
+            d.deserialize_any(NullOrFields)
+        }
+    }
+    /// `null`, an object's fields, or neither.
+    struct NullOrFields;
+    impl<'de> Visitor<'de> for NullOrFields {
+        type Value = LastOut<'de>;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("any JSON value")
+        }
+        fn visit_unit<E>(self) -> Result<Self::Value, E> {
+            Ok(LastOut::Null)
+        }
+        fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
+            Ok(FieldsV(LAST)
+                .visit_map(map)?
+                .map_or(LastOut::Neither, LastOut::Obj))
+        }
+        fn visit_bool<E>(self, _: bool) -> Result<Self::Value, E> {
+            Ok(LastOut::Neither)
+        }
+        fn visit_i64<E>(self, _: i64) -> Result<Self::Value, E> {
+            Ok(LastOut::Neither)
+        }
+        fn visit_u64<E>(self, _: u64) -> Result<Self::Value, E> {
+            Ok(LastOut::Neither)
+        }
+        fn visit_f64<E>(self, _: f64) -> Result<Self::Value, E> {
+            Ok(LastOut::Neither)
+        }
+        fn visit_str<E>(self, _: &str) -> Result<Self::Value, E> {
+            Ok(LastOut::Neither)
+        }
+        fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+            while seq.next_element::<IgnoredAny>()?.is_some() {}
+            Ok(LastOut::Neither)
+        }
+    }
+
+    fn offset_of(k: Option<&Kind>) -> Option<u64> {
+        let Some(Kind::Num(n)) = k else { return None };
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "checked a non-negative integer first"
+        )]
+        (n.is_finite() && *n >= 0.0 && n.fract() == 0.0).then_some(*n as u64)
+    }
+
+    /// What the quiet path needs from a valid file.
+    pub(super) struct Quiet {
+        pub size: u64,
+        pub mtime_ms: f64,
+        pub offset: u64,
+        pub entry: Option<Registration>,
+    }
+
+    /// Err: serde rejected the bytes (the caller parses them the full way).
+    /// Ok(None): parsed, and `parseRegFile` would refuse it.
+    #[allow(clippy::float_cmp, reason = "the version is an exact integer")]
+    pub(super) fn read(bytes: &[u8], session: &str) -> Result<Option<Quiet>, ()> {
+        let mut de = serde_json::Deserializer::from_slice(bytes);
+        let top = de.deserialize_any(TopV(session)).map_err(|_| ())?;
+        de.end().map_err(|_| ())?;
+        let Some(t) = top else { return Ok(None) };
+        let check = || -> Option<Quiet> {
+            let Some(Kind::Num(v)) = t.v else { return None };
+            if v != REGISTRATIONS_VERSION {
+                return None;
+            }
+            let size = offset_of(t.size.as_ref())?;
+            let Some(Kind::Num(mtime_ms)) = t.mtime else {
+                return None;
+            };
+            let offset = offset_of(t.offset.as_ref())?;
+            if offset > size {
+                return None;
+            }
+            match &t.last {
+                Some(LastOut::Null) => {}
+                Some(LastOut::Obj([start, sha])) => {
+                    if offset_of(start.as_ref())? >= offset || !matches!(sha, Some(Kind::Str(_))) {
+                        return None;
+                    }
+                }
+                _ => return None,
+            }
+            if !matches!(t.head, Some(Kind::Str(_))) {
+                return None;
+            }
+            let Some(Some((true, entry))) = t.latest else {
+                return None;
+            };
+            Some(Quiet {
+                size,
+                mtime_ms,
+                offset,
+                entry,
+            })
+        };
+        Ok(check())
+    }
 }
 
 fn to_text(f: &RegFile) -> String {
@@ -216,9 +610,25 @@ pub fn cached_registration_in(
         return scan(log, session_id);
     };
     let path = reg_path(layout, slug);
-    let cached = std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|t| parse_reg_file(&t));
+    let bytes = std::fs::read(&path).ok();
+    // The quiet read (4b): a file whose key still matches the log answers
+    // from a streamed lookup; anything else takes the full path below.
+    if let Some(b) = &bytes
+        && let Ok(Some(q)) = quiet::read(b, session_id)
+        && q.size == stat.size
+        && q.mtime_ms == stat.mtime_ms
+    {
+        let Some(rest) = read_range(log, q.offset, stat.size) else {
+            return scan(log, session_id);
+        };
+        if let Some((_, r)) =
+            registration_of(&String::from_utf8_lossy(&rest)).filter(|(s, _)| s == session_id)
+        {
+            return Some(r);
+        }
+        return q.entry;
+    }
+    let cached = bytes.as_deref().and_then(parse_reg_file);
 
     let (file, rest, changed) = match cached {
         Some(c) if c.size == stat.size && c.mtime_ms == stat.mtime_ms => {
@@ -301,6 +711,152 @@ mod tests {
     use crate::home::registration_in;
     use std::io::Write;
     use std::time::{Duration, UNIX_EPOCH};
+
+    type Verdict = Option<(u64, u64, u64, Option<Registration>)>;
+
+    /// The full parse's answer for one session — what the quiet read replaces.
+    fn full(bytes: &[u8], session: &str) -> Verdict {
+        let f = parse_reg_file(bytes)?;
+        let entry = f.latest.get(session).and_then(Json::as_obj).map(|r| {
+            (
+                r.get("id").and_then(Json::as_str).unwrap().to_owned(),
+                r.get("ts").and_then(Json::as_str).unwrap().to_owned(),
+            )
+        });
+        Some((f.size, f.mtime_ms.to_bits(), f.offset, entry))
+    }
+
+    /// Agree wherever serde accepts the bytes; Err falls back to the full path.
+    fn same(bytes: &[u8], session: &str) -> bool {
+        match quiet::read(bytes, session) {
+            Err(()) => false,
+            Ok(q) => {
+                let q = q.map(|q| (q.size, q.mtime_ms.to_bits(), q.offset, q.entry));
+                assert_eq!(
+                    q,
+                    full(bytes, session),
+                    "{session}: {}",
+                    String::from_utf8_lossy(bytes)
+                );
+                true
+            }
+        }
+    }
+
+    /// A registration file built from every committed real log (the derived
+    /// .sofar/.index is absent from a fresh checkout).
+    fn real_registration_files() -> Vec<Vec<u8>> {
+        let logs =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.sofar/initiatives");
+        let (layout, _) = repo("quiet-real");
+        let mut out = Vec::new();
+        for entry in std::fs::read_dir(&logs).unwrap() {
+            let entry = entry.unwrap();
+            let slug = entry.file_name().to_string_lossy().into_owned();
+            let Ok(text) = std::fs::read(entry.path().join("events.jsonl")) else {
+                continue;
+            };
+            let log = layout.events_path(&slug);
+            std::fs::create_dir_all(log.parent().unwrap()).unwrap();
+            std::fs::write(&log, text).unwrap();
+            let _ = cached_registration_in(&layout, &slug, &log, "absent", registration_in);
+            if let Ok(bytes) = std::fs::read(reg_path(&layout, &slug)) {
+                out.push(bytes);
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn the_quiet_read_equals_the_full_parse() {
+        let base = |latest: &str| {
+            format!(
+                r#"{{"v":2,"size":900,"mtimeMs":1790177657980.5837,"offset":800,"last":{{"start":700,"sha256":"ab"}},"head":"cd","latest":{latest}}}"#
+            )
+        };
+        let ok = r#"{"id":"I","ts":"T"}"#;
+        let crafted: Vec<String> = vec![
+            base(&format!(r#"{{"s":{ok},"o":{ok}}}"#)),
+            base(r"{}"),
+            base(&format!(r#"{{"s":{ok},"s":{{"id":"J","ts":"U"}}}}"#)),
+            base(&format!(r#"{{"s":{{"id":1,"ts":"T"}},"s":{ok}}}"#)),
+            base(&format!(r#"{{"s":{ok},"s":{{"id":1,"ts":"T"}}}}"#)),
+            base(&format!(r#"{{"o":{{"ts":"T"}},"o":{ok},"s":{ok}}}"#)),
+            base(&format!(r#"{{"o":{ok},"o":{{"ts":"T"}},"s":{ok}}}"#)),
+            base(&format!(r#"{{"o":{{"id":"I"}},"s":{ok}}}"#)),
+            base(r#"{"s":{"id":"I","ts":"T","x":[1,{"y":null}],"id":"K"}}"#),
+            base(r#"{"s":{"id":"I","ts":"T","id":null}}"#),
+            base(&format!(r#"{{"\u0073":{ok},"o\u00e9":{ok}}}"#)),
+            base(r#"{"s":{"\u0069d":"I","ts":"T\n"}}"#),
+            base(r"[]"),
+            base(r#""s""#),
+            base(r"null"),
+            base(&format!(r#"{{"s":[{ok}]}}"#)),
+            base(&format!(
+                r#"{{"s":{ok}}},"latest":{{"s":{{"id":"Z","ts":"Z"}}}}"#
+            )),
+            base(&format!(r#"{{"s":{ok}}},"latest":7"#)),
+            base(&format!(r#"{{"s":{ok}}},"v":3"#)),
+            base(&format!(r#"{{"s":{ok}}},"v":"2""#)),
+            base(&format!(r#"{{"s":{ok}}},"v":2.0,"offset":900"#)),
+            base(&format!(r#"{{"s":{ok}}},"offset":901"#)),
+            base(&format!(r#"{{"s":{ok}}},"offset":-0"#)),
+            base(&format!(r#"{{"s":{ok}}},"size":1.5"#)),
+            base(&format!(r#"{{"s":{ok}}},"mtimeMs":"1""#)),
+            base(&format!(r#"{{"s":{ok}}},"head":1"#)),
+            base(&format!(r#"{{"s":{ok}}},"last":null"#)),
+            base(&format!(
+                r#"{{"s":{ok}}},"last":null,"last":{{"start":1,"sha256":"x"}}"#
+            )),
+            base(&format!(
+                r#"{{"s":{ok}}},"last":{{"start":800,"sha256":"x"}}"#
+            )),
+            base(&format!(r#"{{"s":{ok}}},"last":{{"start":1,"sha256":2}}"#)),
+            base(&format!(r#"{{"s":{ok}}},"last":{{"start":1}}"#)),
+            base(&format!(r#"{{"s":{ok}}},"last":[1]"#)),
+            base(&format!(
+                r#"{{"s":{ok}}},"last":{{"start":1,"sha256":"x","start":"y"}}"#
+            )),
+            base(&format!(
+                r#"{{"s":{ok}}},"extra":{{"deep":[[[{{"a":"😀"}}]]]}}"#
+            )),
+            base(&format!(r#"{{"s":{ok}}},"extra":"\ud800""#)),
+            base(&format!(r#"{{"\ud800":{ok}}}"#)),
+            format!("  {}\n\n", base(&format!(r#"{{"s":{ok}}}"#))),
+            format!("{}x", base(&format!(r#"{{"s":{ok}}}"#))),
+            r#"{"v":2}"#.to_owned(),
+            "7".to_owned(),
+            String::new(),
+        ];
+        let sessions = ["s", "o", "oé", "absent", ""];
+        let mut agreed = 0;
+        let mut fell_back = 0;
+        for text in &crafted {
+            for s in sessions {
+                if same(text.as_bytes(), s) {
+                    agreed += 1;
+                } else {
+                    fell_back += 1;
+                }
+            }
+        }
+        assert!(fell_back > 0 && agreed > 150, "{agreed} / {fell_back}");
+        let mut files = 0;
+        for bytes in real_registration_files() {
+            let Some(f) = parse_reg_file(&bytes) else {
+                continue;
+            };
+            files += 1;
+            let keys: Vec<String> = f.latest.iter().map(|(k, _)| k.to_owned()).collect();
+            for k in keys.iter().map(String::as_str).chain(["absent", ""]) {
+                assert!(same(&bytes, k), "a real file fell back");
+            }
+            for cut in (0..bytes.len()).step_by(bytes.len() / 40 + 1) {
+                let _ = same(&bytes[..cut], keys.first().map_or("x", String::as_str));
+            }
+        }
+        assert!(files > 20, "{files} real files");
+    }
 
     fn repo(tag: &str) -> (Layout, PathBuf) {
         let dir = crate::testing::scratch_dir(tag);

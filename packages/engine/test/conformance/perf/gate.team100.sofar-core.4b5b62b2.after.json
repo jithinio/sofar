@@ -1,0 +1,1343 @@
+{
+  "implementation": "candidate",
+  "command": [
+    "/Users/jins/IO/sofar-rust-core/target/release/sofar-core"
+  ],
+  "recordedAt": "2026-09-24T12:41:38.401Z",
+  "iterations": 20,
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "cores": 14,
+    "node": "v24.15.0",
+    "platform": "darwin",
+    "release": "27.0.0"
+  },
+  "load": {
+    "start": 4.93,
+    "end": 5.05
+  },
+  "commit": "4b5b62b2",
+  "nodeSpawnMs": {
+    "n": 20,
+    "min": 20.8,
+    "p50": 22.84,
+    "p95": 27.04
+  },
+  "cells": [
+    {
+      "name": "team100-w10",
+      "recordedAt": "2026-09-24T12:41:42.532Z",
+      "initiatives": 20,
+      "boundBytes": 19252854,
+      "boundLines": 27841,
+      "totalBytes": 69621184,
+      "measures": {
+        "session-start (index warm)": {
+          "n": 20,
+          "min": 11.78,
+          "p50": 12.79,
+          "p95": 14.07
+        },
+        "session-start (index cold)": {
+          "n": 20,
+          "min": 408.12,
+          "p50": 418.15,
+          "p95": 440.05
+        },
+        "post-tool Edit": {
+          "n": 20,
+          "min": 45.38,
+          "p50": 48.5,
+          "p95": 56.58
+        },
+        "user-prompt (nudge)": {
+          "n": 20,
+          "min": 16.08,
+          "p50": 16.93,
+          "p95": 17.92
+        },
+        "stop (blocked)": {
+          "n": 20,
+          "min": 12.3,
+          "p50": 13.84,
+          "p95": 14.84
+        },
+        "session-end": {
+          "n": 20,
+          "min": 43.8,
+          "p50": 47.92,
+          "p95": 49.82
+        },
+        "statusline": {
+          "n": 20,
+          "min": 3.18,
+          "p50": 3.63,
+          "p95": 4.43
+        },
+        "status <slug> (full CLI, plain)": {
+          "n": 20,
+          "min": 223.46,
+          "p50": 235.73,
+          "p95": 243.77
+        },
+        "find <slug> (graph + index build, TypeScript)": {
+          "n": 20,
+          "min": 627.53,
+          "p50": 661.42,
+          "p95": 704.7
+        }
+      },
+      "corpus": {
+        "name": "team100-w10",
+        "initiatives": 20,
+        "writers": 10,
+        "totalBytes": 69621184,
+        "totalLines": 100344,
+        "bound": {
+          "bytes": 19252854,
+          "lines": 27841,
+          "sessions": 1735,
+          "openSessions": 10
+        },
+        "largestBytes": 19252854,
+        "perInitiative": [
+          {
+            "slug": "team-bound",
+            "bytes": 19252854,
+            "lines": 27841,
+            "sessions": 1735
+          },
+          {
+            "slug": "team-rec-01",
+            "bytes": 9535415,
+            "lines": 13977,
+            "sessions": 874
+          },
+          {
+            "slug": "team-rec-02",
+            "bytes": 6490014,
+            "lines": 9274,
+            "sessions": 562
+          },
+          {
+            "slug": "team-rec-03",
+            "bytes": 4722179,
+            "lines": 6954,
+            "sessions": 442
+          },
+          {
+            "slug": "team-rec-04",
+            "bytes": 3916017,
+            "lines": 5560,
+            "sessions": 353
+          },
+          {
+            "slug": "team-rec-05",
+            "bytes": 3255128,
+            "lines": 4660,
+            "sessions": 256
+          },
+          {
+            "slug": "team-rec-06",
+            "bytes": 2737654,
+            "lines": 3978,
+            "sessions": 234
+          },
+          {
+            "slug": "team-rec-07",
+            "bytes": 2410211,
+            "lines": 3498,
+            "sessions": 210
+          },
+          {
+            "slug": "team-rec-08",
+            "bytes": 2131883,
+            "lines": 3094,
+            "sessions": 199
+          },
+          {
+            "slug": "team-rec-09",
+            "bytes": 1935259,
+            "lines": 2780,
+            "sessions": 184
+          },
+          {
+            "slug": "team-rec-10",
+            "bytes": 1835312,
+            "lines": 2540,
+            "sessions": 141
+          },
+          {
+            "slug": "team-rec-11",
+            "bytes": 1662865,
+            "lines": 2326,
+            "sessions": 128
+          },
+          {
+            "slug": "team-rec-12",
+            "bytes": 1512991,
+            "lines": 2140,
+            "sessions": 118
+          },
+          {
+            "slug": "team-rec-13",
+            "bytes": 1412007,
+            "lines": 1999,
+            "sessions": 128
+          },
+          {
+            "slug": "team-rec-14",
+            "bytes": 1283615,
+            "lines": 1853,
+            "sessions": 124
+          },
+          {
+            "slug": "team-rec-15",
+            "bytes": 1227084,
+            "lines": 1782,
+            "sessions": 105
+          },
+          {
+            "slug": "team-rec-16",
+            "bytes": 1114913,
+            "lines": 1643,
+            "sessions": 101
+          },
+          {
+            "slug": "team-rec-17",
+            "bytes": 1113183,
+            "lines": 1553,
+            "sessions": 97
+          },
+          {
+            "slug": "team-rec-18",
+            "bytes": 1015974,
+            "lines": 1493,
+            "sessions": 93
+          },
+          {
+            "slug": "team-rec-19",
+            "bytes": 1056626,
+            "lines": 1399,
+            "sessions": 78
+          }
+        ]
+      },
+      "pinned": [
+        "find <slug> (graph + index build, TypeScript)"
+      ],
+      "rssMB": {
+        "session-start (index warm)": 173.4,
+        "post-tool Edit": 29.1,
+        "user-prompt (nudge)": 158,
+        "stop (blocked)": 30.3,
+        "session-end": 27.5,
+        "statusline": 27.2,
+        "status <slug> (full CLI, plain)": 251.3,
+        "find <slug> (graph + index build, TypeScript)": 402.1
+      },
+      "foldCurve": [
+        {
+          "lines": 559,
+          "bytes": 395749,
+          "foldMs": 6.780417000001762,
+          "how": "process"
+        },
+        {
+          "lines": 1396,
+          "bytes": 988688,
+          "foldMs": 13.609833000002254,
+          "how": "process"
+        },
+        {
+          "lines": 2793,
+          "bytes": 1888951,
+          "foldMs": 25.49099999999453,
+          "how": "process"
+        },
+        {
+          "lines": 5586,
+          "bytes": 3837278,
+          "foldMs": 48.17062500000611,
+          "how": "process"
+        },
+        {
+          "lines": 9775,
+          "bytes": 6717713,
+          "foldMs": 76.6832080000022,
+          "how": "process"
+        },
+        {
+          "lines": 13964,
+          "bytes": 9590108,
+          "foldMs": 112.38804099999834,
+          "how": "process"
+        },
+        {
+          "lines": 19550,
+          "bytes": 13482388,
+          "foldMs": 156.34758400000283,
+          "how": "process"
+        },
+        {
+          "lines": 27928,
+          "bytes": 19281148,
+          "foldMs": 219.57200000000012,
+          "how": "process"
+        }
+      ]
+    },
+    {
+      "name": "team100-w25",
+      "recordedAt": "2026-09-24T12:42:20.022Z",
+      "initiatives": 20,
+      "boundBytes": 19205535,
+      "boundLines": 27766,
+      "totalBytes": 69538243,
+      "measures": {
+        "session-start (index warm)": {
+          "n": 20,
+          "min": 11.48,
+          "p50": 13.57,
+          "p95": 19.59
+        },
+        "session-start (index cold)": {
+          "n": 20,
+          "min": 399.96,
+          "p50": 419.34,
+          "p95": 432.48
+        },
+        "post-tool Edit": {
+          "n": 20,
+          "min": 43.23,
+          "p50": 48.14,
+          "p95": 54.22
+        },
+        "user-prompt (nudge)": {
+          "n": 20,
+          "min": 14.81,
+          "p50": 15.11,
+          "p95": 16.14
+        },
+        "stop (blocked)": {
+          "n": 20,
+          "min": 12.06,
+          "p50": 12.2,
+          "p95": 12.54
+        },
+        "session-end": {
+          "n": 20,
+          "min": 42.82,
+          "p50": 46.14,
+          "p95": 51.33
+        },
+        "statusline": {
+          "n": 20,
+          "min": 3.48,
+          "p50": 3.82,
+          "p95": 4.27
+        },
+        "status <slug> (full CLI, plain)": {
+          "n": 20,
+          "min": 219.93,
+          "p50": 224.89,
+          "p95": 240.72
+        },
+        "find <slug> (graph + index build, TypeScript)": {
+          "n": 20,
+          "min": 596.51,
+          "p50": 612.54,
+          "p95": 651.05
+        }
+      },
+      "corpus": {
+        "name": "team100-w25",
+        "initiatives": 20,
+        "writers": 25,
+        "totalBytes": 69538243,
+        "totalLines": 100269,
+        "bound": {
+          "bytes": 19205535,
+          "lines": 27766,
+          "sessions": 1734,
+          "openSessions": 25
+        },
+        "largestBytes": 19205535,
+        "perInitiative": [
+          {
+            "slug": "team-bound",
+            "bytes": 19205535,
+            "lines": 27766,
+            "sessions": 1734
+          },
+          {
+            "slug": "team-rec-01",
+            "bytes": 9530682,
+            "lines": 13977,
+            "sessions": 874
+          },
+          {
+            "slug": "team-rec-02",
+            "bytes": 6485366,
+            "lines": 9274,
+            "sessions": 562
+          },
+          {
+            "slug": "team-rec-03",
+            "bytes": 4719524,
+            "lines": 6954,
+            "sessions": 442
+          },
+          {
+            "slug": "team-rec-04",
+            "bytes": 3912280,
+            "lines": 5560,
+            "sessions": 353
+          },
+          {
+            "slug": "team-rec-05",
+            "bytes": 3251649,
+            "lines": 4660,
+            "sessions": 256
+          },
+          {
+            "slug": "team-rec-06",
+            "bytes": 2735355,
+            "lines": 3978,
+            "sessions": 234
+          },
+          {
+            "slug": "team-rec-07",
+            "bytes": 2406320,
+            "lines": 3498,
+            "sessions": 210
+          },
+          {
+            "slug": "team-rec-08",
+            "bytes": 2129774,
+            "lines": 3094,
+            "sessions": 199
+          },
+          {
+            "slug": "team-rec-09",
+            "bytes": 1932745,
+            "lines": 2780,
+            "sessions": 184
+          },
+          {
+            "slug": "team-rec-10",
+            "bytes": 1834113,
+            "lines": 2540,
+            "sessions": 141
+          },
+          {
+            "slug": "team-rec-11",
+            "bytes": 1662438,
+            "lines": 2326,
+            "sessions": 128
+          },
+          {
+            "slug": "team-rec-12",
+            "bytes": 1511965,
+            "lines": 2140,
+            "sessions": 118
+          },
+          {
+            "slug": "team-rec-13",
+            "bytes": 1410886,
+            "lines": 1999,
+            "sessions": 128
+          },
+          {
+            "slug": "team-rec-14",
+            "bytes": 1282736,
+            "lines": 1853,
+            "sessions": 124
+          },
+          {
+            "slug": "team-rec-15",
+            "bytes": 1226814,
+            "lines": 1782,
+            "sessions": 105
+          },
+          {
+            "slug": "team-rec-16",
+            "bytes": 1115252,
+            "lines": 1643,
+            "sessions": 101
+          },
+          {
+            "slug": "team-rec-17",
+            "bytes": 1112838,
+            "lines": 1553,
+            "sessions": 97
+          },
+          {
+            "slug": "team-rec-18",
+            "bytes": 1015388,
+            "lines": 1493,
+            "sessions": 93
+          },
+          {
+            "slug": "team-rec-19",
+            "bytes": 1056583,
+            "lines": 1399,
+            "sessions": 78
+          }
+        ]
+      },
+      "pinned": [
+        "find <slug> (graph + index build, TypeScript)"
+      ],
+      "rssMB": {
+        "session-start (index warm)": 169.6,
+        "post-tool Edit": 29,
+        "user-prompt (nudge)": 152.8,
+        "stop (blocked)": 29.5,
+        "session-end": 27,
+        "statusline": 27.2,
+        "status <slug> (full CLI, plain)": 250.3,
+        "find <slug> (graph + index build, TypeScript)": 400.9
+      },
+      "foldCurve": [
+        {
+          "lines": 557,
+          "bytes": 394222,
+          "foldMs": 6.28391699999338,
+          "how": "process"
+        },
+        {
+          "lines": 1393,
+          "bytes": 987823,
+          "foldMs": 12.668334000001778,
+          "how": "process"
+        },
+        {
+          "lines": 2785,
+          "bytes": 1883989,
+          "foldMs": 23.261375000001863,
+          "how": "process"
+        },
+        {
+          "lines": 5571,
+          "bytes": 3827249,
+          "foldMs": 43.73287500000151,
+          "how": "process"
+        },
+        {
+          "lines": 9749,
+          "bytes": 6693215,
+          "foldMs": 73.04804100000183,
+          "how": "process"
+        },
+        {
+          "lines": 13927,
+          "bytes": 9564517,
+          "foldMs": 105.61491699999897,
+          "how": "process"
+        },
+        {
+          "lines": 19497,
+          "bytes": 13444542,
+          "foldMs": 154.80400000000373,
+          "how": "process"
+        },
+        {
+          "lines": 27853,
+          "bytes": 19233829,
+          "foldMs": 212.87287500000093,
+          "how": "process"
+        }
+      ]
+    },
+    {
+      "name": "team100-w50",
+      "recordedAt": "2026-09-24T12:42:55.779Z",
+      "initiatives": 20,
+      "boundBytes": 19138661,
+      "boundLines": 27716,
+      "totalBytes": 69471654,
+      "measures": {
+        "session-start (index warm)": {
+          "n": 20,
+          "min": 11.37,
+          "p50": 11.58,
+          "p95": 12.07
+        },
+        "session-start (index cold)": {
+          "n": 20,
+          "min": 391.7,
+          "p50": 406.17,
+          "p95": 434.83
+        },
+        "post-tool Edit": {
+          "n": 20,
+          "min": 42.86,
+          "p50": 46.39,
+          "p95": 50.46
+        },
+        "user-prompt (nudge)": {
+          "n": 20,
+          "min": 15.36,
+          "p50": 16.43,
+          "p95": 17.82
+        },
+        "stop (blocked)": {
+          "n": 20,
+          "min": 12.02,
+          "p50": 13.33,
+          "p95": 15.01
+        },
+        "session-end": {
+          "n": 20,
+          "min": 42.53,
+          "p50": 46.13,
+          "p95": 49.76
+        },
+        "statusline": {
+          "n": 20,
+          "min": 3.14,
+          "p50": 3.59,
+          "p95": 4.12
+        },
+        "status <slug> (full CLI, plain)": {
+          "n": 20,
+          "min": 221.91,
+          "p50": 235.45,
+          "p95": 242.48
+        },
+        "find <slug> (graph + index build, TypeScript)": {
+          "n": 20,
+          "min": 632.13,
+          "p50": 671.57,
+          "p95": 690.61
+        }
+      },
+      "corpus": {
+        "name": "team100-w50",
+        "initiatives": 20,
+        "writers": 50,
+        "totalBytes": 69471654,
+        "totalLines": 100219,
+        "bound": {
+          "bytes": 19138661,
+          "lines": 27716,
+          "sessions": 1734,
+          "openSessions": 50
+        },
+        "largestBytes": 19138661,
+        "perInitiative": [
+          {
+            "slug": "team-bound",
+            "bytes": 19138661,
+            "lines": 27716,
+            "sessions": 1734
+          },
+          {
+            "slug": "team-rec-01",
+            "bytes": 9530046,
+            "lines": 13977,
+            "sessions": 874
+          },
+          {
+            "slug": "team-rec-02",
+            "bytes": 6483977,
+            "lines": 9274,
+            "sessions": 562
+          },
+          {
+            "slug": "team-rec-03",
+            "bytes": 4716661,
+            "lines": 6954,
+            "sessions": 442
+          },
+          {
+            "slug": "team-rec-04",
+            "bytes": 3911896,
+            "lines": 5560,
+            "sessions": 353
+          },
+          {
+            "slug": "team-rec-05",
+            "bytes": 3252021,
+            "lines": 4660,
+            "sessions": 256
+          },
+          {
+            "slug": "team-rec-06",
+            "bytes": 2735255,
+            "lines": 3978,
+            "sessions": 234
+          },
+          {
+            "slug": "team-rec-07",
+            "bytes": 2408186,
+            "lines": 3498,
+            "sessions": 210
+          },
+          {
+            "slug": "team-rec-08",
+            "bytes": 2130231,
+            "lines": 3094,
+            "sessions": 199
+          },
+          {
+            "slug": "team-rec-09",
+            "bytes": 1933862,
+            "lines": 2780,
+            "sessions": 184
+          },
+          {
+            "slug": "team-rec-10",
+            "bytes": 1834484,
+            "lines": 2540,
+            "sessions": 141
+          },
+          {
+            "slug": "team-rec-11",
+            "bytes": 1662215,
+            "lines": 2326,
+            "sessions": 128
+          },
+          {
+            "slug": "team-rec-12",
+            "bytes": 1512531,
+            "lines": 2140,
+            "sessions": 118
+          },
+          {
+            "slug": "team-rec-13",
+            "bytes": 1411412,
+            "lines": 1999,
+            "sessions": 128
+          },
+          {
+            "slug": "team-rec-14",
+            "bytes": 1283106,
+            "lines": 1853,
+            "sessions": 124
+          },
+          {
+            "slug": "team-rec-15",
+            "bytes": 1226820,
+            "lines": 1782,
+            "sessions": 105
+          },
+          {
+            "slug": "team-rec-16",
+            "bytes": 1114703,
+            "lines": 1643,
+            "sessions": 101
+          },
+          {
+            "slug": "team-rec-17",
+            "bytes": 1113072,
+            "lines": 1553,
+            "sessions": 97
+          },
+          {
+            "slug": "team-rec-18",
+            "bytes": 1015889,
+            "lines": 1493,
+            "sessions": 93
+          },
+          {
+            "slug": "team-rec-19",
+            "bytes": 1056626,
+            "lines": 1399,
+            "sessions": 78
+          }
+        ]
+      },
+      "pinned": [
+        "find <slug> (graph + index build, TypeScript)"
+      ],
+      "rssMB": {
+        "session-start (index warm)": 171.4,
+        "post-tool Edit": 29.7,
+        "user-prompt (nudge)": 150.4,
+        "stop (blocked)": 29.4,
+        "session-end": 27.2,
+        "statusline": 27.3,
+        "status <slug> (full CLI, plain)": 221.1,
+        "find <slug> (graph + index build, TypeScript)": 404.9
+      },
+      "foldCurve": [
+        {
+          "lines": 556,
+          "bytes": 390864,
+          "foldMs": 6.802792000002228,
+          "how": "process"
+        },
+        {
+          "lines": 1390,
+          "bytes": 984795,
+          "foldMs": 13.524082999996608,
+          "how": "process"
+        },
+        {
+          "lines": 2780,
+          "bytes": 1880291,
+          "foldMs": 23.84824999999546,
+          "how": "process"
+        },
+        {
+          "lines": 5561,
+          "bytes": 3821875,
+          "foldMs": 48.321750000002794,
+          "how": "process"
+        },
+        {
+          "lines": 9731,
+          "bytes": 6680914,
+          "foldMs": 80.48841599999287,
+          "how": "process"
+        },
+        {
+          "lines": 13902,
+          "bytes": 9548793,
+          "foldMs": 110.83054199999606,
+          "how": "process"
+        },
+        {
+          "lines": 19462,
+          "bytes": 13426519,
+          "foldMs": 163.89949999999953,
+          "how": "process"
+        },
+        {
+          "lines": 27803,
+          "bytes": 19166955,
+          "foldMs": 224.9469170000084,
+          "how": "process"
+        }
+      ]
+    },
+    {
+      "name": "team100-w100",
+      "recordedAt": "2026-09-24T12:43:32.927Z",
+      "initiatives": 20,
+      "boundBytes": 19164838,
+      "boundLines": 27743,
+      "totalBytes": 69488625,
+      "measures": {
+        "session-start (index warm)": {
+          "n": 20,
+          "min": 11.67,
+          "p50": 11.92,
+          "p95": 13.14
+        },
+        "session-start (index cold)": {
+          "n": 20,
+          "min": 400.58,
+          "p50": 419.58,
+          "p95": 441.6
+        },
+        "post-tool Edit": {
+          "n": 20,
+          "min": 42.19,
+          "p50": 44.79,
+          "p95": 48.63
+        },
+        "user-prompt (nudge)": {
+          "n": 20,
+          "min": 15.1,
+          "p50": 15.72,
+          "p95": 18.73
+        },
+        "stop (blocked)": {
+          "n": 20,
+          "min": 12.37,
+          "p50": 12.62,
+          "p95": 14.08
+        },
+        "session-end": {
+          "n": 20,
+          "min": 42.11,
+          "p50": 48.85,
+          "p95": 51.78
+        },
+        "statusline": {
+          "n": 20,
+          "min": 3.57,
+          "p50": 3.88,
+          "p95": 4.74
+        },
+        "status <slug> (full CLI, plain)": {
+          "n": 20,
+          "min": 221.3,
+          "p50": 233.5,
+          "p95": 242.67
+        },
+        "find <slug> (graph + index build, TypeScript)": {
+          "n": 20,
+          "min": 626.31,
+          "p50": 660.02,
+          "p95": 687.2
+        }
+      },
+      "corpus": {
+        "name": "team100-w100",
+        "initiatives": 20,
+        "writers": 100,
+        "totalBytes": 69488625,
+        "totalLines": 100246,
+        "bound": {
+          "bytes": 19164838,
+          "lines": 27743,
+          "sessions": 1745,
+          "openSessions": 100
+        },
+        "largestBytes": 19164838,
+        "perInitiative": [
+          {
+            "slug": "team-bound",
+            "bytes": 19164838,
+            "lines": 27743,
+            "sessions": 1745
+          },
+          {
+            "slug": "team-rec-01",
+            "bytes": 9522732,
+            "lines": 13977,
+            "sessions": 874
+          },
+          {
+            "slug": "team-rec-02",
+            "bytes": 6482085,
+            "lines": 9274,
+            "sessions": 562
+          },
+          {
+            "slug": "team-rec-03",
+            "bytes": 4716661,
+            "lines": 6954,
+            "sessions": 442
+          },
+          {
+            "slug": "team-rec-04",
+            "bytes": 3911896,
+            "lines": 5560,
+            "sessions": 353
+          },
+          {
+            "slug": "team-rec-05",
+            "bytes": 3252021,
+            "lines": 4660,
+            "sessions": 256
+          },
+          {
+            "slug": "team-rec-06",
+            "bytes": 2735255,
+            "lines": 3978,
+            "sessions": 234
+          },
+          {
+            "slug": "team-rec-07",
+            "bytes": 2408186,
+            "lines": 3498,
+            "sessions": 210
+          },
+          {
+            "slug": "team-rec-08",
+            "bytes": 2130231,
+            "lines": 3094,
+            "sessions": 199
+          },
+          {
+            "slug": "team-rec-09",
+            "bytes": 1933862,
+            "lines": 2780,
+            "sessions": 184
+          },
+          {
+            "slug": "team-rec-10",
+            "bytes": 1834484,
+            "lines": 2540,
+            "sessions": 141
+          },
+          {
+            "slug": "team-rec-11",
+            "bytes": 1662215,
+            "lines": 2326,
+            "sessions": 128
+          },
+          {
+            "slug": "team-rec-12",
+            "bytes": 1512531,
+            "lines": 2140,
+            "sessions": 118
+          },
+          {
+            "slug": "team-rec-13",
+            "bytes": 1411412,
+            "lines": 1999,
+            "sessions": 128
+          },
+          {
+            "slug": "team-rec-14",
+            "bytes": 1283106,
+            "lines": 1853,
+            "sessions": 124
+          },
+          {
+            "slug": "team-rec-15",
+            "bytes": 1226820,
+            "lines": 1782,
+            "sessions": 105
+          },
+          {
+            "slug": "team-rec-16",
+            "bytes": 1114703,
+            "lines": 1643,
+            "sessions": 101
+          },
+          {
+            "slug": "team-rec-17",
+            "bytes": 1113072,
+            "lines": 1553,
+            "sessions": 97
+          },
+          {
+            "slug": "team-rec-18",
+            "bytes": 1015889,
+            "lines": 1493,
+            "sessions": 93
+          },
+          {
+            "slug": "team-rec-19",
+            "bytes": 1056626,
+            "lines": 1399,
+            "sessions": 78
+          }
+        ]
+      },
+      "pinned": [
+        "find <slug> (graph + index build, TypeScript)"
+      ],
+      "rssMB": {
+        "session-start (index warm)": 172.3,
+        "post-tool Edit": 29.2,
+        "user-prompt (nudge)": 156,
+        "stop (blocked)": 29.4,
+        "session-end": 26.9,
+        "statusline": 27.4,
+        "status <slug> (full CLI, plain)": 221.7,
+        "find <slug> (graph + index build, TypeScript)": 401.8
+      },
+      "foldCurve": [
+        {
+          "lines": 557,
+          "bytes": 394021,
+          "foldMs": 6.541666000004625,
+          "how": "process"
+        },
+        {
+          "lines": 1392,
+          "bytes": 985521,
+          "foldMs": 13.541457999992417,
+          "how": "process"
+        },
+        {
+          "lines": 2783,
+          "bytes": 1883282,
+          "foldMs": 24.002250000019558,
+          "how": "process"
+        },
+        {
+          "lines": 5566,
+          "bytes": 3823587,
+          "foldMs": 45.41287500000908,
+          "how": "process"
+        },
+        {
+          "lines": 9741,
+          "bytes": 6681174,
+          "foldMs": 85.14154199999757,
+          "how": "process"
+        },
+        {
+          "lines": 13915,
+          "bytes": 9552216,
+          "foldMs": 118.27512499998556,
+          "how": "process"
+        },
+        {
+          "lines": 19481,
+          "bytes": 13426607,
+          "foldMs": 149.69687500002328,
+          "how": "process"
+        },
+        {
+          "lines": 27830,
+          "bytes": 19193178,
+          "foldMs": 222.08279200000106,
+          "how": "process"
+        }
+      ]
+    },
+    {
+      "name": "team100",
+      "recordedAt": "2026-09-24T12:44:23.540Z",
+      "initiatives": 20,
+      "boundBytes": 95639775,
+      "boundLines": 138950,
+      "totalBytes": 345445220,
+      "measures": {
+        "session-start (index warm)": {
+          "n": 20,
+          "min": 41.05,
+          "p50": 42.63,
+          "p95": 47.75
+        },
+        "session-start (index cold)": {
+          "n": 20,
+          "min": 1937.64,
+          "p50": 2006.98,
+          "p95": 2142.48
+        },
+        "post-tool Edit": {
+          "n": 20,
+          "min": 164.85,
+          "p50": 168.21,
+          "p95": 191.64
+        },
+        "user-prompt (nudge)": {
+          "n": 20,
+          "min": 65.9,
+          "p50": 68.33,
+          "p95": 71.27
+        },
+        "stop (blocked)": {
+          "n": 20,
+          "min": 53.33,
+          "p50": 56.2,
+          "p95": 60.27
+        },
+        "session-end": {
+          "n": 20,
+          "min": 169.49,
+          "p50": 175.67,
+          "p95": 183.99
+        },
+        "statusline": {
+          "n": 20,
+          "min": 7.06,
+          "p50": 7.56,
+          "p95": 8.21
+        },
+        "status <slug> (full CLI, plain)": {
+          "n": 20,
+          "min": 1138.69,
+          "p50": 1176.28,
+          "p95": 1248.5
+        },
+        "find <slug> (graph + index build, TypeScript)": {
+          "n": 20,
+          "min": 2976.45,
+          "p50": 3155.75,
+          "p95": 3500.29
+        }
+      },
+      "corpus": {
+        "name": "team100",
+        "initiatives": 20,
+        "writers": 100,
+        "totalBytes": 345445220,
+        "totalLines": 500188,
+        "bound": {
+          "bytes": 95639775,
+          "lines": 138950,
+          "sessions": 8576,
+          "openSessions": 100
+        },
+        "largestBytes": 95639775,
+        "perInitiative": [
+          {
+            "slug": "team-bound",
+            "bytes": 95639775,
+            "lines": 138950,
+            "sessions": 8576
+          },
+          {
+            "slug": "team-rec-01",
+            "bytes": 47832114,
+            "lines": 69488,
+            "sessions": 4293
+          },
+          {
+            "slug": "team-rec-02",
+            "bytes": 32268794,
+            "lines": 46333,
+            "sessions": 2857
+          },
+          {
+            "slug": "team-rec-03",
+            "bytes": 23889198,
+            "lines": 34804,
+            "sessions": 2169
+          },
+          {
+            "slug": "team-rec-04",
+            "bytes": 19379484,
+            "lines": 27799,
+            "sessions": 1684
+          },
+          {
+            "slug": "team-rec-05",
+            "bytes": 16163034,
+            "lines": 23175,
+            "sessions": 1396
+          },
+          {
+            "slug": "team-rec-06",
+            "bytes": 13825435,
+            "lines": 19866,
+            "sessions": 1200
+          },
+          {
+            "slug": "team-rec-07",
+            "bytes": 11953964,
+            "lines": 17377,
+            "sessions": 1087
+          },
+          {
+            "slug": "team-rec-08",
+            "bytes": 10662542,
+            "lines": 15460,
+            "sessions": 977
+          },
+          {
+            "slug": "team-rec-09",
+            "bytes": 9625894,
+            "lines": 13917,
+            "sessions": 861
+          },
+          {
+            "slug": "team-rec-10",
+            "bytes": 8748290,
+            "lines": 12656,
+            "sessions": 772
+          },
+          {
+            "slug": "team-rec-11",
+            "bytes": 7955716,
+            "lines": 11581,
+            "sessions": 662
+          },
+          {
+            "slug": "team-rec-12",
+            "bytes": 7384175,
+            "lines": 10694,
+            "sessions": 649
+          },
+          {
+            "slug": "team-rec-13",
+            "bytes": 6938609,
+            "lines": 9965,
+            "sessions": 610
+          },
+          {
+            "slug": "team-rec-14",
+            "bytes": 6366939,
+            "lines": 9265,
+            "sessions": 600
+          },
+          {
+            "slug": "team-rec-15",
+            "bytes": 6020988,
+            "lines": 8696,
+            "sessions": 523
+          },
+          {
+            "slug": "team-rec-16",
+            "bytes": 5617476,
+            "lines": 8176,
+            "sessions": 505
+          },
+          {
+            "slug": "team-rec-17",
+            "bytes": 5382595,
+            "lines": 7721,
+            "sessions": 478
+          },
+          {
+            "slug": "team-rec-18",
+            "bytes": 4956848,
+            "lines": 7315,
+            "sessions": 461
+          },
+          {
+            "slug": "team-rec-19",
+            "bytes": 4833350,
+            "lines": 6950,
+            "sessions": 426
+          }
+        ]
+      },
+      "pinned": [
+        "find <slug> (graph + index build, TypeScript)"
+      ],
+      "rssMB": {
+        "session-start (index warm)": 925,
+        "post-tool Edit": 129.4,
+        "user-prompt (nudge)": 846,
+        "stop (blocked)": 127.5,
+        "session-end": 117.5,
+        "statusline": 118.3,
+        "status <slug> (full CLI, plain)": 1263.4,
+        "find <slug> (graph + index build, TypeScript)": 1177.2
+      },
+      "foldCurve": [
+        {
+          "lines": 2781,
+          "bytes": 1880627,
+          "foldMs": 23.326583999965806,
+          "how": "process"
+        },
+        {
+          "lines": 6952,
+          "bytes": 4842332,
+          "foldMs": 54.54437499999767,
+          "how": "process"
+        },
+        {
+          "lines": 13904,
+          "bytes": 9542686,
+          "foldMs": 108.1345839999849,
+          "how": "process"
+        },
+        {
+          "lines": 27807,
+          "bytes": 19201777,
+          "foldMs": 217.84479200001806,
+          "how": "process"
+        },
+        {
+          "lines": 48663,
+          "bytes": 33639172,
+          "foldMs": 380.21520900004543,
+          "how": "process"
+        },
+        {
+          "lines": 69519,
+          "bytes": 47948432,
+          "foldMs": 555.5401249999995,
+          "how": "process"
+        },
+        {
+          "lines": 97326,
+          "bytes": 67248586,
+          "foldMs": 804.7844169999589,
+          "how": "process"
+        },
+        {
+          "lines": 139037,
+          "bytes": 95667885,
+          "foldMs": 1209.0084170000046,
+          "how": "process"
+        }
+      ]
+    }
+  ]
+}

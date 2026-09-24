@@ -5,12 +5,12 @@
 
 use std::path::Path;
 
-use crate::append::fold_state;
 use crate::attribution::{
-    CommitAttribution, commits_by_task, read_attribution, read_shipping_from,
+    CommitAttribution, cached_attribution, commits_by_task, read_shipping_from,
 };
 use crate::date::{js_date_parse, js_round, now_ms};
 use crate::diagnostics::{RowInput, record_diagnostic};
+use crate::digest_cache::cached_digest_state;
 use crate::fold::InitiativeState;
 use crate::fold_cli::CmdResult;
 use crate::git::read_git_state;
@@ -440,7 +440,9 @@ pub fn handle_session_start(root: &Path, input: &str) -> CmdResult {
     let now = now_ms();
     let events_path = layout.events_path(&slug);
     let advisory = cold_resume_advisory(&hook, &events_path, now);
-    let state = fold_state(&layout, &slug);
+    // The digest's cut of the fold, cached per record by the log's size and
+    // mtime (rust-core 4.4): it renders the same block (digest_state's tests).
+    let state = cached_digest_state(&layout, &slug);
     let repo_memory = read_repo_memory(&layout);
     let git = read_git_state(root);
     if let (Some(sid), Some(g)) = (session_id, &git) {
@@ -451,7 +453,8 @@ pub fn handle_session_start(root: &Path, input: &str) -> CmdResult {
     let scope = refresh_guards(&layout);
     let neighbours = refresh_neighbours(&layout, &slug, &scope);
     let repo_rules = repo_rules(&scope, &slug, retire_enabled());
-    let commits = read_attribution(root, SHIPPING_WINDOW);
+    // None at all while HEAD has not moved (rust-core 4.4, L1).
+    let commits = cached_attribution(&layout, SHIPPING_WINDOW);
     let activity = activity_enabled();
     let notices: Vec<String> = [
         recent_work_elsewhere_notice(&layout, &slug, via, now),

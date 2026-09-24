@@ -116,26 +116,32 @@ fn has_punct(word: &str) -> bool {
     word.contains(['.', '_', '-'])
 }
 
+/// Every admitted term occurrence in `text`, in order — the one tokenizer
+/// `lexicalCounts` counts, so a caller that needs less than the counts (the
+/// relevance score) reads exactly the same terms.
+pub fn for_each_term(text: &str, mut f: impl FnMut(String)) {
+    for raw in words(text) {
+        let word = strip_trailing_punct(&raw);
+        if let Some(folded) = admit(word) {
+            f(folded);
+        }
+        if has_punct(word) {
+            for part in word.split(['.', '_', '-']).filter(|p| !p.is_empty()) {
+                if let Some(folded) = admit(part) {
+                    f(folded);
+                }
+            }
+        }
+    }
+}
+
 /// `lexicalCounts`: term → count, sorted by term.
 #[must_use]
 pub fn lexical_counts(text: &str) -> Vec<(String, f64)> {
     // Keyed, then sorted once: a linear find per token is quadratic in a
     // doc's distinct terms.
     let mut tallies: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
-    let mut tally = |word: &str| {
-        if let Some(folded) = admit(word) {
-            *tallies.entry(folded).or_insert(0.0) += 1.0;
-        }
-    };
-    for raw in words(text) {
-        let word = strip_trailing_punct(&raw);
-        tally(word);
-        if has_punct(word) {
-            for part in word.split(['.', '_', '-']).filter(|p| !p.is_empty()) {
-                tally(part);
-            }
-        }
-    }
+    for_each_term(text, |folded| *tallies.entry(folded).or_insert(0.0) += 1.0);
     let mut counts: Vec<(String, f64)> = tallies.into_iter().collect();
     counts.sort_by(|a, b| cmp_utf16(&a.0, &b.0));
     counts

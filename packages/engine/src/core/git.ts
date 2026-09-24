@@ -118,6 +118,28 @@ function readRef(dir: string, ref: string): string | null {
 }
 
 /**
+ * The full sha HEAD names, from files (rust-core 4.4, L1): a detached HEAD's
+ * own sha, or the tip of the `refs/heads/` branch it points at, resolved in
+ * the common dir. Null for anything else (an unborn branch, a ref kept outside
+ * the files backend), and the caller then asks git instead.
+ */
+export function headSha(rootDir: string): string | null {
+  try {
+    const dir = gitDir(rootDir)
+    if (dir === null) return null
+    const head = readFileSync(join(dir, 'HEAD'), 'utf8').trim()
+    if (/^[0-9a-f]{40}$/.test(head)) return head
+    const refMatch = /^ref:\s*(refs\/heads\/.+)$/.exec(head)
+    const common = commonGitDir(rootDir)
+    if (refMatch === null || common === null) return null
+    const sha = readRef(common, refMatch[1]!)
+    return sha !== null && /^[0-9a-f]{40}$/.test(sha) ? sha : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Git state derived at render time (record-integrity 4.1).
  *
  * Committing and pushing leave NO trace in the record by design —

@@ -39,7 +39,7 @@ pub const GUARD_VIOLATION_CAP: usize = 100;
 // State types — the field names ARE the wire (SPEC §State); `to_json` writes
 // them in the TypeScript interface order, `from_json` reads the snapshot wire.
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TaskState {
     pub id: String,
     pub title: String,
@@ -57,7 +57,7 @@ pub struct TaskState {
 }
 
 /// A decision's check as the driver ran it for one task (D9).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CheckVerification {
     pub verification: TaskVerification,
     /// `<slug> D<n>` whose check this was.
@@ -65,7 +65,7 @@ pub struct CheckVerification {
 }
 
 /// One `verification_recorded`, as the task keeps it (D19).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TaskVerification {
     pub run: String,
     pub attempt: f64,
@@ -83,7 +83,7 @@ pub struct TaskVerification {
     pub diagnostics: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PhaseState {
     pub name: String,
     pub status: String,
@@ -92,7 +92,7 @@ pub struct PhaseState {
     pub note: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DecisionState {
     pub id: String,
     pub ts: String,
@@ -116,7 +116,7 @@ pub struct DecisionState {
     pub superseded_by: Option<u64>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ReviewState {
     pub id: String,
     pub ts: String,
@@ -127,7 +127,7 @@ pub struct ReviewState {
     pub findings: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MemoryState {
     pub id: String,
     pub ts: String,
@@ -145,7 +145,7 @@ pub struct MemoryState {
 }
 
 /// A test-shaped `command_run` the host reported an outcome for (r1-fixes 2.5, D24).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TestOutcome {
     pub cmd: String,
     pub ok: bool,
@@ -153,7 +153,7 @@ pub struct TestOutcome {
 }
 
 /// The latest [`TestOutcome`] a task saw while active, with the event it came from.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TaskTestOutcome {
     pub outcome: TestOutcome,
     pub ts: String,
@@ -161,7 +161,7 @@ pub struct TaskTestOutcome {
 }
 
 /// Derived per-session activity (BD44).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SessionActivity {
     pub files: Vec<String>,
     pub commands: u64,
@@ -172,7 +172,7 @@ pub struct SessionActivity {
     pub last_test: Option<TestOutcome>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SessionHandoff {
     pub run: String,
     pub reason: String,
@@ -180,7 +180,7 @@ pub struct SessionHandoff {
     pub detail: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SessionState {
     pub id: String,
     pub tool: String,
@@ -196,7 +196,7 @@ pub struct SessionState {
     pub unwritten: u64,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RunHandoff {
     pub ts: String,
     pub session_id: String,
@@ -206,7 +206,7 @@ pub struct RunHandoff {
     pub detail: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RunVerification {
     pub ts: String,
     pub task: String,
@@ -217,7 +217,7 @@ pub struct RunVerification {
 }
 
 /// A `--resume` taking the run over (drive-visibility 2.2).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RunAdoption {
     pub id: String,
     pub ts: String,
@@ -225,13 +225,13 @@ pub struct RunAdoption {
 }
 
 /// The driver in force: the highest epoch, the first-sorting id on a tie.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RunOwner {
     pub id: String,
     pub epoch: f64,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RunState {
     pub id: String,
     pub ts: String,
@@ -259,13 +259,13 @@ pub struct RunState {
     pub stop_note: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct NoteEntry {
     pub ts: String,
     pub text: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct FreshnessCounts {
     pub files: u64,
     pub commands: u64,
@@ -278,7 +278,7 @@ pub struct FreshnessCounts {
 }
 
 /// Fold-time freshness (staleness-detection 1.1).
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct FreshnessState {
     pub events_since_writeback: FreshnessCounts,
     pub unattributed_mutations: u64,
@@ -287,7 +287,7 @@ pub struct FreshnessState {
 }
 
 /// One crossing of a guarded rule (drift-hardening D3).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct GuardViolation {
     /// 1-based ordinal of the guarding decision in log order — the D<n> handle.
     pub decision: u64,
@@ -300,14 +300,14 @@ pub struct GuardViolation {
     pub session: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct Current {
     pub active_phase: Option<String>,
     pub next_action: Option<String>,
     pub blocked_on: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct InitiativeState {
     pub slug: String,
     pub goal: String,
@@ -372,7 +372,7 @@ pub fn empty_state() -> InitiativeState {
 
 /// A `task_status_changed` that applied to no task and whose id the FINAL plan
 /// lacks (task 12.2, BD58).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct OrphanTaskEvent {
     pub event_id: String,
     pub ts: String,
@@ -706,10 +706,21 @@ pub fn finalize_fold(cp: &FoldCheckpoint) -> FoldResult {
 /// clone and its drop were ~20% of a read hook.
 #[must_use]
 pub fn finalize_state(cp: &FoldCheckpoint) -> InitiativeState {
+    let mut acc = EdgeAccumulator::default();
+    acc.add(&cp.edges);
+    finalize_from(cp, &acc)
+}
+
+/// The finalized state from the edge ACCUMULATORS rather than the edges
+/// (`finalizeFrom`, rust-core 4.4, 01M39ED9): what an edge-free checkpoint
+/// finalizes with. [`finalize_state`] is this over one batch of every edge,
+/// so the two cannot disagree.
+#[must_use]
+pub fn finalize_from(cp: &FoldCheckpoint, acc: &EdgeAccumulator) -> InitiativeState {
     let mut state = cp.state.clone();
-    state.task_files = task_files_from_edges(&cp.edges);
-    state.task_tests = task_tests_from_edges(&cp.edges);
-    attach_activity(&mut state, activity_from_edges(&cp.edges));
+    state.task_files = acc.task_files();
+    state.task_tests = acc.task_tests();
+    attach_activity(&mut state, acc.activity());
     derive_current(&mut state, &cp.block_notes);
     state
 }
@@ -1504,60 +1515,9 @@ fn edges_for_event(
     }
 }
 
-/// File-locality hints (speed T4): task id → paths, most-recent-first, capped (`taskFilesFromEdges`).
-fn task_files_from_edges(edges: &[GraphEdge]) -> Vec<(String, Vec<String>)> {
-    let mut out: Vec<(String, Vec<String>)> = Vec::new();
-    for edge in edges {
-        if edge.kind != "worked" {
-            continue;
-        }
-        let task_id = task_id_of(&edge.from);
-        let path = path_of_node_id(&edge.to);
-        let index = if let Some(i) = out.iter().position(|(id, _)| id == task_id) {
-            i
-        } else {
-            out.push((task_id.to_owned(), Vec::new()));
-            out.len() - 1
-        };
-        let files = &mut out[index].1;
-        if let Some(existing) = files.iter().position(|f| f == path) {
-            files.remove(existing);
-        }
-        files.insert(0, path.to_owned());
-        if files.len() > TASK_FILES_CAP {
-            files.pop();
-        }
-    }
-    out
-}
-
-/// Task id → latest test outcome (D24), from `tested` edges in log order —
-/// last wins, the key keeping its first position (`taskTestsFromEdges`).
-fn task_tests_from_edges(edges: &[GraphEdge]) -> Vec<(String, TaskTestOutcome)> {
-    let mut out: Vec<(String, TaskTestOutcome)> = Vec::new();
-    for edge in edges {
-        if edge.kind != "tested" {
-            continue;
-        }
-        let Some(outcome) = edge.attrs.as_ref().and_then(EdgeAttrs::outcome) else {
-            continue;
-        };
-        let task_id = task_id_of(&edge.from);
-        let value = TaskTestOutcome {
-            outcome,
-            ts: edge.ts.clone().unwrap_or_default(),
-            event_id: edge.event_id.clone().unwrap_or_default(),
-        };
-        match out.iter_mut().find(|(id, _)| id == task_id) {
-            Some(slot) => slot.1 = value,
-            None => out.push((task_id.to_owned(), value)),
-        }
-    }
-    out
-}
-
-#[derive(Default)]
-struct ActivityAcc {
+/// One session's running activity: the left fold `activity()` finishes.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct ActivityAcc {
     files: Vec<String>,
     /// Every path seen, past the cap too — a re-touch never counts twice.
     seen: std::collections::HashSet<String>,
@@ -1569,85 +1529,153 @@ struct ActivityAcc {
     task_changes_overflow: u64,
 }
 
-/// The accumulator for a `session:<id>` node, created on first sight.
-fn of<'a>(acc: &'a mut HashMap<String, ActivityAcc>, node: &str) -> &'a mut ActivityAcc {
-    let id = node.strip_prefix("session:").unwrap_or(node);
-    // Look up before allocating: every edge of a known session is a hit.
-    if !acc.contains_key(id) {
-        acc.insert(id.to_owned(), ActivityAcc::default());
-    }
-    acc.get_mut(id).expect("inserted above")
+/// `EdgeAccumulator` (adjacency.ts, rust-core 4.4, 01M39ED9): finalize's three
+/// reducers (task files, task tests, per-session activity) as ONE incremental
+/// left fold over edges in replay order. Adding a log's edges in batches
+/// reaches the state one pass over all of them reaches, which is what lets a
+/// fold checkpoint keep these accumulators instead of the edges.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct EdgeAccumulator {
+    /// Task id → paths, most-recent-first, capped (speed T4); keys in first-seen order.
+    files: Vec<(String, Vec<String>)>,
+    /// Task id → latest test outcome (D24); keys in first-seen order.
+    tests: Vec<(String, TaskTestOutcome)>,
+    /// Session id → running activity.
+    sessions: HashMap<String, ActivityAcc>,
 }
 
-/// Activity per session id, in edge order (`activityFromEdges`).
-fn activity_from_edges(edges: &[GraphEdge]) -> HashMap<String, SessionActivity> {
-    let mut acc: HashMap<String, ActivityAcc> = HashMap::new();
-    for edge in edges {
-        match edge.kind {
-            "touched" => {
-                let a = of(&mut acc, &edge.from);
-                let path = path_of_node_id(&edge.to);
-                if a.seen.contains(path) {
-                    continue; // dedupe — first touch wins the slot
-                }
-                a.seen.insert(path.to_owned());
-                if a.files.len() < ACTIVITY_LIST_CAP {
-                    a.files.push(path.to_owned());
-                } else {
-                    a.files_overflow += 1;
-                }
-            }
-            "ran" => {
-                let a = of(&mut acc, &edge.from);
-                a.commands += 1;
-                if let Some(attrs) = &edge.attrs {
-                    if attrs.ok == Some(false) {
-                        a.failed += 1;
+impl EdgeAccumulator {
+    /// Fold `edges` in, in order.
+    pub fn add(&mut self, edges: &[GraphEdge]) {
+        for edge in edges {
+            match edge.kind {
+                "worked" => {
+                    let task_id = task_id_of(&edge.from);
+                    let path = path_of_node_id(&edge.to);
+                    let index = if let Some(i) = self.files.iter().position(|(id, _)| id == task_id)
+                    {
+                        i
+                    } else {
+                        self.files.push((task_id.to_owned(), Vec::new()));
+                        self.files.len() - 1
+                    };
+                    let files = &mut self.files[index].1;
+                    if let Some(existing) = files.iter().position(|f| f == path) {
+                        files.remove(existing);
                     }
-                    if let Some(outcome) = attrs.outcome() {
-                        a.last_test = Some(outcome);
+                    files.insert(0, path.to_owned());
+                    if files.len() > TASK_FILES_CAP {
+                        files.pop();
                     }
                 }
-            }
-            "changed" => {
-                let a = of(&mut acc, &edge.from);
-                if a.task_changes.len() < ACTIVITY_LIST_CAP {
-                    let status = edge
-                        .attrs
-                        .as_ref()
-                        .and_then(|a| a.status.as_deref())
-                        .unwrap_or("");
-                    a.task_changes
-                        .push(format!("{} → {status}", task_id_of(&edge.to)));
-                } else {
-                    a.task_changes_overflow += 1;
+                "tested" => {
+                    let Some(outcome) = edge.attrs.as_ref().and_then(EdgeAttrs::outcome) else {
+                        continue;
+                    };
+                    let task_id = task_id_of(&edge.from);
+                    let value = TaskTestOutcome {
+                        outcome,
+                        ts: edge.ts.clone().unwrap_or_default(),
+                        event_id: edge.event_id.clone().unwrap_or_default(),
+                    };
+                    match self.tests.iter_mut().find(|(id, _)| id == task_id) {
+                        Some(slot) => slot.1 = value,
+                        None => self.tests.push((task_id.to_owned(), value)),
+                    }
                 }
+                "touched" => {
+                    let a = self.session(&edge.from);
+                    let path = path_of_node_id(&edge.to);
+                    if a.seen.contains(path) {
+                        continue; // dedupe — first touch wins the slot
+                    }
+                    a.seen.insert(path.to_owned());
+                    if a.files.len() < ACTIVITY_LIST_CAP {
+                        a.files.push(path.to_owned());
+                    } else {
+                        a.files_overflow += 1;
+                    }
+                }
+                "ran" => {
+                    let a = self.session(&edge.from);
+                    a.commands += 1;
+                    if let Some(attrs) = &edge.attrs {
+                        if attrs.ok == Some(false) {
+                            a.failed += 1;
+                        }
+                        if let Some(outcome) = attrs.outcome() {
+                            a.last_test = Some(outcome);
+                        }
+                    }
+                }
+                "changed" => {
+                    let a = self.session(&edge.from);
+                    if a.task_changes.len() < ACTIVITY_LIST_CAP {
+                        let status = edge
+                            .attrs
+                            .as_ref()
+                            .and_then(|a| a.status.as_deref())
+                            .unwrap_or("");
+                        a.task_changes
+                            .push(format!("{} → {status}", task_id_of(&edge.to)));
+                    } else {
+                        a.task_changes_overflow += 1;
+                    }
+                }
+                _ => {}
             }
-            _ => {}
         }
     }
-    acc.into_iter()
-        .map(|(id, a)| {
-            let mut files = a.files;
-            if a.files_overflow > 0 {
-                files.push(format!("+{} more", a.files_overflow));
-            }
-            let mut task_changes = a.task_changes;
-            if a.task_changes_overflow > 0 {
-                task_changes.push(format!("+{} more", a.task_changes_overflow));
-            }
-            (
-                id,
-                SessionActivity {
-                    files,
-                    commands: a.commands,
-                    task_changes,
-                    failed: (a.failed > 0).then_some(a.failed),
-                    last_test: a.last_test,
-                },
-            )
-        })
-        .collect()
+
+    /// The accumulator for a `session:<id>` node, created on first sight.
+    fn session(&mut self, node: &str) -> &mut ActivityAcc {
+        let id = node.strip_prefix("session:").unwrap_or(node);
+        // Look up before allocating: every edge of a known session is a hit.
+        if !self.sessions.contains_key(id) {
+            self.sessions.insert(id.to_owned(), ActivityAcc::default());
+        }
+        self.sessions.get_mut(id).expect("inserted above")
+    }
+
+    /// `task_files` as finalize writes it.
+    #[must_use]
+    pub fn task_files(&self) -> Vec<(String, Vec<String>)> {
+        self.files.clone()
+    }
+
+    /// `task_tests` as finalize writes it.
+    #[must_use]
+    pub fn task_tests(&self) -> Vec<(String, TaskTestOutcome)> {
+        self.tests.clone()
+    }
+
+    /// Activity per session id, finished (`activityFromEdges`).
+    #[must_use]
+    pub fn activity(&self) -> HashMap<String, SessionActivity> {
+        self.sessions
+            .iter()
+            .map(|(id, a)| {
+                let mut files = a.files.clone();
+                if a.files_overflow > 0 {
+                    files.push(format!("+{} more", a.files_overflow));
+                }
+                let mut task_changes = a.task_changes.clone();
+                if a.task_changes_overflow > 0 {
+                    task_changes.push(format!("+{} more", a.task_changes_overflow));
+                }
+                (
+                    id.clone(),
+                    SessionActivity {
+                        files,
+                        commands: a.commands,
+                        task_changes,
+                        failed: (a.failed > 0).then_some(a.failed),
+                        last_test: a.last_test.clone(),
+                    },
+                )
+            })
+            .collect()
+    }
 }
 
 /// Attach derived activity to REGISTERED sessions only (BD21/BD44).

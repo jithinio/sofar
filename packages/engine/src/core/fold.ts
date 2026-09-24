@@ -2,12 +2,10 @@ import { readFileSync } from 'node:fs'
 import { basename, dirname } from 'node:path'
 import { validateEnvelope, type EventEnvelope } from './envelope'
 import {
-  activityFromEdges,
+  EdgeAccumulator,
   edgesForEvent,
-  taskFilesFromEdges,
   type GraphEdge,
   type SessionActivity,
-  taskTestsFromEdges,
   type TaskTestOutcome,
 } from './adjacency'
 import {
@@ -984,20 +982,35 @@ export function appendToCheckpoint(cp: FoldCheckpoint, line: string): FoldCheckp
  * unregistered-session list. The checkpoint is left exactly as it was.
  */
 export function finalizeFold(cp: FoldCheckpoint): FoldResult {
-  const state = structuredClone(cp.state)
-  const warnings = cp.warnings.slice()
   const edges = cp.edges.slice()
-  state.task_files = taskFilesFromEdges(edges)
-  const tests = taskTestsFromEdges(edges)
+  const acc = new EdgeAccumulator()
+  acc.add(edges)
+  const { state, orphan_task_events, unregistered_sessions } = finalizeFrom(cp, acc)
+  return { state, warnings: cp.warnings.slice(), orphan_task_events, edges, unregistered_sessions }
+}
+
+/**
+ * finalizeFold's post-loop passes from the edge ACCUMULATORS rather than the
+ * edges (rust-core 4.4, 01M39ED9): what an edge-free checkpoint finalizes
+ * with, since it keeps the accumulators and drops the edges. finalizeFold is
+ * this over one batch of all the edges, so the two cannot disagree.
+ */
+export function finalizeFrom(
+  cp: FoldCheckpoint,
+  acc: EdgeAccumulator,
+): Pick<FoldResult, 'state' | 'orphan_task_events' | 'unregistered_sessions'> {
+  const state = structuredClone(cp.state)
+  state.task_files = acc.taskFiles()
+  const tests = acc.taskTests()
   if (Object.keys(tests).length > 0) state.task_tests = tests
-  attachActivity(state, activityFromEdges(edges))
+  attachActivity(state, acc.activity())
   deriveCurrent(state, cp.blockNotes)
   // Keep only ids the FINAL plan never absorbed (a later task_added /
   // plan_updated clears the candidate — that skip was ordering, not misroute).
   const orphans = cp.orphanCandidates.filter((c) => findTask(state, c.task_id) === undefined)
   const registered = new Set(state.sessions.map((s) => s.id))
   const unregistered = [...cp.seenSessions].filter((id) => !registered.has(id)).sort()
-  return { state, warnings, orphan_task_events: orphans, edges, unregistered_sessions: unregistered }
+  return { state, orphan_task_events: orphans, unregistered_sessions: unregistered }
 }
 
 export function foldLines(lines: readonly string[], slug = ''): FoldResult {

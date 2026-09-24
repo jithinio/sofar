@@ -116,6 +116,12 @@ interface Measure {
 
 interface CellResult {
   name: string
+  /**
+   * Measures run on a command other than the measured binary (Measure.command,
+   * e.g. `find` on the reference): the same code in both arms, so the gate
+   * skips them (rust-core, operator-approved after 392208b5). Reported as usual.
+   */
+  pinned?: string[]
   recordedAt: string
   initiatives: number
   boundBytes: number
@@ -657,6 +663,7 @@ describe.skipIf(!PERF)('perf baseline (rust-core 1.3)', () => {
       for (const m of matrix) {
         const r = measure(cell, m)
         result.measures[m.name] = r.stat
+        if (m.command !== undefined) (result.pinned ??= []).push(m.name)
         if (r.ab !== undefined) (result.ab ??= {})[m.name] = r.ab
       }
       if (spec.team) {
@@ -710,16 +717,23 @@ describe.skipIf(!PERF)('perf baseline (rust-core 1.3)', () => {
     const baseline = readBaseline()
     expect(baseline, `no baseline at ${BASELINE_PATH} — record it with SOFAR_PERF_RECORD=1`).not.toBeNull()
     const misses: string[] = []
+    const skipped: string[] = []
     for (const cell of report.cells) {
       const base = baseline!.cells.find((c) => c.name === cell.name)
       if (base === undefined) continue
       for (const [name, s] of Object.entries(cell.measures)) {
         const b = base.measures[name]
         if (b === undefined) continue
+        // Pinned to the reference in BOTH arms: not the candidate's number.
+        if (cell.pinned?.includes(name)) {
+          skipped.push(`${cell.name} / ${name}`)
+          continue
+        }
         if (s.p50 > b.p50) misses.push(`${cell.name} / ${name}: p50 ${fmt(s.p50)} > ${fmt(b.p50)}`)
         if (s.p95 > b.p95) misses.push(`${cell.name} / ${name}: p95 ${fmt(s.p95)} > ${fmt(b.p95)}`)
       }
     }
+    if (skipped.length > 0) console.log(`gate: skipped ${skipped.length} measure(s) pinned to the reference: ${skipped.join('; ')}`)
     expect(misses).toEqual([])
   })
 })

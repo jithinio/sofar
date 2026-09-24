@@ -1,0 +1,140 @@
+{
+  "implementation": "candidate",
+  "command": [
+    "/Users/jins/IO/sofar-rust-core/target/release/sofar-core"
+  ],
+  "recordedAt": "2026-09-24T09:53:35.059Z",
+  "iterations": 25,
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "cores": 14,
+    "node": "v24.15.0",
+    "platform": "darwin",
+    "release": "27.0.0"
+  },
+  "load": {
+    "start": 2.93,
+    "end": 3.16
+  },
+  "abCommand": [
+    "node",
+    "/Users/jins/IO/sofar-rust-core/packages/engine/dist/cli.js"
+  ],
+  "commit": "1745700c",
+  "nodeSpawnMs": {
+    "n": 25,
+    "min": 17.79,
+    "p50": 18.75,
+    "p95": 20.32
+  },
+  "cells": [
+    {
+      "name": "i1000-1mb",
+      "recordedAt": "2026-09-24T09:53:39.352Z",
+      "initiatives": 1000,
+      "boundBytes": 1003245,
+      "boundLines": 3595,
+      "totalBytes": 3543551,
+      "measures": {
+        "session-start (index warm)": {
+          "n": 25,
+          "min": 63.59,
+          "p50": 66.96,
+          "p95": 77.56
+        },
+        "session-start (index cold)": {
+          "n": 25,
+          "min": 277.57,
+          "p50": 281.17,
+          "p95": 302.02
+        },
+        "post-tool Edit": {
+          "n": 25,
+          "min": 39.28,
+          "p50": 43.25,
+          "p95": 45.32
+        },
+        "user-prompt (nudge)": {
+          "n": 25,
+          "min": 30.59,
+          "p50": 33.11,
+          "p95": 35.72
+        },
+        "stop (blocked)": {
+          "n": 25,
+          "min": 23.06,
+          "p50": 25.94,
+          "p95": 29.64
+        },
+        "session-end": {
+          "n": 25,
+          "min": 31.57,
+          "p50": 33,
+          "p95": 34.25
+        },
+        "statusline": {
+          "n": 25,
+          "min": 4.21,
+          "p50": 5,
+          "p95": 6.45
+        },
+        "status <slug> (full CLI, plain)": {
+          "n": 25,
+          "min": 27.56,
+          "p50": 29.27,
+          "p95": 32.25
+        }
+      },
+      "ab": {
+        "session-start (index warm)": {
+          "n": 25,
+          "min": 102.85,
+          "p50": 105.91,
+          "p95": 117.13
+        },
+        "session-start (index cold)": {
+          "n": 25,
+          "min": 348.74,
+          "p50": 356.73,
+          "p95": 394.03
+        },
+        "post-tool Edit": {
+          "n": 25,
+          "min": 80.45,
+          "p50": 88.54,
+          "p95": 92.87
+        },
+        "user-prompt (nudge)": {
+          "n": 25,
+          "min": 66.64,
+          "p50": 70.29,
+          "p95": 77.33
+        },
+        "stop (blocked)": {
+          "n": 25,
+          "min": 60.8,
+          "p50": 65.37,
+          "p95": 70.61
+        },
+        "session-end": {
+          "n": 25,
+          "min": 74.18,
+          "p50": 76.3,
+          "p95": 80.73
+        },
+        "statusline": {
+          "n": 25,
+          "min": 34.88,
+          "p50": 36.63,
+          "p95": 39.44
+        },
+        "status <slug> (full CLI, plain)": {
+          "n": 25,
+          "min": 84.02,
+          "p50": 86.7,
+          "p95": 94.5
+        }
+      }
+    }
+  ]
+}

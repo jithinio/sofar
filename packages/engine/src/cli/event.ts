@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
+import { cachedDigestState } from '../core/digest-cache'
 import { readBindingsFile } from '../core/bindings'
 import { currentBranch } from '../core/git'
 import { ensureIndexDir } from '../core/index-store'
@@ -34,7 +35,7 @@ import {
   type InitiativeState,
   type SessionState,
 } from '../core/fold'
-import { commitsByTask, readAttribution, readShippingFrom, type CommitAttribution } from '../core/attribution'
+import { cachedAttribution, commitsByTask, readAttribution, readShippingFrom, type CommitAttribution } from '../core/attribution'
 import { activityEnabled } from '../core/derived'
 import { retireEnabled } from '../core/retire'
 import { applicableChecks, checkFailureLine, checksInForce, isApproved, runChecks, unapprovedLine } from '../core/checks'
@@ -771,7 +772,10 @@ export function handleSessionStart(rootDir: string, input: string, declared?: Ho
     // registration this hook writes nothing, so no bookkeeping of ours can
     // ever mask a cold record.
     const advisory = coldResumeAdvisory(hook, ctx.eventsPath(slug))
-    const state = ctx.foldState(slug)
+    // The digest's cut of the fold, cached per record by the log's size and
+    // mtime (rust-core 4.4): it renders the same block (test/digest-state),
+    // and at team scale the fold was most of this hook.
+    const state = cachedDigestState(ctx.sofarDir, slug, ctx.eventsPath(slug), () => ctx.foldState(slug))
     const repoMemory = readRepoMemory(rootDir)
     // ≤10,000 chars (BD3/BD24) — repo memory has its own budget (BD40); the
     // session id line (7.1, BD43) tells the agent what to pass to
@@ -809,8 +813,9 @@ export function handleSessionStart(rootDir: string, input: string, declared?: Ho
     // appended after them, never interleaved.
     // ONE bounded attribution walk (SPEC §Commit attribution, D6) feeds both
     // the shipping notice and the commits-by-task line (r1-fixes 2.5, D24):
-    // the same window, read once, never a second spawn on the hook path.
-    const commits = readAttribution(rootDir, { maxCount: SHIPPING_WINDOW })
+    // the same window, read once, never a second spawn on the hook path —
+    // and none at all while HEAD has not moved (rust-core 4.4, L1).
+    const commits = cachedAttribution(rootDir, ctx.sofarDir, SHIPPING_WINDOW)
     const activity = activityEnabled()
     const notices = [
       recentWorkElsewhereNotice(ctx.sofarDir, slug, via),

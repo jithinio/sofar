@@ -7,7 +7,8 @@ use std::collections::HashMap;
 
 use crate::index_pass::{PassResult, SlugReducer, pass_over_record};
 use crate::index_store::{
-    INDEX_SCHEMA_VERSION, read_index_file, tier_initiatives, write_index_file,
+    INDEX_SCHEMA_VERSION, LogStat, log_stat, log_untouched, read_index_file, read_index_meta,
+    tier_initiatives, write_index_file,
 };
 use crate::index_tail::IndexedEvent;
 use crate::json::{Json, Object};
@@ -652,44 +653,239 @@ pub fn refresh_neighbours(
     slug: &str,
     declared: &GuardIndex,
 ) -> Vec<NeighbourRecord> {
-    let states = refresh_file_states(layout);
-    let Some((_, mine)) = states.iter().find(|(s, _)| s == slug) else {
-        return Vec::new();
-    };
-    if mine.files.is_empty() {
-        return Vec::new();
-    }
-    let my_paths: std::collections::HashSet<&str> =
-        mine.files.iter().map(|(p, _)| p.as_str()).collect();
-    let mut found: Vec<NeighbourRecord> = Vec::new();
-    for (initiative, state) in &states {
-        if initiative == slug {
-            continue;
-        }
-        let paths = state
-            .files
-            .iter()
-            .filter(|(p, _)| my_paths.contains(p.as_str()))
-            .count();
-        if paths > 0 {
+    let found = neighbour_overlaps(layout, slug)
+        .into_iter()
+        .map(|(initiative, paths)| {
             let decisions = declared
                 .decisions
                 .iter()
-                .find(|(s, _)| s == initiative)
+                .find(|(s, _)| *s == initiative)
                 .map_or(0.0, |(_, n)| *n);
             #[allow(
                 clippy::cast_possible_truncation,
                 clippy::cast_sign_loss,
                 reason = "counts"
             )]
-            found.push(NeighbourRecord {
-                initiative: initiative.clone(),
-                paths: paths as u64,
+            NeighbourRecord {
+                initiative,
+                paths,
                 decisions: decisions as u64,
-            });
+            }
+        })
+        .collect();
+    rank_neighbours(found)
+}
+
+/// The derived neighbours cache (record-index 01M37PM7): `neighbours/<slug>.json`.
+const NEIGHBOURS_DIR: &str = "neighbours";
+const NEIGHBOURS_VERSION: f64 = 1.0;
+
+fn index_file_stat(layout: &Layout, name: &str) -> Option<LogStat> {
+    log_stat(&layout.index_dir().join(name))
+}
+
+/// `recordQuiet`: `pass_over_record` would change nothing: every log untouched
+/// against its cursor (a cursorless log absent or empty), no cursor orphaned.
+fn record_quiet(layout: &Layout, slugs: &[String]) -> bool {
+    let Some(meta) = read_index_meta(layout, FILES_META) else {
+        return false;
+    };
+    if meta.cursors.iter().any(|(s, _)| !slugs.contains(s)) {
+        return false;
+    }
+    slugs.iter().all(|slug| {
+        let stat = log_stat(&layout.events_path(slug));
+        match meta.cursors.iter().find(|(s, _)| s == slug) {
+            None => stat.is_none_or(|st| st.size == 0),
+            Some((_, cursor)) => stat.is_some_and(|st| log_untouched(st, cursor)),
+        }
+    })
+}
+
+struct NeighboursFile {
+    graph: LogStat,
+    meta: LogStat,
+    slugs: Vec<String>,
+    overlaps: Vec<(String, u64)>,
+}
+
+fn stat_of(v: Option<&Json>) -> Option<LogStat> {
+    let o = v?.as_obj()?;
+    let size = o.get("size")?.as_f64()?;
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "checked a non-negative integer first"
+    )]
+    let size = (size.is_finite() && size >= 0.0 && size.fract() == 0.0).then_some(size as u64)?;
+    Some(LogStat {
+        size,
+        mtime_ms: o.get("mtimeMs")?.as_f64()?,
+    })
+}
+
+#[allow(clippy::float_cmp, reason = "the version is an exact integer")]
+fn read_neighbours_cache(layout: &Layout, slug: &str) -> Option<NeighboursFile> {
+    let path = layout
+        .index_dir()
+        .join(NEIGHBOURS_DIR)
+        .join(format!("{slug}.json"));
+    let Ok(Json::Obj(raw)) = crate::json::parse(&std::fs::read_to_string(path).ok()?) else {
+        return None;
+    };
+    if raw.get("v").and_then(Json::as_f64) != Some(NEIGHBOURS_VERSION) {
+        return None;
+    }
+    let slugs = raw
+        .get("slugs")?
+        .as_arr()?
+        .iter()
+        .map(|s| s.as_str().map(str::to_owned))
+        .collect::<Option<Vec<_>>>()?;
+    let overlaps = raw
+        .get("overlaps")?
+        .as_arr()?
+        .iter()
+        .map(|o| {
+            let pair = o.as_arr()?;
+            if pair.len() != 2 {
+                return None;
+            }
+            let n = pair[1].as_f64()?;
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "checked a positive integer first"
+            )]
+            let n = (n.is_finite() && n > 0.0 && n.fract() == 0.0).then_some(n as u64)?;
+            Some((pair[0].as_str()?.to_owned(), n))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(NeighboursFile {
+        graph: stat_of(raw.get("graph"))?,
+        meta: stat_of(raw.get("meta"))?,
+        slugs,
+        overlaps,
+    })
+}
+
+fn write_neighbours_cache(layout: &Layout, slug: &str, file: &NeighboursFile) {
+    let stat = |s: LogStat| {
+        let mut o = Object::with_capacity(2);
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "file sizes fit f64 exactly below 2^53"
+        )]
+        o.insert("size", Json::Num(s.size as f64));
+        o.insert("mtimeMs", Json::Num(s.mtime_ms));
+        Json::Obj(o)
+    };
+    let mut o = Object::with_capacity(5);
+    o.insert("v", Json::Num(NEIGHBOURS_VERSION));
+    o.insert("graph", stat(file.graph));
+    o.insert("meta", stat(file.meta));
+    o.insert(
+        "slugs",
+        Json::Arr(file.slugs.iter().map(|s| Json::Str(s.clone())).collect()),
+    );
+    #[allow(clippy::cast_precision_loss, reason = "path counts fit f64")]
+    o.insert(
+        "overlaps",
+        Json::Arr(
+            file.overlaps
+                .iter()
+                .map(|(s, n)| Json::Arr(vec![Json::Str(s.clone()), Json::Num(*n as f64)]))
+                .collect(),
+        ),
+    );
+    let mut text = crate::json::stringify(&Json::Obj(o));
+    text.push('\n');
+    let dir = layout.index_dir().join(NEIGHBOURS_DIR);
+    let _ = layout
+        .ensure_index_dir()
+        .and_then(|_| std::fs::create_dir_all(&dir))
+        .and_then(|()| {
+            crate::atomic::write_file_atomic(&dir.join(format!("{slug}.json")), text.as_bytes())
+        });
+}
+
+/// `neighbourOverlaps`: `[initiative, shared paths]` for every OTHER
+/// initiative sharing a path with `slug`, in the derived half's (JS
+/// property) order; a quiet record answers from `neighbours/<slug>.json`
+/// without parsing graph.json. The trust and write rules are
+/// `core/index-tier1.ts`'s, point for point.
+fn neighbour_overlaps(layout: &Layout, slug: &str) -> Vec<(String, u64)> {
+    let slugs = crate::layout::initiative_slugs(layout);
+    let graph_before = index_file_stat(layout, FILES_FILE);
+    let meta_before = index_file_stat(layout, FILES_META);
+    if let Some(cached) = read_neighbours_cache(layout, slug)
+        && graph_before == Some(cached.graph)
+        && meta_before == Some(cached.meta)
+        && cached.slugs == slugs
+        && record_quiet(layout, &slugs)
+    {
+        return cached.overlaps;
+    }
+
+    let prior = read_half(layout, FILES_FILE, SlugFileState::from_json);
+    let PassResult {
+        states, changed, ..
+    } = pass_over_record(layout, FILES_META, prior.as_deref(), &FileReducer);
+    if changed {
+        write_half(layout, FILES_FILE, &states, SlugFileState::to_json);
+    }
+
+    // Overlaps keyed by initiative in pass order, then read back in JS
+    // property order: the order TypeScript's Object.entries(states) yields.
+    let mut by_initiative = Object::new();
+    if let Some((_, mine)) = states.iter().find(|(s, _)| s == slug)
+        && !mine.files.is_empty()
+    {
+        let my_paths: std::collections::HashSet<&str> =
+            mine.files.iter().map(|(p, _)| p.as_str()).collect();
+        for (initiative, state) in &states {
+            if initiative == slug {
+                continue;
+            }
+            let paths = state
+                .files
+                .iter()
+                .filter(|(p, _)| my_paths.contains(p.as_str()))
+                .count();
+            if paths > 0 {
+                #[allow(clippy::cast_precision_loss, reason = "path counts fit f64")]
+                by_initiative.insert(initiative.clone(), Json::Num(paths as f64));
+            }
         }
     }
-    rank_neighbours(found)
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "counts written above"
+    )]
+    let overlaps: Vec<(String, u64)> = by_initiative
+        .js_ordered()
+        .into_iter()
+        .map(|(s, n)| (s.to_owned(), n.as_f64().unwrap_or(0.0) as u64))
+        .collect();
+
+    if !changed
+        && let (Some(graph), Some(meta)) = (graph_before, meta_before)
+        && index_file_stat(layout, FILES_FILE) == Some(graph)
+        && index_file_stat(layout, FILES_META) == Some(meta)
+    {
+        write_neighbours_cache(
+            layout,
+            slug,
+            &NeighboursFile {
+                graph,
+                meta,
+                slugs,
+                overlaps: overlaps.clone(),
+            },
+        );
+    }
+    overlaps
 }
 
 /// `rankNeighbours`: paths desc, decisions desc, then name — total.
@@ -701,6 +897,213 @@ fn rank_neighbours(mut found: Vec<NeighbourRecord>) -> Vec<NeighbourRecord> {
             .then_with(|| cmp_utf16(&a.initiative, &b.initiative))
     });
     found
+}
+
+#[cfg(test)]
+mod neighbours_cache_tests {
+    //! record-index 01M37PM7: the cached answer always equals the full path.
+    use super::*;
+    use std::path::Path;
+
+    fn real_record() -> Layout {
+        let dir = crate::testing::scratch_dir("nb-real");
+        let from = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.sofar/initiatives");
+        for entry in std::fs::read_dir(from).unwrap() {
+            let src = entry.unwrap().path();
+            let log = src.join("events.jsonl");
+            if !log.exists() {
+                continue;
+            }
+            let to = dir
+                .join(".sofar/initiatives")
+                .join(src.file_name().unwrap());
+            std::fs::create_dir_all(&to).unwrap();
+            std::fs::copy(&log, to.join("events.jsonl")).unwrap();
+        }
+        Layout::new(&dir)
+    }
+
+    fn cache_file(layout: &Layout, slug: &str) -> std::path::PathBuf {
+        layout
+            .index_dir()
+            .join(NEIGHBOURS_DIR)
+            .join(format!("{slug}.json"))
+    }
+
+    /// The full path's answer: the cache removed first.
+    fn full(layout: &Layout, slug: &str) -> Vec<(String, u64)> {
+        let _ = std::fs::remove_file(cache_file(layout, slug));
+        neighbour_overlaps(layout, slug)
+    }
+
+    #[test]
+    fn cached_answers_equal_the_full_path_on_every_real_record() {
+        let layout = real_record();
+        let slugs = crate::layout::initiative_slugs(&layout);
+        assert!(slugs.len() > 5);
+        let mut some = false;
+        for slug in &slugs {
+            let pass = neighbour_overlaps(&layout, slug);
+            let cached = neighbour_overlaps(&layout, slug);
+            assert!(cache_file(&layout, slug).exists(), "{slug}: cache written");
+            let hit = neighbour_overlaps(&layout, slug);
+            assert_eq!(pass, cached, "{slug}");
+            assert_eq!(hit, full(&layout, slug), "{slug}");
+            some |= !hit.is_empty();
+        }
+        assert!(
+            some,
+            "no record has neighbours; the comparison proves little"
+        );
+    }
+
+    #[test]
+    fn a_quiet_record_never_opens_graph_json() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let layout = real_record();
+        let slug = crate::layout::initiative_slugs(&layout)
+            .into_iter()
+            .find(|s| !neighbour_overlaps(&layout, s).is_empty())
+            .unwrap();
+        let want = neighbour_overlaps(&layout, &slug);
+        let graph = layout.index_dir().join(FILES_FILE);
+        let before = log_stat(&graph);
+        std::fs::set_permissions(&graph, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let got = neighbour_overlaps(&layout, &slug);
+        let after = log_stat(&graph);
+        std::fs::set_permissions(&graph, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(got, want);
+        assert_eq!(after, before, "graph.json was rewritten: the full path ran");
+    }
+
+    #[test]
+    fn a_moved_log_or_graph_takes_the_full_path() {
+        use std::io::Write as _;
+        let layout = real_record();
+        let slugs = crate::layout::initiative_slugs(&layout);
+        let slug = slugs
+            .iter()
+            .find(|s| !neighbour_overlaps(&layout, s).is_empty())
+            .unwrap()
+            .clone();
+        let before = neighbour_overlaps(&layout, &slug);
+        // A log appended after the cache was written: a record that shares
+        // nothing with `slug` touches one of its paths, so the overlap moves.
+        let other = slugs
+            .iter()
+            .find(|s| **s != slug && !before.iter().any(|(n, _)| n == *s))
+            .unwrap();
+        let path = std::fs::read_to_string(layout.events_path(&slug))
+            .unwrap()
+            .lines()
+            .filter_map(|l| crate::json::parse(l).ok())
+            .find_map(|j| {
+                let o = j.as_obj()?;
+                (o.get("type")?.as_str()? == "file_touched")
+                    .then(|| {
+                        o.get("payload")?
+                            .as_obj()?
+                            .get("path")?
+                            .as_str()
+                            .map(str::to_owned)
+                    })
+                    .flatten()
+            })
+            .unwrap();
+        let mut f = std::fs::OpenOptions::new()
+            .append(true)
+            .open(layout.events_path(other))
+            .unwrap();
+        writeln!(
+            f,
+            "{{\"v\":1,\"id\":\"{}\",\"ts\":\"2026-09-24T00:00:00.000Z\",\"initiative\":\"{other}\",\"session\":\"nb-test\",\"source\":\"hook\",\"actor\":\"agent\",\"type\":\"file_touched\",\"payload\":{{\"path\":{},\"op\":\"edit\"}}}}",
+            ulid::Ulid::generate(),
+            crate::json::stringify(&Json::Str(path))
+        )
+        .unwrap();
+        drop(f);
+        let got = neighbour_overlaps(&layout, &slug);
+        assert!(got.iter().any(|(n, _)| n == other), "the new overlap shows");
+        assert_eq!(got, full(&layout, &slug), "stale cursor");
+        // graph.json rewritten under quiet logs: followed, not the cache.
+        neighbour_overlaps(&layout, &slug);
+        let graph = layout.index_dir().join(FILES_FILE);
+        let Json::Obj(mut disk) =
+            crate::json::parse(&std::fs::read_to_string(&graph).unwrap()).unwrap()
+        else {
+            panic!("graph.json")
+        };
+        if let Some(Json::Obj(inits)) = disk.get_mut("initiatives") {
+            let keys: Vec<String> = inits.iter().map(|(k, _)| k.to_owned()).collect();
+            for k in keys {
+                if k != slug
+                    && let Some(Json::Obj(state)) = inits.get_mut(&k)
+                {
+                    state.insert("files", Json::Obj(Object::new()));
+                }
+            }
+        }
+        std::fs::write(&graph, crate::json::stringify(&Json::Obj(disk))).unwrap();
+        assert!(
+            neighbour_overlaps(&layout, &slug).is_empty(),
+            "graph.json followed"
+        );
+    }
+
+    #[test]
+    fn concurrent_writers_leave_one_valid_file() {
+        // A read-time hook now writes: eight racing writers on a quiet record
+        // with no cache must leave one valid file (atomic temp + rename).
+        let layout = real_record();
+        let slug = crate::layout::initiative_slugs(&layout)
+            .into_iter()
+            .find(|s| !neighbour_overlaps(&layout, s).is_empty())
+            .unwrap();
+        let want = full(&layout, &slug);
+        let dir = layout.index_dir().join(NEIGHBOURS_DIR);
+        std::fs::remove_dir_all(&dir).unwrap();
+        std::thread::scope(|scope| {
+            for _ in 0..8 {
+                scope.spawn(|| assert_eq!(neighbour_overlaps(&layout, &slug), want));
+            }
+        });
+        let names: Vec<String> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            names,
+            vec![format!("{slug}.json")],
+            "one file, no temp left"
+        );
+        assert!(read_neighbours_cache(&layout, &slug).is_some(), "valid");
+        assert_eq!(neighbour_overlaps(&layout, &slug), want);
+    }
+
+    #[test]
+    fn a_missing_or_corrupt_cache_falls_back() {
+        let layout = real_record();
+        let slug = crate::layout::initiative_slugs(&layout)
+            .into_iter()
+            .find(|s| !neighbour_overlaps(&layout, s).is_empty())
+            .unwrap();
+        let want = neighbour_overlaps(&layout, &slug);
+        neighbour_overlaps(&layout, &slug);
+        let file = cache_file(&layout, &slug);
+        let good = std::fs::read_to_string(&file).unwrap();
+        for bad in [
+            String::from("not json"),
+            good.replace("\"v\":1", "\"v\":2"),
+            good.replace("\"overlaps\":[", "\"overlaps\":[[\"x\",0],"),
+            good.replace("\"slugs\":[", "\"slugs\":[\"zz-extra\","),
+        ] {
+            assert_ne!(bad, good);
+            std::fs::write(&file, &bad).unwrap();
+            assert_eq!(neighbour_overlaps(&layout, &slug), want, "{bad}");
+        }
+        std::fs::remove_file(&file).unwrap();
+        assert_eq!(neighbour_overlaps(&layout, &slug), want, "missing");
+    }
 }
 
 #[cfg(test)]

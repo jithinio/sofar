@@ -26,7 +26,7 @@ use crate::payload::guard_spec_errors;
 use crate::text::js_trim;
 
 /// The event a guard domain watches: `path` → `file_touched`, `cmd` → `command_run`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum GuardDomain {
     Path,
     Cmd,

@@ -52,7 +52,7 @@ const MINUTIAE_MIN: usize = 24;
 const DERIVED_SESSION_BUDGET: usize = 600;
 const DECISION_CHOSE_BUDGET: usize = 90;
 const DECISION_RULED_CHOSE_BUDGET: usize = 60;
-const MAX_DECISIONS: usize = 5;
+pub const MAX_DECISIONS: usize = 5;
 const REJECTED_OVER_LINE_BUDGET: usize = 70;
 const REJECTED_LEDGER_BUDGET: usize = 450;
 const STANDING_LEDGER_BUDGET: usize = 2_000;
@@ -169,11 +169,17 @@ pub fn open_session_file_conflicts(
     state: &InitiativeState,
     also_live: Option<&str>,
 ) -> Vec<FileConflict> {
+    // File → its slot in `by_file`, so grouping is linear. The scan it
+    // replaces made this O(pairs × distinct files): 17% of session-start at
+    // team100, a cost only the port had (the TypeScript groups in a Map).
+    let mut slot_of: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
     let mut by_file: Vec<(&str, Vec<String>)> = Vec::new();
     for (session, file) in open_session_files(state, also_live) {
-        match by_file.iter_mut().find(|(f, _)| *f == file) {
-            Some(slot) => slot.1.push(session.to_owned()),
-            None => by_file.push((file, vec![session.to_owned()])),
+        if let Some(&i) = slot_of.get(file) {
+            by_file[i].1.push(session.to_owned());
+        } else {
+            slot_of.insert(file, by_file.len());
+            by_file.push((file, vec![session.to_owned()]));
         }
     }
     let mut conflicts: Vec<FileConflict> = by_file

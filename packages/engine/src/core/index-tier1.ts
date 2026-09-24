@@ -1,10 +1,14 @@
+import { mkdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { DECISION_HANDLE_RE, parseGuard, type DecisionCheck, type GuardDomain } from '@sofar/schema'
 import type { DecisionLoggedPayload, FileTouchedPayload } from '@sofar/schema'
 import { GRAPH_RESULT_CAP, matchRecordedPaths } from './adjacency'
+import { writeFileAtomic } from './atomic'
 import { fileMentions, mentionDepth } from './file-mentions'
 import { passOverRecord } from './index-pass'
-import { INDEX_SCHEMA_VERSION, readIndexFile, writeIndexFile } from './index-store'
+import { ensureIndexDir, INDEX_SCHEMA_VERSION, indexDir, logStat, logUntouched, readIndexFile, readIndexMeta, writeIndexFile } from './index-store'
 import { type IndexedEvent } from './index-tail'
+import { initiativeSlugs } from './listing'
 import { byCodeUnit } from './order'
 import type { ForeignDecision } from './reversal'
 
@@ -69,6 +73,76 @@ const GUARDS_FILE = 'guards.json'
 const GUARDS_META = 'meta-guards.json'
 const FILES_FILE = 'graph.json'
 const FILES_META = 'meta-graph.json'
+
+/** The derived neighbours cache (record-index 01M37PM7): neighbours/<slug>.json. */
+const NEIGHBOURS_DIR = 'neighbours'
+export const NEIGHBOURS_VERSION = 1
+
+interface FileStat {
+  size: number
+  mtimeMs: number
+}
+
+interface NeighboursFile {
+  v: number
+  graph: FileStat
+  meta: FileStat
+  slugs: string[]
+  overlaps: Array<[string, number]>
+}
+
+function indexFileStat(sofarDir: string, name: string): FileStat | null {
+  return logStat(join(indexDir(sofarDir), name))
+}
+
+const sameStat = (a: FileStat | null, b: FileStat | null): boolean =>
+  a !== null && b !== null && a.size === b.size && a.mtimeMs === b.mtimeMs
+
+/** passOverRecord would change nothing: every log untouched against its cursor, no cursor orphaned. */
+function recordQuiet(sofarDir: string, slugs: readonly string[]): boolean {
+  const meta = readIndexMeta(sofarDir, FILES_META)
+  if (meta === null) return false
+  const known = new Set(slugs)
+  if (Object.keys(meta.cursors).some((s) => !known.has(s))) return false
+  for (const slug of slugs) {
+    const stat = logStat(join(sofarDir, 'initiatives', slug, 'events.jsonl'))
+    const cursor = meta.cursors[slug]
+    if (cursor === undefined) {
+      if (stat !== null && stat.size > 0) return false
+    } else if (stat === null || !logUntouched(stat, cursor)) {
+      return false
+    }
+  }
+  return true
+}
+
+const isStat = (v: unknown): v is FileStat =>
+  typeof v === 'object' && v !== null && typeof (v as FileStat).size === 'number' && typeof (v as FileStat).mtimeMs === 'number'
+
+function readNeighboursCache(sofarDir: string, slug: string): NeighboursFile | null {
+  try {
+    const raw = JSON.parse(readFileSync(join(indexDir(sofarDir), NEIGHBOURS_DIR, `${slug}.json`), 'utf8')) as Partial<NeighboursFile>
+    if (raw.v !== NEIGHBOURS_VERSION || !isStat(raw.graph) || !isStat(raw.meta)) return null
+    if (!Array.isArray(raw.slugs) || !raw.slugs.every((s) => typeof s === 'string')) return null
+    if (!Array.isArray(raw.overlaps)) return null
+    for (const o of raw.overlaps) {
+      if (!Array.isArray(o) || o.length !== 2 || typeof o[0] !== 'string' || !Number.isInteger(o[1]) || (o[1] as number) <= 0) return null
+    }
+    return raw as NeighboursFile
+  } catch {
+    return null
+  }
+}
+
+function writeNeighboursCache(sofarDir: string, slug: string, file: NeighboursFile): void {
+  try {
+    ensureIndexDir(sofarDir)
+    mkdirSync(join(indexDir(sofarDir), NEIGHBOURS_DIR), { recursive: true })
+    writeFileAtomic(join(indexDir(sofarDir), NEIGHBOURS_DIR, `${slug}.json`), `${JSON.stringify(file)}\n`)
+  } catch {
+    // derived and disposable: an unwritten cache is the full path next time
+  }
+}
 // The third file (memory-lead 2.2, D8): what a writer compares a new decision
 // against. Read by the three writers only, so it never rides a hook.
 const LABELS_FILE = 'labels.json'
@@ -765,25 +839,77 @@ export interface NeighbourRecord {
  * ABOUT your files — only that the work happened in the same places.
  */
 export function refreshNeighbours(sofarDir: string, slug: string, declared: GuardIndex = refreshGuards(sofarDir)): NeighbourRecord[] {
-  const states = refreshHalf(sofarDir, FILES_FILE, FILES_META, {
+  const overlaps = neighbourOverlaps(sofarDir, slug)
+  return rankNeighbours(
+    overlaps.map(([initiative, paths]) => ({ initiative, paths, decisions: declared.decisions[initiative] ?? 0 })),
+  )
+}
+
+/**
+ * [initiative, shared paths] for every OTHER initiative sharing a path with
+ * `slug`, in the derived half's slug order: what refreshNeighbours ranks.
+ *
+ * The check-before-parse cache (record-index 01M37PM7). A quiet record, where
+ * no log moved since the derived half was last written, answers from
+ * neighbours/<slug>.json without parsing graph.json, which at team scale is
+ * ~29 MB and was 59% of a cached session-start. The file is DERIVED ONLY and
+ * is trusted only when all of these hold:
+ * - graph.json and meta-graph.json measure what they measured when it was
+ *   written;
+ * - the initiative set is the one it was computed over;
+ * - every log is untouched against its meta cursor (a log without a cursor
+ *   must be absent or empty), which is exactly when passOverRecord would
+ *   change nothing.
+ * It is written only after a pass that changed nothing, with both index files
+ * unchanged across the parse, so its counts are the ones graph.json yields.
+ * Any mismatch, and any missing or corrupt file, takes the full path: parse,
+ * pass, intersect. test/neighbours-cache.test.ts holds the two equal.
+ */
+function neighbourOverlaps(sofarDir: string, slug: string): Array<[string, number]> {
+  const slugs = initiativeSlugs(sofarDir)
+  const graphBefore = indexFileStat(sofarDir, FILES_FILE)
+  const metaBefore = indexFileStat(sofarDir, FILES_META)
+  const cached = readNeighboursCache(sofarDir, slug)
+  if (
+    cached !== null &&
+    sameStat(cached.graph, graphBefore) &&
+    sameStat(cached.meta, metaBefore) &&
+    cached.slugs.length === slugs.length &&
+    cached.slugs.every((s, i) => s === slugs[i]) &&
+    recordQuiet(sofarDir, slugs)
+  ) {
+    return cached.overlaps
+  }
+
+  const prior = readIndexFile<TierDisk<SlugFileState>>(sofarDir, FILES_FILE, isTierDisk)
+  const { states, changed } = passOverRecord<SlugFileState>(sofarDir, FILES_META, prior === null ? null : prior.initiatives, {
     empty: emptyFiles,
     clone: cloneFiles,
     apply: (state: SlugFileState, event: IndexedEvent) => applyFile(state, event),
   })
+  if (changed) writeIndexFile(sofarDir, FILES_FILE, { version: INDEX_SCHEMA_VERSION, initiatives: states })
 
+  const overlaps: Array<[string, number]> = []
   const mine = states[slug]
-  if (mine === undefined) return []
-  const myPaths = new Set(Object.keys(mine.files))
-  if (myPaths.size === 0) return []
-
-  const found: NeighbourRecord[] = []
-  for (const [initiative, state] of Object.entries(states)) {
-    if (initiative === slug) continue
-    let paths = 0
-    for (const path of Object.keys(state.files)) if (myPaths.has(path)) paths += 1
-    if (paths > 0) found.push({ initiative, paths, decisions: declared.decisions[initiative] ?? 0 })
+  const myPaths = new Set(mine === undefined ? [] : Object.keys(mine.files))
+  if (myPaths.size > 0) {
+    for (const [initiative, state] of Object.entries(states)) {
+      if (initiative === slug) continue
+      let paths = 0
+      for (const path of Object.keys(state.files)) if (myPaths.has(path)) paths += 1
+      if (paths > 0) overlaps.push([initiative, paths])
+    }
   }
-  return rankNeighbours(found)
+  if (
+    !changed &&
+    graphBefore !== null &&
+    metaBefore !== null &&
+    sameStat(graphBefore, indexFileStat(sofarDir, FILES_FILE)) &&
+    sameStat(metaBefore, indexFileStat(sofarDir, FILES_META))
+  ) {
+    writeNeighboursCache(sofarDir, slug, { v: NEIGHBOURS_VERSION, graph: graphBefore, meta: metaBefore, slugs, overlaps })
+  }
+  return overlaps
 }
 
 /**

@@ -1,6 +1,10 @@
 import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
-import { currentBranch } from './git'
+import { writeFileAtomic } from './atomic'
+import { currentBranch, headSha } from './git'
+import { ensureIndexDir, indexDir } from './index-store'
+import { sortKeysDeep } from './snapshot'
 
 /**
  * Commit → initiative attribution, read from git commit trailers (D4).
@@ -177,6 +181,67 @@ export function readAttribution(
     return null
   }
   return parseAttribution(out)
+}
+
+/**
+ * The SessionStart walk, cached (rust-core 4.4, L1). A commit is immutable,
+ * so the newest `maxCount` commits reachable from one sha never change: the
+ * walk is keyed by the FULL sha HEAD names plus the bound, and nothing else.
+ *
+ * Derived and disposable in .sofar/.index/attribution.json. Any mismatch, a
+ * corrupt file or a mis-shaped one re-walks and rewrites. The walk names the
+ * sha as its rev, so what is cached is exactly the key's history even when
+ * HEAD moves mid-walk. When HEAD cannot be resolved from files, the walk runs
+ * as before and nothing is cached. A failed walk (null) is never cached.
+ */
+export function cachedAttribution(rootDir: string, sofarDir: string, maxCount: number): CommitAttribution[] | null {
+  const head = headSha(rootDir)
+  if (head === null) return readAttribution(rootDir, { maxCount })
+  const path = join(indexDir(sofarDir), ATTRIBUTION_FILE)
+  try {
+    const raw = JSON.parse(readFileSync(path, 'utf8')) as Partial<AttributionFile>
+    if (raw.v === ATTRIBUTION_CACHE_VERSION && raw.head === head && raw.maxCount === maxCount && isCommitList(raw.commits)) {
+      return raw.commits
+    }
+  } catch {
+    // no file, or an unreadable one: a miss
+  }
+  const commits = readAttribution(rootDir, { maxCount, range: head })
+  if (commits === null) return null
+  try {
+    ensureIndexDir(sofarDir)
+    const file: AttributionFile = { v: ATTRIBUTION_CACHE_VERSION, head, maxCount, commits }
+    writeFileAtomic(path, `${JSON.stringify(sortKeysDeep(file))}\n`)
+  } catch {
+    // a cache that cannot be written is a miss next time, never an error
+  }
+  return commits
+}
+
+export const ATTRIBUTION_CACHE_VERSION = 1
+const ATTRIBUTION_FILE = 'attribution.json'
+
+interface AttributionFile {
+  v: number
+  head: string
+  maxCount: number
+  commits: CommitAttribution[]
+}
+
+/** Trusted only in the shape the walk itself returns. */
+function isCommitList(v: unknown): v is CommitAttribution[] {
+  if (!Array.isArray(v)) return false
+  return v.every((c: unknown) => {
+    if (typeof c !== 'object' || c === null || Array.isArray(c)) return false
+    const o = c as Record<string, unknown>
+    return (
+      typeof o.sha === 'string' &&
+      FULL_SHA.test(o.sha) &&
+      Array.isArray(o.initiatives) &&
+      o.initiatives.every((s) => typeof s === 'string' && SLUG.test(s)) &&
+      (o.subject === undefined || (typeof o.subject === 'string' && o.subject.length > 0))
+    )
+  })
 }
 
 /**

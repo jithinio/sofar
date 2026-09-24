@@ -10,8 +10,10 @@ use std::time::SystemTime;
 
 use crate::envelope::{Envelope, MakeEventInput, make_event, serialize_event};
 use crate::fold::{
-    FoldCheckpoint, append_to_checkpoint, empty_state, finalize_state, has_session, replay_decoded,
+    EdgeAccumulator, FoldCheckpoint, append_to_checkpoint, empty_state, finalize_from,
+    finalize_state, has_session, replay_decoded,
 };
+use crate::fold_checkpoint;
 use crate::home::{LaneAvailability, lane_availability};
 use crate::json::{Json, Object};
 use crate::layout::Layout;
@@ -39,6 +41,20 @@ struct CachedFold {
     size: u64,
     mtime: Option<SystemTime>,
     cp: FoldCheckpoint,
+    /// Present when resumed from an edge-free checkpoint (01M39ED9): `cp`
+    /// then holds only the edges added since, folded in here once at finalize.
+    acc: Option<EdgeAccumulator>,
+}
+
+fn finalize_entry(entry: &mut CachedFold) -> crate::fold::InitiativeState {
+    match entry.acc.as_mut() {
+        None => finalize_state(&entry.cp),
+        Some(acc) => {
+            acc.add(&entry.cp.edges);
+            entry.cp.edges.clear();
+            finalize_from(&entry.cp, acc)
+        }
+    }
 }
 
 static FOLDS: Mutex<Vec<(PathBuf, CachedFold)>> = Mutex::new(Vec::new());
@@ -73,7 +89,7 @@ pub fn forget_folds() {
 fn with_checkpoint<R>(
     layout: &Layout,
     slug: &str,
-    f: impl FnOnce(&mut FoldCheckpoint) -> R,
+    f: impl FnOnce(&mut CachedFold) -> R,
 ) -> Option<R> {
     let log = layout.events_path(slug);
     let Some((size, mtime)) = stat_log(&log) else {
@@ -85,7 +101,26 @@ fn with_checkpoint<R>(
             && hit.size == size
             && hit.mtime == mtime
         {
-            return Some(f(&mut hit.cp));
+            return Some(f(hit));
+        }
+        // Another process's replay, retained on disk (01M39ED9): only the
+        // tail is applied. Anything it cannot prove exact is None: refold.
+        if let Some(r) = fold_checkpoint::resume(&layout.root, slug, &log) {
+            if r.rewrite
+                && let Some(prefix) =
+                    fold_checkpoint::extend_prefix(&log, &r.prefix, r.size, r.cp.line_count)
+            {
+                fold_checkpoint::save_checkpoint(&layout.root, slug, &r.cp, &r.acc, &prefix);
+            }
+            let mut entry = CachedFold {
+                size: r.size,
+                mtime: r.mtime,
+                cp: r.cp,
+                acc: Some(r.acc),
+            };
+            let out = f(&mut entry);
+            remember_fold(folds, &log, entry);
+            return Some(out);
         }
         let bytes = std::fs::read(&log).ok()?;
         let text = String::from_utf8_lossy(&bytes);
@@ -95,9 +130,25 @@ fn with_checkpoint<R>(
         } else {
             lines.len()
         };
-        let mut cp = replay_decoded(decode_lines(lines.iter().copied()), slug, count);
-        let out = f(&mut cp);
-        remember_fold(folds, &log, CachedFold { size, mtime, cp });
+        let cp = replay_decoded(decode_lines(lines.iter().copied()), slug, count);
+        let mut entry = CachedFold {
+            size,
+            mtime,
+            cp,
+            acc: None,
+        };
+        let out = f(&mut entry);
+        // The whole log was read at this stat: checkpoint it for the next
+        // process, unless it moved while it was read.
+        if bytes.len() as u64 == size
+            && stat_log(&log) == Some((size, mtime))
+            && let Some(prefix) = fold_checkpoint::prefix_of(&bytes, entry.cp.line_count)
+        {
+            let mut acc = EdgeAccumulator::default();
+            acc.add(&entry.cp.edges);
+            fold_checkpoint::save_checkpoint(&layout.root, slug, &entry.cp, &acc, &prefix);
+        }
+        remember_fold(folds, &log, entry);
         Some(out)
     })
 }
@@ -106,8 +157,7 @@ fn with_checkpoint<R>(
 /// with its slug (`foldState`).
 #[must_use]
 pub fn fold_state(layout: &Layout, slug: &str) -> crate::fold::InitiativeState {
-    let mut state =
-        with_checkpoint(layout, slug, |cp| finalize_state(cp)).unwrap_or_else(empty_state);
+    let mut state = with_checkpoint(layout, slug, finalize_entry).unwrap_or_else(empty_state);
     if state.slug.is_empty() {
         slug.clone_into(&mut state.slug);
     }
@@ -184,7 +234,7 @@ pub fn append_and_project(
 /// checkpoint: finalize never changes which sessions there are, so the check
 /// skips it (on team100's bound log, a third of registration).
 fn registered(layout: &Layout, slug: &str, session_id: &str) -> bool {
-    with_checkpoint(layout, slug, |cp| has_session(cp, session_id)).unwrap_or(false)
+    with_checkpoint(layout, slug, |entry| has_session(&mut entry.cp, session_id)).unwrap_or(false)
 }
 
 /// `registerSession`: append `session_started` once per (initiative, session),
