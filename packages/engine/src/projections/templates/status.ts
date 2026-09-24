@@ -94,7 +94,7 @@ const DERIVED_SESSION_BUDGET = 600
 // Standing constraints gets the short chose budget — the rule is its content.
 const DECISION_CHOSE_BUDGET = 90
 const DECISION_RULED_CHOSE_BUDGET = 60
-const MAX_DECISIONS = 5
+export const MAX_DECISIONS = 5
 // Rejected-approaches ledger (D-ledger, Phase-3 validated; scoped by D11 to
 // decisions OLDER than the recent window): breadth of "what NOT to re-propose"
 // that the window drops — over-only, heavily clipped, so it stays compact even

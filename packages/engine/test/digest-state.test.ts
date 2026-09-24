@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { foldLines, type InitiativeState } from '../src/core/fold'
 import { digestState } from '../src/projections/templates/digest-state'
 import { renderStatus, type StatusOptions } from '../src/projections/templates/status'
-import { initiativeText, shapes, type CorpusSpec } from './conformance/perf/corpus'
+import { initiativeText, shapes, TEAM100, TEAM_CELLS, type CorpusSpec } from './conformance/perf/corpus'
 import { sortKeysDeep } from '../src/core/snapshot'
 
 /**
@@ -30,6 +30,69 @@ function syntheticStates(): Array<[string, InitiativeState]> {
     const t = initiativeText(spec, shape, i)
     return [`synthetic:${t.slug}`, foldLines(t.text.split('\n'), t.slug).state]
   })
+}
+
+/**
+ * The team100 corpus's bound record (rust-core 4.4, D-b): team100-w100's
+ * always, and the full team100 one (95 MB, a minute to fold) when
+ * SOFAR_DIGEST_TEAM100=1.
+ */
+function team100States(): Array<[string, InitiativeState]> {
+  const specs: CorpusSpec[] = [TEAM_CELLS.find((c) => c.name === 'team100-w100')!]
+  if (process.env.SOFAR_DIGEST_TEAM100 === '1') specs.push(TEAM100)
+  return specs.map((spec) => {
+    const t = initiativeText(spec, shapes(spec)[0]!, 0)
+    return [`${spec.name}:${t.slug}`, foldLines(t.text.split('\n'), t.slug).state]
+  })
+}
+
+/** Render under SOFAR_RETIRE on and off: the switch is read at render time, the cut at write time. */
+function bothRetire(render: () => string): [string, string] {
+  const saved = process.env.SOFAR_RETIRE
+  try {
+    delete process.env.SOFAR_RETIRE
+    const on = render()
+    process.env.SOFAR_RETIRE = 'off'
+    return [on, render()]
+  } finally {
+    if (saved === undefined) delete process.env.SOFAR_RETIRE
+    else process.env.SOFAR_RETIRE = saved
+  }
+}
+
+/**
+ * Text reachability (D-b's standing rule): every text the cut dropped, put
+ * back as a sentinel into the FULL state (with the cut's removals applied,
+ * which the parity above proves), must render the same. That shows the kept
+ * set is sufficient for any text, not only for today's fixtures.
+ */
+function sentinelled(full: InitiativeState, cut: InitiativeState, tag: string): InitiativeState {
+  type Row = Record<string, unknown>
+  const texts = ['id', 'tool', 'started', 'ended', 'summary', 'next_action', 'closed_reason', 'model'] as const
+  const sessions = full.sessions.map((s, i) => {
+    const c = cut.sessions[i]! as unknown as Row
+    const m = { ...s } as unknown as Row
+    for (const key of texts) {
+      if (c[key] === undefined) delete m[key]
+      else if (c[key] !== m[key]) m[key] = `${tag}${key}${i}`
+    }
+    if (c.handoff === undefined) delete m.handoff
+    m.unwritten = 4242
+    if (c.activity === undefined) delete m.activity
+    else if (c.activity !== s.activity) m.activity = { files: [`${tag}file${i}`], commands: 777, task_changes: [{ task: `${tag}t`, status: 'done' }] }
+    return m as unknown as InitiativeState['sessions'][number]
+  })
+  const decisions = full.decisions.map((d, i) => {
+    const c = cut.decisions[i]! as unknown as Row
+    const m = { ...d } as unknown as Row
+    for (const key of ['id', 'ts', 'chose', 'because'] as const) if (c[key] !== m[key]) m[key] = `${tag}${key}${i}`
+    // A dropped `over` keeps its realness: a real one becomes a real sentinel.
+    if (c.over !== m.over && c.over === '-') m.over = `${tag}over${i}`
+    if (c.guard === undefined && m.guard !== undefined) m.guard = `${tag}guard${i}`
+    if (c.check === undefined) delete m.check
+    return m as unknown as InitiativeState['decisions'][number]
+  })
+  return { ...full, files_touched: [], sessions, decisions }
 }
 
 const git = {
@@ -58,7 +121,7 @@ function optionsMatrix(): Array<[string, StatusOptions]> {
 }
 
 describe('digestState renders exactly what the full state renders (rust-core 4.4)', () => {
-  const states = [...realStates(), ...syntheticStates()]
+  const states = [...realStates(), ...syntheticStates(), ...team100States()]
 
   it('has states to check', () => {
     expect(states.length).toBeGreaterThan(5)
@@ -71,13 +134,24 @@ describe('digestState renders exactly what the full state renders (rust-core 4.4
       const cached = JSON.parse(JSON.stringify(cut)) as InitiativeState
       // What the digest cache writes: compact JSON with every key sorted.
       const sorted = JSON.parse(JSON.stringify(sortKeysDeep(cut))) as InitiativeState
+      const reach = ['\u0001a:', '\u0002b:'].map((tag) => sentinelled(state, cut, tag))
       for (const [label, options] of optionsMatrix()) {
-        const want = renderStatus(state, options)
-        expect(renderStatus(cut, options), `${name} / ${label}`).toBe(want)
-        expect(renderStatus(cached, options), `${name} / ${label} (JSON)`).toBe(want)
-        expect(renderStatus(sorted, options), `${name} / ${label} (sorted JSON)`).toBe(want)
+        const [on, off] = bothRetire(() => renderStatus(state, options))
+        for (const [mode, want, got] of [
+          ['retire on', on, bothRetire(() => renderStatus(cut, options))[0]],
+          ['retire off', off, bothRetire(() => renderStatus(cut, options))[1]],
+          ['retire on (JSON)', on, bothRetire(() => renderStatus(cached, options))[0]],
+          ['retire off (sorted JSON)', off, bothRetire(() => renderStatus(sorted, options))[1]],
+        ] as const) {
+          expect(got, `${name} / ${label} / ${mode}`).toBe(want)
+        }
+        for (const [k, mutated] of reach.entries()) {
+          const [rOn, rOff] = bothRetire(() => renderStatus(mutated, options))
+          expect(rOn, `${name} / ${label} / reachability ${k} (retire on)`).toBe(on)
+          expect(rOff, `${name} / ${label} / reachability ${k} (retire off)`).toBe(off)
+        }
       }
-    })
+    }, 300_000)
   }
 
   it('actually cuts: a synthetic team record shrinks', () => {

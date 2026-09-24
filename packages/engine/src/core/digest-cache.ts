@@ -25,7 +25,7 @@ import { currentVersion, sortKeysDeep } from './snapshot'
  */
 
 const DIGEST_DIR = 'digest'
-export const DIGEST_CACHE_VERSION = 1
+export const DIGEST_CACHE_VERSION = 2
 
 interface DigestFile {
   v: number

@@ -1,19 +1,22 @@
 //! The state the session-start digest can reach (`projections/templates/
-//! digest-state.ts`, rust-core 4.4): what the digest cache stores so a hit
-//! renders without folding. The cut is the TypeScript one, reader by reader:
-//! `files_touched` dropped; `summary` kept only on the newest session that
-//! has one; `activity` kept only for open sessions, the last unwritten one
-//! and the lane's recent ones; `next_action` kept only for the winning
-//! write-back and the sessions that overlap it. Elsewhere each becomes a
-//! placeholder that keeps its presence test true.
+//! digest-state.ts`, rust-core 4.4; the tighter cut is D-b,
+//! `DIGEST_CACHE_VERSION` 2): what the digest cache stores so a hit renders
+//! without folding. Every session and decision stays an entry; each keeps only
+//! the fields a reader can reach, decided from the FULL state — the TypeScript
+//! cut, reader by reader (see its comment for the argument per field).
 //!
 //! `render_status(&digest_state(s), o) == render_status(s, o)` is a contract,
-//! pinned by the tests below over this repo's real logs and edge cases.
+//! pinned by the tests below and by test/digest-state.test.ts (real logs,
+//! team-shaped records, the options matrix, `SOFAR_RETIRE` on and off, and
+//! text reachability).
 
 use std::collections::HashSet;
 
-use crate::fold::{InitiativeState, SessionActivity, SessionState};
-use crate::status::LANE_RECENT_SESSIONS;
+use crate::fold::{DecisionState, InitiativeState, SessionActivity, SessionState};
+use crate::projections::retired_ordinals;
+use crate::status::{
+    LANE_RECENT_SESSIONS, MAX_DECISIONS, UNWRITTEN_SIBLING_CAP, has_real_alternative,
+};
 use crate::text::cmp_utf16;
 
 fn empty_activity() -> SessionActivity {
@@ -91,6 +94,97 @@ fn next_action_kept(sessions: &[SessionState]) -> HashSet<usize> {
     keep
 }
 
+/// How many older rejected approaches can render at most (`REJECTED_TEXT_KEPT`):
+/// the ledger's room is under 450 less its header and reserve, and every line
+/// costs at least 9, so at most 45 show plus the one that breaks the loop.
+const REJECTED_TEXT_KEPT: usize = 48;
+
+/// Placeholder for an `over` no reader shows: only its realness is read.
+const REAL_OVER: &str = "-";
+
+/// `decisionTextKept`: indices whose ts/chose (window) and over (window and
+/// ledger head) can render, under `SOFAR_RETIRE` on and off.
+fn decision_text_kept(state: &InitiativeState) -> (HashSet<usize>, HashSet<usize>) {
+    let mut window = HashSet::new();
+    let mut over = HashSet::new();
+    for retire in [true, false] {
+        let retired = if retire {
+            retired_ordinals(state)
+        } else {
+            Vec::new()
+        };
+        let in_force: Vec<usize> = (0..state.decisions.len())
+            .filter(|i| !retired.contains(&(i + 1)))
+            .collect();
+        let split = in_force.len().saturating_sub(MAX_DECISIONS);
+        for &i in &in_force[split..] {
+            window.insert(i);
+            over.insert(i);
+        }
+        for &i in in_force[..split]
+            .iter()
+            .filter(|&&i| has_real_alternative(&state.decisions[i].over))
+            .take(REJECTED_TEXT_KEPT)
+        {
+            over.insert(i);
+        }
+    }
+    (window, over)
+}
+
+fn cut_decision(
+    d: &DecisionState,
+    i: usize,
+    window: &HashSet<usize>,
+    over: &HashSet<usize>,
+) -> DecisionState {
+    let in_window = window.contains(&i);
+    DecisionState {
+        id: String::new(),
+        ts: if in_window {
+            d.ts.clone()
+        } else {
+            String::new()
+        },
+        chose: if in_window {
+            d.chose.clone()
+        } else {
+            String::new()
+        },
+        over: if over.contains(&i) {
+            d.over.clone()
+        } else if has_real_alternative(&d.over) {
+            REAL_OVER.to_owned()
+        } else {
+            String::new()
+        },
+        because: String::new(),
+        rule: d.rule.clone(),
+        quote: d.quote.clone(),
+        guard: None,
+        supersedes: d.supersedes.clone(),
+        until: d.until.clone(),
+        check: None,
+        superseded_by: d.superseded_by,
+    }
+}
+
+/// The newest `n` indices matching `test`.
+fn newest(
+    sessions: &[SessionState],
+    n: usize,
+    test: impl Fn(&SessionState) -> bool,
+) -> HashSet<usize> {
+    sessions
+        .iter()
+        .enumerate()
+        .rev()
+        .filter(|(_, s)| test(s))
+        .take(n)
+        .map(|(i, _)| i)
+        .collect()
+}
+
 /// `digestState`.
 #[must_use]
 pub fn digest_state(state: &InitiativeState) -> InitiativeState {
@@ -98,20 +192,59 @@ pub fn digest_state(state: &InitiativeState) -> InitiativeState {
     let newest_summary = sessions.iter().rposition(|s| s.summary.is_some());
     let keep_activity = activity_kept(sessions);
     let keep_next = next_action_kept(sessions);
-    let mut cut = state.clone();
-    cut.files_touched = Vec::new();
-    for (i, s) in cut.sessions.iter_mut().enumerate() {
-        if s.summary.is_some() && Some(i) != newest_summary {
-            s.summary = Some(String::new());
-        }
-        if s.activity.is_some() && !keep_activity.contains(&i) {
-            s.activity = Some(empty_activity());
-        }
-        if s.next_action.is_some() && !keep_next.contains(&i) {
-            s.next_action = Some(String::new());
-        }
+    let lane_count = newest(sessions, LANE_RECENT_SESSIONS + 1, |s| s.activity.is_some());
+    let unwritten_ids = newest(sessions, UNWRITTEN_SIBLING_CAP + 1, |s| {
+        s.summary.is_none() && s.activity.is_some()
+    });
+    let (window, over) = decision_text_kept(state);
+    let cut_sessions = sessions
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            let last = Some(i) == newest_summary;
+            let next = keep_next.contains(&i);
+            let act = keep_activity.contains(&i);
+            let counted =
+                s.activity.is_some() && (s.summary.is_none() || act || lane_count.contains(&i));
+            let pick = |keep: bool, v: &String| if keep { v.clone() } else { String::new() };
+            SessionState {
+                id: pick(last || act || unwritten_ids.contains(&i), &s.id),
+                tool: pick(last || next || act, &s.tool),
+                model: None,
+                started: pick(i == 0 || next || act, &s.started),
+                ended: s.ended.clone().filter(|_| last || next || act),
+                summary: s
+                    .summary
+                    .as_ref()
+                    .filter(|_| last || counted)
+                    .map(|t| if last { t.clone() } else { String::new() }),
+                next_action: s.next_action.clone().filter(|_| next),
+                closed_reason: s.closed_reason.clone().filter(|_| act),
+                activity: if counted {
+                    if act {
+                        s.activity.clone()
+                    } else {
+                        Some(empty_activity())
+                    }
+                } else {
+                    None
+                },
+                handoff: None,
+                unwritten: 0,
+            }
+        })
+        .collect();
+    InitiativeState {
+        files_touched: Vec::new(),
+        sessions: cut_sessions,
+        decisions: state
+            .decisions
+            .iter()
+            .enumerate()
+            .map(|(i, d)| cut_decision(d, i, &window, &over))
+            .collect(),
+        ..state.clone()
     }
-    cut
 }
 
 #[cfg(test)]
