@@ -656,17 +656,14 @@ async function driveHolding(
   // Everything a launch needs to know about WHERE a task runs (3.2): the
   // default adapter, the ones a task may name, and what the run has pinned.
   // Built once, from the surface as it now stands — which on a resumed run is
-  // the record's, not this driver's flags. So a resumed run takes model and
-  // effort from that surface alone: a flag the record does not carry would
-  // launch a model `run_started.surface` never names, right after the driver
-  // said the recorded surface wins (D8).
+  // the record's, not this driver's flags. Model and effort come from that
+  // surface ALONE (a fresh run folded the flags into it above): a raw flag
+  // would launch — or warn about — a model `run_started.surface` never names (D8).
   const routing: RoutingOptions = {
     adapter,
     policy,
     ...(options.agents !== undefined ? { agents: options.agents } : {}),
     ...(surface !== undefined ? { surface } : {}),
-    ...(!resuming && options.model !== undefined ? { model: options.model } : {}),
-    ...(!resuming && options.effort !== undefined ? { effort: options.effort } : {}),
     ...(options.costCapUsd !== undefined ? { costCapUsd: options.costCapUsd } : {}),
   }
   // What this adapter cannot honour, said BEFORE the first launch (D9). A
@@ -676,8 +673,6 @@ async function driveHolding(
   for (const line of inertOptions(adapter.capabilities, {
     ...(surface !== undefined ? { surface } : {}),
     ...(options.costCapUsd !== undefined ? { costCapUsd: options.costCapUsd } : {}),
-    ...(routing.model !== undefined ? { model: routing.model } : {}),
-    ...(routing.effort !== undefined ? { effort: routing.effort } : {}),
   })) {
     opening.push(`warning: ${line}`)
   }
