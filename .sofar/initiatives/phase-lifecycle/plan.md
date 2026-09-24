@@ -4,7 +4,7 @@
 
 Goal: Make phase status writable at the same tier as task status. SHIPPED 2026-08-13: sofar_update_phase is the twelfth MCP tool, phase status is written and never derived (D2), and phase_status_changed now counts as drift (D3). Remaining: the 35 stale phases across 16 initiatives, which D5 rules a one-off append-only repair — and the mechanism for writing across 16 records without tearing the session doing it is the open question. Settled up front on measurement: MCP-only, no CLI sibling (D1).
 
-Progress: 20 done, 1 dropped, 1 remaining
+Progress: 21 done, 1 dropped, 0 remaining
 
 ## Phase 1 — Settle the write path (blocks everything else) [done] — 3/3 done
 
@@ -19,16 +19,16 @@ Progress: 20 done, 1 dropped, 1 remaining
 - [x] 2.3 Idempotence and error shape: already at this status appends nothing (the close-initiative precedent); an unknown phase name returns a typed error and never a silent no-op, since phases are addressed by free-text name and a typo would otherwise vanish.
 - [x] 2.4 Register in mcp/server.ts and confirm the tool table renders; the MCP-less dialect keeps reaching the same event through event append, so no caller is stranded.
 
-## Phase 3 — sofar_add_task [active] — 4/6 (1 dropped) done
+## Phase 3 — sofar_add_task [done] — 5/6 (1 dropped) done
 
-> Reopened by D7, which supersedes D4. The add path becomes title+phase fields on sofar_update_task, not a twelfth tool; evidence in note 01M32J11.
+> The add path (title and phase on sofar_update_task, D7) shipped in 0.34.0-rc.2/rc.3 and is installed globally as rc.3 (2026-09-25). 3.2 dropped per D7.
 
 - [x] 3.1 DECIDE whether add_task is in scope. task_added has NO emitter anywhere in packages/engine/src — only the two consumers, fold.ts and index-reach.ts — and 3 uses across the entire 37-initiative record. Confirm it is dead rather than merely rare before building, or rule it out of scope and say why.
 - [-] 3.2 If in scope: mcp/add-task.ts plus schema, mirroring 2.x. Must not disturb plan_updated's full-replace contract, on which SPEC's forward-compatibility story rests (task-drop-state D2). (dropped)
 - [x] 3.3 Schema (packages/schema/src only): UpdateTaskArgs and sofar_update_task's JSON schema gain optional title + phase, the shape end_session's task entries already take; sofar_update_plan's description points at the additive path. The serialized tool surface stays ≤8,000 chars (was 7,794).
 - [x] 3.4 Engine: ONE task-change planner shared by end-session.ts and update-task.ts. An unknown task_id WITH a title → task_added into the resolved phase (default active) plus a status change when a note rides it; WITHOUT a title → invalid_input (today it files an orphan the fold silently drops). `sofar event append --type task_added` resolves the phase like phase_status_changed (D32) and refuses an id the plan holds.
 - [x] 3.5 Contract + tests: docs/SPEC.md §MCP tools (sofar_update_task) and a §Acceptance criteria bullet; tests for add, default phase, phase by number, unknown phase, missing title, held id, note-on-add, session pin, and the event-append guard.
-- [ ] 3.6 Release: ships in the next RC. Until it is published AND installed, sessions here see 0.32.0's surface with no MCP add path. The user runs `npm publish -w sofar.sh`. (blocked)
+- [x] 3.6 Release: ships in the next RC. Until it is published AND installed, sessions here see 0.32.0's surface with no MCP add path. The user runs `npm publish -w sofar.sh`.
 
 ## Phase 4 — The 35 existing stale phases [done] — 3/3 done
 
@@ -52,6 +52,4 @@ Progress: 20 done, 1 dropped, 1 remaining
 - [x] 6.1 ONE change, ONE set of tests, for both halves of D8's family. (a) sofar_update_phase accepts a phase name that matches after a leading ordinal is stripped ("7. ", "7 ", "7)"), beside the number and the case-insensitive full name — round-1 loss row L11, whose refusal in claude-sofar/r3 S7 and S8 preceded the S9 full-replace that wiped phases 6–8. (b) sofar_update_plan stops discarding phase NOTES: carry the note of any phase whose name is unchanged, or take an optional note per phase, or refuse a replace that would drop one unless it is restated. Tests: bare name accepted for a numbered phase, a genuinely unknown name still typed-errors and names what it tried, a replace that omits notes preserves them, and a replace that renames a phase says what happened to its note.
 - [x] 6.2 Contract: docs/SPEC.md §MCP tools for both tools and a §Acceptance criteria bullet each, then retire the workaround memories that the fix makes obsolete (self-improve M8, and the last sentence of rust-core M2's repo.md paragraph, which rust-core is splitting so the worktree guidance survives).
 
-Active phase: Phase 3 — sofar_add_task
-Next action: Operator installs sofar.sh@next globally; then close 3.6.
-Blocked on: task 3.6: PUBLISHED, verified 2026-09-23: sofar.sh@next = 0.34.0-rc.2 (tag v0.34.0-rc.2 = 9286d36), and it contains 6.1 (a0bc2e7) and 6.2 (c8236f1). NOT YET INSTALLED: ~/.local/bin/sofar → ~/.local/lib/node_modules/sofar.sh still reports 0.32.0, and .mcp.json runs that global, so sessions here still lack the add path and the note-carry fix. Remaining step, the operator's: install the rc globally (e.g. `npm i -g sofar.sh@next`) at a moment when the shared host allows it; round 2 and live sessions use this global (L21). Then confirm `sofar --version` shows 0.34.0-rc.2 and mark 3.6 done. The same install lets self-improve M10 retire.
+Next action: No open tasks here; close the initiative when the operator agrees.

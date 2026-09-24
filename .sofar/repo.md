@@ -214,9 +214,9 @@
   `sofar import - <slug> --root <worktree>`, which dedupes by id. A plan
   replacement must be made on the branch, by spawning `sofar mcp` with that
   worktree as cwd. From main's stale copy it clobbers the branch plan when
-  the copies union. Phase notes survive a plan replace from the release
-  that carries phase-lifecycle 6.1 (a0bc2e7) onward; until the installed
-  sofar has it, snapshot plan.md and diff it around the call (self-improve M10).
+  the copies union. Phase notes survive a plan replace since 0.34.0-rc.2
+  (phase-lifecycle 6.1); read the result's `warnings` for any note it drops
+  (self-improve M11).
 - Read-path gates on user-prompt work need `--session <registered id>`
   (rust-core M20). On the repo fixture, bench/read-paths.mjs defaults to an
   unregistered session, so user-prompt returns before lessons, told,
