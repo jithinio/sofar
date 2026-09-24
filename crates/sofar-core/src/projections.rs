@@ -1102,9 +1102,26 @@ fn write_if_changed(path: &Path, content: &str) -> io::Result<()> {
     write_file_atomic(path, content.as_bytes())
 }
 
+/// sha256 over the sources that render a session projection, baked in by
+/// build.rs (rust-core 4.4, decision 01M39M4B): a change to any of them keys
+/// every projection manifest anew, so every session file is rebuilt.
+pub const PROJECTION_FINGERPRINT: &str = env!("SOFAR_PROJECTION_FINGERPRINT");
+
 /// `regenerateProjections`: plan.md, decisions.md, memory.md (only once
-/// something is promoted) and sessions/<id>.md per known session.
+/// something is promoted) and sessions/<id>.md per known session, the session
+/// files dirty-only (01M39M4B).
 pub fn regenerate_projections(initiative_dir: &Path, state: &InitiativeState) -> io::Result<()> {
+    regenerate_projections_with(initiative_dir, state, Some(PROJECTION_FINGERPRINT))
+}
+
+/// [`regenerate_projections`] with an explicit manifest key: `None` renders
+/// and writes every session file (the full regeneration the parity tests
+/// compare against).
+pub fn regenerate_projections_with(
+    initiative_dir: &Path,
+    state: &InitiativeState,
+    fingerprint: Option<&str>,
+) -> io::Result<()> {
     fs::create_dir_all(initiative_dir)?;
     write_if_changed(&initiative_dir.join("plan.md"), &render_plan(state))?;
     write_if_changed(
@@ -1117,11 +1134,130 @@ pub fn regenerate_projections(initiative_dir: &Path, state: &InitiativeState) ->
     if !state.sessions.is_empty() {
         let sessions_dir = initiative_dir.join("sessions");
         fs::create_dir_all(&sessions_dir)?;
-        for session in &state.sessions {
-            write_if_changed(
-                &sessions_dir.join(session_file_name(&session.id)),
-                &render_session(state, session),
-            )?;
+        match fingerprint {
+            None => {
+                for session in &state.sessions {
+                    write_if_changed(
+                        &sessions_dir.join(session_file_name(&session.id)),
+                        &render_session(state, session),
+                    )?;
+                }
+            }
+            Some(fp) => regenerate_dirty_sessions(initiative_dir, &sessions_dir, state, fp)?,
+        }
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Dirty-only session files (`regenerateDirtySessions`, 01M39M4B): render_session
+// reads the slug and its own SessionState only, so a file is rewritten only
+// when those inputs, the file on disk, or the manifest key moved. The output
+// is byte-identical to a full regeneration; the event-by-event parity tests
+// gate that.
+
+const PROJECTION_MANIFEST_VERSION: u32 = 1;
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct ManifestEntry {
+    fp: String,
+    size: u64,
+    mtime_ms: f64,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Manifest {
+    v: u32,
+    engine: String,
+    schema: String,
+    fingerprint: String,
+    entries: std::collections::HashMap<String, ManifestEntry>,
+}
+
+/// `sessionInputHash`: sha256 of the canonical JSON of {slug, session}.
+#[must_use]
+pub fn session_input_hash(slug: &str, session: &SessionState) -> String {
+    let mut o = crate::json::Object::with_capacity(2);
+    o.insert("slug", Json::Str(slug.to_owned()));
+    o.insert("session", session.to_json());
+    crate::sha256::hex_digest(crate::json::stringify_canonical(&Json::Obj(o)).as_bytes())
+}
+
+fn manifest_path(initiative_dir: &Path) -> Option<std::path::PathBuf> {
+    let slug = initiative_dir.file_name()?.to_string_lossy().into_owned();
+    let sofar_dir = initiative_dir.parent()?.parent()?;
+    Some(
+        sofar_dir
+            .join(".index")
+            .join("projections")
+            .join(format!("{slug}.rs.json")),
+    )
+}
+
+fn file_stat(path: &Path) -> Option<(u64, f64)> {
+    let m = fs::metadata(path).ok()?;
+    Some((m.len(), crate::index_store::mtime_ms_of(&m)))
+}
+
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality of a stored stat IS the contract"
+)]
+fn regenerate_dirty_sessions(
+    initiative_dir: &Path,
+    sessions_dir: &Path,
+    state: &InitiativeState,
+    fingerprint: &str,
+) -> io::Result<()> {
+    let version = crate::snapshot::current_version();
+    let path = manifest_path(initiative_dir);
+    let prior: std::collections::HashMap<String, ManifestEntry> = path
+        .as_ref()
+        .and_then(|p| fs::read(p).ok())
+        .and_then(|b| serde_json::from_slice::<Manifest>(&b).ok())
+        .filter(|m| {
+            m.v == PROJECTION_MANIFEST_VERSION
+                && m.engine == version.engine
+                && m.schema == version.schema
+                && m.fingerprint == fingerprint
+        })
+        .map(|m| m.entries)
+        .unwrap_or_default();
+    let mut entries = std::collections::HashMap::with_capacity(state.sessions.len());
+    let mut changed = false;
+    for session in &state.sessions {
+        let name = session_file_name(&session.id);
+        let file = sessions_dir.join(&name);
+        let fp = session_input_hash(&state.slug, session);
+        if let Some(before) = prior.get(&name)
+            && before.fp == fp
+            && file_stat(&file) == Some((before.size, before.mtime_ms))
+        {
+            entries.insert(name, before.clone());
+            continue;
+        }
+        write_if_changed(&file, &render_session(state, session))?;
+        if let Some((size, mtime_ms)) = file_stat(&file) {
+            entries.insert(name, ManifestEntry { fp, size, mtime_ms });
+        }
+        changed = true;
+    }
+    if (changed || entries.len() != prior.len())
+        && let Some(path) = path
+    {
+        let manifest = Manifest {
+            v: PROJECTION_MANIFEST_VERSION,
+            engine: version.engine,
+            schema: version.schema,
+            fingerprint: fingerprint.to_owned(),
+            entries,
+        };
+        if let Ok(bytes) = serde_json::to_vec(&manifest)
+            && let Some(dir) = path.parent()
+            && fs::create_dir_all(dir).is_ok()
+        {
+            // Derived: an unwritten manifest makes every session dirty next time.
+            let _ = write_file_atomic(&path, &bytes);
         }
     }
     Ok(())
@@ -1216,5 +1352,231 @@ mod tests {
     fn doc_ends_with_exactly_one_newline() {
         assert_eq!(doc(&["a".into(), String::new(), String::new()]), "a\n");
         assert_eq!(doc(&[]), "\n");
+    }
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::format_push_string,
+    reason = "test fixtures build log text plainly"
+)]
+mod dirty_tests {
+    //! rust-core 4.4, decision 01M39M4B: dirty-only session projections stay
+    //! byte-identical to a full regeneration at every step.
+    use super::*;
+    use crate::fold::{
+        FoldCheckpoint, append_to_checkpoint, empty_state, finalize_fold, replay_decoded,
+    };
+    use crate::log::decode_lines;
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
+
+    const FP: &str = "test-fingerprint";
+
+    fn record_dir(slug: &str) -> PathBuf {
+        let root = crate::testing::scratch_dir("dirty");
+        let dir = root.join(".sofar/initiatives").join(slug);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn tree(dir: &Path) -> BTreeMap<String, String> {
+        fn walk(d: &Path, rel: &str, out: &mut BTreeMap<String, String>) {
+            let Ok(entries) = fs::read_dir(d) else { return };
+            for e in entries {
+                let e = e.unwrap();
+                let name = e.file_name().to_string_lossy().into_owned();
+                if e.file_type().unwrap().is_dir() {
+                    walk(&e.path(), &format!("{rel}{name}/"), out);
+                } else {
+                    out.insert(
+                        format!("{rel}{name}"),
+                        fs::read_to_string(e.path()).unwrap(),
+                    );
+                }
+            }
+        }
+        let mut out = BTreeMap::new();
+        walk(dir, "", &mut out);
+        out
+    }
+
+    fn real_logs(max: usize) -> Vec<(String, Vec<String>)> {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.sofar/initiatives");
+        let mut out = Vec::new();
+        for entry in fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            let Ok(text) = fs::read_to_string(path.join("events.jsonl")) else {
+                continue;
+            };
+            if text.is_empty() || text.len() > max {
+                continue;
+            }
+            let slug = path.file_name().unwrap().to_string_lossy().into_owned();
+            out.push((slug, text.lines().map(str::to_owned).collect()));
+        }
+        out
+    }
+
+    fn state_of(lines: &[String], slug: &str) -> InitiativeState {
+        let mut s = finalize_fold(&replay_decoded(
+            decode_lines(lines.iter().map(String::as_str)),
+            slug,
+            lines.len(),
+        ))
+        .state;
+        slug.clone_into(&mut s.slug);
+        s
+    }
+
+    fn replay_and_compare(slug: &str, lines: &[String], step: usize) -> usize {
+        let (dirty, full) = (record_dir(slug), record_dir(slug));
+        let mut cp: Option<FoldCheckpoint> = None;
+        let (mut done, mut steps) = (0, 0);
+        while done < lines.len() {
+            let n = (done + step).min(lines.len());
+            if let Some(c) = cp.as_mut() {
+                for line in &lines[done..n] {
+                    if !append_to_checkpoint(c, line) {
+                        cp = None;
+                        break;
+                    }
+                }
+            }
+            if cp.is_none() {
+                cp = Some(replay_decoded(
+                    decode_lines(lines[..n].iter().map(String::as_str)),
+                    slug,
+                    n,
+                ));
+            }
+            done = n;
+            let mut state = finalize_fold(cp.as_ref().unwrap()).state;
+            slug.clone_into(&mut state.slug);
+            regenerate_projections_with(&dirty, &state, Some(FP)).unwrap();
+            regenerate_projections_with(&full, &state, None).unwrap();
+            assert_eq!(tree(&dirty), tree(&full), "{slug} after {n} lines");
+            steps += 1;
+        }
+        steps
+    }
+
+    #[test]
+    fn render_session_reads_only_the_slug_and_its_session() {
+        let mut checked = 0;
+        for (slug, lines) in real_logs(usize::MAX) {
+            let state = state_of(&lines, &slug);
+            let mut bare = empty_state();
+            bare.slug.clone_from(&state.slug);
+            for session in &state.sessions {
+                assert_eq!(
+                    render_session(&bare, session),
+                    render_session(&state, session),
+                    "{slug}"
+                );
+                checked += 1;
+            }
+        }
+        assert!(checked > 200, "{checked}");
+    }
+
+    #[test]
+    fn replay_is_byte_identical_to_a_full_regeneration_at_every_step() {
+        let mut steps = 0;
+        for (slug, lines) in real_logs(256 * 1024) {
+            let step = if lines.len() <= 300 {
+                1
+            } else {
+                lines.len().div_ceil(150)
+            };
+            steps += replay_and_compare(&slug, &lines, step);
+        }
+        assert!(steps > 500, "{steps}");
+    }
+
+    fn seeded() -> (PathBuf, InitiativeState) {
+        let (slug, lines) = real_logs(usize::MAX)
+            .into_iter()
+            .find(|(_, l)| l.len() > 50)
+            .unwrap();
+        let state = state_of(&lines, &slug);
+        let dir = record_dir(&slug);
+        regenerate_projections_with(&dir, &state, Some(FP)).unwrap();
+        (dir, state)
+    }
+
+    fn want(state: &InitiativeState) -> BTreeMap<String, String> {
+        let dir = record_dir(&state.slug);
+        regenerate_projections_with(&dir, state, None).unwrap();
+        tree(&dir)
+    }
+
+    fn first_session_file(dir: &Path) -> PathBuf {
+        fs::read_dir(dir.join("sessions"))
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path()
+    }
+
+    #[test]
+    fn a_moved_file_a_new_slug_or_a_corrupt_manifest_rewrites() {
+        // A hand edit (changed size).
+        let (dir, state) = seeded();
+        fs::write(first_session_file(&dir), "edited by hand\n").unwrap();
+        regenerate_projections_with(&dir, &state, Some(FP)).unwrap();
+        assert_eq!(tree(&dir), want(&state), "hand edit");
+        // A deleted file.
+        let (dir, state) = seeded();
+        fs::remove_file(first_session_file(&dir)).unwrap();
+        regenerate_projections_with(&dir, &state, Some(FP)).unwrap();
+        assert_eq!(tree(&dir), want(&state), "deleted");
+        // The slug changes.
+        let (dir, state) = seeded();
+        let mut renamed = state.clone();
+        renamed.slug.push_str("-renamed");
+        regenerate_projections_with(&dir, &renamed, Some(FP)).unwrap();
+        assert_eq!(tree(&dir), want(&renamed), "slug");
+        // A corrupt manifest.
+        let (dir, state) = seeded();
+        let manifest = manifest_path(&dir).unwrap();
+        fs::write(&manifest, "{\"v\":1,").unwrap();
+        fs::remove_file(first_session_file(&dir)).unwrap();
+        regenerate_projections_with(&dir, &state, Some(FP)).unwrap();
+        assert_eq!(tree(&dir), want(&state), "corrupt manifest");
+    }
+
+    #[test]
+    fn a_fingerprint_change_rewrites_files_the_manifest_would_trust() {
+        // Stale every file, then make the manifest agree with the stale files'
+        // size and mtime: only the key can force the rewrite.
+        let staled = || {
+            let (dir, state) = seeded();
+            let path = manifest_path(&dir).unwrap();
+            let mut manifest: Manifest = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+            for e in fs::read_dir(dir.join("sessions")).unwrap() {
+                let p = e.unwrap().path();
+                let size = fs::metadata(&p).unwrap().len();
+                fs::write(&p, "x".repeat(usize::try_from(size).unwrap())).unwrap();
+                let (size, mtime_ms) = file_stat(&p).unwrap();
+                let name = p.file_name().unwrap().to_string_lossy().into_owned();
+                let entry = manifest.entries.get_mut(&name).unwrap();
+                entry.size = size;
+                entry.mtime_ms = mtime_ms;
+            }
+            fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+            (dir, state)
+        };
+        let (dir, state) = staled();
+        regenerate_projections_with(&dir, &state, Some(FP)).unwrap();
+        assert_ne!(
+            tree(&dir),
+            want(&state),
+            "control: trusted under its own key"
+        );
+        let (dir, state) = staled();
+        regenerate_projections_with(&dir, &state, Some("another-template-build")).unwrap();
+        assert_eq!(tree(&dir), want(&state));
     }
 }
