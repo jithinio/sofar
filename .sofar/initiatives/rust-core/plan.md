@@ -52,5 +52,5 @@ Progress: 18/25 tasks done (72%)
 - [ ] 5.3 wasm build of the fold for the sofar-cloud webapp and the Bun API, replacing the browser-aliased TypeScript fold (engine-core 3.2). A separate crate, so the hook binary's crate set (D9) is unchanged
 - [x] 5.4 The TypeScript CLI wraps the core with foldLines keeping its signature (engine-core 3.3): confirm that 3.1's dispatch with TypeScript fallback covers it, then close
 
-Next action: On the go: L2 typed serde reads in the core, then L1 attribution cache
+Next action: STOP per go: await the operator ruling on L3/L4 for warm session-start at team100 (42.6 ms vs the <20 ms bar); no push.
 Blocked on: task 5.1: Gate built and green: the sofar leg is in CI (core-conformance, run 35748230717, every branch), and sofar-cloud is green locally (20 logs, private mode). Blocked on the operator for the sofar-cloud CI leg. sofar-cloud (usesofar/sofar-app) is private and this repo's Actions logs are public, so the job belongs in sofar-cloud's own CI. See the 5.1 note for the steps. It needs no token, since sofar is public.
