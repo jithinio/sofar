@@ -5,8 +5,8 @@ import { hasRealAlternative, MAX_DECISIONS, UNWRITTEN_SIBLING_CAP } from './stat
 
 /**
  * The state renderStatus can reach, and nothing more (rust-core 4.4; the
- * tighter cut is D-b, DIGEST_CACHE_VERSION 2): what the session-start digest
- * cache stores so a hit renders without folding. Every session and decision
+ * tighter cuts are D-b, DIGEST_CACHE_VERSION 2, and v3's open sessions): what
+ * the session-start digest cache stores so a hit renders without folding. Every session and decision
  * stays an entry (the lane counts both, the scans read their order); each keeps
  * only the fields a reader can reach, decided from the FULL state.
  *
@@ -17,8 +17,11 @@ import { hasRealAlternative, MAX_DECISIONS, UNWRITTEN_SIBLING_CAP } from './stat
  *   overlap it keep next_action, tool, started and ended. Every other
  *   next_action is dropped: it only made a session a candidate, and removing
  *   non-winning candidates changes neither the winner nor who overlaps it.
- * - openSessionFiles, lastUnwrittenWithActivity, the lane: `activityKept`
- *   sessions keep their activity, id, tool, started, ended and closed_reason.
+ * - lastUnwrittenWithActivity and the lane describe a session's activity in
+ *   full: those keep it, with id, tool, started, ended and closed_reason.
+ * - openSessionFiles reads an open session's id and files, and a conflict
+ *   line names only a file two or more open pairs hold (v3): an open session
+ *   no reader describes keeps its id and just those files.
  * - unwrittenSessions counts every summary-less session with activity, so
  *   those keep an activity placeholder; the newest UNWRITTEN_SIBLING_CAP + 1
  *   keep their ids. The lane asks whether more than LANE_RECENT_SESSIONS
@@ -44,19 +47,25 @@ import { hasRealAlternative, MAX_DECISIONS, UNWRITTEN_SIBLING_CAP } from './stat
 
 const EMPTY_ACTIVITY: SessionActivity = { files: [], commands: 0, task_changes: [] }
 
-/** Indices of the sessions whose activity a reader can render. */
-function activityKept(sessions: readonly SessionState[]): Set<number> {
-  const keep = new Set<number>()
+/**
+ * The sessions whose activity a reader can render, by reader: `described`
+ * (lastUnwrittenWithActivity and the lane, which describeActivity in full)
+ * and `open` (openSessionFiles, which reads only their files for the
+ * conflict lines).
+ */
+function activityKept(sessions: readonly SessionState[]): { described: Set<number>; open: Set<number> } {
+  const described = new Set<number>()
+  const open = new Set<number>()
   // Open sessions: openSessionFiles reads their files for the conflict lines.
   sessions.forEach((s, i) => {
-    if (s.ended === undefined && s.activity !== undefined) keep.add(i)
+    if (s.ended === undefined && s.activity !== undefined) open.add(i)
   })
   // lastUnwrittenWithActivity: newest first, stopping at a written-back one.
   for (let i = sessions.length - 1; i >= 0; i--) {
     const s = sessions[i]!
     if (s.summary !== undefined) break
     if (s.activity !== undefined) {
-      keep.add(i)
+      described.add(i)
       break
     }
   }
@@ -64,11 +73,27 @@ function activityKept(sessions: readonly SessionState[]): Set<number> {
   let lane = 0
   for (let i = sessions.length - 1; i >= 0 && lane < LANE_RECENT_SESSIONS; i--) {
     if (sessions[i]!.activity !== undefined) {
-      keep.add(i)
+      described.add(i)
       lane += 1
     }
   }
-  return keep
+  return { described, open }
+}
+
+/**
+ * Files a conflict line can name (digest v3): openSessionFileConflicts groups
+ * every (open session, file) pair by file and reports a file with two or more
+ * pairs, so a file only one pair holds never renders. The "+N more" sentinel
+ * is not a pair.
+ */
+function sharedOpenFiles(sessions: readonly SessionState[], open: ReadonlySet<number>): Set<string> {
+  const pairs = new Map<string, number>()
+  for (const i of open) {
+    for (const file of sessions[i]!.activity!.files) {
+      if (!file.startsWith('+')) pairs.set(file, (pairs.get(file) ?? 0) + 1)
+    }
+  }
+  return new Set([...pairs].filter(([, n]) => n >= 2).map(([file]) => file))
 }
 
 /** Indices whose next_action text overlappingWritebacks can read. */
@@ -154,7 +179,8 @@ export function digestState(state: InitiativeState): InitiativeState {
       break
     }
   }
-  const keepActivity = activityKept(sessions)
+  const { described, open } = activityKept(sessions)
+  const shared = sharedOpenFiles(sessions, open)
   const keepNext = nextActionKept(sessions)
   const laneCount = newest(sessions, LANE_RECENT_SESSIONS + 1, (s) => s.activity !== undefined)
   const unwrittenIds = newest(sessions, UNWRITTEN_SIBLING_CAP + 1, (s) => s.summary === undefined && s.activity !== undefined)
@@ -165,19 +191,23 @@ export function digestState(state: InitiativeState): InitiativeState {
     sessions: sessions.map((s, i) => {
       const last = i === newestSummary
       const next = keepNext.has(i)
-      const act = keepActivity.has(i)
-      const counted = s.activity !== undefined && (s.summary === undefined || act || laneCount.has(i))
+      const told = described.has(i)
+      const held = open.has(i)
+      const counted = s.activity !== undefined && (s.summary === undefined || told || held || laneCount.has(i))
       const cut: SessionState = {
-        id: last || act || unwrittenIds.has(i) ? s.id : '',
-        tool: last || next || act ? s.tool : '',
-        started: i === 0 || next || act ? s.started : '',
+        id: last || told || held || unwrittenIds.has(i) ? s.id : '',
+        tool: last || next || told ? s.tool : '',
+        started: i === 0 || next || told ? s.started : '',
         unwritten: 0,
       }
-      if (s.ended !== undefined && (last || next || act)) cut.ended = s.ended
+      if (s.ended !== undefined && (last || next || told)) cut.ended = s.ended
       if (s.summary !== undefined && (last || counted)) cut.summary = last ? s.summary : ''
       if (s.next_action !== undefined && next) cut.next_action = s.next_action
-      if (s.closed_reason !== undefined && act) cut.closed_reason = s.closed_reason
-      if (counted) cut.activity = act ? s.activity : EMPTY_ACTIVITY
+      if (s.closed_reason !== undefined && told) cut.closed_reason = s.closed_reason
+      if (counted) {
+        // An open session no reader describes keeps only the files a conflict can name.
+        cut.activity = told ? s.activity : held ? { ...EMPTY_ACTIVITY, files: s.activity!.files.filter((f) => shared.has(f)) } : EMPTY_ACTIVITY
+      }
       return cut
     }),
     decisions: state.decisions.map((d, i) => cutDecision(d, i, decisions)),

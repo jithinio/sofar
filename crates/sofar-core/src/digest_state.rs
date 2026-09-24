@@ -1,6 +1,6 @@
 //! The state the session-start digest can reach (`projections/templates/
 //! digest-state.ts`, rust-core 4.4; the tighter cut is D-b,
-//! `DIGEST_CACHE_VERSION` 2): what the digest cache stores so a hit renders
+//! `DIGEST_CACHE_VERSION` 2, and v3's open sessions): what the digest cache stores so a hit renders
 //! without folding. Every session and decision stays an entry; each keeps only
 //! the fields a reader can reach, decided from the FULL state — the TypeScript
 //! cut, reader by reader (see its comment for the argument per field).
@@ -29,22 +29,24 @@ fn empty_activity() -> SessionActivity {
     }
 }
 
-/// Indices of the sessions whose activity a reader can render.
-fn activity_kept(sessions: &[SessionState]) -> HashSet<usize> {
-    let mut keep = HashSet::new();
-    // Open sessions: open_session_files reads their files for the conflict lines.
-    for (i, s) in sessions.iter().enumerate() {
-        if s.ended.is_none() && s.activity.is_some() {
-            keep.insert(i);
-        }
-    }
+/// `activityKept`: the sessions whose activity a reader can render, by
+/// reader — `described` (the last unwritten one and the lane, described in
+/// full) and `open` (`open_session_files`, which reads only their files).
+fn activity_kept(sessions: &[SessionState]) -> (HashSet<usize>, HashSet<usize>) {
+    let mut described = HashSet::new();
+    let open: HashSet<usize> = sessions
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.ended.is_none() && s.activity.is_some())
+        .map(|(i, _)| i)
+        .collect();
     // last_unwritten_with_activity: newest first, stopping at a written-back one.
     for (i, s) in sessions.iter().enumerate().rev() {
         if s.summary.is_some() {
             break;
         }
         if s.activity.is_some() {
-            keep.insert(i);
+            described.insert(i);
             break;
         }
     }
@@ -56,9 +58,32 @@ fn activity_kept(sessions: &[SessionState]) -> HashSet<usize> {
         .filter(|(_, s)| s.activity.is_some())
         .take(LANE_RECENT_SESSIONS)
     {
-        keep.insert(i);
+        described.insert(i);
     }
-    keep
+    (described, open)
+}
+
+/// `sharedOpenFiles` (digest v3): files two or more (open session, file)
+/// pairs hold — the only ones a conflict line can name. The `+N more`
+/// sentinel is not a pair.
+fn shared_open_files<'a>(sessions: &'a [SessionState], open: &HashSet<usize>) -> HashSet<&'a str> {
+    let mut pairs: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for &i in open {
+        for file in sessions[i]
+            .activity
+            .as_ref()
+            .map_or(&[][..], |a| &a.files[..])
+        {
+            if !file.starts_with('+') {
+                *pairs.entry(file.as_str()).or_insert(0) += 1;
+            }
+        }
+    }
+    pairs
+        .into_iter()
+        .filter(|(_, n)| *n >= 2)
+        .map(|(f, _)| f)
+        .collect()
 }
 
 /// Indices whose `next_action` text `overlapping_writebacks` can read.
@@ -190,7 +215,8 @@ fn newest(
 pub fn digest_state(state: &InitiativeState) -> InitiativeState {
     let sessions = &state.sessions;
     let newest_summary = sessions.iter().rposition(|s| s.summary.is_some());
-    let keep_activity = activity_kept(sessions);
+    let (described, open) = activity_kept(sessions);
+    let shared = shared_open_files(sessions, &open);
     let keep_next = next_action_kept(sessions);
     let lane_count = newest(sessions, LANE_RECENT_SESSIONS + 1, |s| s.activity.is_some());
     let unwritten_ids = newest(sessions, UNWRITTEN_SIBLING_CAP + 1, |s| {
@@ -203,31 +229,38 @@ pub fn digest_state(state: &InitiativeState) -> InitiativeState {
         .map(|(i, s)| {
             let last = Some(i) == newest_summary;
             let next = keep_next.contains(&i);
-            let act = keep_activity.contains(&i);
-            let counted =
-                s.activity.is_some() && (s.summary.is_none() || act || lane_count.contains(&i));
+            let told = described.contains(&i);
+            let held = open.contains(&i);
+            let counted = s.activity.is_some()
+                && (s.summary.is_none() || told || held || lane_count.contains(&i));
             let pick = |keep: bool, v: &String| if keep { v.clone() } else { String::new() };
             SessionState {
-                id: pick(last || act || unwritten_ids.contains(&i), &s.id),
-                tool: pick(last || next || act, &s.tool),
+                id: pick(last || told || held || unwritten_ids.contains(&i), &s.id),
+                tool: pick(last || next || told, &s.tool),
                 model: None,
-                started: pick(i == 0 || next || act, &s.started),
-                ended: s.ended.clone().filter(|_| last || next || act),
+                started: pick(i == 0 || next || told, &s.started),
+                ended: s.ended.clone().filter(|_| last || next || told),
                 summary: s
                     .summary
                     .as_ref()
                     .filter(|_| last || counted)
                     .map(|t| if last { t.clone() } else { String::new() }),
                 next_action: s.next_action.clone().filter(|_| next),
-                closed_reason: s.closed_reason.clone().filter(|_| act),
-                activity: if counted {
-                    if act {
-                        s.activity.clone()
-                    } else {
-                        Some(empty_activity())
-                    }
-                } else {
-                    None
+                closed_reason: s.closed_reason.clone().filter(|_| told),
+                activity: match (&s.activity, counted) {
+                    (Some(a), true) if told => Some(a.clone()),
+                    // An open session no reader describes keeps only the files a conflict can name.
+                    (Some(a), true) if held => Some(SessionActivity {
+                        files: a
+                            .files
+                            .iter()
+                            .filter(|f| shared.contains(f.as_str()))
+                            .cloned()
+                            .collect(),
+                        ..empty_activity()
+                    }),
+                    (Some(_), true) => Some(empty_activity()),
+                    _ => None,
                 },
                 handoff: None,
                 unwritten: 0,
@@ -445,5 +478,43 @@ mod tests {
         b.summary = Some("y".into());
         b.next_action = Some("two".into());
         assert_parity("parallel", &with(vec![a, b]));
+        // v3: open sessions no reader describes keep only shared files; a file
+        // a second open session touches reappears (and renders as a conflict).
+        let open = |id: &str, files: &[&str]| {
+            let mut s = session(id, None);
+            s.activity = Some(SessionActivity {
+                files: files.iter().map(|f| (*f).to_owned()).collect(),
+                commands: 3,
+                task_changes: vec!["1.1 done".into()],
+                ..empty_activity()
+            });
+            s
+        };
+        let written = ["c1", "c22", "c333", "c4444", "c55555"].map(|id| {
+            let mut s = session(id, Some("2026-09-24T00:00:00.000Z"));
+            s.summary = Some("s".into());
+            s.next_action = Some("n".into());
+            s.activity = Some(act(&format!("w-{id}")));
+            s
+        });
+        let files = |st: &InitiativeState| -> Vec<Vec<String>> {
+            digest_state(st).sessions[..2]
+                .iter()
+                .map(|s| s.activity.as_ref().unwrap().files.clone())
+                .collect()
+        };
+        let mut shared = vec![open("a", &["p1", "y", "+2 more"]), open("bb", &["q", "y"])];
+        shared.extend(written.clone());
+        let shared = with(shared);
+        assert_eq!(
+            files(&shared),
+            vec![vec!["y".to_owned()], vec!["y".to_owned()]]
+        );
+        assert_parity("became shared", &shared);
+        let mut alone = vec![open("a", &["p1", "y", "+2 more"]), open("bb", &["q"])];
+        alone.extend(written);
+        let alone = with(alone);
+        assert_eq!(files(&alone), vec![Vec::<String>::new(), Vec::new()]);
+        assert_parity("private files", &alone);
     }
 }

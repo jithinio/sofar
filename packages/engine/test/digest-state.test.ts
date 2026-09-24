@@ -79,7 +79,13 @@ function sentinelled(full: InitiativeState, cut: InitiativeState, tag: string): 
     if (c.handoff === undefined) delete m.handoff
     m.unwritten = 4242
     if (c.activity === undefined) delete m.activity
-    else if (c.activity !== s.activity) m.activity = { files: [`${tag}file${i}`], commands: 777, task_changes: [{ task: `${tag}t`, status: 'done' }] }
+    else if (c.activity !== s.activity) {
+      // Every file the cut dropped comes back as a sentinel in its place (one
+      // pair each, so never shared); the unread counters take sentinels too.
+      const kept = new Set((c.activity as InitiativeState['sessions'][number]['activity'])!.files)
+      const files = s.activity!.files.map((f, j) => (kept.has(f) ? f : `${tag}file${i}-${j}`))
+      m.activity = { files: files.length > 0 ? files : [`${tag}file${i}`], commands: 777, task_changes: [`${tag}tc${i}`], failed: 99 }
+    }
     return m as unknown as InitiativeState['sessions'][number]
   })
   const decisions = full.decisions.map((d, i) => {
@@ -177,9 +183,19 @@ describe('digestState renders exactly what the full state renders (rust-core 4.4
       { ...base, sessions: [s('a', { activity: act('x') }), s('bb', { activity: act('x') }), s('ccc', { ended: '2026-09-24T00:00:00.000Z', summary: 'done', next_action: 'n1' })] },
       // an unwritten session newer than the last write-back (derived resume line)
       { ...base, sessions: [s('a', { ended: '2026-09-21T01:00:00.000Z', summary: 'old', next_action: 'n' }), s('bb', { ended: '2026-09-22T01:00:00.000Z', activity: act('y') })] },
+      // v3: open sessions with private files (dropped) and a file that became
+      // shared when a second open session touched it (kept, and a conflict line)
+      { ...base, sessions: [s('a', { activity: { files: ['p1', 'y', '+2 more'], commands: 3, task_changes: ['1.1 done'] } }), s('bb', { activity: { files: ['q', 'y'], commands: 1, task_changes: [] } }), ...['c1', 'c22', 'c333', 'c4444', 'c55555'].map((id) => s(id, { ended: '2026-09-24T00:00:00.000Z', summary: 's', next_action: 'n', activity: act(`w-${id}`) }))] },
       // overlapping write-backs with differing next actions (parallel lines)
       { ...base, sessions: [s('a', { ended: '2026-09-29T00:00:00.000Z', summary: 'x', next_action: 'one' }), s('bb', { ended: '2026-09-29T00:00:00.000Z', summary: 'y', next_action: 'two' })] },
     ]
+    // The file y became shared: it reappears in both open sessions' cut, and
+    // each session's private files are gone.
+    const v3 = digestState(cases[2]!)
+    expect(v3.sessions.slice(0, 2).map((x) => x.activity?.files)).toEqual([['y'], ['y']])
+    expect(renderStatus(v3, {})).toContain('y (sessions a, bb)')
+    const alone = { ...cases[2]!, sessions: cases[2]!.sessions.map((x) => (x.id === 'bb' ? { ...x, activity: { files: ['q'], commands: 1, task_changes: [] } } : x)) }
+    expect(digestState(alone).sessions.slice(0, 2).map((x) => x.activity?.files)).toEqual([[], []])
     for (const [i, state] of cases.entries()) {
       for (const [label, options] of optionsMatrix()) {
         expect(renderStatus(digestState(state), options), `case ${i} / ${label}`).toBe(renderStatus(state, options))
