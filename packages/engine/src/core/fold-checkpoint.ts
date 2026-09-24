@@ -106,7 +106,17 @@ export function saveFoldCheckpoint(
   prefix: Prefix,
 ): void {
   const path = checkpointPath(rootDir, slug)
-  if (path === null) return
+  if (path !== null) writeFoldCheckpointFile(path, slug, cp, acc, prefix)
+}
+
+/** The same write to an explicit path (the fold conformance shape). Silent on failure. */
+export function writeFoldCheckpointFile(
+  path: string,
+  slug: string,
+  cp: FoldCheckpoint,
+  acc: EdgeAccumulator,
+  prefix: Prefix,
+): void {
   const { engine, schema } = currentVersion()
   try {
     mkdirSync(join(path, '..'), { recursive: true })
@@ -213,7 +223,11 @@ export interface Resumed {
  */
 export function resumeFoldCheckpoint(rootDir: string, slug: string, logPath: string): Resumed | null {
   const path = checkpointPath(rootDir, slug)
-  if (path === null) return null
+  return path === null ? null : resumeFoldCheckpointFile(path, slug, logPath)
+}
+
+/** resumeFoldCheckpoint from an explicit checkpoint path (the fold conformance shape). */
+export function resumeFoldCheckpointFile(path: string, slug: string, logPath: string): Resumed | null {
   const stat = logStat(logPath)
   if (stat === null) return null
   const loaded = loadCheckpoint(path, slug)

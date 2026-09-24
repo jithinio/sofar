@@ -48,6 +48,9 @@ interface FoldOut {
   version?: { engine: string; schema: string }
   state?: unknown
   warnings?: string[]
+  /** The checkpoint pair (rust-core 4.4, 01M39ED9). */
+  written?: boolean
+  resumed?: boolean
 }
 
 function run(bin: readonly string[], args: string[], env: NodeJS.ProcessEnv = process.env): FoldOut {
@@ -115,6 +118,20 @@ for (const id of caseIds) {
       expect(golden(tail)).toEqual(expected)
       expect(tail.cursor).toBe(full.cursor)
     }
+  })
+
+  // rust-core 4.4, decision 01M39ED9: the edge-free checkpoint path. The head
+  // is checkpointed, the whole log resumed from it: the answer is the golden
+  // either way, and the fast path is taken exactly when the tail holds
+  // nothing it must refuse (the snapshot's refusals are the same events).
+  it(`fold-parity/checkpoint-plus-tail: ${id}`, () => {
+    const ckpt = join(tmp(), 'checkpoint.json')
+    const head = run(BIN, ['--events', file, '--take', String(sidecar.tail_at), '--write-checkpoint', ckpt])
+    expect(head.ok).toBe(true)
+    const out = run(BIN, ['--events', file, '--checkpoint', ckpt])
+    expect(out.ok).toBe(true)
+    expect(golden(out)).toEqual(expected)
+    expect(out.resumed).toBe(head.written === true && sidecar.refusal === undefined)
   })
 
   it(`fold-parity/order-independence: ${id}`, () => {
