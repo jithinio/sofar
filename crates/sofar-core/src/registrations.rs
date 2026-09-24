@@ -743,6 +743,30 @@ mod tests {
         }
     }
 
+    /// A registration file built from every committed real log (the derived
+    /// .sofar/.index is absent from a fresh checkout).
+    fn real_registration_files() -> Vec<Vec<u8>> {
+        let logs =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.sofar/initiatives");
+        let (layout, _) = repo("quiet-real");
+        let mut out = Vec::new();
+        for entry in std::fs::read_dir(&logs).unwrap() {
+            let entry = entry.unwrap();
+            let slug = entry.file_name().to_string_lossy().into_owned();
+            let Ok(text) = std::fs::read(entry.path().join("events.jsonl")) else {
+                continue;
+            };
+            let log = layout.events_path(&slug);
+            std::fs::create_dir_all(log.parent().unwrap()).unwrap();
+            std::fs::write(&log, text).unwrap();
+            let _ = cached_registration_in(&layout, &slug, &log, "absent", registration_in);
+            if let Ok(bytes) = std::fs::read(reg_path(&layout, &slug)) {
+                out.push(bytes);
+            }
+        }
+        out
+    }
+
     #[test]
     fn the_quiet_read_equals_the_full_parse() {
         let base = |latest: &str| {
@@ -817,12 +841,8 @@ mod tests {
             }
         }
         assert!(fell_back > 0 && agreed > 150, "{agreed} / {fell_back}");
-        // Every real registration file, every session in it, and truncations.
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../.sofar/.index/registrations");
         let mut files = 0;
-        for entry in std::fs::read_dir(&dir).into_iter().flatten() {
-            let bytes = std::fs::read(entry.unwrap().path()).unwrap();
+        for bytes in real_registration_files() {
             let Some(f) = parse_reg_file(&bytes) else {
                 continue;
             };
