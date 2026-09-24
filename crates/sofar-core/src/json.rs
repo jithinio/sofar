@@ -849,6 +849,92 @@ pub fn write_number(out: &mut String, x: f64) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// serde (rust-core 4.4, 01M39ED9): the edge-free fold checkpoint persists
+// state that carries Json (task route/verify, decision checks, run surfaces)
+// through typed serde_json. A Json serializes as the JSON it is, object
+// entries in their order; it deserializes through a visitor that rebuilds the
+// same order, the last duplicate key winning in place as `insert` does.
+
+impl serde::Serialize for Json {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::{SerializeMap as _, SerializeSeq as _};
+        match self {
+            Json::Null => s.serialize_unit(),
+            Json::Bool(b) => s.serialize_bool(*b),
+            Json::Num(n) => s.serialize_f64(*n),
+            Json::Str(x) => s.serialize_str(x),
+            Json::Arr(items) => {
+                let mut seq = s.serialize_seq(Some(items.len()))?;
+                for item in items {
+                    seq.serialize_element(item)?;
+                }
+                seq.end()
+            }
+            Json::Obj(o) => {
+                let mut map = s.serialize_map(Some(o.len()))?;
+                for (k, v) in o.iter() {
+                    map.serialize_entry(k, v)?;
+                }
+                map.end()
+            }
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Json {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct V;
+        impl<'de> serde::de::Visitor<'de> for V {
+            type Value = Json;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a JSON value")
+            }
+            fn visit_unit<E>(self) -> Result<Json, E> {
+                Ok(Json::Null)
+            }
+            fn visit_none<E>(self) -> Result<Json, E> {
+                Ok(Json::Null)
+            }
+            fn visit_bool<E>(self, b: bool) -> Result<Json, E> {
+                Ok(Json::Bool(b))
+            }
+            #[allow(clippy::cast_precision_loss, reason = "JSON numbers are doubles")]
+            fn visit_i64<E>(self, n: i64) -> Result<Json, E> {
+                Ok(Json::Num(n as f64))
+            }
+            #[allow(clippy::cast_precision_loss, reason = "JSON numbers are doubles")]
+            fn visit_u64<E>(self, n: u64) -> Result<Json, E> {
+                Ok(Json::Num(n as f64))
+            }
+            fn visit_f64<E>(self, n: f64) -> Result<Json, E> {
+                Ok(Json::Num(n))
+            }
+            fn visit_str<E>(self, s: &str) -> Result<Json, E> {
+                Ok(Json::Str(s.to_owned()))
+            }
+            fn visit_string<E>(self, s: String) -> Result<Json, E> {
+                Ok(Json::Str(s))
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Json, A::Error> {
+                let mut items = Vec::new();
+                while let Some(item) = seq.next_element()? {
+                    items.push(item);
+                }
+                Ok(Json::Arr(items))
+            }
+            fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Json, A::Error> {
+                let mut o = Object::new();
+                while let Some((k, v)) = map.next_entry::<String, Json>()? {
+                    o.insert(k, v);
+                }
+                Ok(Json::Obj(o))
+            }
+        }
+        d.deserialize_any(V)
+    }
+}
+
 #[cfg(test)]
 mod error_message_tests {
     use super::*;

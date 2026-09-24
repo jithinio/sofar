@@ -126,6 +126,44 @@ impl StringMap {
     }
 }
 
+// serde (rust-core 4.4, 01M39ED9): both persist in iteration order, the order
+// the snapshot wire already uses for them, and rebuild through their own
+// insert so membership and order come back together.
+
+impl serde::Serialize for OrderedSet {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_seq(self.iter())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for OrderedSet {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let items: Vec<String> = serde::Deserialize::deserialize(d)?;
+        let mut set = OrderedSet::new();
+        for item in &items {
+            set.insert(item);
+        }
+        Ok(set)
+    }
+}
+
+impl serde::Serialize for StringMap {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_seq(self.iter())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for StringMap {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let pairs: Vec<(String, String)> = serde::Deserialize::deserialize(d)?;
+        let mut map = StringMap::new();
+        for (k, v) in pairs {
+            map.set(&k, v);
+        }
+        Ok(map)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
