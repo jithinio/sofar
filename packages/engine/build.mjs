@@ -1,4 +1,5 @@
 import { build } from 'esbuild'
+import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { chmodSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
@@ -20,7 +21,19 @@ const requireShim = [
 // without it esbuild inlines both bundles back into the stub.
 // ---------------------------------------------------------------------------
 
+// The projection fingerprint (rust-core 4.4, decision 01M39M4B): sha256 over
+// this build's template sources, so a template edit, even within one
+// version, invalidates every derived projection manifest and forces a full
+// regeneration. Sorted by path; each file hashed as "<path>\0<bytes>\0".
+const TEMPLATES = 'src/projections/templates'
+const fingerprint = createHash('sha256')
+for (const name of readdirSync(TEMPLATES).filter((n) => n.endsWith('.ts')).sort()) {
+  fingerprint.update(`${name}\0`).update(readFileSync(join(TEMPLATES, name))).update('\0')
+}
+const define = { __SOFAR_PROJECTION_FINGERPRINT__: JSON.stringify(fingerprint.digest('hex')) }
+
 const cliShared = {
+  define,
   bundle: true,
   platform: 'node',
   format: 'esm',
@@ -68,6 +81,7 @@ await build({
   target: 'node18',
   outdir: 'dist',
   banner: { js: requireShim },
+  define,
 })
 
 // Browser build of the schema entry (exports."./schema".browser). The node
