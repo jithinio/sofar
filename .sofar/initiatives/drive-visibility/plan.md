@@ -43,5 +43,5 @@ Progress: 15/19 tasks done (78%)
 
 - [ ] 6.1 L28 (handoff-bench ROUND-1-REPORT 4e4ac2c): a drive child that exits mid-work is filed as a stall. Decide whether it gets its own handoff reason carrying describeExit's cause, which needs a Decision superseding session-driver D5 and r1-fixes D9, plus SPEC, schema, generated.rs/payload.rs parity and an older-reader compatibility plan. Otherwise keep handoff.detail and close L28 on round 2's first stall cause. (blocked)
 
-Next action: Operator rules on 6.1: supersede session-driver D5 and r1-fixes D9 for an exit-derived reason, or keep L28 detail-only.
-Blocked on: phase Phase 4 — Sync, presence and app contract (paid); phase Phase 6 — Round-1 follow-ups; task 6.1: Needs an operator ruling: classifying a handoff by how the process exited is what session-driver D5 forbids and r1-fixes D9 rejected (D18).
+Next action: Close L28 (6.1), citing round 2's first stall detail once one shows a cause.
+Blocked on: phase Phase 4 — Sync, presence and app contract (paid); phase Phase 6 — Round-1 follow-ups; task 6.1: Ruled (b), D19: detail-only, no new reason. Waiting on the first round-2 stall whose handoff.detail names a cause, then close L28 citing it.
