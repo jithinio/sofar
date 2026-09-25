@@ -4,7 +4,7 @@
 
 Goal: An operator always knows whether a drive run is alive and how far it has got — in the calling session, on the status bar, and in the sofar apps — without asking an agent or opening another terminal, and one run can never be driven by two drivers at once. Liveness is decided by a machine-local lock the OS releases on exit, never by a heartbeat or a record event; a heartbeat exists only to show presence to remote viewers.
 
-Progress: 15/18 tasks done (83%)
+Progress: 15/19 tasks done (78%)
 
 ## Phase 1 — Contract and rulings [done] — 2/2 done
 
@@ -20,8 +20,6 @@ Progress: 15/18 tasks done (83%)
 
 ## Phase 3 — Progress in the session [done] — 7/7 done
 
-> All seven tasks done and verified on origin (42c633f): --await (3.1), the prompt drive line (3.2), the statusline segment (3.3), --follow (3.4), the asyncRewake measurement and verdict (3.5), the protocol block (3.6), and the rewake hook shipped through init (3.7). The phase's own proof is 5.1, which exercised every surface live.
-
 - [x] 3.1 `sofar drive <slug> --await`: blocks at zero cost and exits with one line on needs_user, run_stopped or driver gone (lock free); built for an agent's background shell. Tests.
 - [x] 3.2 UserPromptSubmit drive line, printed only when the run changed since the session's last prompt (handoffs, task done, now on); within the hook shim's budget; install Codex hooks.json so Codex gets it too. Tests.
 - [x] 3.3 Statusline drive segment: run state, task in flight, done/total; gone or stopped runs show their reason; within the statusline laws. rust-core 2.6 statusline parity must include it. Tests.
@@ -32,18 +30,18 @@ Progress: 15/18 tasks done (83%)
 
 ## Phase 4 — Sync, presence and app contract (paid) [blocked] — 0/3 done
 
-> Later milestone with sofar-cloud (the Phase 4 split decision, 2026-09-22). 4.1–4.3 need sofar-cloud's push and presence endpoints and its server-side entitlement check. It does not gate the 0.34 local release (Phases 1–3, then 5.1 and 5.2).
-
 - [ ] 4.1 Paid, per 1.1(f): a linked driver pushes the record as it appends (debounced pushStream after handoffs and task changes), so the doorbell rings mid-run; when the cloud refuses for entitlement the driver says so once in its opening or progress lines and keeps running unsynced; push failures never affect the run. Debounce sized for a 100-person repo with many concurrent runs (sofar-cloud enterprise D1). Tests with injected fetch.
 - [ ] 4.2 Paid, per 1.1(c) and (f), cloud-linked repos only: presence ping at start, handoff, stop and every 30s ±10% jitter; immediately on wake (local 5s tick detects a wall-clock jump); 10s timeout; failures and entitlement refusals dropped, never queued, never affecting the run; seq and boot nonce; never a record event. Tests.
 - [ ] 4.3 Contract handed to sofar-cloud (built there, paid apps): entitlement check on the push and presence endpoints and the status it returns; presence lease row computed at read with a 90s TTL, designed for a 100-person repo first (enterprise D1); UX states Running / Not responding (last seen, never 'offline since') / Stopped / viewer feed stale; how an app on the same Mac probes the run lock and reads runs from the record; SSE catch-up-then-live. Notifications, APNs and Live Activities are sofar-cloud's own design (push-notifications Decision).
 
 ## Phase 5 — Proof [done] — 2/2 done
 
-> 5.1 proved every surface live on a throwaway initiative (numbers in its results note); 5.2 staged the release and it is now verified and pushed as origin/release/0.34.0-rc.1 at 74d66c6, tagged v0.34.0-rc.1, carrying drive-visibility Phases 1–3 including 3.7. The only step left is the operator's own: `npm publish -w sofar.sh --tag next`, which needs their classifier and OTP and is deliberately not an agent's to run.
-
 - [x] 5.1 Proof from a live Claude Code session on a throwaway initiative: --detach from inside the sandbox; --await wakes the session on needs_user and on stop; prompt line and statusline update; a second --resume is refused while the driver lives; kill -9 the driver and status shows driver gone, --await exits, --resume succeeds and fences via run_adopted; keep-awake holds an assertion (pmset -g assertions) for the run's life; check whether ending the calling session kills the detached driver. Record the numbers.
 - [x] 5.2 README + release staged for the user to publish.
 
-Next action: Only Phase 4 (sofar-cloud) remains; nothing agent-side until it starts.
-Blocked on: phase Phase 4 — Sync, presence and app contract (paid)
+## Phase 6 — Round-1 follow-ups [blocked] — 0/1 done
+
+- [ ] 6.1 L28 (handoff-bench ROUND-1-REPORT 4e4ac2c): a drive child that exits mid-work is filed as a stall. Decide whether it gets its own handoff reason carrying describeExit's cause, which needs a Decision superseding session-driver D5 and r1-fixes D9, plus SPEC, schema, generated.rs/payload.rs parity and an older-reader compatibility plan. Otherwise keep handoff.detail and close L28 on round 2's first stall cause. (blocked)
+
+Next action: Operator rules on 6.1: supersede session-driver D5 and r1-fixes D9 for an exit-derived reason, or keep L28 detail-only.
+Blocked on: phase Phase 4 — Sync, presence and app contract (paid); phase Phase 6 — Round-1 follow-ups; task 6.1: Needs an operator ruling: classifying a handoff by how the process exited is what session-driver D5 forbids and r1-fixes D9 rejected (D18).
