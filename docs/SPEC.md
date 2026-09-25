@@ -4264,6 +4264,19 @@ appears NOWHERE among bindings.json's values (no-bind-durability D1); never
 onto a closed or dropped record; and best-effort (BD22) — a detached HEAD, an
 absent or malformed bindings.json, any throw leaves the write-back untouched,
 since a routing convenience must never be able to fail a wrap-up.
+WHICH BRANCH (binding-follows-session D4): the one checked out in the worktree
+the session WORKED in, not the checkout its MCP server started in. The
+worktree comes from the session's file_touched paths: the checkout holding
+the last of them (first-touch order) that lies in a worktree of the same
+repository, found as the nearest ancestor with a `.git` entry whose common
+git dir is the server's. The record's own `.sofar/` paths and paths outside
+every worktree of the repo say nothing. Hook cwd is not used, because Claude
+Code fires hooks in its project dir while the agent works elsewhere. The move
+and all four guards apply to THAT worktree's `.sofar/bindings.json`, the file
+a fresh session there resolves through. A session with no such path worked
+where its server runs, and the server checkout's branch is used, as before.
+Without this, peers sharing the main checkout's server while working in
+other worktrees flipped main to whichever record wrote back last.
 MOVE-ONLY alone honours `--no-bind` only on an UNBOUND branch: a branch bound
 elsewhere was moved onto the new record by its first write-back, silently
 undoing the flag the operator had just set. Membership is a fact the OPERATOR
