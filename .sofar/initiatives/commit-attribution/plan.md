@@ -51,4 +51,4 @@ Progress: 22 done, 2 dropped, 0 remaining
 - [x] 5.4 docs/SPEC.md is authoritative: the trailer contract and its read incantation, the read-never-record rule, the prepare-commit-msg resolution order, the review_recorded event and its watermark, sofar_review in §MCP tools, the close-gate semantics, and §Acceptance criteria. The tool-surface tests already pin the count, so SPEC is the last place still out of date.
 - [x] 5.5 Dogfood both halves: run the review over a real initiative's phases, and confirm a session whose commits shipped inside a peer's push is TOLD so — at SessionStart AND, per 3.4, while still live.
 
-Next action: Publish: the release gate lifts with this close, so bump the version, build, and hand `! npm publish -w sofar.sh` to the user (they run it — OTP plus the permission classifier).
+Next action: None for this defect; it is fixed in fcaff998, unpushed.
