@@ -166,6 +166,20 @@ export function renderReviewPacket(state: InitiativeState, input: ReviewPacketIn
       ? 'from the start of the record — no prior review'
       : `${watermark.slice(0, 12)}..HEAD`
 
+  // Said WHENEVER the walk hit its ceiling — with commits found or none. An
+  // exhausted window that happened to hold none of this initiative's commits
+  // is the case that most needs it: rendered as a plain empty range, a capped
+  // count reads as a fact of zero and accuses attribution (D21).
+  const truncation =
+    input.truncated === undefined
+      ? []
+      : [
+          `TRUNCATED: the walk hit its ${input.truncated}-commit ceiling, so the OLDEST`,
+          'commits of this range are NOT listed. Review in smaller ranges —',
+          'record a watermark part-way and re-run — or the start of the range',
+          'goes unread while the packet looks complete.',
+        ]
+
   const diffHint = input.unreadable
     ? [
         '(the commit walk FAILED — this range could not be read)',
@@ -184,6 +198,15 @@ export function renderReviewPacket(state: InitiativeState, input: ReviewPacketIn
             ]),
         'Do not read the empty section as "attribution is off" — check first.',
       ]
+    : commits.length === 0 && input.truncated !== undefined
+      ? [
+          `(no attributed commits in the newest ${input.truncated} — the walk stopped there)`,
+          '',
+          ...truncation,
+          'Zero here is a floor, not a count: this initiative\'s commits are older',
+          'than the window, not missing their trailer. Find them by trailer',
+          `(\`git log --grep='Sofar-Initiative: ${state.slug}'\`) and review by explicit sha.`,
+        ]
     : commits.length === 0
       ? [
           '(no attributed commits in range)',
@@ -205,15 +228,7 @@ export function renderReviewPacket(state: InitiativeState, input: ReviewPacketIn
           // every phase from the review. Parent notation (`oldest~1..`) fixes
           // that but breaks on a root commit. An explicit list is always right.
           `  git show ${commits.map((sha) => sha.slice(0, 12)).join(' ')}`,
-          ...(input.truncated === undefined
-            ? []
-            : [
-                '',
-                `TRUNCATED: the walk hit its ${input.truncated}-commit ceiling, so the OLDEST`,
-                'commits of this range are NOT listed above. Review in smaller',
-                'ranges — record a watermark part-way and re-run — or the start of',
-                'the range goes unread while the packet looks complete.',
-              ]),
+          ...(input.truncated === undefined ? [] : ['', ...truncation]),
         ]
 
   const openFindings = input.openFindings ?? []

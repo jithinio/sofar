@@ -237,6 +237,22 @@ describe('the packet is honest about what it could not read', () => {
     expect(out).toContain('2-commit ceiling')
   })
 
+  it('a window exhausted before any attributed commit is truncation, not an attribution finding (D21)', () => {
+    // The first review of an old initiative: 200 newer commits by other
+    // records fill the window, and every commit of this one is older still.
+    const out = renderReviewPacket(state(), {
+      scope: 'final',
+      commits: [],
+      watermark: null,
+      truncated: 200,
+    })
+    expect(out).toContain('TRUNCATED')
+    expect(out).toContain('200-commit ceiling')
+    expect(out).toContain('a floor')
+    // The empty-range finding would be a false accusation here.
+    expect(out).not.toContain('attribution is silently off')
+  })
+
   it('names the FULL sha to record as the next watermark', () => {
     const head = 'c'.repeat(40)
     const out = renderReviewPacket(state(), {
