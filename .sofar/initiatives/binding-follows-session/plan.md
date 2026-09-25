@@ -4,13 +4,14 @@
 
 Goal: A fresh session should open on the initiative the last session actually finished in, without any surface guessing. Resolution stays branch-first (session-orientation D2 stands); what changes is that the branch binding stops being a fact only a human command maintains. sofar_end_session binds the current branch to the session's home, so bindings.json becomes a durable, inspectable record of last-worked instead of decaying the moment work moves — brillo's main stayed bound to baseui-toast-migration across 8 project-tax-architecture commits, and every fresh session there started on the wrong record.
 
-Progress: 6 done, 1 dropped, 0 remaining
+Progress: 7 done, 1 dropped, 0 remaining
 
-## Phase 1 — Rebind at write-back [done] — 3/3 done
+## Phase 1 — Rebind at write-back [done] — 4/4 done
 
 - [x] 1.1 Implement the rebind in mcp/end-session.ts: after the session_ended append, bind the current branch to the write-back's slug via core/bindings writeBinding. Guards per D1 — move-only (skip when the branch has no existing binding), skip closed or dropped homes, skip a detached HEAD, and swallow every throw so a malformed bindings.json can never fail a write-back.
 - [x] 1.2 Report it: optional `rebound` field on EndSessionResult naming branch, from and to, omitted when nothing moved. Follows the parallel_writebacks precedent — the whole argument for a binding over an inference is that it is inspectable, so the act that moves it must be legible at the moment it happens.
 - [x] 1.3 Tests: the binding moves on write-back, does not move for a peer whose home IS the branch, is not CREATED on an unbound branch, is not moved onto a closed record, survives a malformed bindings.json, and leaves a live peer's own resolution untouched. Extend test/rehome.test.ts's header property rather than deleting it — re-homing still touches nothing; only the write-back binds.
+- [x] 1.4 D4: rebind the branch of the worktree the session worked in, not the MCP server's checkout
 
 ## Phase 2 — Contract + proof [done] — 2/2 done
 
@@ -24,4 +25,4 @@ Progress: 6 done, 1 dropped, 0 remaining
 - [-] 3.1 OPTIONAL, decide first: have the recent-work notice prefer a candidate whose newest event is a session_ended over one mid-flight, so it points at concluded work rather than a peer's live edit. Offered to the user and not yet accepted — decide before building, and drop it if the rebind alone makes the notice quiet enough. (dropped)
 - [x] 3.2 Cut the release carrying this plus the two already-unreleased commits (cbcb391, 32a48d9). Peer obligation from plan-carry-forward: re-run sofar doctor from the INSTALLED build and diff byte-for-byte against 0.28.0 across every record — that comparison is what proves their fold change safe. The user runs npm publish themselves.
 
-Next action: None for this record; close it with `sofar close binding-follows-session` once the operator agrees.
+Next action: Cut the next RC with 899209d5 so the installed MCP server stops rebinding main; until then only table membership limits the flips.
