@@ -79,4 +79,4 @@ Progress: 16/26 tasks done (61%)
 - [ ] 6.3 Replace stale public claims: one-pager R04 figures, install name @alignlabs/sofar, "adds nothing to your bill" next to --cost-cap
 
 Active phase: Phase 5 — Round 2
-Next action: Get the operator's round-name ruling per family and the launchctl bootstrap, then migrate the rescore and score ee226dd.
+Next action: Operator: bootout round2.cursor, run fix_cursor_sofar_layout.sh, re-bootstrap (note 01M3AHKR).
