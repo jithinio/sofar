@@ -4,7 +4,7 @@
 
 Goal: Turn round-1 benchmark evidence into an industry-leading sofar release: waves 1–3 of the combined improvement plan plus the quick-work lane. Each fix states its predicted gain before it is built (bench-refresh D10) and ships only if round 2's held-out lead margin over the best current competitor holds or grows (D19). Built on branch r1-fixes in its own worktree; round 1 stays on the pinned 0.32.0 install (D5).
 
-Progress: 35 done, 6 dropped, 3 remaining
+Progress: 36 done, 6 dropped, 2 remaining
 
 ## Phase 1 — Wave 1: correctness and quick wins [done] — 6/6 done
 
@@ -35,11 +35,11 @@ Progress: 35 done, 6 dropped, 3 remaining
 - [x] 3.2 Decision counters plus supersession/valid_until so stale decisions leave the digest without a model. PREDICT: C3 no worse at −10% digest.
 - [x] 3.3 Relevant-lessons injection: keyword/BM25 match of rejected approaches and past failures at UserPromptSubmit, no model. PREDICT: C3 +5 pts.
 
-## Phase 4 — Release [active] — 7/10 done
+## Phase 4 — Release [active] — 8/10 done
 
 - [ ] 4.1 Fold in round 1's own loss-study rows (bench-refresh 4.1) as added tasks, each with a predicted gain (active)
 - [x] 4.2 Release candidate: full test suite and SPEC acceptance criteria; the D18 read-path gate (`npm run bench:read-paths`) passes on BOTH pinned fixtures (real record and synthetic 10 MB) against the pinned 0.32.0 as-shipped baseline, both tables recorded in this task's note as RC evidence together with the `SOFAR_LESSONS=off` ablation switch for the round-2 addendum; published ONLY as a local pinned build or the npm `next` tag — no stable publish (bench-refresh D20)
-- [ ] 4.3 Hand the release candidate to bench-refresh round 2, with the quick-work addendum chain frozen before it runs; attribute overlapping predicted gains by ablation, never by summing them (bench-refresh D20) (blocked)
+- [x] 4.3 Hand the release candidate to bench-refresh round 2, with the quick-work addendum chain frozen before it runs; attribute overlapping predicted gains by ablation, never by summing them (bench-refresh D20)
 - [ ] 4.4 Stable npm publish by the run owner, only after round-2 evidence passes the D19 held-out lead-margin gate (bench-refresh D20)
 - [x] 4.1.1 L07: teach the decision `rule` field on every CLI surface — the AGENTS block's decision example, `sofar event types` decision_logged example, the codex driver preamble — with 'when the operator states it for the whole project'. PREDICT: CLI sofar cells record ≥5 of 6 planted decisions as rules in ≥2 of 3 reps; Cursor sofar M3 at E ≥ cursor-rules; Codex sofar M3 at E ≥ 85%.
 - [x] 4.1.2 L08: at append time, with no model, detect a decision whose chose/over inverts a standing decision's over/chose; warn naming the prior decision and require `supersedes`, on MCP and CLI. PREDICT: 0 reversing decisions logged without supersedes; Cursor sofar A2 at E ≥ 67% (C3 overlaps L07 — attribute by each fix's own observable, never summed).
@@ -69,7 +69,9 @@ Progress: 35 done, 6 dropped, 3 remaining
 - [x] 6.8 G4 drive adapter: `sofar drive --agent cursor` launches `cursor-agent -p` through the launch/usage/wait contract, declaring what it cannot do (usage, nudge, permission rules, cost) per session-driver D9, with transport shapes captured without spending inference where possible. PREDICT: a 3-task fixture drives to 3 task_done with 0 stalls.
 - [x] 6.9 Proof: a live Cursor end-to-end on a scratch repo (init → oriented session → MCP writes → write-back gate → drive run) with the operator's consent for the usage it spends, plus SPEC updates (§Hooks, §CLI, §Driver) and acceptance criteria covering Cursor alongside Claude Code.
 
-## Phase 7 — Agent picker and Codex compatibility (user ruling 2026-09-17: fully compatible with Claude Code, Cursor and Codex; init installs only the agents selected) [pending] — 1/7 (6 dropped) done
+## Phase 7 — Agent picker and Codex compatibility (user ruling 2026-09-17: fully compatible with Claude Code, Cursor and Codex; init installs only the agents selected) [done] — 1/7 (6 dropped) done
+
+> 7.1 is done here. 7.2–7.7 were dropped on 2026-09-17 into agents-parity (tasks 1.1–3.2), where Codex parity continues. Nothing is left in this record.
 
 - [x] 7.1 Agent picker: `sofar init` asks which agents to set up — Claude Code, Cursor, Codex, with the agents found on this machine pre-selected and 'all' one keystroke — and `--agents claude-code,cursor,codex|all` answers it for scripts and agents. With no terminal and no flag it keeps today's behaviour (all). Re-running with another agent adds only that agent's files; `uninit` removes every agent's files; `doctor` reports per agent. The prompt is built on node:readline (no new dependency). PREDICT: a repo inited for one agent carries 0 files for agents it did not pick; existing init tests unchanged under the all default.
 - [-] 7.2 Codex contract capture (the 6.1 of Codex): hook config (.codex/hooks.json and config.toml [hooks]), event names, stdin fields and honoured outputs, the review/trust gate, and the minimum Codex version that has hooks; project MCP registration (.codex/config.toml [mcp_servers]); AGENTS.md loading; changes to `codex exec --json` since the 0.136.0 adapter — read from the installed binaries (0.136.0 user, 0.154.0 bench) and the docs, recorded as a note, SPEC text and payload fixtures. Enabler for 7.3–7.7. (dropped)
@@ -80,5 +82,4 @@ Progress: 35 done, 6 dropped, 3 remaining
 - [-] 7.7 Proof: a live Codex end-to-end on a scratch repo (init with the picker → oriented session → MCP writes → write-back gate → drive run) with the operator's consent for the usage it spends, plus SPEC updates (§Host tiers moves Codex out of Tier 3, §Hooks, §CLI, §Driver) and acceptance criteria. (dropped)
 
 Active phase: Phase 4 — Release
-Next action: 4.3: hand rc.2 to bench-refresh round 2 once its addendum chain is frozen
-Blocked on: task 4.3: ROUND-2 HANDOFF PACKET re-issued 2026-09-21 for rc.2. It supersedes the 2026-09-16 packet's artifact. ARTIFACT: sha cf8c117, tag v0.33.0-rc.2 = sofar.sh 0.33.0-rc.2 with @sofar/schema 0.10.0; local pinned build at ~/.bench/sofar-0.33.0-rc.2 (node ~/.bench/sofar-0.33.0-rc.2/node_modules/sofar.sh/dist/cli.js). D18 gate passed on both fixtures (see the rc.2 cut note). Still blocked until bench-refresh 5.0 freezes PRE-REGISTRATION-R2 with this sha, with the quick-work addendum chain frozen, and round 2 starts. Round 1's remainder is still running (resumed 2026-09-21).
+Next action: 4.4: after round 2's evidence passes D19, stage 0.33.0 stable from cf8c117; the operator publishes
