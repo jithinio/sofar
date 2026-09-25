@@ -268,3 +268,81 @@ describe('a write-back never introduces an initiative to the routing table (no-b
     expect(result.rebound).toEqual({ branch: 'main', from: 'alpha', to: 'beta' })
   })
 })
+
+describe('the rebind follows the worktree the session worked in (binding-follows-session D4)', () => {
+  /**
+   * The shape of 2026-09-24/25: the MCP server runs in the main checkout, but
+   * the session edits a linked worktree W on branch `feat`. W carries its own
+   * .sofar/bindings.json, the file a fresh session there resolves through.
+   */
+  function withWorktree(): { root: string; sofar: string; wt: string } {
+    const { root, sofar } = repo()
+    const wt = mkdtempSync(join(tmpdir(), 'sofar-rebind-wt-'))
+    roots.push(wt)
+    const gitdir = join(root, '.git', 'worktrees', 'feat')
+    mkdirSync(gitdir, { recursive: true })
+    writeFileSync(join(gitdir, 'HEAD'), 'ref: refs/heads/feat\n')
+    writeFileSync(join(gitdir, 'commondir'), '../..\n')
+    writeFileSync(join(wt, '.git'), `gitdir: ${gitdir}\n`)
+    mkdirSync(join(wt, '.sofar'), { recursive: true })
+    writeFileSync(join(wt, '.sofar', 'bindings.json'), `${JSON.stringify({ main: 'alpha', feat: 'alpha', ...OTHERS }, null, 2)}\n`)
+    return { root, sofar, wt }
+  }
+  const touch = (sofar: string, path: string, ts: string): void =>
+    emit(sofar, 'beta', 'MINE', 'file_touched', { path, op: 'edit' }, ts)
+  const wtBindings = (wt: string): unknown => JSON.parse(readFileSync(join(wt, '.sofar', 'bindings.json'), 'utf8'))
+
+  it("rebinds the worktree's branch in the worktree's own bindings, and leaves main untouched", () => {
+    const { root, sofar, wt } = withWorktree()
+    touch(sofar, join(wt, 'src', 'a.ts'), '2026-08-13T10:05:00.000Z')
+    const result = wrapUp(root, 'MINE')
+    expect(result.rebound).toEqual({ branch: 'feat', from: 'alpha', to: 'beta' })
+    expect(wtBindings(wt)).toMatchObject({ feat: 'beta', main: 'alpha' })
+    expect(readBindings(sofar)).toEqual({ main: 'alpha', ...OTHERS })
+  })
+
+  it('the plain same-checkout case is unchanged: edits in the server checkout rebind its branch', () => {
+    const { root, sofar } = withWorktree()
+    touch(sofar, join(root, 'src', 'a.ts'), '2026-08-13T10:05:00.000Z')
+    expect(wrapUp(root, 'MINE').rebound).toEqual({ branch: 'main', from: 'alpha', to: 'beta' })
+    expect(readBindings(sofar)).toEqual({ main: 'beta', ...OTHERS })
+  })
+
+  it("files outside every worktree of this repo say nothing, so the server's branch is used as before", () => {
+    const { root, sofar, wt } = withWorktree()
+    const elsewhere = mkdtempSync(join(tmpdir(), 'sofar-rebind-scratch-'))
+    roots.push(elsewhere)
+    touch(sofar, join(elsewhere, 'notes.txt'), '2026-08-13T10:05:00.000Z')
+    expect(wrapUp(root, 'MINE').rebound?.branch).toBe('main')
+    expect(wtBindings(wt)).toMatchObject({ feat: 'alpha' })
+  })
+
+  it("a sibling repo's worktree is not this repo's, and the record's own .sofar paths are ignored", () => {
+    const { root, sofar, wt } = withWorktree()
+    const other = mkdtempSync(join(tmpdir(), 'sofar-rebind-other-'))
+    roots.push(other)
+    mkdirSync(join(other, '.git'), { recursive: true })
+    writeFileSync(join(other, '.git', 'HEAD'), 'ref: refs/heads/feat\n')
+    touch(sofar, join(wt, 'src', 'a.ts'), '2026-08-13T10:05:00.000Z')
+    touch(sofar, join(other, 'x.ts'), '2026-08-13T10:06:00.000Z')
+    touch(sofar, join(root, '.sofar', 'initiatives', 'beta', 'events.jsonl'), '2026-08-13T10:07:00.000Z')
+    expect(wrapUp(root, 'MINE').rebound).toEqual({ branch: 'feat', from: 'alpha', to: 'beta' })
+    expect(readBindings(sofar)).toEqual({ main: 'alpha', ...OTHERS })
+  })
+
+  it('when the work spans checkouts, the one touched last wins', () => {
+    const { root, sofar, wt } = withWorktree()
+    touch(sofar, join(root, 'README.md'), '2026-08-13T10:05:00.000Z')
+    touch(sofar, join(wt, 'src', 'a.ts'), '2026-08-13T10:06:00.000Z')
+    expect(wrapUp(root, 'MINE').rebound?.branch).toBe('feat')
+    expect(readBindings(sofar)).toEqual({ main: 'alpha', ...OTHERS })
+  })
+
+  it('keeps every guard in the worktree: an unbound feat branch stays unbound', () => {
+    const { root, sofar, wt } = withWorktree()
+    writeFileSync(join(wt, '.sofar', 'bindings.json'), `${JSON.stringify({ main: 'alpha', ...OTHERS }, null, 2)}\n`)
+    touch(sofar, join(wt, 'src', 'a.ts'), '2026-08-13T10:05:00.000Z')
+    expect(wrapUp(root, 'MINE').rebound).toBeUndefined()
+    expect(readBindings(sofar)).toEqual({ main: 'alpha', ...OTHERS })
+  })
+})

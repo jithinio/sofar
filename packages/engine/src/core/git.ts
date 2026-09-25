@@ -1,5 +1,5 @@
-import { readFileSync, statSync } from 'node:fs'
-import { isAbsolute, join, resolve } from 'node:path'
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 
 /**
  * Git facts read straight from the repo, never copied into the record.
@@ -54,6 +54,32 @@ export function commonGitDir(rootDir: string): string | null {
   }
   if (pointer.length === 0) return dir
   return isAbsolute(pointer) ? pointer : resolve(dir, pointer)
+}
+
+/**
+ * The checkout a path lives in, when that checkout is a worktree of the same
+ * repository as `rootDir` (binding-follows-session D4): the nearest ancestor
+ * holding a `.git` entry, kept only when its common git dir is rootDir's.
+ * Null for a path outside every worktree of this repo — a scratch dir, a
+ * sibling repo. Reads files only, like everything here.
+ */
+export function sameRepoWorktree(rootDir: string, path: string): string | null {
+  try {
+    const common = commonGitDir(rootDir)
+    if (common === null) return null
+    let dir = dirname(resolve(rootDir, path))
+    for (;;) {
+      if (existsSync(join(dir, '.git'))) {
+        const theirs = commonGitDir(dir)
+        return theirs !== null && realpathSync(theirs) === realpathSync(common) ? dir : null
+      }
+      const up = dirname(dir)
+      if (up === dir) return null
+      dir = up
+    }
+  } catch {
+    return null
+  }
 }
 
 /**

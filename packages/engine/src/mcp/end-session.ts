@@ -3,7 +3,8 @@ import { validateToolInput, type EndSessionArgs, type ToolOkResult } from '@sofa
 import { readBindingsFile, writeBinding } from '../core/bindings'
 import { overlappingWritebacks, type DecisionState, type InitiativeState, type ParallelWriteback } from '../core/fold'
 import { decisionJudgeWarnings, type DecisionDraft } from '../core/decision-judge'
-import { currentBranch } from '../core/git'
+import { currentBranch, sameRepoWorktree } from '../core/git'
+import { isAbsolute, join } from 'node:path'
 import type { JudgeOptions } from '../core/judge'
 import { writebackJudgeWarnings } from '../core/writeback-judge'
 import { evidenceWarnings, filingWarnings, type DoneTask, type FiledEntry } from '../core/filing-judge'
@@ -237,26 +238,57 @@ export interface BranchRebound {
  *  - Best-effort throughout (BD22): a detached HEAD, an absent or malformed
  *    bindings.json, any throw at all leaves the write-back exactly as it was.
  *    A routing convenience must never be able to fail a wrap-up.
+ *
+ * WHICH branch (D4): the one checked out in the worktree the session worked
+ * in, not the one the MCP server started in. Peers share the main checkout's
+ * server while working in other worktrees, so rebinding the server's branch
+ * flipped main to whichever record wrote back last (2026-09-24/25). Its
+ * bindings.json is that worktree's own, because that is the file a fresh
+ * session there resolves through.
  */
 function rebindBranch(
   ctx: ToolContext,
   slug: string,
-  state: { status: string },
+  state: Pick<InitiativeState, 'status' | 'sessions'>,
+  sessionId: string,
 ): BranchRebound | undefined {
   try {
-    const branch = currentBranch(ctx.rootDir)
+    const checkout = workedCheckout(ctx.rootDir, state.sessions.find((s) => s.id === sessionId)?.activity?.files ?? [])
+    const branch = currentBranch(checkout)
     if (branch === null) return undefined
-    const bindings = readBindingsFile(ctx.bindingsPath)
+    const bindingsPath = join(checkout, '.sofar', 'bindings.json')
+    const bindings = readBindingsFile(bindingsPath)
     const from = bindings[branch]
     if (typeof from !== 'string' || from.length === 0) return undefined // move-only
     if (from === slug) return undefined
     if (isClosedInitiativeStatus(state.status)) return undefined
     if (!Object.values(bindings).includes(slug)) return undefined // never introduces
-    if (!writeBinding(ctx.bindingsPath, branch, slug)) return undefined
+    if (!writeBinding(bindingsPath, branch, slug)) return undefined
     return { branch, from, to: slug }
   } catch {
     return undefined
   }
+}
+
+/**
+ * The checkout a session's work ran in (D4), read from the files it touched —
+ * the one trace that names a worktree. Hook cwd does not: Claude Code fires
+ * hooks in its project dir even while the agent works in another worktree.
+ * Files outside every worktree of this repo, and the record's own `.sofar/`,
+ * say nothing. When the rest span several worktrees, the one touched last
+ * (first-touch order, the first ACTIVITY_LIST_CAP) is where the work ended.
+ * A session with no such file
+ * worked where its server runs, which is today's same-checkout behaviour.
+ */
+function workedCheckout(rootDir: string, files: readonly string[]): string {
+  for (let i = files.length - 1; i >= 0; i--) {
+    const file = files[i]!
+    // Hooks record absolute paths; anything else is the "+N more" sentinel.
+    if (!isAbsolute(file) || file.split(/[\\/]/).includes('.sofar')) continue
+    const checkout = sameRepoWorktree(rootDir, file)
+    if (checkout !== null) return checkout
+  }
+  return rootDir
 }
 
 /**
@@ -416,7 +448,7 @@ function endSessionFiled(
   // One fold serves both readers below: the collision check, and the
   // closed-record guard on the rebind.
   const state = ctx.foldState(slug)
-  const rebound = rebindBranch(ctx, slug, state)
+  const rebound = rebindBranch(ctx, slug, state, sessionId)
   const bound = rebound === undefined ? {} : { rebound }
 
   const parallel = overlappingWritebacks(state, sessionId)
