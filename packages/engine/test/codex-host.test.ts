@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import type { EventEnvelope } from '../src/core/envelope'
 import { runDoctor } from '../src/cli/doctor'
-import { runAppend, STOP_BLOCK_MESSAGE, SUBCOMMANDS, type HookResult } from '../src/cli/event'
+import { codexStopMessage, runAppend, STOP_BLOCK_MESSAGE, SUBCOMMANDS, type HookResult } from '../src/cli/event'
 import { parseHookFlags } from '../src/cli/fast'
 import { patchedFiles, toCodex, type HookName } from '../src/cli/host'
 import {
@@ -163,7 +163,7 @@ describe('a Codex session end to end, through the hook table', () => {
     const fixture = fx()
     run('post-tool', fixture.root, payload('post-tool-use.apply-patch'))
     const held = run('stop', fixture.root, payload('stop.first'))
-    expect(held).toEqual({ exitCode: 2, stdout: '', stderr: STOP_BLOCK_MESSAGE })
+    expect(held).toEqual({ exitCode: 2, stdout: '', stderr: codexStopMessage(fixture.slug, SESSION) })
     expect(run('stop', fixture.root, payload('stop.held'))).toEqual({ exitCode: 0, stdout: '', stderr: '' })
   })
 
@@ -263,6 +263,13 @@ describe('the write-back gate on Codex (agents-parity 2.3, D8)', () => {
   })
 })
 
+/** agents-parity 3.3's START sentence, reverted to the V9 wording it replaced. */
+const START_33 = [
+  '  session — so never invent an id. Each append prints the session it\n  landed in; if that is not the id on your "Session:" line, pass\n  `--session <that id>` on every append from then on (two sessions\n  sharing this worktree at once must each pass their own).',
+  '  session — so never invent an id. Only when two sessions share this\n  worktree at once does each pass its own `--session <id>` on every append.',
+] as const
+const undo33 = (block: string): string => block.replace(START_33[0], START_33[1])
+
 describe('the AGENTS.md block a Codex session reads (agents-parity 2.3, D8)', () => {
   const [preamble = '', cliLoop] = AGENTS_PROTOCOL_BLOCK.split('Session loop on the CLI:')
   const v8 = SHIPPED_AGENTS_PROTOCOL_BLOCKS[7]! // V8 by version: the ledger is append-only, oldest first
@@ -278,7 +285,7 @@ describe('the AGENTS.md block a Codex session reads (agents-parity 2.3, D8)', ()
   })
 
   it('is the 6.7 block with only those lines changed, and the 6.7 block is in the ledger', () => {
-    const undone = AGENTS_PROTOCOL_BLOCK.replace(
+    const undone = undo33(AGENTS_PROTOCOL_BLOCK).replace(
       '(Cursor, Codex,\n  Claude Code). Orient from it; do NOT run `sofar status` to read it again.\n  Their Stop hook blocks a session that ends without writing back.\n',
       '(Cursor, Claude Code).\n  Orient from it; do NOT run `sofar status` to read it again.\n',
     ).replace(
@@ -468,6 +475,6 @@ describe('the shims themselves, run by their hooks.json command through the buil
 
     const stop = fire(repo, 'Stop', payload('stop.first', { cwd: repo.sub }))
     expect(stop.status).toBe(2)
-    expect(stop.stderr).toContain(STOP_BLOCK_MESSAGE)
+    expect(stop.stderr).toContain(codexStopMessage('demo', SESSION))
   })
 })

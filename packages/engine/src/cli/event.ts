@@ -135,6 +135,16 @@ const OK: HookResult = { exitCode: 0, stdout: '', stderr: '' }
 export const STOP_BLOCK_MESSAGE =
   'Write back to the sofar record before finishing: call sofar_end_session (or append session_ended via `sofar event append`).'
 
+/**
+ * The same hold as a Codex session reads it (agents-parity 3.3): it names the
+ * session and record the write-back must land in. Live 3.2's held session
+ * answered the generic line with a bare `sofar event append`, and that landed
+ * under `cli`, so the gate never saw its own session write back.
+ */
+export function codexStopMessage(slug: string, session: string): string {
+  return `Write back to the sofar record before finishing: call sofar_end_session with session_id ${session} (or \`sofar event append ${slug} --type session_ended --source codex --session ${session}\`).`
+}
+
 // ---------------------------------------------------------------------------
 // Self-recording commands (record-hygiene D1) — the exemption that lets the
 // working tree settle.
@@ -1201,6 +1211,7 @@ export function handleStop(
   rootDir: string,
   input: string,
   computeDrift: (state: InitiativeState, session: SessionState) => number = sessionDebt,
+  host?: HookHost,
 ): HookResult {
   try {
     const hook = parseHook(input)
@@ -1250,7 +1261,7 @@ export function handleStop(
     return {
       exitCode: 2,
       stdout: '',
-      stderr: [STOP_BLOCK_MESSAGE, ...crossings, ...checks].join('\n'),
+      stderr: [host?.tool === 'codex' ? codexStopMessage(slug, sessionId) : STOP_BLOCK_MESSAGE, ...crossings, ...checks].join('\n'),
     }
   } catch {
     return { ...OK }
@@ -2723,8 +2734,21 @@ function lagWarnings(ctx: ToolContext, slug: string, type: string, prior: string
  *    is minted and becomes the pointer. A start refused later by validation
  *    leaves an unregistered pointer, which the retry simply joins.
  *  - every other type joins the pointer, and with none keeps the old `cli`.
+ *
+ * A host that names its session in the agent's own shell outranks the pointer
+ * (agents-parity 3.3): Codex exports CODEX_THREAD_ID to every command its
+ * agent runs, though not to its hooks. The pointer is last-writer-wins per
+ * worktree, and live 3.2's interactive session lost it that way: an exec
+ * thread in the same repo started, took the pointer, ended and cleared it, so
+ * the interactive write-back landed under `cli`. The env id is the process's
+ * own and no peer can move it.
  */
 function adoptSession(ctx: ToolContext, rootDir: string, slug: string, type: string): string {
+  const own = hostSessionFromEnv(process.env)
+  if (own !== null) {
+    if (type === 'session_started') writeSessionPointer(rootDir, own, 'hook')
+    return own
+  }
   const pointer = readSessionPointer(rootDir)
   if (type !== 'session_started') return pointer?.session ?? 'cli'
   if (pointer !== null) {
@@ -2734,6 +2758,18 @@ function adoptSession(ctx: ToolContext, rootDir: string, slug: string, type: str
   const minted = `cli-${ulid()}`
   writeSessionPointer(rootDir, minted, 'cli')
   return minted
+}
+
+/**
+ * The session id a host exports to its agent's shell, or null. Only Codex
+ * does today: codex 0.154.0's exec_command sets CODEX_THREAD_ID (read from the
+ * binary; unverified live until 3.2's re-run), and a thread id equals the
+ * hooks' session_id (live 3.2, S2). Claude Code's
+ * CLAUDE_CODE_SESSION_ID is left to the pointer, where it already works.
+ */
+export function hostSessionFromEnv(env: NodeJS.ProcessEnv): string | null {
+  const id = (env.CODEX_THREAD_ID ?? '').trim()
+  return id.length > 0 ? id : null
 }
 
 // ---------------------------------------------------------------------------
@@ -2858,7 +2894,7 @@ export const SUBCOMMANDS: ReadonlyArray<{
     name: 'stop',
     description:
       'Stop hook: exit 2 (blocking) when the registered session has not written back via session_ended; loop-guarded by stop_hook_active',
-    handler: forHost('stop', (rootDir, input) => handleStop(rootDir, input)),
+    handler: forHost('stop', (rootDir, input, host) => handleStop(rootDir, input, sessionDebt, host)),
   },
   {
     name: 'session-end',
